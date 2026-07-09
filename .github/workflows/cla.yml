@@ -1,14 +1,13 @@
 name: CLA Assistant
 
-# Requires a one-time setup:
-#  - Decide where signatures are stored. Simplest: a private repo, referenced
-#    via a PERSONAL_ACCESS_TOKEN secret (repo scope). To store them in THIS
-#    repo instead, drop the PERSONAL_ACCESS_TOKEN line below.
-#  - Replace <owner> in path-to-document with the real GitHub org/user.
-#  - Pin `contributor-assistant/github-action` to the latest release tag.
+# Signatures are stored in signatures/cla.json on the orphan `cla-signatures`
+# branch of this repo. That branch must exist and must NOT be protected — the
+# action commits to it but will not create it.
 #
-# Alternative: the hosted CLA Assistant app at https://cla-assistant.io
-# (zero CI config, but grants a third-party app access to your org).
+# Because this runs on pull_request_target, GitHub reads this file from the
+# PR's BASE branch. Edits on a feature branch have no effect until merged.
+#
+# Maintainers who hold copyright are allowlisted; a CLA licenses work TO them.
 
 on:
   issue_comment:
@@ -38,8 +37,8 @@ jobs:
           # PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_SIGNATURES_TOKEN }}
         with:
           path-to-signatures: 'signatures/cla.json'
-          path-to-document: 'https://github.com/<owner>/mirall/blob/main/CLA.md'
+          path-to-document: 'https://github.com/ok/mirall-app/blob/main/CLA.md'
           branch: 'cla-signatures'
-          allowlist: 'dependabot[bot],renovate[bot]'
+          allowlist: 'ok,dependabot[bot],renovate[bot]'
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All contributors have signed the CLA. Thank you!'
