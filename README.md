@@ -13,7 +13,7 @@
   <a href="https://mirall.app"><strong>mirall.app »</strong></a>
   <br>
   <br>
-  <a href="https://mirall.app/docs/tutorials">Docs</a>
+  <a href="https://mirall.app/docs">Docs</a>
   ·
   <a href="https://mirall.app/changelog">Changelog</a>
   ·
@@ -31,7 +31,7 @@
 Mirall moves terabyte-scale files directly between devices. You and the people you share with
 form private **spaces**; files transfer peer-to-peer over end-to-end encrypted connections —
 no third-party servers, no cloud storage, GDPR-compliant by architecture. Built for workflows
-where files are huge and privacy is non-negotiable: post-production, architecture, legal.
+where files are huge and privacy is non-negotiable.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.png">
@@ -115,7 +115,7 @@ The full design — process model, data model, security model, glossary — is d
 4. **Share** — drop files into the space, or add a whole folder as a share. Members download
    what they want, when they want; nothing syncs without consent.
 
-Step-by-step guides live in the [documentation](https://mirall.app/docs/tutorials).
+Step-by-step guides live in the [documentation](https://mirall.app/docs).
 
 ## Building from source
 
