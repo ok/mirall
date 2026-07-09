@@ -126,10 +126,7 @@ let packagerConfig = {
   ignore: [
     /^\/\.claude($|\/)/,
     /\/\.github($|\/)/,
-    /^\/appling($|\/)/,
-    /^\/seed-host($|\/)/,
     /^\/test($|\/)/,
-    /^\/research-.*\.md$/,
     /^\/scripts($|\/)/,
     // src/renderer is bundled into assets/dist by esbuild; the .tsx sources
     // don't ship. src/{main,preload,worker,shared} are part of the runtime
@@ -167,7 +164,6 @@ let packagerConfig = {
     // Standalone subprojects and dev-only top-level entries — never loaded by
     // the app at runtime. cloudflare-worker ships its own 286 MB node_modules
     // otherwise. feature-flags.json IS read at runtime, so it stays.
-    /^\/cloudflare-worker($|\/)/,
     /^\/worktrees($|\/)/,
     /^\/eslint\.config\.[cm]?js$/,
     /^\/renovate\.json$/,
