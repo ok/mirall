@@ -1,10 +1,5 @@
 # Mirall Contributor License Agreement
 
-> **DRAFT — NOT LEGAL ADVICE.** This CLA is adapted from common open-source CLA
-> patterns (e.g. the Apache ICLA / Harmony agreements). Have a qualified
-> attorney review it, and fill in the legal-entity placeholders, before relying
-> on it.
-
 Thank you for contributing to Mirall. This Contributor License Agreement
 ("Agreement") clarifies the intellectual-property license granted with
 Contributions. By signing via CLA Assistant on a pull request, you accept these

@@ -38,11 +38,11 @@
 
 ## Task Management
 
-1. **Plan First**: Write plan to `.claude/tasks/plan-<plan-name>.md` with checkable items
+1. **Plan First**: Write plan to `.claude/plans/plan-<plan-name>.md` with checkable items
 2. **Verify Plan**: Check in before starting implementation
 3. **Track Progress**: Mark items complete as you go
 4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `.claude/tasks/plan-<plan-name>.md`
+5. **Document Results**: Add review section to `.claude/plans/plan-<plan-name>.md`
 6. **Capture Lessons**: Update `.claude/lessons.md` after corrections
 
 ## Core Principles
@@ -58,7 +58,7 @@ Harmonized standard — keep every commit message brief.
 
 - **Square-bracketed type prefix**: the title opens with a short Conventional-Commits type in square brackets — `[feat]`, `[fix]`, or `[chore]` (refactors, cleanup, deps, docs, config — anything non-behavioral). Use another standard short type (`[docs]`, `[test]`, `[perf]`, `[ci]`, `[refactor]`) when it's clearer. Square brackets, not round — parentheses are reserved for scope in Conventional Commits.
 - **Short imperative title**: `[type] Do the thing`, ≤ ~60 chars. e.g. `[fix] Clamp peer avatar size`, `[chore] Unify app config into config.json`.
-- **Brief body**: include a short body — one blank line after the title, then a single wrapped (at 70+-5 chars) paragraph covering just the necessary context. Keep it short; don't over-detail or write a play-by-play narrative.
+- **Brief body**: include a short body — one blank line after the title, then a single wrapped (at 70 +- 5 letters) paragraph covering just the necessary context. Keep it short; don't over-detail or write a play-by-play narrative.
 - **No AI mentions** (see Core Principles).
 
 ## Testing & Accessibility Discipline
