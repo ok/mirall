@@ -1,0 +1,62 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 8am on Monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "rangeStrategy": "bump",
+  "rebaseWhen": "behind-base-branch",
+  "packageRules": [
+    {
+      "description": "Routine dependency updates auto-merge once CI passes; with rebaseWhen above, Renovate keeps them rebased so package-lock conflicts resolve without manual cycles. The smoke-test groups below come after and override this back to manual for their packages.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true,
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Pear runtime hosts the worker process; bump deliberately and smoke-test OTA, DMG, MSIX, AppImage, and native modules before merging",
+      "matchPackageNames": ["pear-runtime"],
+      "groupName": "pear-runtime",
+      "labels": ["dependencies", "holepunch", "needs-smoke-test"],
+      "automerge": false,
+      "prPriority": 10
+    },
+    {
+      "description": "Holepunch P2P stack grouped so cross-package bumps land together; the integration test in test/raw/holepunch-integration.test.js is the merge gate",
+      "matchPackageNames": [
+        "b4a",
+        "corestore",
+        "debounceify",
+        "hypercore-crypto",
+        "paparam",
+        "sodium-native",
+        "which-runtime",
+        "brittle",
+        "compact-encoding",
+        "/^bare-/",
+        "/^hyper/",
+        "/^pear-/",
+        "!pear-runtime"
+      ],
+      "groupName": "holepunch",
+      "labels": ["dependencies", "holepunch"],
+      "automerge": false
+    },
+    {
+      "description": "Electron drives the entire UI surface; smoke-test before merging",
+      "matchPackageNames": ["electron", "/^@electron-forge/"],
+      "groupName": "electron",
+      "labels": ["dependencies", "needs-smoke-test"],
+      "automerge": false
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 8am on Monday"]
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"]
+  }
+}

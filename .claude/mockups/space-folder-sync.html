@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Space-folder sync — mockup (Approach C)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span {
+    width: 12px; height: 12px; border-radius: 9999px; display: inline-block;
+  }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Modal backdrop pattern */
+  .modal-scrim { background: rgba(15, 12, 20, 0.5); }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- =========== Header / mode toggle ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-10 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Space-folder sync — mockup
+    </h1>
+    <p class="text-sm" style="color:#4a454b">
+      Approach C — unified folder paradigm. Every file in a space lives in a folder share.
+      Click the toggle to flip themes.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Status banner ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#fce8d2; border-color:#fcd34d">
+    <div class="flex items-start gap-3">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="color:#7a2d30" class="shrink-0 mt-0.5"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">
+          Parked — not being implemented
+        </p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          This mockup illustrates a Model A design (one mount per space, folder shares as subdirectories inside it, per-folder direction overrides) that was researched but won't ship. Complexity around direction-change transitions and override semantics outgrew the value. Kept as visual reference.
+        </p>
+        <p class="text-sm mt-2" style="color:#4a454b">
+          Companion plan (also parked): <code class="bg-white/60 px-1.5 py-0.5 rounded text-xs">.claude/tasks/plan-space-folder-sync.md</code><br/>
+          <strong>Active plan</strong>: <code class="bg-white/60 px-1.5 py-0.5 rounded text-xs">.claude/tasks/plan-owned-folders.md</code> · <strong>active mockup</strong>: <code class="bg-white/60 px-1.5 py-0.5 rounded text-xs">.claude/mockups/owned-folders.html</code>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SCREEN 1: Default share unmounted (browse mode) =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-8">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    1 · Space with default folder, not yet synced to disk
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The default folder behaves like today — file list with on-demand download to Downloads.
+    A clear call-to-action invites the user to attach it to a real OS folder.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <div class="px-8 pt-6 pb-8">
+      <!-- back + space title -->
+      <div class="flex items-start gap-4 mb-6">
+        <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div>
+          <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter">Project Aurora</h1>
+        </div>
+      </div>
+
+      <!-- folder share header row -->
+      <div class="flex items-center gap-3 mb-3">
+        <h2 class="text-2xl font-headline font-bold text-accent">Default folder</h2>
+        <span class="text-sm font-bold ml-1 text-secondary">4 files</span>
+        <span class="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-bold">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 13a10 10 0 1 1 20 0"/><path d="M5 17a5 5 0 0 1 14 0"/></svg>
+          Browse only · not synced to disk
+        </span>
+
+        <div class="flex-1"></div>
+
+        <button class="flex items-center gap-2 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7h7l2 2h9v11H3z"/><path d="M12 13v6M9 16h6"/></svg>
+          Mount this space…
+        </button>
+        <button class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="text-accent"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        </button>
+      </div>
+
+      <!-- files list (single column for brevity) -->
+      <div class="grid grid-cols-1 gap-3">
+
+        <!-- File: remote -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest rounded-xl" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <div class="flex items-center gap-3">
+                <p class="font-bold text-accent truncate">design-spec.pdf</p>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-info text-on-info">Available</span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-0.5">2.4 MB · Shared by Alice</p>
+            </div>
+          </div>
+          <div class="ml-6">
+            <button class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- File: downloaded -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest rounded-xl" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <div class="flex items-center gap-3">
+                <p class="font-bold text-accent truncate">raw-photos.zip</p>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-success text-on-success">Downloaded</span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-0.5">156 MB · Shared by Carol · +1 others</p>
+            </div>
+          </div>
+          <div class="ml-6">
+            <button class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- File: mine -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest rounded-xl" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <div class="flex items-center gap-3">
+                <p class="font-bold text-accent truncate">backend-redesign.fig</p>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">Mine</span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-0.5">8.1 MB · Shared by you</p>
+            </div>
+          </div>
+          <div class="ml-6">
+            <button class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- File: downloading -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest rounded-xl" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <div class="flex items-center gap-3">
+                <p class="font-bold text-accent truncate">meeting-notes.md</p>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">Downloading</span>
+              </div>
+              <p class="text-xs text-on-surface-variant mt-0.5">12 KB · Shared by Bob</p>
+              <div class="mt-2 w-48">
+                <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                  <div class="h-full bg-secondary-container rounded-full" style="width:64%"></div>
+                </div>
+                <p class="text-[10px] text-on-surface-variant mt-1">7.6 KB / 12 KB · 142 KB/s</p>
+              </div>
+            </div>
+          </div>
+          <div class="ml-6">
+            <button class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 2: Multiple folder shares, mixed mount states =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    2 · Same space, now with multiple folder shares
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Default folder is now mounted to <code class="text-xs bg-black/5 px-1 rounded">~/Mirall/Project Aurora</code>.
+    A second folder share "Photos" is mounted elsewhere. A third "Drafts" is still browse-only.
+    Each folder is a top-level group with its own mount header and per-folder actions.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <div class="px-8 pt-6 pb-8">
+      <div class="flex items-start gap-4 mb-3">
+        <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div>
+          <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter">Project Aurora</h1>
+        </div>
+        <div class="flex-1"></div>
+        <div class="flex gap-3">
+          <button class="flex items-center gap-2 bg-surface-container-high text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7h7l2 2h9v11H3z"/><path d="M12 13v6M9 16h6"/></svg>
+            New folder
+          </button>
+          <button class="flex items-center gap-2 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+            Invite
+          </button>
+        </div>
+      </div>
+
+      <!-- Space mount status row -->
+      <div class="flex items-center gap-3 mb-6 ml-14">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success text-on-success text-xs font-bold">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Mounted
+        </span>
+        <code class="text-xs bg-surface-container-high px-2 py-1 rounded">~/Mirall/Project Aurora</code>
+        <span class="text-xs text-on-surface-variant">·</span>
+        <span class="text-xs text-on-surface-variant"><span class="font-bold">Two-way</span> by default, per-folder overrides below</span>
+        <div class="flex-1"></div>
+        <button class="text-xs font-bold text-secondary hover:underline">Change…</button>
+      </div>
+
+      <!-- ===== Folder 1: Default folder (mounted, bidirectional) ===== -->
+      <div class="bg-surface-container-low rounded-2xl p-6 mb-5">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-success">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-success"><path d="M3 7l2-3h6l2 3h8v13H3z"/><path d="M8 12l3 3 5-5"/></svg>
+          </div>
+          <div class="min-w-0 flex-grow">
+            <div class="flex items-center gap-3">
+              <h3 class="text-xl font-headline font-bold text-accent">Default folder</h3>
+              <span class="text-xs font-bold text-secondary">12 files · 218 MB</span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">space root</span>
+            </div>
+            <div class="mt-1.5 flex items-center gap-2 text-xs text-on-surface-variant">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12H3M21 12l-4-4M21 12l-4 4M3 12l4-4M3 12l4 4"/></svg>
+              <span class="font-bold">Two-way</span>
+              <span>·</span>
+              <code class="bg-surface-container-high px-2 py-0.5 rounded">/</code>
+              <span class="text-[11px] italic">(files at the root of the space mount)</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button title="Open in Finder" class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+            </button>
+            <button title="Folder settings" class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-accent"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- compact file row pattern -->
+        <div class="grid grid-cols-1 gap-2">
+          <div class="flex items-center px-4 py-3 bg-surface-container-lowest rounded-xl">
+            <div class="w-9 h-9 bg-surface-container-high rounded-md flex items-center justify-center shrink-0 mr-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="flex-grow min-w-0">
+              <p class="font-bold text-sm text-accent truncate">design-spec.pdf</p>
+              <p class="text-xs text-on-surface-variant">2.4 MB · Shared by Alice · Synced 3 min ago</p>
+            </div>
+            <span title="In sync" class="w-7 h-7 rounded-full bg-success flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-on-success"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </div>
+
+          <div class="flex items-center px-4 py-3 bg-surface-container-lowest rounded-xl">
+            <div class="w-9 h-9 bg-surface-container-high rounded-md flex items-center justify-center shrink-0 mr-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="flex-grow min-w-0">
+              <p class="font-bold text-sm text-accent truncate">meeting-notes.md</p>
+              <p class="text-xs text-on-surface-variant">12 KB · Bob · Receiving…</p>
+              <div class="mt-1.5 w-40 h-1 bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary-container" style="width:64%"></div>
+              </div>
+            </div>
+            <span title="Syncing" class="w-7 h-7 rounded-full bg-secondary-container flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-on-secondary-container"><path d="M21 12a9 9 0 1 1-2.6-6.3M21 4v5h-5"/></svg>
+            </span>
+          </div>
+
+          <button class="text-xs font-bold text-secondary py-2 hover:underline self-start">
+            Show 10 more files
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== Folder 2: Photos (mounted, pull-only) ===== -->
+      <div class="bg-surface-container-low rounded-2xl p-6 mb-5">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-info">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-info"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+          </div>
+          <div class="min-w-0 flex-grow">
+            <div class="flex items-center gap-3">
+              <h3 class="text-xl font-headline font-bold text-accent">Photos</h3>
+              <span class="text-xs font-bold text-secondary">47 files · 1.3 GB</span>
+            </div>
+            <div class="mt-1.5 flex items-center gap-2 text-xs text-on-surface-variant">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12H3M3 12l4-4M3 12l4 4"/></svg>
+              <span class="font-bold">Pull only</span>
+              <span class="italic">(overrides space default)</span>
+              <span>·</span>
+              <code class="bg-surface-container-high px-2 py-0.5 rounded">/Photos/</code>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-accent"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+            </button>
+          </div>
+        </div>
+        <!-- collapsed: just summary, expandable -->
+      </div>
+
+      <!-- ===== Folder 3: Drafts (push only, with conflict warning) ===== -->
+      <div class="bg-surface-container-low rounded-2xl p-6">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-info">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-info"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v6M9 14h6"/></svg>
+          </div>
+          <div class="min-w-0 flex-grow">
+            <div class="flex items-center gap-3">
+              <h3 class="text-xl font-headline font-bold text-accent">Drafts</h3>
+              <span class="text-xs font-bold text-secondary">5 files · 1.8 MB</span>
+              <span class="inline-flex items-center gap-1 ml-1 px-2 py-0.5 rounded-full bg-warning text-on-warning text-[11px] font-bold">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+                2 same-name conflicts
+              </span>
+            </div>
+            <div class="mt-1.5 flex items-center gap-2 text-xs text-on-surface-variant">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M21 12l-4-4M21 12l-4 4"/></svg>
+              <span class="font-bold">Push only</span>
+              <span class="italic">(overrides space default)</span>
+              <span>·</span>
+              <code class="bg-surface-container-high px-2 py-0.5 rounded">/Drafts/</code>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+            </button>
+            <button class="w-9 h-9 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-accent"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 3: Mount picker dialog =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    3 · Mount picker
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Opens when the user clicks "Sync to a folder…". Folder path, direction radio, advanced ignore patterns.
+  </p>
+
+  <div class="device-frame relative" style="min-height:480px">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <!-- dim background -->
+    <div class="absolute inset-0 modal-scrim" style="top:42px"></div>
+
+    <!-- modal -->
+    <div class="relative z-10 max-w-[520px] mx-auto mt-12 mb-12 bg-surface-container-lowest rounded-3xl p-8" style="box-shadow:0 24px 60px rgba(15,12,20,0.35)">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center shrink-0">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+        </div>
+        <div>
+          <h2 class="text-2xl font-headline font-extrabold text-accent">Mount Project Aurora</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Pick one folder on your computer to hold this space. Every folder share in <span class="font-bold">Project Aurora</span> lives as a subdirectory inside it.</p>
+        </div>
+      </div>
+
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Mount this space at</label>
+      <div class="flex items-center gap-2 mb-6">
+        <div class="flex-grow flex items-center gap-2 bg-surface-container px-3 py-2.5 rounded-xl border border-outline-variant">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+          <code class="text-sm text-on-surface truncate">~/Mirall/Project Aurora</code>
+        </div>
+        <button class="bg-surface-container-high text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm">Browse…</button>
+      </div>
+
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Default sync direction for folders in this space</label>
+      <p class="text-xs text-on-surface-variant mb-2">Individual folder shares can override this. You can change any override later from the folder's menu.</p>
+      <div class="grid grid-cols-1 gap-2 mb-6">
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="direction" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Push only</p>
+            <p class="text-sm text-accent mt-0.5">Files you add appear in the space. Your folder is the source of truth.</p>
+            <p class="text-xs text-on-surface-variant mt-1">Nothing in the space changes your folder.</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="direction" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Pull only</p>
+            <p class="text-sm text-accent mt-0.5">Files in the space appear in your folder. Your local changes stay local.</p>
+            <p class="text-xs text-on-surface-variant mt-1">Nothing you do is sent to other peers.</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-secondary cursor-pointer">
+          <input type="radio" name="direction" class="mt-1 accent-secondary" checked />
+          <div>
+            <div class="flex items-center gap-2">
+              <p class="font-bold text-accent text-sm">Two-way</p>
+              <span class="text-secondary text-[11px] font-bold">RECOMMENDED</span>
+            </div>
+            <p class="text-sm font-bold text-accent mt-0.5">Your changes to your own files sync to everyone.</p>
+            <p class="text-sm text-accent">Files others add appear in your folder.</p>
+            <p class="text-xs text-on-surface-variant mt-1">You can hide files others added on your computer, but only the person who added a file can remove it from the space.</p>
+          </div>
+        </label>
+      </div>
+
+      <details class="mb-6">
+        <summary class="text-xs font-bold uppercase tracking-wide text-on-surface-variant cursor-pointer">Advanced</summary>
+        <div class="mt-3">
+          <label class="block text-xs text-on-surface-variant mb-1">Ignore patterns (one per line)</label>
+          <textarea class="w-full bg-surface-container border border-outline-variant rounded-xl px-3 py-2 text-sm font-mono" rows="3">.DS_Store
+Thumbs.db
+*.partial</textarea>
+        </div>
+      </details>
+
+      <div class="flex justify-end gap-3">
+        <button class="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Cancel</button>
+        <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Next: Preview</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 4: Initial-scan preview dialog =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16 pb-24">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    4 · Initial-scan preview
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Shown after the user picks a folder. Surface exactly what will happen on first sync so there are no surprises.
+  </p>
+
+  <div class="device-frame relative" style="min-height:520px">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="absolute inset-0 modal-scrim" style="top:42px"></div>
+
+    <div class="relative z-10 max-w-[560px] mx-auto mt-12 mb-12 bg-surface-container-lowest rounded-3xl p-8" style="box-shadow:0 24px 60px rgba(15,12,20,0.35)">
+      <h2 class="text-2xl font-headline font-extrabold text-accent mb-1">Ready to mount</h2>
+      <p class="text-sm text-on-surface-variant mb-6">
+        Mounting <span class="font-bold">Project Aurora</span> at <code class="bg-surface-container-high px-1.5 py-0.5 rounded text-xs">~/Mirall/Project Aurora</code> with <span class="font-bold">two-way</span> default direction. Totals are aggregated across all <span class="font-bold">3 folder shares</span> in this space.
+      </p>
+
+      <div class="space-y-3 mb-6">
+        <div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl">
+          <div class="w-10 h-10 rounded-full bg-info flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-info"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          </div>
+          <div class="flex-grow">
+            <p class="font-bold text-accent text-sm">Download 8 files from the space</p>
+            <p class="text-xs text-on-surface-variant">218 MB will land in your folder.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl">
+          <div class="w-10 h-10 rounded-full bg-success flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-success"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>
+          </div>
+          <div class="flex-grow">
+            <p class="font-bold text-accent text-sm">Upload 12 files from your folder</p>
+            <p class="text-xs text-on-surface-variant">34 MB will be shared with the space.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 p-4 bg-warning/30 rounded-xl border border-warning">
+          <div class="w-10 h-10 rounded-full bg-warning flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+          </div>
+          <div class="flex-grow">
+            <p class="font-bold text-accent text-sm">1 same-name conflict will be renamed</p>
+            <p class="text-xs text-on-surface-variant">Bob's copy of <code class="text-xs">notes.txt</code> will be saved as <code class="text-xs">notes (from Bob).txt</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <label class="flex items-start gap-3 mb-6 cursor-pointer">
+        <input type="checkbox" class="mt-1 accent-secondary" checked />
+        <span class="text-sm text-on-surface">
+          <span class="font-bold text-accent">Keep watching this folder</span> for changes after the initial sync.
+          <span class="text-on-surface-variant">Uncheck to do the initial sync once and stop.</span>
+        </span>
+      </label>
+
+      <div class="flex justify-end gap-3">
+        <button class="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Back</button>
+        <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Start syncing</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 5: Catching-up prompt (SharedView / M6) =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    5 · Catching-up prompt
+    <span class="text-xs font-bold ml-2 px-2 py-1 rounded-full" style="background:#fce8d2;color:#7a2d30">FUTURE · M6 · SharedView only</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    SharedView's Autobase has a single canonical state. When a peer returns from offline with queued
+    edits that conflict with what other peers did in the meantime, Autobase will linearize them —
+    typically losing one side. Before that resolution lands silently, surface the divergence and let
+    the user decide. In <strong>UnionView (M1–M5) this dialog is not used</strong> — foreign-file deletes
+    in UnionView are handled by the suppressed-paths set instead, and own-contribution deletes
+    propagate via tombstones with no user choice needed.
+  </p>
+
+  <div class="device-frame relative" style="min-height:600px">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="absolute inset-0 modal-scrim" style="top:42px"></div>
+
+    <div class="relative z-10 max-w-[580px] mx-auto mt-10 mb-12 bg-surface-container-lowest rounded-3xl p-8" style="box-shadow:0 24px 60px rgba(15,12,20,0.35)">
+      <div class="flex items-start gap-4 mb-5">
+        <div class="w-14 h-14 rounded-2xl bg-warning/30 border-2 border-warning flex items-center justify-center shrink-0">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-warning"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+        </div>
+        <div>
+          <h2 class="text-2xl font-headline font-extrabold text-accent">You've been away</h2>
+          <p class="text-sm text-on-surface-variant mt-1">
+            While you were offline, 4 files in <span class="font-bold text-accent">"Project Aurora"</span> were removed by other peers.
+            One of them (<code class="text-[11px] bg-surface-container-high px-1.5 py-0.5 rounded">stale-meeting-notes.md</code>) has an offline edit you queued. What should happen?
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-surface-container rounded-xl p-2 mb-6 max-h-44 overflow-auto">
+        <div class="flex items-center gap-3 px-3 py-2">
+          <div class="w-7 h-7 bg-surface-container-high rounded-md flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-surface-variant"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <p class="text-sm flex-grow truncate text-accent font-bold">old-design-mockup.pdf</p>
+          <span class="text-xs text-on-surface-variant whitespace-nowrap">Removed by Alice · 6d ago</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2 bg-warning/25 rounded-md border border-warning">
+          <div class="w-7 h-7 bg-warning/50 rounded-md flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+          </div>
+          <div class="flex-grow min-w-0">
+            <p class="text-sm truncate text-accent font-bold">stale-meeting-notes.md</p>
+            <p class="text-[11px] text-on-warning font-bold">You have an offline edit on this file</p>
+          </div>
+          <span class="text-xs text-on-surface-variant whitespace-nowrap">Removed by Carol · 4d ago</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2">
+          <div class="w-7 h-7 bg-surface-container-high rounded-md flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-surface-variant"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <p class="text-sm flex-grow truncate text-accent font-bold">scratch.txt</p>
+          <span class="text-xs text-on-surface-variant whitespace-nowrap">Removed by Carol · 2d ago</span>
+        </div>
+        <div class="flex items-center gap-3 px-3 py-2">
+          <div class="w-7 h-7 bg-surface-container-high rounded-md flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-surface-variant"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <p class="text-sm flex-grow truncate text-accent font-bold">photos/old-thumbnail.jpg</p>
+          <span class="text-xs text-on-surface-variant whitespace-nowrap">Removed by Alice · 1d ago</span>
+        </div>
+      </div>
+
+      <div class="space-y-2 mb-6">
+        <label class="flex items-start gap-3 p-4 bg-surface-container rounded-xl border-2 border-secondary cursor-pointer">
+          <input type="radio" name="reconcile" class="mt-1 accent-secondary" checked />
+          <div>
+            <p class="font-bold text-accent text-sm">Apply all removals</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              All 4 files come out of your folder. Your offline edit to <code class="text-[11px] bg-surface-container-high px-1 rounded">stale-meeting-notes.md</code> will be discarded.
+            </p>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 p-4 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="reconcile" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Keep my edited file</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              <code class="text-[11px] bg-surface-container-high px-1 rounded">stale-meeting-notes.md</code> stays as your version and is added back to the space for everyone. The other 3 files are removed.
+            </p>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 p-4 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="reconcile" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Review per file…</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              Step through each file and choose individually.
+            </p>
+          </div>
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button class="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Decide later</button>
+        <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Apply</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 6: Conflict inbox =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    6 · Conflict inbox — "Needs your attention"
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Dedicated surface for every unresolved conflict and stale-peer prompt, across every folder share in every space.
+    Reachable from a persistent badge in the top nav when the inbox is non-empty.
+    Renamed conflict files on disk are a fallback; this list is the primary signal.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <div class="px-8 pt-6 pb-8">
+      <div class="flex items-start gap-4 mb-6">
+        <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div>
+          <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter">Needs your attention</h1>
+          <p class="text-sm text-on-surface-variant mt-1">3 unresolved items across your spaces. Pick what you want for each.</p>
+        </div>
+      </div>
+
+      <!-- Conflict row 1: expanded with side-by-side preview -->
+      <div class="bg-surface-container-low rounded-2xl p-5 mb-3">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 bg-warning/30 border border-warning rounded-lg flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+          </div>
+          <div class="min-w-0">
+            <p class="font-bold text-accent">notes.txt</p>
+            <p class="text-xs text-on-surface-variant truncate">
+              <span class="font-bold">Default folder</span> · Project Aurora · same-name conflict
+            </p>
+          </div>
+          <div class="flex-grow"></div>
+          <span class="text-[11px] font-bold px-2 py-1 rounded-full bg-warning/40 text-on-warning">2 versions</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-7 h-7 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[11px] font-bold">You</div>
+              <p class="text-sm font-bold text-accent">Your version</p>
+            </div>
+            <p class="text-xs text-on-surface-variant">4.2 KB · Edited 3 min ago</p>
+            <pre class="text-[11px] text-on-surface-variant mt-2 font-mono bg-surface-container p-2 rounded leading-relaxed whitespace-pre overflow-hidden">## Sprint 12 Decisions
+- Migrate to pear-electron
+- Defer Autobase substrate
+- Ship UnionView first</pre>
+          </div>
+          <div class="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[11px] font-bold">B</div>
+              <p class="text-sm font-bold text-accent">Bob's version</p>
+            </div>
+            <p class="text-xs text-on-surface-variant">3.8 KB · Edited 6 min ago</p>
+            <pre class="text-[11px] text-on-surface-variant mt-2 font-mono bg-surface-container p-2 rounded leading-relaxed whitespace-pre overflow-hidden">## Sprint 12 Planning
+* Move to electron runtime
+* Drop appling shims
+* Multi-writer drives later</pre>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button class="flex-1 bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-sm">Keep mine</button>
+          <button class="flex-1 bg-surface-container-high text-accent rounded-xl px-4 py-2 font-headline font-bold text-sm">Keep Bob's</button>
+          <button class="flex-1 bg-surface-container-high text-accent rounded-xl px-4 py-2 font-headline font-bold text-sm">Keep both</button>
+        </div>
+      </div>
+
+      <!-- Row 2: collapsed photo conflict -->
+      <div class="bg-surface-container-low rounded-2xl p-5 mb-3 flex items-center gap-3">
+        <div class="w-10 h-10 bg-warning/30 border border-warning rounded-lg flex items-center justify-center shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><path d="M12 2 2 22h20zM12 10v4M12 18h.01"/></svg>
+        </div>
+        <div class="flex-grow min-w-0">
+          <p class="font-bold text-accent truncate">photos/IMG_0042.jpg</p>
+          <p class="text-xs text-on-surface-variant truncate">
+            <span class="font-bold">Photos</span> · Project Aurora · 3 versions from you, Carol, Bob
+          </p>
+        </div>
+        <button class="rounded-xl px-4 py-2 font-headline font-bold text-sm bg-surface-container-high text-accent shrink-0">Review</button>
+      </div>
+
+      <!-- Row 3: stale-peer / edit-vs-delete -->
+      <div class="bg-surface-container-low rounded-2xl p-5 flex items-center gap-3">
+        <div class="w-10 h-10 bg-error-container border border-error rounded-lg flex items-center justify-center shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-error-container"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </div>
+        <div class="flex-grow min-w-0">
+          <p class="font-bold text-accent truncate">draft-proposal.md</p>
+          <p class="text-xs text-on-surface-variant truncate">
+            <span class="font-bold">Drafts</span> · Acme Q3 · Alice deleted it while you were editing
+          </p>
+        </div>
+        <button class="rounded-xl px-4 py-2 font-headline font-bold text-sm bg-surface-container-high text-accent shrink-0">Review</button>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SCREEN 7: Create folder dialog =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">
+    7 · Create folder dialog
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Triggered by the "New folder" button in screen 2. Only available when the space is mounted (Model A
+    prerequisite). Takes name + direction only — the on-disk location is computed as a subdirectory of
+    the space mount. Three direction options: inherit the space default, or override with push-only or
+    pull-only. Pinning a folder to a fixed direction regardless of future space-default changes is
+    handled later in the per-folder settings, not at creation.
+  </p>
+
+  <div class="device-frame relative" style="min-height:560px">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="absolute inset-0 modal-scrim" style="top:42px"></div>
+
+    <div class="relative z-10 max-w-[520px] mx-auto mt-12 mb-12 bg-surface-container-lowest rounded-3xl p-8" style="box-shadow:0 24px 60px rgba(15,12,20,0.35)">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center shrink-0">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h7l2 2h9v11H3z"/><path d="M12 13v6M9 16h6"/></svg>
+        </div>
+        <div>
+          <h2 class="text-2xl font-headline font-extrabold text-accent">New folder in Project Aurora</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Adds a folder share visible to all members. The subdirectory is created automatically under this space's mount.</p>
+        </div>
+      </div>
+
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Folder name</label>
+      <input type="text" value="Photos" class="w-full bg-surface-container px-3 py-2.5 rounded-xl border border-outline-variant text-sm mb-2 focus:outline-none focus:border-secondary" />
+      <div class="flex items-center gap-2 mb-6 text-xs text-on-surface-variant">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+        Will be created at <code class="bg-surface-container-high px-1.5 py-0.5 rounded text-[11px]">~/Mirall/Project Aurora/Photos/</code>
+      </div>
+
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Direction</label>
+      <div class="grid grid-cols-1 gap-2 mb-6">
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-secondary cursor-pointer">
+          <input type="radio" name="folder-direction" class="mt-1 accent-secondary" checked />
+          <div class="flex-grow">
+            <div class="flex items-center gap-2">
+              <p class="font-bold text-accent text-sm">Same as space default</p>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">Two-way</span>
+            </div>
+            <p class="text-xs text-on-surface-variant mt-0.5">Will follow whatever direction the space is set to, including future changes.</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="folder-direction" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Push only <span class="text-on-surface-variant font-normal italic">(override)</span></p>
+            <p class="text-sm text-accent mt-0.5">Files you add appear in the space. Nothing in the space changes this folder on your disk.</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 p-3 bg-surface-container rounded-xl border-2 border-transparent cursor-pointer">
+          <input type="radio" name="folder-direction" class="mt-1 accent-secondary" />
+          <div>
+            <p class="font-bold text-accent text-sm">Pull only <span class="text-on-surface-variant font-normal italic">(override)</span></p>
+            <p class="text-sm text-accent mt-0.5">Files in the space appear in your folder. Your local changes stay local.</p>
+          </div>
+        </label>
+
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button class="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Cancel</button>
+        <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Create folder</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ====== Tiny notes panel ===== -->
+<section class="max-w-[1100px] mx-auto px-6 pb-24">
+  <div class="bg-white rounded-2xl p-6" style="box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+    <h3 class="font-headline font-extrabold text-base mb-3" style="color:#33253b">Reading the mockup</h3>
+    <ul class="space-y-2 text-sm" style="color:#4a454b">
+      <li>· Every file in a space belongs to a <strong>folder share</strong>. There is no "loose file" concept any more.</li>
+      <li>· Each space is created with one folder share called <em>"Default folder"</em> that starts <strong>unmounted</strong> — i.e. behaves like today: browse + on-demand download to Downloads.</li>
+      <li>· <strong>Model A — one mount per space, folders are subdirectories inside it.</strong> The space is mounted to a single OS folder; folder shares appear as subdirectories. Default folder lives at the root of the mount. One chokidar watcher per space, one Hyperdrive prefix per space — no nested mounts on disk, no watcher overlap.</li>
+      <li>· Mount direction is set at the space level (default for all folders) with per-folder overrides. New folders default to inheriting the space's default direction; the user can override at creation.</li>
+      <li>· The "New folder" button is only available once the space is mounted. Creating a folder (screen 7) takes name + direction only; the on-disk path is computed as a subdirectory of the space mount.</li>
+      <li>· Status pills inside file rows replace download buttons once a folder is mounted: ✓ in sync, ↻ syncing, ⚠ conflict. Click-to-download is only visible in browse mode.</li>
+      <li>· Conflicts (two peers writing the same path) materialize the newer file at the real name and the older one as <em>… (from Bob).ext</em>. Surfaced as a per-folder badge and a per-file warning.</li>
+      <li>· When a peer reconnects with files that others have already removed, we <strong>never silently resurrect them</strong> — screen 5 shows the explicit choice. This is the Nextcloud "deleted files keep coming back" failure class.</li>
+      <li>· <strong>The conflict inbox is the primary signal</strong>, not renamed files on disk. Field research on Syncthing and Dropbox shows that filesystem-only conflict surfaces become invisible litter; users need a forced-confrontation list view (screen 6).</li>
+      <li>· Two-way direction copy is honest about UnionView's federation model: your changes to your own files sync everywhere, but you can only remove what you added. Foreign-file deletes via Finder are suppressed locally — the file stays in the space for everyone else, but stays gone on your disk. The Dropbox-style <em>"anything anyone deletes, everyone loses"</em> wording is reserved for the future SharedView / Autobase substrate (M6).</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Identity &amp; data backup / recovery — mockup (MIR-30 / MIR-36 + Corestore backup)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-error-container-hover: #f5c8c4;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-error-container-hover: #823e44;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+  .chrome-bar { display:flex; align-items:center; gap:10px; background:var(--color-surface-container-lowest); }
+  .chrome-bar .wm { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:13px; letter-spacing:-0.02em; color:var(--color-on-surface-variant); }
+
+  /* Modal backdrop (CrystalBackdrop approximation: bg-primary/10 backdrop-blur-sm) */
+  .modal-scrim { background: rgba(51, 37, 59, 0.30); }
+  .dark .modal-scrim { background: rgba(20, 22, 28, 0.55); }
+
+  /* Mockup-only annotation chrome (NOT app UI — literal colors, per the template convention) */
+  .badge { display:inline-flex; align-items:center; gap:6px; border-radius:9999px; padding:3px 10px; font-size:11px; font-weight:800; letter-spacing:.01em; }
+  .badge-real { background:#d6e6f5; color:#1f4a78; }
+  .badge-proposed { background:#fce8d2; color:#6b3800; }
+  .badge-a11y { background:#ccebe6; color:#0d4d49; }
+  .anno code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:rgba(0,0,0,.05); padding:1px 6px; border-radius:6px; color:#4a454b; }
+  .dark .anno code { background:rgba(255,255,255,.08); color:#cfc8be; }
+  .keycap { font-family: ui-monospace, monospace; font-size:11px; }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- =========== Title / mode toggle ============================ -->
+<div class="max-w-[1040px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Identity &amp; data backup / recovery — mockup
+    </h1>
+    <p class="text-sm mt-1 max-w-2xl" style="color:#4a454b">
+      The full backup journey, in four groups. <strong>A</strong> · back up your
+      <strong>recovery key</strong> (identity) and <strong>B</strong> · restore it — MIR-30 / MIR-36.
+      <strong>C</strong> · back up your <strong>data folder</strong> (spaces &amp; files) and
+      <strong>D</strong> · restore it — the Corestore backup. Plans:
+      <code class="anno">plan-identity-key-backup-recovery.md</code> ·
+      <code class="anno">plan-corestore-backup.md</code> (after
+      <code class="anno">plan-mir-40-metadata-at-rest.md</code>).
+      Toggle flips light/dark for every frame at once.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Legend ============================ -->
+<div class="max-w-[1040px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 anno" style="background:var(--color-surface-container-lowest); box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style="color:var(--color-on-surface-variant)">
+      <span class="flex items-center gap-2"><span class="badge badge-real">Recreated from code</span> reproduced from the shipped <code>.tsx</code></span>
+      <span class="flex items-center gap-2"><span class="badge badge-proposed">Proposed new</span> built from existing primitives + <code>design.md</code> tokens</span>
+      <span class="flex items-center gap-2"><span class="badge badge-a11y">a11y</span> name / role / state intent</span>
+    </div>
+    <p class="text-sm mt-3" style="color:var(--color-on-surface-variant)">
+      Architecture note (identity): the recovery file is wrapped/unwrapped <strong>inside the worker</strong> (it holds <code>M</code> and sodium's Argon2id).
+      Only the passphrase (in) and ciphertext (out) cross the IPC boundary — <code>M</code> itself never leaves the worker, and is never shown on screen.
+      Decisions locked: passphrase-encrypted file · MIR-36 included · warnings only (no biometric re-auth).
+    </p>
+    <p class="text-sm mt-2" style="color:var(--color-on-surface-variant)">
+      Architecture note (data): the Corestore backup is also a <strong>worker</strong> job — <code>suspend()</code> → incremental directory mirror (<code>bare-fs</code>) → <code>resume()</code>.
+      The mirror copies <strong>only ciphertext</strong>: every local bee is encrypted at rest (MIR-40, the hard prerequisite), drives are SCK-encrypted (MIR-01), <code>M</code> is enveloped (MIR-02/24) — so the backup carries no archive password of its own.
+      Decisions locked: raw incremental mirror · default <strong>off</strong> · cadence manual / daily / weekly / on-quit · gated behind a <code>backup</code> flag.
+    </p>
+  </div>
+</div>
+
+<!-- =========== Journey spine: two things to back up ============ -->
+<div class="max-w-[1040px] mx-auto px-6 pt-8">
+  <div class="rounded-2xl p-6 anno" style="background:var(--color-surface-container-lowest); box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="badge badge-proposed">Proposed new</span>
+      <h3 class="font-headline font-extrabold text-base" style="color:var(--color-accent)">Two things to back up — and what a complete restore needs</h3>
+    </div>
+    <p class="text-sm mb-4" style="color:var(--color-on-surface-variant)">
+      Grounded in the recovery matrix (plan-mir-30-36 §12.1). The two backups are complementary; keep <strong>both</strong> for a one-step move to a new device.
+    </p>
+    <div class="grid md:grid-cols-2 gap-3">
+      <!-- identity / recovery key -->
+      <div class="bg-surface-container-low rounded-xl p-5 flex gap-4">
+        <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l3 3M14 9l2 2"/></svg>
+        </div>
+        <div class="min-w-0">
+          <p class="font-semibold text-accent">Your recovery key <span class="text-xs font-bold text-secondary">(Group A · B)</span></p>
+          <p class="text-sm text-on-surface-variant mt-0.5">The one thing that can't be rebuilt. Restores you <em>as yourself</em> — same network identity, contacts recognize you. A passphrase-encrypted <code>.mirallkey</code> file.</p>
+        </div>
+      </div>
+      <!-- data folder -->
+      <div class="bg-surface-container-low rounded-xl p-5 flex gap-4">
+        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8M2 3h20v5H2zM10 12h4"/></svg>
+        </div>
+        <div class="min-w-0">
+          <p class="font-semibold text-accent">Your data folder <span class="text-xs font-bold text-secondary">(Group C · D)</span></p>
+          <p class="text-sm text-on-surface-variant mt-0.5">Your spaces, profile, and the keys to spaces others shared with you. Brings everything back in one step. An encrypted incremental mirror of <code>app-storage</code>.</p>
+        </div>
+      </div>
+    </div>
+    <div class="bg-surface-container-high rounded-xl p-4 mt-3 flex items-center gap-3">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="text-online shrink-0"><path d="M20 6 9 17l-5-5"/></svg>
+      <p class="text-sm text-on-surface-variant"><span class="font-bold text-on-surface">Complete restore (new device):</span> restore the data folder, then add your recovery key. Data-only = no identity; key-only = identity but joined-space files stay unreadable. <span class="font-semibold text-accent">Group D</span> shows both paths together.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<!-- GROUP A — BACK UP (export)                                    -->
+<!-- ============================================================= -->
+<div class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="font-headline font-extrabold text-xl" style="color:#33253b">A · Back up your recovery key</h2>
+  <p class="text-sm mt-1" style="color:#4a454b">Proactive, from Settings → Account while the identity is healthy.</p>
+</div>
+
+<!-- A1 — Account screen with extended Security section -->
+<section class="max-w-[1040px] mx-auto px-6 pt-6">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>src/renderer/screens/Account.tsx</code>
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— the "Back up&nbsp;your&nbsp;recovery&nbsp;key" action card added to the existing Security section.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <div class="chrome-bar">
+      <span class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <span class="wm">Mirall</span>
+    </div>
+    <div class="bg-surface" style="height:640px; overflow:hidden">
+      <div class="pt-8 px-6 max-w-2xl mx-auto">
+        <!-- PageHeader (recreated) -->
+        <div class="flex items-start gap-4 mb-8">
+          <button aria-label="Back" class="mt-1 shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-accent hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div>
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Account</h1>
+            <p class="text-on-surface-variant text-lg leading-relaxed">Your profile and network connection.</p>
+          </div>
+        </div>
+
+        <div class="space-y-10">
+          <!-- Profile section (recreated, condensed) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Profile</h2>
+            <div class="bg-surface-container-low rounded-xl p-6 space-y-6">
+              <div class="flex items-center gap-6">
+                <button type="button" aria-label="Change profile picture" class="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center overflow-hidden shrink-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+                  <span class="font-headline font-extrabold text-2xl" style="color:var(--color-on-surface-variant)">JD</span>
+                </button>
+                <div class="flex-grow">
+                  <label for="acc-name" class="block text-sm font-semibold text-accent mb-2">Display Name</label>
+                  <input id="acc-name" type="text" value="Jordan Doe" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Security section (recreated info row + PROPOSED backup action card) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Security</h2>
+            <div class="space-y-3">
+              <!-- existing identity-protection line (recreated) -->
+              <div class="bg-surface-container-low rounded-xl p-6 flex items-center gap-4">
+                <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <p class="text-sm text-on-surface-variant flex-1 min-w-0">Your identity key is protected by the system keychain.</p>
+              </div>
+
+              <!-- PROPOSED: backup action card (mirrors the Network card pattern in the same file) -->
+              <button type="button"
+                class="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l3 3M14 9l2 2"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-accent">Back up your recovery key</p>
+                  <p class="text-xs text-on-surface-variant">Save an encrypted key so you can keep your identity if you lose this device.</p>
+                </div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+          </section>
+
+          <!-- Network section (recreated, condensed) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Network</h2>
+            <div class="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left">
+              <span class="w-3 h-3 rounded-full shrink-0" style="background:var(--color-online)"></span>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-accent">Connected</p>
+                <p class="text-xs text-on-surface-variant">4 peers online</p>
+              </div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3 max-w-[860px] mx-auto" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    The backup card is a real <code>&lt;button&gt;</code> with an accessible name ("Back up your recovery key"), the universal focus ring, and a chevron mirroring the Network card. Only rendered when an identity exists (<code>protected</code>/<code>weak</code>).
+  </p>
+</section>
+
+<!-- A2 — Recovery Backup modal: initial -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— <code>RecoveryBackupModal.tsx</code>, built from <code>Modal</code> + <code>Button</code> + inline inputs. Initial (empty) state.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:560px">
+    <!-- Modal panel: glass-modal max-w-xl rounded-3xl (opaque surface-container-lowest) -->
+    <div role="dialog" aria-modal="true" aria-label="Back up your recovery key"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <!-- header: px-10 pt-10 pb-6 -->
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back up your recovery key</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- body: px-10 pb-10 space-y-6 -->
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">
+          This is the master key to your Mirall identity. With this file <em>and</em> its passphrase, you can sign in as yourself again on a new device — even if your computer or keychain is gone.
+        </p>
+
+        <div class="space-y-2">
+          <label for="bk-pass" class="block text-sm font-semibold text-accent">Choose a passphrase</label>
+          <input id="bk-pass" type="password" placeholder="At least 10 characters" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" style="box-shadow:inset 0 0 0 1px var(--color-outline-variant)" />
+          <p class="text-xs text-on-surface-variant">You'll need this passphrase to restore. We can't reset it.</p>
+        </div>
+
+        <div class="space-y-2">
+          <label for="bk-pass2" class="block text-sm font-semibold text-accent">Confirm passphrase</label>
+          <input id="bk-pass2" type="password" placeholder="Re-enter passphrase" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" style="box-shadow:inset 0 0 0 1px var(--color-outline-variant)" />
+        </div>
+
+        <!-- what it does / doesn't (honest scope) -->
+        <div class="bg-surface-container-low rounded-xl p-5 space-y-3">
+          <div class="flex gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-online shrink-0 mt-0.5"><path d="M20 6 9 17l-5-5"/></svg>
+            <p class="text-sm text-on-surface-variant"><span class="font-bold text-on-surface">Restores</span> your identity — your contacts still recognize you and can invite you back.</p>
+          </div>
+          <div class="flex gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-on-surface-variant shrink-0 mt-0.5"><path d="M5 12h14"/></svg>
+            <p class="text-sm text-on-surface-variant"><span class="font-bold text-on-surface">Doesn't restore on its own</span> your list of spaces, or files in spaces others shared with you. For those, also keep a copy of your Mirall data folder.</p>
+          </div>
+        </div>
+
+        <!-- warnings callout: surface-container-high card, no 1px layout border -->
+        <div class="bg-surface-container-high rounded-xl p-5 flex gap-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0 mt-0.5"><path d="M12 2 2 21h20zM12 9v5M12 18h.01"/></svg>
+          <div class="space-y-1.5">
+            <p class="text-sm font-bold text-on-surface">Keep this safe</p>
+            <ul class="text-sm text-on-surface-variant space-y-1 list-disc pl-4">
+              <li>Anyone with this file and its passphrase can access your account and files.</li>
+              <li>If you lose the passphrase, the file can't be used — and we can't recover it.</li>
+              <li>This backs up your identity, not your files. Files re-sync from peers.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- footer: flex gap-4, two buttons flex-1 h-14 -->
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button disabled class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 transition-all opacity-50 cursor-not-allowed">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Save backup file…
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    <code>role="dialog" aria-modal="true"</code>; both passphrase fields are real labeled <code>type="password"</code> inputs; Save is <code>disabled</code> until both fields are non-empty and equal (≥ 10 chars). <span class="keycap">Esc</span> cancels. The save action invokes <code>window.bridge.saveRecoveryFile(...)</code> → OS save dialog.
+  </p>
+</section>
+
+<!-- A3 — Recovery Backup modal: filled + saved toast -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— ready-to-save state, and the success toast shown after the OS save dialog completes.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex flex-col items-center justify-center gap-6" style="min-height:560px">
+    <div role="dialog" aria-modal="true" aria-label="Back up your recovery key"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back up your recovery key</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">This is the master key to your Mirall identity. With this file <em>and</em> its passphrase, you can sign in as yourself again on a new device — even if your computer or keychain is gone.</p>
+        <div class="space-y-2">
+          <label for="bk-pass-f" class="block text-sm font-semibold text-accent">Choose a passphrase</label>
+          <input id="bk-pass-f" type="password" value="correct-horse-staple" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" style="box-shadow:inset 0 0 0 2px var(--color-secondary)" />
+          <p class="text-xs text-on-surface-variant">You'll need this passphrase to restore. We can't reset it.</p>
+        </div>
+        <div class="space-y-2">
+          <label for="bk-pass2-f" class="block text-sm font-semibold text-accent">Confirm passphrase</label>
+          <input id="bk-pass2-f" type="password" value="correct-horse-staple" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" style="box-shadow:inset 0 0 0 1px var(--color-outline-variant)" />
+        </div>
+        <div class="bg-surface-container-low rounded-xl p-5 space-y-3">
+          <div class="flex gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-online shrink-0 mt-0.5"><path d="M20 6 9 17l-5-5"/></svg>
+            <p class="text-sm text-on-surface-variant"><span class="font-bold text-on-surface">Restores</span> your identity — your contacts still recognize you and can invite you back.</p>
+          </div>
+          <div class="flex gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-on-surface-variant shrink-0 mt-0.5"><path d="M5 12h14"/></svg>
+            <p class="text-sm text-on-surface-variant"><span class="font-bold text-on-surface">Doesn't restore on its own</span> your list of spaces, or files in spaces others shared with you. For those, also keep a copy of your Mirall data folder.</p>
+          </div>
+        </div>
+        <div class="bg-surface-container-high rounded-xl p-5 flex gap-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0 mt-0.5"><path d="M12 2 2 21h20zM12 9v5M12 18h.01"/></svg>
+          <div class="space-y-1.5">
+            <p class="text-sm font-bold text-on-surface">Keep this safe</p>
+            <ul class="text-sm text-on-surface-variant space-y-1 list-disc pl-4">
+              <li>Anyone with this file and its passphrase can access your account and files.</li>
+              <li>If you lose the passphrase, the file can't be used — and we can't recover it.</li>
+              <li>This backs up your identity, not your files. Files re-sync from peers.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Save backup file…
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- success toast (bottom-center): rounded-lg px-4 py-3 shadow-lg, success tokens -->
+    <div role="status" aria-live="polite" class="flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg bg-success text-on-success">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      <span class="text-sm font-semibold">Recovery key saved to your chosen location.</span>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Save enabled (matching passphrases, amber focus ring shows the active field). On success, an <code>info/success</code> toast (<code>role="status" aria-live="polite"</code>) confirms — same toast system as the rest of the app.
+  </p>
+</section>
+
+<!-- ============================================================= -->
+<!-- GROUP B — RESTORE (import)                                    -->
+<!-- ============================================================= -->
+<div class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-xl" style="color:#33253b">B · Restore your account</h2>
+  <p class="text-sm mt-1" style="color:#4a454b">Reactive — reached from the locked screen (lost/changed keychain) or from onboarding on a fresh install.</p>
+</div>
+
+<!-- B1 — Identity Locked screen -->
+<section class="max-w-[1040px] mx-auto px-6 pt-6">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— <code>screens/IdentityLocked.tsx</code>, a terminal state that reuses the <code>Onboarding.tsx</code> shell (atmospheric glass header + centered card).</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <div class="chrome-bar">
+      <span class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <span class="wm">Mirall</span>
+    </div>
+    <div class="bg-surface relative" style="height:640px; overflow:hidden">
+      <!-- atmospheric glass header (recreated from Onboarding) -->
+      <div class="absolute top-0 inset-x-0 z-10">
+        <div class="bg-surface-container-lowest/70 backdrop-blur-xl" style="box-shadow:0 12px 40px rgba(74,59,82,0.06)">
+          <div class="flex items-center justify-center py-4 px-6">
+            <span class="text-2xl font-extrabold text-on-surface tracking-tighter font-headline">Mirall<span style="color:#fd9c42">.</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-full flex flex-col items-center justify-center px-6">
+        <div class="w-full max-w-md text-center">
+          <div class="w-16 h-16 rounded-full bg-surface-container-high text-accent flex items-center justify-center mx-auto mb-6">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-headline font-extrabold text-accent tracking-tight mb-3">Your identity key is locked</h1>
+          <p class="text-on-surface-variant leading-relaxed mb-8">
+            We couldn't unlock your identity key on this device — your secure storage may have changed (a new computer, a reset keychain, or a restored backup). Your data is safe, but it stays locked until you restore your key.
+          </p>
+
+          <div class="bg-surface-container-low rounded-2xl p-6 space-y-3 text-left" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+            <button class="w-full h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l3 3M14 9l2 2"/></svg>
+              Restore from recovery key
+            </button>
+            <button class="w-full h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 4v4h4"/></svg>
+              Try again
+            </button>
+          </div>
+
+          <button class="mt-5 text-sm font-semibold text-on-surface-variant hover:text-error transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-error/30 rounded">
+            Start fresh and create a new identity
+          </button>
+          <p class="text-xs text-on-surface-variant mt-1">This erases the locked data on this device. It can't be undone.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3 max-w-[860px] mx-auto" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Rendered ahead of onboarding/main when the worker emits <code>event:identity-unlock-failed</code>. Three named controls; primary = Restore, secondary = Try again, low-emphasis destructive = Start fresh (opens a danger confirm). Keyboard order top→bottom; the destructive action is last and visually de-emphasized.
+  </p>
+</section>
+
+<!-- B2 — Import modal: choose file -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— <code>RecoveryImportModal.tsx</code>. Step 1: choose the recovery file (passphrase locked until a file is selected).</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:520px">
+    <div role="dialog" aria-modal="true" aria-label="Restore from a recovery key"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restore from a recovery key</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">Choose the recovery key file you saved earlier, then enter its passphrase.</p>
+
+        <!-- choose-file affordance (DropZone idle style: border-2 border-dashed rounded-2xl) -->
+        <button class="w-full rounded-2xl border-2 border-dashed border-outline bg-surface-container-low p-8 flex flex-col items-center gap-2 text-center hover:bg-surface-container-high transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="text-on-surface-variant"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+          <span class="font-headline font-bold text-accent">Choose recovery key file…</span>
+          <span class="text-xs text-on-surface-variant">Mirall recovery key (.mirallkey)</span>
+        </button>
+
+        <div class="space-y-2 opacity-50">
+          <label for="im-pass-d" class="block text-sm font-semibold text-accent">Passphrase</label>
+          <input id="im-pass-d" type="password" disabled placeholder="Choose a file first" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant cursor-not-allowed" style="box-shadow:inset 0 0 0 1px var(--color-outline-variant)" />
+        </div>
+
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button disabled class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 opacity-50 cursor-not-allowed">Restore account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    The chooser is a real <code>&lt;button&gt;</code> (DropZone idle styling) that opens the OS file dialog via <code>window.bridge.openRecoveryFile()</code>. Passphrase + Restore stay <code>disabled</code> (and dimmed) until a file is loaded.
+  </p>
+</section>
+
+<!-- B3 — Import modal: file chosen + passphrase -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— Step 2: file loaded (name + created date confirm it's the right backup), passphrase enabled.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:520px">
+    <div role="dialog" aria-modal="true" aria-label="Restore from a recovery key"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restore from a recovery key</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">Enter the passphrase for this recovery key.</p>
+
+        <!-- selected file card -->
+        <div class="bg-surface-container-low rounded-xl p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-accent truncate">mirall-recovery-2026-06-12.mirallkey</p>
+            <p class="text-xs text-on-surface-variant">Created June 12, 2026</p>
+          </div>
+          <button class="text-sm font-semibold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded px-1">Change</button>
+        </div>
+
+        <div class="space-y-2">
+          <label for="im-pass" class="block text-sm font-semibold text-accent">Passphrase</label>
+          <input id="im-pass" type="password" value="correct-horse-staple" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" style="box-shadow:inset 0 0 0 2px var(--color-secondary)" />
+        </div>
+
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Restore account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    We show the file name and created date (actionable: confirms the right backup) — deliberately <strong>not</strong> a raw public-key "fingerprint" (false assurance; a <code>mockups.md</code> anti-pattern). "Restore account" triggers <code>identity:import-recovery</code>, then a one-time <code>app.relaunch()</code> ("Restarting to load your account…").
+  </p>
+</section>
+
+<!-- B4 — Import modal: wrong passphrase -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— wrong-passphrase error (<code>WRONG_PASSPHRASE</code> from the worker).</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:520px">
+    <div role="dialog" aria-modal="true" aria-label="Restore from a recovery key"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restore from a recovery key</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">Enter the passphrase for this recovery key.</p>
+        <div class="bg-surface-container-low rounded-xl p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-accent truncate">mirall-recovery-2026-06-12.mirallkey</p>
+            <p class="text-xs text-on-surface-variant">Created June 12, 2026</p>
+          </div>
+          <button class="text-sm font-semibold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded px-1">Change</button>
+        </div>
+        <div class="space-y-2">
+          <label for="im-pass-e" class="block text-sm font-semibold text-accent">Passphrase</label>
+          <input id="im-pass-e" type="password" value="wrongguess123" aria-invalid="true" aria-describedby="im-pass-err" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface focus:outline-none" style="box-shadow:inset 0 0 0 2px var(--color-error)" />
+          <p id="im-pass-err" role="alert" class="text-xs font-semibold flex items-center gap-1.5" style="color:var(--color-error)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+            That passphrase didn't match this recovery key. Check it and try again.
+          </p>
+        </div>
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Restore account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Error message is <code>role="alert"</code> and linked via <code>aria-describedby</code>; the field carries <code>aria-invalid="true"</code> and an <code>error</code>-token ring. No raw <code>M</code> ever decrypted client-side — failure is just "passphrase didn't match."
+  </p>
+</section>
+
+<!-- B5 — Import modal: identity mismatch (danger confirm) -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— mismatch guard (<code>{ mismatch:true }</code>): the key is correct but for a <em>different</em> account than the data on this device. Destructive → <code>danger</code> confirm.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:480px">
+    <!-- compact confirm: max-w-md (RemoveFileModal pattern) -->
+    <div role="dialog" aria-modal="true" aria-label="Replace the data on this device?"
+      class="w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Replace the data on this device?</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <!-- danger callout in the error family -->
+        <div class="bg-error-container text-on-error-container rounded-xl p-5 flex gap-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><path d="M12 2 2 21h20zM12 9v5M12 18h.01"/></svg>
+          <p class="text-sm font-medium">
+            This recovery key is for a <strong>different account</strong> than the data already on this device. Restoring will replace that data, and it can't be undone.
+          </p>
+        </div>
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-error-container text-on-error-container hover:bg-[color:var(--color-error-container-hover)] transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-error/30">Replace and restore</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Destructive intent carried by the <code>danger</code> button (error-container fill, <code>ring-error/30</code>) — not a red title (per <code>design.md §10</code>). Only reachable from locked/onboarding; re-submits <code>identity:import-recovery</code> with <code>force:true</code>. Fresh installs (no existing data) never see this.
+  </p>
+</section>
+
+<!-- B6 — Onboarding with Restore entry -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>src/renderer/screens/Onboarding.tsx</code>
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— the "Restore your account" secondary action under Continue.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <div class="chrome-bar">
+      <span class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <span class="wm">Mirall</span>
+    </div>
+    <div class="bg-surface relative" style="height:660px; overflow:hidden">
+      <div class="absolute top-0 inset-x-0 z-10">
+        <div class="bg-surface-container-lowest/70 backdrop-blur-xl" style="box-shadow:0 12px 40px rgba(74,59,82,0.06)">
+          <div class="flex items-center justify-center py-4 px-6">
+            <span class="text-2xl font-extrabold text-on-surface tracking-tighter font-headline">Mirall<span style="color:#fd9c42">.</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-full flex flex-col items-center justify-center px-6 pt-16">
+        <div class="w-full max-w-md">
+          <div class="mb-8 text-center md:text-left">
+            <h1 class="text-4xl md:text-5xl font-headline font-extrabold text-accent tracking-tight mb-4">Welcome to Mirall</h1>
+            <p class="text-lg text-on-surface-variant leading-relaxed">Let's start by personalizing your space. How should we address you?</p>
+          </div>
+
+          <div class="bg-surface-container-low rounded-2xl p-8 space-y-8" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+            <div class="flex justify-center md:justify-start">
+              <button type="button" aria-label="Change profile picture" class="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center shadow-xl overflow-hidden border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="text-on-surface-variant"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+              </button>
+            </div>
+            <div class="space-y-2">
+              <label class="block text-sm font-semibold text-accent px-1" for="ob-name">Display Name</label>
+              <input id="ob-name" type="text" placeholder="e.g. John Doe" class="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface placeholder:text-outline-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-lg" />
+              <p class="text-xs text-on-surface-variant px-1">This is how your team and friends will see you.</p>
+            </div>
+            <div class="pt-4 space-y-4">
+              <button disabled class="w-full h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 opacity-50 cursor-not-allowed text-lg">
+                Continue
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <!-- PROPOSED: restore entry -->
+              <div class="text-center">
+                <button class="text-sm font-semibold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded px-1 py-0.5">
+                  Already have a recovery key? Restore your account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3 max-w-[860px] mx-auto" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    The restore action is a low-emphasis text button (links use the <code>secondary</code> token) under Continue; it opens <code>RecoveryImportModal</code> (B2). On a fresh install, importing overwrites the just-created random identity — confirmed safe because there's no data to orphan.
+  </p>
+</section>
+
+<!-- ============================================================= -->
+<!-- GROUP C — BACK UP YOUR DATA FOLDER (Corestore backup)         -->
+<!-- ============================================================= -->
+<div class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-xl" style="color:#33253b">C · Back up your data folder</h2>
+  <p class="text-sm mt-1" style="color:#4a454b">Proactive, from Settings → Account. An encrypted incremental mirror of <code class="anno">app-storage</code> to a folder you choose — runs in the worker (<code class="anno">suspend → mirror → resume</code>).</p>
+</div>
+
+<!-- C1 — Account screen: Security (recovery card) + new Data-backup section -->
+<section class="max-w-[1040px] mx-auto px-6 pt-6">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>src/renderer/screens/Account.tsx</code>
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— the "Data backup" section inserted between Security and Network, mirroring <code>StorageSettings.tsx</code> (Toggle · SegmentedControl · FilePath · Button).</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <div class="chrome-bar">
+      <span class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <span class="wm">Mirall</span>
+    </div>
+    <div class="bg-surface" style="height:780px; overflow:hidden">
+      <div class="pt-8 px-6 max-w-2xl mx-auto">
+        <!-- PageHeader (recreated) -->
+        <div class="flex items-start gap-4 mb-8">
+          <button aria-label="Back" class="mt-1 shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-accent hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div>
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Account</h1>
+            <p class="text-on-surface-variant text-lg leading-relaxed">Your profile and network connection.</p>
+          </div>
+        </div>
+
+        <div class="space-y-10">
+          <!-- Security (condensed: identity line + the recovery-key card from Group A) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Security</h2>
+            <div class="space-y-3">
+              <button type="button"
+                class="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l3 3M14 9l2 2"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-accent">Back up your recovery key</p>
+                  <p class="text-xs text-on-surface-variant">Save an encrypted key so you can keep your identity if you lose this device.</p>
+                </div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+          </section>
+
+          <!-- PROPOSED: Data backup section -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Data backup</h2>
+            <div class="space-y-3">
+              <!-- Automatic-backups Toggle (real Toggle primitive: role=switch) -->
+              <div class="bg-surface-container-low rounded-xl overflow-hidden">
+                <button type="button" role="switch" aria-checked="true" aria-labelledby="bk-auto-l" aria-describedby="bk-auto-d"
+                  class="w-full p-6 flex items-center justify-between text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 hover:bg-surface-container-high/50">
+                  <div class="pr-6">
+                    <p id="bk-auto-l" class="font-semibold text-accent">Automatic backups</p>
+                    <p id="bk-auto-d" class="text-sm text-on-surface-variant mt-1">Back up on a schedule whenever your data changes.</p>
+                  </div>
+                  <span class="shrink-0 inline-flex items-center w-12 h-7 rounded-full p-1 transition-colors bg-primary" aria-hidden="true">
+                    <span class="w-5 h-5 rounded-full bg-on-primary transition-transform translate-x-5"></span>
+                  </span>
+                </button>
+              </div>
+
+              <!-- Config card: folder + cadence + status -->
+              <div class="bg-surface-container-low rounded-xl p-6 space-y-5">
+                <p class="text-sm text-on-surface-variant">Keep an encrypted copy of your spaces and files in a folder you choose — an external drive or a synced folder. Restore everything in one step if this device is lost.</p>
+
+                <!-- folder row (FilePath + Choose folder button) -->
+                <div class="flex items-center gap-3">
+                  <span class="flex min-w-0 font-mono flex-1 text-sm text-accent" title="/Users/jordan/Backups/Mirall">
+                    <span class="truncate min-w-0">/Users/jordan/Backups/</span><span class="shrink-0 whitespace-pre">Mirall</span>
+                  </span>
+                  <button type="button" class="shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Change…</button>
+                </div>
+
+                <!-- cadence (real SegmentedControl: role=group / aria-pressed) -->
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between gap-4">
+                    <p id="bk-cad-l" class="font-headline text-sm font-bold text-accent px-1">How often</p>
+                    <div role="group" aria-labelledby="bk-cad-l" class="inline-flex bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-full">
+                      <button type="button" aria-pressed="false" class="px-5 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-on-surface-variant hover:text-accent font-medium">Manual</button>
+                      <button type="button" aria-pressed="false" class="px-5 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-on-surface-variant hover:text-accent font-medium">Daily</button>
+                      <button type="button" aria-pressed="true" class="px-5 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 bg-surface-container-lowest shadow-sm text-accent font-semibold">Weekly</button>
+                      <button type="button" aria-pressed="false" class="px-5 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-on-surface-variant hover:text-accent font-medium">On quit</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- status + Back up now -->
+                <div class="flex items-center justify-between gap-4">
+                  <p class="text-xs text-on-surface-variant min-w-0" role="status" aria-live="polite">Last backed up June 22, 2026 at 9:14&nbsp;AM · 12 changes since</p>
+                  <button type="button" class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Back up now</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Network section (recreated, condensed) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Network</h2>
+            <div class="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left">
+              <span class="w-3 h-3 rounded-full shrink-0" style="background:var(--color-online)"></span>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-accent">Connected</p>
+                <p class="text-xs text-on-surface-variant">4 peers online</p>
+              </div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3 max-w-[860px] mx-auto" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Reuses shipped primitives only: <code>Toggle</code> (<code>role="switch"</code>, <code>aria-checked</code>), <code>SegmentedControl</code> (<code>role="group"</code>, <code>aria-pressed</code> per option), <code>FilePath</code> (head-truncate + <code>title</code>), <code>Button</code> (primary). The status line is <code>role="status" aria-live="polite"</code>; "Back up now" is disabled until a folder is set. Section only renders when the <code>backup</code> flag is on (MIR-40 shipped).
+  </p>
+</section>
+
+<!-- C2 — Data-backup section states (first-run / running / error) -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— the same section in its other states. No modal: backup is inline Account config. Shown here as standalone cards.</span>
+  </div>
+
+  <div class="rounded-2xl p-8 space-y-6" style="background:var(--color-surface); box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+
+    <!-- (a) first run: off, no folder -->
+    <div class="max-w-2xl mx-auto">
+      <p class="text-xs font-bold mb-2" style="color:#4a454b">(a) First run — off, no folder chosen</p>
+      <div class="space-y-3">
+        <div class="bg-surface-container-low rounded-xl overflow-hidden">
+          <button type="button" role="switch" aria-checked="false" aria-labelledby="bk-auto-l2" aria-describedby="bk-auto-d2"
+            class="w-full p-6 flex items-center justify-between text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 hover:bg-surface-container-high/50">
+            <div class="pr-6">
+              <p id="bk-auto-l2" class="font-semibold text-accent">Automatic backups</p>
+              <p id="bk-auto-d2" class="text-sm text-on-surface-variant mt-1">Choose a folder to turn this on.</p>
+            </div>
+            <span class="shrink-0 inline-flex items-center w-12 h-7 rounded-full p-1 transition-colors bg-surface-container-high" aria-hidden="true">
+              <span class="w-5 h-5 rounded-full bg-on-primary transition-transform translate-x-0"></span>
+            </span>
+          </button>
+        </div>
+        <div class="bg-surface-container-low rounded-xl p-6 space-y-5">
+          <p class="text-sm text-on-surface-variant">Keep an encrypted copy of your spaces and files in a folder you choose. Restore everything in one step if this device is lost.</p>
+          <div class="flex items-center gap-3">
+            <p class="flex-1 min-w-0 truncate text-sm text-on-surface-variant">No backup folder selected.</p>
+            <button type="button" class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              Choose folder…
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- (b) running: progress -->
+    <div class="max-w-2xl mx-auto">
+      <p class="text-xs font-bold mb-2" style="color:#4a454b">(b) Running — first full backup (bulk copies live, brief pause to finalize)</p>
+      <div class="bg-surface-container-low rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-sm font-semibold text-accent" role="status" aria-live="polite">Backing up… 142 of 318 files</p>
+          <button type="button" disabled class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 opacity-50 cursor-not-allowed px-5 py-2.5 text-sm">Backing up…</button>
+        </div>
+        <!-- progress bar (decorative; live text carries the value) -->
+        <div class="h-2 rounded-full bg-surface-container-high overflow-hidden" aria-hidden="true">
+          <div class="h-full rounded-full bg-primary" style="width:45%"></div>
+        </div>
+        <p class="text-xs text-on-surface-variant">Mirall stays usable while it copies — any file transfer keeps running and is captured up to now. Subsequent backups copy only what changed.</p>
+      </div>
+    </div>
+
+    <!-- (c) error: destination unavailable -->
+    <div class="max-w-2xl mx-auto">
+      <p class="text-xs font-bold mb-2" style="color:#4a454b">(c) Error — backup destination unavailable</p>
+      <div class="bg-surface-container-low rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-xs text-on-surface-variant min-w-0" role="status" aria-live="polite">Last backed up June 15, 2026 at 8:02&nbsp;AM</p>
+          <button type="button" class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Back up now</button>
+        </div>
+        <p class="text-sm text-error flex items-start gap-1.5" role="alert">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+          Backup failed: the backup folder isn't available. Reconnect the drive, then try again.
+        </p>
+      </div>
+    </div>
+
+    <!-- (d) transfer active: manual "Back up now" surfaces an inline choice -->
+    <div class="max-w-2xl mx-auto">
+      <p class="text-xs font-bold mb-2" style="color:#4a454b">(d) "Back up now" while a file transfer is in progress — proceed or wait</p>
+      <div class="bg-surface-container-low rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-xs text-on-surface-variant min-w-0" role="status" aria-live="polite">Last backed up June 22, 2026 at 9:14&nbsp;AM</p>
+          <button type="button" class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Back up now</button>
+        </div>
+        <!-- inline choice (revealed after Back up now is clicked) -->
+        <div class="bg-surface-container-high rounded-xl p-4 flex flex-col gap-3" role="group" aria-label="A transfer is in progress">
+          <p class="text-sm text-on-surface-variant flex gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0 mt-0.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span><span class="font-bold text-on-surface">A file transfer is in progress.</span> Backing up now includes it up to this point and it keeps going — or wait until it finishes.</span>
+          </p>
+          <div class="flex gap-3">
+            <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Back up now</button>
+            <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Wait until it finishes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- (e) deferred: waiting for a transfer (manual "wait" chosen, or a scheduled tick deferred) -->
+    <div class="max-w-2xl mx-auto">
+      <p class="text-xs font-bold mb-2" style="color:#4a454b">(e) Deferred — waiting for the transfer to finish (manual "wait", or a scheduled run politely stepping aside)</p>
+      <div class="bg-surface-container-low rounded-xl p-6">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-xs text-on-surface-variant min-w-0 flex items-center gap-2" role="status" aria-live="polite">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Waiting for a transfer to finish…
+          </p>
+          <button type="button" class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30 px-5 py-2.5 text-sm">Back up now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Progress is announced via the <code>role="status" aria-live="polite"</code> line (the bar is decorative, <code>aria-hidden</code>); failures use <code>role="alert"</code>; the transfer choice is a labeled <code>role="group"</code>. Cadence + "Back up now" stay disabled until a destination exists. A missing destination fails the worker's <code>assertWritable</code> pre-flight → <code>lastError</code> surfaces here; the scheduler retries next tick.
+  </p>
+  <p class="anno text-sm mt-2" style="color:#4a454b">
+    <span class="badge badge-proposed">Proposed new</span>
+    <strong>Why a transfer never blocks the backup:</strong> the worker copies the immutable bulk <em>live</em> and takes only a <strong>brief</strong> <code>suspend()</code> to finalize (two-pass). A write that lands during that window <strong>stalls then resumes</strong> — it never errors — and append-only logs capture an in-flight file up to its current blocks (it resumes from there). So manual backups run immediately (with the choice above), scheduled backups <em>defer</em> while a transfer is active (anti-starvation after one overdue interval), and on-quit just proceeds. Detail in <code>plan-corestore-backup.md §2.5</code> (decisions D8 · D9).
+  </p>
+</section>
+
+<!-- ============================================================= -->
+<!-- GROUP D — RESTORE YOUR DATA FOLDER (Corestore restore)        -->
+<!-- ============================================================= -->
+<div class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-xl" style="color:#33253b">D · Restore your data folder</h2>
+  <p class="text-sm mt-1" style="color:#4a454b">Reactive — from onboarding on a new device or the locked screen. Stops the worker, replaces <code class="anno">app-storage</code> with the backup, relaunches into the normal boot path.</p>
+</div>
+
+<!-- D1 — RestoreBackupModal: choose backup folder -->
+<section class="max-w-[1040px] mx-auto px-6 pt-6">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— <code>RestoreBackupModal.tsx</code>. Step 1: pick the folder that contains <code>Mirall-Backup/</code> (Restore disabled until a complete backup is found).</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:500px">
+    <div role="dialog" aria-modal="true" aria-label="Restore from a backup"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restore from a backup</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">Choose the folder where you saved your Mirall backup. We'll restore everything from it onto this device.</p>
+
+        <!-- choose-folder affordance (DropZone idle styling) -->
+        <button class="w-full rounded-2xl border-2 border-dashed border-outline bg-surface-container-low p-8 flex flex-col items-center gap-2 text-center hover:bg-surface-container-high transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="text-on-surface-variant"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span class="font-headline font-bold text-accent">Choose backup folder…</span>
+          <span class="text-xs text-on-surface-variant">The folder that contains “Mirall-Backup”.</span>
+        </button>
+
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button disabled class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 opacity-50 cursor-not-allowed">Restore</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    The chooser is a real <code>&lt;button&gt;</code> (DropZone idle styling) opening the OS folder dialog via <code>window.bridge.browseBackupFolder()</code>. Main validates <code>Mirall-Backup/manifest.json</code> (<code>complete:true</code>); an incomplete/missing backup keeps Restore <code>disabled</code> and shows a <code>role="alert"</code> "that folder isn't a complete Mirall backup" line.
+  </p>
+</section>
+
+<!-- D2 — RestoreBackupModal: backup found -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— Step 2: a complete backup was found (created date + file count from <code>manifest.json</code> confirm it's the right one). Restore enabled.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:540px">
+    <div role="dialog" aria-modal="true" aria-label="Restore from a backup"
+      class="w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restore from a backup</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <p class="text-on-surface-variant font-medium">This backup will be restored onto this device.</p>
+
+        <!-- found-backup card -->
+        <div class="bg-surface-container-low rounded-xl p-4 flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-accent shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8M2 3h20v5H2zM10 12h4"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-accent truncate">Mirall-Backup</p>
+            <p class="text-xs text-on-surface-variant">Created June 22, 2026 · 318 files</p>
+          </div>
+          <button class="text-sm font-semibold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded px-1">Change</button>
+        </div>
+
+        <!-- complete-backup verified line (actionable: manifest.complete === true) -->
+        <div class="flex items-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="text-online shrink-0"><path d="M20 6 9 17l-5-5"/></svg>
+          <p class="text-sm text-on-surface-variant">Complete backup — safe to restore.</p>
+        </div>
+
+        <!-- what to expect (honest scope) -->
+        <div class="bg-surface-container-high rounded-xl p-5 flex gap-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-secondary shrink-0 mt-0.5"><path d="M12 2 2 21h20zM12 9v5M12 18h.01"/></svg>
+          <div class="space-y-1.5">
+            <p class="text-sm font-bold text-on-surface">Before you restore</p>
+            <ul class="text-sm text-on-surface-variant space-y-1 list-disc pl-4">
+              <li>Mirall will restart to load the restored data.</li>
+              <li>On a new device, also add your <strong>recovery key</strong> to unlock your identity (Group&nbsp;B).</li>
+              <li>Files re-sync from peers once you're back online.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 4v4h4"/></svg>
+            Restore
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    We show the folder name + created date + file count (actionable: confirms the right backup) — <strong>not</strong> a raw store fingerprint. On a <em>fresh</em> install (no existing data) Restore proceeds straight to D4. On a device that already has data, Restore opens the danger confirm (D3) because it overwrites.
+  </p>
+</section>
+
+<!-- D3 — Replace-data danger confirm -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— restore over an existing install replaces the local data folder (<code>rm&nbsp;-rf</code> + copy). Destructive → <code>danger</code> confirm (RemoveFileModal pattern).</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex items-center justify-center" style="min-height:460px">
+    <div role="dialog" aria-modal="true" aria-label="Replace the data on this device?"
+      class="w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <div class="flex justify-between items-start mb-2">
+          <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Replace the data on this device?</h1>
+          <button aria-label="Close" class="w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-10 pb-10 space-y-6">
+        <div class="bg-error-container text-on-error-container rounded-xl p-5 flex gap-3">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><path d="M12 2 2 21h20zM12 9v5M12 18h.01"/></svg>
+          <p class="text-sm font-medium">
+            Restoring replaces <strong>everything</strong> currently on this device with the backup. Anything here that isn't in the backup will be lost. This can't be undone.
+          </p>
+        </div>
+        <div class="pt-2 flex gap-4">
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">Cancel</button>
+          <button class="flex-1 h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-error-container text-on-error-container hover:bg-[color:var(--color-error-container-hover)] transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-error/30">Replace and restore</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Destructive intent carried by the <code>danger</code> button (error-container fill, <code>ring-error/30</code>) — not a red title (per <code>design.md §10</code>). Confirming calls <code>window.bridge.restoreBackup(folder)</code>: main stops the worker (lock released), replaces <code>app-storage</code>, then relaunches. Fresh installs skip this step.
+  </p>
+</section>
+
+<!-- D4 — Restoring → relaunch -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— restore in progress, then the one-time relaunch into the restored store.</span>
+  </div>
+
+  <div class="rounded-2xl modal-scrim p-8 flex flex-col items-center justify-center gap-6" style="min-height:440px">
+    <div role="dialog" aria-modal="true" aria-label="Restoring your data"
+      class="w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden bg-surface-container-lowest">
+      <div class="px-10 pt-10 pb-6">
+        <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Restoring your data…</h1>
+      </div>
+      <div class="px-10 pb-10 space-y-5">
+        <div class="h-2 rounded-full bg-surface-container-high overflow-hidden" aria-hidden="true">
+          <div class="h-full rounded-full bg-primary" style="width:72%"></div>
+        </div>
+        <p class="text-sm text-on-surface-variant" role="status" aria-live="polite">Copying your spaces and files… 229 of 318 files</p>
+        <p class="text-xs text-on-surface-variant">Please don't close Mirall. It will restart automatically when your data is ready.</p>
+      </div>
+    </div>
+
+    <!-- relaunch toast (the post-copy reboot, mirroring the identity-import relaunch) -->
+    <div role="status" aria-live="polite" class="flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg bg-info text-on-info">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 4v4h4"/></svg>
+      <span class="text-sm font-semibold">Restarting to load your data…</span>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Progress + the relaunch notice are <code>role="status" aria-live="polite"</code> (bar decorative). The restore copy runs with the store offline; <code>app.relaunch()</code> then re-runs the normal boot path against the restored <code>app-storage</code> — the same bulletproof reboot the identity import uses.
+  </p>
+</section>
+
+<!-- D5 — Complete restore on a new device (capstone: both restore paths) -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <div class="anno flex flex-wrap items-center gap-2 mb-3">
+    <span class="badge badge-real">Recreated from code</span>
+    <span class="text-sm" style="color:#4a454b">— <code>screens/IdentityLocked.tsx</code> (Group B1)</span>
+    <span class="badge badge-proposed">Proposed new</span>
+    <span class="text-sm" style="color:#4a454b">— the final shipped version, with <strong>both</strong> restore paths: data folder + recovery key. This is the journey's payoff.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <div class="chrome-bar">
+      <span class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <span class="wm">Mirall</span>
+    </div>
+    <div class="bg-surface relative" style="height:680px; overflow:hidden">
+      <div class="absolute top-0 inset-x-0 z-10">
+        <div class="bg-surface-container-lowest/70 backdrop-blur-xl" style="box-shadow:0 12px 40px rgba(74,59,82,0.06)">
+          <div class="flex items-center justify-center py-4 px-6">
+            <span class="text-2xl font-extrabold text-on-surface tracking-tighter font-headline">Mirall<span style="color:#fd9c42">.</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-full flex flex-col items-center justify-center px-6">
+        <div class="w-full max-w-md text-center">
+          <div class="w-16 h-16 rounded-full bg-surface-container-high text-accent flex items-center justify-center mx-auto mb-6">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-headline font-extrabold text-accent tracking-tight mb-3">Set up this device</h1>
+          <p class="text-on-surface-variant leading-relaxed mb-7">
+            Moving from another computer? For a complete move, <strong>restore your backup</strong> first, then add your <strong>recovery key</strong> to unlock your identity here.
+          </p>
+
+          <div class="bg-surface-container-low rounded-2xl p-6 space-y-3 text-left" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+            <button class="w-full h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8M2 3h20v5H2zM10 12h4"/></svg>
+              Restore from a backup
+            </button>
+            <button class="w-full h-14 flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l3 3M14 9l2 2"/></svg>
+              Add your recovery key
+            </button>
+          </div>
+
+          <button class="mt-5 text-sm font-semibold text-on-surface-variant hover:text-error transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-error/30 rounded">
+            Start fresh and create a new identity
+          </button>
+          <p class="text-xs text-on-surface-variant mt-1">This sets up a brand-new account on this device.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3 max-w-[860px] mx-auto" style="color:#4a454b">
+    <span class="badge badge-a11y">a11y</span>
+    Reconciles the two plans' restore entry points on one surface: <strong>Restore from a backup</strong> (→ D1, data folder) is primary, <strong>Add your recovery key</strong> (→ Group B import, identity) secondary, <strong>Start fresh</strong> the low-emphasis destructive escape. Reached from onboarding (new install) or after <code>event:identity-unlock-failed</code>. Keyboard order top→bottom; destructive action last. Order matters: restore data → then the recovery key re-wraps <code>M</code> under this machine's new keychain KEK.
+  </p>
+</section>
+
+<!-- ===== Reading the mockup ===== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="rounded-2xl p-6 anno" style="background:var(--color-surface-container-lowest); box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+    <h3 class="font-headline font-extrabold text-base mb-3" style="color:var(--color-accent)">Reading the mockup</h3>
+    <ul class="space-y-2 text-sm" style="color:var(--color-on-surface-variant)">
+      <li>· <strong>Four groups, one journey.</strong> <strong>A/B</strong> back up &amp; restore your <em>identity</em> (recovery key, MIR-30/36); <strong>C/D</strong> back up &amp; restore your <em>data folder</em> (Corestore backup). The spine panel up top and the D5 capstone show how the two combine into a complete restore.</li>
+      <li>· <strong>Recreated from shipped code:</strong> Account (with the new Data-backup section), Onboarding, and the locked screen. The four modals, the locked/restore screens, and the backup section's controls are <strong>proposed</strong>, assembled only from <code>Modal</code>, <code>Button</code>, <code>Toggle</code>, <code>SegmentedControl</code>, <code>FilePath</code>, <code>DropZone</code> styling, inputs, toast, and <code>design.md</code> tokens — no invented visual language.</li>
+      <li>· <strong>Primitives, faithfully:</strong> the Data-backup section is the real <code>Toggle</code> (<code>role="switch"</code>), <code>SegmentedControl</code> (<code>role="group"</code> + <code>aria-pressed</code>), <code>FilePath</code> (head-truncate + <code>title</code>), and primary <code>Button</code> — exact class strings copied from <code>src/renderer</code>. No new primitive was invented.</li>
+      <li>· <strong>Tokens only.</strong> Every colour resolves to a <code>design.md</code> token (surfaces step the <code>surface-container-*</code> ramp; danger lives in the <code>error-container</code> family; the warning glyph uses <code>secondary</code>; progress fills use <code>primary</code>). Annotation chrome (badges, captions, the state-card labels in C2) uses literal colour — that's mockup furniture, not app UI.</li>
+      <li>· <strong>Modal anatomy is faithful:</strong> <code>px-10 pt-10 pb-6</code> header, <code>px-10 pb-10 space-y-6</code> body, footer of two <code>flex-1 h-14</code> buttons (<code>secondary</code> + <code>primary</code>/<code>danger</code>); panel <code>rounded-3xl shadow-2xl shadow-black/30</code>, opaque <code>surface-container-lowest</code> (blur lives on the backdrop, never the panel).</li>
+      <li>· <strong>No false assurance.</strong> Import shows file name + created date; restore shows folder name + created date + file count + a "Complete backup" check (all actionable from <code>manifest.json</code>) — never a raw key/store fingerprint to "verify."</li>
+      <li>· <strong>Security shape:</strong> <code>M</code> never appears on screen. The data backup copies <strong>only ciphertext</strong> (MIR-40 encrypts local bees at rest; that's the hard prerequisite) — so the backup itself carries no archive password, and the section never displays anything secret.</li>
+      <li>· <strong>No modal for backup:</strong> Group C is inline Account config (Toggle/folder/cadence/Back-up-now); Group D <em>is</em> a modal flow because restore is destructive and relaunches. Failures surface as <code>role="alert"</code>; progress + status as <code>role="status" aria-live="polite"</code>.</li>
+      <li>· <strong>Transfers never block the backup (C2 d/e):</strong> the engine copies the bulk live and suspends only briefly to finalize, so an in-flight transfer just keeps running and is captured up to that point. Manual "Back up now" runs immediately and offers a "wait" choice; scheduled runs defer politely while a transfer is active. The indicator + policy come straight from the plan's D8/D9.</li>
+      <li>· <strong>Copy status:</strong> reused strings are verbatim from <code>locales/en/common.json</code> (Account/Onboarding/Storage/actions). All backup/recovery wording is <span class="badge badge-proposed">Proposed new</span> and needs real <code>common.json</code> keys (<code>settings.backup*</code>, <code>recovery.*</code>; + German, generic masculine, informal <em>du</em>) at implementation.</li>
+      <li>· <strong>Light + dark:</strong> the "Toggle dark" button flips <code>.dark</code> on the root for every frame at once.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

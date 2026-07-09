@@ -1,0 +1,611 @@
+import { spawn } from 'node:child_process'
+import { rmSync, openSync, closeSync } from 'node:fs'
+import path from 'node:path'
+import { ad, withRetry } from './agent.mjs'
+import { findNode, allText, flatten } from './tree.mjs'
+import { tile } from './layout.mjs'
+import { workDir } from './paths.mjs'
+
+const REPO = path.resolve(import.meta.dirname, '../..')
+
+// `electron-forge start` runs unbranded, so our dev windows surface under
+// app_name "Electron" (real Electron apps like Signal/Keet report their
+// productName). We deliberately do NOT match on `title`: list-windows fills
+// `title` from CGWindow's kCGWindowName, which is only populated when the
+// caller holds Screen Recording permission — without it the title falls back
+// to the owner name ("Electron"), not the document title ("Mirall"), and the
+// whole suite stalls for 90s per launch waiting for a window that never
+// matches. Snapshots only need Accessibility, so keying off app_name alone
+// drops that second, fragile permission dependency. Native NSOpenPanel /
+// NSSavePanel sheets share our pid and app_name but carry their own titles, so
+// exclude them by title to keep pid-based re-resolution on the main window.
+const NATIVE_PANEL_TITLES = new Set(['Open', 'Save'])
+
+// Poll interval for the harness's own wait loops. Each iteration does a ~0.4s
+// snapshot, so the snapshot dominates and a tight sleep just trims dead time
+// between polls without spamming the AX system.
+const POLL_MS = 150
+async function mirallWindows() {
+  const { data } = await ad(['list-windows'])
+  return data
+    .filter((w) => w.app_name === 'Electron' && !NATIVE_PANEL_TITLES.has(w.title))
+    .map((w) => ({ id: w.id, pid: w.pid }))
+}
+
+export class Instance {
+  constructor({ name, bootstrap = null, slot = 0, total = 2, flags = null }) {
+    this.name = name
+    this.bootstrap = bootstrap
+    this.slot = slot
+    this.total = total
+    // Merged over feature-flags.json via MIRALL_FEATURE_FLAGS. The eager transfer mode is
+    // hidden by default in shipped builds; the suite forces it on so the historical eager
+    // scenarios keep their UI. Scenarios pass eagerTransferMode:false to test the shipped default.
+    this.flags = { eagerTransferMode: true, ...(flags || {}) }
+    this.store = workDir(`store-${name}-`)
+    this.downloadFolder = workDir(`dl-${name}-`)
+    this.proc = null
+    this.windowId = null
+    this.pid = null
+    // agent-desktop 0.3.0+ resolves a ref against the latest snapshot saved in its
+    // --session namespace, so snapshot-then-act across separate CLI processes only
+    // stays coherent when both share one session. Give each Instance its own
+    // namespace (id sanitised to [A-Za-z0-9_-], <=64 chars) so two peers' snapshots
+    // never clobber each other's latest. this.ad threads the session onto snapshots
+    // and ref-consuming actions (the calls whose ref must resolve cross-process).
+    this.session = `mirall-${name}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 64)
+    this.ad = (a, opts = {}) => ad(a, { session: this.session, ...opts })
+  }
+
+  async launch({ onboard = true } = {}) {
+    const before = new Set((await mirallWindows()).map((w) => w.id))
+    const env = {
+      ...process.env,
+      MIRALL_NO_DEVTOOLS: '1',
+      MIRALL_FORCE_A11Y: '1',
+      MIRALL_VERBOSE: '1',
+      MIRALL_DOWNLOAD_FOLDER: this.downloadFolder,
+      MIRALL_WINDOW_BOUNDS: JSON.stringify(tile(this.slot, this.total)),
+    }
+    if (this.bootstrap) env.MIRALL_DHT_BOOTSTRAP = JSON.stringify(this.bootstrap)
+    if (this.flags) env.MIRALL_FEATURE_FLAGS = JSON.stringify(this.flags)
+    this.logPath = `/tmp/mirall-fe-${this.name}.log`
+    const logFd = openSync(this.logPath, 'w')
+    this.proc = spawn(
+      'npx',
+      ['electron-forge', 'start', '--', '--no-updates', '--storage', this.store],
+      { cwd: REPO, env, detached: true, stdio: ['ignore', logFd, logFd] },
+    )
+    // The child dup'd its own copy of the log fd; close ours so 82 sequential
+    // launches in a full run don't leak 82 descriptors in the test runner.
+    closeSync(logFd)
+
+    const deadline = Date.now() + 90000
+    while (Date.now() < deadline) {
+      const fresh = (await mirallWindows()).filter((w) => !before.has(w.id))
+      if (fresh.length) {
+        this.windowId = fresh[fresh.length - 1].id
+        this.pid = fresh[fresh.length - 1].pid
+        break
+      }
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    if (!this.windowId) throw new Error(`${this.name}: Mirall window never appeared`)
+    console.error(`[${this.name}] before=[${[...before].join(',')}] resolved=${this.windowId}`)
+    // Raise the new window so Chromium paints it; a backgrounded renderer never
+    // builds its AX tree, which leaves snapshots empty. Unconditional (not via
+    // focus()) because focus() no-ops for single instances — the one-time initial
+    // raise must still happen so the renderer paints and snapshots aren't empty.
+    await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
+    if (onboard) await this.onboard()
+    return this
+  }
+
+  // `interactive` drops static-text / non-actionable nodes (-i) and collapses
+  // unnamed wrapper nodes (--compact). Use it for ref resolution: _ref only ever
+  // returns a node that has a ref (an interactive element), and those survive -i
+  // unchanged, so the first/last match is identical to the full tree — just a
+  // smaller payload to serialize/parse. Text/state assertions keep the full tree.
+  async snap({ interactive = false } = {}) {
+    const lens = interactive ? ['-i', '--compact'] : []
+    try {
+      const { data } = await this.ad(['snapshot', '--window-id', this.windowId, '--max-depth', '40', ...lens])
+      return data.tree
+    } catch (e) {
+      // agent-desktop reassigns a window's AX id when the renderer repaints/
+      // reloads, so a cached windowId can go stale mid-scenario (WINDOW_NOT_FOUND)
+      // even though the OS window is still there under the same pid. Re-resolve by
+      // pid and retry once; a genuine crash (pid gone) still fails as it should.
+      if (e.code !== 'WINDOW_NOT_FOUND' || !this.pid) throw e
+      const match = (await mirallWindows()).find((w) => w.pid === this.pid)
+      if (!match) throw e
+      this.windowId = match.id
+      const { data } = await this.ad(['snapshot', '--window-id', this.windowId, '--max-depth', '40', ...lens])
+      return data.tree
+    }
+  }
+
+  async _ref(sel) {
+    const tree = await this.snap({ interactive: true })
+    const node = findNode(tree, sel)
+    if (!node || !node.ref) {
+      throw Object.assign(new Error(`${this.name}: no element ${JSON.stringify(sel)}`), {
+        code: 'ELEMENT_NOT_FOUND',
+      })
+    }
+    return node.ref
+  }
+
+  // Raise this instance's window before acting. With two instances up, the one
+  // launched last is frontmost, and AX-acting on a *background* window misfires:
+  // e.g. clicking "Initialize Space" there closes the create modal instead of
+  // advancing it, so "Space Created" is never seen. A real user always acts on
+  // the focused window — focus first so click/type land where intended. (press()
+  // already does this.)
+  click(sel) {
+    return withRetry(async () => {
+      await this.focus()
+      return this.ad(['click', await this._ref(sel)])
+    })
+  }
+
+  // Move the OS cursor onto an element (real mouseenter/mouseleave to the DOM).
+  hover(sel) {
+    return withRetry(async () => {
+      await this.focus()
+      return this.ad(['hover', await this._ref(sel)], { headed: true })
+    })
+  }
+
+  // Park the cursor in the top-left corner — guaranteed off any element, so the
+  // previously-hovered node receives mouseleave.
+  moveCursorAway() {
+    return this.ad(['mouse-move', '--xy', '5,5'], { allowError: true, headed: true })
+  }
+
+  // agent-desktop `type` double-emits keystrokes on these React inputs; `set-value`
+  // sets the value once and still fires React's onChange (verified). It returns a
+  // spurious ACTION_FAILED even on success, so allow the error and verify by read-back.
+  type(sel, text) {
+    return withRetry(async () => {
+      await this.focus()
+      const ref = await this._ref(sel)
+      await this.ad(['set-value', ref, text], { allowError: true })
+      const got = (await this.ad(['get', ref, '--property', 'value'])).data.value
+      if (got !== text) {
+        throw Object.assign(new Error(`${this.name}: set-value mismatch (got ${JSON.stringify(got)})`), { code: 'STALE_REF' })
+      }
+      return ref
+    })
+  }
+
+  // Set a field's value directly WITHOUT asserting the read-back equals it — for
+  // inputs that normalise their value on change (e.g. the Join dialog stripping a
+  // pasted mirall://join deep link down to the bare invite code). Still fires
+  // React's onChange like type(), so the controlled value re-renders.
+  async setRaw(sel, text) {
+    await this.focus()
+    const ref = await this._ref(sel)
+    await this.ad(['set-value', ref, text], { allowError: true })
+    return ref
+  }
+
+  // Raise this window only if it isn't already frontmost. Re-focusing a window
+  // that's already focused is not a no-op for the UI: it dismisses an open
+  // react-aria popover/menu, so an unconditional focus before every click would
+  // break "open More menu → click an item" flows. Skipping when already focused
+  // keeps single-instance flows untouched and only switches windows when a
+  // different instance currently holds focus (the multi-instance case this guards).
+  async focus() {
+    // A single-instance scenario has no competing Mirall window, so this instance
+    // stays frontmost after its initial raise (done unconditionally in launch()).
+    // Skip the per-action list-windows round-trip (~0.4s each) AND the re-focus,
+    // which would dismiss any open react-aria popover. Multi-instance still needs
+    // the check to bring the acting window forward when a sibling holds focus.
+    if (this.total === 1) return
+    const me = (await ad(['list-windows'])).data.find((w) => w.id === this.windowId)
+    if (me?.is_focused) return
+    await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
+  }
+
+  async press(combo) {
+    await this.focus()
+    return ad(['press', combo])
+  }
+
+  // Case-insensitive: macOS AX reflects CSS text-transform, so uppercased badges
+  // ("MIRRORED", "SHARED BY YOU") come through transformed.
+  async waitText(substr, timeout = 30000) {
+    // Single window: agent-desktop's native text wait blocks in ONE process with
+    // efficient internal polling — no per-iteration full snapshot — and is
+    // case-insensitive substring, so it's strictly faster than our JS loop
+    // (~0.13s when the text is already up vs a ~0.4s snapshot). It scopes by
+    // --app, so it's only definitive when this instance is the sole Electron
+    // window; multi-instance keeps the per-window snapshot loop so the text is
+    // proven on THIS window, not a sibling that happens to show the same string.
+    if (this.total === 1) {
+      const res = await ad(['wait', '--text', substr, '--app', 'Electron', '--timeout', String(timeout)], { allowError: true })
+      if (res.ok) return true
+      throw new Error(`${this.name}: text "${substr}" not seen in ${timeout}ms (window ${this.windowId})`)
+    }
+    const needle = substr.toLowerCase()
+    const deadline = Date.now() + timeout
+    let last = ''
+    while (Date.now() < deadline) {
+      last = allText(await this.snap())
+      if (last.toLowerCase().includes(needle)) return true
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    throw new Error(
+      `${this.name}: text "${substr}" not seen in ${timeout}ms (window ${this.windowId}); shows: ${last.replace(/\s+/g, ' ').slice(0, 280)}`,
+    )
+  }
+
+  async hasText(substr) {
+    return allText(await this.snap()).toLowerCase().includes(substr.toLowerCase())
+  }
+
+  async isChecked(sel) {
+    const ref = await this._ref(sel)
+    const res = await this.ad(['is', ref, '--property', 'checked'], { allowError: true })
+    return res.data?.value === true
+  }
+
+  // Read a node's AX value (e.g. "0"/"1" for aria-pressed / aria-checked toggles).
+  async nodeValue(sel) {
+    const node = findNode(await this.snap(), sel)
+    return node ? node.value : null
+  }
+
+  async onboard() {
+    await this.waitText('Welcome to Mirall', 45000)
+    await this.type({ role: 'textfield' }, this.name)
+    await this.click({ role: 'button', name: 'Continue' })
+    await this.waitText('Create Space', 30000)
+  }
+
+  async isDisabled(sel) {
+    const node = findNode(await this.snap(), sel)
+    return !!node && (node.states ?? []).includes('disabled')
+  }
+
+  async has(sel) {
+    return !!findNode(await this.snap(), sel)
+  }
+
+  // Create a space without a peer (the create half of connectInSpace), leaving
+  // the instance in the new space's view. For single-peer scenarios.
+  async createSpaceOnly(name = 'Aurora') {
+    await this.click({ role: 'button', name: 'Create Space' })
+    await this.waitText('Create a New Space')
+    await this.type({ role: 'textfield' }, name)
+    await this.click({ role: 'button', name: 'Initialize Space' })
+    await this.waitText('Space Created')
+    await this.click({ role: 'button', name: 'Done' })
+    await this.waitText(name)
+  }
+
+  async openSettings() {
+    await this.click({ name: 'Settings' })
+    await this.waitText('Manage your experience', 8000)
+  }
+
+  async gotoSettings(section) {
+    await this.openSettings()
+    await this.click({ name: section })
+  }
+
+  async openAccount() {
+    await this.click({ name: 'Account' })
+    await this.waitText('Your profile', 8000)
+  }
+
+  async openNetworkStatus() {
+    await this.openAccount()
+    await this.click({ role: 'button', contains: 'Network' })
+    await this.waitText('Network status', 8000)
+  }
+
+  async openJoinModal() {
+    await this.click({ role: 'button', name: 'Join Space' })
+    await this.waitText('Join a Space', 8000)
+  }
+
+  async openInviteModal() {
+    await this.click({ name: 'Invite', last: true })
+    await this.waitText('Invite to Space', 8000)
+  }
+
+  async openEditSpace() {
+    await this.click({ name: 'More' })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Edit Space' })
+    await this.waitText('Edit Space', 8000)
+  }
+
+  async back() {
+    await this.click({ name: 'Back' })
+  }
+
+  // Drive a native NSOpenPanel (file or folder) belonging to THIS instance via
+  // Go-to-folder. The panel surfaces as a window titled "Open" with our pid.
+  async nativeChoosePath(absPath) {
+    let openWin
+    // Generous window: late in a full run the system is loaded and the native
+    // NSOpenPanel can take several seconds to surface.
+    const deadline = Date.now() + 20000
+    while (Date.now() < deadline) {
+      openWin = (await ad(['list-windows'])).data.find(
+        (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
+      )
+      if (openWin) break
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    if (!openWin) throw new Error(`${this.name}: native Open panel not found`)
+    await ad(['focus-window', '--window-id', openWin.id], { allowError: true })
+    await ad(['press', 'cmd+shift+g'])
+    await new Promise((r) => setTimeout(r, 250))
+    // Re-resolve the field each attempt and set it in a single op (set-value is
+    // absolute — no separate clear, which would stale the ref). Verify by read-back.
+    let ok = false
+    for (let i = 0; i < 15 && !ok; i++) {
+      const sheet = (await this.ad(['snapshot', '--app', 'Electron', '--surface', 'sheet'])).data
+      const tf = findNode(sheet.tree ?? sheet, { role: 'textfield' })
+      if (tf?.ref) {
+        await this.ad(['set-value', tf.ref, absPath], { allowError: true })
+        const v = (await this.ad(['get', tf.ref, '--property', 'value'], { allowError: true })).data?.value
+        if (v === absPath) ok = true
+      }
+      if (!ok) await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    if (!ok) throw new Error(`${this.name}: could not set Go-to-folder path`)
+    await ad(['press', 'return'])
+    await new Promise((r) => setTimeout(r, 300))
+    await ad(['press', 'return'])
+    await new Promise((r) => setTimeout(r, 400))
+    // The two returns (commit Go-to sheet, then Open) can race the sheet animation and
+    // silently select NOTHING — the panel stays up, the scenario "passes" this step, and
+    // the miss only surfaces a minute later as "peer never saw the file". Verify the panel
+    // actually closed, re-pressing return while it lingers.
+    const closedBy = Date.now() + 10000
+    while (Date.now() < closedBy) {
+      const still = (await ad(['list-windows'])).data.find(
+        (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
+      )
+      if (!still) return
+      await ad(['focus-window', '--window-id', still.id], { allowError: true })
+      await ad(['press', 'return'])
+      await new Promise((r) => setTimeout(r, 400))
+    }
+    throw new Error(`${this.name}: native Open panel did not close after selection`)
+  }
+
+  // Add a loose file (mod+u opens the file picker) and pick it via the panel.
+  async addFile(absPath) {
+    await this.press('cmd+u')
+    await new Promise((r) => setTimeout(r, 300))
+    await this.nativeChoosePath(absPath)
+  }
+
+  // Shared tail of the AddFolder / MirrorFolder modals: wait for "Next: Preview"
+  // to enable (validation is async — advisories are now non-blocking warning text,
+  // nothing to acknowledge), advance to the ScanPreviewModal, and confirm.
+  async _confirmPreview(createLabel, previewText) {
+    await new Promise((r) => setTimeout(r, 400))
+    for (let i = 0; i < 20; i++) {
+      const next = flatten(await this.snap()).find(
+        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
+      )
+      if (next && !(next.states ?? []).includes('disabled')) break
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    await this.click({ role: 'button', name: 'Next: Preview' })
+    await this.waitText(previewText, 20000)
+    await this.click({ role: 'button', name: createLabel, last: true })
+  }
+
+  async addOwnedFolder(absDir) {
+    await this.press('cmd+shift+u')
+    await new Promise((r) => setTimeout(r, 300))
+    await this.nativeChoosePath(absDir)
+    await this.waitText('Add Folder', 20000)
+    // Overlay is the only content mode now — the modal has no Eager/In-place picker,
+    // so a share always publishes in place via the overlay backend.
+    await this._confirmPreview('Add Folder', 'Upload')
+  }
+
+  // Open Add Folder and select a path, stopping on the edit step (no confirm) so
+  // the Folder Share segmented control can be inspected. Returns once the modal
+  // is up; caller asserts on segment presence then dismisses.
+  async openAddFolderModal(absDir) {
+    await this.press('cmd+shift+u')
+    await new Promise((r) => setTimeout(r, 300))
+    await this.nativeChoosePath(absDir)
+    await this.waitText('Add Folder', 20000)
+    await new Promise((r) => setTimeout(r, 300))
+  }
+
+  // Open Add Folder and select a path, but stop on the edit step (no confirm) so
+  // a validation rejection surfaces. Returns once async validation has run.
+  async openAddFolderAndPick(absDir) {
+    await this.press('cmd+shift+u')
+    await new Promise((r) => setTimeout(r, 300))
+    await this.nativeChoosePath(absDir)
+    await this.waitText('Add Folder', 20000)
+    await new Promise((r) => setTimeout(r, 600))
+  }
+
+  // Mirror a browse share to disk. Opens the share card's own ⋯ menu (it renders
+  // after the header "More", so match the last one), Browse to mirrorDir, confirm.
+  async mirrorShare(mirrorDir) {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Mirror to Disk…' })
+    await this.waitText('to Disk', 20000)
+    await this.click({ role: 'button', name: 'Browse…' })
+    await this.nativeChoosePath(mirrorDir)
+    await this._confirmPreview('Start Mirroring', 'Download')
+  }
+
+  async unmountShare() {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Unmount Mirror' })
+  }
+
+  // Open the owned share card's ⋯ menu and confirm Delete Folder. The menu item
+  // and the modal's confirm button share the label "Delete Folder", so the
+  // confirm targets the last match (the modal button, rendered after).
+  async deleteShare() {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Delete Folder' })
+    await this.waitText('will no longer see', 15000)
+    await this.click({ role: 'button', name: 'Delete Folder', last: true })
+  }
+
+  async pauseMirror() {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Pause Mirror' })
+  }
+
+  async resumeMirror() {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Resume Mirror' })
+  }
+
+  // Open a share's FolderView from the space view (the card's "Open <name>"
+  // button). FolderView lists files as a flat, recursive set of relPaths, so a
+  // nested file shows as a "sub/dir/file.txt" row.
+  async openFolder(name) {
+    await this.click({ name: 'Open ' + name })
+    await this.waitText('Files in this folder', 15000)
+  }
+
+  // From space-view: More → Manage Storage → StorageSettings. "Manage Storage"
+  // lives in the space *header* menu, so target the first "More" — once a folder
+  // is shared, the share card adds its own "More" (the last one), which has no
+  // Manage Storage. (Header-level siblings openEditSpace/leaveSpace match first too.)
+  async openManageStorage() {
+    await this.click({ name: 'More' })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Manage Storage' })
+    // "Download Folder" is the one section present in both the eager (Total Storage +
+    // Active Spaces + Other) and the shipped (single App Storage card) layouts.
+    await this.waitText('Download Folder', 10000)
+  }
+
+  // In StorageSettings: open a space's actions menu → Clear peer cache → confirm.
+  async clearPeerCache() {
+    await this.click({ contains: 'Actions for' })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Clear peer cache' })
+    await this.waitText('Clear peer cache for', 10000)
+    await this.click({ role: 'button', name: 'Clear cache', last: true })
+  }
+
+  // Leave the current space via the More menu → Leave Space → confirm.
+  async leaveSpace() {
+    // The menu trigger has aria-haspopup → AX exposes it as a popup button, not
+    // role "button", so match by name only.
+    await this.click({ name: 'More' })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Leave Space' })
+    await this.waitText('Leave')
+    await this.click({ role: 'button', name: 'Leave Space', last: true })
+    await this.waitText('Create Space', 30000)
+  }
+
+  async clipboard() {
+    return (await ad(['clipboard-get'])).data.text
+  }
+
+  // Click a copy button and return the freshly-copied text. Guards against a
+  // stale clipboard (a renderer clipboard write that never lands) by seeding a
+  // sentinel first and waiting for it to change.
+  async copyFrom(buttonSel, timeout = 5000) {
+    const sentinel = `__sentinel_${Date.now()}__`
+    await ad(['clipboard-set', sentinel])
+    await this.focus()
+    await this.click(buttonSel)
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const v = await this.clipboard()
+      if (v && v !== sentinel) return v
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    throw new Error(`${this.name}: clipboard did not update after copy`)
+  }
+
+  async shot(label, dir) {
+    const file = path.join(dir, `${this.name}-${label}.png`)
+    await ad(['screenshot', file, '--window-id', this.windowId])
+    return file
+  }
+
+  // Reap the whole detached process group and WAIT for it to actually exit.
+  // Graceful (default): SIGTERM lets Electron's before-quit tear the worker swarm
+  // down cleanly (~3-5s); if the group is still alive after the grace window — a
+  // wedged renderer or a worker stuck on a busy loop — escalate to SIGKILL. Fire-
+  // and-forget SIGTERM (the old behaviour) let the next scenario launch while two
+  // Electron apps + workers were still shutting down, and over a full run those
+  // overlapping teardowns piled up until a fresh worker's IPC no longer came up in
+  // time (the "IPC timeout" failures). `hard:true` SIGKILLs immediately — a
+  // crash / force-quit that interrupts an in-flight publish/transfer with no
+  // graceful shutdown, which is exactly what the restart-recovery scenarios need.
+  async _stopProcess({ hard = false } = {}) {
+    const proc = this.proc
+    this.proc = null
+    if (!proc?.pid) return
+    const exited = new Promise((resolve) => {
+      if (proc.exitCode !== null || proc.signalCode !== null) return resolve()
+      proc.once('exit', resolve)
+      proc.once('error', resolve)
+    })
+    if (hard) {
+      try { process.kill(-proc.pid, 'SIGKILL') } catch {}
+      await exited
+      return
+    }
+    try { process.kill(-proc.pid, 'SIGTERM') } catch {}
+    const sigkill = setTimeout(() => { try { process.kill(-proc.pid, 'SIGKILL') } catch {} }, 6000)
+    await exited
+    clearTimeout(sigkill)
+  }
+
+  async kill() {
+    await this._stopProcess()
+    // Only now is nothing still writing the store — safe to remove it.
+    try {
+      rmSync(this.store, { recursive: true, force: true })
+      rmSync(this.downloadFolder, { recursive: true, force: true })
+    } catch {}
+  }
+
+  // Quit this instance's process but KEEP its store + download folder, then boot a
+  // fresh process on the SAME store — the returning-user path (no onboarding). This
+  // is how restart-recovery scenarios (quit mid-transfer / mid-index → relaunch →
+  // resume / recover) are exercised at the UI layer; plain kill() wipes the store and
+  // can't. `hard:true` force-quits (SIGKILL) to interrupt an in-flight operation
+  // abruptly — a crash rather than a clean shutdown; default is a graceful SIGTERM
+  // (faster owner-offline detection for the peer). The agent-desktop session
+  // namespace is unchanged, so cross-process refs keep resolving against the fresh
+  // window's snapshots. Caller waits for the post-boot content it expects (the space
+  // view loads straight into the existing membership — no Welcome screen).
+  // Stop this instance's process but KEEP its store + download folder (the offline half of a
+  // restart, with a caller-controlled gap). Pair with launch({ onboard:false }) to bring it
+  // back AFTER the peer has observed the outage — the offline→online edge that owner-return
+  // auto-resume needs (a no-gap relaunch can come back before the peer ever saw it leave).
+  async quit({ hard = false } = {}) {
+    await this._stopProcess({ hard })
+    this.windowId = null
+    this.pid = null
+  }
+
+  async relaunch({ hard = false } = {}) {
+    await this.quit({ hard })
+    return this.launch({ onboard: false })
+  }
+}

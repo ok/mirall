@@ -1,0 +1,93 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # Tier 1 pure units + raw holepunch mechanics. Fast; has never flaked.
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      # a11y rules are errors (hard gate); complexity/unused-vars warnings are held at a
+      # baseline ceiling so NEW hotspots fail CI without blocking on existing debt. Ratchet
+      # the --max-warnings number in package.json down as the worst offenders get refactored.
+      - name: Lint (a11y gate + complexity/unused-vars ceiling)
+        run: npm run lint:ci
+      # Dead-code report. Advisory for now: knip exits non-zero on the ~50 existing unused
+      # exports (some intentionally exported for future use), so it surfaces in the log without
+      # failing the job. Drop continue-on-error once the baseline is cleaned to make it a gate.
+      - name: Dead-code report (knip — advisory)
+        run: npm run knip
+        continue-on-error: true
+      - name: Tests (unit + raw)
+        run: npm run test:node:core
+
+  # Tier 3 two-peer flow tests: real worker subprocesses over a hermetic hyperdht
+  # testnet. They measure CPU-bound eventual-consistency convergence and are ~5x
+  # slower on a 2-vCPU runner — hence MIRALL_TEST_TIMEOUT_SCALE. Sharded so one
+  # flake fails only its shard (re-run it) and the suite parallelises. bare-sidecar
+  # bundles its own `bare`, so no PATH step is needed here.
+  flow:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    env:
+      MIRALL_TEST_TIMEOUT_SCALE: '3'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Flow tests (shard ${{ matrix.shard }}/6)
+        run: |
+          files="$(node test/flow-shard.mjs ${{ matrix.shard }} 6)"
+          echo "Shard ${{ matrix.shard }}/6:"; echo "$files" | tr ' ' '\n'
+          # Run each file independently so one file's crash can't abort the rest,
+          # then retry ONLY the failed files once (a whole-shard retry wasted minutes).
+          failed=""
+          for f in $files; do
+            npx brittle-node "$f" || failed="$failed $f"
+          done
+          if [ -n "$failed" ]; then
+            echo "::warning title=Flow shard ${{ matrix.shard }} flaked::retried$failed (a pass-on-retry is a residual flake — see the failed attempt's timeout diagnostics)"
+            for f in $failed; do npx brittle-node "$f" || exit 1; done
+          fi
+
+  # Tier 2/3 in-process tests of the real bare-* modules. brittle-bare shells
+  # out to a `bare` binary on PATH (provided by the bare-runtime devDep).
+  bare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Ensure bare runtime on PATH
+        run: |
+          # npm ci normally links node_modules/.bin/bare from the bare-runtime
+          # devDep; create it defensively if missing, then verify it runs.
+          if [ ! -e node_modules/.bin/bare ]; then
+            ln -sf ../bare-runtime/bin/bare node_modules/.bin/bare
+          fi
+          node_modules/.bin/bare --version
+      - name: Tests (bare runner)
+        run: npm run test:bare

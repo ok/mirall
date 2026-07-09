@@ -1,0 +1,429 @@
+@import "tailwindcss";
+@config "../../../tailwind.config.js";
+
+:root {
+  --color-icon-tile: #fec78a;
+  --color-on-icon-tile: #0a4742;
+  --color-success: #c1ecc4;
+  --color-on-success: #0c4d20;
+  --color-info: #d6e6f5;
+  --color-on-info: #1f4a78;
+  --color-online: #0d8b80;
+  --color-offline: #a0a4ac;
+  --color-accent: #33253b;
+  --color-primary: #33253b;
+  --color-primary-container: #4a3b52;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #baa6c1;
+  --color-on-primary-fixed: #23162b;
+  --color-on-primary-fixed-variant: #504158;
+  --color-primary-fixed: #f1dbf9;
+  --color-primary-fixed-dim: #d4bfdc;
+  --color-secondary: #904d00;
+  --color-secondary-container: #fd9c42;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #6b3800;
+  --color-on-secondary-fixed: #2e1500;
+  --color-on-secondary-fixed-variant: #6d3900;
+  --color-secondary-fixed: #ffdcc2;
+  --color-secondary-fixed-dim: #ffb77c;
+  --color-tertiary: #541116;
+  --color-tertiary-container: #72272a;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #f6908f;
+  --color-on-tertiary-fixed: #3f0209;
+  --color-on-tertiary-fixed-variant: #7a2d30;
+  --color-tertiary-fixed: #ffdad9;
+  --color-tertiary-fixed-dim: #ffb3b2;
+  --color-surface: #fbf9f5;
+  --color-surface-bright: #fbf9f5;
+  --color-surface-dim: #dbdad6;
+  --color-surface-container: #efeeea;
+  --color-surface-container-low: #f5f3ef;
+  --color-surface-container-high: #eae8e4;
+  --color-surface-container-highest: #e4e2de;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-variant: #e4e2de;
+  --color-surface-tint: #695871;
+  --color-on-surface: #1b1c1a;
+  --color-on-surface-variant: #4a454b;
+  --color-on-background: #1b1c1a;
+  /* Keep in sync with BG_LIGHT in electron/main.js — the BrowserWindow's
+     native background must match this so the OS doesn't flash a different
+     color along the edges during a fast resize. */
+  --color-background: #fbf9f5;
+  --color-outline: #7c757c;
+  --color-outline-variant: #ccc4cc;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-error-container-hover: #f5c8c4;
+  --color-on-error-container: #93000a;
+  --color-warning: #fcd34d;
+  --color-on-warning: #1b1c1a;
+  --color-inverse-surface: #30312e;
+  --color-inverse-on-surface: #f2f0ed;
+  --color-inverse-primary: #d4bfdc;
+}
+
+.dark {
+  --color-icon-tile: #fec78a;
+  --color-on-icon-tile: #0a4742;
+  --color-success: #20492a;
+  --color-on-success: #8fd99b;
+  --color-info: #1f3a52;
+  --color-on-info: #9bc6e8;
+  --color-online: #5cc4b8;
+  --color-offline: #5b6270;
+  --color-accent: #fce8d2;
+  --color-primary: #fd9c42;
+  --color-primary-container: #4a3320;
+  --color-on-primary: #282c34;
+  --color-on-primary-container: #f6c094;
+  --color-on-primary-fixed: #1e2228;
+  --color-on-primary-fixed-variant: #6b5a4a;
+  --color-primary-fixed: #4a3320;
+  --color-primary-fixed-dim: #5a3f28;
+  --color-secondary: #e4bf7a;
+  --color-secondary-container: #4a3e28;
+  --color-on-secondary: #282c34;
+  --color-on-secondary-container: #ecd09a;
+  --color-on-secondary-fixed: #fce8d2;
+  --color-on-secondary-fixed-variant: #5b6270;
+  --color-secondary-fixed: #3e3528;
+  --color-secondary-fixed-dim: #4a4032;
+  --color-tertiary: #c578dd;
+  --color-tertiary-container: #3e2848;
+  --color-on-tertiary: #282c34;
+  --color-on-tertiary-container: #d49ee6;
+  --color-on-tertiary-fixed: #1e2228;
+  --color-on-tertiary-fixed-variant: #5b6270;
+  --color-tertiary-fixed: #352840;
+  --color-tertiary-fixed-dim: #42324e;
+  --color-surface: #282c34;
+  --color-surface-bright: #3e4450;
+  --color-surface-dim: #21252b;
+  --color-surface-container: #2e323a;
+  --color-surface-container-low: #2e3239;
+  --color-surface-container-high: #5c6068;
+  --color-surface-container-highest: #393f4a;
+  --color-surface-container-lowest: #21252b;
+  --color-surface-variant: #333842;
+  --color-surface-tint: #3a4250;
+  --color-on-surface: #fefaf3;
+  --color-on-surface-variant: #ebe2d2;
+  --color-on-background: #fefaf3;
+  /* Keep in sync with BG_DARK in electron/main.js — see the matching note
+     above on --color-background in :root. */
+  --color-background: #282c34;
+  --color-outline: #5b6270;
+  --color-outline-variant: #393f4a;
+  --color-error: #df6b75;
+  --color-on-error: #282c34;
+  --color-error-container: #6f3338;
+  --color-error-container-hover: #823e44;
+  --color-on-error-container: #ffd2cf;
+  --color-warning: #fbbf24;
+  --color-on-warning: #1b1c1a;
+  --color-inverse-surface: #fefaf3;
+  --color-inverse-on-surface: #282c34;
+  --color-inverse-primary: #a36540;
+}
+
+@font-face {
+  font-family: "Manrope";
+  font-weight: 400 600;
+  src: url("../fonts/manrope.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-weight: 700 800;
+  src: url("../fonts/plusjakarta.woff2") format("woff2");
+}
+body {
+  font-family: "Manrope", sans-serif;
+}
+
+/* Honor the OS "reduce motion" setting globally — neutralizes the infinite
+ * keyframe animations (avatar pulse, leave-progress stripe) and collapses
+ * transitions/transforms in one rule. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Mirall is an app, not a webpage — text in labels, headings, paths, names,
+ * and metadata is not user-selectable. Where copy is genuinely useful (e.g.
+ * the storage path or the version string for support), the UI surfaces an
+ * explicit copy affordance via <CopyButton> instead. Inputs and textareas
+ * keep selection so users can edit what they typed. */
+html,
+body,
+#root {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Tailwind v4 preflight resets button cursor to `default` (arrow); switch
+ * back to the pointing-hand for any enabled button or role="button" element.
+ * Disabled buttons keep the not-allowed cursor. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.font-headline {
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+/* The modal panel surface. Despite the legacy "glass" name it is fully
+ * opaque — the frosted blur lives on the modal backdrop (CrystalBackdrop),
+ * not on the panel. See .claude/design.md §6. */
+.glass-modal {
+  background: var(--color-surface-container-lowest);
+}
+
+@keyframes leave-progress-stripe-shift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 24px 0;
+  }
+}
+
+@keyframes avatar-issue-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--avatar-issue-color);
+  }
+  50% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+.avatar-issue-pulse-error {
+  --avatar-issue-color: var(--color-error);
+  box-shadow: 0 0 0 2px var(--avatar-issue-color);
+  animation: avatar-issue-pulse 2.4s ease-in-out infinite;
+}
+
+.avatar-issue-pulse-warning {
+  --avatar-issue-color: var(--color-warning);
+  box-shadow: 0 0 0 2px var(--avatar-issue-color);
+  animation: avatar-issue-pulse 2.4s ease-in-out infinite;
+}
+
+.leave-progress-stripe {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--color-on-info) 18%, transparent) 0,
+    color-mix(in srgb, var(--color-on-info) 18%, transparent) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  background-size: 24px 24px;
+  animation: leave-progress-stripe-shift 1.4s linear infinite;
+  pointer-events: none;
+}
+
+/* Indeterminate progress sweep — shown during the ETA "warmup" before a stable rate
+   exists. A 40%-wide segment slides across the track via `transform` (compositor-only,
+   no per-frame layout/paint); see design.md §motion. */
+@keyframes progress-indeterminate-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.progress-indeterminate {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  border-radius: 9999px;
+  background: var(--color-on-info);
+  animation: progress-indeterminate-sweep 1.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+@keyframes loading-dot-2 {
+  0%,
+  33% {
+    opacity: 0;
+  }
+  34%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes loading-dot-3 {
+  0%,
+  66% {
+    opacity: 0;
+  }
+  67%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.loading-dots > span {
+  opacity: 1;
+}
+
+.loading-dots > span:nth-child(2) {
+  animation: loading-dot-2 1.4s linear infinite;
+}
+
+.loading-dots > span:nth-child(3) {
+  animation: loading-dot-3 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-dots > span {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Window controls — <pear-ctrl> is a shadow-DOM custom element from
+ * Pear's runtime preload. Pear Electron always passes frame: false to
+ * BrowserWindow, so the app must render its own chrome:
+ *   - Mac: #mac() template is empty; real OS traffic lights render via
+ *     Electron's titleBarOverlay + trafficLightPosition.
+ *   - Windows: #win() template renders min/max/restore/close as cells
+ *     with hardcoded white SVGs, floated right by default.
+ *   - Linux: #gen() template, same structure as Windows.
+ *
+ * On Windows/Linux pear-ctrl is rendered as a direct child of TopNav's
+ * drag <nav> inside a no-drag wrapper, so Chromium's drag-region
+ * compositor carves the controls out of the surrounding drag region
+ * reliably. Placing it in a separate fixed container outside the nav
+ * made Chromium treat the whole area as drag regardless of no-drag
+ * declarations, and OS-level capture swallowed the clicks before JS
+ * saw them.
+ *
+ * Shadow encapsulation blocks external CSS from restyling #ctrl's
+ * internals (float, cell order, the hardcoded white SVG fills). What
+ * DOES cross the boundary is CSS custom properties: we set
+ * --mirall-ctrl-color per theme/platform on the host below, and
+ * pear-ctrl's own shadow CSS colors its control glyphs from it.
+ * (An earlier build shipped a src/pear-ctrl-theme.ts helper that
+ * injected a stylesheet into the open shadow root to also flip layout
+ * and reorder cells; it was removed in the pear-electron migration —
+ * the host-element rules below plus the inherited custom property are
+ * the only theming that remains.) */
+
+[data-platform="darwin"] pear-ctrl {
+  margin-top: 20px;
+  margin-left: 16px;
+}
+
+[data-platform="win32"] pear-ctrl,
+[data-platform="linux"] pear-ctrl {
+  display: inline-block;
+  width: 120px;
+  height: 32px;
+  --mirall-ctrl-color: #1b1c1a;
+}
+
+[data-platform="win32"].dark pear-ctrl,
+[data-platform="linux"].dark pear-ctrl {
+  --mirall-ctrl-color: #e6e6e6;
+}
+
+/* Use the standardized scrollbar properties as the source of truth. Modern
+ * Chromium (the Electron 40 / Chromium ~140 we ship) no longer reliably
+ * honors the legacy ::-webkit-scrollbar pseudo-elements over the OS overlay
+ * scrollbar, and once these standard properties are set Chromium ignores the
+ * webkit ones anyway. These work on Chromium 121+, Firefox, and Safari 18.2+,
+ * and resolve against the document color-scheme (see theme.ts). The thumb
+ * color must be opaque — a translucent track keeps the gutter clean.
+ * Width is `auto` (default OS width): the standard property only offers
+ * auto / thin / none, and `thin` renders too narrow on macOS. */
+.scrollbar-thin {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-surface-container-high) transparent;
+}
+
+/* Tailwind preflight strips list bullets and heading sizes; the changelog
+ * body is rendered straight from author-controlled markdown via marked, so
+ * we restore minimal typography here scoped to .whats-new-body. */
+.whats-new-body h3 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 0.75rem;
+}
+.whats-new-body h4 {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  margin: 1.25rem 0 0.5rem;
+}
+.whats-new-body h4:first-child {
+  margin-top: 0;
+}
+.whats-new-body p {
+  margin: 0 0 0.75rem;
+}
+.whats-new-body ul {
+  list-style: disc outside;
+  padding-left: 1.25rem;
+  margin: 0 0 0.75rem;
+}
+.whats-new-body li {
+  margin: 0.25rem 0;
+}
+.whats-new-body li::marker {
+  color: var(--color-outline);
+}
+.whats-new-body strong {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+.whats-new-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--color-surface-container);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+}
+.whats-new-body a {
+  color: var(--color-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

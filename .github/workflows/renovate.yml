@@ -1,0 +1,40 @@
+# Requires repo secret RENOVATE_TOKEN: a fine-grained PAT scoped to this repo
+# with contents:write, pull-requests:write, issues:write, metadata:read,
+# workflows:write. A PAT is required (not GITHUB_TOKEN) so PRs opened by
+# Renovate trigger CI.
+
+name: Renovate
+
+on:
+  schedule:
+    # 01:00 UTC Monday = 03:00 Berlin (CEST) / 02:00 (CET).
+    # Must fire inside the schedule window in renovate.json
+    # ("before 8am Europe/Berlin Monday" = before 06:00 UTC CEST /
+    # 07:00 UTC CET); ~5h slack absorbs GitHub Actions cron delay.
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Renovate log level'
+        type: choice
+        default: 'info'
+        options:
+          - info
+          - debug
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: renovatebot/github-action@v46.1.18
+        with:
+          token: ${{ secrets.RENOVATE_TOKEN }}
+          configurationFile: renovate.json
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}

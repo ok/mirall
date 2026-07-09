@@ -1,0 +1,569 @@
+// Space screen: loose files and folder shares with drag-drop adding, transfer controls, member presence, and invites.
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { FileEntry } from '../types.js'
+import { useFiles } from '../hooks/useFiles.js'
+import { useDecorations } from '../hooks/useDecorations.js'
+import { useTransferControls } from '../hooks/useTransferControls.js'
+import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
+import { useMembers } from '../hooks/useMembers.js'
+import { useSpaces } from '../hooks/useSpaces.js'
+import { useShares, type ShareWithRole } from '../hooks/useShares.js'
+import { useProfile } from '../hooks/useProfile.js'
+import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useDragShare } from '../hooks/useDragShare.js'
+import DropZone from '../components/widgets/DropZone.js'
+import DropOverlay from '../components/widgets/DropOverlay.js'
+import FileCard from '../components/cards/FileCard.js'
+import ShareCard from '../components/cards/ShareCard.js'
+import MembersBox from '../components/widgets/MembersBox.js'
+import LoadingFiles from '../components/widgets/LoadingFiles.js'
+import JoinRequestBanner from '../components/widgets/JoinRequestBanner.js'
+import ApprovalModal from '../components/modals/ApprovalModal.js'
+import StorageIndicator from '../components/widgets/StorageIndicator.js'
+import LeaveSpaceModal from '../components/modals/LeaveSpaceModal.js'
+import RemoveFileModal from '../components/modals/RemoveFileModal.js'
+import AddFolderShareModal from '../components/modals/AddFolderShareModal.js'
+import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
+import MirrorFolderModal from '../components/modals/MirrorFolderModal.js'
+import { setForeignMountEnabled, unmountForeignMount } from '../hooks/useForeignMount.js'
+import { useToast } from '../components/toast/useToast.js'
+import { request } from '../ipc.js'
+import ActionMenu from '../components/widgets/ActionMenu.js'
+import InviteModal from '../components/modals/InviteModal.js'
+import EditSpaceModal from '../components/modals/EditSpaceModal.js'
+import Icon from '../components/primitives/Icon.js'
+import IconButton from '../components/primitives/IconButton.js'
+import Button from '../components/primitives/Button.js'
+import Avatar from '../components/primitives/Avatar.js'
+import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
+
+interface SpaceViewProps {
+  spaceId: string
+  onBack: () => void
+  onManageStorage: () => void
+  onOpenShare?: (share: ShareWithRole) => void
+}
+
+export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
+  const { t } = useTranslation()
+  const { profile } = useProfile()
+  const {
+    files,
+    loading,
+    error,
+    refresh,
+    addFiles,
+    downloadFile,
+    unshareFile,
+    discardPartial,
+    cancelPublish,
+    revealFile,
+  } = useFiles(spaceId)
+  const { getDecoration } = useDecorations('transfer', spaceId, '/')
+  const { cancelDownload, pauseDownload } = useTransferControls()
+  const { getDownloadSummary } = usePeerDownloads(spaceId)
+  const { members, requests } = useMembers(spaceId)
+  const { spaces, createInvite, leaveSpace, updateSpace, toggleFavorite, approveMember, denyMember } = useSpaces()
+  const space = spaces.find(s => s.spaceId === spaceId)
+  const isPending = space?.status === 'pending'
+  const { shares } = useShares(spaceId, profile?.publicKey ?? null)
+  const toast = useToast()
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showApproval, setShowApproval] = useState(false)
+  const [showLeaveModal, setShowLeaveModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [fileToRemove, setFileToRemove] = useState<FileEntry | null>(null)
+  const [folderPathForShare, setFolderPathForShare] = useState<string | null>(null)
+  const [shareToDelete, setShareToDelete] = useState<ShareWithRole | null>(null)
+  const [shareToMirror, setShareToMirror] = useState<ShareWithRole | null>(null)
+  const [busy, setBusy] = useState<Set<string>>(new Set())
+  const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { dragKind, fileCount, folderName, dragActive, dragHandlers } = useDragShare({
+    onFiles: addFiles,
+    onFolder: handleShareFolderRequest,
+    folderEnabled: true,
+    onFolderUnsupported: () => toast.info(t('dropZone.folderComingSoon')),
+  })
+
+  async function handleShareFolderRequest(droppedPath: string) {
+    if (droppedPath && droppedPath.length > 0) {
+      setFolderPathForShare(droppedPath)
+      return
+    }
+    const picked = await window.bridge.browseShareFolder()
+    if (picked) setFolderPathForShare(picked)
+  }
+
+  const markBusy = (pk: string) => setBusy((prev) => new Set(prev).add(pk))
+  const clearBusy = (pk: string) => setBusy((prev) => {
+    if (!prev.has(pk)) return prev
+    const next = new Set(prev)
+    next.delete(pk)
+    return next
+  })
+
+  async function handleApprove(pk: string) {
+    if (busy.has(pk)) return
+    markBusy(pk)
+    try {
+      await approveMember(spaceId, pk)
+    } catch (err) {
+      const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(code === 'CREATOR_DIVERGENCE_UNRESOLVED' ? t('space.approveBlockedDivergence') : message)
+    } finally {
+      clearBusy(pk)
+    }
+  }
+
+  async function handleDeny(pk: string) {
+    if (busy.has(pk)) return
+    markBusy(pk)
+    try {
+      await denyMember(spaceId, pk)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      clearBusy(pk)
+    }
+  }
+
+  async function handleLocate(share: ShareWithRole) {
+    const picked = await window.bridge.browseShareFolder()
+    if (!picked) return
+    try {
+      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
+      toast.success(t('share.locateSuccess', { name: share.name }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  useEffect(() => {
+    function handle(event: Event) {
+      const ev = event as CustomEvent<ShareWithRole>
+      if (ev.detail && ev.detail.spaceId === spaceId) {
+        setShareToMirror(ev.detail)
+      }
+    }
+    window.addEventListener('mirall:open-mirror-modal', handle)
+    return () => window.removeEventListener('mirall:open-mirror-modal', handle)
+  }, [spaceId])
+
+  useRegisterCommand(
+    {
+      id: 'space.addFiles',
+      labelKey: 'shortcuts.addFiles',
+      group: 'space',
+      accelerator: 'mod+u',
+      when: (ctx) => ctx.currentScreen === 'space-view',
+      run: () => fileInputRef.current?.click(),
+    },
+    [],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.addFolder',
+      labelKey: 'shortcuts.addFolder',
+      group: 'space',
+      accelerator: 'mod+shift+u',
+      when: (ctx) => ctx.currentScreen === 'space-view',
+      run: () => handleShareFolderRequest(''),
+    },
+    [],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.invite',
+      labelKey: 'shortcuts.invite',
+      group: 'space',
+      when: (ctx) => ctx.currentScreen === 'space-view',
+      run: () => {
+        if (space?.status === 'pending') return
+        setShowInviteModal(true)
+      },
+    },
+    [],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.leave',
+      labelKey: 'shortcuts.leaveSpace',
+      group: 'space',
+      when: (ctx) => ctx.currentScreen === 'space-view',
+      run: () => setShowLeaveModal(true),
+    },
+    [],
+  )
+
+  function handleInvite() {
+    if (isPending) return
+    setShowInviteModal(true)
+  }
+
+  async function handleCancelRequest() {
+    await leaveSpace(spaceId)
+    onBack()
+  }
+
+  async function handleDownload(file: FileEntry) {
+    await downloadFile(file)
+  }
+
+  async function handleLeave() {
+    await leaveSpace(spaceId)
+  }
+
+  async function handleUnshareFile() {
+    if (!fileToRemove) return
+    await unshareFile(fileToRemove.path)
+    setFileToRemove(null)
+  }
+
+  async function handleDiscardPartial(file: FileEntry) {
+    await discardPartial(file)
+  }
+
+  async function handleReveal(file: FileEntry) {
+    await revealFile(file.path)
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const list = Array.from(e.target.files ?? [])
+          if (list.length > 0) addFiles(list)
+          e.target.value = ''
+        }}
+      />
+      <div className="shrink-0 pt-8 pb-4">
+        <div className="flex items-start gap-4 mb-2">
+          <IconButton
+            icon="arrow_back"
+            onClick={onBack}
+            ariaLabel={t('actions.back')}
+            className="mt-1 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3">
+              <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
+                {space?.name || t('space.fallbackName')}
+              </h1>
+              {space && space.schemaVersion !== 2 && (
+                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-bold border border-outline">
+                  {t('space.unencryptedBadge')}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2 shrink-0">
+            {isPending ? (
+              // Not a member yet — expose nothing member-only (invite/edit/storage),
+              // just a way to withdraw the request.
+              <Button variant="secondary" icon="close" onClick={handleCancelRequest}>
+                {t('space.cancelRequest')}
+              </Button>
+            ) : (
+              <>
+                <Button icon="group_add" onClick={handleInvite}>
+                  {t('space.inviteShort')}
+                </Button>
+                <ActionMenu
+                  label={t('space.more')}
+                  items={[
+                    {
+                      id: 'favorite',
+                      label: space?.favorite ? t('space.removeFavorite') : t('space.addFavorite'),
+                      icon: 'star',
+                      iconFilled: space?.favorite,
+                      onAction: () => toggleFavorite(spaceId),
+                    },
+                    {
+                      id: 'edit',
+                      label: t('space.edit'),
+                      icon: 'edit',
+                      onAction: () => setShowEditModal(true),
+                    },
+                    {
+                      id: 'manage-storage',
+                      label: t('space.manageStorage'),
+                      icon: 'database',
+                      onAction: onManageStorage,
+                    },
+                    {
+                      id: 'leave',
+                      label: t('space.leave'),
+                      icon: 'logout',
+                      variant: 'danger',
+                      onAction: () => setShowLeaveModal(true),
+                    },
+                  ]}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {space?.creatorDivergence && (
+        <div className="shrink-0 pb-4">
+          <div role="alert" className="rounded-2xl p-4 flex items-center gap-3 bg-error-container">
+            <Icon name="warning" className="text-on-error-container shrink-0" />
+            <p className="flex-1 min-w-0 font-bold text-on-error-container">{t('space.creatorDivergenceWarning')}</p>
+          </div>
+        </div>
+      )}
+
+      {space?.status !== 'pending' && requests.length > 0 && (
+        <div className="shrink-0 pb-4">
+          <JoinRequestBanner
+            requests={requests}
+            busyKeys={busy}
+            onApprove={handleApprove}
+            onDeny={handleDeny}
+            onReview={() => setShowApproval(true)}
+          />
+        </div>
+      )}
+
+      {space?.status === 'pending' ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center pb-8" role="status" aria-live="polite">
+          {(() => {
+            const inviters = members.filter((m) => m.publicKey !== profile?.publicKey)
+            return inviters.length > 0 ? (
+              <div className="flex items-center -space-x-3 mb-5">
+                {inviters.slice(0, 3).map((m) => (
+                  <Avatar key={m.publicKey} src={m.avatar} displayName={m.displayName} size="xl" ring="surface-container-lowest" />
+                ))}
+              </div>
+            ) : null
+          })()}
+          <h2 className="text-2xl font-headline font-bold text-accent mb-3">
+            {t('space.waitingApproval', { name: space?.name || t('space.fallbackName') })}
+          </h2>
+          <p className="text-on-surface-variant max-w-md leading-relaxed">{t('space.waitingApprovalHint')}</p>
+        </div>
+      ) : (
+      <div
+        className="relative flex-1 overflow-hidden grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
+        {...dragHandlers}
+      >
+        <div
+          ref={filesRef}
+          className={`overflow-y-auto scrollbar-thin min-h-0 pb-4 space-y-8${filesOverflow ? ' pr-4' : ''}`}
+        >
+          {!loading && !error && shares.length === 0 && files.length === 0 ? (
+            <div className="flex flex-col min-h-[24rem] mt-12">
+              <div className="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
+                <Icon name="draft" size={45} className="text-secondary" />
+                <Icon name="folder" filled size={45} className="text-secondary" />
+                <svg
+                  viewBox="0 0 512 256"
+                  className="w-[6.5rem] h-[3.25rem] text-secondary ml-1"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="28"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="60,80 140,128 60,176" opacity="0.35" />
+                  <polyline points="200,80 280,128 200,176" opacity="0.65" />
+                  <polyline points="340,80 420,128 340,176" opacity="1" />
+                </svg>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-center px-10 pb-10">
+                <h2 className="text-2xl font-headline font-bold text-accent mb-3">
+                  {t('space.emptyShareTitle')}
+                </h2>
+                <p className="text-on-surface-variant max-w-md leading-relaxed">
+                  {t('space.emptyShareSubtitle')}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {shares.length > 0 && (
+                <div>
+                  <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
+                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.foldersShared')}</h2>
+                    <span className="text-sm font-label text-secondary font-bold">
+                      {t('space.folderCount', { count: shares.length })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {shares.map((share) => {
+                      const owner = members.find((m) => m.publicKey === share.owner) ?? null
+                      return (
+                        <ShareCard
+                          key={share.owner + ':' + share.id}
+                          share={share}
+                          owner={owner}
+                          selfProfile={profile}
+                          onOpen={(s) => onOpenShare?.(s)}
+                          onOpenInFinder={share.role === 'mine' || share.role === 'mirrored' ? async (s) => {
+                            try { await request('share:reveal-folder', { spaceId, ownerKey: s.owner, shareId: s.id }) } catch {}
+                          } : undefined}
+                          onDelete={share.role === 'mine' ? (s) => setShareToDelete(s) : undefined}
+                          onLocate={share.role === 'mine' ? handleLocate : undefined}
+                          onMirror={share.role === 'browse' ? (s) => setShareToMirror(s) : undefined}
+                          onUnmount={share.role === 'mirrored' ? async (s) => {
+                            await unmountForeignMount(s.spaceId, s.id)
+                          } : undefined}
+                          onPauseMirror={share.role === 'mirrored' ? async (s) => {
+                            await setForeignMountEnabled(s.spaceId, s.id, false)
+                          } : undefined}
+                          onResumeMirror={share.role === 'mirrored' ? async (s) => {
+                            await setForeignMountEnabled(s.spaceId, s.id, true)
+                          } : undefined}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {loading ? (
+                <LoadingFiles label={t('space.loadingFiles')} />
+              ) : error && files.length === 0 ? (
+                <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Icon name="warning" size={32} className="text-error" />
+                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesError')}</h2>
+                  </div>
+                  <p className="text-on-surface-variant max-w-md leading-relaxed mb-6">{t('space.filesErrorHint')}</p>
+                  <button
+                    type="button"
+                    onClick={() => { void refresh() }}
+                    className="inline-flex items-center gap-2 rounded-full bg-secondary-container px-6 py-2.5 font-label font-bold text-on-secondary-container hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Icon name="refresh" size={18} />
+                    {t('space.filesRetry')}
+                  </button>
+                </div>
+              ) : files.length > 0 ? (
+                <div>
+                  <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
+                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesShared')}</h2>
+                    <span className="text-sm font-label text-secondary font-bold">
+                      {t('space.fileCount', { count: files.length })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {files.map((file, i) => (
+                      <FileCard
+                        key={`${file.driveKey}-${file.path}-${i}`}
+                        file={file}
+                        decoration={getDecoration(file.path)}
+                        onDownload={handleDownload}
+                        onCancel={cancelDownload}
+                        onPause={pauseDownload}
+                        onReveal={handleReveal}
+                        onUnshare={(f) => setFileToRemove(f)}
+                        onDiscardPartial={handleDiscardPartial}
+                        onCancelPublish={(f) => cancelPublish(f.path)}
+                        members={members}
+                        downloadSummary={getDownloadSummary(file.path)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-6 min-h-0 overflow-hidden pt-12">
+          <div className="shrink-0">
+            <DropZone
+              onFilesSelected={(files) => addFiles(files)}
+              folderSupportEnabled
+              onFolderSelected={handleShareFolderRequest}
+              dragActive={dragActive}
+            />
+          </div>
+          <div className="shrink-0">
+            <StorageIndicator spaceId={spaceId} />
+          </div>
+          <MembersBox members={members} />
+        </div>
+
+        <DropOverlay active={dragActive} kind={dragKind} fileCount={fileCount} folderName={folderName} />
+      </div>
+      )}
+
+      <ApprovalModal
+        isOpen={showApproval}
+        requests={requests}
+        busyKeys={busy}
+        onApprove={handleApprove}
+        onDeny={handleDeny}
+        onClose={() => setShowApproval(false)}
+      />
+      <InviteModal
+        isOpen={showInviteModal}
+        canAutoApprove={space?.schemaVersion === 2}
+        onCreate={(opts) => createInvite(spaceId, opts)}
+        onClose={() => setShowInviteModal(false)}
+      />
+      <LeaveSpaceModal
+        isOpen={showLeaveModal}
+        spaceName={space?.name || t('space.fallbackName')}
+        spaceId={spaceId}
+        onClose={() => setShowLeaveModal(false)}
+        onLeave={handleLeave}
+        onComplete={onBack}
+      />
+      {space && showEditModal && (
+        <EditSpaceModal
+          space={space}
+          onSave={updateSpace}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
+      <RemoveFileModal
+        isOpen={fileToRemove !== null}
+        filePath={fileToRemove?.path || ''}
+        onClose={() => setFileToRemove(null)}
+        onRemove={handleUnshareFile}
+      />
+      <AddFolderShareModal
+        isOpen={folderPathForShare !== null}
+        spaceId={spaceId}
+        spaceName={space?.name || t('space.fallbackName')}
+        existingShareNames={shares.filter((s) => s.role === 'mine').map((s) => s.name)}
+        initialMountPath={folderPathForShare ?? ''}
+        onClose={() => setFolderPathForShare(null)}
+        onCreated={() => setFolderPathForShare(null)}
+      />
+      <DeleteFolderShareModal
+        isOpen={shareToDelete !== null}
+        folderName={shareToDelete?.name ?? ''}
+        spaceName={space?.name || t('space.fallbackName')}
+        mountPath={null}
+        onClose={() => setShareToDelete(null)}
+        onDelete={async () => {
+          if (!shareToDelete) return
+          await request('owned-folder:delete', { spaceId, shareId: shareToDelete.id })
+          setShareToDelete(null)
+        }}
+      />
+      {shareToMirror && (
+        <MirrorFolderModal
+          isOpen
+          share={shareToMirror}
+          owner={members.find((m) => m.publicKey === shareToMirror.owner) ?? null}
+          onClose={() => setShareToMirror(null)}
+          onMounted={() => setShareToMirror(null)}
+        />
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "outDir": "./assets/dist",
+    "rootDir": "./src/renderer",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src/renderer"]
+}

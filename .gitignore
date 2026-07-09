@@ -1,0 +1,12 @@
+node_modules/
+assets/dist/
+.DS_Store
+.claude/settings.local.json
+.env
+.env.local
+out/
+worktrees/
+test/frontend/evidence/
+test/frontend/fixtures/
+test/frontend/.work/
+test/frontend-layout/dist/

@@ -1,0 +1,100 @@
+import fs from 'bare-fs'
+import path from 'bare-path'
+import { freshPeer } from './store.js'
+import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
+import { createSpace } from '../../src/shared/spaces/space.js'
+import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
+import { saveOwnedMount, saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
+import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+
+// Create a space + an overlay owned-folder share owned by this peer + its mount dir.
+// Overlay is the only content backend, so the share is stamped overlay and the
+// overlay instance is brought up in-process (no second peer).
+export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
+  const ctx = await freshPeer(t)
+  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
+  await initOverlay()
+  initContentBackendOverlay(ctx.fake.ipc)
+  t.teardown(async () => { await teardownOverlay() })
+
+  const space = await createSpace('Aurora')
+  const share = {
+    id: generateShareId(),
+    type: 'owned-folder',
+    name,
+    owner: getLocalPublicKeyHex(),
+    contentMode: 'overlay',
+    catalogKey: await ownCatalogKeyHex(space.spaceId),
+    createdAt: Date.now(),
+  }
+  await publishShare(space.spaceId, share)
+  const mountPath = ctx.tmpDir('mount')
+  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  return { ...ctx, spaceId: space.spaceId, share, mountPath }
+}
+
+// Publish an overlay owned share with files AND mount it back on the SAME peer as a
+// "foreign" mirror. With no second peer the mirror's catalog read + content fetch are
+// stubbed: listPeer returns the owner's own catalog entries, and overlay.fetchFile copies
+// the owner's source file to the requested dest — so the shared materialize scaffolding
+// (initialMaterializeScan / runMaterializeTick) still runs in-process on the overlay path.
+export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
+  const ctx = await setupOwnedShare(t, { name })
+  for (const [rel, contents] of Object.entries(files)) {
+    const abs = path.join(ctx.mountPath, ...rel.split('/'))
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, contents)
+  }
+  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+
+  // The mirror lists from the owner's catalog and fetches by content hash; stub both
+  // so the materialize path runs without a second peer.
+  const origListPeer = overlayBackend.listPeer
+  overlayBackend.listPeer = async (spaceId, share) => {
+    const out = []
+    for await (const e of listOwnShare(spaceId, share.id)) {
+      out.push({ relPath: e.relPath, contentHash: e.contentHash, size: e.size })
+    }
+    return out
+  }
+  t.teardown(() => { overlayBackend.listPeer = origListPeer })
+
+  const overlay = getOverlay()
+  const origFetch = overlay.fetchFile
+  overlay.fetchFile = async (contentHash, { destPath } = {}) => {
+    // Map the requested hash back to its source file via the owner's catalog.
+    for await (const e of listOwnShare(ctx.spaceId, ctx.share.id)) {
+      if (e.contentHash === contentHash) {
+        const src = path.join(ctx.mountPath, ...e.relPath.split('/'))
+        try { fs.copyFileSync(src, destPath) } catch { return null }
+        return { destPath }
+      }
+    }
+    return null
+  }
+  t.teardown(() => { overlay.fetchFile = origFetch })
+
+  const mirrorPath = ctx.tmpDir('mirror')
+  const mount = {
+    spaceId: ctx.spaceId,
+    shareId: ctx.share.id,
+    ownerKey: ctx.share.owner,
+    mountPath: mirrorPath,
+    enabled: true,
+    attachedAt: Date.now(),
+    status: 'scanning',
+  }
+  await saveForeignMount(mount)
+  return { ...ctx, mirrorPath, mount }
+}
+
+export async function listRelPaths (share, spaceId) {
+  const out = []
+  for await (const e of listOwnShare(spaceId, share.id)) out.push(e.relPath)
+  return out.sort()
+}

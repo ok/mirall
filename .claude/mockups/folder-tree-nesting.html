@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nested-folder display — three concepts (mockup)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          offline: 'var(--color-offline)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: { '2xl': '1.5rem', '3xl': '2rem' },
+      },
+    },
+  }
+</script>
+
+<style>
+  /* Authoritative tokens copied from src/renderer/styles/tailwind.css (:root + .dark). */
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #c1ecc4;
+    --color-on-success: #0c4d20;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-on-background: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #20492a;
+    --color-on-success: #8fd99b;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-on-background: #fefaf3;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame (from .claude/mockups/space-folder-sync.html). */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Universal focus ring (design.md §7) so keyboard focus is visible in the mockup too. */
+  button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent);
+  }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- =========================================================================
+     PAGE INTRO
+========================================================================== -->
+<div class="max-w-[1140px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div>
+    <h1 class="font-headline font-extrabold text-3xl tracking-tight text-accent">
+      Nested-folder display — three concepts
+    </h1>
+    <p class="text-sm mt-2 max-w-3xl text-on-surface-variant leading-relaxed">
+      Today <code class="bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-xs">FolderView</code>
+      renders a shared folder's contents as a <strong>flat list of full relative paths</strong>
+      (<code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">project/docs/2024/report.pdf</code>) —
+      no way to collapse a subfolder, no visual depth, and the list grows unmanageably long.
+      Three established patterns, each recreated faithfully from the shipped UI in our own tokens.
+      Grounding: <code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">.claude/tasks/folder-nesting-ux-research.md</code>.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="shrink-0 rounded-xl border border-black/10 dark:border-white/15 px-3 py-2 text-sm font-bold bg-white dark:bg-white/10 text-accent shadow-sm hover:shadow">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========================================================================
+     RECOMMENDATION MATRIX
+========================================================================== -->
+<section class="max-w-[1140px] mx-auto px-6 pt-6">
+  <div class="bg-surface-container-low rounded-2xl p-6">
+    <h2 class="font-headline font-bold text-lg text-accent mb-4">Pattern → best-fit (research synthesis)</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="text-left text-on-surface-variant">
+            <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">Concept</th>
+            <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">Model</th>
+            <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">a11y build</th>
+            <th class="font-bold uppercase tracking-wider text-xs pb-3">Best fit</th>
+          </tr>
+        </thead>
+        <tbody class="align-top">
+          <tr class="border-t border-outline-variant/60">
+            <td class="py-3 pr-4 font-bold text-accent">1 · Collapsible tree</td>
+            <td class="py-3 pr-4 text-on-surface-variant">All depth inline; recursive expand/collapse; folders-first; collapsed folders show a count·size summary row.</td>
+            <td class="py-3 pr-4 text-on-surface-variant">Accordion of nested <code class="text-xs">disclosure</code> buttons over native rows — <em>not</em> <code class="text-xs">role=tree</code> (which is single-column &amp; SR-fragile).</td>
+            <td class="py-3 text-on-surface-variant">Browsing / auditing the whole structure. <strong>Recommended default.</strong></td>
+          </tr>
+          <tr class="border-t border-outline-variant/60">
+            <td class="py-3 pr-4 font-bold text-accent">2 · Breadcrumb drill-down</td>
+            <td class="py-3 pr-4 text-on-surface-variant">One folder level at a time; interactive breadcrumb trail; click a folder to descend.</td>
+            <td class="py-3 pr-4 text-on-surface-variant"><code class="text-xs">&lt;nav&gt;</code> breadcrumb + flat list — <strong>lowest</strong> a11y risk.</td>
+            <td class="py-3 text-on-surface-variant">Deep trees, narrow space, known-item nav. Matches Drive / Dropbox / OneDrive.</td>
+          </tr>
+          <tr class="border-t border-outline-variant/60">
+            <td class="py-3 pr-4 font-bold text-accent">3 · Grouped summary</td>
+            <td class="py-3 pr-4 text-on-surface-variant">Flat-but-groupable; top-level folders are collapsible sections with rich summaries; deeper paths flattened to a chip; "Show N more".</td>
+            <td class="py-3 pr-4 text-on-surface-variant">Accordion of <code class="text-xs">disclosure</code> section headers over native rows.</td>
+            <td class="py-3 text-on-surface-variant">Mixed / shallow trees where compressing long folders to scannable lines is the goal.</td>
+          </tr>
+          <tr class="border-t border-outline-variant/60 opacity-70">
+            <td class="py-3 pr-4 font-bold text-accent">✗ Miller columns</td>
+            <td class="py-3 pr-4 text-on-surface-variant">Column browser (macOS Finder).</td>
+            <td class="py-3 pr-4 text-on-surface-variant">—</td>
+            <td class="py-3 text-on-surface-variant"><strong>Rejected</strong>: ~900px fits only 2–3 readable columns; 4 levels force horizontal scroll. Shown below for the record.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-on-surface-variant mt-4 leading-relaxed">
+      <strong>Legend.</strong> The window chrome, page header, sidebar cards, file-row anatomy
+      (icon tile · <code class="text-xs">FileName</code> · size · status <code class="text-xs">Badge</code> · hover
+      <code class="text-xs">IconButton</code> actions) and all status copy are
+      <span class="font-bold text-accent">recreated verbatim from <code class="text-xs">FolderView.tsx</code></span>.
+      The grouping containers, chevrons, breadcrumb, summary rows and toolbar controls are the
+      <span class="font-bold text-secondary">proposed delta</span>. New copy is marked
+      <span class="italic">(proposed)</span>. Feasibility: the worker returns flat
+      <code class="text-xs">relPath</code> strings — the tree is derived client-side by splitting on
+      <code class="text-xs">/</code>; no worker/IPC change.
+    </p>
+  </div>
+</section>
+
+<!-- =========================================================================
+     CONCEPT 1 — COLLAPSIBLE FOLDER TREE
+========================================================================== -->
+<section class="max-w-[1140px] mx-auto px-6 pt-12">
+  <div class="flex items-baseline gap-3 mb-1">
+    <h2 class="font-headline font-extrabold text-xl text-accent">1 · Collapsible folder tree</h2>
+    <span class="text-xs font-bold uppercase tracking-wider text-secondary">recommended default</span>
+  </div>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    The full hierarchy in one scroll. Folders expand/collapse in place (chevron right = collapsed,
+    down = expanded — our existing convention). Depth is shown by indentation + a one-tier surface
+    step (folders sit on <code class="text-xs">surface-container-low</code>, files on
+    <code class="text-xs">-lowest</code>), <em>not</em> 1px guide rails. A collapsed folder compresses
+    its whole subtree into a single <strong>count·size summary row</strong> (Material expansion-panel /
+    Outlook count-on-collapse pattern). Toolbar adds <em>Collapse all</em> + a filter for the
+    hundreds-of-files case.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+
+    <div class="px-8 pt-6 pb-8">
+      <!-- ---- Page header (recreated from FolderView.tsx lines 333–407) ---- -->
+      <div class="flex items-start gap-4 mb-6">
+        <span class="mt-1 shrink-0 w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high" role="img" aria-label="Back">
+          <svg class="text-accent" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </span>
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="w-[52px] h-[52px] rounded-full bg-surface-container-highest text-accent font-bold flex items-center justify-center shrink-0 text-lg">MV</span>
+          <div class="min-w-0">
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter truncate">Q3 Campaign</h1>
+            <p class="text-xs font-bold text-secondary tracking-wide uppercase mt-1">Owned by Mara Voss · in Marketing</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-2 shrink-0">
+          <button class="rounded-xl font-headline font-bold text-sm px-5 py-2.5 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 flex items-center gap-2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5m0 0l-2-2m2 2l2-2"/></svg>
+            Mirror to Disk…
+          </button>
+        </div>
+      </div>
+
+      <!-- ---- Two-column grid (FolderView line 410) ---- -->
+      <div class="grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8">
+        <div class="min-w-0">
+          <!-- Toolbar: heading + count·size + filter + collapse-all (filter/collapse = proposed) -->
+          <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div class="flex items-baseline gap-3">
+              <h2 class="text-2xl font-headline font-bold text-accent">Files in this folder</h2>
+              <span class="text-sm font-label text-secondary font-bold">53 files · 2.1 GB</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 bg-surface-container-lowest rounded-xl px-3 py-2">
+                <svg class="text-on-surface-variant" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="text" placeholder="Filter files…" aria-label="Filter files"
+                  class="bg-transparent border-none outline-none text-sm w-32 placeholder:text-on-surface-variant text-on-surface" />
+              </div>
+              <button class="rounded-xl font-headline font-bold text-sm px-4 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-accent flex items-center gap-2" aria-label="Collapse all folders">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 4l4 4 4-4M8 20l4-4 4 4"/></svg>
+                Collapse all
+              </button>
+            </div>
+          </div>
+
+          <!-- ===== Tree ===== -->
+          <div class="space-y-2">
+
+            <!-- Folder: Brand Assets (depth 0, expanded) -->
+            <button type="button" aria-expanded="true" aria-controls="t1-brand"
+              class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+              <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              </span>
+              <span class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block">Brand Assets</span>
+                <span class="text-xs text-on-surface-variant mt-0.5 block">42 files · 1.3 GB</span>
+              </span>
+            </button>
+
+            <!-- children of Brand Assets -->
+            <div id="t1-brand" class="pl-6 space-y-2">
+
+              <!-- Folder: Logos (depth 1, expanded) -->
+              <button type="button" aria-expanded="true" aria-controls="t1-logos"
+                class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+                <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+                <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                  <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                </span>
+                <span class="min-w-0 flex-grow">
+                  <span class="font-bold text-accent block">Logos</span>
+                  <span class="text-xs text-on-surface-variant mt-0.5 block">2 files · 48 KB</span>
+                </span>
+              </button>
+
+              <!-- files of Logos (depth 2) — note leading spacer reserves chevron column so icons align -->
+              <div id="t1-logos" class="pl-6 space-y-2">
+                <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+                  <div class="flex items-center p-5">
+                    <span class="w-5 shrink-0" aria-hidden="true"></span>
+                    <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                      <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                        <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                      </span>
+                      <div class="min-w-0 flex-grow">
+                        <span class="font-bold text-accent block truncate">logo-primary.svg</span>
+                        <p class="text-xs text-on-surface-variant mt-0.5 truncate">12 KB</p>
+                      </div>
+                    </div>
+                    <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                      <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                        <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+                  <div class="flex items-center p-5">
+                    <span class="w-5 shrink-0" aria-hidden="true"></span>
+                    <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                      <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                        <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                      </span>
+                      <div class="min-w-0 flex-grow">
+                        <span class="font-bold text-accent block truncate">logo-mono.svg</span>
+                        <p class="text-xs text-on-surface-variant mt-0.5 truncate">11 KB</p>
+                      </div>
+                    </div>
+                    <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                      <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                        <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Folder: Photography (depth 1, COLLAPSED → summary row compresses 40 files) -->
+              <button type="button" aria-expanded="false" aria-controls="t1-photo"
+                class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+                <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+                <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                  <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                </span>
+                <span class="min-w-0 flex-grow">
+                  <span class="font-bold text-accent block">Photography</span>
+                  <span class="text-xs text-on-surface-variant mt-0.5 block">40 files · 1.2 GB · 6 on your device</span>
+                </span>
+                <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent self-center mr-1">2 downloading</span>
+              </button>
+            </div>
+
+            <!-- Folder: Briefs (depth 0, expanded) -->
+            <button type="button" aria-expanded="true" aria-controls="t1-briefs"
+              class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+              <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              </span>
+              <span class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block">Briefs</span>
+                <span class="text-xs text-on-surface-variant mt-0.5 block">2 files · 6.1 MB</span>
+              </span>
+            </button>
+            <div id="t1-briefs" class="pl-6 space-y-2">
+              <!-- creative-brief.pdf (available, downloadable) -->
+              <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+                <div class="flex items-center p-5">
+                  <span class="w-5 shrink-0" aria-hidden="true"></span>
+                  <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                    <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                      <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                    </span>
+                    <div class="min-w-0 flex-grow">
+                      <span class="font-bold text-accent block truncate">creative-brief.pdf</span>
+                      <p class="text-xs text-on-surface-variant mt-0.5 truncate">3.4 MB</p>
+                    </div>
+                  </div>
+                  <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                    <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-accent">Available</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Download">
+                      <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <!-- media-plan.xlsx (downloading) -->
+              <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+                <div class="flex items-center p-5">
+                  <span class="w-5 shrink-0" aria-hidden="true"></span>
+                  <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                    <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                      <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                    </span>
+                    <div class="min-w-0 flex-grow">
+                      <span class="font-bold text-accent block truncate">media-plan.xlsx</span>
+                      <p class="text-xs text-on-surface-variant mt-0.5 truncate">2.7 MB</p>
+                    </div>
+                  </div>
+                  <div class="ml-6 basis-40 shrink-0 self-center">
+                    <div class="flex items-center justify-between text-xs text-on-surface-variant mb-1">
+                      <span>4.1 MB/s</span><span>~3s</span>
+                    </div>
+                    <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-secondary-container rounded-full" style="width:62%"></div></div>
+                  </div>
+                  <div class="ml-5 mr-3 shrink-0 self-center hidden min-[480px]:flex">
+                    <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">Downloading</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Pause Download">
+                      <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5v14M15 5v14"/></svg>
+                    </span>
+                    <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Cancel">
+                      <svg class="text-error" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Folder: Final Deliverables (depth 0, COLLAPSED summary) -->
+            <button type="button" aria-expanded="false" aria-controls="t1-final"
+              class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+              <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              </span>
+              <span class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block">Final Deliverables</span>
+                <span class="text-xs text-on-surface-variant mt-0.5 block">9 files · 820 MB · contains 2 subfolders</span>
+              </span>
+            </button>
+
+            <!-- Loose file at root: README.txt (depth 0) -->
+            <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+              <div class="flex items-center p-5">
+                <span class="w-5 shrink-0" aria-hidden="true"></span>
+                <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                  <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                    <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                  </span>
+                  <div class="min-w-0 flex-grow">
+                    <span class="font-bold text-accent block truncate">README.txt</span>
+                    <p class="text-xs text-on-surface-variant mt-0.5 truncate">1 KB</p>
+                  </div>
+                </div>
+                <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                  <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                    <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ---- Sidebar (recreated from FolderView.tsx lines 504–541) ---- -->
+        <div class="space-y-6 pt-12">
+          <div class="bg-surface-container-low rounded-2xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="w-9 h-9 rounded-full bg-surface-container-highest text-accent font-bold flex items-center justify-center text-sm">MV</span>
+              <div class="min-w-0">
+                <p class="font-bold text-accent">Mara Voss</p>
+                <p class="text-xs text-on-surface-variant">Online</p>
+              </div>
+            </div>
+            <p class="text-xs text-on-surface-variant leading-relaxed">
+              Browse-only. Click Download on a file to save it locally, or Mirror to disk to keep the whole folder synced.
+            </p>
+          </div>
+          <div class="bg-surface-container-low p-8 rounded-2xl">
+            <h3 class="text-xl font-headline font-bold text-accent mb-6 flex items-center gap-2">
+              <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              Folder size
+            </h3>
+            <div class="text-5xl font-headline font-extrabold text-accent tracking-tighter leading-none">2.1 GB</div>
+            <p class="mt-2 text-sm font-medium text-on-surface-variant">53 files</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- annotation -->
+  <div class="mt-3 text-xs text-on-surface-variant leading-relaxed max-w-3xl space-y-1">
+    <p><span class="font-bold text-secondary">a11y:</span> each folder header is a
+      <code class="text-xs">&lt;button aria-expanded aria-controls&gt;</code> (the APG <em>disclosure</em>
+      contract — Enter/Space toggles); file rows keep native semantics. Leaf rows reserve the chevron's
+      width (the empty <code class="text-xs">w-5</code> spacer) so file icons align under their folder's
+      icon (Fluent guidance). Collapse-all is a labelled control; the filter input has an
+      <code class="text-xs">aria-label</code>.</p>
+    <p><span class="font-bold text-accent">Rejected sub-alternative:</span> persistent VS Code-style 1px
+      indent guide rails — they fight our "depth via surface tiers, not lines" rule, and the research shows
+      they're noise at 2–4 levels (VS Code itself defaults them to <em>on-hover</em>). Depth here is carried
+      by indentation + the one-tier surface step instead.</p>
+  </div>
+</section>
+
+<!-- =========================================================================
+     CONCEPT 2 — BREADCRUMB DRILL-DOWN
+========================================================================== -->
+<section class="max-w-[1140px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-xl text-accent mb-1">2 · Breadcrumb drill-down</h2>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    One folder level at a time — the Drive / Dropbox / OneDrive model. The main pane shows exactly one
+    folder's contents; an interactive breadcrumb above gives the path back up (every segment clickable
+    except the current one). Folders are rows you click to descend (trailing
+    <code class="text-xs">chevron_right</code> = "go deeper"). Compact (one line of chrome), focused, and
+    the lowest a11y risk — but it trades away cross-folder overview. Two states below.
+  </p>
+
+  <!-- State A: root level -->
+  <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-2">State A — folder root</p>
+  <div class="device-frame mb-8">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-10 h-10 rounded-full bg-surface-container-highest text-accent font-bold flex items-center justify-center shrink-0">MV</span>
+        <h1 class="text-2xl font-headline font-extrabold text-accent tracking-tight">Q3 Campaign</h1>
+        <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-accent">Browse</span>
+      </div>
+      <!-- breadcrumb (proposed) -->
+      <nav aria-label="Breadcrumb" class="mb-5">
+        <ol class="flex items-center gap-1.5 text-sm">
+          <li><span aria-current="page" class="font-bold text-on-surface-variant">Q3 Campaign</span></li>
+        </ol>
+      </nav>
+      <div class="space-y-3 max-w-3xl">
+        <!-- folder rows (click to descend) -->
+        <button type="button" aria-label="Open folder Brand Assets" class="w-full text-left group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+          <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </span>
+          <span class="min-w-0 flex-grow">
+            <span class="font-bold text-accent block">Brand Assets</span>
+            <span class="text-xs text-on-surface-variant mt-0.5 block">42 files · 1.3 GB · 2 downloading</span>
+          </span>
+          <svg class="text-outline shrink-0 mr-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" aria-label="Open folder Briefs" class="w-full text-left group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+          <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </span>
+          <span class="min-w-0 flex-grow">
+            <span class="font-bold text-accent block">Briefs</span>
+            <span class="text-xs text-on-surface-variant mt-0.5 block">2 files · 6.1 MB</span>
+          </span>
+          <svg class="text-outline shrink-0 mr-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" aria-label="Open folder Final Deliverables" class="w-full text-left group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors flex items-center gap-4 p-5">
+          <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </span>
+          <span class="min-w-0 flex-grow">
+            <span class="font-bold text-accent block">Final Deliverables</span>
+            <span class="text-xs text-on-surface-variant mt-0.5 block">9 files · 820 MB</span>
+          </span>
+          <svg class="text-outline shrink-0 mr-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <!-- loose file at root -->
+        <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center p-5">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+              </span>
+              <div class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block truncate">README.txt</span>
+                <p class="text-xs text-on-surface-variant mt-0.5 truncate">1 KB</p>
+              </div>
+            </div>
+            <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State B: drilled two levels deep -->
+  <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-2">State B — drilled into Brand Assets › Photography</p>
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high shrink-0" role="img" aria-label="Up one level">
+          <svg class="text-accent" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </span>
+        <h1 class="text-2xl font-headline font-extrabold text-accent tracking-tight">Photography</h1>
+        <span class="text-sm font-label text-secondary font-bold">40 files · 1.2 GB</span>
+      </div>
+      <!-- breadcrumb (proposed) — segments clickable except current -->
+      <nav aria-label="Breadcrumb" class="mb-5">
+        <ol class="flex items-center gap-1.5 text-sm flex-wrap">
+          <li><button class="font-bold text-secondary hover:underline rounded">Q3 Campaign</button></li>
+          <li aria-hidden="true" class="text-outline">›</li>
+          <li><button class="font-bold text-secondary hover:underline rounded">Brand Assets</button></li>
+          <li aria-hidden="true" class="text-outline">›</li>
+          <li><span aria-current="page" class="font-semibold text-on-surface-variant">Photography</span></li>
+        </ol>
+      </nav>
+      <div class="space-y-3 max-w-3xl">
+        <!-- a couple of photo files (downloading + downloaded + available) -->
+        <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center p-5">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg>
+              </span>
+              <div class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block truncate">hero-01.jpg</span>
+                <p class="text-xs text-on-surface-variant mt-0.5 truncate">8.2 MB</p>
+              </div>
+            </div>
+            <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center p-5">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg>
+              </span>
+              <div class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block truncate">hero-02.jpg</span>
+                <p class="text-xs text-on-surface-variant mt-0.5 truncate">7.9 MB</p>
+              </div>
+            </div>
+            <div class="ml-6 basis-40 shrink-0 self-center">
+              <div class="flex items-center justify-between text-xs text-on-surface-variant mb-1"><span>5.0 MB/s</span><span>~1s</span></div>
+              <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-secondary-container rounded-full" style="width:80%"></div></div>
+            </div>
+            <div class="ml-5 mr-3 shrink-0 self-center hidden min-[480px]:flex">
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">Downloading</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Pause Download">
+                <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5v14M15 5v14"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center p-5">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg>
+              </span>
+              <div class="min-w-0 flex-grow">
+                <span class="font-bold text-accent block truncate">hero-03.jpg</span>
+                <p class="text-xs text-on-surface-variant mt-0.5 truncate">8.0 MB</p>
+              </div>
+            </div>
+            <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-accent">Available</span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Download">
+                <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+        <p class="text-xs text-on-surface-variant text-center py-2">Showing 3 of 40 · scroll for more</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3 text-xs text-on-surface-variant leading-relaxed max-w-3xl space-y-1">
+    <p><span class="font-bold text-secondary">a11y:</span> breadcrumb is
+      <code class="text-xs">&lt;nav aria-label="Breadcrumb"&gt;&lt;ol&gt;</code> with
+      <code class="text-xs">aria-current="page"</code> on the current segment and decorative
+      <code class="text-xs">aria-hidden</code> separators (APG breadcrumb pattern — keyboard handling is
+      "not applicable", just links). Folder rows are buttons with an explicit
+      <code class="text-xs">aria-label="Open folder …"</code>; the up-one-level control is labelled. No
+      roving tabindex or expand-state machine — the whole list is plain native rows.</p>
+    <p><span class="font-bold text-accent">Trade-off surfaced:</span> for a folder only ~2 levels deep this
+      adds navigation steps for little gain (Microsoft: skip breadcrumbs for 2 levels). Strongest when
+      folders go 4+ deep or carry hundreds of entries per level.</p>
+  </div>
+</section>
+
+<!-- =========================================================================
+     CONCEPT 3 — GROUPED SUMMARY + PROGRESSIVE DISCLOSURE
+========================================================================== -->
+<section class="max-w-[1140px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-xl text-accent mb-1">3 · Grouped summary + progressive disclosure</h2>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    Flat-but-groupable. Top-level folders become collapsible <em>section headers</em> carrying a rich
+    summary (count · size · how many are on your device). Inside a section, files are listed flat — deeper
+    nesting is flattened to a small <strong>path chip</strong> rather than recursive indentation — and a
+    long folder ends in "Show N more" (progressive disclosure with strong information scent). A
+    <em>Grouped / Flat</em> toggle flips the whole view. This compresses the most while keeping nesting
+    shallow on screen.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div class="flex items-baseline gap-3">
+          <h2 class="text-2xl font-headline font-bold text-accent">Files in this folder</h2>
+          <span class="text-sm font-label text-secondary font-bold">53 files · 2.1 GB</span>
+        </div>
+        <!-- SegmentedControl Grouped|Flat (design.md §7) -->
+        <div role="group" aria-label="View" class="inline-flex bg-surface-container-high p-1 rounded-full">
+          <button class="px-4 py-1.5 rounded-full text-sm font-semibold bg-surface-container-lowest shadow-sm text-accent" aria-pressed="true">Grouped</button>
+          <button class="px-4 py-1.5 rounded-full text-sm text-on-surface-variant" aria-pressed="false">Flat</button>
+        </div>
+      </div>
+
+      <div class="space-y-3 max-w-3xl">
+        <!-- Section: Brand Assets (expanded) -->
+        <div class="rounded-2xl overflow-hidden">
+          <button type="button" aria-expanded="true" aria-controls="g3-brand"
+            class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-2xl transition-colors flex items-center gap-4 p-5">
+            <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+            <span class="w-11 h-11 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </span>
+            <span class="min-w-0 flex-grow">
+              <span class="text-lg font-headline font-bold text-accent block">Brand Assets</span>
+              <span class="text-xs text-on-surface-variant mt-0.5 block">42 files · 1.3 GB · 8 on your device</span>
+            </span>
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent self-center mr-1">2 downloading</span>
+          </button>
+
+          <div id="g3-brand" class="pl-3 pt-3 space-y-2">
+            <!-- file with path chip (deeper nesting flattened) -->
+            <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+              <div class="flex items-center p-5">
+                <div class="flex items-center gap-4 min-w-0 flex-grow">
+                  <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                    <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                  </span>
+                  <div class="min-w-0 flex-grow">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="shrink-0 inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full">Logos</span>
+                      <span class="font-bold text-accent truncate">logo-primary.svg</span>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-0.5 truncate">12 KB</p>
+                  </div>
+                </div>
+                <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                  <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                    <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+              <div class="flex items-center p-5">
+                <div class="flex items-center gap-4 min-w-0 flex-grow">
+                  <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                    <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg>
+                  </span>
+                  <div class="min-w-0 flex-grow">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="shrink-0 inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full">Photography</span>
+                      <span class="font-bold text-accent truncate">hero-01.jpg</span>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mt-0.5 truncate">8.2 MB</p>
+                  </div>
+                </div>
+                <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                  <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">On your device</span>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Reveal in Folder">
+                    <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <!-- progressive disclosure: show N more (proposed copy) -->
+            <button type="button" class="w-full text-sm font-bold text-secondary hover:bg-surface-container-low rounded-xl py-3 transition-colors">
+              Show 40 more files in Brand Assets
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: Briefs (expanded, short) -->
+        <div class="rounded-2xl overflow-hidden">
+          <button type="button" aria-expanded="true" aria-controls="g3-briefs"
+            class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-2xl transition-colors flex items-center gap-4 p-5">
+            <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+            <span class="w-11 h-11 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </span>
+            <span class="min-w-0 flex-grow">
+              <span class="text-lg font-headline font-bold text-accent block">Briefs</span>
+              <span class="text-xs text-on-surface-variant mt-0.5 block">2 files · 6.1 MB · 1 on your device</span>
+            </span>
+          </button>
+          <div id="g3-briefs" class="pl-3 pt-3 space-y-2">
+            <div class="group bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+              <div class="flex items-center p-5">
+                <div class="flex items-center gap-4 min-w-0 flex-grow">
+                  <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                    <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+                  </span>
+                  <div class="min-w-0 flex-grow">
+                    <span class="font-bold text-accent block truncate">creative-brief.pdf</span>
+                    <p class="text-xs text-on-surface-variant mt-0.5 truncate">3.4 MB</p>
+                  </div>
+                </div>
+                <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+                  <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-accent">Available</span>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center" role="img" aria-label="Download">
+                    <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Final Deliverables (collapsed → summary only) -->
+        <button type="button" aria-expanded="false" aria-controls="g3-final"
+          class="w-full text-left group bg-surface-container-low hover:bg-surface-container rounded-2xl transition-colors flex items-center gap-4 p-5">
+          <svg class="text-outline shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+          <span class="w-11 h-11 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </span>
+          <span class="min-w-0 flex-grow">
+            <span class="text-lg font-headline font-bold text-accent block">Final Deliverables</span>
+            <span class="text-xs text-on-surface-variant mt-0.5 block">9 files · 820 MB · none on your device</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3 text-xs text-on-surface-variant leading-relaxed max-w-3xl space-y-1">
+    <p><span class="font-bold text-secondary">a11y:</span> each section header is a
+      <code class="text-xs">&lt;button aria-expanded aria-controls&gt;</code> (disclosure); the
+      <em>Grouped / Flat</em> control is a <code class="text-xs">role=group</code> SegmentedControl with
+      <code class="text-xs">aria-pressed</code>; "Show N more" is a labelled button with strong information
+      scent (the count + folder name), not a bare "…". Path chips are decorative text inside the row's
+      accessible name.</p>
+    <p><span class="font-bold text-accent">Why flatten deeper levels:</span> beyond the top-level grouping,
+      recursive indentation buys little for shallow trees and risks the over-indentation NN/g warns about —
+      a path chip keeps every file one click from view while still showing where it lives.</p>
+  </div>
+</section>
+
+<!-- =========================================================================
+     REJECTED ALTERNATIVE — MILLER COLUMNS
+========================================================================== -->
+<section class="max-w-[1140px] mx-auto px-6 pt-16 pb-8">
+  <h2 class="font-headline font-extrabold text-xl text-accent mb-1">✗ Rejected — Miller columns (column view)</h2>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    The macOS Finder column browser: one column per level, selecting in column N reveals column N+1.
+    Kept here for the record. <strong>Rejected</strong> because our content column is ~900px: it fits only
+    2–3 readable columns before names truncate, so a 4-level folder forces horizontal scrolling — the
+    documented failure mode — and it forfeits the sortable single-level list. Strong only for deep,
+    comparison-heavy trees, which our 2–4 level shares are not.
+  </p>
+  <div class="device-frame opacity-95">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-3 gap-2 h-72">
+        <!-- column 1 -->
+        <div class="bg-surface-container-lowest rounded-xl p-2 space-y-1 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high text-accent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span class="text-sm font-bold truncate flex-grow">Brand Assets</span>
+            <svg class="text-outline" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="text-sm truncate">Briefs</span></div>
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="text-sm truncate">Final Deliverables</span></div>
+        </div>
+        <!-- column 2 -->
+        <div class="bg-surface-container-lowest rounded-xl p-2 space-y-1 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high text-accent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span class="text-sm font-bold truncate flex-grow">Photography</span>
+            <svg class="text-outline" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="text-sm truncate">Logos</span></div>
+        </div>
+        <!-- column 3 -->
+        <div class="bg-surface-container-lowest rounded-xl p-2 space-y-1 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg><span class="text-sm truncate">hero-01.jpg</span></div>
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg><span class="text-sm truncate">hero-02.jpg</span></div>
+          <div class="flex items-center gap-2 px-3 py-2 text-on-surface-variant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5L5 21"/></svg><span class="text-sm truncate">hero-03.jpg</span></div>
+          <p class="text-xs text-on-surface-variant px-3 pt-1">…and one more column would be needed for files inside a 4th level → horizontal scroll.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+</body>
+</html>

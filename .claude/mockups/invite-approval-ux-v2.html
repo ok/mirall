@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Invite link — simplified create flow (mockup v2)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          offline: 'var(--color-offline)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #6b7280;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Modal panels are opaque surface-container-lowest — ".glass-modal" is legacy naming
+     (design.md §6); the blur lives on the backdrop, never the panel. */
+  .glass-modal { background: var(--color-surface-container-lowest); }
+  .modal-scrim { background: rgba(15, 12, 20, 0.5); }
+
+  /* ---- Mockup annotation chrome (meta, not part of the depicted UI) ---- */
+  .tag { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:800; padding:4px 10px; border-radius:9999px; line-height:1; letter-spacing:.02em; text-transform:uppercase; }
+  .tag-real { background:#e4e2de; color:#4a454b; }
+  .tag-new  { background:#fd9c42; color:#33253b; }
+  .colhead { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; letter-spacing:-.01em; }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- =========================================================== -->
+<!-- Page header                                                 -->
+<!-- =========================================================== -->
+<div class="max-w-[1180px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Invite link — simplified create flow
+    </h1>
+    <p class="text-sm mt-1 max-w-3xl" style="color:#4a454b">
+      v2, reworked from feedback: <strong>one</strong> link (the app link — no format picker),
+      keep the <strong>auto-approve</strong> toggle, time-limit the link with <strong>three presets</strong>
+      (not a people count), and reveal the link only after a <strong>Create</strong> button — so the choices
+      come first. Recreated from <code>InviteModal.tsx</code>; reuses the shipped <code>Toggle</code>,
+      the in-modal segmented row, <code>Badge</code> &amp; <code>Modal</code>. Click <strong>Toggle dark</strong> for both themes.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- Legend -->
+<div class="max-w-[1180px] mx-auto px-6 pt-3 flex flex-wrap items-center gap-3">
+  <span class="tag tag-real">Recreated from code</span>
+  <span class="text-xs" style="color:#4a454b">— verbatim from <code>src/renderer/**</code> (structure, classes, real strings).</span>
+  <span class="tag tag-new">Proposed</span>
+  <span class="text-xs" style="color:#4a454b">— new/changed, built from shipped primitives + design.md tokens. New copy is marked.</span>
+</div>
+
+<!-- =========================================================== -->
+<!-- THE FLOW                                                    -->
+<!-- =========================================================== -->
+<section class="max-w-[1180px] mx-auto px-6 pt-10">
+  <h2 class="font-headline font-extrabold text-xl mb-1" style="color:#33253b">The two-step flow</h2>
+  <p class="text-sm mb-6 max-w-3xl" style="color:#4a454b">Configure → Create → copy → close. The link doesn't exist until the choices are made, so you can never copy the "wrong" code.<br><strong style="color:#33253b">Both states share one fixed width</strong> (<code>w-full max-w-md</code>, the wider state leading) — the panel never resizes horizontally on Create / Change; only its height changes.</p>
+
+  <div class="grid lg:grid-cols-[1fr_auto_1fr] gap-6 items-center">
+
+    <!-- ===== STATE 1 — CONFIGURE ===== -->
+    <div>
+      <p class="colhead text-sm mb-3" style="color:#33253b">1 · Configure <span class="tag tag-new" style="vertical-align:middle">Proposed</span></p>
+      <div class="modal-scrim rounded-3xl p-6 sm:p-8 flex justify-center">
+        <div class="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <!-- header -->
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Invite to Space</h1>
+              <button aria-label="Close" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Choose how people join and how long the link lasts, then create it.</p>
+          </div>
+          <!-- body -->
+          <div class="px-10 pb-10 space-y-5">
+
+            <!-- auto-approve toggle (real Toggle primitive) -->
+            <div class="bg-surface-container-low rounded-xl overflow-hidden">
+              <div role="switch" aria-checked="true" tabindex="0" class="w-full p-6 flex items-center justify-between text-left hover:bg-surface-container-high/50">
+                <div class="pr-6">
+                  <p class="font-semibold text-accent">Auto-approve</p>
+                  <p class="text-sm text-on-surface-variant mt-1">Anyone with this invite joins instantly, without approval.</p>
+                </div>
+                <span class="shrink-0 inline-flex items-center w-12 h-7 rounded-full p-1 bg-primary">
+                  <span class="w-5 h-5 rounded-full bg-on-primary translate-x-5"></span>
+                </span>
+              </div>
+            </div>
+
+            <!-- expiry presets (reuses the in-modal segmented-row pattern) -->
+            <div class="space-y-3">
+              <p id="exp-lbl" class="font-headline text-sm font-bold text-accent px-1">Link expires after</p>
+              <div role="group" aria-labelledby="exp-lbl" class="flex gap-1 bg-surface-container-low rounded-xl p-1">
+                <button type="button" aria-pressed="false" class="flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all text-on-surface-variant hover:text-accent">2 hours</button>
+                <button type="button" aria-pressed="true" class="flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all bg-surface-container-lowest text-accent shadow-sm">2 days</button>
+                <button type="button" aria-pressed="false" class="flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all text-on-surface-variant hover:text-accent">2 weeks</button>
+              </div>
+            </div>
+
+            <!-- info box (existing infoText, "code"→"link") -->
+            <div class="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+              <p class="text-sm text-on-surface-variant font-medium">When a colleague or peer joins with this link, they'll be able to see and sync all files shared in this space.</p>
+            </div>
+
+            <!-- create button -->
+            <div class="pt-2">
+              <button class="w-full h-14 px-5 text-lg flex items-center justify-center gap-2 rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                Create invite link
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- arrow -->
+    <div class="hidden lg:flex items-center justify-center text-outline">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </div>
+    <div class="lg:hidden flex items-center justify-center text-outline py-1">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+    </div>
+
+    <!-- ===== STATE 2 — CREATED (auto-approve on) ===== -->
+    <div>
+      <p class="colhead text-sm mb-3" style="color:#33253b">2 · Created <span class="tag tag-new" style="vertical-align:middle">Proposed</span></p>
+      <div class="modal-scrim rounded-3xl p-6 sm:p-8 flex justify-center">
+        <div class="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <!-- header -->
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Invite link ready</h1>
+              <button aria-label="Close" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Share this link with a colleague or peer to give them access.</p>
+          </div>
+          <!-- body -->
+          <div class="px-10 pb-10 space-y-5">
+
+            <!-- the single link + copy (no format picker) -->
+            <div class="flex items-center gap-2 bg-surface-container-low rounded-xl p-2 pl-5">
+              <span class="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">mirall://join/eyJ2IjoxLCJhIjox…NkIn0</span>
+              <button class="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy
+              </button>
+            </div>
+
+            <!-- settings summary as badges (reuses Badge base) -->
+            <div class="flex flex-wrap items-center gap-2 px-1">
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-secondary-container text-on-secondary-container">Auto-approve</span>
+              <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-on-surface-variant">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                Expires in 2 days
+              </span>
+            </div>
+
+            <!-- honest note for auto-approve -->
+            <div class="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+              <p class="text-sm text-on-surface-variant font-medium">Anyone who opens this link joins instantly until <strong class="text-accent">Sun, 29 Jun</strong>. After that, joining needs your approval.</p>
+            </div>
+
+            <!-- footer: change + done -->
+            <div class="flex gap-3 pt-2">
+              <button class="flex-1 h-14 px-5 text-lg flex items-center justify-center rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant">Change</button>
+              <button class="flex-1 h-14 px-5 text-lg flex items-center justify-center rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10">Done</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- =========================================================== -->
+<!-- Variant — auto-approve OFF                                  -->
+<!-- =========================================================== -->
+<section class="max-w-[1180px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-xl mb-1" style="color:#33253b">Variant · auto-approve <span class="text-secondary">off</span></h2>
+  <p class="text-sm mb-6 max-w-3xl" style="color:#4a454b">Same Created step with the toggle left off — the badge set and the note change, nothing else. The link still expires; joining just needs approval.</p>
+
+  <div class="max-w-md">
+    <div class="modal-scrim rounded-3xl p-6 sm:p-8 flex justify-center">
+      <div class="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+        <div class="px-10 pt-10 pb-6">
+          <div class="flex justify-between items-start mb-2">
+            <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Invite link ready</h1>
+            <button aria-label="Close" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </div>
+          <p class="text-on-surface-variant font-medium text-sm">Share this link with a colleague or peer to give them access.</p>
+        </div>
+        <div class="px-10 pb-10 space-y-5">
+          <div class="flex items-center gap-2 bg-surface-container-low rounded-xl p-2 pl-5">
+            <span class="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">mirall://join/eyJ2IjoxLCJ0Ijoi…9mNCJ9</span>
+            <button class="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 px-1">
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-on-surface-variant">Approval required</span>
+            <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-on-surface-variant">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              Expires in 2 days
+            </span>
+          </div>
+          <div class="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+            <p class="text-sm text-on-surface-variant font-medium">People who open this link before <strong class="text-accent">Sun, 29 Jun</strong> ask to join — you approve each one.</p>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button class="flex-1 h-14 px-5 text-lg flex items-center justify-center rounded-xl font-headline font-bold bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant">Change</button>
+            <button class="flex-1 h-14 px-5 text-lg flex items-center justify-center rounded-xl font-headline font-bold bg-primary text-on-primary shadow-lg shadow-primary/10">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== -->
+<!-- What changed vs today + backend note + a11y                 -->
+<!-- =========================================================== -->
+<section class="max-w-[1180px] mx-auto px-6 pt-16 pb-20">
+  <div class="rounded-2xl p-6" style="background:var(--color-surface-container-low); box-shadow:0 12px 40px rgba(74,59,82,0.06)">
+
+    <h2 class="font-headline font-extrabold text-lg mb-3 text-accent">What changed vs today</h2>
+    <ul class="text-sm leading-relaxed space-y-2 text-on-surface-variant">
+      <li><strong class="text-accent">One link.</strong> The Code / App-link format selector is gone. We emit the <code>mirall://join/&lt;code&gt;</code> app link only — the Join dialog's <code>extractInviteCode()</code> already peels that back to the bare code, so a single link works for everyone. No need to explain "code vs link."</li>
+      <li><strong class="text-accent">Auto-approve stays</strong> — the same shipped <code>Toggle</code>, now part of the choices you make <em>before</em> the link exists.</li>
+      <li><strong class="text-accent">Expiry, not headcount.</strong> Three presets (2 hours / 2 days / 2 weeks); no per-person limit. Every link expires — a real security win, since today's invites never do.</li>
+      <li><strong class="text-accent">Create-then-copy.</strong> The link is revealed only after <em>Create invite link</em>, so the choices are locked in first. This kills the original bug: you can no longer copy a non-auto code before flipping the toggle.</li>
+      <li><strong class="text-accent">Confirmation.</strong> The Created step shows the settings back as badges (<code>Badge</code>) + a plain-language note, so what you share is unambiguous. <em>Change</em> returns to step 1; <em>Done</em> closes.</li>
+    </ul>
+
+    <h2 class="font-headline font-extrabold text-lg mt-6 mb-3 text-accent">
+      Proposed copy <span class="tag tag-new" style="vertical-align:middle">new keys</span>
+    </h2>
+    <ul class="text-sm leading-relaxed space-y-1.5 text-on-surface-variant">
+      <li><code>invite.configureDesc</code> "Choose how people join and how long the link lasts, then create it."</li>
+      <li><code>invite.expiresAfter</code> "Link expires after" · <code>invite.expiry.2h/2d/2w</code> "2 hours / 2 days / 2 weeks"</li>
+      <li><code>invite.create</code> "Create invite link" · <code>invite.readyTitle</code> "Invite link ready"</li>
+      <li><code>invite.autoNote</code> "Anyone who opens this link joins instantly until {{date}}. After that, joining needs your approval." · <code>invite.reviewNote</code> "People who open this link before {{date}} ask to join — you approve each one."</li>
+      <li>Badges: <code>invite.badge.auto</code> "Auto-approve" (existing label) · <code>invite.badge.review</code> "Approval required" · <code>invite.badge.expires</code> "Expires in {{duration}}"</li>
+      <li><code>actions.change</code> "Change". Kept verbatim: <code>invite.title</code>, <code>invite.autoApprove</code> + its description, <code>actions.copy/copied/done/close</code>. Existing <code>invite.infoText</code> reused with "code"→"link".</li>
+    </ul>
+
+    <h2 class="font-headline font-extrabold text-lg mt-6 mb-3 text-accent">Backend note (honest about feasibility)</h2>
+    <p class="text-sm leading-relaxed text-on-surface-variant">
+      This unifies today's split model into <strong class="text-accent">one per-link record</strong>:
+      <code>{ inviteId, expiresAt, autoApprove }</code>, baked into the link and persisted (generalizing today's
+      single-use <code>auto-admit/{spaceId}/{inviteId}</code> nonce, <code>space.js:562</code>). On a join request,
+      <code>onJoinRequest</code> (<code>worker/main.js:260</code>) looks it up: <em>expired</em> → ignore;
+      <em>autoApprove</em> → grant; <em>else</em> → manual request banner. Reusable until expiry (no per-person
+      consume/delete). Two real changes: (1) the nonce is no longer single-use, and (2) expiry now also gates
+      <em>review</em> links — which today have no per-link record at all, so this is what makes "every link expires" possible.
+    </p>
+
+    <h2 class="font-headline font-extrabold text-lg mt-6 mb-3 text-accent">Accessibility</h2>
+    <ul class="text-sm leading-relaxed space-y-2 text-on-surface-variant">
+      <li>Auto-approve is the real <code>Toggle</code> (<code>role="switch"</code> + <code>aria-checked</code>, label + description).</li>
+      <li>Expiry presets follow the shipped segmented pattern: a <code>role="group"</code> labelled by "Link expires after", buttons carrying <code>aria-pressed</code>. The selected preset reads its pressed state to AT.</li>
+      <li>Create / Copy / Change / Done are real buttons with visible focus rings; Copy keeps its <code>content_copy → check</code> swap on success.</li>
+      <li>The settings badges are decorative summaries of state already conveyed in text — the note ("joins instantly until Sun, 29 Jun") carries the meaning, so the badges add no AT-only burden.</li>
+    </ul>
+  </div>
+  <p class="text-xs mt-4" style="color:#4a454b">Earlier exploration (access-mode chooser, people-count limit, manage/revoke list, discoverability badges) lives in <code>.claude/mockups/invite-approval-ux.html</code> — superseded by this simpler flow.</p>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

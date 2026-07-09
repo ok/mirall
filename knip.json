@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/preload/preload.js",
+    "src/worker/main.js",
+    "forge.config.js",
+    "scripts/**/*.{js,mjs}",
+    "test/**/*.test.js",
+    "test/**/run*.mjs",
+    "test/helpers/**/*.{js,mjs}"
+  ],
+  "project": ["src/**/*.{js,ts,tsx}"],
+  "rules": {
+    "dependencies": "off",
+    "devDependencies": "off",
+    "binaries": "off",
+    "unlisted": "off"
+  }
+}

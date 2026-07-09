@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Folder & file surface colors — harmonization proposal</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          tertiary: 'var(--color-tertiary)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          info: 'var(--color-info)',
+          online: 'var(--color-online)',
+          offline: 'var(--color-offline)',
+          error: 'var(--color-error)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: { '2xl': '1.5rem', '3xl': '2rem' },
+      },
+    },
+  }
+</script>
+
+<style>
+  /* Authoritative tokens copied from src/renderer/styles/tailwind.css (:root + .dark). */
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-tertiary: #541116;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #c1ecc4;
+    --color-info: #d6e6f5;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-error: #ba1a1a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-on-background: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-tertiary: #c578dd;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #20492a;
+    --color-info: #1f3a52;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-error: #df6b75;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-on-background: #fefaf3;
+  }
+
+  body { font-family: 'Manrope', sans-serif; background: #d8d4cc; color: var(--color-on-background); }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  .device-frame { background: var(--color-background); border-radius: 16px; box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12); overflow: hidden; }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent); }
+
+  /* Chips just for this doc's annotations (not app UI). */
+  .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 9999px; }
+  .tag-old { background: color-mix(in srgb, var(--color-error) 18%, transparent); color: var(--color-error); }
+  .tag-new { background: color-mix(in srgb, var(--color-secondary) 20%, transparent); color: var(--color-secondary); }
+  .swatch { width: 100%; height: 34px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--color-on-surface) 12%, transparent); }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- ============================ INTRO ============================ -->
+<div class="max-w-[1180px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div>
+    <h1 class="font-headline font-extrabold text-3xl tracking-tight text-accent">Folder &amp; file surface colors — harmonization</h1>
+    <p class="text-sm mt-2 max-w-3xl text-on-surface-variant leading-relaxed">
+      Today every card — spaces, folders (<code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">ShareCard</code>),
+      and files (<code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">FileCard</code>) — is the identical
+      <code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">surface-container-lowest</code> card; only the glyph differs.
+      The new folder tree (<code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">FolderBranch</code>) broke this by
+      putting folders on <code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">surface-container-low</code> with a
+      dark-mode hover that's invisible. This proposal harmonizes it into a consistent
+      <strong>folders vs files</strong> two-tier system. Grounding:
+      <code class="bg-black/5 dark:bg-white/10 px-1 rounded text-xs">.claude/tasks/research-folder-file-color-harmonization.md</code>.
+      Toggle dark — the whole point is that both themes read correctly.
+    </p>
+  </div>
+  <button id="theme-toggle" class="shrink-0 rounded-xl border border-black/10 dark:border-white/15 px-3 py-2 text-sm font-bold bg-white dark:bg-white/10 text-accent shadow-sm hover:shadow">Toggle dark</button>
+</div>
+
+<!-- ============================ TOKEN RAMP ============================ -->
+<section class="max-w-[1180px] mx-auto px-6 pt-6">
+  <div class="bg-surface-container-low rounded-2xl p-6">
+    <h2 class="font-headline font-bold text-lg text-accent mb-1">The neutral ramp (why dark is tricky)</h2>
+    <p class="text-xs text-on-surface-variant mb-4 max-w-3xl leading-relaxed">
+      The ramp is <strong>not monotonic by name in dark</strong>: <code class="text-xs">-lowest</code> (#21252b) is
+      <em>darker</em> than the background, while <code class="text-xs">-low</code>/<code class="text-xs">-highest</code>/<code class="text-xs">-high</code>
+      are progressively <em>lighter</em>. So "folders darker, files lighter than the background" maps to
+      <code class="text-xs">-lowest</code> for folders and <code class="text-xs">-low</code> for files — in dark.
+    </p>
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-3 text-xs">
+      <div><div class="swatch bg-surface" style="background:var(--color-surface)"></div><p class="mt-1 font-bold text-accent">surface (bg)</p></div>
+      <div><div class="swatch bg-surface-container-lowest"></div><p class="mt-1 font-bold text-accent">-lowest</p></div>
+      <div><div class="swatch bg-surface-container-low"></div><p class="mt-1 font-bold text-accent">-low</p></div>
+      <div><div class="swatch bg-surface-container"></div><p class="mt-1 font-bold text-accent">-container</p></div>
+      <div><div class="swatch bg-surface-container-highest"></div><p class="mt-1 font-bold text-accent">-highest</p></div>
+      <div><div class="swatch bg-surface-container-high"></div><p class="mt-1 font-bold text-accent">-high</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ §1 CURRENT (PROBLEM) ============================ -->
+<section class="max-w-[1180px] mx-auto px-6 pt-12">
+  <div class="flex items-baseline gap-3 mb-1"><h2 class="font-headline font-extrabold text-xl text-accent">1 · Current state</h2><span class="tag tag-old">the inconsistency</span></div>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    A folder is <code class="text-xs">-lowest</code> in SpaceView but <code class="text-xs">-low</code> in FolderView (same object,
+    two colors). In the tree, folders sit <em>lighter</em> than files in dark (the opposite of what's wanted), and the folder
+    hover barely changes. Recreated from <code class="text-xs">ShareCard.tsx</code>, <code class="text-xs">FileCard.tsx</code>,
+    <code class="text-xs">FolderTree.tsx</code>.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 py-7 grid md:grid-cols-2 gap-8">
+
+      <!-- SpaceView folder + file (both -lowest) -->
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-3">SpaceView — folder &amp; file are identical (<code class="text-xs">-lowest</code>)</p>
+        <div class="space-y-2">
+          <!-- ShareCard (folder) -->
+          <div class="relative flex items-center p-5 bg-surface-container-lowest rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              </div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">Brand Assets</p><p class="text-xs truncate mt-0.5 text-on-surface-variant">Shared by you · 42 files · 1.3 GB</p></div>
+            </div>
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-surface-container-highest text-accent mr-3">Shared by you</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" aria-label="Browse Files"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <!-- FileCard (file) -->
+          <div class="flex items-center p-5 bg-surface-container-lowest rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg>
+              </div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">quarterly.pdf</p><p class="text-xs text-on-surface-variant truncate">3.4 MB · Shared by Mara Voss</p></div>
+            </div>
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent mr-3">On your device</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" aria-label="Reveal in Folder"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg></span>
+          </div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant mt-2">→ no surface distinction; only the glyph tells folder from file.</p>
+      </div>
+
+      <!-- FolderView tree (folder -low, file -lowest) -->
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-3">FolderView tree — folder <code class="text-xs">-low</code>, file <code class="text-xs">-lowest</code> <span class="tag tag-old ml-1">clash</span></p>
+        <div class="space-y-2">
+          <!-- FolderBranch (folder, -low, chevron text-outline) -->
+          <div class="w-full text-left bg-surface-container-low rounded-xl flex items-center gap-4 p-5">
+            <svg class="text-outline shrink-0 rotate-90" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            <span class="min-w-0 flex-grow"><span class="font-bold text-accent block">Logos</span><span class="text-xs text-on-surface-variant block">2 files · 48 KB</span></span>
+          </div>
+          <!-- nested file (ShareFileRow, -lowest) -->
+          <div class="pl-6 space-y-2">
+            <div class="flex items-center p-5 bg-surface-container-lowest rounded-xl">
+              <span class="w-5 shrink-0"></span>
+              <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg></div>
+                <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">logo-primary.svg</p><p class="text-xs text-on-surface-variant truncate">12 KB</p></div>
+              </div>
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent mr-3">On your device</span>
+            </div>
+          </div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant mt-2">→ dark: folder (<code class="text-xs">#2e3239</code>) is <em>lighter</em> than file (<code class="text-xs">#21252b</code>); the chevron (<code class="text-xs">text-outline</code>) sinks to 2.5:1; hover→<code class="text-xs">-container</code> is a ~1.0:1 no-op in dark.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ §2 PROPOSAL A ============================ -->
+<section class="max-w-[1180px] mx-auto px-6 pt-14">
+  <div class="flex items-baseline gap-3 mb-1"><h2 class="font-headline font-extrabold text-xl text-accent">2 · Proposal A — two-tier, one hover</h2><span class="tag tag-new">recommended</span></div>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    <strong>Folders</strong> = the canonical card (<code class="text-xs">surface-container-lowest</code>, unchanged from ShareCard).
+    <strong>Files</strong> = one tier in (<code class="text-xs">surface-container-low</code>). <strong>Both hover</strong> to
+    <code class="text-xs">surface-container-highest</code> — visible in both themes, never colliding with a resting tier or the icon
+    tile (<code class="text-xs">-high</code>). The disclosure <strong>chevron</strong> becomes
+    <code class="text-xs">text-on-surface-variant</code>. In dark: folder <code class="text-xs">#21252b</code> (darker than bg),
+    file <code class="text-xs">#2e3239</code> (lighter than bg) — as requested. Applied identically in both screens.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 py-7 grid md:grid-cols-2 gap-8">
+
+      <!-- LEFT: SpaceView harmonized, rest + hover -->
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-3">SpaceView — folder vs file now distinct</p>
+        <div class="space-y-2">
+          <!-- folder REST (-lowest) -->
+          <div class="relative flex items-center p-5 bg-surface-container-lowest rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">Brand Assets</p><p class="text-xs truncate mt-0.5 text-on-surface-variant">Shared by you · 42 files · 1.3 GB</p></div>
+            </div>
+            <span class="text-[10px] font-bold text-on-surface-variant mr-2">folder · rest</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" aria-label="Browse Files"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <!-- folder HOVER (-highest) -->
+          <div class="relative flex items-center p-5 bg-surface-container-highest rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">Brand Assets</p><p class="text-xs truncate mt-0.5 text-on-surface-variant">Shared by you · 42 files · 1.3 GB</p></div>
+            </div>
+            <span class="text-[10px] font-bold text-secondary mr-2">folder · hover</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-surface-container-high" aria-label="Browse Files"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <!-- file REST (-low) -->
+          <div class="flex items-center p-5 bg-surface-container-low rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg></div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">quarterly.pdf</p><p class="text-xs text-on-surface-variant truncate">3.4 MB · Shared by Mara Voss</p></div>
+            </div>
+            <span class="text-[10px] font-bold text-on-surface-variant mr-2">file · rest</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" aria-label="Reveal in Folder"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg></span>
+          </div>
+          <!-- file HOVER (-highest) -->
+          <div class="flex items-center p-5 bg-surface-container-highest rounded-xl">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg></div>
+              <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">quarterly.pdf</p><p class="text-xs text-on-surface-variant truncate">3.4 MB · Shared by Mara Voss</p></div>
+            </div>
+            <span class="text-[10px] font-bold text-secondary mr-2">file · hover</span>
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-surface-container-high" aria-label="Reveal in Folder"><svg class="text-secondary" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l2-2h4l2 2h8v3"/><path d="M3 7v10a2 2 0 0 0 2 2h12l3-7H6z"/></svg></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: FolderView tree harmonized -->
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-secondary mb-3">FolderView tree — folder <code class="text-xs">-lowest</code>, file <code class="text-xs">-low</code>, chevron <code class="text-xs">on-surface-variant</code></p>
+        <div class="space-y-2">
+          <!-- folder REST (-lowest), expanded -->
+          <div class="w-full text-left bg-surface-container-lowest rounded-xl flex items-center gap-4 p-5">
+            <svg class="text-on-surface-variant shrink-0 rotate-90" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            <span class="min-w-0 flex-grow"><span class="font-bold text-accent block">Logos</span><span class="text-xs text-on-surface-variant block">2 files · 48 KB</span></span>
+            <span class="text-[10px] font-bold text-on-surface-variant">folder · rest</span>
+          </div>
+          <!-- nested files (-low) -->
+          <div class="pl-6 space-y-2">
+            <div class="flex items-center p-5 bg-surface-container-low rounded-xl">
+              <span class="w-5 shrink-0"></span>
+              <div class="flex items-center gap-4 min-w-0 flex-grow ml-4">
+                <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg></div>
+                <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">logo-primary.svg</p><p class="text-xs text-on-surface-variant truncate">12 KB</p></div>
+              </div>
+              <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent mr-2">On your device</span>
+            </div>
+          </div>
+          <!-- folder HOVER (-highest), collapsed, with downloading badge -->
+          <div class="w-full text-left bg-surface-container-highest rounded-xl flex items-center gap-4 p-5">
+            <svg class="text-on-surface-variant shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
+            <span class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-secondary" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            <span class="min-w-0 flex-grow"><span class="font-bold text-accent block">Photography</span><span class="text-xs text-on-surface-variant block">40 files · 1.2 GB · 6 on your device</span></span>
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent mr-1">2 downloading</span>
+            <span class="text-[10px] font-bold text-secondary">hover</span>
+          </div>
+        </div>
+        <p class="text-[11px] text-on-surface-variant mt-2">→ chevron, title, meta &amp; badges all stay ≥4.9:1 on the hover surface in both themes (measured, §4).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ §3 PROPOSAL A′ ============================ -->
+<section class="max-w-[1180px] mx-auto px-6 pt-14">
+  <div class="flex items-baseline gap-3 mb-1"><h2 class="font-headline font-extrabold text-xl text-accent">3 · Alternative A′ — no light-mode flip</h2><span class="tag tag-new">optional</span></div>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">
+    Option A folds folders onto <code class="text-xs">-lowest</code>, so in <em>light</em> mode folders read as the brightest
+    (white) card and files as slightly recessed — the luminance relationship flips vs dark. If a <strong>fixed</strong> relationship
+    is preferred (folders always darker than the background, files always lighter, in both themes), use theme-specific tokens:
+    folder <code class="text-xs">bg-surface-container dark:bg-surface-container-lowest</code>, file
+    <code class="text-xs">bg-surface-container-lowest dark:bg-surface-container-low</code>. Trade-off: the light-mode step is fainter.
+  </p>
+  <div class="device-frame">
+    <div class="flex items-center border-b border-outline-variant/50 relative">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span class="absolute left-1/2 -translate-x-1/2 text-xs font-bold tracking-wide text-on-surface-variant/70">Mirall</span>
+    </div>
+    <div class="px-8 py-7 space-y-2 max-w-xl">
+      <!-- folder: container / dark:lowest -->
+      <div class="flex items-center p-5 bg-surface-container dark:bg-surface-container-lowest rounded-xl">
+        <div class="flex items-center gap-4 min-w-0 flex-grow">
+          <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">Brand Assets</p><p class="text-xs text-on-surface-variant truncate">folder · always darker than the background</p></div>
+        </div>
+      </div>
+      <!-- file: lowest / dark:low -->
+      <div class="flex items-center p-5 bg-surface-container-lowest dark:bg-surface-container-low rounded-xl">
+        <div class="flex items-center gap-4 min-w-0 flex-grow">
+          <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg class="text-accent" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/></svg></div>
+          <div class="min-w-0 flex-grow"><p class="font-bold text-accent truncate">quarterly.pdf</p><p class="text-xs text-on-surface-variant truncate">file · always lighter than the background</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ §4 CONTRAST ============================ -->
+<section class="max-w-[1180px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-xl text-accent mb-1">4 · Contrast (measured, WCAG 2.1)</h2>
+  <p class="text-sm mb-4 max-w-3xl text-on-surface-variant leading-relaxed">Ratios of each foreground on the Proposal-A surfaces, <strong>light / dark</strong>. Text needs ≥4.5; non-text UI (chevron) needs ≥3.</p>
+  <div class="bg-surface-container-low rounded-2xl p-6 overflow-x-auto">
+    <table class="w-full text-sm border-collapse min-w-[640px]">
+      <thead><tr class="text-left text-on-surface-variant">
+        <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">Foreground</th>
+        <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">Folder rest (-lowest)</th>
+        <th class="font-bold uppercase tracking-wider text-xs pb-3 pr-4">File rest (-low)</th>
+        <th class="font-bold uppercase tracking-wider text-xs pb-3">Hover (-highest)</th>
+      </tr></thead>
+      <tbody class="align-top">
+        <tr class="border-t border-outline-variant/60"><td class="py-2.5 pr-4 font-bold text-accent">accent (title)</td><td class="py-2.5 pr-4 text-on-surface-variant">14.3 / 12.9</td><td class="py-2.5 pr-4 text-on-surface-variant">12.9 / 10.8</td><td class="py-2.5 text-on-surface-variant">11.1 / 8.9</td></tr>
+        <tr class="border-t border-outline-variant/60"><td class="py-2.5 pr-4 font-bold text-accent">on-surface-variant (meta)</td><td class="py-2.5 pr-4 text-on-surface-variant">9.4 / 12.0</td><td class="py-2.5 pr-4 text-on-surface-variant">8.4 / 10.0</td><td class="py-2.5 text-on-surface-variant">7.2 / 8.2</td></tr>
+        <tr class="border-t border-outline-variant/60"><td class="py-2.5 pr-4 font-bold text-accent">secondary (action icons)</td><td class="py-2.5 pr-4 text-on-surface-variant">6.5 / 8.8</td><td class="py-2.5 pr-4 text-on-surface-variant">5.8 / 7.4</td><td class="py-2.5 text-on-surface-variant">5.0 / 6.1</td></tr>
+        <tr class="border-t border-outline-variant/60"><td class="py-2.5 pr-4 font-bold text-error">chevron — current (outline)</td><td class="py-2.5 pr-4 text-error">4.5 / <strong>2.5 ✗</strong></td><td class="py-2.5 pr-4 text-error">4.0 / <strong>2.1 ✗</strong></td><td class="py-2.5 text-error">3.5 / <strong>1.7 ✗</strong></td></tr>
+        <tr class="border-t border-outline-variant/60"><td class="py-2.5 pr-4 font-bold text-secondary">chevron — proposed (on-surface-variant)</td><td class="py-2.5 pr-4 text-on-surface-variant">9.4 / 12.0 ✓</td><td class="py-2.5 pr-4 text-on-surface-variant">8.4 / 10.0 ✓</td><td class="py-2.5 text-on-surface-variant">7.2 / 8.2 ✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-on-surface-variant mt-4 max-w-3xl leading-relaxed">
+    <strong>a11y:</strong> titles, meta &amp; action icons clear AA-text (≥4.5) on every surface incl. hover, both themes. The one
+    fix required for legibility is the disclosure <strong>chevron</strong> → <code class="text-xs">text-on-surface-variant</code>
+    (the current <code class="text-xs">text-outline</code> fails the ≥3 UI floor in dark, worst on hover). Interactive names/roles/states
+    are unchanged from the shipped components. Surface steps between tiers are intentionally subtle (design.md "depth via surface
+    tiers, not borders"); the glyph and text carry primary identity.
+  </p>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    document.body.classList.toggle('dark');
+  });
+</script>
+</body>
+</html>

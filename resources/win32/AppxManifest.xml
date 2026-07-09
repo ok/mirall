@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  IgnorableNamespaces="rescap desktop6">
+
+  <!-- Identity/@Version is overwritten by forge.config.js (preMake hook) from
+       package.json#version before the MSIX maker runs. The committed value
+       here is a placeholder; do not bump it on release. -->
+  <Identity
+    Name="Mirall.Mirall"
+    Publisher="CN=Oliver Kohl, O=Oliver Kohl, L=Berlin, S=Berlin, C=DE"
+    Version="1.4.0.65535"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Mirall</DisplayName>
+    <PublisherDisplayName>Mirall</PublisherDisplayName>
+    <Description>Mirall - Peer-to-peer file sharing</Description>
+    <Logo>assets\StoreLogo.png</Logo>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+  </Properties>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <!-- Minimal capability set. This is a full-trust desktop app
+       (EntryPoint="Windows.FullTrustApplication"), so it does NOT run in an
+       AppContainer: network capabilities (internetClient /
+       privateNetworkClientServer) are NOT enforced and were removed — the app
+       keeps full internet + LAN access via runFullTrust. Declaring them only
+       added install-time permission warnings ("access your internet
+       connection" / "home or work networks") without granting anything.
+       Each capability that remains is load-bearing:
+         runFullTrust           — mandatory for any Win32/Electron MSIX; surfaces
+                                  as "uses all system resources" (same as every
+                                  desktop MSIX app, e.g. VS Code). Not removable.
+         unvirtualizedResources — permits FileSystemWriteVirtualization=disabled
+                                  above, keeping the corestore at a real %APPDATA%
+                                  path shared by the Electron main + Bare worker.
+
+       packageManagement was REMOVED. OTA self-update calls the WinRT
+       PackageManager (AddPackageByUri via msix-manager <- pear-runtime-updater)
+       to re-register our own staged MSIX. Per Microsoft's "Update non-Store
+       published apps from your code" doc, packageManagement "is required for
+       cross-publisher scenario, but managing your own app should work without
+       having to declare the capability" — and our OTA payload is the same
+       publisher + signing cert as the installed package. Keet (Holepunch)
+       self-updates the same way without declaring it. This removal is GATED on
+       the Windows OTA test in .claude/build-process.md §"Windows MSIX
+       self-update": if AddPackageByUri fails without the capability (access
+       denied / capability error), re-add this line.
+       Do NOT re-add network capabilities. -->
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="Mirall" Executable="app\Mirall.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Mirall"
+        Description="Mirall - Peer-to-peer file sharing"
+        BackgroundColor="#F9F7F3"
+        Square150x150Logo="assets\Square150x150Logo.png"
+        Square44x44Logo="assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="mirall">
+            <uap:DisplayName>Mirall</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+</Package>

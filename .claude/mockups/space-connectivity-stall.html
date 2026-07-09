@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Per-space connection-stall notice — mockup (Phase 0)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          offline: 'var(--color-offline)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #282c34;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- =========== Page header / theme toggle ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-10 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Per-space connection-stall notice — mockup
+    </h1>
+    <p class="text-sm" style="color:#4a454b">
+      Phase 0 UI delta from <code class="bg-black/5 px-1 rounded text-xs">.claude/tasks/plan-phase0-stall-detector.md</code>.
+      Click the toggle to flip light/dark.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Annotation banner ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#d6e6f5; border-color:#9bc6e8">
+    <div class="flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#1f4a78" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">What's proposed vs. recreated</p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          <strong>Proposed (the delta):</strong> the <code class="bg-white/60 px-1 rounded text-xs">SpaceConnectivityNotice</code> —
+          a <code class="bg-white/60 px-1 rounded text-xs">role="status"</code> banner shown when the DHT is up but no peer has
+          connected in this space past the grace window. Two contexts: the <strong>pending</strong> waiting view (§2) and the
+          <strong>approved</strong> view above the files area (§3).
+          <br/>
+          <strong>Recreated from code (baseline truth):</strong> the whole <code class="bg-white/60 px-1 rounded text-xs">SpaceView</code> —
+          header, pending panel, empty-share state, and members box — reproduced from
+          <code class="bg-white/60 px-1 rounded text-xs">src/renderer/screens/SpaceView.tsx</code> + <code class="bg-white/60 px-1 rounded text-xs">MembersBox/MemberCard</code>.
+          Strings are the real locale values; <code class="bg-white/60 px-1 rounded text-xs">stalled*</code> keys are proposed new copy.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- =========== SECTION 1: the notice in isolation =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-10">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">1 · The notice component (both variants)</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    A11y: lives in <code class="bg-black/5 px-1 rounded text-xs">role="status" aria-live="polite"</code> so it's announced on appear;
+    status is in the <em>text</em> (not colour); the Retry button has an accessible name and a focus-visible ring.
+    Built from tokens — surface / warning border / secondary-container pill — no new primitives.
+  </p>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <!-- Pending variant (recommended treatment A) -->
+    <div>
+      <p class="text-xs font-bold uppercase tracking-wide mb-2" style="color:#4a454b">Pending variant · recommended</p>
+      <div class="device-frame p-6">
+        <div role="status" aria-live="polite" class="rounded-xl bg-surface-container-lowest border border-warning/50 p-4 flex items-start gap-3" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5" aria-hidden="true"><path d="M2 8.5a16 16 0 0 1 9-3.2"/><path d="M5 12a11 11 0 0 1 6-2.4"/><path d="M8.5 15.5a6 6 0 0 1 3-1.3"/><path d="M12 19h.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-on-surface">Can't reach the space yet</p>
+            <p class="text-sm text-on-surface-variant leading-relaxed mt-1">You're connected to the network, but haven't reached anyone in this space yet. If this keeps happening, the network you're on may be blocking the connection.</p>
+          </div>
+          <button type="button" class="shrink-0 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 hover:opacity-90 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Try again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Member variant (recommended treatment A) -->
+    <div>
+      <p class="text-xs font-bold uppercase tracking-wide mb-2" style="color:#4a454b">Approved-member variant · recommended</p>
+      <div class="device-frame p-6">
+        <div role="status" aria-live="polite" class="rounded-xl bg-surface-container-lowest border border-warning/50 p-4 flex items-start gap-3" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5" aria-hidden="true"><path d="M2 8.5a16 16 0 0 1 9-3.2"/><path d="M5 12a11 11 0 0 1 6-2.4"/><path d="M8.5 15.5a6 6 0 0 1 3-1.3"/><path d="M12 19h.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-on-surface">Can't reach the space yet</p>
+            <p class="text-sm text-on-surface-variant leading-relaxed mt-1">You're online, but can't reach anyone in this space right now. If this keeps happening, the network you're on may be blocking direct connections.</p>
+          </div>
+          <button type="button" class="shrink-0 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 hover:opacity-90 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Try again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alternative treatment B -->
+  <p class="text-xs font-bold uppercase tracking-wide mb-2 mt-6" style="color:#4a454b">Alternative treatment (louder) — <span class="normal-case font-normal italic">shown for the decision; not recommended</span></p>
+  <div class="device-frame p-6 max-w-[640px]">
+    <div role="status" aria-live="polite" class="rounded-xl bg-warning/30 border border-warning p-4 flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-warning shrink-0 mt-0.5" aria-hidden="true"><path d="M2 8.5a16 16 0 0 1 9-3.2"/><path d="M5 12a11 11 0 0 1 6-2.4"/><path d="M8.5 15.5a6 6 0 0 1 3-1.3"/><path d="M12 19h.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-on-warning">Can't reach the space yet</p>
+        <p class="text-sm text-on-warning/90 leading-relaxed mt-1">You're connected to the network, but haven't reached anyone in this space yet. If this keeps happening, the network you're on may be blocking the connection.</p>
+      </div>
+      <button type="button" class="shrink-0 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 hover:opacity-90 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Try again</button>
+    </div>
+  </div>
+  <p class="text-xs mt-2 italic" style="color:#4a454b">Rationale for recommending the quiet treatment: the stall is recoverable and often transient, so a soft, informational surface (matching the app's quiet cards) is less alarming than a full warning panel — while still clearly actionable via Retry.</p>
+</section>
+
+
+<!-- =========== SECTION 2: Pending + stalled (full SpaceView) =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">2 · Pending join, stalled <span class="text-xs font-bold ml-2 px-2 py-1 rounded-full align-middle" style="background:#fce8d2;color:#7a2d30">primary case — the incident</span></h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    You used an invite and are waiting to be let in, but no peer has connected (the inviter is offline, or the network blocks the
+    connection). The notice appears <strong>below the existing "Waiting to be let in" copy</strong>, inside the same centred
+    <code class="bg-black/5 px-1 rounded text-xs">role="status"</code> region (recreated from <code class="bg-black/5 px-1 rounded text-xs">SpaceView.tsx:305-321</code>).
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <div class="px-8 pt-8 pb-8 flex flex-col" style="min-height:560px">
+      <!-- header: back + title + cancel-request (pending exposes nothing member-only) -->
+      <div class="shrink-0">
+        <div class="flex items-start gap-4 mb-2">
+          <button aria-label="Back" class="w-10 h-10 mt-1 shrink-0 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div class="flex-1 min-w-0">
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter truncate">Project Aurora</h1>
+          </div>
+          <div class="flex gap-3 mt-2 shrink-0">
+            <button class="inline-flex items-center gap-2 bg-surface-container-high text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              Cancel request
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- pending body: inviter avatars + waiting copy + (NEW) stall notice -->
+      <div class="flex-1 flex flex-col items-center justify-center text-center pb-8">
+        <div class="flex items-center -space-x-3 mb-5">
+          <span style="box-shadow:0 0 0 3px var(--color-surface-container-lowest)" class="w-14 h-14 rounded-full bg-[#8a5a2b] text-white flex items-center justify-center font-bold text-lg">A</span>
+        </div>
+        <h2 class="text-2xl font-headline font-bold text-accent mb-3">Waiting to be let into Project Aurora…</h2>
+        <p class="text-on-surface-variant max-w-md leading-relaxed">A member of this space needs to approve you. You can leave this open — you'll be let in automatically as soon as someone's online.</p>
+
+        <!-- NEW: SpaceConnectivityNotice (variant="pending") -->
+        <div class="mt-6 max-w-md w-full text-left">
+          <div role="status" aria-live="polite" class="rounded-xl bg-surface-container-lowest border border-warning/50 p-4 flex items-start gap-3" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5" aria-hidden="true"><path d="M2 8.5a16 16 0 0 1 9-3.2"/><path d="M5 12a11 11 0 0 1 6-2.4"/><path d="M8.5 15.5a6 6 0 0 1 3-1.3"/><path d="M12 19h.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+            <div class="flex-1 min-w-0">
+              <p class="font-bold text-on-surface">Can't reach the space yet</p>
+              <p class="text-sm text-on-surface-variant leading-relaxed mt-1">You're connected to the network, but haven't reached anyone in this space yet. If this keeps happening, the network you're on may be blocking the connection.</p>
+            </div>
+            <button type="button" class="shrink-0 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 hover:opacity-90 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Try again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-xs mt-3" style="color:#4a454b">
+    <strong>Before (current):</strong> identical panel <em>without</em> the notice — the "you'll be let in automatically as soon as
+    someone's online" line is the only feedback, even when you can never connect. The notice only renders once <code class="bg-black/5 px-1 rounded text-xs">stalled === true</code>
+    (DHT up · 0 peers · past the ~20s grace).
+  </p>
+</section>
+
+
+<!-- =========== SECTION 3: Approved + stalled (full SpaceView) =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14 pb-6">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">3 · Approved member, can't reach anyone <span class="text-xs font-bold ml-2 px-2 py-1 rounded-full align-middle" style="background:#efeeea;color:#4a454b">secondary case</span></h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    You're an approved member with other members in the space, but none are reachable past the grace window. The notice spans the
+    content width <strong>above the files+sidebar grid</strong> (same slot as the join-request banner). Gated on
+    <code class="bg-black/5 px-1 rounded text-xs">otherMembers &gt; 0</code> so a freshly-created, not-yet-invited space never false-alarms.
+    Everything else recreated from <code class="bg-black/5 px-1 rounded text-xs">SpaceView.tsx:322-464</code>.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <div class="px-8 pt-8 pb-8">
+      <!-- header: back + title + Invite + More (approved) -->
+      <div class="shrink-0 mb-4">
+        <div class="flex items-start gap-4 mb-2">
+          <button aria-label="Back" class="w-10 h-10 mt-1 shrink-0 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div class="flex-1 min-w-0">
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter truncate">Project Aurora</h1>
+          </div>
+          <div class="flex gap-3 mt-2 shrink-0 items-start">
+            <button class="inline-flex items-center gap-2 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+              Invite
+            </button>
+            <button aria-label="More" class="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="text-accent"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: SpaceConnectivityNotice (variant="member"), full content width -->
+      <div class="shrink-0 pb-4">
+        <div role="status" aria-live="polite" class="rounded-xl bg-surface-container-lowest border border-warning/50 p-4 flex items-start gap-3" style="box-shadow:0 4px 20px rgba(74,59,82,0.04)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary shrink-0 mt-0.5" aria-hidden="true"><path d="M2 8.5a16 16 0 0 1 9-3.2"/><path d="M5 12a11 11 0 0 1 6-2.4"/><path d="M8.5 15.5a6 6 0 0 1 3-1.3"/><path d="M12 19h.01"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-on-surface">Can't reach the space yet</p>
+            <p class="text-sm text-on-surface-variant leading-relaxed mt-1">You're online, but can't reach anyone in this space right now. If this keeps happening, the network you're on may be blocking direct connections.</p>
+          </div>
+          <button type="button" class="shrink-0 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 hover:opacity-90 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Try again</button>
+        </div>
+      </div>
+
+      <!-- body grid: files (empty state) | right sidebar -->
+      <div class="grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8">
+        <!-- left: empty-share state (recreated SpaceView.tsx:331-359) -->
+        <div>
+          <div class="flex flex-col min-h-[20rem] mt-6">
+            <div class="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
+              <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <svg width="45" height="45" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+              <svg viewBox="0 0 512 256" class="w-[6.5rem] h-[3.25rem] text-secondary ml-1" fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="60,80 140,128 60,176" opacity="0.35" />
+                <polyline points="200,80 280,128 200,176" opacity="0.65" />
+                <polyline points="340,80 420,128 340,176" opacity="1" />
+              </svg>
+            </div>
+            <div class="flex-1 flex flex-col items-center justify-center text-center px-10 pb-10">
+              <h2 class="text-2xl font-headline font-bold text-accent mb-3">Nothing shared yet</h2>
+              <p class="text-on-surface-variant max-w-md leading-relaxed">Drag files or folders into the share area on the right to start sharing with this space.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: DropZone + StorageIndicator + MembersBox (expanded so offline dots reinforce the notice) -->
+        <div class="flex flex-col gap-6">
+          <!-- DropZone -->
+          <div class="rounded-2xl border-2 border-dashed border-outline-variant p-6 flex flex-col items-center justify-center text-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary mb-2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            <p class="text-sm font-bold text-accent">Drop files or a folder here</p>
+            <p class="text-xs text-on-surface-variant mt-1">or click to choose</p>
+          </div>
+          <!-- StorageIndicator (compact) -->
+          <div class="bg-surface-container-low rounded-2xl p-8 shrink-0">
+            <div class="flex items-center gap-2 text-xl font-headline font-bold text-accent">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+              <span>File Storage</span>
+            </div>
+            <div class="mt-4 h-2 rounded-full bg-surface-container-high overflow-hidden">
+              <div class="h-full bg-secondary-container rounded-full" style="width:0%"></div>
+            </div>
+            <p class="text-xs text-on-surface-variant mt-2">0 B used</p>
+          </div>
+          <!-- MembersBox (expanded: CollapsibleCard) -->
+          <div class="bg-surface-container-low rounded-2xl p-8 shrink-0">
+            <div class="w-full flex items-center gap-2 text-xl font-headline font-bold text-accent">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Members</span>
+              <span class="text-sm font-label text-secondary font-bold">3</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ml-auto text-outline rotate-90"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="mt-6 space-y-6" role="region" aria-label="Members list" tabindex="0">
+              <!-- You (online) -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="relative">
+                    <span class="w-11 h-11 rounded-full bg-[#33253b] text-white flex items-center justify-center font-bold">Y</span>
+                    <div aria-hidden="true" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-container-low bg-online"></div>
+                  </div>
+                  <div>
+                    <p class="font-bold text-accent">You</p>
+                    <p class="text-xs text-on-surface-variant">Online</p>
+                  </div>
+                </div>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-surface-variant opacity-30"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+              </div>
+              <!-- Alice (offline) -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="relative">
+                    <span class="w-11 h-11 rounded-full bg-[#8a5a2b] text-white flex items-center justify-center font-bold">A</span>
+                    <div aria-hidden="true" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-container-low bg-offline"></div>
+                  </div>
+                  <div>
+                    <p class="font-bold text-outline">Alice</p>
+                    <p class="text-xs text-on-surface-variant">Offline</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Bob (offline) -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="relative">
+                    <span class="w-11 h-11 rounded-full bg-[#3a6ea5] text-white flex items-center justify-center font-bold">B</span>
+                    <div aria-hidden="true" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-container-low bg-offline"></div>
+                  </div>
+                  <div>
+                    <p class="font-bold text-outline">Bob</p>
+                    <p class="text-xs text-on-surface-variant">Offline</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="text-xs mt-3" style="color:#4a454b">The expanded members box (everyone offline) reinforces the notice — but the notice is the actionable, announced signal; the member dots alone read as "nobody's around", not "you can't connect".</p>
+</section>
+
+
+<!-- ====== Reading-the-mockup notes ===== -->
+<section class="max-w-[1100px] mx-auto px-6 pb-24">
+  <div class="bg-white rounded-2xl p-6" style="box-shadow:0 4px 20px rgba(15,12,20,0.08)">
+    <h3 class="font-headline font-extrabold text-base mb-3" style="color:#33253b">Reading the mockup</h3>
+    <ul class="space-y-2 text-sm" style="color:#4a454b">
+      <li>· <strong>Plan:</strong> <code class="bg-black/5 px-1 rounded text-xs">.claude/tasks/plan-phase0-stall-detector.md</code> (§4.8 component, §4.9 wire-in, §4.10 strings).</li>
+      <li>· <strong>Recreated from code:</strong> header (back / title / Cancel-request vs Invite+More), the pending panel (<code class="text-xs">SpaceView.tsx:305-321</code>), the empty-share state (<code class="text-xs">:331-359</code>), the members box (<code class="text-xs">MembersBox.tsx</code> / <code class="text-xs">MemberCard.tsx</code>). Strings verbatim from <code class="text-xs">locales/en/common.json</code>.</li>
+      <li>· <strong>Proposed copy</strong> (new <code class="text-xs">space.stalled*</code> keys): "Can't reach the space yet" · pending &amp; member hints · "Try again". To be added to all five locales; German uses the generic masculine (no inclusive forms).</li>
+      <li>· <strong>Tokens:</strong> card = <code class="text-xs">bg-surface-container-lowest</code> + <code class="text-xs">border-warning/50</code>; Retry = the primary <code class="text-xs">bg-primary</code> / <code class="text-xs">text-on-primary</code> button with <code class="text-xs">rounded-xl</code> (same as the Invite / primary action buttons — near-black in light, the brand orange in dark); heading = <code class="text-xs">text-on-surface</code>, body = <code class="text-xs">text-on-surface-variant</code>. No raw hex except the avatar placeholders (Material avatars are approximated in mockups, as are the stroke icons).</li>
+      <li>· <strong>Icon-colour note:</strong> the <code class="text-xs">wifi_off</code> glyph is drawn in <code class="text-xs">text-secondary</code> rather than <code class="text-xs">text-warning</code> — pure warning-yellow reads too faint as a thin stroke on a near-white card. Flagged for the plan (it currently says <code class="text-xs">text-warning</code>). Confirm <code class="text-xs">wifi_off</code> exists in Material Symbols; else fall back to <code class="text-xs">warning</code>.</li>
+      <li>· <strong>A11y:</strong> <code class="text-xs">role="status" aria-live="polite"</code> announces appearance; the status text (not colour) carries meaning; Retry is a real <code class="text-xs">&lt;button&gt;</code> with an accessible name + focus-visible ring — targetable by the frontend suite (the s69 assertion). The member status dots stay <code class="text-xs">aria-hidden</code>; "Online"/"Offline" text is the accessible signal, unchanged.</li>
+      <li>· <strong>Out of scope (later phases):</strong> the global Network-Status verdict is untouched (Phase 1); per-member direct/relayed/unreachable badges (Phase 2); relay fallback (Phase 3).</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

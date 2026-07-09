@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storage Settings — App Storage redesign (mockup)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    /* icon-tile is NOT inverted in dark — keeps its warm-peach light values (design.md §2) */
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-surface);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- ===================== Header / theme toggle ===================== -->
+<div class="max-w-[1200px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Storage Settings — “App Storage” redesign
+    </h1>
+    <p class="text-sm mt-1" style="color:#4a454b; max-width: 760px">
+      The eager-cache UI is hidden (flag <code>eagerTransferMode</code> off), so the screen no longer needs a
+      “Total Storage” headline and a separate “Other” box. This collapses them into one <strong>App Storage</strong>
+      card. Recreated from <code>src/renderer/screens/StorageSettings.tsx</code>; tokens from <code>design.md</code>.
+      Toggle dark to verify both themes.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">Toggle dark</button>
+</div>
+
+<div class="max-w-[1200px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-10 pt-6">
+
+  <!-- ============================================================= -->
+  <!-- CURRENT (shipped, eager UI hidden) — recreated from code      -->
+  <!-- ============================================================= -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold uppercase tracking-wide" style="color:#904d00">Current (shipped)</span>
+    </div>
+    <p class="text-sm mb-4" style="color:#4a454b">
+      Two section headings (“Total Storage”, “Other”) and two cards. The “Other” card repeats the
+      total <strong>4.9 MB</strong> next to the chevron — the same number already shown in large letters above.
+    </p>
+
+    <div class="device-frame">
+      <div class="flex items-center">
+        <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="flex-1 text-center text-xs font-headline font-bold pr-16 text-on-surface-variant">Mirall</div>
+      </div>
+      <div class="bg-surface px-8 pt-8 pb-10">
+
+        <!-- PageHeader -->
+        <div class="flex items-center gap-3 mb-8">
+          <button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-accent shrink-0" aria-label="Back">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div>
+            <h2 class="text-3xl font-headline font-extrabold text-accent tracking-tight leading-none">Storage</h2>
+            <p class="text-sm text-on-surface-variant mt-1">View and manage Mirall data usage on this device.</p>
+          </div>
+        </div>
+
+        <div class="space-y-10">
+          <!-- Download Folder (unchanged) -->
+          <section>
+            <h3 class="text-xl font-headline font-bold text-accent mb-6">Download Folder</h3>
+            <div class="bg-surface-container-low rounded-xl p-6">
+              <p class="text-sm text-on-surface-variant mb-3">Where Mirall saves files downloaded from your space members.</p>
+              <div class="flex items-center gap-3">
+                <span class="flex-1 min-w-0 truncate text-sm text-secondary">/Users/oliver/Downloads</span>
+                <button class="shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-secondary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Change…</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Total Storage (box 1) -->
+          <section>
+            <h3 class="text-xl font-headline font-bold text-accent mb-6">Total Storage</h3>
+            <div class="bg-surface-container-low rounded-xl p-6">
+              <div class="flex items-baseline gap-2 mb-3">
+                <span class="text-5xl font-headline font-extrabold text-accent tracking-tighter">4.9</span>
+                <span class="text-xl font-headline font-bold text-on-surface-variant/60">MB</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="flex-1 min-w-0 truncate text-xs font-medium text-on-surface-variant">/Users/oliver/Projects/Mirall/test-data/test-userstore/user4s…/app-storage</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Other (box 2) -->
+          <section>
+            <h3 class="text-xl font-headline font-bold text-accent mb-6">Other</h3>
+            <div class="bg-surface-container-low rounded-xl">
+              <div class="w-full p-6 flex items-start gap-4 text-left">
+                <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between mb-1">
+                    <p class="font-semibold text-on-surface-variant truncate">Other</p>
+                    <div class="flex items-center gap-2 shrink-0 ml-4">
+                      <p class="font-semibold text-on-surface-variant">4.9 MB</p>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-surface-variant"><path d="M6 15l6-6 6 6"/></svg>
+                    </div>
+                  </div>
+                  <p class="text-xs text-on-surface-variant">Database working space — mostly old versions of files you've changed, not a second copy of your data.</p>
+                </div>
+              </div>
+              <div class="px-6 pb-6 space-y-4 border-t border-outline-variant/40 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-on-surface-variant">Working space &amp; index</p>
+                    <p class="text-xs text-on-surface-variant">Old versions of files you've changed, plus database index data. Mirall reclaims most of this automatically as spaces go idle, and when you leave a space or clear its cache.</p>
+                  </div>
+                  <p class="text-sm font-semibold text-on-surface-variant shrink-0 tabular-nums">1.1 MB</p>
+                </div>
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-on-surface-variant">Leftover connection data</p>
+                    <p class="text-xs text-on-surface-variant">From 0 past contacts and 1 spaces you've left</p>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <p class="text-sm font-semibold text-on-surface-variant tabular-nums">3.8 MB</p>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant" aria-label="Leftover data actions">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- PROPOSED — one "App Storage" card                             -->
+  <!-- ============================================================= -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold uppercase tracking-wide" style="color:#0d8b80">Proposed</span>
+    </div>
+    <p class="text-sm mb-4" style="color:#4a454b">
+      One heading <strong>“App Storage”</strong>, one card. The total stays in large letters at the top with the
+      explainer beneath it; a slim <strong>Show details</strong> toggle reveals the breakdown (the actionable
+      cleanup part), which is otherwise unchanged.
+    </p>
+
+    <div class="device-frame">
+      <div class="flex items-center">
+        <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="flex-1 text-center text-xs font-headline font-bold pr-16 text-on-surface-variant">Mirall</div>
+      </div>
+      <div class="bg-surface px-8 pt-8 pb-10">
+
+        <!-- PageHeader -->
+        <div class="flex items-center gap-3 mb-8">
+          <button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 text-accent shrink-0" aria-label="Back">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div>
+            <h2 class="text-3xl font-headline font-extrabold text-accent tracking-tight leading-none">Storage</h2>
+            <p class="text-sm text-on-surface-variant mt-1">View and manage Mirall data usage on this device.</p>
+          </div>
+        </div>
+
+        <div class="space-y-10">
+          <!-- Download Folder (unchanged) -->
+          <section>
+            <h3 class="text-xl font-headline font-bold text-accent mb-6">Download Folder</h3>
+            <div class="bg-surface-container-low rounded-xl p-6">
+              <p class="text-sm text-on-surface-variant mb-3">Where Mirall saves files downloaded from your space members.</p>
+              <div class="flex items-center gap-3">
+                <span class="flex-1 min-w-0 truncate text-sm text-secondary">/Users/oliver/Downloads</span>
+                <button class="shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-secondary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Change…</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- App Storage (single merged card) -->
+          <section>
+            <h3 class="text-xl font-headline font-bold text-accent mb-6">App Storage</h3>
+            <div class="bg-surface-container-low rounded-xl">
+              <!-- total + path -->
+              <div class="group/copy p-6">
+                <div class="flex items-baseline gap-2 mb-3">
+                  <span class="text-5xl font-headline font-extrabold text-accent tracking-tighter">4.9</span>
+                  <span class="text-xl font-headline font-bold text-on-surface-variant/60">MB</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="flex-1 min-w-0 truncate text-xs font-medium text-on-surface-variant">/Users/oliver/Projects/Mirall/test-data/test-userstore/user4s…/app-storage</span>
+                  <button class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant opacity-60" aria-label="Copy path">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  </button>
+                </div>
+                <p class="text-sm text-on-surface-variant mt-3 leading-relaxed">Database working space — mostly old versions of files you've changed, not a second copy of your data.</p>
+              </div>
+
+              <!-- disclosure toggle — slim, label + chevron only -->
+              <button type="button" aria-expanded="true" aria-controls="appstorage-breakdown"
+                class="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+                <span class="text-sm font-semibold text-on-surface-variant">Hide details</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-outline shrink-0"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+
+              <!-- breakdown — unchanged copy / sizes / actions -->
+              <div id="appstorage-breakdown" class="px-6 pb-6 pt-2 space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-on-surface-variant">Working space &amp; index</p>
+                    <p class="text-xs text-on-surface-variant">Old versions of files you've changed, plus database index data. Mirall reclaims most of this automatically as spaces go idle, and when you leave a space or clear its cache.</p>
+                  </div>
+                  <p class="text-sm font-semibold text-on-surface-variant shrink-0 tabular-nums">1.1 MB</p>
+                </div>
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-on-surface-variant">Leftover connection data</p>
+                    <p class="text-xs text-on-surface-variant">From 0 past contacts and 1 spaces you've left</p>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <p class="text-sm font-semibold text-on-surface-variant tabular-nums">3.8 MB</p>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant" aria-label="Leftover data actions">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- collapsed-state variant -->
+          <section>
+            <h3 class="text-sm font-bold uppercase tracking-wide text-secondary mb-3">App Storage — collapsed</h3>
+            <div class="bg-surface-container-low rounded-xl">
+              <div class="p-6">
+                <div class="flex items-baseline gap-2 mb-3">
+                  <span class="text-5xl font-headline font-extrabold text-accent tracking-tighter">4.9</span>
+                  <span class="text-xl font-headline font-bold text-on-surface-variant/60">MB</span>
+                </div>
+                <span class="text-xs font-medium text-on-surface-variant">/Users/oliver/Projects/Mirall/test-data/test-userstore/user4s…/app-storage</span>
+                <p class="text-sm text-on-surface-variant mt-3 leading-relaxed">Database working space — mostly old versions of files you've changed, not a second copy of your data.</p>
+              </div>
+              <button type="button" aria-expanded="false" aria-controls="appstorage-breakdown-collapsed"
+                class="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30">
+                <span class="text-sm font-semibold text-on-surface-variant">Show details</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-outline shrink-0"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Notes ===================== -->
+<div class="max-w-[1200px] mx-auto px-6 pt-10">
+  <div class="rounded-2xl p-6" style="background:#f5f3ef">
+    <h3 class="font-headline font-extrabold text-base mb-3" style="color:#33253b">What changed &amp; why (vs <code>StorageSettings.tsx</code>)</h3>
+    <ul class="space-y-2 text-sm" style="color:#4a454b">
+      <li>· <strong>One section heading “App Storage”</strong> replaces “Total Storage” + “Other”. <span style="color:#904d00">Proposed new copy</span> — needs a new <code>storageSettings.appStorage</code> key (the old <code>totalStorage</code>/<code>otherHeading</code> section headings are dropped).</li>
+      <li>· <strong>One card</strong>: the big-number/path block and the disclosure now live in a single <code>bg-surface-container-low rounded-xl</code> container, separated by the existing <code>border-t border-outline-variant/40</code> divider (design.md §10 — the one sanctioned storage divider). No new surfaces.</li>
+      <li>· <strong>Size removed</strong> — the <code>4.9 MB</code> that sat beside the chevron is gone; the total reads once, in large letters at the top.</li>
+      <li>· <strong>Description moved up, row label dropped</strong> — “Database working space…” (<code>otherDesc</code>) now sits under the path as the card’s explainer, and the old “Other” disclosure row becomes a slim <strong>Show details / Hide details</strong> toggle (chevron only, no icon tile). <span style="color:#904d00">Needs new copy <code>storageSettings.showDetails</code> / <code>hideDetails</code>.</span></li>
+      <li>· <strong>Breakdown unchanged</strong>: “Working space &amp; index” and “Leftover connection data” (with the ⋮ → “Clean up” action) keep their copy, sizes, and a11y — the real cleanup affordance.</li>
+      <li>· <strong>Lazy scan preserved</strong>: expanding still triggers the leftover scan (today’s <code>toggleOther</code>); the toggle keeps <code>aria-expanded</code>/<code>aria-controls</code>.</li>
+      <li>· <strong>Disclosure chevron follows the convention</strong> (design.md §7): <code>chevron_right</code> collapsed → <code>expand_more</code> expanded (right → down, never up), in <code>text-outline</code> — matching the <code>NetworkStatus</code> sections and <code>CollapsibleCard</code>. The old Storage code used <code>expand_more</code>+<code>rotate-180</code> (down → up); that’s corrected.</li>
+    </ul>
+    <h3 class="font-headline font-extrabold text-base mt-5 mb-2" style="color:#33253b">New / dropped copy</h3>
+    <p class="text-sm" style="color:#4a454b">
+      <strong>New:</strong> <code>appStorage</code> = “App Storage”, <code>showDetails</code> = “Show details”, <code>hideDetails</code> = “Hide details” (× 5 locales).
+      <strong>Dropped from this screen:</strong> the <code>totalStorage</code> and <code>otherHeading</code> section headings, and the <code>other</code> row label.
+      <code>otherDesc</code> is reused (relocated under the total). The eager-only keys (<code>infoText</code>, <code>activeSpaces</code>, <code>cache</code>, <code>reclaimable</code>, …) stay in the file for Phase 2 but remain unrendered while <code>eagerTransferMode</code> is off.
+    </p>
+  </div>
+</div>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

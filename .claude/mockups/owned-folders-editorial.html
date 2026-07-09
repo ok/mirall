@@ -1,0 +1,2034 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Owned folders — a field guide in eight plates</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'secondary-fixed': 'var(--color-secondary-fixed)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'tertiary-fixed': 'var(--color-tertiary-fixed)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-secondary-fixed: #ffd9b3;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-tertiary-fixed: #ffd2cf;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --paper: #f4efe6;
+    --paper-deep: #ece5d6;
+    --ink: #1f1622;
+    --ink-faded: #6b5e6f;
+    --rule: #d8cfbe;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-secondary-fixed: #5a4a30;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-tertiary-fixed: #4a2f56;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2a2e36;
+    --color-surface-container-high: #333842;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --paper: #1d1f25;
+    --paper-deep: #16181d;
+    --ink: #f4efe6;
+    --ink-faded: #a39b8d;
+    --rule: #3a3a44;
+  }
+
+  html, body { background: var(--paper); }
+  body {
+    font-family: 'Manrope', sans-serif;
+    color: var(--ink);
+    font-feature-settings: "ss01", "cv11", "tnum";
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(31, 22, 34, 0.025) 1px, transparent 0);
+    background-size: 18px 18px;
+  }
+  .dark body {
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(244, 239, 230, 0.03) 1px, transparent 0);
+  }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .font-numerals { font-family: 'Plus Jakarta Sans', sans-serif; font-feature-settings: "tnum", "lnum"; }
+
+  /* Editorial typography helpers */
+  .editorial-display {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 0.88;
+    color: var(--ink);
+  }
+  .small-caps {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+    color: var(--ink-faded);
+  }
+  .lede {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--ink-faded);
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+  }
+  .body-text { font-family: 'Manrope', sans-serif; line-height: 1.65; color: var(--ink); }
+
+  .hairline { border-color: var(--rule); }
+  .hairline-bottom { border-bottom: 1px solid var(--rule); }
+  .hairline-top { border-top: 1px solid var(--rule); }
+
+  .rule-thick { border-top: 3px solid var(--ink); }
+
+  .ornament { letter-spacing: 0.6em; color: var(--ink-faded); }
+
+  /* Stage / figure */
+  .stage {
+    background: var(--color-surface);
+    border-radius: 14px;
+    box-shadow:
+      0 1px 0 rgba(31, 22, 34, 0.04),
+      0 18px 60px -20px rgba(31, 22, 34, 0.18),
+      0 6px 18px -8px rgba(31, 22, 34, 0.10);
+    overflow: hidden;
+    position: relative;
+  }
+  .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px rgba(31, 22, 34, 0.05);
+  }
+  .traffic { display: inline-flex; gap: 6px; padding: 11px 14px; }
+  .traffic span { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
+  .traffic .r { background: #ff5f57; }
+  .traffic .y { background: #febc2e; }
+  .traffic .g { background: #28c840; }
+
+  .modal-scrim { background: rgba(15, 12, 20, 0.55); }
+
+  /* Owner avatar swatches */
+  .av-you   { background: linear-gradient(135deg, #4A3B52, #D48166); color: #fff; }
+  .av-alice { background: linear-gradient(135deg, #FE8C5A, #FCD34D); color: #33253b; }
+  .av-bob   { background: linear-gradient(135deg, #5CC4B8, #1F4A78); color: #fff; }
+  .av-carol { background: linear-gradient(135deg, #C578DD, #541116); color: #fff; }
+
+  /* Marginalia callout numbers */
+  .callout-num {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-feature-settings: "tnum", "lnum";
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--ink);
+    border-radius: 9999px;
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* Big roman numeral */
+  .roman {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-feature-settings: "lnum";
+    letter-spacing: -0.06em;
+    line-height: 1;
+    color: var(--ink);
+  }
+
+  /* Staggered reveal — used very sparingly */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal { animation: rise 0.9s cubic-bezier(0.2, 0.6, 0.1, 1) both; }
+
+  /* Pull-quote */
+  .pull-quote {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 500;
+    font-style: italic;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+
+  /* Page number / running header */
+  .running {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--ink-faded);
+  }
+
+  /* Decorative gradient blot for hero */
+  .blot {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 9999px;
+    filter: blur(120px);
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .blot-a { background: radial-gradient(circle, #fd9c4255 0%, transparent 70%); }
+  .blot-b { background: radial-gradient(circle, #ccebe666 0%, transparent 70%); }
+  .blot-c { background: radial-gradient(circle, #d6e6f566 0%, transparent 70%); }
+
+  /* Tabular note dots */
+  .dot-leader::after { content: ' · · · · · · · · · · · · · · · · · · · · '; color: var(--rule); letter-spacing: 2px; }
+
+  /* Underline for "see also" links */
+  .see-also { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  ::selection { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+
+  /* Mirall app's custom scrollbar — verbatim from src/renderer/styles/tailwind.css.
+   * Implementations of the folder browse view must use this same .scrollbar-thin
+   * utility so the in-app scroll container matches the rest of the app. */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--color-surface-container-high);
+    background-clip: padding-box;
+    border: 0px solid transparent;
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-surface-container-highest);
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-surface-container-highest);
+  }
+  .scrollbar-thin::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- ============================================================
+     RUNNING HEADER
+     ============================================================ -->
+<header class="max-w-[1280px] mx-auto px-10 pt-10 pb-6 flex items-center justify-between">
+  <div class="running">Mirall · Design Plans · Edition 2026-05-18</div>
+  <button id="theme-toggle"
+    class="small-caps hover:opacity-70 transition-opacity"
+    style="cursor: pointer; background: transparent; border: none; padding: 0;">
+    Toggle dark
+  </button>
+</header>
+
+<div class="max-w-[1280px] mx-auto px-10">
+  <div class="hairline-bottom"></div>
+</div>
+
+<!-- ============================================================
+     COVER PLATE
+     ============================================================ -->
+<section class="max-w-[1280px] mx-auto px-10 pt-20 pb-28 relative reveal">
+  <div class="blot blot-a" style="top: 80px; left: -200px;"></div>
+  <div class="blot blot-b" style="top: 280px; right: -180px;"></div>
+
+  <div class="grid grid-cols-12 gap-8 relative">
+    <div class="col-span-12">
+      <p class="small-caps mb-6">A field guide · eight plates · folder shares in Mirall</p>
+    </div>
+
+    <div class="col-span-12">
+      <h1 class="editorial-display" style="font-size: clamp(64px, 14vw, 200px);">
+        Owned<br/>folders.
+      </h1>
+    </div>
+
+    <div class="col-span-12 mt-12 grid grid-cols-12 gap-8">
+      <div class="col-span-12 md:col-span-7">
+        <p class="lede text-2xl md:text-3xl">
+          A single writer per folder. A path the owner picks. A continuous push from disk to space, and a read-only mirror waiting on the other side — opt-in, attributed, and surprisingly quiet.
+        </p>
+      </div>
+      <div class="col-span-12 md:col-span-4 md:col-start-9">
+        <div class="body-text text-sm" style="color: var(--ink-faded);">
+          <p class="mb-3">
+            The plan introduces folder shares as a peer of today's loose-file sharing. No "space mount" ceremony precedes them; no separate <em>Add folder</em> button lives in the page chrome. The drop area — the same surface that accepts files today — becomes the single entry point.
+          </p>
+          <p>
+            What follows is the design in eight plates: the empty space, the inhabited space, the door, the confirmation, the mirror, the preview, the menus, and the folder browse view.
+          </p>
+          <p class="mt-6 small-caps" style="color: var(--ink-faded);">
+            <a href="#plate-i" class="see-also">Begin</a> &nbsp;·&nbsp; <a href="#colophon" class="see-also">Colophon</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contents -->
+    <div class="col-span-12 mt-20">
+      <p class="small-caps mb-6">Contents</p>
+      <div class="grid grid-cols-12 gap-x-8 gap-y-3 body-text text-base hairline-top pt-6">
+        <a href="#plate-i" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">I.</span>
+          <span class="see-also flex-1">The empty space</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">No folders shared yet</span>
+        </a>
+        <a href="#plate-ii" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">II.</span>
+          <span class="see-also flex-1">The inhabited space</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Mine · Browse · Mirrored</span>
+        </a>
+        <a href="#plate-iii" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">III.</span>
+          <span class="see-also flex-1">The single door</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">The drop area</span>
+        </a>
+        <a href="#plate-iv" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">IV.</span>
+          <span class="see-also flex-1">An act of confirmation</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Add-folder dialog</span>
+        </a>
+        <a href="#plate-v" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">V.</span>
+          <span class="see-also flex-1">A one-sided treaty</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Mirror foreign folder</span>
+        </a>
+        <a href="#plate-vi" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">VI.</span>
+          <span class="see-also flex-1">Look before you sync</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Initial scan preview</span>
+        </a>
+        <a href="#plate-vii" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">VII.</span>
+          <span class="see-also flex-1">Three menus, three relationships</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Per-folder actions</span>
+        </a>
+        <a href="#plate-viii" class="col-span-12 md:col-span-6 flex items-baseline">
+          <span class="font-numerals font-extrabold mr-4" style="width: 32px;">VIII.</span>
+          <span class="see-also flex-1">Inside the folder</span>
+          <span style="color: var(--ink-faded);" class="dot-leader flex-shrink-0 mx-3 overflow-hidden flex-1 text-right"></span>
+          <span class="font-numerals text-sm" style="color: var(--ink-faded);">Folder browse view</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10">
+  <div class="ornament text-center text-sm py-12">· · ·</div>
+</div>
+
+<!-- ============================================================
+     PLATE I — The empty space
+     ============================================================ -->
+<section id="plate-i" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-2">
+      <div class="roman" style="font-size: clamp(80px, 9vw, 144px);">I</div>
+      <p class="small-caps mt-2">Plate one</p>
+    </div>
+    <div class="col-span-12 md:col-span-7">
+      <h2 class="editorial-display" style="font-size: clamp(40px, 6vw, 78px);">
+        The empty<br/>space.
+      </h2>
+      <p class="lede text-xl mt-6 max-w-2xl">
+        Before the first folder is shared, a space is only files — drops landing in someone's downloads. The page says nothing of folders, because nothing of folders exists.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <!-- Figure -->
+    <div class="col-span-12 md:col-span-9">
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-8 pt-8 pb-2">
+          <div class="flex items-start gap-4 mb-2">
+            <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h1 class="flex-1 font-headline font-extrabold text-accent tracking-tighter" style="font-size: 38px; line-height: 1;">Project Aurora</h1>
+            <div class="flex gap-2 mt-2 shrink-0">
+              <button class="flex items-center justify-center gap-2 whitespace-nowrap bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                Invite
+              </button>
+              <button class="flex items-center gap-1.5 bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                More
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 pb-8 grid grid-cols-1 min-[900px]:grid-cols-[1fr_280px] gap-6 pt-4">
+          <div>
+            <div class="flex items-baseline gap-3 mb-3">
+              <h2 class="font-headline font-bold text-accent text-lg">Files shared</h2>
+              <span class="text-xs font-bold text-secondary">3 files</span>
+            </div>
+            <div class="grid gap-2">
+
+              <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-bold text-accent text-sm truncate">team-photo.jpg</p>
+                  <p class="text-[11px] text-on-surface-variant">4.2 MB · Shared by Alice</p>
+                </div>
+                <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2">Remote</span>
+                <button class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+                </button>
+              </div>
+
+              <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-bold text-accent text-sm truncate">agenda.md</p>
+                  <p class="text-[11px] text-on-surface-variant">8.4 KB · Shared by Bob · 64%</p>
+                  <div class="mt-1 w-full h-[3px] bg-surface-container-high rounded-full overflow-hidden">
+                    <div class="h-full bg-secondary-container rounded-full" style="width: 64%;"></div>
+                  </div>
+                </div>
+                <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-tertiary-fixed text-accent mr-2">Downloading</span>
+                <button class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                </button>
+              </div>
+
+              <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <div class="flex-grow min-w-0">
+                  <p class="font-bold text-accent text-sm truncate">presentation.pptx</p>
+                  <p class="text-[11px] text-on-surface-variant">32 MB · Shared by you</p>
+                </div>
+                <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-secondary-fixed text-accent mr-2">Mine</span>
+                <button class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Sidebar — pt-10 aligns first item with first card, not with section header -->
+          <div class="space-y-4 pt-10">
+            <div class="border-2 border-dashed border-outline-variant bg-surface-container-lowest rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-1 text-center">Drop to share</p>
+              <p class="text-[11px] text-on-surface-variant text-center mb-3">Drop files or a folder here</p>
+              <button class="w-full flex items-center justify-center gap-1.5 bg-primary text-on-primary rounded-lg px-3 py-2 font-headline font-bold text-[12px]">
+                Browse…
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-2 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                Storage
+              </p>
+              <p class="font-headline font-extrabold text-accent text-3xl tracking-tighter leading-none">32.2 MB</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">32 MB on this device</p>
+            </div>
+
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-3 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-secondary"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Members
+              </p>
+              <div class="space-y-2.5">
+                <div class="flex items-center gap-2">
+                  <div class="relative">
+                    <div class="w-8 h-8 rounded-full av-you flex items-center justify-center font-bold text-[10px]">You</div>
+                    <div class="absolute bottom-0 right-0 w-2 h-2 rounded-full border-2 border-surface-container-low bg-online"></div>
+                  </div>
+                  <p class="font-bold text-accent text-xs">You</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="relative">
+                    <div class="w-8 h-8 rounded-full av-alice flex items-center justify-center font-bold text-[10px]">A</div>
+                    <div class="absolute bottom-0 right-0 w-2 h-2 rounded-full border-2 border-surface-container-low bg-online"></div>
+                  </div>
+                  <p class="font-bold text-accent text-xs">Alice</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="relative">
+                    <div class="w-8 h-8 rounded-full av-bob flex items-center justify-center font-bold text-[10px]">B</div>
+                    <div class="absolute bottom-0 right-0 w-2 h-2 rounded-full border-2 border-surface-container-low" style="background: var(--color-outline);"></div>
+                  </div>
+                  <p class="font-bold text-xs" style="color: var(--color-outline);">Bob</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. I — A space with three loose files and zero folder shares.</p>
+    </div>
+
+    <!-- Marginalia -->
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">No "Folders" heading.</p>
+          <p style="color: var(--ink-faded);">
+            The section is absent because no folder share exists yet. The empty state says nothing about a feature the user can't see in use.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Drop area, one door.</p>
+          <p style="color: var(--ink-faded);">
+            The same surface that accepts files today accepts folders too. No separate <em>Add folder</em> lives in the page chrome.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Storage is a global truth.</p>
+          <p style="color: var(--ink-faded);">
+            One number, not per-folder. The download folder configured in Storage Settings remains the single destination for on-demand downloads.
+          </p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE II — The inhabited space
+     ============================================================ -->
+<section id="plate-ii" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-10 md:col-start-3 md:text-right">
+      <div class="roman md:ml-auto" style="font-size: clamp(80px, 9vw, 144px);">II</div>
+      <p class="small-caps mt-2">Plate two</p>
+      <h2 class="editorial-display mt-6" style="font-size: clamp(40px, 6vw, 78px);">
+        The inhabited<br/>space.
+      </h2>
+      <p class="lede text-xl mt-6 md:ml-auto max-w-2xl">
+        Once a folder appears — yours, theirs, or a foreign mirror — a second ledger opens above the files. Three states, three avatars, three relationships.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <!-- Marginalia (left) -->
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4 order-2 md:order-1">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Mine.</p>
+          <p style="color: var(--ink-faded);">
+            You picked the location on disk. Chokidar watches; changes push into the space continuously.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Browse.</p>
+          <p style="color: var(--ink-faded);">
+            Alice's folder, visible in the list. No local copy — files download on demand, one at a time.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Mirrored.</p>
+          <p style="color: var(--ink-faded);">
+            Bob's folder, copied to disk continuously, read-only. The lock badge is the contract.
+          </p>
+        </div>
+      </div>
+
+      <div class="hairline-top pt-5">
+        <p class="pull-quote text-lg">
+          "Three states, one ledger."
+        </p>
+      </div>
+    </aside>
+
+    <!-- Figure (right) -->
+    <div class="col-span-12 md:col-span-9 order-1 md:order-2">
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-8 pt-8 pb-2">
+          <div class="flex items-start gap-4 mb-2">
+            <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h1 class="flex-1 font-headline font-extrabold text-accent tracking-tighter" style="font-size: 38px; line-height: 1;">Project Aurora</h1>
+            <div class="flex gap-2 mt-2 shrink-0">
+              <button class="flex items-center justify-center gap-2 whitespace-nowrap bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                Invite
+              </button>
+              <button class="flex items-center gap-1.5 bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                More
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 pb-8 grid grid-cols-1 min-[900px]:grid-cols-[1fr_280px] gap-6 pt-4">
+          <div class="space-y-6">
+
+            <!-- Folders section -->
+            <div>
+              <div class="flex items-baseline gap-3 mb-3">
+                <h2 class="font-headline font-bold text-accent text-lg">Folders shared</h2>
+                <span class="text-xs font-bold text-secondary">3 folders</span>
+              </div>
+              <div class="grid gap-2">
+
+                <!-- Mine: MyNotes -->
+                <div class="group flex items-center p-4 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                  <div class="relative w-10 h-10 mr-3 shrink-0">
+                    <div class="w-10 h-10 bg-surface-container-high rounded-lg flex items-center justify-center">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                    </div>
+                    <div class="absolute -top-1 -right-1 w-5 h-5 rounded-full av-you flex items-center justify-center font-bold text-[8px] border-2 border-surface-container-lowest">You</div>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <p class="font-bold text-accent text-sm truncate">MyNotes</p>
+                    <p class="text-[11px] text-on-surface-variant truncate">12 files · 4.2 MB · ~/Documents/MyNotes</p>
+                  </div>
+                  <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-secondary-fixed text-accent mr-2 shrink-0">Mine</span>
+                  <button title="Delete folder…" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-error-container active:scale-95 transition-all opacity-0 group-hover:opacity-100">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                  </button>
+                  <button title="Open in Finder" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+                  </button>
+                </div>
+
+                <!-- Browse: Photos by Alice -->
+                <div class="group flex items-center p-4 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                  <div class="relative w-10 h-10 mr-3 shrink-0">
+                    <div class="w-10 h-10 bg-surface-container-high rounded-lg flex items-center justify-center">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                    </div>
+                    <div class="absolute -top-1 -right-1 w-5 h-5 rounded-full av-alice flex items-center justify-center font-bold text-[9px] border-2 border-surface-container-lowest">A</div>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <p class="font-bold text-accent text-sm truncate">Photos</p>
+                    <p class="text-[11px] text-on-surface-variant truncate">47 files · 1.3 GB · Owned by Alice</p>
+                  </div>
+                  <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2 shrink-0">Browse</span>
+                  <button title="Mirror to disk…" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all opacity-0 group-hover:opacity-100">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/><path d="M12 12v4M9 14h6"/></svg>
+                  </button>
+                  <button title="Browse files" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+
+                <!-- Mirrored: Drafts by Bob -->
+                <div class="group flex items-center p-4 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                  <div class="relative w-10 h-10 mr-3 shrink-0">
+                    <div class="w-10 h-10 bg-surface-container-high rounded-lg flex items-center justify-center">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                    </div>
+                    <div class="absolute -top-1 -right-1 w-5 h-5 rounded-full av-bob flex items-center justify-center font-bold text-[9px] border-2 border-surface-container-lowest">B</div>
+                    <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-warning border-2 border-surface-container-lowest flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-on-warning"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                    </div>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <p class="font-bold text-accent text-sm truncate">Drafts</p>
+                    <p class="text-[11px] text-on-surface-variant truncate">5 files · 1.8 MB · Owned by Bob · read-only</p>
+                  </div>
+                  <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-info text-accent mr-2 shrink-0">Mirrored</span>
+                  <button title="More… (Open in Finder, Pause, Change location, Unmount)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all opacity-0 group-hover:opacity-100">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                  </button>
+                  <button title="Browse files" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Files shared section -->
+            <div>
+              <div class="flex items-baseline gap-3 mb-3">
+                <h2 class="font-headline font-bold text-accent text-lg">Files shared</h2>
+                <span class="text-xs font-bold text-secondary">2 files</span>
+              </div>
+              <div class="grid gap-2">
+                <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                  <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <p class="font-bold text-accent text-sm truncate">team-photo.jpg</p>
+                    <p class="text-[11px] text-on-surface-variant">4.2 MB · Shared by Alice</p>
+                  </div>
+                  <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2">Remote</span>
+                </div>
+                <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+                  <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <p class="font-bold text-accent text-sm truncate">presentation.pptx</p>
+                    <p class="text-[11px] text-on-surface-variant">32 MB · Shared by you</p>
+                  </div>
+                  <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-secondary-fixed text-accent mr-2">Mine</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Sidebar — pt-10 aligns first item with first card, not with section header -->
+          <div class="space-y-4 pt-10">
+            <div class="border-2 border-dashed border-outline-variant bg-surface-container-lowest rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-1 text-center">Drop to share</p>
+              <p class="text-[11px] text-on-surface-variant text-center mb-3">Drop files or a folder here</p>
+              <button class="w-full flex items-center justify-center gap-1.5 bg-primary text-on-primary rounded-lg px-3 py-2 font-headline font-bold text-[12px]">
+                Browse…
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-2 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                Storage
+              </p>
+              <p class="font-headline font-extrabold text-accent text-3xl tracking-tighter leading-none">1.34 GB</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">36 MB on this device</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. II — Three folder cards sit above the two loose files. The avatar overlays the icon tile; the lock badge marks a read-only mirror.</p>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE III — The single door
+     ============================================================ -->
+<section id="plate-iii" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-2">
+      <div class="roman" style="font-size: clamp(80px, 9vw, 144px);">III</div>
+      <p class="small-caps mt-2">Plate three</p>
+    </div>
+    <div class="col-span-12 md:col-span-7">
+      <h2 class="editorial-display" style="font-size: clamp(40px, 6vw, 78px);">
+        The single<br/>door.
+      </h2>
+      <p class="lede text-xl mt-6 max-w-2xl">
+        Today's drop area takes files. Tomorrow it takes folders too. Same surface, same rhythm — drop, click, or drag. The choice between file and folder happens at the moment of the click, never as a separate destination.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <div class="col-span-12 md:col-span-9">
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-12 pt-16 pb-36 grid grid-cols-2 md:grid-cols-4 gap-8">
+
+          <!-- Resting -->
+          <div>
+            <p class="small-caps mb-4">Resting</p>
+            <div class="border-2 border-dashed border-outline-variant bg-surface-container-lowest rounded-2xl p-6">
+              <p class="font-headline font-bold text-accent text-base mb-1 text-center">Drop to share</p>
+              <p class="text-[11px] text-on-surface-variant mb-4 text-center">Drop files or a folder here</p>
+              <button class="w-full flex items-center justify-center gap-1.5 bg-primary text-on-primary rounded-xl px-3 py-2.5 font-headline font-bold text-xs">
+                Browse…
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Click — menu open -->
+          <div>
+            <p class="small-caps mb-4">Click · menu</p>
+            <div class="relative border-2 border-dashed border-outline-variant bg-surface-container-lowest rounded-2xl p-6">
+              <p class="font-headline font-bold text-accent text-base mb-1 text-center">Drop to share</p>
+              <p class="text-[11px] text-on-surface-variant mb-4 text-center">Drop files or a folder here</p>
+              <button class="w-full flex items-center justify-center gap-1.5 bg-primary text-on-primary rounded-xl px-3 py-2.5 font-headline font-bold text-xs ring-2 ring-secondary/40">
+                Browse…
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="transform: rotate(180deg);"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <!-- ActionMenu popover: w-56, rounded-xl, py-1, items px-4 py-3 gap-3 -->
+              <ul class="absolute z-10 w-56 bg-surface-container-lowest rounded-xl shadow-lg shadow-black/30 overflow-hidden outline-none py-1" style="top: 100%; left: 50%; transform: translateX(-50%) translateY(8px);">
+                <li class="w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 text-accent hover:bg-surface-container-low cursor-pointer">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Files…
+                </li>
+                <li class="w-full px-4 py-3 text-left text-sm font-medium flex items-center gap-3 text-accent hover:bg-surface-container-low cursor-pointer">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                  Folder…
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Dragover files -->
+          <div>
+            <p class="small-caps mb-4">Drag-over · files</p>
+            <div class="border-2 border-dashed border-secondary bg-surface-container-low rounded-2xl p-6 flex flex-col items-center justify-center" style="min-height: 160px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-secondary mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <p class="font-headline font-bold text-secondary text-sm text-center">Release to share 3 files</p>
+            </div>
+          </div>
+
+          <!-- Dragover folder -->
+          <div>
+            <p class="small-caps mb-4">Drag-over · folder</p>
+            <div class="border-2 border-dashed border-secondary bg-surface-container-low rounded-2xl p-6 flex flex-col items-center justify-center" style="min-height: 160px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-secondary mb-2"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+              <p class="font-headline font-bold text-secondary text-sm text-center">Release to share "MyNotes"</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. III — Four states of one component. The chrome is a single button; the menu disambiguates only on the click path.</p>
+    </div>
+
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">One button, not two.</p>
+          <p style="color: var(--ink-faded);">
+            File vs folder is OS-picker plumbing, not a user choice. The disambiguation lives in a small popover that appears only when needed.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Drag-and-drop never sees the menu.</p>
+          <p style="color: var(--ink-faded);">
+            Drop a file or a folder; the component routes by what arrived. The menu is reserved for the click path. Today's "folders not supported" toast retires.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Hover state is visual confirmation.</p>
+          <p style="color: var(--ink-faded);">
+            Border-secondary + surface-container-low + a verb-form release prompt naming the count and the kind.
+          </p>
+        </div>
+      </div>
+
+      <div class="hairline-top pt-5">
+        <p class="pull-quote text-lg">
+          "Same surface, same rhythm."
+        </p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE IV — Add folder dialog
+     ============================================================ -->
+<section id="plate-iv" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-10 md:col-start-3 md:text-right">
+      <div class="roman md:ml-auto" style="font-size: clamp(80px, 9vw, 144px);">IV</div>
+      <p class="small-caps mt-2">Plate four</p>
+      <h2 class="editorial-display mt-6" style="font-size: clamp(40px, 6vw, 78px);">
+        An act of<br/>confirmation.
+      </h2>
+      <p class="lede text-xl mt-6 md:ml-auto max-w-2xl">
+        The picker resolves first; the dialog confirms. The path is a fact you can change; the name is a fact you've chosen. The room you're standing in is already shared — no checkbox required.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4 order-2 md:order-1">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Path is what you picked.</p>
+          <p style="color: var(--ink-faded);">
+            Read-only display. <em>Browse…</em> re-opens the OS picker to change it.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Name defaults to basename.</p>
+          <p style="color: var(--ink-faded);">
+            Editable. Must be unique within (this peer, this space).
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Preview if non-empty.</p>
+          <p style="color: var(--ink-faded);">
+            Inline count + size. Full per-file preview comes on the next step.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">4</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">No "I understand" checkbox.</p>
+          <p style="color: var(--ink-faded);">
+            The dialog copy and the space context make the sharing semantics clear.
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <div class="col-span-12 md:col-span-9 order-1 md:order-2">
+      <div class="stage relative" style="min-height: 540px;">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="absolute inset-0 modal-scrim" style="top: 36px;"></div>
+
+        <div class="relative z-10 max-w-[540px] mx-auto mt-10 mb-12 bg-surface-container-lowest rounded-[2rem] p-10" style="box-shadow: 0 24px 60px rgba(15,12,20,0.35);">
+          <div class="flex justify-between items-start mb-2">
+            <h2 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Add folder</h2>
+            <button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-high">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <p class="text-on-surface-variant text-sm mb-7">
+            Files in this folder will be visible to all members of <span class="font-bold text-accent">Project Aurora</span>.
+          </p>
+
+          <div class="space-y-5">
+            <div class="space-y-2">
+              <label class="font-headline text-xs font-bold text-accent">FOLDER ON YOUR DISK</label>
+              <div class="flex items-center gap-2">
+                <div class="flex-grow flex items-center gap-2 bg-surface-container-low px-4 py-3 rounded-xl">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent shrink-0"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                  <code class="text-sm text-accent font-medium truncate">~/Documents/MyNotes</code>
+                </div>
+                <button class="bg-surface-container-high text-accent rounded-xl px-4 py-3 font-headline font-bold text-xs shrink-0">Browse…</button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="font-headline text-xs font-bold text-accent">SHARE NAME</label>
+              <input value="MyNotes" class="w-full bg-surface-container-low border-none focus:outline-none rounded-xl px-5 py-3.5 text-accent font-medium" />
+              <p class="text-xs text-on-surface-variant">How this folder appears to other members.</p>
+            </div>
+
+            <div class="bg-surface-container rounded-xl p-3.5 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-info flex items-center justify-center shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-info"><path d="M12 4v16M5 13l7 7 7-7"/></svg>
+              </div>
+              <div class="flex-grow">
+                <p class="font-bold text-accent text-sm">12 files will be shared</p>
+                <p class="text-xs text-on-surface-variant">4.2 MB total. You'll see the per-file list on the next step.</p>
+              </div>
+            </div>
+
+            <div class="pt-2 flex justify-end gap-3">
+              <button class="text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Cancel</button>
+              <button class="flex items-center gap-2 bg-primary text-on-primary rounded-xl px-5 py-3 font-headline font-bold text-sm">
+                Next: Preview
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. IV — A four-field confirmation: path, name, preview, action.</p>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE V — Mirror a foreign folder
+     ============================================================ -->
+<section id="plate-v" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-2">
+      <div class="roman" style="font-size: clamp(80px, 9vw, 144px);">V</div>
+      <p class="small-caps mt-2">Plate five</p>
+    </div>
+    <div class="col-span-12 md:col-span-7">
+      <h2 class="editorial-display" style="font-size: clamp(40px, 6vw, 78px);">
+        A one-sided<br/>treaty.
+      </h2>
+      <p class="lede text-xl mt-6 max-w-2xl">
+        Mirroring is a one-sided treaty: their truth lands continuously on your disk, read-only. The warning is loud because the consequence is permanent — what you write here gets overwritten when they write next.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <div class="col-span-12 md:col-span-9">
+      <div class="stage relative" style="min-height: 540px;">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="absolute inset-0 modal-scrim" style="top: 36px;"></div>
+
+        <div class="relative z-10 max-w-[520px] mx-auto mt-10 mb-12 bg-surface-container-lowest rounded-[2rem] p-9" style="box-shadow: 0 24px 60px rgba(15,12,20,0.35);">
+
+          <div class="flex items-start gap-4 mb-6">
+            <div class="relative w-14 h-14 rounded-2xl bg-info flex items-center justify-center shrink-0">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-on-info"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+              <span class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-warning border-2 border-surface-container-lowest flex items-center justify-center">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+              </span>
+            </div>
+            <div>
+              <h2 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Mirror 'Drafts' to disk</h2>
+              <p class="text-sm text-on-surface-variant mt-1">A read-only copy of <span class="font-bold">Bob</span>'s folder will be kept in sync at the location you pick.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 mb-6 p-3 bg-surface-container rounded-xl">
+            <div class="w-8 h-8 rounded-full av-bob flex items-center justify-center font-bold text-xs shrink-0">B</div>
+            <div class="flex-grow">
+              <p class="font-bold text-accent text-sm">Drafts</p>
+              <p class="text-xs text-on-surface-variant">5 files · 1.8 MB · Owned by Bob</p>
+            </div>
+          </div>
+
+          <label class="block font-headline text-xs font-bold text-accent mb-2">MIRROR LOCATION ON YOUR DISK</label>
+          <div class="flex items-center gap-2 mb-6">
+            <div class="flex-grow flex items-center gap-2 bg-surface-container-low px-3 py-2.5 rounded-xl">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              <code class="text-sm text-on-surface truncate">~/Pictures/Bob-Drafts</code>
+            </div>
+            <button class="bg-surface-container-high text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm">Browse…</button>
+          </div>
+
+          <div class="bg-warning/20 rounded-xl p-3.5 mb-6 flex items-start gap-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="text-on-warning shrink-0 mt-0.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            <p class="text-xs text-on-surface leading-relaxed">
+              <span class="font-bold">Read-only.</span> Files you edit here will be reverted to Bob's version on the next sync. To keep an edited copy, save it somewhere else first.
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-3">
+            <button class="text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Cancel</button>
+            <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Next: Preview</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. V — The lock badge appears twice: once on the folder icon, once in the warning. Repetition is intentional.</p>
+    </div>
+
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Owner attribution stays prominent.</p>
+          <p style="color: var(--ink-faded);">
+            The avatar appears three times: header chip, folder card, warning copy. Repetition is intentional.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Location is the user's choice.</p>
+          <p style="color: var(--ink-faded);">
+            No default synthesized — the OS picker opens at home. Anywhere outside the global Download folder is fair game.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">The revert warning is loud.</p>
+          <p style="color: var(--ink-faded);">
+            Yellow bar, not info-blue. The cost of misreading it is permanent loss of a local edit.
+          </p>
+        </div>
+      </div>
+
+      <div class="hairline-top pt-5">
+        <p class="pull-quote text-lg">
+          "Their truth, on your disk."
+        </p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE VI — Initial scan preview
+     ============================================================ -->
+<section id="plate-vi" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-10 md:col-start-3 md:text-right">
+      <div class="roman md:ml-auto" style="font-size: clamp(80px, 9vw, 144px);">VI</div>
+      <p class="small-caps mt-2">Plate six</p>
+      <h2 class="editorial-display mt-6" style="font-size: clamp(40px, 6vw, 78px);">
+        Look before<br/>you sync.
+      </h2>
+      <p class="lede text-xl mt-6 md:ml-auto max-w-2xl">
+        Before any bytes move, the engine counts them. Three cards — down, up, conflict — answer the question <em>"what's about to happen?"</em> in three glances. One template, three flows.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-4 order-2 md:order-1">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Three flows, one dialog.</p>
+          <p style="color: var(--ink-faded);">
+            Add owned folder · mirror foreign · move foreign mirror. Same template, different verbs.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Colour codes the action.</p>
+          <p style="color: var(--ink-faded);">
+            Info-blue for downloads, success-teal for clean destinations, warning-yellow for conflicts or read-only consequences.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">File list is collapsed.</p>
+          <p style="color: var(--ink-faded);">
+            <em>Show file list (5)</em> expands on click. Most flows resolve from the cards alone; the per-file list is for the careful reader.
+          </p>
+        </div>
+      </div>
+
+      <div class="hairline-top pt-5">
+        <p class="pull-quote text-lg">
+          "Three glances, three decisions."
+        </p>
+      </div>
+    </aside>
+
+    <div class="col-span-12 md:col-span-9 order-1 md:order-2">
+      <div class="stage relative" style="min-height: 540px;">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="absolute inset-0 modal-scrim" style="top: 36px;"></div>
+
+        <div class="relative z-10 max-w-[560px] mx-auto mt-10 mb-12 bg-surface-container-lowest rounded-[2rem] p-9" style="box-shadow: 0 24px 60px rgba(15,12,20,0.35);">
+
+          <h2 class="font-headline text-2xl font-extrabold text-accent tracking-tight mb-1">Ready to start mirroring</h2>
+          <p class="text-sm text-on-surface-variant mb-6">
+            Mirror <span class="font-bold">Bob's "Drafts"</span> to <code class="bg-surface-container-high px-1.5 py-0.5 rounded text-xs">~/Pictures/Bob-Drafts/</code>. Here's what will happen.
+          </p>
+
+          <div class="space-y-3 mb-6">
+            <div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl">
+              <div class="w-10 h-10 rounded-full bg-info flex items-center justify-center shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-info"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              </div>
+              <div class="flex-grow">
+                <p class="font-bold text-accent text-sm">Download 5 files</p>
+                <p class="text-xs text-on-surface-variant">1.8 MB total will land in your folder. Continues updating as Bob changes them.</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 p-4 bg-surface-container rounded-xl">
+              <div class="w-10 h-10 rounded-full bg-success flex items-center justify-center shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-success"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg>
+              </div>
+              <div class="flex-grow">
+                <p class="font-bold text-accent text-sm">0 files at the destination</p>
+                <p class="text-xs text-on-surface-variant">The folder you picked is empty. No collisions to resolve.</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 p-4 bg-warning/20 rounded-xl border border-warning">
+              <div class="w-10 h-10 rounded-full bg-warning flex items-center justify-center shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-warning"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+              </div>
+              <div class="flex-grow">
+                <p class="font-bold text-accent text-sm">Read-only on this device</p>
+                <p class="text-xs text-on-surface-variant">Edits and deletes to files here will be reverted on the next sync.</p>
+              </div>
+            </div>
+          </div>
+
+          <details class="mb-6">
+            <summary class="font-headline text-xs font-bold text-accent uppercase tracking-wider cursor-pointer">Show file list (5)</summary>
+            <div class="mt-3 bg-surface-container rounded-xl p-2 max-h-32 overflow-auto">
+              <div class="px-3 py-1.5 text-xs flex justify-between"><code>scratch.txt</code><span style="color: var(--ink-faded);">2.1 KB</span></div>
+              <div class="px-3 py-1.5 text-xs flex justify-between"><code>draft-proposal.md</code><span style="color: var(--ink-faded);">8.4 KB</span></div>
+              <div class="px-3 py-1.5 text-xs flex justify-between"><code>tasks.md</code><span style="color: var(--ink-faded);">3.2 KB</span></div>
+              <div class="px-3 py-1.5 text-xs flex justify-between"><code>screenshots/setup.png</code><span style="color: var(--ink-faded);">1.7 MB</span></div>
+              <div class="px-3 py-1.5 text-xs flex justify-between"><code>screenshots/diagram.png</code><span style="color: var(--ink-faded);">142 KB</span></div>
+            </div>
+          </details>
+
+          <div class="flex justify-end gap-3">
+            <button class="text-accent rounded-xl px-4 py-2.5 font-headline font-bold text-sm hover:bg-surface-container">Back</button>
+            <button class="bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm">Start mirroring</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. VI — Down, clean, warn. Three cards encode the entire conversation.</p>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE VII — Per-folder actions
+     ============================================================ -->
+<section id="plate-vii" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-2">
+      <div class="roman" style="font-size: clamp(80px, 9vw, 144px);">VII</div>
+      <p class="small-caps mt-2">Plate seven</p>
+    </div>
+    <div class="col-span-12 md:col-span-7">
+      <h2 class="editorial-display" style="font-size: clamp(40px, 6vw, 78px);">
+        Three menus,<br/>three relationships.
+      </h2>
+      <p class="lede text-xl mt-6 max-w-2xl">
+        Each menu is a small statement of role. The owner does little — open, delete — because sync is the engine's responsibility, not the user's. The browser does less. The mirror-holder does a bit more.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-10">
+    <div class="col-span-12 md:col-span-12">
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-10 py-14 grid grid-cols-1 md:grid-cols-3 gap-8">
+
+          <!-- Mine -->
+          <div>
+            <p class="small-caps mb-2">Role 1 — Mine</p>
+            <p class="body-text text-xs mb-4" style="color: var(--ink-faded);">
+              You own this folder. Sync is automatic; location is immutable; only two actions remain.
+            </p>
+            <div class="bg-surface-container-lowest rounded-2xl p-2" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+                Open in Finder
+              </button>
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-error-container text-sm text-error">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                Delete folder…
+              </button>
+            </div>
+          </div>
+
+          <!-- Browse -->
+          <div>
+            <p class="small-caps mb-2">Role 2 — Browse</p>
+            <p class="body-text text-xs mb-4" style="color: var(--ink-faded);">
+              Someone else owns this folder, and you haven't mirrored it yet. The list is read on demand.
+            </p>
+            <div class="bg-surface-container-lowest rounded-2xl p-2" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                Browse files
+              </button>
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7l2-3h6l2 3h8v13H3z"/><path d="M12 12v4M9 14h6"/></svg>
+                Mirror to disk…
+              </button>
+            </div>
+          </div>
+
+          <!-- Mirrored -->
+          <div>
+            <p class="small-caps mb-2">Role 3 — Mirrored</p>
+            <p class="body-text text-xs mb-4" style="color: var(--ink-faded);">
+              Someone else owns this folder; you keep a read-only local copy. Pause, relocate, or unmount.
+            </p>
+            <div class="bg-surface-container-lowest rounded-2xl p-2" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+                Open in Finder
+              </button>
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                Pause mirror
+              </button>
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-container-high text-sm text-accent">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M9 11l3-3 3 3M12 8v13M5 4h14"/></svg>
+                Change mirror location…
+              </button>
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-error-container text-sm text-error">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-error"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                Unmount mirror
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <p class="small-caps mt-4">Fig. VII — Action counts as design statement. Two, two, four.</p>
+    </div>
+  </div>
+
+  <!-- Pull-quote section -->
+  <div class="grid grid-cols-12 gap-10 mt-20">
+    <div class="col-span-12 md:col-span-10 md:col-start-2">
+      <div class="hairline-top pt-10">
+        <p class="pull-quote text-center" style="font-size: clamp(28px, 4vw, 48px); line-height: 1.15;">
+          "Sync is the engine's responsibility, not the user's. The owner's menu has two items because that is all that's needed."
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-8">· · ·</div></div>
+
+<!-- ============================================================
+     PLATE VIII — Folder browse view
+     ============================================================ -->
+<section id="plate-viii" class="max-w-[1280px] mx-auto px-10 pt-12 pb-24">
+
+  <div class="grid grid-cols-12 gap-10 mb-12">
+    <div class="col-span-12 md:col-span-10 md:col-start-3 md:text-right">
+      <div class="roman md:ml-auto" style="font-size: clamp(80px, 9vw, 144px);">VIII</div>
+      <p class="small-caps mt-2">Plate eight</p>
+      <h2 class="editorial-display mt-6" style="font-size: clamp(40px, 6vw, 78px);">
+        Inside the<br/>folder.
+      </h2>
+      <p class="lede text-xl mt-6 md:ml-auto max-w-2xl">
+        Clicking <em>Browse files</em> on a foreign folder card opens this view — the same shell as the space view, scoped to one folder. The per-row action depends on the relationship: download a file in browse mode, reveal a file in mirrored mode.
+      </p>
+    </div>
+  </div>
+
+  <!-- VIII A: Browse mode -->
+  <div class="grid grid-cols-12 gap-10 mb-16">
+    <div class="col-span-12 md:col-span-9">
+      <p class="small-caps mb-3">VIII A · Browse mode</p>
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-8 pt-8 pb-2">
+          <div class="flex items-start gap-4 mb-2">
+            <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center" title="Back to Project Aurora">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+              <div class="w-9 h-9 rounded-full av-alice flex items-center justify-center font-bold text-sm shrink-0">A</div>
+              <div class="min-w-0">
+                <h1 class="font-headline font-extrabold text-accent tracking-tighter" style="font-size: 36px; line-height: 1;">Photos</h1>
+                <p class="text-[10px] font-bold text-secondary tracking-wider uppercase mt-1">Owned by Alice · in Project Aurora</p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-2 shrink-0">
+              <button class="flex items-center justify-center gap-2 whitespace-nowrap bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7l2-3h6l2 3h8v13H3z"/><path d="M12 12v4M9 14h6"/></svg>
+                Mirror to disk
+              </button>
+              <button class="flex items-center gap-1.5 bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                More
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 pb-8 grid grid-cols-1 min-[900px]:grid-cols-[1fr_240px] gap-6 pt-4">
+          <div>
+            <div class="flex items-baseline gap-3 mb-3">
+              <h2 class="font-headline font-bold text-accent text-lg">Files in this folder</h2>
+              <span class="text-xs font-bold text-secondary">47 files · 1.3 GB</span>
+            </div>
+            <!-- Scrollable file list -->
+            <div class="grid gap-2 max-h-[360px] overflow-y-auto pr-2 -mr-2 scrollbar-thin">
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">summer-2024/IMG_0142.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">4.2 MB</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2 shrink-0">Remote</span>
+              <button title="Download" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">summer-2024/IMG_0143.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">3.8 MB · to ~/Downloads/ · 42%</p>
+                <div class="mt-1 w-full h-[3px] bg-surface-container-high rounded-full overflow-hidden">
+                  <div class="h-full bg-secondary-container rounded-full" style="width: 42%;"></div>
+                </div>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-tertiary-fixed text-accent mr-2 shrink-0">Downloading</span>
+              <button title="Pause" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">cover.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">2.1 MB · ~/Downloads/cover.jpg</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Downloaded</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">summer-2024/IMG_0144.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">5.1 MB</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2 shrink-0">Remote</span>
+              <button title="Download" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">summer-2024/IMG_0145.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">4.9 MB</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2 shrink-0">Remote</span>
+              <button title="Download" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">portrait-A.jpg</p>
+                <p class="text-[11px] text-on-surface-variant">3.1 MB</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-surface-container-high text-accent mr-2 shrink-0">Remote</span>
+              <button title="Download" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              </button>
+            </div>
+
+            </div>
+          </div>
+
+          <!-- Sidebar — pt-10 aligns with first file row, not section header. No drop zone. -->
+          <div class="space-y-4 pt-10">
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="relative">
+                  <div class="w-10 h-10 rounded-full av-alice flex items-center justify-center font-bold text-xs">A</div>
+                  <div class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low bg-online"></div>
+                </div>
+                <div>
+                  <p class="font-bold text-accent text-sm">Alice</p>
+                  <p class="text-[11px] text-on-surface-variant">Owner · Online</p>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                Browse-only. Click <em>Download</em> on a file to save it locally, or <em>Mirror to disk</em> to keep the whole folder synced.
+              </p>
+            </div>
+
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-2 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                Folder size
+              </p>
+              <p class="font-headline font-extrabold text-accent text-3xl tracking-tighter leading-none">1.3 GB</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">2 MB downloaded</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="small-caps mt-4">Fig. VIII A — Owner avatar replaces the space icon; mirror-to-disk and More live where Invite and More live on the space view.</p>
+    </div>
+
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-12">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Same shell as the space view.</p>
+          <p style="color: var(--ink-faded);">
+            Back arrow, h1 with avatar, h2 + count + Invite-position buttons, file list, sidebar.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Per-row action is mode-dependent.</p>
+          <p style="color: var(--ink-faded);">
+            Remote → Download. Downloading → Pause. Downloaded → Reveal in Finder. Status badge tells you which state each file is in.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">No drop area in this view.</p>
+          <p style="color: var(--ink-faded);">
+            You can't write to someone else's folder. The sidebar carries the owner card and folder-size summary instead.
+          </p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- VIII B: Mirrored mode -->
+  <div class="grid grid-cols-12 gap-10">
+    <aside class="col-span-12 md:col-span-3 space-y-6 md:pt-12 order-2 md:order-1">
+      <p class="small-caps">Marginalia</p>
+
+      <div class="flex gap-3">
+        <span class="callout-num">1</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Owner avatar + lock badge.</p>
+          <p style="color: var(--ink-faded);">
+            The header carries the same read-only contract that appears on the space-view folder card.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">2</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Read-only banner up top.</p>
+          <p style="color: var(--ink-faded);">
+            Loud, yellow, and always present. The cost of misreading is permanent edit loss.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <span class="callout-num">3</span>
+        <div class="body-text text-sm">
+          <p class="font-bold mb-1">Every file is Synced; every action is Reveal.</p>
+          <p style="color: var(--ink-faded);">
+            No download, no progress, no choice. The mirror is the contract; the file list is read-only telemetry.
+          </p>
+        </div>
+      </div>
+
+      <div class="hairline-top pt-5">
+        <p class="pull-quote text-lg">
+          "Same shell, different verbs."
+        </p>
+      </div>
+    </aside>
+
+    <div class="col-span-12 md:col-span-9 order-1 md:order-2">
+      <p class="small-caps mb-3">VIII B · Mirrored mode</p>
+      <div class="stage">
+        <div class="flex items-center border-b hairline">
+          <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="flex-1 text-center small-caps" style="color: var(--ink-faded);">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+
+        <div class="px-8 pt-8 pb-2">
+          <div class="flex items-start gap-4 mb-2">
+            <button class="w-10 h-10 mt-1 rounded-full bg-surface-container-high flex items-center justify-center" title="Back to Project Aurora">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+              <div class="relative shrink-0">
+                <div class="w-9 h-9 rounded-full av-bob flex items-center justify-center font-bold text-sm">B</div>
+                <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-warning border-2 border-surface-container-lowest flex items-center justify-center">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" class="text-on-warning"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                </div>
+              </div>
+              <div class="min-w-0">
+                <h1 class="font-headline font-extrabold text-accent tracking-tighter" style="font-size: 36px; line-height: 1;">Drafts</h1>
+                <p class="text-[10px] font-bold text-secondary tracking-wider uppercase mt-1 flex items-center gap-1.5">
+                  <span>Owned by Bob · Mirrored · Read-only</span>
+                  <button title="Read-only mirror — files you edit here will be reverted on the next sync" class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-warning text-on-warning hover:opacity-80" aria-label="About read-only mirrors">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                  </button>
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-2 shrink-0">
+              <button class="flex items-center justify-center gap-2 whitespace-nowrap bg-surface-container-high text-accent rounded-xl px-4 py-2 font-headline font-bold text-xs">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-secondary"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                Pause mirror
+              </button>
+              <button class="flex items-center gap-1.5 bg-primary text-on-primary rounded-xl px-4 py-2 font-headline font-bold text-xs shadow-lg shadow-primary/10">
+                More
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 pb-8 grid grid-cols-1 min-[900px]:grid-cols-[1fr_240px] gap-6 pt-4">
+          <div>
+            <div class="flex items-baseline gap-3 mb-3">
+              <h2 class="font-headline font-bold text-accent text-lg">Files in this folder</h2>
+              <span class="text-xs font-bold text-secondary">5 files · 1.8 MB</span>
+            </div>
+            <!-- Scrollable file list -->
+            <div class="grid gap-2 max-h-[360px] overflow-y-auto pr-2 -mr-2 scrollbar-thin">
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">scratch.txt</p>
+                <p class="text-[11px] text-on-surface-variant">2.1 KB · ~/Pictures/Bob-Drafts/scratch.txt</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Synced</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">draft-proposal.md</p>
+                <p class="text-[11px] text-on-surface-variant">8.4 KB · ~/Pictures/Bob-Drafts/draft-proposal.md</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Synced</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">screenshots/setup.png</p>
+                <p class="text-[11px] text-on-surface-variant">1.7 MB · ~/Pictures/Bob-Drafts/screenshots/setup.png</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Synced</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">screenshots/diagram.png</p>
+                <p class="text-[11px] text-on-surface-variant">142 KB · ~/Pictures/Bob-Drafts/screenshots/diagram.png</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Synced</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center p-3.5 bg-surface-container-lowest rounded-xl" style="box-shadow: 0 4px 20px rgba(74,59,82,0.04);">
+              <div class="w-9 h-9 bg-surface-container-high rounded-lg flex items-center justify-center mr-3 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-bold text-accent text-sm truncate">tasks.md</p>
+                <p class="text-[11px] text-on-surface-variant">3.2 KB · ~/Pictures/Bob-Drafts/tasks.md</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-success text-accent mr-2 shrink-0">Synced</span>
+              <button title="Reveal in Finder" class="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-secondary"><path d="M3 7h6l2 2h10v11H3z"/></svg>
+              </button>
+            </div>
+
+            </div>
+          </div>
+
+          <div class="space-y-4 pt-10">
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="relative">
+                  <div class="w-10 h-10 rounded-full av-bob flex items-center justify-center font-bold text-xs">B</div>
+                  <div class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low bg-online"></div>
+                </div>
+                <div>
+                  <p class="font-bold text-accent text-sm">Bob</p>
+                  <p class="text-[11px] text-on-surface-variant">Owner · Online</p>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                All 5 files in sync. Mirror updates continuously as Bob changes the folder.
+              </p>
+            </div>
+
+            <div class="bg-surface-container-low rounded-2xl p-5">
+              <p class="font-headline font-bold text-accent text-sm mb-2 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-secondary"><path d="M3 7l2-3h6l2 3h8v13H3z"/></svg>
+                On this device
+              </p>
+              <p class="font-headline font-extrabold text-accent text-3xl tracking-tighter leading-none">1.8 MB</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">5 / 5 files</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="small-caps mt-4">Fig. VIII B — Every file is in sync; every action reveals.</p>
+    </div>
+  </div>
+</section>
+
+<div class="max-w-[1280px] mx-auto px-10"><div class="ornament text-center text-sm py-12">· · ·</div></div>
+
+<!-- ============================================================
+     COLOPHON
+     ============================================================ -->
+<section id="colophon" class="max-w-[1280px] mx-auto px-10 pt-12 pb-32">
+  <div class="grid grid-cols-12 gap-10">
+    <div class="col-span-12 md:col-span-3">
+      <p class="small-caps mb-2">End matter</p>
+      <h2 class="editorial-display" style="font-size: clamp(40px, 5vw, 56px);">Colophon.</h2>
+    </div>
+
+    <div class="col-span-12 md:col-span-9 body-text text-base">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+        <div>
+          <p class="small-caps mb-3">Design principles</p>
+          <ul class="space-y-3">
+            <li class="flex gap-3">
+              <span style="color: var(--color-secondary);" class="font-bold">§</span>
+              <span><strong>One entry point.</strong> Files and folders are added from the same drop area. No <em>Add folder</em> button in the page chrome.</span>
+            </li>
+            <li class="flex gap-3">
+              <span style="color: var(--color-secondary);" class="font-bold">§</span>
+              <span><strong>Sections appear with content.</strong> No "Folders shared" heading until at least one folder share exists in the space.</span>
+            </li>
+            <li class="flex gap-3">
+              <span style="color: var(--color-secondary);" class="font-bold">§</span>
+              <span><strong>Owner location is immutable.</strong> To relocate a share, delete it and add a new one. Sync is the engine's responsibility; location is the moment-of-creation contract.</span>
+            </li>
+            <li class="flex gap-3">
+              <span style="color: var(--color-secondary);" class="font-bold">§</span>
+              <span><strong>No defaults synthesized.</strong> The OS picker opens at home; Mirall does not pre-fill paths. The global Download folder is the only path the app configures.</span>
+            </li>
+            <li class="flex gap-3">
+              <span style="color: var(--color-secondary);" class="font-bold">§</span>
+              <span><strong>Direction is implicit.</strong> Owner pushes, mirror peer pulls. No direction picker, no two-way mode, no per-peer overrides.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <p class="small-caps mb-3">Typography &amp; tokens</p>
+          <ul class="space-y-2 text-sm" style="color: var(--ink-faded);">
+            <li><span style="color: var(--ink);" class="font-bold">Display</span> Plus Jakarta Sans 800, tracking -0.04em</li>
+            <li><span style="color: var(--ink);" class="font-bold">Body</span> Manrope 400/500/700, leading 1.65</li>
+            <li><span style="color: var(--ink);" class="font-bold">Lede</span> Plus Jakarta Sans 500 italic</li>
+            <li><span style="color: var(--ink);" class="font-bold">Labels</span> Manrope 700 uppercase tracking 0.18em</li>
+            <li><span style="color: var(--ink);" class="font-bold">Rule</span> 1px outline-variant, no shadow</li>
+            <li><span style="color: var(--ink);" class="font-bold">Stages</span> Mirall surface tokens, layered shadow, 14px radius</li>
+          </ul>
+
+          <p class="small-caps mt-8 mb-3">Cross-references</p>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#plate-i" class="see-also">→ Plate I · The empty space</a></li>
+            <li><a href="#plate-iv" class="see-also">→ Plate IV · Add folder dialog</a></li>
+            <li><a href="#plate-v" class="see-also">→ Plate V · Mirror foreign folder</a></li>
+            <li><a href="#plate-vi" class="see-also">→ Plate VI · Initial scan preview</a></li>
+          </ul>
+
+          <p class="small-caps mt-8 mb-3">Companion plan</p>
+          <p class="text-sm">
+            <code class="bg-surface-container-high px-1.5 py-0.5 rounded text-xs">.claude/tasks/plan-owned-folders.md</code>
+          </p>
+        </div>
+
+      </div>
+
+      <div class="hairline-top mt-12 pt-6 flex items-baseline justify-between">
+        <p class="small-caps">Mirall · Edition 2026-05-18 · Plates I–VIII</p>
+        <p class="running">Fin.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Theme toggle
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.classList.toggle('dark');
+    themeToggle.textContent = isDark ? 'Toggle light' : 'Toggle dark';
+  });
+
+  // Staggered reveal on scroll for plates
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('reveal');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('section[id^="plate-"]').forEach((s) => observer.observe(s));
+</script>
+</body>
+</html>

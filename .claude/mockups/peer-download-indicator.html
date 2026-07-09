@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Peer-download indicator (sender side) — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          offline: 'var(--color-offline)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #6b7280;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  .modal-scrim { background: rgba(15, 12, 20, 0.5); }
+
+  /* Faux avatar "photos" — stand-ins for a peer's real avatar image (shipped Avatar
+     renders <img src=member.avatar>). Initials-fallback avatars use the real shipped
+     classes (bg-surface-container-highest text-on-surface-variant). */
+  .av { border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: 700; line-height: 1; }
+  .av-alice { background: linear-gradient(135deg, #fe8c5a, #fcd34d); color: #33253b; }
+  .av-bob   { background: linear-gradient(135deg, #5cc4b8, #1f4a78); color: #fff; }
+  .av-carol { background: linear-gradient(135deg, #c578dd, #541116); color: #fff; }
+  .av-dan   { background: linear-gradient(135deg, #4a3b52, #d48166); color: #fff; }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- =========== Header / mode toggle ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-10 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Peer-download indicator — sender side
+    </h1>
+    <p class="text-sm" style="color:#4a454b">
+      Proposal: show the owner of a file <em>who</em> is currently downloading it (with avatars) and <em>how far</em> they've got.
+      Click the toggle to flip themes.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Feasibility banner ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#d6e6f5; border-color:#9ec1e6">
+    <div class="flex items-start gap-3">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#1f4a78" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">
+          Proposal — not yet implemented. New worker plumbing required.
+        </p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          <strong>Who is feasible today.</strong> Identity (display name + avatar) already lives on <code class="bg-white/60 px-1 rounded">space.members[]</code>;
+          MIR-03 cryptographically binds each connection's Noise key to a <code class="bg-white/60 px-1 rounded">profileKey</code>.
+          The <strong>overlay content-backend</strong> serve path (<code class="bg-white/60 px-1 rounded">protocol-v2.js → _onChunkNeed</code>) already has the
+          requesting peer, the content hash, and the exact chunk bytes in scope — the clean place to emit a new
+          <code class="bg-white/60 px-1 rounded">event:peer-downloading { spaceId, path, peerKey, bytes, total }</code>.
+          The legacy Hyperdrive path needs Hypercore <code class="bg-white/60 px-1 rounded">upload</code> listeners + a Noise→profileKey index first.
+          Every state below uses only data the sender already holds.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 0 — Current state (the gap)                          -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-10">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    0 · Today — the owner gets no signal
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    A file you own currently reads only <strong>“Shared by you.”</strong> When Alice pulls it from you, nothing changes on your screen.
+    This row is recreated faithfully from <code>FileCard.tsx</code>; the badge is the real <code>Badge</code> primitive.
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> 100% existing UI — shown as the baseline the rest of this mockup adds to.</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+        <!-- Faithful FileCard, status = mine -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">quarterly-report.pdf</p>
+              <p class="text-xs text-on-surface-variant truncate">8.1 MB • Shared by you</p>
+            </div>
+          </div>
+          <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">Shared by you</span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 1 — Approach A, single downloader                    -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    1 · Approach A (recommended) — inline progress lane, attributed to the peer
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    Reuse the exact <code>DownloadProgressLane</code> the downloader already sees, but on the owner's row — prefixed with the
+    peer's avatar and an up-arrow (“they're pulling from you”). The meta line names the peer + live speed. The status pill flips to a
+    transient <strong>“Sending”</strong>.
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> progress lane, avatar, and badge are all shipped primitives. New: the avatar+arrow cluster, the “Sending” status, and the <code>peerKey→member</code> lookup feeding it.</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+
+        <!-- Row: single downloader -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">quarterly-report.pdf</p>
+              <p class="text-xs text-on-surface-variant truncate">8.1 MB • Shared by you</p>
+            </div>
+          </div>
+
+          <!-- transfer slot: avatar + lane -->
+          <div class="ml-6 basis-72 shrink-[2] min-w-[120px] self-center flex items-center gap-3" role="group" aria-label="Alice is downloading this file, 64 percent">
+            <div class="relative shrink-0">
+              <div class="av av-alice w-8 h-8 text-[12px]" role="img" aria-label="Alice">AM</div>
+              <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-secondary-container border-2 border-surface-container-lowest flex items-center justify-center" aria-hidden="true">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" class="text-on-secondary-container"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </span>
+            </div>
+            <div class="w-full flex flex-col justify-center gap-1.5">
+              <p class="text-[11px] leading-none text-on-surface-variant text-right truncate min-h-[11px]">Alice · 142 KB/s · 4s left</p>
+              <div role="progressbar" aria-label="Alice's download" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100" aria-valuetext="64%, 142 KB/s, 4s left" class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary-container rounded-full" style="width:64%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ml-5 mr-3 shrink-0 self-center flex items-center">
+            <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              Sending
+            </span>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Context row: an idle owned file, for comparison -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">brand-assets.sketch</p>
+              <p class="text-xs text-on-surface-variant truncate">22 MB • Shared by you</p>
+            </div>
+          </div>
+          <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">Shared by you</span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 2 — Approach A, multiple downloaders                 -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    2 · Approach A — multiple peers downloading the same file
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    Collapse the avatars into the established overlapping stack (same idiom as <code>MembersBox</code> / <code>SpaceCard</code>), with a
+    <code>+N</code> overflow chip. The lane shows aggregate progress; the meta line reads “4 people · combined speed.” A chevron expands
+    the per-peer breakdown (Section 3).
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> overlapping avatar stack + “+N” chip are shipped patterns. New: the aggregate roll-up and the expand affordance.</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+
+        <!-- Row: multiple downloaders -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">launch-video.mp4</p>
+              <p class="text-xs text-on-surface-variant truncate">412 MB • Shared by you</p>
+            </div>
+          </div>
+
+          <!-- transfer slot: avatar stack + aggregate lane + expand -->
+          <button class="ml-6 basis-80 shrink-[2] min-w-[140px] self-center flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" aria-expanded="false" aria-label="4 people downloading launch-video.mp4, 57 percent overall. Show who.">
+            <div class="flex items-center -space-x-3 shrink-0" aria-hidden="true">
+              <div class="av av-alice w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AM</div>
+              <div class="av av-bob w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">BO</div>
+              <div class="av av-carol w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">CW</div>
+              <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-[11px] font-bold text-on-surface-variant" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">+1</div>
+            </div>
+            <div class="w-full flex flex-col justify-center gap-1.5">
+              <p class="text-[11px] leading-none text-on-surface-variant text-right truncate min-h-[11px]">4 people · 2.1 MB/s</p>
+              <div role="progressbar" aria-label="Overall download progress across 4 peers" aria-valuenow="57" aria-valuemin="0" aria-valuemax="100" aria-valuetext="57% overall across 4 peers" class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary-container rounded-full" style="width:57%"></div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-surface-variant shrink-0"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+
+          <div class="ml-5 mr-3 shrink-0 self-center flex items-center">
+            <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              Sending
+            </span>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Row: just two downloaders, no overflow (shows the stack scaling down) -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">meeting-notes.md</p>
+              <p class="text-xs text-on-surface-variant truncate">12 KB • Shared by you</p>
+            </div>
+          </div>
+          <button class="ml-6 basis-80 shrink-[2] min-w-[140px] self-center flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" aria-expanded="false" aria-label="Bob and Dan downloading meeting-notes.md, 88 percent overall. Show who.">
+            <div class="flex items-center -space-x-3 shrink-0" aria-hidden="true">
+              <div class="av av-bob w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">BO</div>
+              <div class="av av-dan w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">DK</div>
+            </div>
+            <div class="w-full flex flex-col justify-center gap-1.5">
+              <p class="text-[11px] leading-none text-on-surface-variant text-right truncate min-h-[11px]">Bob, Dan · 88%</p>
+              <div role="progressbar" aria-label="Overall download progress across 2 peers" aria-valuenow="88" aria-valuemin="0" aria-valuemax="100" aria-valuetext="88% overall across 2 peers" class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary-container rounded-full" style="width:88%"></div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-surface-variant shrink-0"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="ml-5 mr-3 shrink-0 self-center flex items-center">
+            <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              Sending
+            </span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 3 — Approach A expanded: per-peer breakdown          -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    3 · Expanded — per-peer breakdown (popover)
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    Expanding the stack reveals one <code>MemberCard</code>-style row per downloader, each with its <em>own</em> progress, speed and ETA.
+    This is where the sender sees exactly who's at what percent. A stalled peer (offline / paused) is shown muted with a “Waiting” note.
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> row layout = <code>MemberCard</code> + <code>ProgressBar</code> primitives. New: per-peer progress data (one entry per <code>peerKey</code>).</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+
+        <!-- The file row in expanded state -->
+        <div class="bg-surface-container-lowest rounded-xl overflow-hidden">
+          <!-- header row -->
+          <div class="group flex items-center p-5">
+            <div class="flex items-center gap-4 min-w-0 flex-grow">
+              <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <p class="font-bold text-accent truncate">launch-video.mp4</p>
+                <p class="text-xs text-on-surface-variant truncate">412 MB • Shared by you</p>
+              </div>
+            </div>
+            <button class="ml-6 self-center flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30" aria-expanded="true" aria-label="Hide who is downloading">
+              <div class="flex items-center -space-x-3 shrink-0" aria-hidden="true">
+                <div class="av av-alice w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AM</div>
+                <div class="av av-bob w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">BO</div>
+                <div class="av av-carol w-8 h-8 text-[12px]" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">CW</div>
+                <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-[11px] font-bold text-on-surface-variant" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">+1</div>
+              </div>
+              <span class="text-xs font-bold text-secondary">4 downloading</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" class="text-on-surface-variant shrink-0 rotate-180"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="ml-5 mr-3 shrink-0 self-center flex items-center">
+              <span class="inline-flex items-center gap-1 leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-info text-accent">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                Sending
+              </span>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <div class="w-10 h-10"></div>
+              <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+            </div>
+          </div>
+
+          <!-- per-peer list -->
+          <ul class="px-5 pb-4 pt-1 flex flex-col gap-3 border-t border-outline-variant" aria-label="People downloading launch-video.mp4">
+            <!-- Alice -->
+            <li class="flex items-center gap-3 pt-3">
+              <div class="relative shrink-0">
+                <div class="av av-alice w-9 h-9 text-[13px]" role="img" aria-label="Alice">AM</div>
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-online border-2 border-surface-container-lowest" aria-hidden="true"></span>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <p class="text-sm font-bold text-accent truncate">Alice</p>
+                <div class="mt-1 w-full max-w-xs">
+                  <div role="progressbar" aria-label="Alice's download" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100" aria-valuetext="64%, 142 KB/s, 4s left" class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div class="h-full bg-secondary-container rounded-full" style="width:64%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant shrink-0 text-right">64% · 142 KB/s</p>
+            </li>
+            <!-- Bob -->
+            <li class="flex items-center gap-3">
+              <div class="relative shrink-0">
+                <div class="av av-bob w-9 h-9 text-[13px]" role="img" aria-label="Bob">BO</div>
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-online border-2 border-surface-container-lowest" aria-hidden="true"></span>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <p class="text-sm font-bold text-accent truncate">Bob</p>
+                <div class="mt-1 w-full max-w-xs">
+                  <div role="progressbar" aria-label="Bob's download" aria-valuenow="92" aria-valuemin="0" aria-valuemax="100" aria-valuetext="92%, 3.4 MB/s, 1s left" class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div class="h-full bg-secondary-container rounded-full" style="width:92%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant shrink-0 text-right">92% · 3.4 MB/s</p>
+            </li>
+            <!-- Carol -->
+            <li class="flex items-center gap-3">
+              <div class="relative shrink-0">
+                <div class="av av-carol w-9 h-9 text-[13px]" role="img" aria-label="Carol">CW</div>
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-online border-2 border-surface-container-lowest" aria-hidden="true"></span>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <p class="text-sm font-bold text-accent truncate">Carol</p>
+                <div class="mt-1 w-full max-w-xs">
+                  <div role="progressbar" aria-label="Carol's download" aria-valuenow="38" aria-valuemin="0" aria-valuemax="100" aria-valuetext="38%, 980 KB/s, 22s left" class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div class="h-full bg-secondary-container rounded-full" style="width:38%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant shrink-0 text-right">38% · 980 KB/s</p>
+            </li>
+            <!-- Dan — stalled/offline -->
+            <li class="flex items-center gap-3 opacity-60">
+              <div class="relative shrink-0">
+                <div class="av av-dan w-9 h-9 text-[13px]" role="img" aria-label="Dan">DK</div>
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-offline border-2 border-surface-container-lowest" aria-hidden="true"></span>
+              </div>
+              <div class="min-w-0 flex-grow">
+                <p class="text-sm font-bold text-outline truncate">Dan</p>
+                <div class="mt-1 w-full max-w-xs">
+                  <div role="progressbar" aria-label="Dan's download, paused" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" aria-valuetext="15%, waiting — peer offline" class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div class="h-full bg-surface-container-highest rounded-full" style="width:15%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant shrink-0 text-right">15% · Waiting</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 4 — Approach B (alternative): ring avatars           -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    4 · Approach B (alternative) — progress ring around each avatar
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    The most compact option: wrap each downloader's avatar in a circular progress ring (orange = the same
+    <code>secondary-container</code> as the bars). Per-peer progress is legible at a glance with no popover and no horizontal lane —
+    good for dense lists. Trade-off: harder to show speed/ETA inline, and rings get cramped past ~4 peers (then fall back to the stack + chip).
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> the ring is net-new (SVG); avatar + colors are shipped tokens. Presented as a rejected-by-default alternative to Approach A — keep for very dense file lists.</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+
+        <!-- Row: single, ring -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">quarterly-report.pdf</p>
+              <p class="text-xs text-on-surface-variant truncate">8.1 MB • Shared by you</p>
+            </div>
+          </div>
+
+          <div class="ml-6 mr-3 self-center flex items-center gap-2" role="group" aria-label="Alice is downloading, 64 percent">
+            <!-- ring avatar -->
+            <div class="relative w-10 h-10 shrink-0">
+              <svg class="absolute inset-0 -rotate-90" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-surface-container-high)" stroke-width="3"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-secondary-container)" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="40.7"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="av av-alice w-7 h-7 text-[11px]" role="img" aria-label="Alice, 64 percent">AM</div>
+              </div>
+            </div>
+            <span class="text-xs font-bold text-on-surface-variant tabular-nums">64%</span>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Row: multiple, rings -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">launch-video.mp4</p>
+              <p class="text-xs text-on-surface-variant truncate">412 MB • Shared by you</p>
+            </div>
+          </div>
+
+          <div class="ml-6 mr-3 self-center flex items-center gap-1.5" role="group" aria-label="3 people downloading: Alice 64 percent, Bob 92 percent, Carol 38 percent">
+            <!-- Alice 64 -->
+            <div class="relative w-10 h-10 shrink-0" title="Alice — 64%">
+              <svg class="absolute inset-0 -rotate-90" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-surface-container-high)" stroke-width="3"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-secondary-container)" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="40.7"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center"><div class="av av-alice w-7 h-7 text-[11px]" role="img" aria-label="Alice, 64 percent">AM</div></div>
+            </div>
+            <!-- Bob 92 -->
+            <div class="relative w-10 h-10 shrink-0" title="Bob — 92%">
+              <svg class="absolute inset-0 -rotate-90" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-surface-container-high)" stroke-width="3"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-secondary-container)" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="9.0"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center"><div class="av av-bob w-7 h-7 text-[11px]" role="img" aria-label="Bob, 92 percent">BO</div></div>
+            </div>
+            <!-- Carol 38 -->
+            <div class="relative w-10 h-10 shrink-0" title="Carol — 38%">
+              <svg class="absolute inset-0 -rotate-90" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-surface-container-high)" stroke-width="3"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--color-secondary-container)" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="70.1"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center"><div class="av av-carol w-7 h-7 text-[11px]" role="img" aria-label="Carol, 38 percent">CW</div></div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 5 — Lifecycle: just-completed + idle                 -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-16">
+  <h2 class="font-headline font-extrabold text-lg mb-2" style="color:#33253b">
+    5 · Lifecycle — completion, then back to rest
+  </h2>
+  <p class="text-sm mb-2" style="color:#4a454b">
+    When a peer finishes, the lane briefly resolves to a confirmation (“Alice has a copy”, green check) for a few seconds, then the
+    row settles back to plain “Shared by you.” No persistent clutter; the indicator only exists while a transfer is live.
+  </p>
+  <p class="text-xs mb-4" style="color:#7c757c"><strong>Annotation:</strong> green = <code>success</code> token (same as “On your device”). Transient by design — avoids leaving stale peer state on the row.</p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-6 pb-8">
+      <div class="grid grid-cols-1 gap-4">
+
+        <!-- Just-completed row -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">quarterly-report.pdf</p>
+              <p class="text-xs text-on-surface-variant truncate">8.1 MB • Shared by you</p>
+            </div>
+          </div>
+          <div class="ml-6 mr-3 self-center flex items-center gap-2" role="status" aria-label="Alice finished downloading this file">
+            <div class="av av-alice w-7 h-7 text-[11px]" role="img" aria-label="Alice">AM</div>
+            <span class="text-xs font-bold text-on-surface-variant">Alice has a copy</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="color:var(--color-online)"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Settled / idle row -->
+        <div class="group flex items-center p-5 bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container rounded-xl transition-colors">
+          <div class="flex items-center gap-4 min-w-0 flex-grow">
+            <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="min-w-0 flex-grow">
+              <p class="font-bold text-accent truncate">quarterly-report.pdf</p>
+              <p class="text-xs text-on-surface-variant truncate">8.1 MB • Shared by you</p>
+            </div>
+          </div>
+          <div class="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
+            <span class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline bg-success text-accent">Shared by you</span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="w-10 h-10"></div>
+            <button title="Remove from share" aria-label="Remove from share" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high text-secondary"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v11H3z"/></svg></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Recommendation footer                                        -->
+<!-- ============================================================ -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14 pb-20">
+  <div class="rounded-2xl p-6" style="background:var(--color-surface-container-low); box-shadow:0 12px 40px rgba(74,59,82,0.06)">
+    <h2 class="font-headline font-extrabold text-lg mb-3 text-accent">Recommendation</h2>
+    <ul class="text-sm leading-relaxed space-y-2 text-on-surface-variant">
+      <li><strong class="text-accent">Ship Approach A</strong> (Sections 1–3): reuses the shipped <code>DownloadProgressLane</code>, avatar stack and <code>MemberCard</code> rows — minimal new UI, scales from one peer to many, and the expand affordance keeps the row uncluttered.</li>
+      <li><strong class="text-accent">Keep Approach B</strong> (ring avatars) in reserve for very dense file lists where a horizontal lane doesn't fit.</li>
+      <li><strong class="text-accent">Data source:</strong> emit <code>event:peer-downloading</code> from the overlay serve path (<code>_onChunkNeed</code>) — peer, content hash and chunk bytes are already in scope there. The renderer maps <code>peerKey → SpaceMember</code> (already in <code>SpaceView</code>) for the avatar + name. Legacy Hyperdrive shares need Hypercore <code>upload</code> listeners + a Noise→profileKey index as a follow-up.</li>
+      <li><strong class="text-accent">A11y:</strong> avatars carry <code>role="img"</code> + name; progress is <code>role="progressbar"</code> with <code>aria-valuenow/valuetext</code> and no <code>aria-live</code> (matches the existing lane); the expand control is a real <code>button</code> with <code>aria-expanded</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

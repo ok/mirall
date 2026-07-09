@@ -1,0 +1,350 @@
+name: Build Electron
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Build channel'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      platform:
+        description: 'Platform to build (all = full matrix)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - darwin-x64
+          - darwin-arm64
+          - linux-x64
+          - linux-arm64
+          - win32-x64
+
+env:
+  NODE_VERSION: '22'
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.ch.outputs.channel }}
+      version: ${{ steps.ver.outputs.version }}
+      include: ${{ steps.matrix.outputs.include }}
+    steps:
+      - id: ch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANNEL="${{ inputs.channel }}"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            CHANNEL="prod"
+          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
+            CHANNEL="staging"
+          else
+            CHANNEL="dev"
+          fi
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Channel: $CHANNEL"
+      - uses: actions/checkout@v7
+      - id: ver
+        env:
+          CHANNEL: ${{ steps.ch.outputs.channel }}
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Tagged release — version comes from the tag, channel was already
+            # forced to prod above.
+            V="${GITHUB_REF#refs/tags/v}"
+          elif [ "$CHANNEL" = "prod" ]; then
+            # workflow_dispatch with channel=prod (manual rebuild without
+            # cutting a new tag). Use base pkg.version as-is so the resulting
+            # bundle's version matches the operator's `release.sh prod $V` arg.
+            V="$BASE"
+          else
+            # Non-prod channels: append a label + run number so each CI build
+            # is unique and the channel is visible in the version string. The
+            # staging channel ships publicly as the "beta" download (website
+            # /preview), so it gets a `-beta.N` label; the channel id stays
+            # `staging` everywhere else (R2 path, secrets, signing, seeder).
+            case "$CHANNEL" in
+              staging) LABEL="beta" ;;
+              *)       LABEL="$CHANNEL" ;;
+            esac
+            V="$BASE-$LABEL.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Version: $V"
+      - name: Verify tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG_V="${GITHUB_REF#refs/tags/v}"
+          PKG_V=$(node -p "require('./package.json').version")
+          if [ "$TAG_V" != "$PKG_V" ]; then
+            echo "::error::Tag v$TAG_V does not match package.json version $PKG_V"
+            echo "Bump package.json#version to $TAG_V (or retag) and rerun."
+            exit 1
+          fi
+          echo "Tag and package.json agree on $TAG_V"
+      - name: Verify CHANGELOG.md has an entry for this tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG_V="${GITHUB_REF#refs/tags/v}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md is missing; add it with a '## v$TAG_V' entry."
+            exit 1
+          fi
+          TOP=$(grep -m1 -E '^## v[0-9]' CHANGELOG.md | sed -E 's/^## v([^[:space:]]+).*/\1/')
+          if [ -z "$TOP" ]; then
+            echo "::error::CHANGELOG.md has no version headings; add a '## v$TAG_V' entry."
+            exit 1
+          fi
+          if [ "$TAG_V" != "$TOP" ]; then
+            echo "::error::Top of CHANGELOG.md is '## v$TOP' but tag is v$TAG_V"
+            echo "Add a '## v$TAG_V' entry above v$TOP, or retag from a commit that has one."
+            exit 1
+          fi
+          echo "CHANGELOG.md top entry agrees with tag: v$TAG_V"
+      - id: matrix
+        run: |
+          ALL='[
+            {"os":"macos-latest","platform":"darwin","arch":"x64","archPath":"darwin-x64","ext":"dmg"},
+            {"os":"macos-latest","platform":"darwin","arch":"arm64","archPath":"darwin-arm64","ext":"dmg"},
+            {"os":"ubuntu-latest","platform":"linux","arch":"x64","archPath":"linux-x64","ext":"AppImage"},
+            {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","archPath":"linux-arm64","ext":"AppImage"},
+            {"os":"windows-latest","platform":"win32","arch":"x64","archPath":"win32-x64","ext":"msix"}
+          ]'
+          FILTER="${{ inputs.platform || 'all' }}"
+          if [ "$FILTER" = "all" ]; then
+            INCLUDE=$(echo "$ALL" | jq -c .)
+          else
+            INCLUDE=$(echo "$ALL" | jq -c "[.[] | select(.archPath == \"$FILTER\")]")
+          fi
+          echo "include=$INCLUDE" >> "$GITHUB_OUTPUT"
+          echo "Matrix: $INCLUDE"
+
+  build:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve.outputs.include) }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Patch package.json version
+        shell: bash
+        run: |
+          V="${{ needs.resolve.outputs.version }}"
+          node -e "const p=require('./package.json');p.version='$V';require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+          grep '"version"' package.json | head -1
+
+      - name: Resolve UPGRADE_KEY for channel
+        shell: bash
+        env:
+          UPGRADE_KEY_DEV: ${{ secrets.UPGRADE_KEY_DEV }}
+          UPGRADE_KEY_STAGING: ${{ secrets.UPGRADE_KEY_STAGING }}
+          UPGRADE_KEY_PROD: ${{ secrets.UPGRADE_KEY_PROD }}
+        run: |
+          case "${{ needs.resolve.outputs.channel }}" in
+            dev)     KEY="$UPGRADE_KEY_DEV" ;;
+            staging) KEY="$UPGRADE_KEY_STAGING" ;;
+            prod)    KEY="$UPGRADE_KEY_PROD" ;;
+          esac
+          if [ -z "$KEY" ]; then
+            echo "WARNING: UPGRADE_KEY for channel '${{ needs.resolve.outputs.channel }}' is empty"
+          fi
+          echo "UPGRADE_KEY=$KEY" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          rm -f package-lock.json
+          npm install --no-audit --no-fund
+
+      - name: Build TS + CSS
+        run: npm run build
+
+      - name: Make (macOS)
+        if: matrix.platform == 'darwin'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          set -e
+          if [ -n "$APPLE_CERTIFICATE_P12" ]; then
+            CERT="$RUNNER_TEMP/cert.p12"
+            KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+            echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security import "$CERT" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+            security list-keychain -d user -s "$KEYCHAIN" $(security list-keychain -d user | tr -d '"')
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security find-identity -v -p codesigning "$KEYCHAIN"
+            rm -f "$CERT"
+          fi
+          npm run make:darwin -- --arch="${{ matrix.arch }}"
+
+      - name: Cleanup keychain (macOS)
+        if: always() && matrix.platform == 'darwin'
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+
+      - name: Make (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq squashfs-tools
+          npm run make:linux
+
+      - name: Make (Windows)
+        if: matrix.platform == 'win32'
+        shell: bash
+        run: npm run make:win32
+
+      - name: Locate artifact (macOS)
+        if: matrix.platform == 'darwin'
+        shell: bash
+        run: |
+          F=$(find out/make -name '*.dmg' | head -1)
+          [ -f "$F" ] || { echo "no dmg found"; ls -la out/make; exit 1; }
+          mkdir -p artifact
+          cp "$F" artifact/Mirall.dmg
+          ls -la artifact/
+
+      - name: Locate artifact (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          F=$(find out/make -name '*.AppImage' | head -1)
+          [ -f "$F" ] || { echo "no AppImage found"; ls -la out/make; exit 1; }
+          mkdir -p artifact
+          cp "$F" artifact/Mirall.AppImage
+          chmod +x artifact/Mirall.AppImage
+          ls -la artifact/
+
+      - name: Locate artifact (Windows)
+        if: matrix.platform == 'win32'
+        shell: bash
+        run: |
+          F=$(find out -name '*.msix' | head -1)
+          [ -f "$F" ] || { echo "no msix found"; find out -type f; exit 1; }
+          mkdir -p artifact
+          cp "$F" artifact/Mirall.msix
+          ls -la artifact/
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          BUCKET: ${{ secrets.R2_BUCKET }}
+          CHANNEL: ${{ needs.resolve.outputs.channel }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          ARCH_PATH: ${{ matrix.archPath }}
+          EXT: ${{ matrix.ext }}
+          PLATFORM: ${{ matrix.platform }}
+        shell: bash
+        run: |
+          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+            echo "R2 credentials not set; skipping upload"
+            exit 0
+          fi
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "aws CLI not found on this runner — installing minimal v2 bundle"
+            case "$PLATFORM" in
+              darwin)
+                curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o /tmp/awscliv2.pkg
+                sudo installer -pkg /tmp/awscliv2.pkg -target /
+                ;;
+              linux)
+                ARCH_DL=$(uname -m)
+                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH_DL}.zip" -o /tmp/awscliv2.zip
+                unzip -q /tmp/awscliv2.zip -d /tmp
+                sudo /tmp/aws/install
+                ;;
+              win32)
+                echo "Windows runner: aws should be preinstalled" >&2
+                exit 1
+                ;;
+            esac
+          fi
+          if [ "$CHANNEL" = "prod" ]; then
+            BASE="desktop/releases/v$VERSION"
+          else
+            BASE="desktop/channels/$CHANNEL"
+          fi
+          if [ "$PLATFORM" = "win32" ]; then
+            DEST="s3://$BUCKET/$BASE/$ARCH_PATH/unsigned/Mirall.$EXT"
+          else
+            DEST="s3://$BUCKET/$BASE/$ARCH_PATH/Mirall.$EXT"
+          fi
+          echo "Uploading artifact/Mirall.$EXT -> $DEST"
+          aws s3 cp "artifact/Mirall.$EXT" "$DEST"
+
+      - name: Upload artifact (CI fallback)
+        uses: actions/upload-artifact@v7
+        with:
+          name: mirall-${{ matrix.archPath }}
+          path: artifact/
+
+  notify:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
+        shell: bash
+        env:
+          CHANNEL: ${{ needs.resolve.outputs.channel }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          if [ "$CHANNEL" = "prod" ]; then
+            BASE="desktop/releases/v$VERSION"
+            SIGN_ARGS="-Channel prod -Version $VERSION"
+          else
+            BASE="desktop/channels/$CHANNEL"
+            SIGN_ARGS="-Channel $CHANNEL"
+          fi
+          {
+            echo "## Mirall Electron build"
+            echo ""
+            echo "- channel: \`$CHANNEL\`"
+            echo "- version: \`$VERSION\`"
+            echo ""
+            echo "Artifacts (R2 layout):"
+            echo ""
+            echo '```'
+            echo "$BASE/darwin-x64/Mirall.dmg"
+            echo "$BASE/darwin-arm64/Mirall.dmg"
+            echo "$BASE/linux-x64/Mirall.AppImage"
+            echo "$BASE/linux-arm64/Mirall.AppImage"
+            echo "$BASE/win32-x64/unsigned/Mirall.msix    # sign locally, upload to win32-x64/signed/"
+            echo '```'
+            echo ""
+            echo "Next step (Windows): run scripts/sign-windows-local.ps1 $SIGN_ARGS"
+          } >> "$GITHUB_STEP_SUMMARY"

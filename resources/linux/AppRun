@@ -1,0 +1,16 @@
+#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE=${SELF%/*}
+
+export PATH="${HERE}:${HERE}/usr/sbin:${PATH}"
+export XDG_DATA_DIRS="${HERE}/share/:${XDG_DATA_DIRS:-/usr/share/}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
+
+BIN="${HERE}/Mirall"
+
+if [ ! -x "$BIN" ]; then
+  echo "Mirall: launcher binary not found at $BIN" >&2
+  exit 1
+fi
+
+exec "$BIN" --no-sandbox "$@"
