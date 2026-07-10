@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
 import { getDownloadDir } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -41,7 +41,8 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, setOverlayReconnectHook, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
 import { reconcileAssertedRoot } from '../shared/spaces/creator-root.js'
@@ -123,6 +124,7 @@ async function safeShutdown(reason) {
   try { await new Promise((resolve) => { const to = setTimeout(resolve, 150); to.unref?.() }) } catch {}
   try { closeAllMemberViews() } catch {}
   try { await teardownBackends() } catch {}
+  try { await destroyContentSwarm() } catch {}
   try { await destroySwarm() } catch {}
   log.info('shutdown complete')
   Bare.exit(0)
@@ -251,17 +253,36 @@ try { await flagUnverifiedJoinedCreators() } catch (err) {
 await initBackends(ipc) // overlay instance + IPC ref when the flag is on
 initLooseOverlay(ipc)
 if (isInPlaceFilesEnabled()) rehydrateLooseFiles().catch((err) => log.debug('loose rehydrate failed:', err.message))
+const useContentPlane = isOverlayEnabled() && isSeparateContentPlaneEnabled()
 if (isOverlayEnabled()) {
   // Auto-resume overlay downloads (loose + folder) when their owner (re)connects.
-  setOverlayReconnectHook((ownerKey, spaceId) => {
+  const autoResume = (ownerKey, spaceId) => {
     if (isInPlaceFilesEnabled()) resumeLooseForOwner(ownerKey, spaceId).catch((err) => log.debug('loose auto-resume failed:', err.message))
     resumeOverlayForOwner(ownerKey, spaceId).catch((err) => log.debug('overlay folder auto-resume failed:', err.message))
-  })
+  }
+  if (useContentPlane) {
+    // The content plane authenticates per owner with no space, so fan the resume across our
+    // spaces — coalesced per owner so reconnect churn doesn't re-run listSpaces() each time.
+    const resumePending = new Map()
+    setContentResumeHook((ownerKey) => {
+      if (resumePending.has(ownerKey)) return
+      const timer = setTimeout(() => {
+        resumePending.delete(ownerKey)
+        listSpaces().then((spaces) => { for (const s of spaces) if (!s.leaving) autoResume(ownerKey, s.spaceId) }).catch(() => {})
+      }, 250)
+      timer.unref?.()
+      resumePending.set(ownerKey, timer)
+    })
+  } else {
+    setOverlayReconnectHook(autoResume)
+  }
 }
 setMembershipControlHandler(handleMembershipControl)
-setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
+if (useContentPlane) setContentAttachHook(fanoutAttach) // overlay binds its channel on content connections
+else setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
 setSharePrepareBroadcast((spaceId, p) => { if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p) })
 initSwarm(ipc)
+if (useContentPlane) initContentSwarm(getSwarmDht())
 
 // Deferred past the core-opening init above so the one-time compaction (which
 // scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.

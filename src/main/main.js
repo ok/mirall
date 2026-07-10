@@ -671,6 +671,9 @@ function getWorker(specifier) {
     overlayEnabled: readFeatureFlags().overlay === true || readFeatureFlags().inPlaceFiles === true,
     inPlaceFilesEnabled: readFeatureFlags().inPlaceFiles === true,
     sharePrepareProgressEnabled: readFeatureFlags().sharePrepareProgress === true,
+    // Bulk content rides its own transport by default when overlay is on; feature-flags.json
+    // can set separateContentPlane:false to revert to the single-plane overlay.
+    separateContentPlane: readFeatureFlags().separateContentPlane !== false,
     identityKEK: identityKEKHex,
   }
   worker.write(Buffer.from(JSON.stringify(bootstrap) + '\n'))

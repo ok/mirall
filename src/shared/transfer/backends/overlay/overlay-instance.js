@@ -13,8 +13,9 @@ import path from 'bare-path'
 import b4a from 'b4a'
 import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
 import { senderAuthorizedOnSocket, isApprovedMember } from '../../swarm.js'
+import { contentSenderAuthorizedOnSocket } from '../../content-swarm.js'
 import { createRateLimiter } from '../../handshake-guard.js'
-import { getOverlayServeLimit } from '../../../core/runtime-config.js'
+import { getOverlayServeLimit, isSeparateContentPlaneEnabled } from '../../../core/runtime-config.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay')
@@ -75,8 +76,11 @@ export function getJournalDir() {
 export async function initOverlay() {
   if (overlay) return overlay
   serveLimiter = createRateLimiter(getOverlayServeLimit())
+  // With the content plane on, the overlay channel rides the content connection, so serve
+  // authorization keys on that socket's content-hello; otherwise on the control handshake.
+  const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : senderAuthorizedOnSocket
   const serveAuthorizer = makeServeAuthorizer({
-    peerSocket, senderAuthorizedOnSocket, isApprovedMember, serveLimiter, serveIndex,
+    peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex,
   })
   const enc = useEncryptedOverlay()
   overlay = new HyperOverlayV2(getStore(), {
@@ -106,8 +110,9 @@ export async function initOverlay() {
  * Bind this swarm connection to the overlay protocol. Called SYNCHRONOUSLY inside
  * swarm.on('connection') — protomux will not pair a channel opened after the
  * remote's. The overlay channel never serves to an unauthenticated peer because
- * authorizeServe reads `peerSocket` + `senderAuthorizedOnSocket`, both empty until
- * the mirall/handshake authenticates the sender on this socket.
+ * authorizeServe reads `peerSocket` + `socketAuthorized`, both empty until the
+ * connection's handshake (mirall/handshake or mirall/content-hello) authenticates
+ * the sender on this socket.
  */
 export function attachOverlay(mux, socket) {
   if (!overlay) return
