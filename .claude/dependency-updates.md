@@ -59,6 +59,8 @@ Before merging:
 - If there's a corresponding bump pending in the `holepunch` group (especially `bare-*` packages), consider landing them together rather than separately.
 - After merging and shipping, watch the OTA channel for crash reports for ~24h before tagging the next release.
 
+**The Bare that ships in production rides on `bare-sidecar`'s baked-in prebuild.** Any lockfile re-resolution — `npm update`, a Renovate lock-maintenance PR, a full lock regen — can therefore bump the production Bare with no visible change to `bare` in `package.json`. Review the `bare-sidecar` diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
+
 ## hyperdrive — pinned
 
 `hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.2"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-folders.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.

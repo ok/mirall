@@ -25,6 +25,30 @@ git push --tags ─→ matrix build (5 archs)
                      promoted to the channel's Pear drive → clients OTA-update
 ```
 
+## Branches & promotion
+
+`staging` is the repo's **default branch** and the integration branch where the next
+release accumulates; `main` is **production**. Features and chores squash-merge into
+`staging`, so a merged PR becomes exactly one commit (PR title + PR body). A release
+promotes `staging → main` as a pure fast-forward:
+
+```
+git switch main && git merge --ff-only staging && git push origin main
+```
+
+`main` is kept a strict ancestor of `staging` so that promotion never has to squash, which
+is what used to produce the recurring "N ahead / M behind" graph divergence. A hotfix may
+land on `main` directly, then gets forward-ported to `staging`.
+
+> **`staging` means two different things.** The git branch `staging` is where code
+> integrates. The release channel `staging` is a Pear Hyperdrive (see *Release channels &
+> OTA* below). They are independent: a `workflow_dispatch` build can publish any branch to
+> any channel.
+
+Because GitHub always pre-selects the repo's default branch as a PR base, new PRs — and
+Renovate's — target `staging` automatically. The occasional `staging → main` release PR is
+the one case where the base must be switched to `main` by hand.
+
 ## CI build — `.github/workflows/build-electron.yml`
 
 **Triggers**
