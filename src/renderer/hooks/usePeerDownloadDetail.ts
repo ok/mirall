@@ -4,6 +4,12 @@ import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
 import { SERVE_TTL_MS } from './usePeerDownloads.js'
 import type { PeerDownloadPeer } from '../types.js'
 
+// A paused peer is kept far longer than an active one — the worker holds paused rows for
+// PAUSED_DROP_MS (300s) and re-announces every ~10s — but not forever: if those re-announces
+// stop (a worker ledger reset emits no clear, a dropped frame, an overlay restart) the row must
+// still age out. Above the worker's PAUSED_DROP_MS so the authoritative clear wins in the normal path.
+const PAUSED_SERVE_TTL_MS = 330000
+
 interface DetailPeer {
   peerKey: string
   bytes: number
@@ -65,9 +71,10 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
       const now = Date.now()
       setPeers((prev) => {
         if (prev.length === 0) return prev
-        // Soft-state expiry: a peer whose authoritative snapshot went silent past the TTL is dropped
-        // (a paused peer is kept — the worker holds paused rows far longer). Backstops a missed frame.
-        const live = prev.filter((p) => p.paused || (lastSeen.get(p.peerKey) ?? 0) + SERVE_TTL_MS >= now)
+        // Soft-state expiry: a peer whose authoritative snapshot went silent past the TTL is dropped.
+        // A paused peer gets the longer PAUSED_SERVE_TTL_MS (the worker holds paused rows far longer)
+        // but still ages out, so a missed clearing frame can't strand it forever.
+        const live = prev.filter((p) => (lastSeen.get(p.peerKey) ?? 0) + (p.paused ? PAUSED_SERVE_TTL_MS : SERVE_TTL_MS) >= now)
         for (const p of prev) if (!live.includes(p)) { samplers.delete(p.peerKey); lastSeen.delete(p.peerKey) }
         let changed = live.length !== prev.length
         const next = live.map((p) => {

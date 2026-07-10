@@ -3,7 +3,7 @@ import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import {
   initContentBackendOverlay, _resetContentBackendOverlay, _sweepServeLedgerNow,
-  onServeStart, onServePaused,
+  onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, getServeDetail, unsubscribeServeDetail, listServeSummaries,
 } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
@@ -59,6 +59,22 @@ test('the sweep re-announces active rows too (missed-frame recovery for the rend
   const after = summaries(fake)
   t.ok(after.length > before, 'a live active row re-announces on the sweep')
   t.alike(after[after.length - 1].payload.pausedKeys, [], 'active row carries no paused marker')
+})
+
+// The downloader→holder contract the mirror-unmount fix relies on: a STOPPED control drops a
+// previously-paused peer from the ledger at once (no waiting on the 5-min PAUSED_DROP_MS sweep),
+// emitting an authoritative empty summary.
+test('a STOPPED control drops a previously-paused peer from the ledger', (t) => {
+  const fake = setup(t)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  onServePaused({ from: PEER, contentHash: HASH })
+  t.is(listServeSummaries(SID).length, 1, 'precondition: one paused row present')
+
+  onServeControl({ from: PEER, contentHash: HASH, state: 'stopped' })
+
+  t.is(listServeSummaries(SID).length, 0, 'STOPPED cleared the row immediately')
+  const last = summaries(fake).pop().payload
+  t.alike(last.peers, [], 'and emitted an authoritative empty summary')
 })
 
 test('getServeDetail reads the snapshot without touching the detailSubs refcount', (t) => {
