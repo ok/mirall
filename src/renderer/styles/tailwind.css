@@ -230,6 +230,26 @@ button:disabled,
   animation: avatar-issue-pulse 2.4s ease-in-out infinite;
 }
 
+/* Mirror sync-state rings (MirroredByWidget): synced = success/green, paused = warning/amber,
+   syncing = info/blue (pulsing while the peer is online and actively pulling, static otherwise). */
+.avatar-ring-synced {
+  box-shadow: 0 0 0 2px var(--color-success);
+}
+
+.avatar-ring-paused {
+  box-shadow: 0 0 0 2px var(--color-warning);
+}
+
+.avatar-ring-syncing {
+  box-shadow: 0 0 0 2px var(--color-on-info);
+}
+
+.avatar-ring-syncing-active {
+  --avatar-issue-color: var(--color-on-info);
+  box-shadow: 0 0 0 2px var(--avatar-issue-color);
+  animation: avatar-issue-pulse 2.4s ease-in-out infinite;
+}
+
 .leave-progress-stripe {
   background-image: repeating-linear-gradient(
     -45deg,

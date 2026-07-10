@@ -7,6 +7,7 @@ export const Scope = {
   shares: (spaceId) => ({ kind: 'shares', spaceId }),
   shareFiles: (spaceId, shareId) => ({ kind: 'share-files', spaceId, shareId }),
   members: (spaceId) => ({ kind: 'members', spaceId }),
+  mirrors: (spaceId, shareId) => ({ kind: 'mirrors', spaceId, shareId }),
   joinRequests: (spaceId) => ({ kind: 'join-requests', spaceId }),
 }
 

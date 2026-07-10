@@ -16,6 +16,7 @@ import Avatar, { type AvatarSize } from '../components/primitives/Avatar.js'
 import FolderTree from '../components/widgets/FolderTree.js'
 import LoadingFiles from '../components/widgets/LoadingFiles.js'
 import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
+import MirroredByWidget from '../components/cards/MirroredByWidget.js'
 import { formatSize } from '../utils.js'
 import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
 import { request } from '../ipc.js'
@@ -360,6 +361,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                   : t('folder.mineDescription')}
             </p>
           </div>
+
+          {isYou && <MirroredByWidget spaceId={spaceId} shareId={share.id} members={members} />}
 
           {info && (
             <div className="bg-surface-container-low p-8 rounded-2xl">

@@ -23,6 +23,7 @@ const POKE_SCOPE = {
   // axis and matches every share view in the space (scope-match contract).
   'event:share-files-updated': (p) => (p.spaceId ? Scope.shareFiles(p.spaceId, p.shareId) : null),
   'event:members-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
+  'event:mirrors-updated': (p) => (p.spaceId ? Scope.mirrors(p.spaceId, p.shareId) : null),
   'event:member-left': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
   'event:member-avatar-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
   'event:member-join-request': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),

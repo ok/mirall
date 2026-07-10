@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { request, subscribe } from '../ipc.js'
 import { scopeMatches, type Scope as ScopeType } from '../scope.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
+import { pruneMirrorCache } from './useSpaceMirrors.js'
 import type { Space } from '../types.js'
 
 export function useSpaces() {
@@ -13,6 +14,7 @@ export function useSpaces() {
     const data = await request('spaces:list') as Space[]
     setSpaces(data)
     pruneRosterCache(data.map((s) => s.spaceId))
+    pruneMirrorCache(data.map((s) => s.spaceId))
     setLoading(false)
   }
 
@@ -23,6 +25,7 @@ export function useSpaces() {
         const data = msg.spaces as Space[]
         setSpaces(data)
         pruneRosterCache(data.map((s) => s.spaceId))
+        pruneMirrorCache(data.map((s) => s.spaceId))
       }
     })
     // This list spans every space, so it is a wildcard view on the members/join-requests axes:

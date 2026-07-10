@@ -72,6 +72,8 @@ import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-cont
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
+import { ensureFolderMirrorsCap, publishMirror, ensureMirror } from '../shared/folders/mirror-records.js'
+import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolder } from '../shared/folders/mount-validate.js'
@@ -169,6 +171,7 @@ if (driveLoad.hadFailure) {
 
 await ensureMembershipManifestCap()
 await ensureSharesCap()
+await ensureFolderMirrorsCap()
 // One-time migration: move owned folder shares recorded with a retired contentMode
 // (undefined / 'eager' / 'deferred') to overlay BEFORE the initial publish scans below, so
 // such a share re-advertises into the catalog instead of resolving to UNSUPPORTED (empty
@@ -714,6 +717,11 @@ try {
     // Seed the probe baseline (parity with owned mounts above) so a later mount-point return
     // registers as a gone→present transition and the probe can auto-resume mid-session.
     lastMountPointStatus.set('foreign-folder:' + mount.shareId, mountRootAvailable(mount.mountPath))
+    // Backfill a participation record for a mount that predates this feature (or whose mount-time
+    // publish failed): only the fresh-mount handler publishes, and setMirrorState can't create one,
+    // so without this a restored mirror stays invisible to owners forever.
+    await ensureMirror(mount.spaceId, mount.shareId, { state: mount.enabled === false ? 'paused' : 'syncing' })
+      .catch((err) => log.debug('mirror record ensure at boot failed for', mount.shareId, '-', err.message))
     if (!mount.enabled) {
       // Auto-paused mirrors (mount-point-gone / enospc / perm) recover at boot if the
       // local target is back and the fault cleared; a user pause ('paused') stays paused.
@@ -1271,15 +1279,18 @@ ipc.handle('foreign-folder:mount', async (msg) => {
   }
   await persistForeignMount(mount)
   ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: 'scanning' })
+  try { await publishMirror(msg.spaceId, msg.shareId, { state: 'syncing' }) }
+  catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', err.message) }
+  ipc.emit('event:mirrors-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
 
+  // Start the poll loop regardless of the initial scan's outcome: a scan that rejects must still
+  // leave a running loop so the record re-derives from 'syncing' instead of stranding there.
   initialMaterializeScan(mount)
-    .then(() => {
-      startForeignLoop(mount)
-    })
     .catch((err) => {
       log.warn('mirror initial scan failed:', err.message)
       ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: 'paused-error', error: err.message })
     })
+    .finally(() => { startForeignLoop(mount) })
 
   return { mount, advisories }
 })
@@ -1362,6 +1373,12 @@ ipc.handle('space:members', async (msg) => {
   const space = await getSpace(msg.spaceId)
   if (!space || space.leaving) return []
   return fullRoster(space, await getProfile()).map(stripCatalogKeys)
+})
+ipc.handle('space:mirrors', async (msg) => {
+  const mirrors = msg.shareId
+    ? await listMirrorsForShare(msg.spaceId, msg.shareId)
+    : await listMirrorsForSpace(msg.spaceId)
+  return mirrors.map((m) => ({ mirrorer: m.mirrorer, shareId: m.shareId, state: m.state, mountedAt: m.mountedAt }))
 })
 ipc.handle('space:create', async (msg) => {
   log.info('creating space:', msg.name)
