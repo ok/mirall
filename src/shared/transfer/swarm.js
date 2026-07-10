@@ -25,11 +25,13 @@ import {
   recordJoinRequest, listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
   pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, ownLooseCatalogPublish, persistLeftTombstone,
 } from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getNetImpair } from '../core/runtime-config.js'
+import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow } from '../core/runtime-config.js'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
 import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
+import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries } from './content-swarm.js'
+import { applyNetImpairment } from './net-impair.js'
 import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from './decoration-key.js'
@@ -141,54 +143,6 @@ function isBenignSocketError (err) {
 let corruptionDiagnosed = false
 
 // === Connection intake & frame dispatch ===
-
-// TEST-ONLY link shaper (runtime-config `netImpair`; production never sets it). Reproduces bad
-// real-world links in flow tests by degrading THIS peer's connections in place — no Duplex
-// wrapping, so the socket's Noise/peer properties survive. Latency delays every outbound app
-// frame (both peers impairing → a symmetric high-RTT link); flap periodically destroys the live
-// connection so Hyperswarm re-dials (this handler re-runs and re-impairs the fresh socket),
-// exercising reconnect churn + any state not re-established on reconnect. See netImpair docs.
-function applyNetImpairment(socket) {
-  const cfg = getNetImpair()
-  if (!cfg) return
-  const latencyMs = cfg.latencyMs | 0
-  const jitterMs = cfg.jitterMs | 0
-  if (latencyMs > 0 || jitterMs > 0) {
-    const realWrite = socket.write.bind(socket)
-    // Ordered release queue: this is a RELIABLE, in-order stream (Protomux framing), so frames
-    // MUST leave in FIFO order — independent per-frame timers with jitter would reorder and
-    // corrupt it. Each frame's release time is max(now+latency+jitter, previous release), so
-    // jitter varies the delay without ever letting a later frame overtake an earlier one.
-    const q = []
-    let pumping = false
-    const pump = () => {
-      if (pumping) return
-      pumping = true
-      const step = () => {
-        while (q.length && q[0].at <= Date.now()) { const it = q.shift(); try { realWrite(it.data, ...it.rest) } catch {} }
-        if (!q.length) { pumping = false; return }
-        const timer = setTimeout(step, Math.max(0, q[0].at - Date.now()))
-        timer.unref?.()
-      }
-      step()
-    }
-    socket.write = (data, ...rest) => {
-      const delay = latencyMs + (jitterMs > 0 ? Math.floor(Math.random() * jitterMs) : 0)
-      const prevAt = q.length ? q[q.length - 1].at : 0
-      q.push({ data, rest, at: Math.max(Date.now() + delay, prevAt) })
-      pump()
-      return true
-    }
-    socket.once('close', () => { q.length = 0 }) // drop pending frames when the link dies
-  }
-  if ((cfg.flapEveryMs | 0) > 0) {
-    const jitter = cfg.flapJitterMs | 0
-    const timer = setTimeout(() => { try { socket.destroy() } catch {} },
-      cfg.flapEveryMs + (jitter > 0 ? Math.floor(Math.random() * jitter) : 0))
-    timer.unref?.()
-    socket.once('close', () => clearTimeout(timer))
-  }
-}
 
 export function initSwarm(_ipc) {
   ipcRef = _ipc
@@ -1197,6 +1151,7 @@ export async function joinSpaceTopic(spaceId) {
 
   const discovery = swarm.join(topic, { server: true, client: true })
   spaceDiscoveries.set(spaceId, discovery)
+  joinContentTopic(spaceId, topicHex) // no-op unless the content plane is active
   discovery.flushed().then(
     () => {
       announced = true
@@ -1414,6 +1369,7 @@ export async function leaveSpaceTopic(spaceId) {
   await swarm.leave(topic)
   spaceTopics.delete(spaceId)
   spaceDiscoveries.delete(spaceId)
+  try { await leaveContentTopic(spaceId) } catch {} // no-op unless the content plane is active
   // The tick's cleanup only visits current spaceTopics, so a left space's escalation state
   // would dangle (and mistime escalation on a same-space rejoin) — drop it here. The announce
   // ledger self-prunes the left space on its next drain (status resolves null → settled).
@@ -1658,6 +1614,10 @@ export function setMembershipControlHandler(fn) {
 
 export function setConnectionAttachHook(fn) {
   connectionAttachHook = fn
+}
+
+export function getSwarmDht() {
+  return swarm?.dht || null
 }
 
 // A pending joiner has no handshake yet, so it isn't in connectedPeers — fall back to
@@ -1949,6 +1909,7 @@ export async function reconnectAll() {
       log.warn('refresh failed for', spaceId, err.message)
     }
   }
+  try { await refreshContentDiscoveries() } catch {} // content plane (no-op unless active)
   scheduleStatusEmit()
   return { ok: true }
 }

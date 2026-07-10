@@ -121,6 +121,9 @@ function buildConfig(next) {
   // `false` override degrades shares to UNSUPPORTED.
   out.overlayEnabled = next?.overlayEnabled !== false
   out.inPlaceFilesEnabled = next?.inPlaceFilesEnabled !== false
+  // Bulk content rides its own transport by default; only an explicit `false` reverts to the
+  // single-plane overlay (control + content on one stream).
+  out.separateContentPlane = next?.separateContentPlane !== false
   return out
 }
 
@@ -156,6 +159,10 @@ export function isInPlaceFilesEnabled() {
 
 export function isSharePrepareProgressEnabled() {
   return config.sharePrepareProgressEnabled
+}
+
+export function isSeparateContentPlaneEnabled() {
+  return config.separateContentPlane
 }
 
 export function getOverlayServeLimit() {

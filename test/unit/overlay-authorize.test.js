@@ -9,7 +9,7 @@ function build (overrides = {}) {
   const peerSocket = new Map([[peer, socket]])
   const deps = {
     peerSocket,
-    senderAuthorizedOnSocket: overrides.senderAuthorizedOnSocket || (() => true),
+    socketAuthorized: overrides.socketAuthorized || (() => true),
     isApprovedMember: overrides.isApprovedMember || (async () => true),
     serveLimiter: overrides.serveLimiter || { take: () => ({ ok: true }) },
     serveIndex: overrides.serveIndex || { spacesFor: () => ['space1'] },
@@ -23,7 +23,7 @@ test('(a) unknown peer (not attached on a socket) → deny', async (t) => {
 })
 
 test('(b) from not Noise-authenticated on the socket → deny', async (t) => {
-  const { peer, auth } = build({ senderAuthorizedOnSocket: () => false })
+  const { peer, auth } = build({ socketAuthorized: () => false })
   t.is(await auth(peer, 'fromKey', 'hash'), false)
 })
 
