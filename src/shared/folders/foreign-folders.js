@@ -401,6 +401,10 @@ const cancelGen = new Map()
 // strictly sequential): contentHash so stopForeignLoop can abort the in-flight overlay
 // download, relPath so foreignFetchActive can identify the row.
 const activeOverlayFetches = new Map()
+// contentHash a pause left holders showing us paused for, after its in-flight fetch slot was
+// released — lets a later unmount tell the holder we stopped rather than leaving its "who is
+// downloading" row paused until the 5-min sweep. Mirrors overlay-download's pausedHashes.
+const pausedMirrorHashes = new Map()
 function mirrorGen(key) { return cancelGen.get(key) || 0 }
 
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
@@ -520,6 +524,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   let res
   const streamKey = loopKey(mount.spaceId, mount.shareId)
   activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
+  pausedMirrorHashes.delete(streamKey) // a fresh/resumed fetch supersedes any paused-stop marker
   // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
   ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
   try {
@@ -671,11 +676,19 @@ export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {
   // Overlay-catalog in-flight fetch: cancel by content hash. discardPartial:false
   // (pause) keeps the .partial + journal so the next tick resumes; true (unmount)
   // unlinks it. cancelFetch also tells the holder we paused/stopped, so its
-  // "who is downloading" indicator clears now rather than on the idle sweep.
+  // "who is downloading" indicator clears now rather than on the idle sweep. A pause
+  // releases the fetch slot while the holder still shows us paused, so remember the hash
+  // and, on a later unmount with no live fetch, notify the holder we stopped.
   const inflight = activeOverlayFetches.get(key)
   if (inflight) {
     try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial }) } catch {}
     activeOverlayFetches.delete(key)
+    if (discardPartial) pausedMirrorHashes.delete(key)
+    else pausedMirrorHashes.set(key, inflight.contentHash)
+  } else if (discardPartial) {
+    const paused = pausedMirrorHashes.get(key)
+    if (paused) { try { getOverlay()?.notifyTransferStopped(paused) } catch {} }
+    pausedMirrorHashes.delete(key)
   }
   tickDirty.delete(key)
   const handle = activeLoops.get(key)
