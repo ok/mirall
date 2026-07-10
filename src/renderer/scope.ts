@@ -8,6 +8,7 @@ export type Scope =
   | { kind: 'shares'; spaceId: string }
   | { kind: 'share-files'; spaceId: string; shareId?: string }
   | { kind: 'members'; spaceId: string }
+  | { kind: 'mirrors'; spaceId: string; shareId?: string }
   | { kind: 'join-requests'; spaceId: string }
 
 export const Scope = {
@@ -15,6 +16,7 @@ export const Scope = {
   shares: (spaceId: string): Scope => ({ kind: 'shares', spaceId }),
   shareFiles: (spaceId: string, shareId?: string): Scope => ({ kind: 'share-files', spaceId, shareId }),
   members: (spaceId: string): Scope => ({ kind: 'members', spaceId }),
+  mirrors: (spaceId: string, shareId?: string): Scope => ({ kind: 'mirrors', spaceId, shareId }),
   joinRequests: (spaceId: string): Scope => ({ kind: 'join-requests', spaceId }),
 }
 

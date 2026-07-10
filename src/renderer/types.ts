@@ -115,6 +115,13 @@ export interface PeerDownloadPeer {
   paused: boolean
 }
 
+export interface MirrorParticipant {
+  mirrorer: string
+  shareId: string
+  state: 'syncing' | 'synced' | 'paused'
+  mountedAt: number
+}
+
 export type ShareType = 'owned-folder'
 
 export type ShareRole = 'mine' | 'browse' | 'mirrored'

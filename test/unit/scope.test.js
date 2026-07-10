@@ -31,7 +31,7 @@ test('scopeMatches: a spaceId-less members view (the spaces list) matches any me
 // executed divergence classes (a narrow share-files hint vs a broad view, and shareIds on a
 // non-share-files kind), so this asserts agreement pairwise-exhaustively instead.
 test('REGRESSION (FIX-EDA-13: renderer mirror agrees with the worker pairwise-exhaustively)', (t) => {
-  const kinds = ['files', 'shares', 'share-files', 'members', 'join-requests']
+  const kinds = ['files', 'shares', 'share-files', 'members', 'mirrors', 'join-requests']
   const spaceIds = ['S1', 'S2', null, undefined]
   const shareIds = ['A', 'B', null, undefined]
   const scopes = [null]

@@ -57,6 +57,7 @@
       case 'share:folder-info': return folderInfo()
       case 'spaces:list': return [space]
       case 'space:members': return members
+      case 'space:mirrors': return (window.__HARNESS_CFG && window.__HARNESS_CFG.mirrors) || []
       case 'profile:get': return profile
       case 'members:online': return [OWNER_PK, SELF_PK]
       case 'foreign-folder:get': return foreignMount

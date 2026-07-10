@@ -1134,6 +1134,7 @@ async function emitPeerSharesUpdated(profileKeyHex) {
     if ((space.members || []).some((m) => m.publicKey === profileKeyHex)) {
       ipcRef.emit('event:shares-updated', { spaceId: space.spaceId })
       ipcRef.emit('event:files-updated', { spaceId: space.spaceId })
+      ipcRef.emit('event:mirrors-updated', { spaceId: space.spaceId })
     }
   }
 }
