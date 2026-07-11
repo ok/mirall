@@ -1,5 +1,8 @@
 name: Build Electron
 
+# Runs automatically on a v* tag push; can also be dispatched manually from the
+# Actions tab (or `gh workflow run build-electron.yml`) to build a single channel
+# and platform.
 on:
   push:
     tags:

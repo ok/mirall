@@ -2,6 +2,8 @@
 # with contents:write, pull-requests:write, issues:write, metadata:read,
 # workflows:write. A PAT is required (not GITHUB_TOKEN) so PRs opened by
 # Renovate trigger CI.
+#
+# Can also be dispatched manually from the Actions tab.
 
 name: Renovate
 
