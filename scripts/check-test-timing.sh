@@ -1,20 +1,32 @@
 #!/usr/bin/env bash
-# The poll helpers (peer.waitFor / peer.until / waitForFile / waitForCatalogEntry) scale the
-# `ms` they receive, so a call site that also wraps it in scaled() stretches the deadline by
-# the square of MIRALL_TEST_TIMEOUT_SCALE. That is silently permissive: on CI the poll deadline
-# then outlives brittle's per-test timeout, so the helper's diagnostic (worker stderr tail,
-# "saw N event(s)") never fires and a hang degrades to a bare "timed out after N ms".
+# Test-deadline hygiene for test/: the poll/wait helpers scale the `ms` they receive
+# (peer.waitFor, peer.until, fixtures.waitForFile all do `scaled(ms)` internally), so a
+# call site must pass a BASE value. Passing scaled() in as well squares the scale factor:
+# under CI's MIRALL_TEST_TIMEOUT_SCALE=3 a scaled(120000) deadline becomes 1,080,000ms,
+# far past brittle's per-test timeout — so the helper's diagnostic (which carries the
+# worker stderr tail) can never fire and a hang degrades into a bare "timed out" with no
+# indication of what it was waiting for.
 #
-# Legitimate scaled() positions, which this guard must NOT flag:
-#   { timeout: scaled(N) }         brittle's per-test timeout — brittle does not scale
-#   waitForWorkerExit(pid, scaled(N))  helper does not scale internally
-#   setTimeout / sleep / manual Date.now() deadlines
-# A deadline that must stay absolute (racing an un-scaled production constant) uses unscaled().
+# Only brittle's per-test `{ timeout: scaled(...) }` takes a scaled value; it is not a helper.
+#
+# Usage: scripts/check-test-timing.sh
 set -euo pipefail
 
-if grep -rnE '\.(waitFor|until)\(.*[^a-zA-Z_]scaled\(|ms:[[:space:]]*(Math\.[a-z]+\()?scaled\(' test/; then
-  echo "" >&2
-  echo "ERROR: double-scaled deadline above — the helper already scales; pass a BASE value." >&2
-  echo "       (need an absolute bound? use unscaled() from test/helpers/timing.js)" >&2
+cd "$(dirname "$0")/.."
+
+# `ms:` options feed until()/waitForFile(); the third arg of waitFor() is its deadline.
+hits="$(grep -rnE "ms: scaled\(|\.waitFor\([^)]*\)[^)]*, *scaled\(" test/ || true)"
+# The waitFor pattern above misses predicates containing parens, so catch those too.
+hits="$hits$(grep -rnE "\.waitFor\(.*scaled\(" test/ || true)"
+
+if [ -n "$(printf '%s' "$hits" | tr -d '[:space:]')" ]; then
+  echo "ERROR: double-scaled test deadline — helpers already scale, pass a base value:" >&2
+  printf '%s\n' "$hits" | sort -u >&2
+  echo >&2
+  echo "  fix: B.waitFor(type, pred, scaled(60000))  ->  B.waitFor(type, pred, 60000)" >&2
+  echo "       { ms: scaled(60000) }                 ->  { ms: 60000 }" >&2
+  echo "  (keep scaled() on brittle's per-test { timeout: scaled(...) })" >&2
   exit 1
 fi
+
+echo "test-timing: clean."
