@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Overlay serves straight from the source file, so it copies NO bytes into the
 // per-space drive: a space's only retained bytes are its metadata core. This
 // two-peer test covers what only a real run can: the per-space breakdown crossing
 // the worker IPC reports zero drive content on both the owner and a browsing peer.
 test('storage breakdown: a space reports no drive content (overlay serves in place)', async (t) => {
-  t.timeout(120000)
+  t.timeout(scaled(120000))
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

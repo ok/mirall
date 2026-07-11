@@ -29,7 +29,7 @@ async function shareAndSee (A, B, spaceId, aSrc, name, seed) {
   const bytes = patternedBytes(8 * 1024 * 1024, seed)
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: scaled(60000) })
+  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
   return bytes
 }
 async function startFlowGetTransfer (B, spaceId, name, aKey) {
@@ -51,7 +51,7 @@ test('loose cancel mid-download: partial discarded, row back to remote, nothing 
     t.ok(transferId, 'transferId derived')
 
     await B.request('files:cancel-download', { transferId })
-    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/lump.bin'); return e && e.status === 'remote' }, { ms: scaled(30000) })
+    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/lump.bin'); return e && e.status === 'remote' }, { ms: 30000 })
     await sleep(1000)
     t.ok(noResidue(B.downloads, 'lump'), 'no partial or final file left after cancel')
     A.kill()
@@ -65,9 +65,9 @@ test('loose pause then discard-partial: partial cleared, row back to remote',
     const transferId = await startFlowGetTransfer(B, spaceId, 'draft.bin', aKey)
 
     await B.request('files:pause-download', { transferId })
-    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'paused-interrupted' }, { ms: scaled(30000) })
+    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'paused-interrupted' }, { ms: 30000 })
     await B.request('files:discard-partial', { spaceId, path: '/draft.bin' })
-    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'remote' }, { ms: scaled(30000) })
+    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'remote' }, { ms: 30000 })
     await sleep(1000)
     t.ok(noResidue(B.downloads, 'draft'), 'no partial left after discard')
     A.kill()
@@ -81,9 +81,9 @@ test('loose cancel then re-download: completes byte-exact with no stale partial'
     const transferId = await startFlowGetTransfer(B, spaceId, 'retry.bin', aKey)
 
     await B.request('files:cancel-download', { transferId })
-    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/retry.bin'); return e && e.status === 'remote' }, { ms: scaled(30000) })
+    await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/retry.bin'); return e && e.status === 'remote' }, { ms: 30000 })
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/retry.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/retry.bin', 120000)
     await B.request('files:download', { spaceId, path: '/retry.bin', inPlace: true, ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 're-downloaded file is byte-exact')

@@ -29,7 +29,7 @@ test('R14: an overlay share seen by a peer without overlay support degrades, nev
 
     // B replicates the share record (proves it SEES the overlay share)…
     await B.until('share:list', { spaceId }, (l) => Array.isArray(l) && l.some((s) => s.id === share.id),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // …but, lacking overlay support, it lists the share EMPTY (UNSUPPORTED → []),
     // not as a broken eager drive. No crash, no mis-route.

@@ -14,3 +14,25 @@ export function supersedeDecision (inflightHash, currentEntryHash) {
 export function isRepublished (currentSeq, sourceSeq) {
   return currentSeq !== undefined && sourceSeq !== undefined && currentSeq !== sourceSeq
 }
+
+// The owner's catalog changed under an in-flight download. Four outcomes, because a re-publish
+// is TWO appends — advertise(contentHash:null) → hash the source → setMaterializedHash — and the
+// half-advertised window between them is neither a tombstone nor a republished-identical entry:
+//
+//   'drop'     — tombstoned, or re-added with identical content (do not resume the old partial)
+//   'pending'  — mid-rehash: a new version is advertised but its hash is not materialized yet.
+//                HOLD the transfer; setMaterializedHash is a second append that re-fires the watch.
+//   'restart'  — a different, materialized contentHash → supersede from byte 0
+//   'continue' — no re-publish; fall through to the plain hash-change check (an unread head or a
+//                legacy entry carries no seq, so it can never be classified as a re-publish)
+export function republishDecision (inflightHash, state, sourceSeq) {
+  if (!state) return 'continue'
+  if (state.removed) return 'drop'
+  if (!isRepublished(state.seq, sourceSeq)) return 'continue'
+  if (state.contentHash == null) return 'pending'
+  // Identical content re-added — and, when we never recorded which hash we were fetching (a row
+  // written before that field existed), anything re-published: without it we cannot prove the
+  // content CHANGED, so keep the remove+re-add rule and terminate rather than silently resume.
+  if (inflightHash == null || state.contentHash === inflightHash) return 'drop'
+  return 'restart'
+}

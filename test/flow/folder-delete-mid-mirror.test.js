@@ -24,7 +24,7 @@ async function ownedShareWithScan (A, spaceId, name, folder) {
 async function mirror (t, A, B, spaceId, share, aKey) {
   await B.until('share:list', { spaceId }, (l) => l.some((s) => s.id === share.id))
   const mirrorDir = mkTmpDir(t)
-  const active = B.waitFor('event:foreign-folder-mount-status', (m) => m.shareId === share.id && m.status === 'active', scaled(90000))
+  const active = B.waitFor('event:foreign-folder-mount-status', (m) => m.shareId === share.id && m.status === 'active', 90000)
   await B.request('foreign-folder:mount', { spaceId, shareId: share.id, ownerKey: aKey, mountPath: mirrorDir })
   await active
   return mirrorDir
@@ -48,7 +48,7 @@ test('owner deletes the share mid-mirror: the share tombstones on the mirroring 
     // Delete right after the mount goes active — the 64 MB file is still materializing.
     await A.request('owned-folder:delete', { spaceId, shareId: share.id })
 
-    await B.until('share:list', { spaceId }, (l) => !l.some((s) => s.id === share.id), { ms: scaled(60000) })
+    await B.until('share:list', { spaceId }, (l) => !l.some((s) => s.id === share.id), { ms: 60000 })
     t.pass('share tombstone reached the mirroring peer')
 
     await sleep(3000)
@@ -77,8 +77,8 @@ test('owner deletes a file mid-mirror: it is removed from the mirror, the siblin
     fs.rmSync(path.join(folder, 'big.bin'))
     await A.request('event:owned-folder-fs-event', { shareId: share.id, action: 'unlink', relPath: 'big.bin', absPath: path.join(folder, 'big.bin') })
 
-    await waitForFile(path.join(mirrorDir, 'big.bin'), { present: false, ms: scaled(120000) })
-    await waitForFile(path.join(mirrorDir, 'keep.txt'), { present: true, ms: scaled(90000) })
+    await waitForFile(path.join(mirrorDir, 'big.bin'), { present: false, ms: 120000 })
+    await waitForFile(path.join(mirrorDir, 'keep.txt'), { present: true, ms: 90000 })
     t.absent(fs.existsSync(path.join(mirrorDir, 'big.bin')), 'the deleted file is removed from the mirror')
     t.ok(fs.existsSync(path.join(mirrorDir, 'keep.txt')), 'the sibling file is preserved')
     A.kill()

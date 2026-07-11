@@ -329,6 +329,18 @@ export class HyperOverlayV2 extends ReadyResource {
     return this._protocol ? this._protocol.sendStopControl(contentHash) : false
   }
 
+  // [mirall] Stop serving the grants a predicate selects (a space we left). Returns the count.
+  revokeServes (predicate) {
+    return this._protocol ? this._protocol.revokeServes(predicate) : 0
+  }
+
+  // [mirall] Invalidate every cached serve grant, forcing one re-authorization per (peer, path)
+  // on the next chunk request. The membership gate is the source of truth; this is what makes a
+  // revocation reach a transfer already in flight.
+  bumpServeEpoch () {
+    if (this._protocol) this._protocol.bumpServeEpoch()
+  }
+
   _destPathFor (contentHash) {
     return path.join(this._destDir, 'blob-' + contentHash)
   }

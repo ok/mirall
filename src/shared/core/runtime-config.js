@@ -21,7 +21,6 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap']
 const BOOLEAN = [
   'dev', 'verbose',
   'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled',
-  'sharePrepareProgressEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -124,6 +123,12 @@ function buildConfig(next) {
   // Bulk content rides its own transport by default; only an explicit `false` reverts to the
   // single-plane overlay (control + content on one stream).
   out.separateContentPlane = next?.separateContentPlane !== false
+  // An owner broadcasts hashing progress for a file it is (re-)publishing, so members see
+  // "preparing 34%" instead of a frozen placeholder. It is also the liveness signal that keeps a
+  // download parked on a re-publish alive: a source that hashes for hours (multi-TB) re-arms the
+  // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
+  // only an explicit `false` reverts.
+  out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
   return out
 }
 

@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
-import { scaled } from '../helpers/timing.js'
+import { scaled, unscaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -25,7 +25,7 @@ test('graceful quit announces offline: peer drops the owner from presence prompt
     await A.request('shutdown').catch(() => {})   // safeShutdown → broadcastDeparture → teardown
     // Bound stays under the un-scaled 15s PRESENCE_TTL_MS (which is NOT time-scaled) so this
     // remains a real promptness check, not a pass-via-lease-expiry, even on slow/scaled CI.
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: Math.min(scaled(8000), 12000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: unscaled(12000) })
     t.absent((await B.request('members:online', { spaceId })).includes(aKey),
       'owner offline promptly after graceful quit, well under the 15s TTL')
   })

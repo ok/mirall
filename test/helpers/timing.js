@@ -10,6 +10,14 @@ export function scaled (baseMs) {
   return Math.round(baseMs * TIMEOUT_SCALE)
 }
 
+// A deadline that must stay ABSOLUTE because the behavior under test races an un-scaled
+// production constant (e.g. the 15s presence TTL): a scaled bound would drift past it and
+// the test would pass via lease expiry instead of proving promptness. The helpers scale
+// what they receive, so pre-divide to cancel that out.
+export function unscaled (absoluteMs) {
+  return Math.round(absoluteMs / TIMEOUT_SCALE)
+}
+
 export function summarize (value, max = 800) {
   let s
   try { s = JSON.stringify(value) } catch { return String(value) }

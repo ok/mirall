@@ -73,3 +73,19 @@ test('rate limit is consulted before the (async) membership check', async (t) =>
   t.is(await auth(peer, 'fromKey', 'hash'), false)
   t.absent(memberChecked, 'membership not consulted once rate-limited')
 })
+
+// The serve epoch re-validates a grant WE already issued (not an inbound request), so it must skip
+// the limiter — otherwise bumping the epoch while a peer legitimately pulls many files would revoke
+// healthy transfers for being numerous.
+test('rateLimit:false skips the limiter but still enforces membership', async (t) => {
+  let taken = 0
+  const { peer, auth } = build({
+    serveLimiter: { take: () => { taken++; return { ok: false } } },
+    isApprovedMember: async () => true,
+  })
+  t.is(await auth(peer, 'fromKey', 'hash', { rateLimit: false }), true, 're-validation is allowed without charging the limiter')
+  t.is(taken, 0, 'the limiter was not consulted on re-validation')
+
+  const denied = build({ serveLimiter: { take: () => ({ ok: true }) }, isApprovedMember: async () => false })
+  t.is(await denied.auth(denied.peer, 'fromKey', 'hash', { rateLimit: false }), false, 'a non-member is still denied on re-validation')
+})

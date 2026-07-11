@@ -39,7 +39,7 @@ test('loose download auto-restarts when the source changes mid-transfer',
 
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Track ordering: a transfer-complete for /big.bin BEFORE the supersede means the
     // original finished first and the restart was never exercised (the test would then
@@ -55,8 +55,8 @@ test('loose download auto-restarts when the source changes mid-transfer',
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    const supersededEvt = B.waitFor('event:transfer-superseded', (m) => m.path === '/big.bin', scaled(120000))
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin' && superseded, scaled(180000))
+    const supersededEvt = B.waitFor('event:transfer-superseded', (m) => m.path === '/big.bin', 120000)
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin' && superseded, 180000)
     await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
     await flowing
 

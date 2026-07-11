@@ -42,7 +42,7 @@ import { pathFromMount } from '../../path-guard.js'
 import { shareDecoKey } from '../../decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
 import { resolveDest } from '../../download-dest.js'
-import { supersedeDecision, isRepublished } from '../../supersede-decision.js'
+import { supersedeDecision, republishDecision } from '../../supersede-decision.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
 import { getDownloadDir } from '../../../core/paths.js'
@@ -812,13 +812,15 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
     const relPath = slot.pendingKey.slice(prefix.length)
     const inflightHash = slot.contentHash
     const state = await getPeerEntryState(keyHex, share.id, relPath, { sck })
-    if (state?.removed) { await folderEngine.dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue }
-    // Re-added with identical content mid-download (seq bumped, hash unchanged) → terminate, don't
-    // silently continue the old partial; a genuine content change (new hash) falls through to supersede.
-    if (isRepublished(state?.seq, slot.sourceSeq) && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') {
-      await folderEngine.dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue
-    }
-    if (supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
+    const decision = republishDecision(inflightHash, state, slot.sourceSeq)
+    // Tombstoned, or re-added with identical content → terminate; don't silently continue the
+    // old partial. A genuine content change falls through to the supersede below.
+    if (decision === 'drop') { await folderEngine.dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue }
+    // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
+    // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
+    // restarts it on the new content via runReconcile.
+    if (decision === 'pending') { folderEngine.releaseForRepublish(transferId); continue }
+    if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
     folderEngine.supersede(transferId, {
       spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
       transferId,
