@@ -38,16 +38,16 @@ test('mirror paused then unmounted clears the owner serve ledger without waiting
     await B.request('foreign-folder:mount', { spaceId, shareId: share.id, ownerKey: aKey, mountPath: mirrorDir })
 
     // The owner sees B pulling the file — proves the fetch reached A and is in flight.
-    await A.until('serving:summary-list', { spaceId }, servesB, { ms: scaled(60000) })
+    await A.until('serving:summary-list', { spaceId }, servesB, { ms: 60000 })
 
     // B pauses mid-download → the owner's row flips to paused (CONTROL_PAUSED).
     await B.request('foreign-folder:set-enabled', { spaceId, shareId: share.id, enabled: false })
-    await A.until('serving:summary-list', { spaceId }, pausesB, { ms: scaled(30000) })
+    await A.until('serving:summary-list', { spaceId }, pausesB, { ms: 30000 })
 
     // B unmounts while still online → notifyTransferStopped drops B from the owner's ledger now,
     // not after the 5-min sweep. Without the fix this poll times out.
     await B.request('foreign-folder:unmount', { spaceId, shareId: share.id })
-    await A.until('serving:summary-list', { spaceId }, (rows) => !servesB(rows), { ms: scaled(20000) })
+    await A.until('serving:summary-list', { spaceId }, (rows) => !servesB(rows), { ms: 20000 })
 
     const finalRows = await A.request('serving:summary-list', { spaceId })
     t.absent(servesB(finalRows), 'owner no longer shows the unmounted mirror as downloading')

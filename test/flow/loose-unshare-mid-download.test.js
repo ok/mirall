@@ -22,7 +22,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 async function seeRemote (peer, spaceId, name) {
   await peer.until('files:list', { spaceId },
     (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.inPlace && e.status === 'remote'),
-    { ms: scaled(60000) })
+    { ms: 60000 })
 }
 // Start a loose download and resolve once real bytes are flowing (genuinely mid-transfer).
 async function startAndFlow (peer, spaceId, name, ownerKey) {
@@ -81,7 +81,7 @@ test('loose unshare after a completed download: the peer keeps its downloaded co
     await A.request('files:add', { spaceId, filePath: path.join(aSrc, 'keep.bin'), fileName: 'keep.bin', fileSize: bytes.length })
     await seeRemote(B, spaceId, 'keep.bin')
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/keep.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/keep.bin', 120000)
     await B.request('files:download', { spaceId, path: '/keep.bin', inPlace: true, ownerKey: aKey })
     const localPath = (await done).localPath
     t.ok(fs.existsSync(localPath), 'peer downloaded the file')

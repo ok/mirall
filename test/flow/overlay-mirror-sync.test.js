@@ -43,15 +43,15 @@ test('overlay mirror: re-fetches on owner edit and removes on owner delete',
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
     await scanDone
 
-    await B.until('share:list', { spaceId }, (l) => Array.isArray(l) && l.some((s) => s.id === share.id), { ms: scaled(60000) })
+    await B.until('share:list', { spaceId }, (l) => Array.isArray(l) && l.some((s) => s.id === share.id), { ms: 60000 })
     const dest = mkTmpDir(t)
-    const active = B.waitFor('event:foreign-folder-mount-status', (m) => m.shareId === share.id && m.status === 'active', scaled(90000))
+    const active = B.waitFor('event:foreign-folder-mount-status', (m) => m.shareId === share.id && m.status === 'active', 90000)
     await B.request('foreign-folder:mount', { spaceId, ownerKey: aKey, shareId: share.id, mountPath: dest })
     await active
 
     // Initial mirror: both files land via overlay fetch-to-mount.
     await waitForContent(path.join(dest, 'doc.txt'), v1)
-    await waitForFile(path.join(dest, 'keep.bin'), { present: true, ms: scaled(70000) })
+    await waitForFile(path.join(dest, 'keep.bin'), { present: true, ms: 70000 })
     t.ok(fs.readFileSync(path.join(dest, 'keep.bin')).equals(keep), 'keep.bin mirrored byte-exact')
 
     // Owner EDITS doc.txt → new content hash → mirror must re-fetch v2.
@@ -64,7 +64,7 @@ test('overlay mirror: re-fetches on owner edit and removes on owner delete',
     // Owner DELETES doc.txt → mirror removes it; keep.bin stays.
     fs.unlinkSync(path.join(folder, 'doc.txt'))
     await A.request('event:owned-folder-fs-event', { shareId: share.id, action: 'unlink', relPath: 'doc.txt', absPath: path.join(folder, 'doc.txt') })
-    await waitForFile(path.join(dest, 'doc.txt'), { present: false, ms: scaled(70000) })
+    await waitForFile(path.join(dest, 'doc.txt'), { present: false, ms: 70000 })
     t.absent(fs.existsSync(path.join(dest, 'doc.txt')), 'owner delete removed the file from the overlay mirror')
     t.ok(fs.existsSync(path.join(dest, 'keep.bin')), 'unrelated mirrored file kept')
   })

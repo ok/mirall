@@ -60,7 +60,7 @@ test('owner with the flag off never broadcasts prepare-progress',
     // frames would have been sent. None should have, with the owner's flag off.
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     t.is(prepareSeen, 0, 'no prepare-progress reached the receiver while the owner flag was off')
   })

@@ -45,7 +45,7 @@ test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resu
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
     await scanDone
 
-    await B.until('share:list', { spaceId }, (l) => Array.isArray(l) && l.some((s) => s.id === share.id), { ms: scaled(60000) })
+    await B.until('share:list', { spaceId }, (l) => Array.isArray(l) && l.some((s) => s.id === share.id), { ms: 60000 })
 
     const dest = mkTmpDir(t)
     const destFile = path.join(dest, 'big.bin')

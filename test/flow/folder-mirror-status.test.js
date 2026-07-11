@@ -31,12 +31,12 @@ test('REGRESSION (FIX-EDA-7): a materializing mirror row reports downloading, th
 
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Arm the downloading observation BEFORE the mount so no window is missed.
     const sawDownloading = B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'downloading'),
-      { ms: scaled(120000) })
+      { ms: 120000 })
 
     const mirrorDir = mkTmpDir(t)
     await B.request('foreign-folder:mount', { spaceId, shareId: share.id, ownerKey: aKey, mountPath: mirrorDir })
@@ -45,7 +45,7 @@ test('REGRESSION (FIX-EDA-7): a materializing mirror row reports downloading, th
 
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'synced'),
-      { ms: scaled(180000) })
+      { ms: 180000 })
     t.ok(fs.readFileSync(path.join(mirrorDir, 'big.bin')).equals(bytes), 'mirror landed byte-exact')
 
     A.kill()

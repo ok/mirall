@@ -17,7 +17,7 @@ const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: tru
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function seeRemote (B, spaceId, name) {
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: scaled(120000) })
+  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
 }
 async function startAndFlow (B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
@@ -42,7 +42,7 @@ test('a transfer completes over a brutal link (high latency + periodic drops on 
   await seeRemote(B, spaceId, 'brutal.bin')
 
   const started = Date.now()
-  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/brutal.bin', scaled(300000))
+  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/brutal.bin', 300000)
   await B.request('files:download', { spaceId, path: '/brutal.bin', inPlace: true, ownerKey: aKey })
   const completion = await done
   t.comment(`brutal.bin: 16 MB completed in ${Date.now() - started}ms on the brutal link`)
@@ -68,7 +68,7 @@ test('a manual pause and resume survive a flaky link (connection churn while pau
   await startAndFlow(B, spaceId, 'churn.bin', aKey)
   const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/churn.bin')?.transferId
   await B.request('files:pause-download', { transferId })
-  await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/churn.bin'); return e && e.status === 'paused-interrupted' }, { ms: scaled(60000) })
+  await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/churn.bin'); return e && e.status === 'paused-interrupted' }, { ms: 60000 })
 
   // Let the flaky link drop + reconnect several times while paused.
   let autoResumed = false
@@ -80,7 +80,7 @@ test('a manual pause and resume survive a flaky link (connection churn while pau
   t.absent(fs.existsSync(path.join(B.downloads, 'churn.bin')), 'the paused file did not complete on its own')
 
   // A manual resume completes it despite the flaky link.
-  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/churn.bin', scaled(180000))
+  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/churn.bin', 180000)
   await B.request('files:download', { spaceId, path: '/churn.bin', inPlace: true, ownerKey: aKey })
   const completion = await done
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'manual resume completes byte-exact over the flaky link')

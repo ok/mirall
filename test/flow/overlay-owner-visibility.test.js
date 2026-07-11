@@ -24,7 +24,7 @@ test('overlay owner refreshes incrementally during the scan, not only at the end
     let scanCompleted = false
     let updatesDuringScan = 0
     A.on('event:share-files-updated', (m) => { if (m.shareId === share.id && !scanCompleted) updatesDuringScan++ })
-    const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id, scaled(120000))
+    const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id, 120000)
     scanDone.then(() => { scanCompleted = true }).catch(() => {})
 
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })

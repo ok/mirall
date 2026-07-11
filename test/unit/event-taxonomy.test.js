@@ -29,6 +29,7 @@ const TAXONOMY = {
   'event:shares-updated': 'poke',
   'event:share-files-updated': 'poke',
   'event:members-updated': 'poke',
+  'event:mirrors-updated': 'poke',
   'event:member-left': 'poke',
   'event:member-avatar-updated': 'poke',
   'event:member-join-request': 'poke',

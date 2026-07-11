@@ -31,7 +31,7 @@ async function share (A, spaceId, dir, name, seed) {
 }
 async function seeRemote (peer, spaceId, name) {
   await peer.until('files:list', { spaceId },
-    (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: scaled(60000) })
+    (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
 }
 
 // F2 — the OWNER leaves the space while a peer is downloading.

@@ -21,7 +21,7 @@ async function shareAndSee (A, peers, spaceId, aSrc, name, seed, mb) {
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
   for (const P of peers) {
-    await P.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: scaled(60000) })
+    await P.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
   }
   return bytes
 }
@@ -48,18 +48,18 @@ test('owner serve ledger: reflects a downloading peer, its pause, and clears on 
     await shareAndSee(A, [B], spaceId, aSrc, 'feed.bin', 31, 16)
     await startAndFlow(B, spaceId, 'feed.bin', aKey)
 
-    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.peers.includes(bKey) }, { ms: scaled(30000) })
+    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.peers.includes(bKey) }, { ms: 30000 })
     t.pass('owner ledger shows the downloading peer')
 
     const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/feed.bin')?.transferId
     await B.request('files:pause-download', { transferId })
-    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.pausedKeys.includes(bKey) }, { ms: scaled(30000) })
+    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.pausedKeys.includes(bKey) }, { ms: 30000 })
     t.pass('owner ledger surfaces the peer as paused')
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/feed.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/feed.bin', 120000)
     await B.request('files:download', { spaceId, path: '/feed.bin', inPlace: true, ownerKey: aKey }) // resume
     await done
-    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !s || !s.peers.includes(bKey) }, { ms: scaled(45000) })
+    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !s || !s.peers.includes(bKey) }, { ms: 45000 })
     t.pass('owner ledger clears the peer after completion')
 
     A.kill()
@@ -83,15 +83,15 @@ test('owner serve ledger: two peers download, one cancels → the canceller is d
     await startAndFlow(B, spaceId, 'shared.bin', aKey)
     await startAndFlow(C, spaceId, 'shared.bin', aKey)
 
-    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !!s && s.peers.includes(bKey) && s.peers.includes(cKey) }, { ms: scaled(30000) })
+    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !!s && s.peers.includes(bKey) && s.peers.includes(cKey) }, { ms: 30000 })
     t.pass('owner ledger shows both downloaders')
 
     const cTransfer = (await C.request('files:list', { spaceId })).find((e) => e.path === '/shared.bin')?.transferId
     await C.request('files:cancel-download', { transferId: cTransfer })
-    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !s || !s.peers.includes(cKey) }, { ms: scaled(45000) })
+    await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !s || !s.peers.includes(cKey) }, { ms: 45000 })
     t.pass('owner ledger dropped the canceller')
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/shared.bin', scaled(180000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/shared.bin', 180000)
     await done
     t.pass('the other peer completes its download')
 

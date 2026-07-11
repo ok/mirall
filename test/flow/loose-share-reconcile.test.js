@@ -29,7 +29,7 @@ test('a peer\'s loose share fans a files-scoped reconcile hint to the other peer
     const src = path.join(mkTmpDir(t), 'report.txt')
     fs.writeFileSync(src, Buffer.alloc(4096, 7))
 
-    const sawFilesHint = B.waitFor('event:reconcile', scopeIs('files', spaceId), scaled(60000))
+    const sawFilesHint = B.waitFor('event:reconcile', scopeIs('files', spaceId), 60000)
     await A.request('files:add', { spaceId, filePath: src, fileName: 'report.txt', fileSize: 4096 })
     await sawFilesHint
     t.pass('B received a files-scoped reconcile hint for A\'s loose share')

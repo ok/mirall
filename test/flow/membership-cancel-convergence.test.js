@@ -29,7 +29,7 @@ test('a withdrawn pending request clears on the member and stays cleared', { tim
   t.ok(showsB(await A.request('space:pending-requests', { spaceId: space.spaceId }), bKey), 'A shows B as a pending request')
 
   await B.request('space:leave', { spaceId: space.spaceId })
-  await A.until('space:pending-requests', { spaceId: space.spaceId }, (reqs) => !showsB(reqs, bKey), { ms: scaled(30000), every: 500 })
+  await A.until('space:pending-requests', { spaceId: space.spaceId }, (reqs) => !showsB(reqs, bKey), { ms: 30000, every: 500 })
   t.absent(showsB(await A.request('space:pending-requests', { spaceId: space.spaceId }), bKey), 'the withdrawn request is gone')
 
   // Durable: A restarts (same storage + KEK) and does NOT resurrect the withdrawn request.
@@ -67,6 +67,6 @@ test('a withdrawal reaches a member offline at withdrawal time (pending-cancel r
 
   // A returns; B's pending-cancel replay reaches it on the fresh connection and clears it durably.
   A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: mkTmpDir(t), flags: flagsFor(aKek) })
-  await A.until('space:pending-requests', { spaceId: space.spaceId }, (reqs) => !showsB(reqs, bKey), { ms: scaled(60000), every: 500 })
+  await A.until('space:pending-requests', { spaceId: space.spaceId }, (reqs) => !showsB(reqs, bKey), { ms: 60000, every: 500 })
   t.absent(showsB(await A.request('space:pending-requests', { spaceId: space.spaceId }), bKey), 'the offline-at-withdrawal member converged via replay')
 })

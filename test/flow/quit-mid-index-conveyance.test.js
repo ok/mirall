@@ -27,14 +27,14 @@ test('quit mid-index: owner goes offline and the mid-index file degrades to unav
     fs.writeFileSync(src, bytes)
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: bytes.length }).catch(() => {})
     await B.until('files:list', { spaceId },
-      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing', { ms: scaled(60000), every: 100 })
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing', { ms: 60000, every: 100 })
 
     await A.request('shutdown').catch(() => {})
     // Bound stays under the un-scaled 15s PRESENCE_TTL_MS so a broken announce can't pass via
     // plain lease expiry under scaled CI.
     await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: Math.min(scaled(8000), 12000) })
     const settled = await B.until('files:list', { spaceId },
-      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'unavailable', { ms: scaled(20000) })
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'unavailable', { ms: 20000 })
     t.is(settled.find((e) => e.path === '/reel.bin').status, 'unavailable',
       'mid-index file resolves to unavailable, not stuck preparing')
   })
