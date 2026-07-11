@@ -33,12 +33,12 @@ test('REGRESSION (GAP #10): concurrent downloaders of one file each land byte-ex
     // Both peers wait until they see the file as `remote` (owner finished hashing).
     const seeRemote = (P) => P.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
     await Promise.all([seeRemote(B), seeRemote(C)])
 
     // Fire both downloads at the same time — the owner serves both concurrently.
-    const doneB = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', scaled(90000))
-    const doneC = C.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', scaled(90000))
+    const doneB = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', 90000)
+    const doneC = C.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', 90000)
     const [resB, resC] = await Promise.all([
       B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' }),
       C.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' }),

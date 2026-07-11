@@ -35,7 +35,7 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
 
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Start the download; resolve once real bytes are flowing (genuinely mid-transfer).
     const flowing = new Promise((resolve) => {
@@ -46,19 +46,19 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
 
     // A quits — the only seeder goes away mid-download.
     A.kill()
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: scaled(90000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
 
     // THE REGRESSION ASSERTION: the row settles at paused-offline, never 'error'. On the
     // bug this poll never resolves (status is stuck 'error') → red.
     const settled = await B.until('files:list', { spaceId },
       (l) => Array.isArray(l) && l.find((e) => e.path === '/big.bin')?.status === 'paused-offline',
-      { ms: scaled(90000) })
+      { ms: 90000 })
     const row = settled.find((e) => e.path === '/big.bin')
     t.is(row.status, 'paused-offline', 'owner-offline state, not a failure')
     t.absent(row.errorCode, 'no errorCode recorded for a quit seeder')
 
     // A returns with the SAME storage (source still servable) → auto-resume, no manual click.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 120000)
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const completed = await done
 

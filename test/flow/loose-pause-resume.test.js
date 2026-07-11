@@ -35,7 +35,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
 
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Capture the transferId from the first progress event; pause once real bytes flow.
     // REGRESSION (FIX-EDA-12): decoration frames carry spaceId — the bare drive path is
@@ -64,7 +64,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
       (list) => {
         const e = Array.isArray(list) ? list.find((x) => x.path === '/big.bin') : null
         return e && e.status === 'paused-interrupted' && typeof e.pendingBytes === 'number' && e.pendingBytes > 0
-      }, { ms: scaled(60000) })
+      }, { ms: 60000 })
 
     const paused = await B.request('files:list', { spaceId })
     const pausedRow = paused.find((e) => e.path === '/big.bin')
@@ -72,7 +72,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
     t.ok(pausedRow.pendingBytes > 0, 'pendingBytes preserved through pause (partial kept)')
 
     // Resume = the same files:download IPC the Resume button triggers.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 120000)
     await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
     const completion = await done
 
@@ -103,17 +103,17 @@ test('loose download auto-resumes when the owner returns (reconnect hook)',
 
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/resume.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Owner offline → the loose download queues (records a pending row carrying ownerKey).
     A.kill()
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: scaled(90000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
     const queued = await B.request('files:download', { spaceId, path: '/resume.bin', inPlace: true, ownerKey: aKey })
     t.ok(queued && queued.queued, 'loose download queued while owner offline')
 
     // Owner returns with the SAME storage (source still servable). On A's handshake,
     // B's reconnect hook (resumeLooseForOwner) re-triggers the download with NO manual click.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/resume.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/resume.bin', 120000)
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const completed = await done
 
@@ -137,7 +137,7 @@ test('REGRESSION (FIX-EDA-2: a manual pause survives an owner catalog re-append 
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
@@ -148,7 +148,7 @@ test('REGRESSION (FIX-EDA-2: a manual pause survives an owner catalog re-append 
     await B.request('files:pause-download', { transferId })
     await B.until('files:list', { spaceId },
       (list) => { const e = Array.isArray(list) ? list.find((x) => x.path === '/big.bin') : null; return !!e && e.status === 'paused-interrupted' },
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Owner appends an UNRELATED file → B's peer-catalog watch fires resumeForOwner. A MANUAL pause
     // must NOT be resurrected by that (the bug: catalog re-append restarts user-paused downloads).
@@ -160,7 +160,7 @@ test('REGRESSION (FIX-EDA-2: a manual pause survives an owner catalog re-append 
     await A.request('files:add', { spaceId, filePath: smallPath, fileName: 'small.txt', fileSize: 9 })
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/small.txt'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
     // Give resumeForOwner ample time to (wrongly) restart, then assert it did not.
     await new Promise((r) => setTimeout(r, scaled(6000)))
     const row = (await B.request('files:list', { spaceId })).find((e) => e.path === '/big.bin')

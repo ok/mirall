@@ -31,7 +31,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
 
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => {
@@ -50,7 +50,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
       (list) => {
         const e = Array.isArray(list?.entries) ? list.entries.find((x) => x.relPath === 'big.bin') : null
         return e && e.status === 'paused-interrupted' && typeof e.pendingBytes === 'number' && e.pendingBytes > 0
-      }, { ms: scaled(60000) })
+      }, { ms: 60000 })
 
     const paused = await B.request('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id })
     const pausedRow = paused.entries.find((e) => e.relPath === 'big.bin')
@@ -58,7 +58,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
     t.ok(pausedRow.pendingBytes > 0, 'pendingBytes preserved through pause (partial kept)')
 
     // Resume = the same share:read-file IPC the Resume button triggers.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', 120000)
     await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' })
     const completion = await done
 
@@ -89,14 +89,14 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
 
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'resume.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     A.kill()
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: scaled(90000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
     const queued = await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'resume.bin' })
     t.ok(queued && queued.queued, 'overlay folder download queued while owner offline')
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Docs/resume.bin', scaled(120000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Docs/resume.bin', 120000)
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const completed = await done
 
@@ -127,7 +127,7 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
 
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => {
@@ -143,7 +143,7 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
       (list) => {
         const e = Array.isArray(list?.entries) ? list.entries.find((x) => x.relPath === 'big.bin') : null
         return !!e && e.status === 'paused-interrupted'
-      }, { ms: scaled(60000) })
+      }, { ms: 60000 })
 
     // Owner appends an UNRELATED file → B's peer-catalog watch fires resumeForOwner on the
     // folder channel. A MANUAL pause must not be resurrected — and (FIX-EDA-14) the gated row
@@ -156,7 +156,7 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
       { shareId: share.id, action: 'add', relPath: 'small.txt', absPath: path.join(folder, 'small.txt') })
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'small.txt'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     // Give resumeForOwner ample time to (wrongly) restart, then assert it did not.
     await new Promise((r) => setTimeout(r, scaled(6000)))

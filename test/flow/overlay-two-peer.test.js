@@ -44,14 +44,14 @@ test('overlay: owner publishes in place (no second copy); peer fetches by conten
     // B browses the catalog and waits until the file is `remote` (owner finished hashing).
     const listed = await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
     const entry = listed.entries.find((e) => e.relPath === 'big.bin')
     t.is(entry.size, bytes.length, 'catalog carries the size')
     t.ok(entry.hash, 'catalog carries the content hash')
 
     // B fetches by content hash straight from the owner; bytes match. The download
     // is non-blocking (returns a transferId immediately), completion via event.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', scaled(60000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', 60000)
     const res = await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' })
     t.ok(res?.transferId, 'overlay download returned a transferId (non-blocking)')
     const completed = await done
@@ -87,10 +87,10 @@ test('overlay: a file is unavailable while the owner is offline',
     // Wait until B sees the hashed entry (remote) BEFORE the owner goes offline.
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'note.txt' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     A.kill()
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: scaled(90000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
 
     const files = await B.request('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id })
     t.is(files.entries.find((e) => e.relPath === 'note.txt')?.status, 'unavailable', 'file is unavailable with the owner offline')

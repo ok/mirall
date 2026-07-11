@@ -44,13 +44,13 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
     // Bob sees it in the flat list (from Alice's replicated loose catalog), marked in-place + remote.
     const listed = await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
     const entry = listed.find((e) => e.path === '/big.bin')
     t.is(entry.size, bytes.length, 'catalog carries the size')
     t.ok(entry.hash, 'catalog carries the content hash')
 
     // Bob fetches by content hash straight from Alice; completion arrives via event.
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', scaled(60000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 60000)
     const res = await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
     t.ok(res?.transferId, 'in-place download returned a transferId (non-blocking)')
     const completed = await done
@@ -60,7 +60,7 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
     // hash byte-for-byte during the transfer).
     const bobList = await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'downloaded'),
-      { ms: scaled(30000) })
+      { ms: 30000 })
     t.is(bobList.find((e) => e.path === '/big.bin')?.verified, true, 'downloaded loose file shows the verified badge')
 
     // Still no drive blobs on Alice after serving — the fetch streamed from the source file.
@@ -84,10 +84,10 @@ test('in-place loose file is unavailable while the owner is offline',
 
     await B.until('files:list', { spaceId },
       (f) => Array.isArray(f) && f.some((e) => e.path === '/note.txt' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
 
     A.kill()
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: scaled(90000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
 
     const files = await B.request('files:list', { spaceId })
     t.is(files.find((e) => e.path === '/note.txt')?.status, 'unavailable', 'unavailable with the owner offline')

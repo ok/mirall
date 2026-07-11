@@ -60,7 +60,7 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
       await A.until('files:list', { spaceId }, (list) => {
         const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
         return !e || e.status === 'mine'
-      }, { ms: scaled(90000) })
+      }, { ms: 90000 })
       row = (await A.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
     }
     t.ok(!row || row.status === 'mine', 'owner entry is absent or fully shared — not a permanent publishing zombie')
@@ -74,7 +74,7 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
       await B.until('files:list', { spaceId }, (list) => {
         const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
         return !!e && e.status === 'remote'
-      }, { ms: scaled(60000) })
+      }, { ms: 60000 })
     }
     const bRow = (await B.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
     t.comment(`post-restart peer row: ${bRow ? 'status=' + bRow.status : 'absent'}`)

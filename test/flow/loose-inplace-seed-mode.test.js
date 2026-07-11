@@ -42,13 +42,13 @@ for (const mode of V1_MODES) {
       // that timed out before the fix.
       const listed = await B.until('files:list', { spaceId },
         (f) => Array.isArray(f) && f.some((e) => e.path === '/shared.txt' && e.inPlace && e.status === 'remote'),
-        { ms: scaled(60000) })
+        { ms: 60000 })
       const entry = listed.find((e) => e.path === '/shared.txt')
       t.is(entry.size, bytes.length, 'catalog carries the size')
       t.ok(entry.hash, 'catalog carries the content hash')
 
       // And can fetch it end-to-end — proves the looseCatalogKey actually opens the catalog + serves.
-      const done = B.waitFor('event:transfer-complete', (m) => m.path === '/shared.txt', scaled(60000))
+      const done = B.waitFor('event:transfer-complete', (m) => m.path === '/shared.txt', 60000)
       const res = await B.request('files:download', { spaceId, path: '/shared.txt', inPlace: true, ownerKey: aKey })
       t.ok(res?.transferId, 'in-place download returned a transferId')
       const completed = await done

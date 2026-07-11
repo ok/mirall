@@ -48,10 +48,10 @@ test('REGRESSION (FIX-326): v2 loose file — pending joiner cannot list; approv
 
   const listed = await B.until('files:list', { spaceId: space.spaceId },
     (f) => Array.isArray(f) && f.some((e) => e.path === '/secret.txt' && e.inPlace),
-    { ms: scaled(60000) })
+    { ms: 60000 })
   t.ok(listed.find((e) => e.path === '/secret.txt')?.hash, 'approved member lists the encrypted loose file')
 
-  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/secret.txt', scaled(60000))
+  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/secret.txt', 60000)
   await B.request('files:download', { spaceId: space.spaceId, path: '/secret.txt', inPlace: true, ownerKey: aKey })
   const completed = await done
   t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'approved member downloads matching bytes')

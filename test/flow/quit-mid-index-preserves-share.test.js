@@ -32,7 +32,7 @@ test('graceful quit mid-index preserves the share: restart re-hashes to mine, no
     // Quit WHILE the owner is mid-index (advertised null-hash → own status 'publishing').
     await A.until('files:list', { spaceId },
       (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'publishing',
-      { ms: scaled(30000), every: 100 })
+      { ms: 30000, every: 100 })
     const aPid = A.sidecar._process.pid
     await A.request('shutdown').catch(() => {})
     // Barrier: the shutdown IPC settles before the process fully exits and releases the RocksDB
@@ -44,7 +44,7 @@ test('graceful quit mid-index preserves the share: restart re-hashes to mine, no
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const row = await A.until('files:list', { spaceId },
       (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'mine',
-      { ms: scaled(120000), every: 500 })
+      { ms: 120000, every: 500 })
     t.is(row.find((e) => e.path === '/archive.bin').status, 'mine',
       'graceful quit mid-index left the share intact — restart re-hashed it, not reverted')
 

@@ -32,9 +32,9 @@ test('owner cancels publish while indexing: the peer never sees the half-adverti
     A.request('files:add', { spaceId, filePath: path.join(aSrc, 'huge.bin'), fileName: 'huge.bin', fileSize: bytes.length }).catch(() => {})
 
     // Catch the still-indexing 'publishing' row, then cancel the publish.
-    await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path === '/huge.bin' && e.status === 'publishing'), { ms: scaled(30000) })
+    await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path === '/huge.bin' && e.status === 'publishing'), { ms: 30000 })
     await A.request('files:cancel-publish', { spaceId, path: '/huge.bin' })
-    await A.until('files:list', { spaceId }, (list) => !Array.isArray(list) || !list.some((e) => e.path === '/huge.bin'), { ms: scaled(30000) })
+    await A.until('files:list', { spaceId }, (list) => !Array.isArray(list) || !list.some((e) => e.path === '/huge.bin'), { ms: 30000 })
 
     // The peer must never observe it as an available (remote) share; any transient preparing row clears.
     await sleep(8000)
@@ -58,21 +58,21 @@ test('loose reshare after unshare: the file can be added again and downloads cle
     const src = path.join(aSrc, 'cycle.bin')
     fs.writeFileSync(src, bytes)
     await A.request('files:add', { spaceId, filePath: src, fileName: 'cycle.bin', fileSize: bytes.length })
-    await B.until('files:list', { spaceId }, (f) => f.some((e) => e.path === '/cycle.bin' && e.status === 'remote'), { ms: scaled(60000) })
+    await B.until('files:list', { spaceId }, (f) => f.some((e) => e.path === '/cycle.bin' && e.status === 'remote'), { ms: 60000 })
 
     // Unshare → it disappears for the peer.
     await A.request('files:remove', { spaceId, path: '/cycle.bin' })
-    await B.until('files:list', { spaceId }, (f) => !f.some((e) => e.path === '/cycle.bin'), { ms: scaled(60000) })
+    await B.until('files:list', { spaceId }, (f) => !f.some((e) => e.path === '/cycle.bin'), { ms: 60000 })
 
     // Re-add the same file; capture whatever path it re-shares under (tombstone must not block it).
     await A.request('files:add', { spaceId, filePath: src, fileName: 'cycle.bin', fileSize: bytes.length })
-    const reAdded = await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path.includes('cycle') && e.status === 'mine'), { ms: scaled(30000) })
+    const reAdded = await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path.includes('cycle') && e.status === 'mine'), { ms: 30000 })
     const rePath = reAdded.find((e) => e.path.includes('cycle') && e.status === 'mine').path
     t.comment(`re-shared under path: ${rePath}`)
 
     // The peer sees it again and can download it.
-    await B.until('files:list', { spaceId }, (f) => f.some((e) => e.path === rePath && e.status === 'remote'), { ms: scaled(60000) })
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === rePath, scaled(120000))
+    await B.until('files:list', { spaceId }, (f) => f.some((e) => e.path === rePath && e.status === 'remote'), { ms: 60000 })
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === rePath, 120000)
     await B.request('files:download', { spaceId, path: rePath, inPlace: true, ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 're-shared file downloads byte-exact')

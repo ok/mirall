@@ -20,17 +20,17 @@ test('REGRESSION (FIX-EDA-18): member and share transitions fan reconcile hints'
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
 
     // Arm before the join: the arrival hint fires during connect, when the spaceId is not yet known.
-    const sawJoinHint = A.waitFor('event:reconcile', scopeIs('members'), scaled(60000))
+    const sawJoinHint = A.waitFor('event:reconcile', scopeIs('members'), 60000)
     const spaceId = await connectInSpace(t, A, B)
     await sawJoinHint
     t.pass('handshake arrival fanned a members-scoped reconcile hint')
 
-    const sawShares = B.waitFor('event:reconcile', scopeIs('shares', spaceId), scaled(60000))
+    const sawShares = B.waitFor('event:reconcile', scopeIs('shares', spaceId), 60000)
     await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     await sawShares
     t.pass('share creation fanned a shares-scoped reconcile hint')
 
-    const sawLeave = A.waitFor('event:reconcile', scopeIs('members', spaceId), scaled(60000))
+    const sawLeave = A.waitFor('event:reconcile', scopeIs('members', spaceId), 60000)
     await B.request('space:leave', { spaceId })
     await sawLeave
     t.pass('leave fanned a members-scoped reconcile hint')

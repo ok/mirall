@@ -46,10 +46,10 @@ test('overlay: publish imports no blob; download writes no content blocks into t
     // ── Consumer: measure the store right before the download ──
     await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
       (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: scaled(60000) })
+      { ms: 60000 })
     const bBeforeDownload = dirSize(bStore)
 
-    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', scaled(60000))
+    const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Vault/big.bin', 60000)
     const res = await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' })
     t.ok(res?.transferId, 'download returned a transferId (non-blocking)')
     const completed = await done
