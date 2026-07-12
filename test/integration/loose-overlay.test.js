@@ -204,7 +204,7 @@ test('looseCancel discards a paused/queued partial: removes the partial file and
   // A paused/queued loose download = a pending row + a visible partial on disk, no
   // live transfer. Discard must clear both and emit the decoration done frame.
   const finalPath = path.join(ctx.tmpDir('dl'), 'big.bin')
-  const partialPath = finalPath + '.overlay-partial'
+  const partialPath = finalPath + '.mirall.part'
   fs.writeFileSync(partialPath, 'half a download')
   await recordPending(ctx.spaceId, '/big.bin', { total: 100, shareId: LOOSE_SHARE_ID, relPath: 'big.bin', inPlace: true, finalPath, ownerKey: 'peerkey' })
   t.ok(await getPendingFor(ctx.spaceId, '/big.bin'), 'precondition: pending row exists')

@@ -77,7 +77,7 @@ test('releaseForRepublish parks the transfer — no error, row kept, partial dis
 
   const job = makeJob(ctx)
   await engine.start(job)
-  const partial = job.finalPath + '.overlay-partial'
+  const partial = job.finalPath + '.mirall.part'
   fs.writeFileSync(partial, 'stale bytes of the OLD content')
 
   t.ok(engine.releaseForRepublish(job.transferId), 'the mid-rehash slot is parked')
@@ -189,7 +189,7 @@ test('REGRESSION (FIX-3): an INACTIVE row in the null-hash window is kept, then 
   getOverlay().cancelFetch = () => {}
   getOverlay().notifyTransferStopped = () => {}
 
-  const partial = finalPath + '.overlay-partial'
+  const partial = finalPath + '.mirall.part'
   fs.writeFileSync(partial, 'stale bytes of the OLD content')
   await recordPending('space1', '/Photos/r.bin', {
     total: 100, overlayShare: true, shareId: 'folder1', relPath: 'r.bin', ownerKey: 'peerpub',

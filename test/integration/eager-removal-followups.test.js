@@ -17,8 +17,9 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { onFsEvent, periodicReconcile } from '../../src/shared/folders/owned-folders.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { getOverlay, initOverlay, teardownOverlay, getJournalDir } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { PARTIAL_SUFFIX as OVERLAY_PARTIAL_SUFFIX, journalNameFor } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
-import { cleanupOrphanedOverlayPartials } from '../../src/shared/transfer/partial-sweep.js'
+import { journalNameFor } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
+import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'
+import { cleanupOrphanedPartials } from '../../src/shared/transfer/partial-sweep.js'
 import { DEFAULT_IGNORE, shouldIgnore } from '../../src/shared/folders/path-keys.js'
 import { initDownloads, addFile, removeFile } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -80,18 +81,18 @@ test('REGRESSION (C2): periodicReconcile forwards { deep } — mtime-drifted ide
   t.is(entryB.contentHash, entryA.contentHash, 'content hash preserved across the reconcile')
 })
 
-// C5a — the retired eager '*.partial' ignore glob does not match the live '.overlay-partial'
-// suffix, so a stale mirror partial in an owned-share mount could be published as a real file.
-test('REGRESSION (C5): DEFAULT_IGNORE excludes .overlay-partial so a stale mirror partial is never published', (t) => {
-  t.ok(shouldIgnore('file.overlay-partial', DEFAULT_IGNORE), 'overlay partial suffix is ignored')
-  t.ok(shouldIgnore('sub/deep.bin.overlay-partial', DEFAULT_IGNORE), 'a nested overlay partial is ignored')
+// C5a — the ignore glob must track the live partial suffix, or a stale mirror partial in an
+// owned-share mount is published to peers as a real file.
+test('REGRESSION (C5): DEFAULT_IGNORE excludes .mirall.part so a stale mirror partial is never published', (t) => {
+  t.ok(shouldIgnore('file.mirall.part', DEFAULT_IGNORE), 'overlay partial suffix is ignored')
+  t.ok(shouldIgnore('sub/deep.bin.mirall.part', DEFAULT_IGNORE), 'a nested overlay partial is ignored')
   t.absent(shouldIgnore('file.txt', DEFAULT_IGNORE), 'a real file is not ignored')
 })
 
 // C5b — the boot sweep only covered the Downloads dir; a mirror writes partials into the mount
 // dir (nested), so crash-orphans leaked there. The sweep must cover mount dirs recursively while
 // keeping any partial a paused/in-flight transfer can still resume from (its journal survives).
-test('REGRESSION (C5): boot sweep reclaims orphaned .overlay-partial in a foreign mount dir but keeps a resumable one', async (t) => {
+test('REGRESSION (C5): boot sweep reclaims orphaned .mirall.part in a foreign mount dir but keeps a resumable one', async (t) => {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
@@ -103,17 +104,17 @@ test('REGRESSION (C5): boot sweep reclaims orphaned .overlay-partial in a foreig
   fs.mkdirSync(path.join(mountDir, 'sub'), { recursive: true })
 
   // Orphan (no pending row, no resume journal), nested — must be swept.
-  const orphan = path.join(mountDir, 'sub', 'a.bin' + OVERLAY_PARTIAL_SUFFIX)
+  const orphan = path.join(mountDir, 'sub', 'a.bin' + PARTIAL_SUFFIX)
   fs.writeFileSync(orphan, 'x')
   // Resumable — a live journal references its target; must be kept.
   const keepTarget = path.join(mountDir, 'b.bin')
-  const keep = keepTarget + OVERLAY_PARTIAL_SUFFIX
+  const keep = keepTarget + PARTIAL_SUFFIX
   fs.writeFileSync(keep, 'y')
   const journalDir = getJournalDir()
   fs.mkdirSync(journalDir, { recursive: true })
   fs.writeFileSync(path.join(journalDir, journalNameFor(keepTarget)), 'journal-state')
 
-  await cleanupOrphanedOverlayPartials(downloadsDir, [mountDir])
+  await cleanupOrphanedPartials(downloadsDir, [mountDir])
 
   t.absent(fs.existsSync(orphan), 'nested orphaned partial in the mount dir was swept')
   t.ok(fs.existsSync(keep), 'a partial with a live resume journal was kept')

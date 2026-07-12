@@ -43,7 +43,7 @@ test('A shares a file, B sees and downloads it; bytes match end-to-end', { timeo
   await B.request('files:download', { spaceId, path: entry.path, inPlace: true, ownerKey: entry.owner.publicKey })
   const completed = await done
 
-  t.ok(!completed.localPath.endsWith('.partial'), 'atomic-renamed to final path')
+  t.ok(!completed.localPath.endsWith('.mirall.part'), 'atomic-renamed to final path')
   const downloaded = fs.readFileSync(completed.localPath)
   t.ok(downloaded.equals(bytes), 'downloaded bytes match source exactly')
 

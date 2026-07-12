@@ -169,10 +169,10 @@ test('nextFreeName suffixes extension-less names correctly', (t) => {
   t.is(nextFreeName('LICENSE', (n) => taken.has(n)), 'LICENSE (1)')
 })
 
-test('nextFreeName treats an in-flight .partial as taken (injected probe)', (t) => {
-  // Mirrors resolveDest: a name is taken if either the file OR its .partial exists.
-  const onDisk = new Set(['big.iso.partial'])
-  const isTaken = (n) => onDisk.has(n) || onDisk.has(n + '.partial')
+test('nextFreeName treats an in-flight partial as taken (injected probe)', (t) => {
+  // Mirrors resolveDest: a name is taken if either the file OR its partial exists.
+  const onDisk = new Set(['big.iso.mirall.part'])
+  const isTaken = (n) => onDisk.has(n) || onDisk.has(n + '.mirall.part')
   t.is(nextFreeName('big.iso', isTaken), 'big (1).iso', 'avoids colliding with an in-progress download')
 })
 
@@ -192,10 +192,14 @@ test('shouldIgnore: exact basename anywhere in the tree', (t) => {
 })
 
 test('shouldIgnore: suffix globs match the end, not a prefix', (t) => {
-  t.ok(shouldIgnore('big.iso.partial', DEFAULT_IGNORE))
-  t.ok(shouldIgnore('a/b/download.partial', DEFAULT_IGNORE), 'in a subfolder')
+  t.ok(shouldIgnore('big.iso.mirall.part', DEFAULT_IGNORE))
+  t.ok(shouldIgnore('a/b/download.mirall.part', DEFAULT_IGNORE), 'in a subfolder')
   t.ok(shouldIgnore('notes.txt~', DEFAULT_IGNORE))
-  t.absent(shouldIgnore('partial.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
+  t.absent(shouldIgnore('part.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
+  // Only OUR token is excluded. A bare `*.part` glob would silently drop a third-party
+  // in-progress download — or any legitimately named file — out of an owned folder.
+  t.absent(shouldIgnore('big.iso.part', DEFAULT_IGNORE), "another app's .part is publishable")
+  t.absent(shouldIgnore('big.iso.partial', DEFAULT_IGNORE), "another app's .partial is publishable")
 })
 
 test('shouldIgnore: dir/** matches the dir and everything under it, not look-alikes', (t) => {

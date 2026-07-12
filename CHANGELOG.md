@@ -425,7 +425,7 @@ inside the app.
   instead of lumping them into "Other". The `Cache:` line and `% of
   total` for each space reflect what that space is actually using on
   disk.
-- **Atomic downloads.** In-progress downloads write to a hidden
+- **Atomic downloads.** In-progress downloads write to a separate
   `.partial` file and rename to the final name only on completion. An
   interrupted transfer can't leave a half-written file in your Downloads
   folder.

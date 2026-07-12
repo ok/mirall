@@ -215,7 +215,7 @@ test('REGRESSION (FIX-10: cancelling a transfer whose fetch already settled disc
   })
   const engine = createOverlayDownloadEngine(channel)
 
-  const partial = job.finalPath + '.overlay-partial'
+  const partial = job.finalPath + '.mirall.part'
   fs.writeFileSync(partial, 'half a download')
   await seedInterruptedRow(job, 2048)
   t.absent(engine.has(job.transferId), 'the dropped connection already settled the fetch — no slot')
@@ -268,7 +268,7 @@ test('REGRESSION (FIX-10: cancelling a settled loose download discards its parti
   })
   const engine = createOverlayDownloadEngine(channel)
 
-  const partial = finalPath + '.overlay-partial'
+  const partial = finalPath + '.mirall.part'
   fs.writeFileSync(partial, 'half a download')
   await recordPending(SPACE, '/loose.bin', {
     total: 4096, inPlace: true, ownerKey: OWNER, finalPath,

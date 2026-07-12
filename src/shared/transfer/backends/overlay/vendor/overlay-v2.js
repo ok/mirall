@@ -61,6 +61,7 @@ export class HyperOverlayV2 extends ReadyResource {
     this._corestore = corestore.namespace(opts.namespace || 'overlay-v2')
     this._destDir = opts.destDir || path.join(os.tmpdir(), 'hyper-overlay-v2-fetch')
     this._journalDir = opts.journalDir || null
+    this._partialSuffix = opts.partialSuffix || null // [mirall] §4.17
     this._syncBaseDirs = opts.syncBaseDirs || []
     this._perPeerTimeout = opts.perPeerTimeout || DEFAULT_PER_PEER_TIMEOUT
     this._idleTimeout = opts.idleTimeout || DEFAULT_IDLE_TIMEOUT
@@ -123,7 +124,7 @@ export class HyperOverlayV2 extends ReadyResource {
       await index.ready()
       const sync = new SyncEngine(index, this._corestore, { encryptionKey: this._indexEncryptionKey })
       await sync.ready()
-      const transfer = new TransferManager(index, { journalDir: this._journalDir })
+      const transfer = new TransferManager(index, { journalDir: this._journalDir, partialSuffix: this._partialSuffix })
       const protocol = new OverlayProtocolV2(sync, transfer, {
         filePaths: this._filePaths,
         contentHashPaths: this._contentHashPaths,

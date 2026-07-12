@@ -9,6 +9,7 @@ import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer } from './overlay-authorize.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from './overlay-backend.js'
 import { getStore, getStoragePath, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
+import { PARTIAL_SUFFIX } from '../../partial-suffix.js'
 import path from 'bare-path'
 import b4a from 'b4a'
 import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
@@ -89,6 +90,7 @@ export async function initOverlay() {
     // App-private receive journals (resume snapshots) — sibling of the Corestore,
     // never in the user's downloads folder.
     journalDir: getJournalDir(),
+    partialSuffix: PARTIAL_SUFFIX,
     localProfileKey: getLocalPublicKeyHex(), // stamped on outbound content-requests (msg.from)
     serveAuthorizer,                          // gates every inbound content-request
     // Sender-side download indicator: the protocol serves by synthetic path

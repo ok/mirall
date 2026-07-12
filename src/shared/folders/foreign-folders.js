@@ -27,7 +27,7 @@ import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile, makeFetchDiag, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
 import { shareDecoKey } from '../transfer/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
-import { PARTIAL_SUFFIX as OVERLAY_PARTIAL_SUFFIX } from '../transfer/backends/overlay/vendor/transfer.js'
+import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { markVerified, isVerifiedUnchanged } from '../transfer/files.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { createLogger } from '../core/logger.js'
@@ -36,7 +36,6 @@ import { AbortError } from './walk-disk.js'
 
 const log = createLogger('foreign-folders')
 
-const PARTIAL_SUFFIX = '.partial'
 const activeLoops = new Map()
 const pendingTicks = new Map()
 let ipcRef = null
@@ -87,11 +86,10 @@ async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf = overlay
   const dir = segs.join('/')
   const isTaken = (name) => {
     const abs = safeMaterializePath(mount.mountPath, dir ? dir + '/' + name : name)
-    // A candidate is taken by a real file OR any in-flight partial — the live overlay
-    // `.overlay-partial` (what materializeOverlayFile writes) as well as a `.partial`
-    // left behind by shares created by older releases in the retired eager mode — so
-    // we never mint a sibling name onto another transfer's partial.
-    return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX) || fs.existsSync(abs + OVERLAY_PARTIAL_SUFFIX)
+    // A candidate is taken by a real file OR an in-flight partial (what
+    // materializeOverlayFile writes), so we never mint a sibling name onto
+    // another transfer's partial.
+    return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX)
   }
   const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
   ;(mount.renamedPaths ||= {})[ownerKey] = localRel
@@ -382,7 +380,7 @@ async function countFilesAtPath(target) {
       const dir = entry.parentPath ?? entry.path ?? target
       const rel = relToDriveKey(path.relative(cleanTarget, stripLongPathPrefix(path.join(dir, entry.name))), path.sep)
       if (rel === '..' || rel.startsWith('../') || isAbsoluteDriveKey(rel)) continue
-      // Ignore OS junk / temp files (.DS_Store, Thumbs.db, *.partial, …). The
+      // Ignore OS junk / temp files (.DS_Store, Thumbs.db, our own partials, …). The
       // sync engine never touches them, and counting hidden files the user
       // can't even see in Finder makes "N files already at the destination"
       // wrong (a viewed folder always has a hidden .DS_Store).
@@ -705,7 +703,7 @@ export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {
   // the whole folder finishes materialising.
   cancelGen.set(key, mirrorGen(key) + 1)
   // Overlay-catalog in-flight fetch: cancel by content hash. discardPartial:false
-  // (pause) keeps the .partial + journal so the next tick resumes; true (unmount)
+  // (pause) keeps the partial + journal so the next tick resumes; true (unmount)
   // unlinks it. cancelFetch also tells the holder we paused/stopped, so its
   // "who is downloading" indicator clears now rather than on the idle sweep. A pause
   // releases the fetch slot while the holder still shows us paused, so remember the hash

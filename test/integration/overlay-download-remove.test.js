@@ -67,7 +67,7 @@ test('reconcileOnAppend tears down a tombstoned inactive row, keeps a transient 
 
   const dl = ctx.tmpDir('dl')
   const goneFinal = path.join(dl, 'gone.bin')
-  const gonePartial = goneFinal + '.overlay-partial'
+  const gonePartial = goneFinal + '.mirall.part'
   fs.writeFileSync(gonePartial, 'half a download')
   await recordPending('space1', '/Photos/gone.bin', { total: 100, overlayShare: true, shareId: 'folder1', relPath: 'gone.bin', ownerKey: 'peerpub', finalPath: goneFinal })
   await recordPending('space1', '/Photos/other.bin', { total: 100, overlayShare: true, shareId: 'folder1', relPath: 'other.bin', ownerKey: 'peerpub', finalPath: path.join(dl, 'other.bin') })

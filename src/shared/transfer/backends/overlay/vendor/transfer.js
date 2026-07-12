@@ -9,7 +9,7 @@
  *
  * Receiver side:
  *   1. Receive chunk hashes, respond with which are missing
- *   2. Receive chunks, write to <file>.overlay-partial
+ *   2. Receive chunks, write to <file> + the configured partial suffix
  *   3. Verify each chunk hash
  *   4. Atomic rename on completion
  *
@@ -23,6 +23,11 @@ import c from 'compact-encoding'
 import sodium from 'sodium-universal'
 import { chunk as chunkBuffer, chunkStream, hashChunk, createStreamingHasher, selectTier, getTierParams } from './chunker.js'
 
+// [mirall] §4.17 — INTERNAL upstream default only. Mirall injects its own suffix via
+// the `partialSuffix` constructor opt and defines the real value in
+// `src/shared/transfer/partial-suffix.js`. Neither export below may be imported by app
+// code: they are free of instance config, so reading them while a different suffix is
+// injected would silently desync. A guard test enforces that.
 export const PARTIAL_SUFFIX = '.overlay-partial'
 
 export const partialPathFor = (targetPath) => path.join(path.dirname(targetPath), path.basename(targetPath) + PARTIAL_SUFFIX)
@@ -121,6 +126,9 @@ export class TransferManager {
     this._active = new Map() // path → transfer state
     this._memStashBytes = opts.memStashBytes ?? MEM_STASH_BYTES_DEFAULT
     this._journalDir = opts.journalDir || null
+    // [mirall] §4.17 — the host owns the partial suffix; PARTIAL_SUFFIX is only the
+    // standalone default for an embedder that passes nothing.
+    this._partialSuffix = opts.partialSuffix || PARTIAL_SUFFIX
     if (this._journalDir) { try { fs.mkdirSync(this._journalDir, { recursive: true }) } catch {} }
   }
 
@@ -285,9 +293,8 @@ export class TransferManager {
     const dir = path.dirname(targetPath)
     const base = path.basename(targetPath)
     // Visible partial (no leading dot) so an in-progress download shows in the
-    // downloads folder; the ".overlay-partial" suffix keeps the eager orphan sweep
-    // (keyed on ".partial") from deleting a paused overlay partial.
-    const partialPath = path.join(dir, base + PARTIAL_SUFFIX)
+    // downloads folder. [mirall] §4.17 — suffix comes from the host.
+    const partialPath = path.join(dir, base + this._partialSuffix)
     const journalPath = this._journalPathFor(targetPath)
 
     fs.mkdirSync(dir, { recursive: true })
@@ -788,7 +795,7 @@ export class TransferManager {
       const entries = fs.readdirSync(dir)
       const now = Date.now()
       for (const entry of entries) {
-        if (!entry.endsWith(PARTIAL_SUFFIX)) continue
+        if (!entry.endsWith(this._partialSuffix)) continue
         const full = path.join(dir, entry)
         try {
           const stat = fs.statSync(full)

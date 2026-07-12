@@ -10,7 +10,7 @@ const FLAGS = { overlayEnabled: true }
 
 // GAP #10: two peers download the SAME file from one owner at the same time. The owner
 // must serve concurrent reads of one blob, and each downloader must finalise its own
-// `.overlay-partial` to byte-exact content without a bookkeeping race / partial collision.
+// `.mirall.part` to byte-exact content without a bookkeeping race / partial collision.
 // Overlay is now the sole serving path, so this is the only guard for concurrent serving.
 test('REGRESSION (GAP #10): concurrent downloaders of one file each land byte-exact',
   { timeout: scaled(150000) }, async (t) => {

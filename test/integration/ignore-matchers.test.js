@@ -9,11 +9,12 @@ test('DEFAULT_IGNORE: exact basename matches', (t) => {
   t.ok(shouldIgnore('Thumbs.db', DEFAULT_IGNORE))
 })
 
-test('DEFAULT_IGNORE: suffix globs (*.partial, *~)', (t) => {
-  t.ok(shouldIgnore('big.iso.partial', DEFAULT_IGNORE))
-  t.ok(shouldIgnore('a/b/download.partial', DEFAULT_IGNORE))
+test('DEFAULT_IGNORE: suffix globs (*.mirall.part, *~)', (t) => {
+  t.ok(shouldIgnore('big.iso.mirall.part', DEFAULT_IGNORE))
+  t.ok(shouldIgnore('a/b/download.mirall.part', DEFAULT_IGNORE))
   t.ok(shouldIgnore('notes.txt~', DEFAULT_IGNORE))
-  t.absent(shouldIgnore('partial.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
+  t.absent(shouldIgnore('part.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
+  t.absent(shouldIgnore('big.iso.part', DEFAULT_IGNORE), "another app's .part is not ours to ignore")
 })
 
 test('DEFAULT_IGNORE: dir/** prefix globs', (t) => {

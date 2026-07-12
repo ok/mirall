@@ -84,12 +84,10 @@ re-diffable against upstream. Categories:
 
 7. **§4.6 — visible, pausable/resumable/cancellable fetch.** A multi-source fetch can now be
    paused (keep the partial), resumed (continue it), and cancelled (discard the partial):
-   - `TransferManager.startReceive` writes a **visible** partial — `<name>.overlay-partial`
-     (the upstream leading dot was dropped) so an in-progress download shows in the downloads
-     folder like the single-file transfer path's `<name>.partial`. The distinct
-     `.overlay-partial` suffix is kept so the orphan sweep for `.partial` files can't delete
-     a paused overlay partial.
-     `PARTIAL_SUFFIX` is now exported.
+   - `TransferManager.startReceive` writes a **visible** partial (the upstream leading dot was
+     dropped) so an in-progress download shows in the downloads folder rather than hiding.
+     `PARTIAL_SUFFIX` is now exported. The suffix itself is no longer decided here — §4.17
+     made it a host-injected constructor opt.
    - `startReceive` is **resume-aware**: a same-size existing partial is kept and each chunk is
      verified against the chunk list (content-addressed, so a stale/half-written chunk fails and
      is re-fetched); the recovered prefix seeds the whole-file hasher.
@@ -318,6 +316,20 @@ re-diffable against upstream. Categories:
     Additional coverage: short-write retry + stuck-write EIO, rename-failure code/cleanup/retry,
     scheduler `_fail` releases state (unit), stash accounting asserted pre-finalize (not after
     `_closeFd` zeroes it), duplicate gap-chunk single-count.
+
+18. **§4.17 — host-injected partial suffix (`transfer.js` + `overlay-v2.js`).** The in-flight
+    partial suffix is app policy, not engine policy: the app also probes for it (collision-free
+    download naming), sweeps it at boot, and excludes it from publish via an ignore glob. With the
+    value hardcoded here, those four sites could silently drift apart. `TransferManager` now takes
+    `opts.partialSuffix` (`this._partialSuffix`, used by `startReceive` and `cleanPartials`), and
+    `HyperOverlayV2` forwards `opts.partialSuffix` into it — the same pattern already used for
+    `journalDir`. `PARTIAL_SUFFIX` / `partialPathFor` remain exported as the standalone default for
+    an embedder that injects nothing, but they are **internal**: app code must never import them,
+    because they are free of instance config and would desync from the injected value. Mirall
+    defines the real suffix in `src/shared/transfer/partial-suffix.js` (`.mirall.part`) and injects
+    it at `overlay-instance.js`. The import ban is enforced by a guard test
+    (`test/unit/partial-suffix.test.js`); the opt itself is covered by
+    `test/integration/partial-suffix-injection.test.js`.
 
 ## Re-diffing against upstream
 

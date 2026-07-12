@@ -58,7 +58,7 @@ import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSp
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
-import { cleanupOrphanedOverlayPartials } from '../shared/transfer/partial-sweep.js'
+import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import { pausedStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
@@ -614,7 +614,7 @@ try {
   // write partials at the file's nested location), reclaiming crash-orphaned partials
   // while keeping any a paused/in-flight transfer can still resume from.
   const foreignDirs = (await listForeignMounts()).map((m) => m.mountPath)
-  await cleanupOrphanedOverlayPartials(getDownloadDir(), foreignDirs)
+  await cleanupOrphanedPartials(getDownloadDir(), foreignDirs)
 } catch (err) {
   log.warn('partial sweep failed:', err.message)
 }

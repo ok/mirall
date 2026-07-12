@@ -40,8 +40,8 @@ test('B mirrors A’s owned folder; files materialize to disk with matching byte
   t.ok(fs.readFileSync(path.join(mirrorDir, 'pic.bin')).equals(picBytes), 'pic.bin bytes match source')
   t.is(fs.readFileSync(path.join(mirrorDir, 'readme.txt'), 'utf8'), 'hello mirror')
 
-  // No stray .partial left behind.
-  t.absent(fs.readdirSync(mirrorDir).some((f) => f.endsWith('.partial')), 'no leftover .partial')
+  // No stray partial left behind.
+  t.absent(fs.readdirSync(mirrorDir).some((f) => f.endsWith('.mirall.part')), 'no leftover partial')
 
   // A mirrored file reads as synced, not "available to download".
   const listed = await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },

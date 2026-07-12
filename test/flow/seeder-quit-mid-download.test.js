@@ -62,7 +62,7 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const completed = await done
 
-    t.ok(!completed.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.ok(!completed.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'resumed download bytes match source')
 
     A.kill()

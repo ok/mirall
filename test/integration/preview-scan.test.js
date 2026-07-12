@@ -53,7 +53,7 @@ test('foreign preview: counts downloads, conflicts, and pre-existing destination
 })
 
 // REGRESSION: a folder previously viewed in Finder carries a hidden .DS_Store
-// (and may carry *.partial leftovers). Those were counted toward "N files
+// (and may carry *.mirall.part leftovers). Those were counted toward "N files
 // already at the destination", so the preview reported one more file than the
 // user could see. Ignorable files must not be counted.
 test('REGRESSION: foreign preview ignores .DS_Store / temp files in the destination count', async (t) => {
@@ -61,10 +61,10 @@ test('REGRESSION: foreign preview ignores .DS_Store / temp files in the destinat
   const dest = ctx.mirrorPath
   fs.writeFileSync(path.join(dest, 'real.txt'), 'visible')
   fs.writeFileSync(path.join(dest, '.DS_Store'), 'finder junk')
-  fs.writeFileSync(path.join(dest, 'half.partial'), 'in-flight')
+  fs.writeFileSync(path.join(dest, 'half.mirall.part'), 'in-flight')
 
   const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, dest)
-  t.is(preview.existingAtDestination, 1, 'only the user-visible file counts (.DS_Store and *.partial excluded)')
+  t.is(preview.existingAtDestination, 1, 'only the user-visible file counts (.DS_Store and *.mirall.part excluded)')
 })
 
 test('foreign preview: returns an empty summary when the share is not visible', async (t) => {
