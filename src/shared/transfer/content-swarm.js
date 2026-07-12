@@ -16,6 +16,7 @@ import { getResourceCaps, getHandshakeRateLimit } from '../core/runtime-config.j
 import { getIdentitySigner, getProfileKey } from '../spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding, createRateLimiter } from './handshake-guard.js'
 import { applyNetImpairment } from './net-impair.js'
+import { createContentPeerSockets } from './content-peer-sockets.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('content-swarm')
@@ -31,7 +32,7 @@ function deriveContentTopic(topicHex) {
 let contentSwarm = null
 const contentSpaceTopics = new Map() // spaceId → derived content topic buffer
 const contentDiscoveries = new Map() // spaceId → PeerDiscovery (kept for reconnect refresh)
-const contentSocketToPeers = new Map() // content socket → Set<profileKey> authenticated on it
+const contentPeerSockets = createContentPeerSockets() // content socket → Set<profileKey> authenticated on it
 const bannedContentKeys = new Set()    // Noise keys evicted for content-hello flooding
 let helloLimiter = null
 let contentAttachHook = null
@@ -42,7 +43,7 @@ export function setContentAttachHook(fn) { contentAttachHook = fn }
 export function setContentResumeHook(fn) { contentResumeHook = fn }
 
 export function contentSenderAuthorizedOnSocket(socket, profileKeyHex) {
-  return !!contentSocketToPeers.get(socket)?.has(profileKeyHex)
+  return contentPeerSockets.authorized(socket, profileKeyHex)
 }
 
 function getContentBinding() {
@@ -92,9 +93,7 @@ function onContentConnection(socket, peerInfo) {
       // msg.profileKey AND signed this socket's Noise key, so a replay onto another
       // connection (a different Noise key) fails.
       if (!verifyIdentityBinding(peerInfo, msg)) { log.warn('content-hello rejected from', remoteKey + '...'); return }
-      let set = contentSocketToPeers.get(socket)
-      if (!set) { set = new Set(); contentSocketToPeers.set(socket, set) }
-      set.add(msg.profileKey)
+      contentPeerSockets.add(socket, msg.profileKey)
       // The plane can now serve/fetch this owner → resume its paused/interrupted downloads.
       contentResumeHook?.(msg.profileKey)
     },
@@ -105,7 +104,7 @@ function onContentConnection(socket, peerInfo) {
   try { contentAttachHook?.(mux, socket) } catch (err) { log.warn('content attach hook failed:', err.message) }
   channel.open()
 
-  socket.on('close', () => contentSocketToPeers.delete(socket))
+  socket.on('close', () => contentPeerSockets.forget(socket))
 }
 
 export function initContentSwarm(sharedDht) {
@@ -145,6 +144,16 @@ export async function leaveContentTopic(spaceId) {
   contentDiscoveries.delete(spaceId)
 }
 
+// Drop every content socket this peer is authenticated on. The control plane owns the "do we
+// still share a space with this peer" decision; this is the content-plane half of the same
+// teardown. Without it, leaving a space stops announcing the content topic but leaves the live
+// socket serving bulk bytes for the space we just left — hyperswarm's leave() un-announces, it
+// does not close established connections. Destroying the socket closes the overlay channel
+// riding it, which drops the peer's cached serve grants with it.
+export function destroyContentPeerSockets(profileKeyHex) {
+  return contentPeerSockets.destroyFor(profileKeyHex)
+}
+
 export async function refreshContentDiscoveries() {
   if (!contentSwarm) return
   for (const [, discovery] of contentDiscoveries) {
@@ -165,7 +174,7 @@ export async function destroyContentSwarm() {
   for (const socket of contentSwarm.connections) { try { socket.destroy() } catch {} }
   contentSpaceTopics.clear()
   contentDiscoveries.clear()
-  contentSocketToPeers.clear()
+  contentPeerSockets.clear()
   bannedContentKeys.clear()
   helloLimiter = null
   contentBinding = null

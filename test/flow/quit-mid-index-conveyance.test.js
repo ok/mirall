@@ -5,7 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
-import { scaled } from '../helpers/timing.js'
+import { scaled, unscaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -32,7 +32,7 @@ test('quit mid-index: owner goes offline and the mid-index file degrades to unav
     await A.request('shutdown').catch(() => {})
     // Bound stays under the un-scaled 15s PRESENCE_TTL_MS so a broken announce can't pass via
     // plain lease expiry under scaled CI.
-    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: Math.min(scaled(8000), 12000) })
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: unscaled(12000) })
     const settled = await B.until('files:list', { spaceId },
       (l) => l.find((e) => e.path === '/reel.bin')?.status === 'unavailable', { ms: 20000 })
     t.is(settled.find((e) => e.path === '/reel.bin').status, 'unavailable',

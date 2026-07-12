@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { supersedeDecision, isRepublished } from '../../src/shared/transfer/supersede-decision.js'
+import { supersedeDecision, isRepublished, republishDecision } from '../../src/shared/transfer/supersede-decision.js'
 
 // REGRESSION (FIX-REMOVE-1: a remove+re-add — even of identical content, even one never
 // observed as a tombstone — must terminate a download, not auto-resume). isRepublished is the
@@ -31,4 +31,54 @@ test('supersedeDecision: a null/undefined current hash (tombstone or mid-rehash)
 
 test('supersedeDecision: no in-flight hash yet still restarts on a real new hash', (t) => {
   t.is(supersedeDecision(null, 'bbb'), 'restart')
+})
+
+// REGRESSION (FIX-3: a re-publish is TWO appends — advertise(contentHash:null) → hash the source
+// → setMaterializedHash. The old reconcile read the null-hash window as a remove+re-add of
+// identical content and DROPPED the download, which then never resumed. republishDecision names
+// that third state ('pending') instead of collapsing it into 'drop'.
+const S1 = 5
+const S2 = 6
+
+test('republishDecision: the mid-rehash null-hash window is PENDING, not a drop', (t) => {
+  t.is(republishDecision('h1', { removed: false, seq: S2, contentHash: null }, S1), 'pending',
+    'a re-published entry whose hash has not materialized yet holds the transfer')
+})
+
+test('republishDecision: a tombstoned entry drops', (t) => {
+  t.is(republishDecision('h1', { removed: true }, S1), 'drop')
+})
+
+test('republishDecision: a re-add of identical content drops (no silent partial resume)', (t) => {
+  t.is(republishDecision('h1', { removed: false, seq: S2, contentHash: 'h1' }, S1), 'drop')
+})
+
+test('republishDecision: a re-publish with different materialized content restarts', (t) => {
+  t.is(republishDecision('h1', { removed: false, seq: S2, contentHash: 'h2' }, S1), 'restart')
+})
+
+test('republishDecision: no re-publish (same seq) continues', (t) => {
+  t.is(republishDecision('h1', { removed: false, seq: S1, contentHash: 'h1' }, S1), 'continue')
+})
+
+test('republishDecision: unknown seqs (legacy row / unread head) continue — never a re-publish', (t) => {
+  t.is(republishDecision('h1', { removed: false, seq: undefined, contentHash: 'h2' }, undefined), 'continue')
+  t.is(republishDecision('h1', { removed: false, seq: S2, contentHash: 'h2' }, undefined), 'continue')
+})
+
+test('republishDecision: a missing state (unreadable head) continues — never destructive', (t) => {
+  t.is(republishDecision('h1', null, S1), 'continue')
+  t.is(republishDecision('h1', undefined, S1), 'continue')
+})
+
+test('republishDecision: an inactive row with no recorded hash still holds the null window', (t) => {
+  // Rows written before the contentHash field existed: the mid-rehash window must STILL be
+  // 'pending' (the null hash decides it), never a drop.
+  t.is(republishDecision(undefined, { removed: false, seq: S2, contentHash: null }, S1), 'pending')
+})
+
+test('republishDecision: without a recorded hash, a materialized re-publish drops (FIX-REMOVE-1 holds)', (t) => {
+  // We cannot prove the content changed, so the remove+re-add rule wins over an eager restart.
+  t.is(republishDecision(undefined, { removed: false, seq: S2, contentHash: 'h2' }, S1), 'drop')
+  t.is(republishDecision(null, { removed: false, seq: S2, contentHash: 'h2' }, S1), 'drop')
 })

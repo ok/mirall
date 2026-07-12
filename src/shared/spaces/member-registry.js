@@ -7,6 +7,11 @@ import { foldPendingSet } from './pending-set.js'
 import { tombstoneActive, observedLeavers } from './member-set.js'
 import { createLogger } from '../core/logger.js'
 
+// Set by the worker. A hook, not an import: the overlay reaches back into spaces/ for the
+// membership gate, so importing it here would close the cycle.
+let membershipRevokedHook = null
+export function setMembershipRevokedHook (fn) { membershipRevokedHook = fn }
+
 const log = createLogger('member-registry')
 
 // One live member-view per active v2 space. The view folds the replicated membership
@@ -238,6 +243,10 @@ async function applyObservedLeave (spaceId, key, leaveTs) {
   }
   markLeft(spaceId, key, leaveTs)
   persistLeftTombstone(spaceId, key, leaveTs).catch((err) => log.warn('observed-leave tombstone failed:', spaceId, key.slice(0, 12), err.message))
+  // The other revocation path (a leave frame we received directly) is handled in swarm.js. This
+  // one is driven by replication, and it must invalidate cached serve grants just the same:
+  // without it we keep serving an ex-member whose departure we learned about through the fold.
+  membershipRevokedHook?.(spaceId, key)
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 

@@ -24,7 +24,7 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
     const decoKey = share.id + ':big.bin'
 
     const gotPrepare = B.waitFor('event:decoration',
-      (m) => m.channel === 'transfer' && m.phase === 'preparing' && m.key === decoKey, scaled(60000))
+      (m) => m.channel === 'transfer' && m.phase === 'preparing' && m.key === decoKey, 60000)
 
     const folder = mkTmpDir(t)
     fs.writeFileSync(path.join(folder, 'big.bin'), patternedBytes(4 * 1024 * 1024, 7))
@@ -42,7 +42,7 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
 test('owner with the flag off never broadcasts prepare-progress',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: true } })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey

@@ -120,6 +120,40 @@ export function attachOverlay(mux, socket) {
   if (peer) peerSocket.set(peer, socket)
 }
 
+// Stop serving the content this space advertises. The serve grant is cached per (peer, hash) at
+// request time, so a departure has to revoke it ACTIVELY — un-announcing the topic and dropping
+// the control socket leaves the content socket happily streaming the bytes of a space the peer is
+// no longer in. Must run BEFORE the catalog purge: it resolves hash → spaces through serveIndex,
+// which the purge empties.
+//
+// `onlyFrom` scopes it to ONE requester, and is required when a peer left a space we are still in:
+// without it we would also revoke the grants of every other member still legitimately downloading
+// from us. Omit it only when WE are the one leaving — then nobody is entitled to the space's bytes.
+export function revokeServesForSpace(spaceId, onlyFrom = null) {
+  if (!overlay) return 0
+  return overlay.revokeServes(({ contentHash, from }) => {
+    if (!contentHash) return false
+    if (onlyFrom && from !== onlyFrom) return false
+    // Revoke only when the leaving space is the SOLE advertiser of this hash. Content is
+    // deduplicated by hash, so the same bytes can be shared by another space we remain in — those
+    // grants must survive (the epoch re-auth drops them only for a peer the live gate no longer
+    // approves), or a leave would cut off co-members still legitimately pulling the hash elsewhere.
+    let advertisedHere = false
+    for (const s of serveIndex.spacesFor(contentHash)) {
+      if (s !== spaceId) return false
+      advertisedHere = true
+    }
+    return advertisedHere
+  })
+}
+
+// Any membership mutation (member removed, approval revoked, leave applied) invalidates the
+// cached grants: the next chunk request re-runs the real gate instead of trusting a decision
+// taken before the change.
+export function bumpServeEpoch() {
+  overlay?.bumpServeEpoch()
+}
+
 export async function teardownOverlay() {
   try {
     await overlay?.close()

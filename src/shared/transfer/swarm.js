@@ -30,7 +30,7 @@ import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
 import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
-import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries } from './content-swarm.js'
+import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
@@ -86,6 +86,7 @@ export function isSpaceLeaving(spaceId) { return leavingSpaces.has(spaceId) }
 let overlayReconnectHook = null         // notified when an overlay-content owner (re)connects, so paused/interrupted overlay downloads (loose + folder) resume
 let membershipControlHandler = null     // membership:* frames (join request / grant / deny) routed to the worker
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
+let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
 const profileBeeAppendListeners = new Map()  // profileKey hex → listener fn
 const socketMsgHandlers = new Map()     // socket → Protomux msgHandler (for sending handshakes to existing connections)
 const pendingRequesters = new Map()     // profileKey → socket (a pending joiner has no drive/handshake yet, so track its socket to grant later)
@@ -804,8 +805,15 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
         set.delete(profileKey)
         if (set.size === 0) socketToPeers.delete(peer.socket)
       }
+      // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
+      // share any space with must lose that socket too, or we keep serving it bulk bytes.
+      try { destroyContentPeerSockets(profileKey) } catch {}
     }
   }
+  // Their leave revokes our serve grants for this space: the grant is cached per (peer, path) at
+  // request time and re-checked against that cache only, so a membership change has to invalidate
+  // it actively — otherwise an in-flight transfer keeps streaming to a peer no longer entitled.
+  revokeServesForSpaceHook?.(spaceId, profileKey)
 
   ipcRef.emit('event:member-left', { spaceId, publicKey: profileKey })
   ipcRef.emit('event:files-updated', { spaceId })
@@ -1389,6 +1397,9 @@ function disconnectPeersFromSpace(spaceId) {
     peer.looseCatalogKeys?.delete(spaceId)
     if (peer.spaces.size === 0) {
       try { peer.socket.destroy() } catch {}
+      // The overlay content channel rides the CONTENT socket, not this one. Dropping only the
+      // control socket leaves the bulk plane serving a space we have just left.
+      try { destroyContentPeerSockets(key) } catch {}
       connectedPeers.delete(key)
     }
   }
@@ -1607,6 +1618,10 @@ export function isPeerConnectedByDriveKey(driveKeyHex) {
 
 export function setOverlayReconnectHook(fn) {
   overlayReconnectHook = fn
+}
+
+export function setRevokeServesForSpaceHook(fn) {
+  revokeServesForSpaceHook = fn
 }
 
 export function setMembershipControlHandler(fn) {

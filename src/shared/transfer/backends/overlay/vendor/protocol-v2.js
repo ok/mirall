@@ -78,6 +78,12 @@ export class OverlayProtocolV2 {
     this._serveStartCb = opts.onServeStart || null
     this._chunkServeCb = opts.onChunkServe || null
     this._serveEndCb = opts.onServeEnd || null
+    // [mirall] Serve grants are cached per (peer, syntheticPath) at request time and every later
+    // chunkNeed is checked against that cache alone, so a request-time authorization would
+    // otherwise be trusted forever. The epoch moves on any membership/space mutation, which
+    // forces ONE re-authorization per (peer, path) — not one per chunk, so the hot path stays a
+    // map lookup. bumpServeEpoch() is the app's "re-check who is still entitled" signal.
+    this._serveEpoch = 0
     // A downloader paused/stopped a hash WE serve. { path, peer, from, state }.
     this._serveControlCb = opts.onServeControl || null
     // A downloader reported its on-disk have-bytes for a hash WE serve (resume
@@ -230,8 +236,8 @@ export class OverlayProtocolV2 {
         // [mirall] tell the sender-side indicator this peer is gone for every file
         // it was pulling, so a disconnect mid-download clears its row promptly.
         if (peer && self._serveEndCb) {
-          for (const [synthPath, from] of peer.authorizedServe) {
-            try { self._serveEndCb({ path: synthPath, peer, from }) } catch {}
+          for (const [synthPath, grant] of peer.authorizedServe) {
+            try { self._serveEndCb({ path: synthPath, peer, from: grant?.from ?? null }) } catch {}
           }
         }
       }
@@ -584,12 +590,64 @@ export class OverlayProtocolV2 {
     peer.msgs.chunkNeed.send({ path: msg.path, indices: needed })
   }
 
+  // [mirall] Bump on any membership/space mutation (a member removed, an approval revoked, a
+  // leave frame applied): it invalidates every cached serve grant without walking them.
+  bumpServeEpoch () {
+    this._serveEpoch++
+  }
+
+  // [mirall] Drop the serve grants matching a predicate — the ACTIVE half of revocation, for
+  // when we know exactly what to stop serving (a space we just left). Takes effect mid-stream:
+  // _onChunkNeed re-checks the grant at every drain boundary, so an in-flight multi-chunk send
+  // halts at the next one. Returns how many grants were dropped.
+  revokeServes (predicate) {
+    let revoked = 0
+    for (const peer of this._peers.values()) {
+      for (const [synthPath, grant] of [...peer.authorizedServe]) {
+        let match = false
+        try { match = predicate({ contentHash: contentHashOf(synthPath), from: grant.from, peer }) } catch { match = false }
+        if (!match) continue
+        this._revokeGrant(peer, synthPath, grant)
+        revoked++
+      }
+    }
+    return revoked
+  }
+
+  // [mirall] Drop one cached serve grant and tell the sender-side indicator the serve ended.
+  _revokeGrant (peer, synthPath, grant) {
+    peer.authorizedServe.delete(synthPath)
+    if (this._serveEndCb) { try { this._serveEndCb({ path: synthPath, peer, from: grant?.from ?? null }) } catch {} }
+  }
+
+  // [mirall] The grant still stands iff it was authorized in the current epoch, or re-authorizes
+  // now. A stale grant that the gate DEFINITIVELY denies is dropped, so a peer whose membership was
+  // revoked mid-transfer stops receiving bytes instead of being served to completion.
+  async _serveStillAuthorized (peer, synthPath) {
+    const grant = peer.authorizedServe.get(synthPath)
+    if (!grant) return false
+    if (grant.epoch === this._serveEpoch) return true
+    const epoch = this._serveEpoch
+    let ok
+    // rateLimit:false — this is our own re-validation, not an inbound request from the peer. A
+    // THROW is a transient I/O failure (e.g. a space-bee read hiccup under the post-leave re-auth
+    // burst), NOT a deny — the peer already passed the gate once, so keep serving and re-check on
+    // the next chunk rather than revoking a healthy transfer for a storage blip.
+    try { ok = await this._serveAuthorizer(peer, grant.from, contentHashOf(synthPath), { rateLimit: false }) } catch { return true }
+    // The grant can be revoked (or the peer torn down) across that await — re-read before trusting.
+    const current = peer.authorizedServe.get(synthPath)
+    if (current !== grant) return false
+    if (!ok) { this._revokeGrant(peer, synthPath, grant); return false }
+    grant.epoch = epoch
+    return true
+  }
+
   async _onChunkNeed (peer, msg) {
     // [mirall] serve bytes ONLY for a synthetic path THIS peer was
     // authorized for via a gated _onContentRequest. Blocks a peer pulling bytes
     // by sending chunkNeed directly for a registered path (e.g. /mir/<hash>)
     // without passing the membership serve gate.
-    if (this._serveAuthorizer && !peer.authorizedServe.has(msg.path)) return
+    if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
     const diskPath = this._filePaths.get(msg.path)
     if (!diskPath) return
 
@@ -607,7 +665,7 @@ export class OverlayProtocolV2 {
       if (!data) continue
       const flushed = peer.msgs.chunkData.send({ path: msg.path, index, data })
       if (this._chunkServeCb) {
-        try { this._chunkServeCb({ path: msg.path, index, bytes: data.length, peer, from: peer.authorizedServe.get(msg.path) || null }) } catch {}
+        try { this._chunkServeCb({ path: msg.path, index, bytes: data.length, peer, from: peer.authorizedServe.get(msg.path)?.from ?? null }) } catch {}
       }
       // [mirall] §HOL — chunkData, mirall/handshake, and the Corestore replication
       // carrying a peer's freshly shared folder all multiplex over ONE Noise stream
@@ -617,7 +675,9 @@ export class OverlayProtocolV2 {
       if (flushed === false && i < msg.indices.length - 1) {
         const alive = await this._waitForDrain(peer)
         if (!alive) return
-        if (this._serveAuthorizer && !peer.authorizedServe.has(msg.path)) return
+        // [mirall] Re-check the grant at the drain boundary: a revocation (space left, member
+        // removed) that lands mid-send stops the remaining chunks here.
+        if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
       }
     }
   }
@@ -712,7 +772,7 @@ export class OverlayProtocolV2 {
   // ledger row, never spoof another. Returns null `from` when the peer was never authorized.
   _authorizedFrom (peer, contentHash) {
     const synthPath = 'content:' + contentHash
-    return { synthPath, from: peer.authorizedServe.get(synthPath) || null }
+    return { synthPath, from: peer.authorizedServe.get(synthPath)?.from ?? null }
   }
 
   // A downloader told us it paused/stopped pulling a hash WE serve.
@@ -792,6 +852,10 @@ export class OverlayProtocolV2 {
   }
 
   async _onContentRequest (peer, msg) {
+    // [mirall] Capture the epoch BEFORE the async authorize: if a membership change bumps it during
+    // the await, the grant below is stamped with the OLD epoch, so _serveStillAuthorized re-checks
+    // it on the next chunk instead of trusting a decision the bump was meant to invalidate.
+    const authEpoch = this._serveEpoch
     // [mirall] serve gate. BEFORE any path resolution or streaming,
     // ask the injected authorizer whether this peer may receive this hash.
     // Deny == silent return (same observable behavior as "I don't hold it"
@@ -859,7 +923,7 @@ export class OverlayProtocolV2 {
     // chunkmap lookups resolve under this synthetic key.
     const syntheticPath = 'content:' + msg.contentHash
     this._filePaths.set(syntheticPath, diskPath)
-    peer.authorizedServe.set(syntheticPath, msg.from || null) // [mirall] _onChunkNeed will now serve this path to THIS peer
+    peer.authorizedServe.set(syntheticPath, { from: msg.from || null, epoch: authEpoch }) // [mirall] _onChunkNeed will now serve this path to THIS peer, until the epoch moves past authEpoch
 
     // [mirall] The chunk map is content-addressed — identical bytes always chunk
     // identically. Reuse one computed at publish (or a prior serve, or before a
@@ -945,4 +1009,10 @@ export class OverlayProtocolV2 {
 // disk path won't exist) and to probe the content-addressed spool.
 function fileExists (p) {
   try { return fs.statSync(p).isFile() } catch { return false }
+}
+
+// [mirall] The content hash a serve grant is keyed by. Grants live under the synthetic
+// 'content:<hash>' path; anything else is a plain registered path and carries no hash.
+function contentHashOf (synthPath) {
+  return synthPath.startsWith('content:') ? synthPath.slice('content:'.length) : null
 }

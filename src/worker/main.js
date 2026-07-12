@@ -41,7 +41,7 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
 import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
@@ -49,14 +49,14 @@ import { reconcileAssertedRoot } from '../shared/spaces/creator-root.js'
 import { getConnectedMemberMeta, readmitConnectedMembers } from '../shared/transfer/swarm.js'
 import {
   configureMemberRegistry, openMemberView, closeMemberView, openMemberViewsForKnownSpaces, closeAllMemberViews, dropTombstone, isLeft,
-  isApprovedJoiner, isDeniedJoiner,
+  isApprovedJoiner, isDeniedJoiner, setMembershipRevokedHook,
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
 import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload } from '../shared/transfer/files.js'
 import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence, looseHasTransfer } from '../shared/transfer/loose-overlay.js'
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
-import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
+import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedOverlayPartials } from '../shared/transfer/partial-sweep.js'
 import { pausedStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
@@ -284,6 +284,14 @@ setMembershipControlHandler(handleMembershipControl)
 if (useContentPlane) setContentAttachHook(fanoutAttach) // overlay binds its channel on content connections
 else setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
 setSharePrepareBroadcast((spaceId, p) => { if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p) })
+// A peer left a space we are still in: stop serving THAT PEER the space's bytes. Scoped to the
+// leaver — a space-wide revoke here would also cut off every other member still legitimately
+// downloading from us. The epoch bump then re-checks the rest against the live membership gate.
+setRevokeServesForSpaceHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
+// The same revocation, learned through replication (the observed-leave fold) instead of a direct
+// frame. An epoch bump alone is inert here (the fold does not remove the member from the roster,
+// so the serve gate would re-approve), so ACTIVELY drop the leaver's grants for the space.
+setMembershipRevokedHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
 initSwarm(ipc)
 if (useContentPlane) initContentSwarm(getSwarmDht())
 
@@ -1732,6 +1740,12 @@ ipc.handle('space:leave', async (msg) => {
       // download-history rows cleanupDownloadHistory/clearPendingForSpace purge below.
       await overlayCancelSpace(msg.spaceId)
       await looseCancelSpace(msg.spaceId)
+      // ...and stop SERVING this space to everyone else. The cancels above only walk OUR OWN
+      // fetch slots — as the owner we have none, so without this a leave stops nothing on the
+      // serving side and the content plane keeps streaming the space's bytes. Runs BEFORE the
+      // purges: it needs serveIndex to still resolve hash → space.
+      revokeServesForSpace(msg.spaceId)
+      bumpServeEpoch()
 
       tracker.phase = 'leaveSpaceTopic'
       progress('disconnecting')

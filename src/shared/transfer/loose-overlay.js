@@ -23,7 +23,7 @@ import { nextFreeName } from '../folders/path-keys.js'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
 import { createLogger } from '../core/logger.js'
-import { supersedeDecision, isRepublished } from './supersede-decision.js'
+import { supersedeDecision, republishDecision } from './supersede-decision.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 
 const log = createLogger('loose-overlay')
@@ -284,13 +284,15 @@ async function reconcileActiveLooseTransfers (spaceId, member) {
     const drivePath = slot.pendingKey
     const inflightHash = slot.contentHash
     const state = await getPeerEntryState(keyHex, LOOSE_SHARE_ID, rel(drivePath), { sck })
-    if (state?.removed) { await looseEngine.dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue }
-    // Re-added with identical content mid-download (seq bumped, hash unchanged) → terminate, don't
-    // silently continue the old partial; a genuine content change (new hash) falls through to supersede.
-    if (isRepublished(state?.seq, slot.sourceSeq) && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') {
-      await looseEngine.dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue
-    }
-    if (supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
+    const decision = republishDecision(inflightHash, state, slot.sourceSeq)
+    // Tombstoned, or re-added with identical content → terminate; don't silently continue the
+    // old partial. A genuine content change falls through to the supersede below.
+    if (decision === 'drop') { await looseEngine.dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue }
+    // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
+    // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
+    // restarts it on the new content via runReconcile.
+    if (decision === 'pending') { looseEngine.releaseForRepublish(transferId); continue }
+    if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
     const newJob = await buildLooseJob(spaceId, member, drivePath)
     if (newJob) looseEngine.supersede(transferId, { ...newJob, prevBytes: 0 }, inflightHash)
   }

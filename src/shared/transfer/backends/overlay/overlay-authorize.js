@@ -14,16 +14,18 @@
  * @param {(spaceId, fromHex) => Promise<boolean>} deps.isApprovedMember approved-membership check for a space
  * @param {{ take(key): { ok: boolean } }} deps.serveLimiter per-requester serve rate limit
  * @param {{ spacesFor(hash): Iterable<string> }} deps.serveIndex
- * @returns {(peer, from, contentHash) => Promise<boolean>}
+ * @returns {(peer, from, contentHash, opts?: { rateLimit?: boolean }) => Promise<boolean>}
  */
 export function makeServeAuthorizer({ peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex }) {
-  return async function authorizeServe(peer, from, contentHash) {
+  return async function authorizeServe(peer, from, contentHash, { rateLimit = true } = {}) {
     const socket = peerSocket.get(peer)
     if (!socket) return false                                          // peer not attached on a live socket
     // 1) socket auth: the claimed profileKey must be Noise-authenticated on THIS socket.
     if (!from || !socketAuthorized(socket, from)) return false
-    // 2) rate limit: per-requester serve budget, keyed on the asker identity.
-    if (!serveLimiter.take(from).ok) return false
+    // 2) rate limit: per-requester serve budget, keyed on the asker identity. Skipped when we
+    //    re-validate a grant WE already issued (an epoch bump, not an inbound request) — charging
+    //    that to the asker's budget would revoke healthy transfers for being numerous.
+    if (rateLimit && !serveLimiter.take(from).ok) return false
     // 3) membership: the asker must be an approved member of a space advertising this hash.
     for (const spaceId of serveIndex.spacesFor(contentHash)) {
       if (await isApprovedMember(spaceId, from)) return true

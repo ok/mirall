@@ -112,10 +112,13 @@ test('sendStopControl broadcasts STOPPED without a scheduler (discard-after-paus
   t.alike(sent, [{ contentHash: 'abc', state: 1 }], 'STOPPED sent directly, no scheduler required')
 })
 
+// The authorizedServe VALUE is a grant record — { from, epoch } — not a bare `from`. The epoch is
+// what lets a membership change invalidate a grant that was cached at request time; every reader
+// must go through .from. These two tests are the guard on that shape.
 test('_onTransferControl maps to onServeControl using the authenticated authorizedServe identity', (t) => {
   const calls = []
   const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeControl: (info) => calls.push(info) })
-  const peer = { authorizedServe: new Map([['content:abc', 'peerProfileKey']]) }
+  const peer = { authorizedServe: new Map([['content:abc', { from: 'peerProfileKey', epoch: 0 }]]) }
   proto._onTransferControl(peer, { contentHash: 'abc', state: 1 })
   proto._onTransferControl(peer, { contentHash: 'abc', state: 0 })
   t.is(calls.length, 2)
@@ -151,7 +154,7 @@ test('sendTransferProgress broadcasts the have-baseline to every connected holde
 test('_onTransferProgress maps to onServeProgress using the authenticated authorizedServe identity', (t) => {
   const calls = []
   const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeProgress: (info) => calls.push(info) })
-  const peer = { authorizedServe: new Map([['content:abc', 'peerProfileKey']]) }
+  const peer = { authorizedServe: new Map([['content:abc', { from: 'peerProfileKey', epoch: 0 }]]) }
   proto._onTransferProgress(peer, { contentHash: 'abc', have: 700 })
   t.is(calls.length, 1)
   t.alike(calls[0], { path: 'content:abc', peer, from: 'peerProfileKey', have: 700 })

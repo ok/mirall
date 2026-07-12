@@ -53,7 +53,7 @@ test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resu
     // Pause the instant the mirror reports partial bytes — well before the 96 MiB
     // file could finish, so we are unambiguously mid-download.
     const firstProgress = B.waitFor('event:decoration',
-      (m) => m.channel === 'transfer' && m.key === share.id + ':big.bin' && !m.done && m.bytes > 0 && (!m.total || m.bytes < m.total), scaled(90000))
+      (m) => m.channel === 'transfer' && m.key === share.id + ':big.bin' && !m.done && m.bytes > 0 && (!m.total || m.bytes < m.total), 90000)
     await B.request('foreign-folder:mount', { spaceId, ownerKey: aKey, shareId: share.id, mountPath: dest })
     await firstProgress
     await B.request('foreign-folder:set-enabled', { spaceId, shareId: share.id, enabled: false })
