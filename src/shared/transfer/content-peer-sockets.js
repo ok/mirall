@@ -25,6 +25,13 @@ export function createContentPeerSockets() {
       return !!socketToPeers.get(socket)?.has(profileKeyHex)
     },
 
+    // Is this peer reachable on ANY live content socket? Distinct from authorized(), which asks
+    // about one socket: this is the "can the bulk plane still talk to them at all" question.
+    hasPeer(profileKeyHex) {
+      for (const keys of socketToPeers.values()) if (keys.has(profileKeyHex)) return true
+      return false
+    },
+
     // Destroy every socket this profile is authenticated on. Returns how many were dropped.
     destroyFor(profileKeyHex) {
       let dropped = 0

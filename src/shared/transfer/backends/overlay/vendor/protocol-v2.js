@@ -159,7 +159,10 @@ export class OverlayProtocolV2 {
     sched.shared = sched.promise().finally(() => this._schedulers.delete(p))
     // [mirall] honor a cancel/pause that arrived before this scheduler existed.
     if (this._cancelPending.delete(p)) { sched.cancel(); return sched.shared }
-    for (const peer of peers) this.requestContent(peer, contentHash, null)
+    for (const peer of peers) {
+      sched.noteRequested(peer) // [mirall] so losing it before its chunk list arrives fails the fetch fast
+      this.requestContent(peer, contentHash, null)
+    }
     return sched.shared
   }
 

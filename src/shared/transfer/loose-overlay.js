@@ -14,7 +14,7 @@ import {
 } from '../shares/share-catalog.js'
 import { markListIncomplete } from './list-deficits.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from './files.js'
-import { getPendingFor } from './pending-transfers.js'
+import { getPendingFor, recordPending } from './pending-transfers.js'
 import { resolveDest } from './download-dest.js'
 import { getDownloadDir } from '../core/paths.js'
 import { listSpaces, getSpace } from '../spaces/space.js'
@@ -360,9 +360,22 @@ export function looseHasTransfer (transferId) { return looseEngine.has(transferI
 export function looseTransferActive (spaceId, relPath) { return looseEngine.has(looseTransferIdFor(spaceId, relPath)) }
 
 export async function looseDownload (spaceId, member, drivePath) {
+  const relPath = rel(drivePath)
+  // This is the manual resume path too, so retire any pause marker up front — start() clears it
+  // as well, but the guards below can return before we ever reach start().
+  looseEngine.clearPauseMarker(looseTransferIdFor(spaceId, relPath))
   if (!getOverlay() || !(member?.looseCatalogKey || member?.looseCatalogKeyEnc)) return { queued: true }
   const job = await buildLooseJob(spaceId, member, drivePath)
-  if (!job) return { queued: true }
+  if (!job) {
+    // The catalog entry is unreadable right now (owner offline, or the read budget expired under
+    // reconnect churn). Record the intent so the reconnect machinery owns the retry: with no row,
+    // nothing would ever retry and the click is silently lost.
+    await recordPending(spaceId, drivePath, {
+      inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: member.publicKey, total: 0,
+    }).catch((err) => log.debug('loose intent row failed:', relPath, err.message))
+    ipcRef?.emit('event:files-updated', { spaceId })
+    return { queued: true }
+  }
   return looseEngine.start(job)
 }
 

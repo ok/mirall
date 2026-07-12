@@ -30,7 +30,7 @@ import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
 import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
-import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets } from './content-swarm.js'
+import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, contentPlaneHasPeer, getContentPlaneStatus } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
@@ -1353,6 +1353,64 @@ async function runConvergenceTick() {
   // short-lived session heals here on a later one. Throttled per key inside the
   // scheduler; retired keys (complete or past the sweep cap) never come back.
   for (const key of await captureDeficits()) scheduleCapture(key)
+  try { await rescueStalledTransfers() } catch (err) { log.debug('stalled-transfer rescue failed:', err.message) }
+}
+
+// Hyperswarm stops re-dialing a peer whose connections keep dying young: a link that drops inside
+// its prove-yourself window never resets the peer's attempt counter, and after the fourth such
+// close the peer loses its retry timer altogether — the next automatic dial is a topic re-lookup
+// ten minutes out. The escalation above cannot save us: it is gated on a ROSTER deficit, and a
+// two-peer space whose roster is fully replicated never has one, so a download can sit dead while
+// the swarm believes it is converged.
+//
+// A pending download whose owner we hold no socket for is exactly that state, and a discovery
+// refresh is the one lever that clears it (rediscovering a peer resets its attempts). Both planes
+// need it: the bulk plane carries the bytes, but the control plane carries the presence lease the
+// download's resume gate reads — rescuing only one leaves the transfer gated behind the other.
+// Refresh eagerly at first — a flapping link brings the peer back within a second or two, and every
+// cycle we sit out is a cycle the transfer makes no progress. But an owner who is simply offline
+// would then have us re-announce forever, so each fruitless attempt backs the next one off, up to a
+// quiet ceiling. Any attempt that finds every owner reachable resets it.
+const STALL_RESCUE_MIN_MS = 10_000
+const STALL_RESCUE_MAX_MS = 300_000
+let stalledOwnersHook = null
+let lastStallRescueAt = 0
+let stallRescueBackoffMs = STALL_RESCUE_MIN_MS
+let stallRescueInFlight = false
+
+export function setStalledOwnersHook(fn) { stalledOwnersHook = fn }
+
+export async function rescueStalledTransfers() {
+  if (!swarm || !stalledOwnersHook || stallRescueInFlight) return false
+
+  stallRescueInFlight = true
+  try {
+    const contentActive = getContentPlaneStatus().active
+    let controlDown = false
+    let contentDown = false
+    for (const ownerKey of await stalledOwnersHook()) {
+      if (!connectedPeers.has(ownerKey)) controlDown = true
+      if (contentActive && !contentPlaneHasPeer(ownerKey)) contentDown = true
+    }
+    if (!controlDown && !contentDown) {
+      stallRescueBackoffMs = STALL_RESCUE_MIN_MS // everyone we are waiting on is reachable
+      return false
+    }
+    if (Date.now() - lastStallRescueAt < stallRescueBackoffMs) return false
+
+    lastStallRescueAt = Date.now()
+    stallRescueBackoffMs = Math.min(stallRescueBackoffMs * 2, STALL_RESCUE_MAX_MS)
+    log.info('stalled transfer — refreshing discovery:', controlDown ? 'control' : '', contentDown ? 'content' : '')
+    if (controlDown) {
+      for (const [spaceId, discovery] of spaceDiscoveries) {
+        try { await discovery.refresh({ client: true, server: true }) } catch (err) { log.debug('stall refresh failed for', spaceId, err.message) }
+      }
+    }
+    if (contentDown) await refreshContentDiscoveries()
+    return true
+  } finally {
+    stallRescueInFlight = false
+  }
 }
 
 function startConvergenceTick() {
@@ -1852,6 +1910,7 @@ export function getSwarmStatus() {
       tableSize: safeRoutingTableSize(),
     },
     topics: spaceTopics.size,
+    contentPlane: getContentPlaneStatus(),
     stats: snapshotStats(),
     versions: { dht: DHT_VERSION },
   }
