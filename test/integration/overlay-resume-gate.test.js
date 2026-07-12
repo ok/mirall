@@ -193,3 +193,114 @@ test('REGRESSION (FIX-9: pausing a transfer whose fetch already settled still st
   await settle()
   t.is(fetches, 0, 'the reconnect did not auto-resume a user-paused row')
 })
+
+// REGRESSION (FIX-10: cancelling a settled download was a silent no-op).
+//
+// The same defect class as the pause bug above: files:cancel-download routed on whether the
+// transfer was LIVE, and the engine's cancel() read the spaceId + pendingKey off the live slot. A
+// dropped connection deregisters that slot the moment the fetch settles, so a discard clicked in
+// that window reached neither backend — the partial stayed on disk, the pending row stayed (and
+// auto-resumed on the next reconnect), and the IPC reply still said ok. Pause could be fixed by
+// routing on the id's shape alone; cancel needs the pendingKey, and a FOLDER pendingKey embeds the
+// share NAME the id does not carry — so the key is resolved from the pending row instead.
+
+test('REGRESSION (FIX-10: cancelling a transfer whose fetch already settled discards the partial and the pending row)', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+
+  const job = makeJob(ctx)
+  const channel = testChannel(events, {
+    isOwnerOnline: () => true,
+    resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
+  })
+  const engine = createOverlayDownloadEngine(channel)
+
+  const partial = job.finalPath + '.overlay-partial'
+  fs.writeFileSync(partial, 'half a download')
+  await seedInterruptedRow(job, 2048)
+  t.absent(engine.has(job.transferId), 'the dropped connection already settled the fetch — no slot')
+
+  // With no slot to read the spaceId/pendingKey from, cancel used to bail out entirely.
+  t.ok(await engine.cancel(job.transferId), 'cancel resolves the row even with no live slot')
+
+  t.absent(fs.existsSync(partial), 'the partial is discarded')
+  t.absent(await getPendingFor(SPACE, job.pendingKey), 'the pending row is cleared')
+  t.ok(events.some((e) => e[0] === 'cancelled'), 'emitCancelled fired')
+  t.ok(events.some((e) => e[0] === 'updated'), 'emitUpdated fired')
+})
+
+test('REGRESSION (FIX-10: a cancelled settled row does not resurrect on the next reconnect)', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  let fetches = 0
+
+  const job = makeJob(ctx)
+  const channel = testChannel(events, {
+    isOwnerOnline: () => true,
+    resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
+  })
+  const engine = createOverlayDownloadEngine(channel)
+  getOverlay().fetchFile = async () => { fetches++; return job.finalPath }
+
+  await seedInterruptedRow(job, 2048)
+  await engine.cancel(job.transferId)
+
+  // The row used to survive the cancel, so the next reconnect happily resumed a download the user
+  // had just discarded.
+  await engine.resumeForOwner(OWNER, SPACE)
+  await settle()
+  t.is(fetches, 0, 'the reconnect found nothing to resume — the cancel actually landed')
+})
+
+// The shared harness channel is folder-shaped. Loose downloads run on the SAME engine with a
+// different row filter + id scheme, and the fixed handler routes settled loose ids straight here.
+test('REGRESSION (FIX-10: cancelling a settled loose download discards its partial and row too)', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+
+  const finalPath = path.join(ctx.tmpDir('dl'), 'loose.bin')
+  const transferId = SPACE + '|__loose__|loose.bin'
+  const channel = testChannel(events, {
+    inPlace: true,
+    ownsPendingRow: (row) => row.inPlace === true && row.shareId === '__loose__',
+    transferIdForRow: (spaceId, row) => spaceId + '|__loose__|' + row.relPath,
+    isOwnerOnline: () => true,
+  })
+  const engine = createOverlayDownloadEngine(channel)
+
+  const partial = finalPath + '.overlay-partial'
+  fs.writeFileSync(partial, 'half a download')
+  await recordPending(SPACE, '/loose.bin', {
+    total: 4096, inPlace: true, ownerKey: OWNER, finalPath,
+    contentHash: HASH, bytesTransferred: 2048, shareId: '__loose__', relPath: 'loose.bin',
+  })
+
+  t.ok(await engine.cancel(transferId), 'cancel resolves the loose row with no live slot')
+  t.absent(fs.existsSync(partial), 'the partial is discarded')
+  t.absent(await getPendingFor(SPACE, '/loose.bin'), 'the pending row is cleared')
+})
+
+test('cancel of an id with neither a slot nor a row is a clean no-op', async (t) => {
+  await setup(t)
+  const events = []
+  const engine = createOverlayDownloadEngine(testChannel(events))
+
+  t.absent(await engine.cancel(SPACE + '|folder1|never-started.bin'), 'nothing to cancel — reports false')
+  t.is(events.length, 0, 'no cancelled/updated events for a no-op')
+})
+
+// The engine cannot observe which gate the worker routes on, so pin it structurally the way the
+// FIX-9 hook wiring is pinned above.
+test('REGRESSION (FIX-10: the cancel handler routes on the id shape, not on a live slot)', (t) => {
+  const here = path.dirname(url.fileURLToPath(import.meta.url))
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+
+  const from = src.indexOf("ipc.handle('files:cancel-download'")
+  const to = src.indexOf("ipc.handle('files:pause-download'")
+  t.ok(from > -1 && to > from, 'the cancel handler exists ahead of the pause handler')
+
+  const handler = src.slice(from, to)
+  t.ok(handler.includes('isLooseTransferId('), 'cancel routes on the id shape')
+  t.absent(handler.includes('looseHasTransfer('), 'cancel no longer gates on a live loose slot')
+  t.absent(handler.includes('overlayHasTransfer('), 'cancel no longer gates on a live overlay slot')
+})
