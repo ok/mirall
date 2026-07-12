@@ -100,7 +100,7 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const completed = await done
 
-    t.ok(!completed.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.ok(!completed.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'auto-resumed overlay folder download bytes match source')
 
     A.kill()

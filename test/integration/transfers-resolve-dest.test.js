@@ -13,7 +13,7 @@ function tmpDir (t) {
 
 // FIX-3 — the destination picker is the core data-loss guard for downloads: it
 // must never return a path that would overwrite a pre-existing file or collide
-// with an in-flight `.partial` or `.overlay-partial`. Walk: "name.ext" → "name (1).ext" → …
+// with an in-flight `.partial` or `.mirall.part`. Walk: "name.ext" → "name (1).ext" → …
 // This unit suite is the collision guard; resolveDest is exercised directly here.
 
 test('an empty directory yields the plain name', (t) => {
@@ -34,18 +34,20 @@ test('successive collisions increment the suffix', (t) => {
   t.is(resolveDest(dir, 'report.txt'), path.join(dir, 'report (2).txt'))
 })
 
-test('an in-flight .partial also blocks a candidate (no two downloads collide)', (t) => {
+test('#8: an in-flight partial also blocks a candidate (no two downloads collide)', (t) => {
   const dir = tmpDir(t)
-  fs.writeFileSync(path.join(dir, 'report.txt.partial'), 'half a download')
+  fs.writeFileSync(path.join(dir, 'report.txt.mirall.part'), 'half a download')
   t.is(resolveDest(dir, 'report.txt'), path.join(dir, 'report (1).txt'),
-    'the .partial of another in-flight download is treated as taken')
+    'an in-flight partial is treated as taken — a fresh download never adopts an orphan')
 })
 
-test('#8: an in-flight .overlay-partial also blocks a candidate', (t) => {
+// The probe keys on OUR suffix only. A stranger's in-progress download is not a
+// destination collision: we would still write `report.txt`, which does not exist.
+test("another app's in-progress download does not block a candidate", (t) => {
   const dir = tmpDir(t)
-  fs.writeFileSync(path.join(dir, 'report.txt.overlay-partial'), 'half an overlay download')
-  t.is(resolveDest(dir, 'report.txt'), path.join(dir, 'report (1).txt'),
-    'an overlay engine partial is treated as taken — a fresh download never adopts an orphan')
+  fs.writeFileSync(path.join(dir, 'report.txt.part'), 'firefox is busy')
+  t.is(resolveDest(dir, 'report.txt'), path.join(dir, 'report.txt'),
+    'a foreign .part is not a collision on the final name')
 })
 
 test('extension-less names get the suffix before nothing', (t) => {

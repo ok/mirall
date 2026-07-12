@@ -1,16 +1,18 @@
 // Pure path / share-key / prefix / predicate helpers — the single source of truth
 // for the path math behind sharing, subfolders, moves, copies and deletes.
 //
-// This module has ZERO imports on purpose: no `bare-*`, no storage. `bare-path`/
-// `bare-fs`/`bare-os` don't load under plain Node, so anything that imports them
-// can only be tested under Bare (`test/integration`). By keeping this logic
-// import-free it loads under both runtimes and is unit-tested directly under Node
-// (`test/unit/path-keys.test.js`). The heavy data-layer modules import from here
-// so the platform-divergent string math lives in exactly one place.
+// This module pulls in NO `bare-*` and no storage, and imports only modules that
+// hold to the same rule. `bare-path`/`bare-fs`/`bare-os` don't load under plain
+// Node, so anything that imports them can only be tested under Bare
+// (`test/integration`). By staying free of them this logic loads under both runtimes
+// and is unit-tested directly under Node (`test/unit/path-keys.test.js`). The heavy
+// data-layer modules import from here so the platform-divergent string math lives in
+// exactly one place.
 //
 // Functions that need a path separator take it as an argument; callers pass their
 // real `path.sep`, tests pass an explicit `/` or `\` to exercise both platforms on
 // one machine.
+import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 
 // ─── share key ⇄ OS-relative path ─────────────────────────────────────────────
 // Drive keys are always POSIX-style ('/'-joined). On Windows the on-disk relative
@@ -113,7 +115,7 @@ export function overlapAllowed (aPath, aRole, bPath, bRole) {
 }
 
 // ─── ignore globs ─────────────────────────────────────────────────────────────
-export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*.partial', '*.overlay-partial', '*~', '.git/**', 'node_modules/**']
+export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX, '*~', '.git/**', 'node_modules/**']
 
 export function shouldIgnore (rel, ignorePatterns) {
   if (!ignorePatterns || ignorePatterns.length === 0) return false
@@ -160,7 +162,7 @@ export function splitFileName (fileName) {
 
 // Pick a name that `isTaken` reports free, suffixing " (1)", " (2)", … before the
 // extension. `isTaken(name)` is supplied by the caller (it checks the filesystem
-// for both the final file and an in-flight `.partial`).
+// for both the final file and an in-flight partial).
 export function nextFreeName (fileName, isTaken) {
   if (!isTaken(fileName)) return fileName
   const { base, ext } = splitFileName(fileName)

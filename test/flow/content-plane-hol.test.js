@@ -65,7 +65,7 @@ test('a download completes byte-exact over the content plane', { timeout: scaled
   await B.request('files:download', { spaceId, path: '/file.bin', inPlace: true, ownerKey: aKey })
   const completion = await done
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'downloaded bytes match source over the content plane')
-  t.ok(!completion.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+  t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
 
   A.kill()
 })

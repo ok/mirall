@@ -91,7 +91,7 @@ These drive the real *filesystem → chokidar → publish → replicate → mate
 | s36 | `s36-browse-download-subfolder.mjs` | Browse-only peer downloads a file from a subfolder on demand → lands in the global download folder. |
 | s37 | `s37-large-file.mjs` | A 12 MiB file mirrors **byte-exact** (full content compare, not just size). |
 | s38 | `s38-multiple-folders.mjs` | Two owned folders coexist in one space; a mirror of one keeps syncing independently after the second is shared. |
-| s39 | `s39-ignored-junk.mjs` | `.DS_Store` / `*.partial` in an owned folder are never published to the peer. |
+| s39 | `s39-ignored-junk.mjs` | `.DS_Store` / `*.mirall.part` in an owned folder are never published to the peer. |
 | s40 | `s40-empty-subfolder.mjs` | An empty subfolder doesn't replicate (graceful, no crash); it materializes once its first file lands. |
 | s41 | `s41-owner-offline.mjs` | Owner goes offline → the open folder shows the offline banner and the file drops to "Not available". |
 

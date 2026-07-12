@@ -88,7 +88,7 @@ test('owner killed mid-rehash: the download parks instead of dying, and resumes 
     const landed = fs.readFileSync(completion.localPath)
     t.is(sha(landed), sha(changed), 'the parked download resumed BY ITSELF and landed the NEW content byte-exact')
     t.is(landed.length, changed.length, 'full size of the changed source')
-    t.absent(completion.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.absent(completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     t.absent(sawError, 'still no transfer-error across the whole recovery')
 
     A.kill()

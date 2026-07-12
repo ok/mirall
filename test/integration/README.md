@@ -42,7 +42,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### C. Scan previews
 | File | Covers |
 |------|--------|
-| `preview-scan.test.js` | `previewInitialPublishScan` upload/conflict counts + unchanged no-op; `previewMaterializeScan` download/conflict/existing counts; **REGRESSION** ignorable files (`.DS_Store`/`*.partial`) excluded from the destination count. |
+| `preview-scan.test.js` | `previewInitialPublishScan` upload/conflict counts + unchanged no-op; `previewMaterializeScan` download/conflict/existing counts; **REGRESSION** ignorable files (`.DS_Store`/`*.mirall.part`) excluded from the destination count. |
 
 ### D. Mount path validation
 | File | Covers |
@@ -54,8 +54,8 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | File | Covers |
 |------|--------|
 | `files-ops.test.js` | `addFile` streams into the drive with its content hash; `removeFile` clears + tombstones the drive entry **and leaves the user's local source file untouched**; `markDownloaded` records the landed path (reveal/status); `discardPartial` unlinks the partial + clears the pending row. |
-| `transfers-resolve-dest.test.js` | **FIX-3** `resolveDest` collision picker — never overwrites a pre-existing file or an in-flight `.partial`; `name.ext → name (1).ext → name (2).ext`; extension-less + dotted-name handling. |
-| `transfers-partials.test.js` | Pending-transfer row lifecycle (resume-stable dest, error set/clear, list/clear); `cleanupOrphanedPartials` sweeps unreferenced `.partial`, keeps referenced + real files. |
+| `transfers-resolve-dest.test.js` | **FIX-3** `resolveDest` collision picker — never overwrites a pre-existing file or an in-flight `.mirall.part`; `name.ext → name (1).ext → name (2).ext`; extension-less + dotted-name handling. |
+| `transfers-partials.test.js` | Pending-transfer row lifecycle (resume-stable dest, error set/clear, list/clear); `cleanupOrphanedPartials` sweeps unreferenced partials, keeps referenced + real files. |
 | `list-files.test.js` | `listFiles` (single-peer slice): own loose files show as `mine` (owner "You"); files inside an owned-folder share prefix are excluded from the loose list; distinct files are each listed. (Cross-peer hash-dedup / status-priority is a flow concern.) |
 
 ### F. Shares registry

@@ -209,7 +209,7 @@ The user's own drive key is **not stored** — it derives from `store.namespace(
 
 `<spaceId>:<filePath>` → `{ total, inPlace, ownerKey, finalPath, shareId, relPath, bytesTransferred, updatedAt, errorCode?, erroredAt? }`
 
-`finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.overlay-partial` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
+`finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.mirall.part` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
 
 Rows clear on completion (`clearPending`), cancel, `files:discard-partial`, and space leave.
 
@@ -257,9 +257,9 @@ Progress streams locally as `event:decoration { channel:'transfer', phase:'publi
 
 `files:download` routes to the shared **overlay download engine** (`transfer/backends/overlay/overlay-download.js`; `transfer/loose-overlay.js` supplies the loose glue; the same engine serves non-mirrored folder-share reads). Observers (Finder/Explorer, Quick Look, backup tools, antivirus, the orphan sweep) only ever see no file or a complete file — never a half-written one under the real name:
 
-1. **Destination.** `resolveDest(downloadDir, basename)` (`download-dest.js`) picks a free final name — a name is taken if the plain file, `<name>.partial` (older releases), or `<name>.overlay-partial` exists. A download never overwrites the user's own file nor adopts another transfer's partial. A resumed download reuses the pending row's `finalPath`.
+1. **Destination.** `resolveDest(downloadDir, basename)` (`download-dest.js`) picks a free final name — a name is taken if the plain file or `<name>.mirall.part` exists. A download never overwrites the user's own file nor adopts another transfer's partial. A resumed download reuses the pending row's `finalPath`.
 2. **Pending row first.** `recordPending` writes the §3.4 row before any bytes move. The engine is single-flight per file.
-3. **Fetch by content hash** through the overlay (§7.7). Bytes land in `<finalPath>.overlay-partial`; chunks verify against the chunk map as they arrive; a **receive journal** (app-private `journals/` — received-chunk bitmap + streaming-hash snapshot) makes resume O(1); partial → final is an atomic rename.
+3. **Fetch by content hash** through the overlay (§7.7). Bytes land in `<finalPath>.mirall.part`; chunks verify against the chunk map as they arrive; a **receive journal** (app-private `journals/` — received-chunk bitmap + streaming-hash snapshot) makes resume O(1); partial → final is an atomic rename.
 4. **Progress is decoration, never status.** Ticks emit `event:decoration` and persist `bytesTransferred`; the row's *status* is always re-derived by `files:list`, never pushed.
 5. **Completion.** Pending row cleared, Downloads bee marked (`markDownloaded` + the verified hash), `event:transfer-complete` + `event:files-updated`.
 
@@ -267,7 +267,7 @@ Progress streams locally as `event:decoration { channel:'transfer', phase:'publi
 
 **Failure semantics.** Recovery is level-triggered, with **no retry budget** — see the table in §4.5.
 
-**Boot sweeps.** `cleanupOrphanedOverlayPartials` removes `.overlay-partial` files (download dir + every foreign mount) that no pending row or journal references — a resumable partial is preserved. `cleanupOrphanedJournals` drops corrupt, stale (>7 d), or partner-less journals. Shutdown marks nothing: resume state reconstructs from the durable rows.
+**Boot sweeps.** `cleanupOrphanedPartials` removes `.mirall.part` files (download dir + every foreign mount) that no pending row or journal references — a resumable partial is preserved. `cleanupOrphanedJournals` drops corrupt, stale (>7 d), or partner-less journals. Shutdown marks nothing: resume state reconstructs from the durable rows.
 
 ### 3.6 Mounts bee (`mounts-meta`) — local only
 
@@ -494,7 +494,7 @@ Module map: §11.
 ### 7.2 Publishing (owner side)
 
 1. **Mount** (`owned-folder:mount`). After `mount-validate` passes, save the owned mount, ask main to start a chokidar watcher, emit `event:owned-folder-mount-status: 'scanning'`.
-2. **Initial scan** (`initialPublishScan`). Delegates to `backend.scan` (the overlay backend), which walks the tree **stat-only** honoring `ignore` globs (`DEFAULT_IGNORE` covers `.DS_Store`, `Thumbs.db`, `*.partial`, `.git/**`, `node_modules/**`, …), diffs against the catalog by **size+mtime** — the git-index change signal, no reads for unchanged files — publishes new/changed files (streaming each **once**, hashing inline), and deletes catalog entries whose disk file is *confirmed* absent (never when the mount root itself is missing). Emits `event:owned-folder-scan-completed { uploaded, deleted, totalOnDisk }`. The content hash is published as entry metadata for mirrors to verify against; it does **not** drive owner-side change detection.
+2. **Initial scan** (`initialPublishScan`). Delegates to `backend.scan` (the overlay backend), which walks the tree **stat-only** honoring `ignore` globs (`DEFAULT_IGNORE` covers `.DS_Store`, `Thumbs.db`, `*.mirall.part`, `.git/**`, `node_modules/**`, …), diffs against the catalog by **size+mtime** — the git-index change signal, no reads for unchanged files — publishes new/changed files (streaming each **once**, hashing inline), and deletes catalog entries whose disk file is *confirmed* absent (never when the mount root itself is missing). Emits `event:owned-folder-scan-completed { uploaded, deleted, totalOnDisk }`. The content hash is published as entry metadata for mirrors to verify against; it does **not** drive owner-side change detection.
 3. **Live updates** (`onFsEvent`). `add`/`change` → size+mtime skip vs the catalog entry, else `backend.publishAdd` (single streaming read). `unlink` → `backend.publishDelete` (guarded: root must still exist, file confirmed gone). `echo-guard` drops events for paths the worker itself just wrote — no upload-of-our-own-download loop. A 2 s-debounced catch-up reconcile follows quiet periods (macOS fsevents coalescing).
 4. **Periodic reconcile.** A recurring timer re-runs the fast stat-only diff to heal what the watcher missed (sleep, dropped events). Every Nth pass (`deepReconcileEvery`, default 4 → ~daily at the 6 h interval) runs **deep**, content-hashing every file to catch an in-place rewrite that preserved size+mtime.
 5. **Relocate** (`owned-folder:relocate`). Moves the mount; runs a **deep** reconcile so an identical tree at the new path — whose mtimes typically differ after a move/copy — relocates with zero re-upload and no mirror churn.
@@ -504,7 +504,7 @@ Module map: §11.
 
 1. **Mirror** (`foreign-folder:mount`). After `mount-validate` passes (foreign mounts additionally reject paths inside `~/Downloads`), save the mount (`enabled:true`) and start the materialize loop.
 2. **Initial materialize** (`initialMaterializeScan`). List the owner's share prefix, download everything to the mount path, recording each delivered path in `syncedPaths`. Pre-existing user files at the destination are left untouched.
-3. **Steady state.** `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). Each tick diffs the catalog and `applyChange`s: `put` fetches by content hash through the overlay into a `.overlay-partial`, then renames; `del` unlinks a local file **only if** it is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
+3. **Steady state.** `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). Each tick diffs the catalog and `applyChange`s: `put` fetches by content hash through the overlay into a `.mirall.part`, then renames; `del` unlinks a local file **only if** it is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
 4. **Deletion safety.** `shouldHonorDeletions({ownerOnline, driveCount})` honors owner-side deletions only when the owner is online *and* the listing is non-empty — a lagged or empty replica cannot cascade-wipe a mirror. Mirrors are read-only and idempotent: no per-file retry budget; a failed file just retries next tick.
 5. **Pause / unmount.** `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record, and reclaims cached blobs. Status flows through `event:foreign-folder-mount-status` (`active` / `scanning` / `paused-error` / `paused-enospc` / `mount-point-gone`).
 
@@ -527,7 +527,7 @@ Mounts survive restarts (rehydrated from `mounts-meta`, §2 step 7). The 60 s **
 Every share — folder and loose — moves bytes through the **overlay** backend (`transfer/backends/overlay/`). The canonical bytes are the user's **real file on disk**; nothing is copied into a Hyperdrive blob store.
 
 1. **Publish.** Stream the file once, computing the whole-file **content hash** and the content-addressed **chunk map** in the same pass; advertise its metadata into the share's replicated catalog (SCK-encrypted, §3.7).
-2. **Fetch.** A consumer lists the catalog and requests a file *by content hash* from any online holder over the `hyper-overlay/v2` Protomux channel. Chunks verify against the chunk map as they arrive; the file lands as a visible `<name>.overlay-partial` beside its final name and is atomically renamed on completion, so observers see only a missing or a complete file. Serving passes the §16 authorization gates — **a denial is indistinguishable from "I don't hold it"**.
+2. **Fetch.** A consumer lists the catalog and requests a file *by content hash* from any online holder over the `hyper-overlay/v2` Protomux channel. Chunks verify against the chunk map as they arrive; the file lands as a visible `<name>.mirall.part` beside its final name and is atomically renamed on completion, so observers see only a missing or a complete file. Serving passes the §16 authorization gates — **a denial is indistinguishable from "I don't hold it"**.
 3. **Resume.** Interrupted downloads persist a **receive journal** (received-chunk bitmap + streaming-hash snapshot) in the app-private `journals/` dir, so a resume continues where it stopped rather than re-verifying from scratch. Transfers pause when the holder goes offline and resume on reconnect.
 
 The dispatch seam is `getContentBackend(share)` (`transfer/content-backends.js`): the overlay backend for `contentMode === 'overlay'` (when the build's overlay flag is on), and the `UNSUPPORTED` sentinel for every other mode — absent, the retired `'eager'`/`'deferred'` modes, or an unknown future mode — which callers render as unavailable rather than routing to a removed path. `test/integration/content-backend-conformance.test.js` locks the contract.
@@ -830,7 +830,7 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `transfer/content-backends.js` | The seam: `getContentBackend(share)` → overlay, else `UNSUPPORTED`. Locked by `content-backend-conformance.test.js`. §7.7 |
 | `transfer/backends/overlay/` | `overlay-backend.js` (the 8-method contract, serve/fetch, sender-side download indicator), `overlay-instance.js` (`HyperOverlayV2` lifecycle + channel attach), `overlay-download.js` (shared consumer engine), `overlay-authorize.js` (the three serve gates, §16), `vendor/` (vendored `hyper-overlay` v2 subset + `PROVENANCE.md`) |
 | `transfer/download-dest.js` | `resolveDest` — collision-free Downloads naming |
-| `transfer/partial-sweep.js` | `cleanupOrphanedOverlayPartials` — boot sweep of unreferenced partials |
+| `transfer/partial-sweep.js` | `cleanupOrphanedPartials` — boot sweep of unreferenced partials |
 | `transfer/transfer-status.js` | `pausedStatusFor` — derives a row's paused sub-status |
 | `transfer/pending-transfers.js` | Pending-transfers bee CRUD (resume across restarts) |
 | `transfer/swarm.js` | Hyperswarm + Protomux handshakes, per-space identity binding (§16), overlay channel attach, presence/membership gossip |
@@ -1044,6 +1044,6 @@ File bytes are served only when three gates pass (`transfer/backends/overlay/ove
 - **Capability flag** — `caps/<feature>` marker in the profile bee; absence means "this peer doesn't publish that data", never "the data is gone".
 - **Presence lease** — a short-lived, re-announced liveness claim; expiry means the peer is treated as offline.
 - **Hint / `event:reconcile`** — the coalesced worker→renderer signal "state in this scope changed, refetch it".
-- **Partial** — an in-progress download file (`*.partial` / `*.overlay-partial`), atomically renamed on completion.
+- **Partial** — an in-progress download file (`*.mirall.part`), atomically renamed on completion. The suffix is defined once in `src/shared/transfer/partial-suffix.js` and injected into the vendored overlay engine; it deliberately is not a bare `*.part`, which would collide with Firefox/KDE downloads in the same folder.
 - **Pending transfer** — the persisted row describing an unfinished download; the source of resume and of paused/error UI states.
 - **Channel** — a release line (`dev` / `staging` / `prod`), each an independently-keyed update drive.

@@ -5,10 +5,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
-
-// Matches PARTIAL_SUFFIX in transfer/backends/overlay/vendor/transfer.js (a Bare
-// module the Node-hosted flow runner can't import).
-const OVERLAY_PARTIAL = '.overlay-partial'
+import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suffix.js'
 
 // overlayEnabled for both peers; a short foreign poll so resume re-fetches
 // promptly instead of waiting the 30s production cadence.
@@ -28,7 +25,7 @@ async function waitForSize (file, want, ms = scaled(60000)) {
 // is fetching right now, not just stop launching the next one. The owner shares a
 // large file; the mirror pauses on the first mid-download progress event. Before
 // the fix the in-flight overlay fetch ran to completion (the final file appeared);
-// after it, the download stops with a .partial kept, and resume completes it.
+// after it, the download stops with a partial kept, and resume completes it.
 test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resume completes it',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
@@ -63,11 +60,11 @@ test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resu
     // time to (wrongly) finish, then assert it did not.
     await new Promise((r) => setTimeout(r, scaled(6000)))
     t.absent(fs.existsSync(destFile), 'paused mirror did not complete the in-flight file')
-    t.ok(fs.existsSync(destFile + OVERLAY_PARTIAL), 'partial kept on disk for resume')
+    t.ok(fs.existsSync(destFile + PARTIAL), 'partial kept on disk for resume')
 
     // Resume → the next poll tick re-fetches from the kept partial and completes.
     await B.request('foreign-folder:set-enabled', { spaceId, shareId: share.id, enabled: true })
     await waitForSize(destFile, SIZE)
     t.is(fs.statSync(destFile).size, SIZE, 'resume completed the file')
-    t.absent(fs.existsSync(destFile + OVERLAY_PARTIAL), 'partial renamed to the final file on completion')
+    t.absent(fs.existsSync(destFile + PARTIAL), 'partial renamed to the final file on completion')
   })

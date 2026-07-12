@@ -76,7 +76,7 @@ test('loose download auto-restarts when the source changes mid-transfer',
     const landed = fs.readFileSync(completion.localPath)
     t.is(sha(landed), sha(changed), 'auto-restarted download landed the NEW content byte-exact')
     t.is(landed.length, changed.length, 'final size matches the changed source')
-    t.absent(completion.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.absent(completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     t.absent(sawError, 'still no transfer-error after completion')
 
     A.kill()

@@ -29,7 +29,7 @@ async function shareSeeDownload (t, A, B, spaceId, aKey, aSrc, name, mb, seed) {
   const completion = await done
   t.comment(`${name}: ${mb} MB transferred in ${Date.now() - started}ms under the impaired link`)
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), `${name}: byte-exact over the impaired link`)
-  t.ok(!completion.localPath.endsWith('.overlay-partial'), `${name}: finalised, not a partial`)
+  t.ok(!completion.localPath.endsWith('.mirall.part'), `${name}: finalised, not a partial`)
 }
 
 // High-latency link: membership approval + a transfer must still converge.

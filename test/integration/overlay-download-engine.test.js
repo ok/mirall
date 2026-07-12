@@ -258,7 +258,7 @@ test('engine.cancelByKey removes the partial + pending row and emits', async (t)
   const events = []
   const engine = createOverlayDownloadEngine(testChannel(events))
   const finalPath = path.join(ctx.tmpDir('dl'), 'big.bin')
-  const partial = finalPath + '.overlay-partial'
+  const partial = finalPath + '.mirall.part'
   fs.writeFileSync(partial, 'half a download')
   await recordPending('space1', '/Photos/big.bin', { total: 100, overlayShare: true, shareId: 'folder1', relPath: 'big.bin', ownerKey: 'peerpub', finalPath })
 

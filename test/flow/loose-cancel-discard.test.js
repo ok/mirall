@@ -87,6 +87,6 @@ test('loose cancel then re-download: completes byte-exact with no stale partial'
     await B.request('files:download', { spaceId, path: '/retry.bin', inPlace: true, ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 're-downloaded file is byte-exact')
-    t.ok(!completion.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     A.kill()
   })

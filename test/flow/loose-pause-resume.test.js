@@ -80,7 +80,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
     const hash = (b) => crypto.createHash('sha256').update(b).digest('hex')
     t.is(hash(landed), hash(bytes), 'resumed download landed byte-exact')
     t.is(b4a.byteLength(landed), bytes.length, 'final size matches the source')
-    t.ok(!completion.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
 
     A.kill()
   })
@@ -117,7 +117,7 @@ test('loose download auto-resumes when the owner returns (reconnect hook)',
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const completed = await done
 
-    t.ok(!completed.localPath.endsWith('.overlay-partial'), 'finalised, not a partial')
+    t.ok(!completed.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'auto-resumed loose download bytes match source')
 
     A.kill()

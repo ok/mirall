@@ -27,7 +27,7 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 ### B. Loose-file sharing & transfers (single files, no folder)
 | File | Scenario |
 |------|----------|
-| `loose-transfer.test.js` | A shares a file; B sees it as `remote`, downloads it (atomic rename, no `.partial`), bytes match end-to-end, status flips to `downloaded`. |
+| `loose-transfer.test.js` | A shares a file; B sees it as `remote`, downloads it (atomic rename, no partial left), bytes match end-to-end, status flips to `downloaded`. |
 
 ### C. Owned folders — publish & replication (owner side)
 | File | Scenario |
@@ -39,7 +39,7 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 ### D. Foreign mirrors — materialization (peer side)
 | File | Scenario |
 |------|----------|
-| `foreign-mirror.test.js` | B mirrors A's owned folder; with the owner online the blobs **stream on demand** and land byte-exact on B's disk, no leftover `.partial` (the connectivity-gate regression). |
+| `foreign-mirror.test.js` | B mirrors A's owned folder; with the owner online the blobs **stream on demand** and land byte-exact on B's disk, no leftover partial (the connectivity-gate regression). |
 | `foreign-sync.test.js` | **REGRESSION (connectivity gate):** a mirror **defers** while the owner is offline + blob uncached, then materializes when the owner returns. **REGRESSION (FIX-6):** with the owner online, an owner-side **edit** and **delete** both propagate; a file B already had in the mirror dir is left untouched. |
 | `offline-delete-guard.test.js` | **CRIT-3 (FIX-6 negative, real flow):** once the owner goes offline, materialize ticks **never wipe** already-synced mirror files — the offline branch of `shouldHonorDeletions` proven across two workers (the dangerous data-loss path that was previously only faked in-process). |
 | `mirror-local-edit.test.js` | **CRIT-7:** a mirror is owner-authoritative — if the user edits a file inside their own mirror, the next tick detects the hash mismatch and **re-downloads the owner's version**, reverting the local edit. |
@@ -63,7 +63,7 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 | File | Scenario |
 |------|----------|
 | `multi-mirror.test.js` | **CRIT-8:** B **and** C both mirror the same owner folder; an owner edit and delete reach **both mirrors independently** (neither diverges). The suite's first multi-mirror scenario. |
-| `concurrent-download.test.js` | **GAP #10:** three peers download the **same** file from one owner **at the same time**; the owner serves concurrent reads and each downloader finalises its own `.partial` to byte-exact content (no bookkeeping race / partial collision). |
+| `concurrent-download.test.js` | **GAP #10:** three peers download the **same** file from one owner **at the same time**; the owner serves concurrent reads and each downloader finalises its own partial to byte-exact content (no bookkeeping race / partial collision). |
 | `same-name-folders.test.js` | **CRIT-9:** two owners each share a folder named "Docs"; a co-member sees them as **two distinct shares** (deduped by `owner:id`, not name), each with its own file list. *(Run as 2-peer — each owner is itself a member alongside the other — which is all the dedupe logic needs; see "Known limitation" below.)* |
 
 ### H. Membership lifecycle & leave
@@ -106,7 +106,7 @@ The pure platform/string math underneath all of it (separator mapping, prefix me
 |---|-----|--------------------------|-------|
 | **MEM-1** | **Transitive membership propagation** — a peer that joins via one member learns the *inviter* reliably but **does not** learn the other existing co-members (observed: a third peer never converged on the second member within 120 s). This is why `same-name-folders` is framed as 2-peer and why a genuine *third-party observer* of two owners' shares can't be asserted today. | A real implementation gap, not a test gap — the same structural weakness `test/integration/README.md` flags as its biggest (#3 / witness-manifest propagation). Needs a fix in the membership manifest/handshake before a 3rd-party-visibility flow test can pass. | 3 |
 | **CRIT-12** | **Re-seed on download → third-peer availability** — C fetches a file from B while the owner A is offline. | Feature **unbuilt** (`plan-reseed-on-download.md`, `plan-blind-peer-cloud-availability.md`); a downloader does not re-seed today. Add the 3-peer flow test when the feature lands. | 3 |
-| **CRIT-13** | **Download rename-failure finalize branch** — the `.partial`→final rename fails (disk/permission fault). | Hard to induce: needs a live peer drive **and** an injected `fs.rename` fault inside the worker subprocess. The success path + `markDownloaded` landed-path are already covered (`loose-transfer` here, `files-ops` at integration). | 2 |
+| **CRIT-13** | **Download rename-failure finalize branch** — the partial→final rename fails (disk/permission fault). | Hard to induce: needs a live peer drive **and** an injected `fs.rename` fault inside the worker subprocess. The success path + `markDownloaded` landed-path are already covered (`loose-transfer` here, `files-ops` at integration). | 2 |
 
 ### Note on multi-peer convergence timing
 Three- and four-worker tests on a single machine show non-deterministic catalog/membership convergence to the 3rd/4th peer: it usually lands in well under a second but can occasionally lag. The 3+-peer tests therefore gate on the **persisted** signal they actually depend on (`spaces:list` membership, or `event:files-updated`) with generous `until` windows rather than fixed sleeps. If a 3-peer test flakes, it's convergence latency — widen the window, don't assume a logic bug.

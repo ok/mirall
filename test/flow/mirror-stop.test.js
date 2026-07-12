@@ -6,7 +6,7 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 
 function countFiles(dir) {
-  try { return fs.readdirSync(dir).filter((n) => !n.endsWith('.partial')).length } catch { return 0 }
+  try { return fs.readdirSync(dir).filter((n) => !n.endsWith('.mirall.part')).length } catch { return 0 }
 }
 
 // REGRESSION: unmounting a mirror mid-sync must actually stop the materialize
