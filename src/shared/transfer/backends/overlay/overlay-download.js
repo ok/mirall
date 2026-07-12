@@ -329,13 +329,27 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     return pending
   }
 
-  // Stop + discard an in-flight transfer addressed by its id (the slot carries the
-  // spaceId + pending key — the caller need not know them).
+  // Stop + discard a transfer addressed by its id alone. A live slot carries the spaceId +
+  // pending key; with none the fetch already settled (a dropped connection beat the click), so
+  // resolve them from the pending ROW instead — the id names the row but cannot rebuild a folder
+  // pendingKey, which embeds the share NAME the id does not carry. Bailing out here (the old
+  // behavior) left the partial and the row behind, and the row auto-resumed on the next reconnect.
+  // false only when neither a slot nor a row exists: a transfer that is genuinely gone.
   async function cancel (transferId) {
     const tr = registry.get(transferId)
-    if (!tr) return false
-    await cancelByKey(tr.spaceId, tr.pendingKey, transferId)
-    return true
+    if (tr) {
+      await cancelByKey(tr.spaceId, tr.pendingKey, transferId)
+      return true
+    }
+    if (typeof transferId !== 'string') return false
+    const spaceId = transferId.split('|')[0]
+    for (const row of await listPendingForSpace(spaceId)) {
+      if (!channel.ownsPendingRow(row)) continue // one bee, both engines: never discard the other's row
+      if (channel.transferIdForRow(spaceId, row) !== transferId) continue
+      await cancelByKey(spaceId, row.filePath, transferId)
+      return true
+    }
+    return false
   }
 
   // The source file changed under an in-flight transfer. Abort the stale fetch (its

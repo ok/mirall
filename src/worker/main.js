@@ -54,7 +54,7 @@ import {
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
 import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload } from '../shared/transfer/files.js'
-import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence, looseHasTransfer } from '../shared/transfer/loose-overlay.js'
+import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
@@ -1866,8 +1866,12 @@ ipc.handle('files:download', async (msg) => {
 })
 ipc.handle('files:cancel-download', async (msg) => {
   const id = msg.transferId
-  if (looseHasTransfer(id)) await looseCancelTransfer(id)
-  else if (overlayHasTransfer(id)) await overlayCancel(id)
+  // Route on the id's shape, not on a live transfer — the same defect the pause handler below was
+  // fixed for. A dropped connection settles the fetch a beat before the click lands, and gating on
+  // has() routed a settled row to NEITHER engine: the partial and the pending row survived a
+  // discard that reported ok, and the row auto-resumed on the next reconnect.
+  if (isLooseTransferId(id)) await looseCancelTransfer(id)
+  else await overlayCancel(id)
   return { ok: true }
 })
 ipc.handle('files:pause-download', async (msg) => {
