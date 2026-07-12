@@ -11,7 +11,7 @@ changes do not appear here.
 
 
 ## v1.7.0
-### 2026-06-29
+### 2026-07-12
 
 This release adds approval-based space membership and is a major security
 hardening update — see **Security** below. Existing installs upgrade and
@@ -52,6 +52,18 @@ inside the app.
   back up on their own when the owner comes back online. Each finished
   file carries a "verified" badge confirming its contents match the
   original exactly.
+- **Browse a shared folder as a collapsible tree.** Subfolders in a 
+  Shared Folder are now rows you can open and close, and each one
+  tells you what's inside at a glance: how many files it holds, their
+  total size, how many are already on your device, and how many are
+  downloading right now. **Expand all** and **Collapse all** fold the
+  whole tree at once, and the folders you leave open stay open as you
+  move around the app.
+- **See who's mirroring a folder you shared.** A folder you own now
+  shows the people keeping a live copy of it, each with their current
+  state — synced, syncing, or paused. A single person shows by name;
+  several stack into a row of avatars with a summary. The states stay
+  accurate even while those people are offline.
 - **A bigger target for drag-and-drop sharing.** Dragging a file
   anywhere over a space now expands the drop zone to fill the whole area,
   so it's easier to aim and drop files in to share.
@@ -140,6 +152,10 @@ inside the app.
   forever.
 - **Fixed a crash when showing a notification on Windows** for certain
   spaces, members, or transfers.
+- **Long names no longer overflow confirmation dialogs.** A long file,
+  folder, or space name in a Remove, Leave, Delete, or Mirror dialog
+  spilled out of the panel and pushed the close button aside. Names are
+  now shortened in the middle, keeping the file extension readable.
 
 
 ## v1.6.1
