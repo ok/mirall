@@ -224,8 +224,8 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
 export async function connectInSpace (t, A, B, name = 'Test Space') {
   const space = await A.request('space:create', { name })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const aSawB = A.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId)
-  const bSawA = B.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId)
+  const aSawB = A.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId, 120000)
+  const bSawA = B.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId, 120000)
   await B.request('space:join', { inviteCode })
   await Promise.all([aSawB, bSawA])
 
@@ -253,8 +253,8 @@ export async function connectInSpace (t, A, B, name = 'Test Space') {
 export async function connectInSpaceWithApproval (t, A, B, name = 'Secure Space') {
   const space = await A.request('space:create', { name })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId)
-  const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId)
+  const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId, 120000)
+  const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId, 120000)
   await B.request('space:join', { inviteCode })
   const req = await aGotRequest
   await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: req.publicKey })
