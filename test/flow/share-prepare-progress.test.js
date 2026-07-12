@@ -42,7 +42,7 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
 test('owner with the flag off never broadcasts prepare-progress',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: true } })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey
