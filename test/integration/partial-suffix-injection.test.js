@@ -1,6 +1,6 @@
 // The partial suffix is app-owned and threaded into the vendored engine as a
-// constructor opt (PROVENANCE.md §4.17), so the writer can never drift from the
-// app-side sweep/probe/ignore logic that keys on the same constant.
+// constructor opt, so the writer can never drift from the app-side
+// sweep/probe/ignore logic that keys on the same constant.
 import test from 'brittle'
 import { tmpStore, tmpDir, path } from './overlay-vendor-helpers.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'

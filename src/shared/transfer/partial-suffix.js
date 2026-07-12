@@ -1,7 +1,7 @@
 // THE suffix for an in-flight download, and the only place it is defined. The
 // overlay engine is vendored, so it cannot import this — the value is threaded in
-// as a `partialSuffix` constructor opt (PROVENANCE.md §4.17). Every app-side
-// consumer (collision probes, boot sweep, discard, ignore globs) reads it here.
+// as a `partialSuffix` constructor opt. Every app-side consumer (collision probes,
+// boot sweep, discard, ignore globs) reads it here.
 //
 // The token is deliberately not a bare `.part`: the boot sweep unlinks every match
 // in the user's Downloads folder that it cannot attribute to a pending row or a
