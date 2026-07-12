@@ -220,9 +220,13 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       // Record the pending row up front (carrying ownerKey + the content hash it is fetching) so
       // the download survives an owner-offline gap and auto-resumes on reconnect, and so a later
       // reconcile can tell a re-added-identical entry (drop) from changed content (restart).
+      // recordPending OVERWRITES the row, so the resumed byte count has to be carried through
+      // explicitly: a start() that then bails (owner offline) would otherwise reset a part-
+      // downloaded row's progress to zero.
       await recordPending(job.spaceId, job.pendingKey, {
         total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerPublicKey,
-        finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash, ...channel.pendingExtra(job),
+        finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
+        bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
       })
 
       // A pause/cancel/supersede may have landed during the await above, before any
@@ -233,7 +237,12 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
         return { queued: true } // cancelByKey already cleared the row + emitted
       }
       if (slot.paused) { registry.delete(transferId); channel.emitUpdated(job.spaceId); return { queued: true } }
-      if (!ownerOnline(job.ownerPublicKey)) { registry.delete(transferId); channel.emitUpdated(job.spaceId); return { queued: true } }
+      if (!ownerOnline(job.ownerPublicKey)) {
+        registry.delete(transferId)
+        log.debug('overlay download queued — owner not present on the control plane:', job.relPath)
+        channel.emitUpdated(job.spaceId)
+        return { queued: true }
+      }
 
       // Preflight: the size is known up front, so refuse a download the volume cannot hold
       // BEFORE any scheduler/holder work. On NTFS the receive path's full-size preallocation
@@ -274,15 +283,27 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     }
   }
 
-  // Stop the fetch but KEEP the partial + pending row so a later start() resumes it.
+  // Stop the fetch but KEEP the partial + pending row so a later start() resumes it. With no
+  // slot the fetch already settled (a dropped connection beat the click) — the row is still
+  // pending, so record the intent anyway: without the marker the next reconnect auto-resumes a
+  // download the user just paused.
   function pause (transferId) {
     const tr = registry.get(transferId)
-    if (!tr) return false
+    if (!tr) {
+      pausedHashes.set(transferId, null)
+      return true
+    }
     tr.paused = true
     pausedHashes.set(transferId, tr.contentHash) // remember the hash so a later discard can signal STOPPED
     if (tr.fetching) getOverlay()?.cancelFetch(tr.contentHash, { discardPartial: false })
     return true
   }
+
+  // A user's explicit download/resume click outranks a manual-pause marker. Cleared HERE rather
+  // than only in start(), because an attempt that dies before start() (an unreadable catalog, an
+  // owner that just went offline) would otherwise leave the marker set — and a set marker makes
+  // runReconcile skip the row as "manually paused" forever, so no reconnect ever resumes it.
+  function clearPauseMarker (transferId) { pausedHashes.delete(transferId) }
 
   // Discard: stop + drop the partial + pending row. Works in-flight (the slot is left
   // for start()'s guard / the fetch IIFE to honor `cancelled`) and on a paused/restart-
@@ -446,5 +467,5 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)
   }
 
-  return { start, pause, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), _registry: registry }
+  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), _registry: registry }
 }

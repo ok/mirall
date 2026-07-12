@@ -72,6 +72,12 @@ export class ChunkScheduler {
     this._sinceYield = 0   // [mirall] §HOL event-loop yield counter
 
     this._peers = new Set()
+    // [mirall] Peers we have sent a content-request to but not yet heard a chunk list from. A peer
+    // only enters _peers once its list arrives, so without this a holder that dies inside that
+    // window is invisible to removePeer and the fetch waits out the whole idle timeout instead of
+    // failing fast — 30s in which the transfer still holds its slot and every reconnect-driven
+    // resume is skipped as "already downloading".
+    this._requested = new Set()
     this._started = false
     this._settingUp = false
     this._finalizing = false
@@ -171,6 +177,7 @@ export class ChunkScheduler {
 
   /** A peer responded with the chunk list. First response starts the transfer. */
   async onChunkHashes (peer, chunks) {
+    this._requested.delete(peer) // it answered — from here on its loss is handled by _peers
     if (this._done) return
     this._peers.add(peer)
     if (!this._peerInflight.has(peer)) this._peerInflight.set(peer, 0)
@@ -282,16 +289,30 @@ export class ChunkScheduler {
     if (now - this._lastReportAt >= this._reportInterval) this._reportHave(now)
   }
 
+  // [mirall] We asked this peer for the content; it has not answered yet. Tracked so its loss is
+  // still a loss (see _requested).
+  noteRequested (peer) {
+    if (!this._done) this._requested.add(peer)
+  }
+
   /** A peer went away — return its inflight chunks to the pool. */
   removePeer (peer) {
-    if (!this._peers.has(peer)) return
+    const wasRequested = this._requested.delete(peer)
+    if (!this._peers.has(peer)) {
+      // [mirall] It died before its chunk list arrived. If it was the last holder we were waiting
+      // on, the fetch is already doomed — fail now rather than idling for the full timeout.
+      if (wasRequested && !this._done && this._peers.size === 0 && this._requested.size === 0) {
+        return this._fail(new Error('all peers gone before any chunk list arrived'))
+      }
+      return
+    }
     this._peers.delete(peer)
     this._peerInflight.delete(peer)
     for (const [index, p] of this._inflight) {
       if (p === peer) this._inflight.delete(index) // back to needed (still in _needed)
     }
     if (this._done) return
-    if (this._peers.size === 0 && this._needed.size > 0) {
+    if (this._peers.size === 0 && this._requested.size === 0 && this._needed.size > 0) {
       return this._fail(new Error('all peers gone with ' + this._needed.size + ' chunk(s) outstanding'))
     }
     this._assign()

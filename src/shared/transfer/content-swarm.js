@@ -71,6 +71,8 @@ function onContentConnection(socket, peerInfo) {
   const remoteKey = remoteKeyHex.slice(0, 16) || 'unknown'
   if (contentSpaceTopics.size === 0) { socket.destroy(); return }
   applyNetImpairment(socket) // TEST-ONLY: no-op unless runtime-config.netImpair is set
+  log.debug('connection', remoteKey + '...', peerInfo.client ? '(we dialed)' : '(they dialed)')
+  socket.on('close', () => log.debug('connection closed', remoteKey + '...'))
 
   const mux = Protomux.from(socket)
   const channel = mux.createChannel({
@@ -94,6 +96,7 @@ function onContentConnection(socket, peerInfo) {
       // connection (a different Noise key) fails.
       if (!verifyIdentityBinding(peerInfo, msg)) { log.warn('content-hello rejected from', remoteKey + '...'); return }
       contentPeerSockets.add(socket, msg.profileKey)
+      log.debug('content-hello verified from', msg.profileKey.slice(0, 12) + '... — resuming its downloads')
       // The plane can now serve/fetch this owner → resume its paused/interrupted downloads.
       contentResumeHook?.(msg.profileKey)
     },
@@ -158,6 +161,22 @@ export async function refreshContentDiscoveries() {
   if (!contentSwarm) return
   for (const [, discovery] of contentDiscoveries) {
     try { await discovery.refresh({ client: true, server: true }) } catch {}
+  }
+}
+
+// Is this owner reachable on the bulk plane at all? A pending download from an owner with no
+// content socket is a stalled transfer — swarm.js escalates that into a discovery refresh.
+export function contentPlaneHasPeer(profileKeyHex) {
+  return contentPeerSockets.hasPeer(profileKeyHex)
+}
+
+export function getContentPlaneStatus() {
+  if (!contentSwarm) return { active: false, connections: 0, authedPeers: 0, topics: 0 }
+  return {
+    active: true,
+    connections: contentSwarm.connections?.size || 0,
+    authedPeers: contentPeerSockets.size,
+    topics: contentSpaceTopics.size,
   }
 }
 

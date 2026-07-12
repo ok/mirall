@@ -906,6 +906,9 @@ const folderEngine = createOverlayDownloadEngine({
 // write to the downloads folder. No second copy stored (reSeed:false). When the
 // hash is not yet advertised (owner still hashing), report queued.
 export async function overlayRequestDownload(spaceId, share, relPath) {
+  // Doubles as the manual resume, so retire any pause marker before the guards below can return
+  // early — a marker left set suppresses every later auto-resume for this row.
+  folderEngine.clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay()) return { queued: true }
   const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return { queued: true }

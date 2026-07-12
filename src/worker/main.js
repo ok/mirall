@@ -41,7 +41,7 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
 import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
@@ -60,9 +60,9 @@ import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/t
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedOverlayPartials } from '../shared/transfer/partial-sweep.js'
 import { pausedStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
-import { transferIdFor } from '../shared/transfer/transfer-id.js'
+import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
-import { initPendingTransfers, clearPendingForSpace, listPendingForSpace } from '../shared/transfer/pending-transfers.js'
+import { initPendingTransfers, clearPendingForSpace, listPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
 import { getStorageInfo, cleanupOrphanedData, getSpaceCacheBytes, freeSpace } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
@@ -263,26 +263,35 @@ if (isOverlayEnabled()) {
     if (isInPlaceFilesEnabled()) resumeLooseForOwner(ownerKey, spaceId).catch((err) => log.debug('loose auto-resume failed:', err.message))
     resumeOverlayForOwner(ownerKey, spaceId).catch((err) => log.debug('overlay folder auto-resume failed:', err.message))
   }
+  // BOTH planes drive the resume. The control handshake marks the owner's presence lease
+  // synchronously before firing this hook, so a resume it triggers can never observe the stale
+  // "owner offline" that start()'s gate reads — whereas a content-plane hello routinely lands
+  // while the control socket is still re-handshaking, and its resume is dropped. With only the
+  // content hook installed, out-of-phase flapping starves the download of every trigger it has.
+  setOverlayReconnectHook(autoResume)
   if (useContentPlane) {
     // The content plane authenticates per owner with no space, so fan the resume across our
     // spaces — coalesced per owner so reconnect churn doesn't re-run listSpaces() each time.
+    // Still needed alongside the control hook: a content-only flap re-runs no handshake.
     const resumePending = new Map()
     setContentResumeHook((ownerKey) => {
       if (resumePending.has(ownerKey)) return
       const timer = setTimeout(() => {
         resumePending.delete(ownerKey)
-        listSpaces().then((spaces) => { for (const s of spaces) if (!s.leaving) autoResume(ownerKey, s.spaceId) }).catch(() => {})
+        listSpaces()
+          .then((spaces) => { for (const s of spaces) if (!s.leaving) autoResume(ownerKey, s.spaceId) })
+          .catch((err) => log.debug('content-hello resume fan-out failed:', err.message))
       }, 250)
       timer.unref?.()
       resumePending.set(ownerKey, timer)
     })
-  } else {
-    setOverlayReconnectHook(autoResume)
   }
 }
 setMembershipControlHandler(handleMembershipControl)
 if (useContentPlane) setContentAttachHook(fanoutAttach) // overlay binds its channel on content connections
 else setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
+// Lets the convergence tick see a download whose owner has dropped off either plane.
+setStalledOwnersHook(listPendingOwnerKeys)
 setSharePrepareBroadcast((spaceId, p) => { if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p) })
 // A peer left a space we are still in: stop serving THAT PEER the space's bytes. Scoped to the
 // leaver — a space-wide revoke here would also cut off every other member still legitimately
@@ -1849,7 +1858,11 @@ ipc.handle('files:add', async (msg) => {
 ipc.handle('files:download', async (msg) => {
   const space = await getSpace(msg.spaceId)
   const member = (space?.members || []).find((m) => m.publicKey === msg.ownerKey)
-  return await looseDownload(msg.spaceId, member, msg.path)
+  const res = await looseDownload(msg.spaceId, member, msg.path)
+  // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
+  // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
+  if (res?.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', err.message))
+  return res
 })
 ipc.handle('files:cancel-download', async (msg) => {
   const id = msg.transferId
@@ -1859,8 +1872,11 @@ ipc.handle('files:cancel-download', async (msg) => {
 })
 ipc.handle('files:pause-download', async (msg) => {
   const id = msg.transferId
-  if (looseHasTransfer(id)) loosePause(id)
-  else if (overlayHasTransfer(id)) overlayPause(id)
+  // Route on the id's shape, not on a live transfer: a dropped connection can settle the fetch a
+  // moment before the click lands, and gating on has() would silently pause nothing — leaving the
+  // row to auto-resume on the next reconnect against the user's intent.
+  if (isLooseTransferId(id)) loosePause(id)
+  else overlayPause(id)
   return { ok: true }
 })
 ipc.handle('files:cancel-publish', async (msg) => {
