@@ -39,6 +39,11 @@ jobs:
           path-to-signatures: 'signatures/cla.json'
           path-to-document: 'https://github.com/ok/mirall-app/blob/main/CLA.md'
           branch: 'cla-signatures'
-          allowlist: 'ok,dependabot[bot],renovate[bot]'
+          # `renovate-bot` is the identity our self-hosted Renovate actually
+          # commits as: renovatebot/github-action signs commits as
+          # `Renovate Bot <renovate@whitesourcesoftware.com>`, which GitHub
+          # resolves to that user. `renovate[bot]` is the hosted GitHub App
+          # and is kept only in case we ever switch to it.
+          allowlist: 'ok,dependabot[bot],renovate[bot],renovate-bot'
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All contributors have signed the CLA. Thank you!'
