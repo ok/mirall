@@ -181,6 +181,13 @@ let packagerConfig = {
   ],
 }
 
+const NOTARIZE_ENV = ['APPLE_ID', 'APPLE_ID_PASSWORD', 'APPLE_TEAM_ID']
+
+// Populated when we sign but can't notarize; the prePackage hook turns it into
+// a hard failure. Notarization stays gated on the full credential set (packager
+// rejects a partial osxNotarize), so the guard lives outside that gate.
+let missingNotarizeEnv = []
+
 if (process.env.APPLE_SIGNING_IDENTITY) {
   packagerConfig = {
     ...packagerConfig,
@@ -191,7 +198,8 @@ if (process.env.APPLE_SIGNING_IDENTITY) {
       }),
     },
   }
-  if (process.env.APPLE_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_ID_PASSWORD) {
+  missingNotarizeEnv = NOTARIZE_ENV.filter((name) => !process.env[name])
+  if (missingNotarizeEnv.length === 0) {
     packagerConfig.osxNotarize = {
       appleId: process.env.APPLE_ID,
       appleIdPassword: process.env.APPLE_ID_PASSWORD,
@@ -208,12 +216,28 @@ module.exports = {
     // doesn't need an upgrade key (the OTA path isn't exercised in dev). The
     // actual injection into the asar's package.json happens in
     // packagerConfig.afterCopy; this hook is a friendly pre-flight check.
-    prePackage: async () => {
+    prePackage: async (_forgeConfig, platform) => {
       if (!process.env.UPGRADE_KEY) {
         throw new Error(
           'UPGRADE_KEY env var is required for electron-forge package/make. ' +
           'In CI it is set by the "Resolve UPGRADE_KEY for channel" step in build-electron.yml. ' +
           'For local builds, set it explicitly: UPGRADE_KEY=pear://<key> npm run make:<platform>'
+        )
+      }
+
+      // Signing without notarizing is a silent downgrade, not a lesser build: it
+      // goes green and ships a DMG that Gatekeeper blocks on first launch. Every
+      // macOS artifact before 2026-07-12 was signed-but-unnotarized for exactly
+      // this reason — APPLE_TEAM_ID was simply never set, so the osxNotarize gate
+      // above stayed shut and nothing said so. Only a throwaway local build has
+      // any business skipping it, hence the explicit opt-out.
+      if (platform === 'darwin' && missingNotarizeEnv.length > 0 && !process.env.ALLOW_UNNOTARIZED) {
+        throw new Error(
+          `macOS signing is on (APPLE_SIGNING_IDENTITY is set) but notarization is not: ` +
+          `${missingNotarizeEnv.join(', ')} unset. An unnotarized build is signed but still ` +
+          'blocked by Gatekeeper, so this fails rather than shipping one. ' +
+          'In CI all three come from repo secrets (see the "Make (macOS)" step in build-electron.yml). ' +
+          'For a local build that intentionally skips notarization: ALLOW_UNNOTARIZED=1 npm run make:darwin'
         )
       }
     },
