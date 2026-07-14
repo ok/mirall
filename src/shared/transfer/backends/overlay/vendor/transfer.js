@@ -286,15 +286,20 @@ export class TransferManager {
    * @returns {Buffer | null}
    */
   readChunk (filePath, offset, length) {
+    // [mirall] The fd is closed in `finally`, not on the success path: an allocation or
+    // read that throws must not escape through the catch below with the handle still open.
+    // This serves every chunk request, so a leak here compounds per request.
+    let fd = null
     try {
-      const fd = openSyncTracked(filePath, 'r')
+      fd = openSyncTracked(filePath, 'r')
       const buf = Buffer.alloc(length)
       const bytesRead = fs.readSync(fd, buf, 0, length, offset)
-      closeSyncTracked(fd)
       if (bytesRead !== length) return null
       return buf
     } catch {
       return null
+    } finally {
+      if (fd !== null) closeSyncTracked(fd)
     }
   }
 

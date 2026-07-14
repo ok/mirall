@@ -1002,6 +1002,30 @@ test('B1: fd count stays flat across a multi-chunk transfer and 20 transfers', a
   await index.close()
 })
 
+// REGRESSION (FIX-358: readChunk leaks its fd when the read fails): the open sat inside the
+// try and the close ran only on the success path, so any throw in between fell straight to
+// `catch { return null }` with the descriptor still open — leaked for the life of the
+// process. protocol-v2 calls readChunk once per chunk of every served request, so a disk
+// throwing EIO while seeding drains the fd table until the worker can open nothing at all.
+// Forced below with an out-of-range length, which throws in Buffer.alloc after the open —
+// the same shape as a readSync I/O error, and the same leak.
+test('REGRESSION (FIX-358): readChunk closes its fd when the read throws', async (t) => {
+  const { index, transfer } = await setup()
+  const p = writeTestFile(tmpDir('rc'), 'rc.bin', crypto.randomBytes(1024))
+
+  t.is(transfer.readChunk(p, 0, 16)?.length, 16, 'a good read still returns its bytes')
+
+  const ITERS = 5
+  const before = fdCount()
+  for (let i = 0; i < ITERS; i++) {
+    t.is(transfer.readChunk(p, 0, Number.MAX_SAFE_INTEGER), null, 'a failing read returns null')
+  }
+  const after = fdCount()
+  t.is(after, before, `no fd leaked across ${ITERS} failing reads (${before} -> ${after})`)
+
+  await index.close()
+})
+
 test('B1: pause closes the fd; a late chunk is refused codeless; resume completes', async (t) => {
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(512 * 1024)
