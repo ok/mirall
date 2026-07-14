@@ -1,4 +1,4 @@
-// The `overlay` content-backend: the 9-method contract over the HyperOverlayV2
+// The `overlay` content-backend: the 8-method contract over the HyperOverlayV2
 // instance + per-share catalog, plus the optional lifecycle hooks (init/attach/
 // teardown) the worker fans out to every backend. Only overlay implements them.
 import * as A from './overlay-backend.js'
@@ -13,7 +13,6 @@ export const overlayBackend = {
   publishDelete: A.overlayPublishDelete,
   scan: A.overlayScan,
   listOwn: A.overlayListOwn,
-  listPeer: A.overlayListPeer,
   listPeerWithMeta: A.overlayListPeerWithMeta,
   requestDownload: A.overlayRequestDownload,
   ensureRemote: A.overlayEnsureRemote,

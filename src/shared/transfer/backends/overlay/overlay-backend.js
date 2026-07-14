@@ -23,7 +23,6 @@ import {
   getOwnEntry,
   listOwnShare,
   collectOwnShare,
-  listPeerShare,
   collectPeerShare,
   getPeerEntry,
   getPeerEntryState,
@@ -779,13 +778,6 @@ function ensurePeerCatalogWatch(spaceId, share, keyHex, sck) {
     // tombstoned OR re-published (so a re-add does NOT auto-resume), and re-drive interrupted ones.
     folderEngine.reconcileOnAppend(share.owner, spaceId).catch((err) => log.debug('overlay catalog-append reconcile failed:', err.message))
   }, sck)
-}
-
-export async function overlayListPeer(spaceId, share) {
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, share)
-  if (!readable) return []
-  ensurePeerCatalogWatch(spaceId, share, keyHex, sck)
-  return await listPeerShare(keyHex, share.id, { sck })
 }
 
 // Display read: one pass carries the capped rows, the completeness flag (so the renderer

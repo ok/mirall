@@ -61,9 +61,10 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     downloadFile, revealFile,
     pauseDownload, cancelDownload, discardPartial,
   } = useShareFiles(spaceId, share.owner, share.id, share.role)
-  // The folder listing is capped at listFilesCap; info.fileCount is the true total, so more
-  // files exist than are shown when it exceeds the rendered rows.
-  const listingTruncated = !loading && !error && !!info && info.fileCount > files.length
+  // The worker reports whether it capped the rows. Never inferred from (fileCount > files.length):
+  // on an incomplete peer read the count is itself partial, so that inference silently goes false
+  // exactly when the listing was truncated.
+  const listingTruncated = !loading && !error && !!info && info.truncated
   const { mount: foreignMount, status: foreignStatus } = useForeignMount(spaceId, share.role === 'mirrored' ? share.id : '')
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [showDelete, setShowDelete] = useState(false)
@@ -287,7 +288,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
               {listingTruncated && info ? (
                 <>
                   <Icon name="folder" size={16} className="text-on-surface-variant shrink-0" />
-                  <span>{t('folder.truncatedListing', { shown: files.length, total: info.fileCount })}</span>
+                  <span>{t('folder.overLimitListing', { shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length })}</span>
                 </>
               ) : null}
             </div>

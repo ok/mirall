@@ -42,9 +42,9 @@ async function setupOverlayMirror (t, { relPath = 'big.bin', contentHash = 'a'.r
   })
 
   // Bypass the real catalog: the materialize tick sees exactly one overlay entry.
-  const origListPeer = overlayBackend.listPeer
-  overlayBackend.listPeer = async () => [{ relPath, contentHash, size }]
-  t.teardown(() => { overlayBackend.listPeer = origListPeer })
+  const origListPeer = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => ({ entries: [{ relPath, contentHash, size }], complete: true })
+  t.teardown(() => { overlayBackend.listPeerWithMeta = origListPeer })
 
   // Stub the overlay: fetchFile hangs until cancelFetch rejects it (the real
   // ECANCELLED path), so the fetch is genuinely in-flight when we pause.

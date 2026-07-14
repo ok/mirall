@@ -21,5 +21,6 @@
   "mountInsideDownloads": "Questa posizione è all'interno della cartella dei download. Scegli una posizione esterna ad essa.",
   "mountInsideSelf": "Questa cartella si trova all'interno di un'altra cartella condivisa. Scegli un'altra cartella.",
   "mountNotWritable": "Mirall non può scrivere in questa cartella. Controlla i permessi o scegline un'altra.",
-  "looseFileLimit": "Puoi condividere fino a 100 file per spazio. Rimuovine alcuni per aggiungerne altri."
+  "looseFileLimit": "Puoi condividere fino a 100 file per spazio. Rimuovine alcuni per aggiungerne altri.",
+  "shareFileLimit": "Le cartelle condivise sono limitate a 5.000 file. Scegli una cartella più piccola oppure suddividila in più condivisioni."
 }

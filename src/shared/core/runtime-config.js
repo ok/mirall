@@ -4,6 +4,7 @@ const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
 // 0 disables the capture. Tests shrink it to exercise the timeout / disabled paths.
 const DEFAULT_CAPTURE_MEMBER_RECORD_MS = 5000
 const DEFAULT_LIST_FILES_CAP = 5000
+const DEFAULT_MAX_FILES_PER_SHARE = 5000
 
 // Single source of truth for every runtime-config field. Both the live default state and each
 // setRuntimeConfig(next) call derive from these tables, so every default is declared exactly once.
@@ -41,7 +42,17 @@ const DEFAULTED = {
   // JSON.stringify) per read and render every row un-virtualised → the worker hits V8's
   // ~4GB ceiling and dies ("huge folder freezes the app"). Past the cap the renderer
   // shows "first N of M" (the true total is streamed separately). 0 / Infinity disables.
+  //
+  // RAISING THIS REQUIRES VIRTUALISING THE FILE LIST FIRST. The number is not a policy
+  // choice — it is the bound that keeps an un-windowed list renderable. maxFilesPerShare
+  // is held equal to it so a folder we ADMIT always renders in full.
   listFilesCap: DEFAULT_LIST_FILES_CAP,
+  // Max files in a folder a user may SHARE — an admission gate enforced at add-folder time
+  // (and in the worker), NOT a runtime ceiling: an already-shared folder that GROWS past this
+  // keeps publishing, because silently refusing to publish would leave the folder incomplete on
+  // every peer — a far worse failure than a truncated list. Growth surfaces a warning instead,
+  // and the gate never fires on remount/relocate/reconcile. 0 / Infinity disables it.
+  maxFilesPerShare: DEFAULT_MAX_FILES_PER_SHARE,
   captureMemberRecordMs: DEFAULT_CAPTURE_MEMBER_RECORD_MS,
   deepReconcileEvery: 4,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
@@ -72,6 +83,11 @@ const DEFAULTED = {
   // [after, after+count) — a deterministic lossy-link lever for flow tests. count 0 = off.
   testDropIdentityFramesAfter: 0,
   testDropIdentityFramesCount: 0,
+  // TEST-ONLY (like dhtBootstrap / testDropIdentityFrames): stop a peer-catalog drain after this
+  // many entries and report the read INCOMPLETE — a deterministic "the listing was truncated"
+  // lever, so the mirror-deletion guard can be exercised without racing a real drain timeout.
+  // 0 = off; production never sets it.
+  testTruncatePeerDrainAfter: 0,
   maxServerConnections: 32,
   maxClientConnections: 32,
   maxPendingRequesters: 64,
@@ -188,6 +204,16 @@ export function getListFilesCap() {
   if (n === 0 || n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
   return DEFAULT_LIST_FILES_CAP
+}
+
+// Same fail-safe contract as getListFilesCap: an explicit 0/Infinity disables the gate, a valid
+// positive finite number is honoured, and anything else falls back to the default rather than
+// silently letting an unbounded folder through.
+export function getMaxFilesPerShare() {
+  const n = config.maxFilesPerShare
+  if (n === 0 || n === Infinity) return Infinity
+  if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
+  return DEFAULT_MAX_FILES_PER_SHARE
 }
 
 export function getCaptureMemberRecordMs() {

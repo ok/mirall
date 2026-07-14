@@ -8,6 +8,7 @@ const ERROR_I18N_KEY_BY_CODE: Record<string, string> = {
   TRANSFER_NETWORK: 'transferNetwork',
   TRANSFER_RENAME_FAILED: 'transferRenameFailed',
   LOOSE_FILE_LIMIT: 'looseFileLimit',
+  SHARE_FILE_LIMIT: 'shareFileLimit',
 }
 
 export function errorCodeToI18nKey(code: string | null | undefined): string {

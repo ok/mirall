@@ -34,9 +34,9 @@ async function setupMirror (t, { fetchResult, entries = ONE_FILE } = {}) {
     contentMode: 'overlay', catalogKey: 'c'.repeat(64), createdAt: Date.now(),
   })
 
-  const origListPeer = overlayBackend.listPeer
-  overlayBackend.listPeer = async () => entries
-  t.teardown(() => { overlayBackend.listPeer = origListPeer })
+  const origListPeer = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => ({ entries, complete: true })
+  t.teardown(() => { overlayBackend.listPeerWithMeta = origListPeer })
 
   const overlay = getOverlay()
   const origFetch = overlay.fetchFile

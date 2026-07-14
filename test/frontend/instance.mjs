@@ -425,6 +425,24 @@ export class Instance {
     await new Promise((r) => setTimeout(r, 300))
   }
 
+  // Open Add Folder, pick a path, advance to the ScanPreviewModal and STOP there (no confirm), so
+  // the preview's own verdict can be inspected — e.g. the refusal for a folder over the file limit.
+  async openAddFolderPreview(absDir) {
+    await this.press('cmd+shift+u')
+    await new Promise((r) => setTimeout(r, 300))
+    await this.nativeChoosePath(absDir)
+    await this.waitText('Add Folder', 20000)
+    await new Promise((r) => setTimeout(r, 400))
+    for (let i = 0; i < 20; i++) {
+      const next = flatten(await this.snap()).find(
+        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
+      )
+      if (next && !(next.states ?? []).includes('disabled')) break
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    await this.click({ role: 'button', name: 'Next: Preview' })
+  }
+
   // Open Add Folder and select a path, but stop on the edit step (no confirm) so
   // a validation rejection surfaces. Returns once async validation has run.
   async openAddFolderAndPick(absDir) {

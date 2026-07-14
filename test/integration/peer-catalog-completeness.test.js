@@ -37,3 +37,24 @@ test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an u
   t.is(res.complete, false, 'un-replicated head → incomplete (renderer keeps last good)')
   t.alike(res.entries, [], 'no rows from an unreachable catalog')
 })
+
+// REGRESSION (FIX-359): FIX-132 covered an empty/un-replicated read. The nastier shape is a drain
+// that starts fine and is cut short mid-tree: it returns a PARTIAL, NON-EMPTY list. That read is
+// indistinguishable from "the owner deleted the rest" unless `complete` is reported — and the
+// mirror's deletion guard used to see only the entry count, so it deleted every file it could not
+// see. The partial read must report complete:false while still returning the rows it did drain.
+test('REGRESSION (FIX-359): a truncated drain reports complete:false WITH its partial entries', async (t) => {
+  await freshPeer(t)
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  const B = await makePeer(t)
+  await seed(B, 25)
+  replicate(getStore(), B.store, t)
+  t.ok(await waitFor(async () => (await listPeerShareMeta(B.key, shareId)).entries.length === 25), 'replicates fully')
+
+  setRuntimeConfig({ ...getRuntimeConfig(), testTruncatePeerDrainAfter: 10 })
+  const res = await listPeerShareMeta(B.key, shareId)
+  t.is(res.complete, false, 'a cut-short drain is NOT complete — this is the flag the mirror acts on')
+  t.is(res.entries.length, 10, 'and it is partial but non-empty: the exact shape that used to authorize deletions')
+})

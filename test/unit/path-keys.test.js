@@ -177,11 +177,17 @@ test('nextFreeName treats an in-flight partial as taken (injected probe)', (t) =
 })
 
 // ── SEV-2 #5: mirror deletion safety ───────────────────────────────────────────
-test('shouldHonorDeletions: only when owner online AND listing non-empty', (t) => {
-  t.ok(shouldHonorDeletions({ ownerOnline: true, driveCount: 3 }), 'online + non-empty → honor')
-  t.absent(shouldHonorDeletions({ ownerOnline: true, driveCount: 0 }), 'empty listing → suspect, do not delete')
-  t.absent(shouldHonorDeletions({ ownerOnline: false, driveCount: 3 }), 'owner offline → stale, do not delete')
-  t.absent(shouldHonorDeletions({ ownerOnline: false, driveCount: 0 }), 'offline + empty → do not delete')
+test('shouldHonorDeletions: only when owner online AND listing non-empty AND read to completion', (t) => {
+  t.ok(shouldHonorDeletions({ ownerOnline: true, driveCount: 3, listingComplete: true }), 'online + non-empty + complete → honor')
+  t.absent(shouldHonorDeletions({ ownerOnline: true, driveCount: 0, listingComplete: true }), 'empty listing → suspect, do not delete')
+  t.absent(shouldHonorDeletions({ ownerOnline: false, driveCount: 3, listingComplete: true }), 'owner offline → stale, do not delete')
+  t.absent(shouldHonorDeletions({ ownerOnline: false, driveCount: 0, listingComplete: true }), 'offline + empty → do not delete')
+})
+
+// FIX-359: a partial (timed-out) drain returns a non-empty listing that is NOT authoritative.
+// The full regression story lives in test/integration/foreign-del-guard.test.js.
+test('FIX-359: a truncated-but-non-empty listing must NOT authorize deletions', (t) => {
+  t.absent(shouldHonorDeletions({ ownerOnline: true, driveCount: 4200, listingComplete: false }), 'partial drain → do NOT delete')
 })
 
 // ── SEV-2 #6: ignore-glob matcher ──────────────────────────────────────────────

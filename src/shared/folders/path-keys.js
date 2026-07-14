@@ -143,11 +143,14 @@ function matchPattern (input, pattern) {
 }
 
 // ─── mirror deletion safety ───────────────────────────────────────────────────
-// Deletions are propagated to a mirror ONLY when the owner is online (the listing
-// is live) AND the listing is non-empty (an all-empty listing is treated as a
-// transient replication gap, never "owner deleted everything").
-export function shouldHonorDeletions ({ ownerOnline, driveCount }) {
-  return !!ownerOnline && driveCount > 0
+// Deletions are propagated to a mirror ONLY when the owner is online (the listing is live), the
+// listing is non-empty (an all-empty listing is treated as a transient replication gap, never
+// "owner deleted everything"), AND the listing was read to completion. A catalog drain that timed
+// out mid-tree returns a PARTIAL, non-empty list — indistinguishable from a real deletion unless
+// completeness is checked, and acting on it deletes files the owner still has. The likelihood of
+// such a drain grows with the file count, so the bigger the folder, the likelier the wrong delete.
+export function shouldHonorDeletions ({ ownerOnline, driveCount, listingComplete }) {
+  return !!ownerOnline && driveCount > 0 && !!listingComplete
 }
 
 // ─── collision-free download/copy naming ──────────────────────────────────────
