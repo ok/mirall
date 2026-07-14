@@ -42,9 +42,9 @@ async function setupOverlayMirror (t, { relPath = 'big.bin', contentHash = 'a'.r
     contentMode: 'overlay', catalogKey: 'c'.repeat(64), createdAt: Date.now(),
   })
 
-  const origListPeer = overlayBackend.listPeer
-  overlayBackend.listPeer = async () => [{ relPath, contentHash, size }]
-  t.teardown(() => { overlayBackend.listPeer = origListPeer })
+  const origListPeer = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => ({ entries: [{ relPath, contentHash, size }], complete: true })
+  t.teardown(() => { overlayBackend.listPeerWithMeta = origListPeer })
 
   const overlay = getOverlay()
   const origFetch = overlay.fetchFile

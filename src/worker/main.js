@@ -79,6 +79,7 @@ import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolder } from '../shared/folders/mount-validate.js'
 import { relKeyEscapes } from '../shared/folders/path-keys.js'
+import { listingTruncated } from '../shared/folders/share-limits.js'
 import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
   previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
@@ -1048,8 +1049,12 @@ async function listOverlayShareFiles(spaceId, share, backend) {
     }
     out.push({ relPath: entry.relPath, size: entry.size, hash: entry.contentHash || '', mtime: entry.mtime, status: row.status, localPath: row.localPath, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode, transferId: isOwn ? undefined : transferIdFor(spaceId, share.id, entry.relPath) })
   }
-  if (total > out.length) log.debug(`share:list-files showing ${out.length} of ${total} rows for share ${share.id} (capped at ${cap})`)
-  return { entries: out, complete, total, totalBytes }
+  // Truncation is a FACT the worker reports, never something the renderer infers from
+  // (total > rows): on an incomplete read `total` is itself partial, so that inference collapses
+  // to false exactly when the rows were capped — and the truncation goes silent.
+  const truncated = listingTruncated({ rowCount: entries.length, total, cap, complete })
+  if (truncated) log.debug(`share:list-files showing ${out.length} of ${total} rows for share ${share.id} (capped at ${cap})`)
+  return { entries: out, complete, total, totalBytes, truncated }
 }
 
 ipc.handle('share:reveal-folder', async (msg) => {

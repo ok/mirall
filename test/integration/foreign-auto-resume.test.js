@@ -29,15 +29,15 @@ async function setupMirror (t, { fetchImpl } = {}) {
     id: shareId, type: 'owned-folder', name: 'Mirror', owner: getLocalPublicKeyHex(),
     contentMode: 'overlay', catalogKey: 'c'.repeat(64), createdAt: Date.now(),
   })
-  const origListPeer = overlayBackend.listPeer
-  overlayBackend.listPeer = async () => [{ relPath: 'big.bin', contentHash: 'a'.repeat(64), size: 1024 }]
+  const origListPeer = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => ({ entries: [{ relPath: 'big.bin', contentHash: 'a'.repeat(64), size: 1024 }], complete: true })
   const overlay = getOverlay()
   const origFetch = overlay.fetchFile
   overlay.fetchFile = fetchImpl || (async () => null)
   const mountPath = ctx.tmpDir('mirror')
   t.teardown(async () => {
     stopForeignLoop(spaceId, shareId)
-    overlayBackend.listPeer = origListPeer
+    overlayBackend.listPeerWithMeta = origListPeer
     overlay.fetchFile = origFetch
     await teardownOverlay()
   })

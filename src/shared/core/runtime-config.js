@@ -72,6 +72,11 @@ const DEFAULTED = {
   // [after, after+count) — a deterministic lossy-link lever for flow tests. count 0 = off.
   testDropIdentityFramesAfter: 0,
   testDropIdentityFramesCount: 0,
+  // TEST-ONLY (like dhtBootstrap / testDropIdentityFrames): stop a peer-catalog drain after this
+  // many entries and report the read INCOMPLETE — a deterministic "the listing was truncated"
+  // lever, so the mirror-deletion guard can be exercised without racing a real drain timeout.
+  // 0 = off; production never sets it.
+  testTruncatePeerDrainAfter: 0,
   maxServerConnections: 32,
   maxClientConnections: 32,
   maxPendingRequesters: 64,

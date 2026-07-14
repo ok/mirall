@@ -32,6 +32,7 @@ interface FolderInfo {
   fileCount: number
   totalBytes: number
   blobsLength: number | null
+  truncated: boolean
 }
 
 interface ListResult {
@@ -42,6 +43,8 @@ interface ListResult {
   // show "first N of M". Absent for backends that don't cap → fall back to the row count.
   total?: number
   totalBytes?: number
+  // Whether the worker capped the rows. Reported, never inferred: see deriveFolderInfo.
+  truncated?: boolean
 }
 
 export function useShareFiles(spaceId: string, ownerKey: string, shareId: string, _role: 'mine' | 'browse' | 'mirrored') {

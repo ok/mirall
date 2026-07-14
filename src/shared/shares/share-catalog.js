@@ -9,6 +9,7 @@ import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
 import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias } from '../spaces/space.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
+import { getRuntimeConfig } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
 
@@ -274,10 +275,6 @@ export async function listPeerShareMeta(catalogKeyHex, shareId, { sck = null } =
   return { entries, complete }
 }
 
-export async function listPeerShare(catalogKeyHex, shareId, { sck = null, timeoutMs } = {}) {
-  return (await collectPeerShare(catalogKeyHex, shareId, { sck, timeoutMs })).entries
-}
-
 // Map a raw catalog node to the consumer-visible entry state — the one place that encodes
 // tombstone vs. mid-rehash vs. absent. null = absent/unreadable (UNKNOWN, never "removed").
 // `seq` is the Hyperbee block the value lives at: monotonic per key, bumped by every re-write
@@ -374,6 +371,7 @@ async function* streamShare(bee, shareId) {
 function drainWithTimeout(stream, prefix, timeoutMs, limit = Infinity, onEach = null) {
   return new Promise((resolve) => {
     const entries = []
+    const truncateAfter = getRuntimeConfig().testTruncatePeerDrainAfter
     let total = 0
     let totalBytes = 0
     let settled = false
@@ -400,6 +398,7 @@ function drainWithTimeout(stream, prefix, timeoutMs, limit = Infinity, onEach = 
             onEach?.(entry)
             if (entries.length < limit) entries.push(entry)
           }
+          if (truncateAfter > 0 && total >= truncateAfter) { finish(false); break }
         }
         finish(true)
       } catch (err) {

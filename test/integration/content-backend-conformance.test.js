@@ -6,9 +6,12 @@ import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 // implement every operation; every other contentMode — absent, legacy
 // 'eager'/'deferred', or unknown — resolves to the UNSUPPORTED sentinel so callers
 // render it unavailable and never route it to a removed path.
+// listPeer is deliberately absent: it returned only the rows and dropped the read's `complete`
+// flag, so a timed-out drain was indistinguishable from a real deletion (FIX-359). Every consumer
+// reads through listPeerWithMeta, which carries it.
 const CONTRACT = [
   'publishAdd', 'publishDelete', 'scan',
-  'listOwn', 'listPeer', 'listPeerWithMeta',
+  'listOwn', 'listPeerWithMeta',
   'requestDownload', 'ensureRemote', 'releaseRemote',
 ]
 

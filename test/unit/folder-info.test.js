@@ -33,3 +33,27 @@ test('FIX-142: a complete read with no totalBytes falls back to summing the rows
   t.is(info.fileCount, 2)
   t.is(info.totalBytes, 12, 'sum of rows when res.totalBytes is absent')
 })
+
+// REGRESSION (FIX-358): the renderer used to INFER truncation as (fileCount > rows.length), and on
+// an incomplete read fell back to fileCount = rows.length. On a read that was BOTH capped and
+// incomplete — the ordinary case for a big peer folder — the two collapsed into each other: the
+// count became the cap, the inference went false, and the truncation banner silently disappeared.
+// The listing then reported the cap as if it were the whole folder. Truncation is now a fact the
+// worker reports, and the count may never fall below the rows on screen.
+test('REGRESSION (FIX-358): a capped listing on an INCOMPLETE read must not report the cap as the total', (t) => {
+  const capped = rows(new Array(5000).fill(10))
+  const info = deriveFolderInfo({ complete: false, total: 5000, totalBytes: 50000, truncated: true }, capped)
+  t.is(info.truncated, true, 'truncation comes from the worker, not from comparing the counts')
+  t.ok(info.fileCount >= capped.length, 'the count never drops below the rows being rendered')
+})
+
+test('FIX-358: an incomplete read still adopts a total ABOVE the rows it returned', (t) => {
+  const info = deriveFolderInfo({ complete: false, total: 900, totalBytes: 9000 }, rows([1, 1, 1]))
+  t.is(info.fileCount, 900, 'a partial read that counted more than it returned reports the larger count')
+  t.is(info.totalBytes, 9000)
+})
+
+test('FIX-358: an uncapped read is not truncated', (t) => {
+  const info = deriveFolderInfo({ complete: true, total: 2, totalBytes: 12, truncated: false }, rows([5, 7]))
+  t.is(info.truncated, false)
+})

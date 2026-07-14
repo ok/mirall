@@ -34,7 +34,7 @@ test('a poll tick does not re-hash an unchanged, already-verified mirror file', 
   // not hash. The verified record from the initial scan must make this a no-op
   // WITHOUT reading the file.
   const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
-  const [entry] = await overlayBackend.listPeer(ctx.spaceId, ctx.share)
+  const { entries: [entry] } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   const spy = countingHash(overlayHashFile)
   await materializeCatalogFile(cur, ctx.share, entry, { hashOf: spy })
   t.is(spy.calls(), 0, 'the unchanged, verified file was not re-hashed on the tick')
@@ -54,7 +54,7 @@ test('a poll tick re-hashes a mirror file edited after it was verified', async (
   fs.utimesSync(abs, future, future) // mtime strictly after the verified record
 
   const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
-  const [entry] = await overlayBackend.listPeer(ctx.spaceId, ctx.share)
+  const { entries: [entry] } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   const spy = countingHash(overlayHashFile)
   await materializeCatalogFile(cur, ctx.share, entry, { hashOf: spy })
   t.is(spy.calls(), 1, 'the locally-edited file was re-hashed (stale cache did not suppress it)')
@@ -75,7 +75,7 @@ test('a poll tick re-hashes a mirror file whose size changed even if mtime was p
   fs.utimesSync(abs, past, past) // mtime preserved/backdated, i.e. <= the verified record
 
   const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
-  const [entry] = await overlayBackend.listPeer(ctx.spaceId, ctx.share)
+  const { entries: [entry] } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   const spy = countingHash(overlayHashFile)
   await materializeCatalogFile(cur, ctx.share, entry, { hashOf: spy })
   t.is(spy.calls(), 1, 'the size mismatch defeated the verified-cache short-circuit')

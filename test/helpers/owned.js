@@ -40,7 +40,7 @@ export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
 
 // Publish an overlay owned share with files AND mount it back on the SAME peer as a
 // "foreign" mirror. With no second peer the mirror's catalog read + content fetch are
-// stubbed: listPeer returns the owner's own catalog entries, and overlay.fetchFile copies
+// stubbed: listPeerWithMeta returns the owner's own catalog entries, and overlay.fetchFile copies
 // the owner's source file to the requested dest — so the shared materialize scaffolding
 // (initialMaterializeScan / runMaterializeTick) still runs in-process on the overlay path.
 export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
@@ -53,16 +53,20 @@ export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt'
   await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   // The mirror lists from the owner's catalog and fetches by content hash; stub both
-  // so the materialize path runs without a second peer.
-  const origListPeer = overlayBackend.listPeer
-  overlayBackend.listPeer = async (spaceId, share) => {
+  // so the materialize path runs without a second peer. `listing` lets a test shape the read the
+  // mirror sees — notably a truncated, non-empty one (complete:false), which is what a drain that
+  // timed out mid-catalog looks like.
+  const listing = { truncateAfter: 0, complete: true }
+  const origListPeerWithMeta = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async (spaceId, share) => {
     const out = []
     for await (const e of listOwnShare(spaceId, share.id)) {
       out.push({ relPath: e.relPath, contentHash: e.contentHash, size: e.size })
     }
-    return out
+    const entries = listing.truncateAfter > 0 ? out.slice(0, listing.truncateAfter) : out
+    return { entries, complete: listing.complete, total: out.length, totalBytes: 0 }
   }
-  t.teardown(() => { overlayBackend.listPeer = origListPeer })
+  t.teardown(() => { overlayBackend.listPeerWithMeta = origListPeerWithMeta })
 
   const overlay = getOverlay()
   const origFetch = overlay.fetchFile
@@ -90,7 +94,7 @@ export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt'
     status: 'scanning',
   }
   await saveForeignMount(mount)
-  return { ...ctx, mirrorPath, mount }
+  return { ...ctx, mirrorPath, mount, listing }
 }
 
 export async function listRelPaths (share, spaceId) {

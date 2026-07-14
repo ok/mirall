@@ -283,7 +283,8 @@ async function loadForeignListing(spaceId, ownerKey, shareId) {
   const share = { ...found, spaceId, owner: ownerKey }
   if (!hasContentBackend(share)) return null
   const backend = getContentBackend(share)
-  return dropUnsafeEntries((await backend.listPeer(spaceId, share)).map((e) => ({ relPath: e.relPath, size: e.size, hash: e.contentHash })), 'preview')
+  const { entries } = await backend.listPeerWithMeta(spaceId, share)
+  return dropUnsafeEntries(entries.map((e) => ({ relPath: e.relPath, size: e.size, hash: e.contentHash })), 'preview')
 }
 
 // Outcome of one remote entry vs the destination, preserving the original loop's
@@ -590,7 +591,8 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
 async function initialMaterializeScanCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
-  const entries = dropUnsafeEntries(await getContentBackend(share).listPeer(mount.spaceId, share), 'catalog-initial')
+  const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
+  const entries = dropUnsafeEntries(raw, 'catalog-initial')
   let allPresent = true
   const synced = []
   for (const entry of entries) {
@@ -604,23 +606,29 @@ async function initialMaterializeScanCatalog(mount, share) {
     }
   }
   if (mirrorStopped(key, gen)) return { stopped: true }
-  mount.syncedPaths = synced
-  mount.initialScanCompletedAt = Date.now()
+  // An incomplete drain is a partial view of the owner's catalog, so it may not SHRINK the synced
+  // record — union instead, or a mirror that already holds 12 files forgets 8 of them on a
+  // truncated re-scan (and with it the evidence a later deletion would be judged against). Only a
+  // complete read is authoritative enough to replace the record, or to stamp the scan done.
+  mount.syncedPaths = complete ? synced : [...new Set([...(mount.syncedPaths || []), ...synced])]
+  if (complete) mount.initialScanCompletedAt = Date.now()
   mount.status = 'active'
   await saveForeignMount(mount)
   emitStatus(mount.spaceId, mount.shareId, 'active')
-  // Skip the terminal state on an empty listing: at mount the owner's catalog may not have
-  // replicated yet, and publishing 'synced' with zero entries would falsely show a fully-merged
-  // mirror. A genuinely-empty share settles to 'synced' on a later tick. The gen recheck (adjacent
-  // to the enqueue, no await between) stops a concurrent pause from being overwritten.
-  if (!mirrorStopped(key, gen) && entries.length > 0) await settleMirrorSyncState(mount, allPresent)
+  // Skip the terminal state on an empty or partial listing: at mount the owner's catalog may not
+  // have replicated yet, and publishing 'synced' with zero (or truncated) entries would falsely
+  // show a fully-merged mirror. A genuinely-empty share settles to 'synced' on a later tick. The
+  // gen recheck (adjacent to the enqueue, no await between) stops a concurrent pause from being
+  // overwritten.
+  if (!mirrorStopped(key, gen) && entries.length > 0 && complete) await settleMirrorSyncState(mount, allPresent)
   return {}
 }
 
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
-  const entries = dropUnsafeEntries(await getContentBackend(share).listPeer(mount.spaceId, share), 'catalog-tick')
+  const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
+  const entries = dropUnsafeEntries(raw, 'catalog-tick')
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
   const renamedBefore = Object.keys(mount.renamedPaths || {}).length
   let allPresent = true
@@ -639,6 +647,7 @@ async function materializeOnceCatalog(mount, share) {
   const honorDeletions = shouldHonorDeletions({
     ownerOnline: isOwnerOnline(mount.ownerKey),
     driveCount: onDrive.size,
+    listingComplete: complete,
   })
   const synced = new Set(mount.syncedPaths || [])
   if (honorDeletions) {
