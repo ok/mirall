@@ -21,5 +21,6 @@
   "mountInsideDownloads": "Cet emplacement se trouve dans votre dossier de téléchargements. Choisissez un emplacement en dehors de celui-ci.",
   "mountInsideSelf": "Ce dossier se trouve dans un autre dossier partagé. Choisissez un autre dossier.",
   "mountNotWritable": "Mirall ne peut pas écrire dans ce dossier. Vérifiez ses autorisations ou choisissez-en un autre.",
-  "looseFileLimit": "Vous pouvez partager jusqu'à 100 fichiers par espace. Supprimez-en pour en ajouter d'autres."
+  "looseFileLimit": "Vous pouvez partager jusqu'à 100 fichiers par espace. Supprimez-en pour en ajouter d'autres.",
+  "shareFileLimit": "Les dossiers partagés sont limités à 5 000 fichiers. Choisissez un dossier plus petit, ou répartissez-le sur plusieurs partages."
 }

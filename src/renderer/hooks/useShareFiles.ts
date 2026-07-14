@@ -33,18 +33,21 @@ interface FolderInfo {
   totalBytes: number
   blobsLength: number | null
   truncated: boolean
+  fileLimit: number | null
 }
 
 interface ListResult {
   entries: ServerEntry[]
   complete: boolean
   // True folder totals — `entries` is capped at listFilesCap to bound the worker heap,
-  // so these (streamed separately) report the real count past the cap, letting the UI
-  // show "first N of M". Absent for backends that don't cap → fall back to the row count.
+  // so these (streamed separately) report the real count past the cap. Absent for backends
+  // that don't cap → fall back to the row count.
   total?: number
   totalBytes?: number
   // Whether the worker capped the rows. Reported, never inferred: see deriveFolderInfo.
   truncated?: boolean
+  // The limit the rows were capped at — non-null exactly when `truncated`.
+  fileLimit?: number | null
 }
 
 export function useShareFiles(spaceId: string, ownerKey: string, shareId: string, _role: 'mine' | 'browse' | 'mirrored') {
@@ -80,8 +83,8 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       filesRef.current = next
       setFiles(next)
       // On a complete read fileCount is the TRUE total (res.total) and `next` may be capped to
-      // listFilesCap, so FolderView shows "first N of M"; on an incomplete read derive from the
-      // reconciled rows so the header can't show 0 over a populated list. (see deriveFolderInfo)
+      // listFilesCap, which the over-limit banner reports; on an incomplete read the count can only
+      // rise above the reconciled rows, never fall below them. (see deriveFolderInfo)
       setInfo(deriveFolderInfo(res, next))
       setError(null)
     } catch (err) {

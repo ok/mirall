@@ -253,6 +253,11 @@ export interface ScanPreview {
   totalBytes: number
   perFile: ScanPreviewEntry[]
   perFileOmitted?: boolean
+  // Owned-folder flow only: the folder's total file count against the share limit, so the
+  // confirmation step can refuse before the user commits.
+  totalFiles?: number
+  fileLimit?: number
+  overFileLimit?: boolean
 }
 
 export interface PreviewProgress {

@@ -665,6 +665,9 @@ function getWorker(specifier) {
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
     // with a handful of files; a bad value is caught by getListFilesCap's fail-safe.
     listFilesCap: process.env.MIRALL_LIST_FILES_CAP ? Number(process.env.MIRALL_LIST_FILES_CAP) : undefined,
+    // Same idea for the add-folder admission gate, so the frontend suite can trip it with a
+    // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
+    maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,
     membershipApprovalEnabled: readFeatureFlags().membershipApproval === true,
     handshakeIdentityBindingEnabled: readFeatureFlags().handshakeIdentityBinding === true,
     // in-place files are served through the overlay instance, so enabling them implies overlay.
