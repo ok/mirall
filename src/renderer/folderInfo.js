@@ -3,7 +3,7 @@
 // share:list-files caps its rows at listFilesCap but streams the TRUE {total, totalBytes} for the
 // whole share in the same pass, plus an explicit `truncated` flag. So:
 //  - on a COMPLETE read, trust res.total/res.totalBytes — the displayed rows may be capped below
-//    them, which is exactly what drives the "first N of M" banner;
+//    them, which is what the over-the-limit banner reports;
 //  - on an INCOMPLETE read (a transient/offline peer read), res.total reflects only the partial
 //    read while `rows` is the reconciled last-good list actually on screen, so it may only ever
 //    RAISE the count, never lower it below those rows. A header reading lower than the visible list
@@ -18,5 +18,6 @@ export function deriveFolderInfo(res, rows) {
     totalBytes: complete ? reportedBytes : Math.max(reportedBytes, rowBytes),
     blobsLength: null,
     truncated: !!res?.truncated,
+    fileLimit: typeof res?.fileLimit === 'number' ? res.fileLimit : null,
   }
 }

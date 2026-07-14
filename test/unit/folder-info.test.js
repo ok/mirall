@@ -42,9 +42,10 @@ test('FIX-142: a complete read with no totalBytes falls back to summing the rows
 // worker reports, and the count may never fall below the rows on screen.
 test('REGRESSION (FIX-358): a capped listing on an INCOMPLETE read must not report the cap as the total', (t) => {
   const capped = rows(new Array(5000).fill(10))
-  const info = deriveFolderInfo({ complete: false, total: 5000, totalBytes: 50000, truncated: true }, capped)
+  const info = deriveFolderInfo({ complete: false, total: 5000, totalBytes: 50000, truncated: true, fileLimit: 5000 }, capped)
   t.is(info.truncated, true, 'truncation comes from the worker, not from comparing the counts')
   t.ok(info.fileCount >= capped.length, 'the count never drops below the rows being rendered')
+  t.is(info.fileLimit, 5000, 'the limit is carried through so the banner can name it')
 })
 
 test('FIX-358: an incomplete read still adopts a total ABOVE the rows it returned', (t) => {
@@ -53,7 +54,8 @@ test('FIX-358: an incomplete read still adopts a total ABOVE the rows it returne
   t.is(info.totalBytes, 9000)
 })
 
-test('FIX-358: an uncapped read is not truncated', (t) => {
-  const info = deriveFolderInfo({ complete: true, total: 2, totalBytes: 12, truncated: false }, rows([5, 7]))
+test('FIX-358: an uncapped read is not truncated and names no limit', (t) => {
+  const info = deriveFolderInfo({ complete: true, total: 2, totalBytes: 12, truncated: false, fileLimit: null }, rows([5, 7]))
   t.is(info.truncated, false)
+  t.is(info.fileLimit, null)
 })

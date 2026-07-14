@@ -79,12 +79,12 @@ import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolder } from '../shared/folders/mount-validate.js'
 import { relKeyEscapes } from '../shared/folders/path-keys.js'
-import { listingTruncated } from '../shared/folders/share-limits.js'
 import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
   previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
-  mountRootAvailable,
+  mountRootAvailable, countFolderFiles,
 } from '../shared/folders/owned-folders.js'
+import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
 import {
   initForeignFolders, initialMaterializeScan, previewMaterializeScan,
   startForeignLoop, stopForeignLoop, setForeignEnabled, unmountForeignFolder,
@@ -1054,7 +1054,7 @@ async function listOverlayShareFiles(spaceId, share, backend) {
   // to false exactly when the rows were capped — and the truncation goes silent.
   const truncated = listingTruncated({ rowCount: entries.length, total, cap, complete })
   if (truncated) log.debug(`share:list-files showing ${out.length} of ${total} rows for share ${share.id} (capped at ${cap})`)
-  return { entries: out, complete, total, totalBytes, truncated }
+  return { entries: out, complete, total, totalBytes, truncated, fileLimit: truncated ? cap : null }
 }
 
 ipc.handle('share:reveal-folder', async (msg) => {
@@ -1186,6 +1186,15 @@ ipc.handle('owned-folder:mount', async (msg) => {
 
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
   const ignore = msg.ignore && msg.ignore.length > 0 ? msg.ignore : DEFAULT_IGNORE
+
+  // The admission gate. This is the CREATE path (the renderer's add-folder wizard is its only
+  // caller) — relocate, the periodic reconcile and the watcher's publishAdd are deliberately NOT
+  // gated, so a share that grows past the limit keeps publishing instead of breaking on restart.
+  // The modal blocks first; this is the authoritative check.
+  const fileCount = await countFolderFiles(mountPath, ignore)
+  if (exceedsShareFileLimit(fileCount)) {
+    throw new AppError(ErrorCodes.SHARE_FILE_LIMIT, shareFileLimitMessage(fileCount))
+  }
 
   const mount = {
     spaceId: msg.spaceId,

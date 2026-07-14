@@ -21,5 +21,6 @@
   "mountInsideDownloads": "This is inside your downloads folder. Choose a location outside it.",
   "mountInsideSelf": "This folder is inside another shared folder. Choose a different folder.",
   "mountNotWritable": "Mirall can't write to this folder. Check its permissions or choose another.",
-  "looseFileLimit": "You can share up to 100 files per space. Remove some to add more."
+  "looseFileLimit": "You can share up to 100 files per space. Remove some to add more.",
+  "shareFileLimit": "Shared folders are limited to 5,000 files. Choose a smaller folder, or split it into several shares."
 }

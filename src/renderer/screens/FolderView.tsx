@@ -288,7 +288,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
               {listingTruncated && info ? (
                 <>
                   <Icon name="folder" size={16} className="text-on-surface-variant shrink-0" />
-                  <span>{t('folder.truncatedListing', { shown: files.length, total: info.fileCount })}</span>
+                  <span>{t('folder.overLimitListing', { shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length })}</span>
                 </>
               ) : null}
             </div>

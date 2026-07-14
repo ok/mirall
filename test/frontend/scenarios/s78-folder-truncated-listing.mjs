@@ -4,10 +4,14 @@ import { Instance } from '../instance.mjs'
 import { makeReport, assert } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
-// FIX-141 (UI) — a folder with more files than the row cap renders only the first N rows, and a
-// role=status banner tells the user "Showing the first N of M files." so the truncation is never
-// silent. The cap is shrunk via MIRALL_LIST_FILES_CAP so a handful of files trips it; the true
-// total comes from the worker's one-pass count (folder header still shows the real count).
+// FIX-141 / FIX-360 (UI) — a folder holding more files than a share may contain renders only the
+// first N rows, and a role=status banner names the true total, the limit, and how many are listed —
+// so the truncation is never silent, and the user is told the files still sync. The cap is shrunk
+// via MIRALL_LIST_FILES_CAP so a handful of files trips it; the true total comes from the worker's
+// one-pass count (the folder header still shows the real count).
+//
+// A folder over the limit can no longer be CREATED (s104 covers the refusal) — this is the residual
+// case: a share that GREW past the limit, which keeps syncing and says so.
 //
 // Pairs with a VoiceOver spot-check (the banner is a pre-mounted aria-live region) and the
 // data-layer fold + deriveFolderInfo unit tests.
@@ -31,11 +35,12 @@ export default async function s78 ({ runDir }) {
       await A.waitText('Big', 60000)
       await A.openFolder('Big')
     })
-    await r.ok('the listing is capped and the "first N of M" banner announces the truncation', async () => {
+    await r.ok('the listing is capped and the banner announces it, naming the limit', async () => {
       await A.waitText('f00.txt', 30000)
       // The header still reports the TRUE total (8 files), and the truncation banner is shown.
       assert(await A.hasText('8'), 'the folder header shows the true total (8), not the capped 3')
-      assert(await A.hasText('Showing the first 3 of 8 files'), 'the truncation banner names shown-of-total')
+      assert(await A.hasText('above the 3-file limit'), 'the banner names the true total and the limit it exceeds')
+      assert(await A.hasText('still syncing'), 'and says every file still syncs — truncation is a LISTING bound, not a sync bound')
       await A.shot('s78-A-truncated', runDir)
     })
   } catch {} finally {

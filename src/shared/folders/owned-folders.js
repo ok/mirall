@@ -13,6 +13,8 @@ import { getContentBackend, isUnsupportedShare } from '../transfer/content-backe
 import { listOwnShare } from '../shares/share-catalog.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'
 import { walkDisk } from './walk-disk.js'
+import { exceedsShareFileLimit } from './share-limits.js'
+import { getMaxFilesPerShare } from '../core/runtime-config.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey } from './path-keys.js'
 
@@ -192,6 +194,9 @@ export async function previewInitialPublishScan(spaceId, shareId, mountPath, ign
   }
 
   const detailed = includePerFile(toUpload)
+  // The limit is about how many files the folder HOLDS, not how many this scan would upload —
+  // a re-preview of an existing share uploads only the changed ones.
+  const totalFiles = onDisk.size
   return {
     flow: 'add-owned-folder',
     toUpload,
@@ -201,7 +206,17 @@ export async function previewInitialPublishScan(spaceId, shareId, mountPath, ign
     totalBytes,
     perFile: detailed ? candidates : [],
     perFileOmitted: !detailed,
+    totalFiles,
+    fileLimit: getMaxFilesPerShare(),
+    overFileLimit: exceedsShareFileLimit(totalFiles),
   }
+}
+
+// The count the worker's admission gate reads. Stat-only, and it walks the same way the publish
+// scan does, so the gate can never admit a folder the scan would then find too large.
+export async function countFolderFiles(mountPath, ignore) {
+  const { onDisk } = await walkDisk(mountPath, ignore)
+  return onDisk.size
 }
 
 export async function periodicReconcile(spaceId, shareId, mountPath, ignore, opts) {
