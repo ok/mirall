@@ -4,7 +4,7 @@
 import test from 'brittle'
 import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
-import { TransferManager } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
+import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
 import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
 import crypto from 'hypercore-crypto'
 
@@ -623,13 +623,8 @@ test('prepareFile — aborting mid-stream rejects and leaks no fd', async (t) =>
     t.is(code, 'ECANCELLED', 'abort ' + i + ' rejects with ECANCELLED')
   }
   const after = fdCount()
-  // fdCount() reads the whole-process /dev/fd table, so under `brittle-bare -j` this
-  // snapshot also catches fds opened by sibling test files sharing the process (and the
-  // exact count shifts with the Bare runtime's async scheduling). A genuine leak in the
-  // reader grows ~1 fd per abort (≈ITERS); assert well under that so concurrent-test
-  // noise can't cause a false positive while a real per-iteration leak still fails.
-  if (before === -1) t.pass('fd dir unavailable on this platform — count assertion skipped')
-  else t.ok(after - before < ITERS / 2, `fd count stable after ${ITERS} aborts (${before} -> ${after})`)
+  // A leak in the reader grows 1 fd per abort; the count must come back exactly level.
+  t.is(after, before, `no fd leaked across ${ITERS} aborted prepareFile runs (${before} -> ${after})`)
 
   await index.close()
 })
@@ -962,11 +957,12 @@ test('REGRESSION (FIX-A2): a gap-fill that unlocks a large run does not block wr
 
 // ── B1/B2: persistent fd + in-memory in-order hashing ─────────
 
-const fdCount = () => {
-  try { return fs.readdirSync('/dev/fd').length } catch {}
-  try { return fs.readdirSync('/proc/self/fd').length } catch {}
-  return -1
-}
+// The fd oracle is the TransferManager's own accounting, NOT the process fd table.
+// `brittle-bare -j` runs test files as threads in one process, so /dev/fd and
+// /proc/self/fd are shared with three sibling files and churn by hundreds mid-test —
+// a delta taken from them is noise, and once even came out negative. openFdCount()
+// sees only the descriptors this module opened, so these assertions can be exact.
+const fdCount = () => openFdCount()
 
 function deliver (transfer, senderPath, prepared, targetPath, i) {
   const c = prepared.chunks[i]
@@ -984,12 +980,12 @@ test('B1: fd count stays flat across a multi-chunk transfer and 20 transfers', a
   const targetPath = path.join(tmpDir('rx'), 'b1.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   const afterStart = fdCount()
+  t.is(afterStart, 1, 'startReceive holds exactly ONE persistent fd')
   for (let i = 0; i < prepared.chunks.length; i++) t.ok(deliver(transfer, senderPath, prepared, targetPath, i).ok)
   const beforeFin = fdCount()
-  // Same process-wide fd-table caveat as the prepareFile abort test: siblings under
-  // `brittle-bare -j` shift the count, so assert far under the ~1-per-chunk a leak
-  // (or the old per-chunk open racing a snapshot) would show.
-  if (afterStart !== -1) t.ok(beforeFin - afterStart < prepared.chunks.length / 2, `fd flat during transfer (${afterStart} -> ${beforeFin})`)
+  // The B1 invariant: one handle serves every chunk write. The pre-B1 code opened and
+  // closed per chunk, so a regression shows up as movement here.
+  t.is(beforeFin, afterStart, `fd flat during transfer (${afterStart} -> ${beforeFin})`)
   t.ok((await transfer.finalize(targetPath)).ok, 'finalize ok — fd closed before rename')
   t.alike(fs.readFileSync(targetPath), original, 'round-trip byte-exact')
 
@@ -1001,7 +997,8 @@ test('B1: fd count stays flat across a multi-chunk transfer and 20 transfers', a
     t.ok((await transfer.finalize(p)).ok)
   }
   const after = fdCount()
-  if (before !== -1) t.ok(after - before < 10, `no fd leak across 20 transfers (${before} -> ${after})`)
+  t.is(before, 0, 'finalize closed the fd — none held between transfers')
+  t.is(after, before, `no fd leak across 20 transfers (${before} -> ${after})`)
   await index.close()
 })
 

@@ -37,6 +37,39 @@ export const partialPathFor = (targetPath) => path.join(path.dirname(targetPath)
 const VERIFY_YIELD_EVERY = 64
 const yieldToLoop = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+// [mirall][B1] Own-fd accounting. The leak tests cannot use the process fd table
+// (/proc/self/fd, /dev/fd) as their oracle: `brittle-bare -j` runs test files as threads
+// inside ONE process, so sibling files' descriptors pollute any snapshot of it — a run
+// once measured a *negative* delta, which a single test's own fds cannot produce. Route
+// every open/close in this module through these wrappers so the tests can assert on the
+// descriptors this module actually owns, which is the invariant they mean.
+// A close that throws leaves the fd open, so it must not decrement.
+let openFds = 0
+
+export const openFdCount = () => openFds
+
+async function openTracked (filePath, flags) {
+  const fd = await fs.open(filePath, flags)
+  openFds++
+  return fd
+}
+
+function openSyncTracked (filePath, flags) {
+  const fd = fs.openSync(filePath, flags)
+  openFds++
+  return fd
+}
+
+async function closeTracked (fd) {
+  try { await fs.close(fd) } catch { return }
+  openFds--
+}
+
+function closeSyncTracked (fd) {
+  try { fs.closeSync(fd) } catch { return }
+  openFds--
+}
+
 // Receive journal: bitmap + whole-file hash snapshot, stored in app-private storage
 // (opts.journalDir) keyed by a digest of the destination path — never next to the
 // download — so resume is O(1) and the incremental verify continues with no re-read.
@@ -62,7 +95,7 @@ const DRAIN_YIELD_BYTES = 2 * 1024 * 1024
 // ~56x memcpy at tier 3). Owns its fd and closes it on every terminal path: normal
 // end, consumer break/throw (for-await calls .return() → finally), read error.
 async function * readFileBlocks (filePath, size, blockSize) {
-  const fd = await fs.open(filePath, 'r')
+  const fd = await openTracked(filePath, 'r')
   try {
     let pos = 0
     while (pos < size) {
@@ -79,7 +112,7 @@ async function * readFileBlocks (filePath, size, blockSize) {
       yield filled === buf.length ? buf : buf.subarray(0, filled)
     }
   } finally {
-    try { await fs.close(fd) } catch {}
+    await closeTracked(fd)
   }
 }
 
@@ -254,10 +287,10 @@ export class TransferManager {
    */
   readChunk (filePath, offset, length) {
     try {
-      const fd = fs.openSync(filePath, 'r')
+      const fd = openSyncTracked(filePath, 'r')
       const buf = Buffer.alloc(length)
       const bytesRead = fs.readSync(fd, buf, 0, length, offset)
-      fs.closeSync(fd)
+      closeSyncTracked(fd)
       if (bytesRead !== length) return null
       return buf
     } catch {
@@ -327,9 +360,9 @@ export class TransferManager {
     // chunk writes, the hash pump's gap read-back, and the journal fsync. Replaces
     // an openSync+closeSync per chunk; 'w+' creates+truncates the fresh partial in
     // the same open.
-    const fd = fs.openSync(partialPath, resumed ? 'r+' : 'w+')
+    const fd = openSyncTracked(partialPath, resumed ? 'r+' : 'w+')
     if (!resumed) {
-      try { fs.ftruncateSync(fd, meta.size) } catch (err) { try { fs.closeSync(fd) } catch {}; throw err }
+      try { fs.ftruncateSync(fd, meta.size) } catch (err) { closeSyncTracked(fd); throw err }
     }
 
     const total = meta.chunks.length
@@ -385,7 +418,7 @@ export class TransferManager {
     const buf = Buffer.allocUnsafe(maxLen)
     let lastPct = -1
     onVerifyProgress?.(0)
-    const fd = await fs.open(partialPath, 'r')
+    const fd = await openTracked(partialPath, 'r')
     try {
       for (let i = 0; i < total; i++) {
         if (isCancelled()) { const e = new Error('receive recovery cancelled'); e.code = 'ECANCELLED'; throw e }
@@ -404,7 +437,7 @@ export class TransferManager {
         }
       }
     } finally {
-      try { await fs.close(fd) } catch {}
+      await closeTracked(fd)
     }
     onVerifyProgress?.(1)
     return { received, hasher, hashFrontier }
@@ -580,7 +613,7 @@ export class TransferManager {
   // open handle blocks the rename on Windows) — and drop the B2 stash.
   _closeFd (state) {
     if (state.fd != null) {
-      try { fs.closeSync(state.fd) } catch {}
+      closeSyncTracked(state.fd)
       state.fd = null
     }
     state.memChunks.clear()

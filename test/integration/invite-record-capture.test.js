@@ -167,6 +167,11 @@ test('growth re-capture picks up records minted after the first capture', async 
 
   t.ok((await capturePeerBee(peer.key)).complete)
   await peer.bee.put('invite/' + SPACE + '/eeee', AUTO)
+  // Wait for the new head to actually replicate. capturePeerBee's internal refresh is
+  // hard-capped at 1s; if the append hasn't landed by then it captures the stale length,
+  // reports complete vacuously, and never sweeps `eeee` — so the snapshot read below
+  // fails. Every other test in this file syncs first; this one raced that 1s budget.
+  await syncKnownLength(peer.key)
   t.ok((await capturePeerBee(peer.key)).complete, 're-capture covers the growth')
   streams.destroy()
 
@@ -190,9 +195,14 @@ test('a revocation replicated before going offline is honored by the snapshot', 
   t.is(await resolveInvite(spaceWith(peer.key), 'ffff'), null)
 })
 
+// No shrinkPeerReads here: every read below is on the *success* path, with the peer still
+// connected. That helper exists to make the OFFLINE tests fail fast, and a 500ms budget on
+// a read that is supposed to resolve just turns CPU contention into a timeout — which
+// returns null, makes the peer a snapshot candidate, and resurrects the revoked record.
+// The test would then fail on precisely the outcome it exists to forbid. The 8s default
+// costs nothing here, because these reads resolve promptly when they resolve at all.
 test('live-absent is authoritative: a revoked link is not resurrected from a stale snapshot', async (t) => {
   await freshPeerWithIdentity(t)
-  shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/gggg', AUTO)
   replicate(peer.store, getStore(), t)
