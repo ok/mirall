@@ -179,6 +179,10 @@ members receive upon approval, and every peer connection is authenticated and en
 If you believe you've found a vulnerability, please **do not open a public issue** — see
 [SECURITY.md](./SECURITY.md) for how to report it privately.
 
+## Acknowledgements
+
+Mirall's content-addressed transfer layer builds on the work by **fleeky** and his **hyper-overlay** framework — thank you.
+
 ## License
 
 This repository is **100% free and open source** under the [GNU AGPL-3.0](./LICENSE) —
