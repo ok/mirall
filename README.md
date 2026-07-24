@@ -72,11 +72,11 @@ of the latest release:
 
 | Platform | Download |
 |---|---|
-| macOS (Apple silicon) | [Mirall.dmg](https://dl.mirall.app/desktop/latest/darwin-arm64/Mirall.dmg) |
-| macOS (Intel) | [Mirall.dmg](https://dl.mirall.app/desktop/latest/darwin-x64/Mirall.dmg) |
-| Windows 10/11 (x64) | [Mirall.msix](https://dl.mirall.app/desktop/latest/win32-x64/Mirall.msix) |
-| Linux (x64) | [Mirall.AppImage](https://dl.mirall.app/desktop/latest/linux-x64/Mirall.AppImage) |
-| Linux (arm64) | [Mirall.AppImage](https://dl.mirall.app/desktop/latest/linux-arm64/Mirall.AppImage) |
+| macOS (Apple silicon) | [Mirall.dmg](https://mirall.app/download/darwin-arm64) |
+| macOS (Intel) | [Mirall.dmg](https://mirall.app/download/darwin-x64) |
+| Windows 10/11 (x64) | [Mirall.msix](https://mirall.app/download/win32-x64) |
+| Linux (x64) | [Mirall.AppImage](https://mirall.app/download/linux-x64) |
+| Linux (arm64) | [Mirall.AppImage](https://mirall.app/download/linux-arm64) |
 
 > [!NOTE]
 > After the first install, Mirall keeps itself up to date automatically — new releases are
