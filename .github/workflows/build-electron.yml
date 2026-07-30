@@ -47,14 +47,16 @@ jobs:
     steps:
       - id: ch
         run: |
+          # The only triggers are `push: tags: v*` and `workflow_dispatch`, so these
+          # two arms are exhaustive. Reaching the fallback means a trigger was added
+          # without deciding its channel — fail loudly rather than guess.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             CHANNEL="${{ inputs.channel }}"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             CHANNEL="prod"
-          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
-            CHANNEL="staging"
           else
-            CHANNEL="dev"
+            echo "::error::No channel for ref '$GITHUB_REF' (event ${{ github.event_name }}); add an arm here or dispatch manually."
+            exit 1
           fi
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "Channel: $CHANNEL"
