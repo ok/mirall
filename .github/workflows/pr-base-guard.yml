@@ -1,0 +1,45 @@
+name: PR Base Guard
+
+# Feature and chore work integrates on `staging`; `main` is production. Because
+# GitHub pre-selects the default branch (`main`) as the PR base, the easy mistake
+# is merging unintegrated work straight into production. This guard catches it.
+# See .claude/build-process.md → "Branches & promotion".
+on:
+  pull_request:
+    # `edited` catches a base switched after the PR was opened; the label events
+    # re-run the check when the bypass label is added or removed.
+    types: [opened, reopened, edited, synchronize, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check head branch may target main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if echo "$LABELS" | jq -e 'index("base:main")' >/dev/null; then
+            echo "Bypassed by the \`base:main\` label — deliberate exception."
+            exit 0
+          fi
+          # Allowlist, not denylist: a branch prefix nobody thought about should
+          # fail closed and get a human decision, not slip into production.
+          case "$HEAD_REF" in
+            staging)      echo "Release promotion from staging — OK" ;;
+            hotfix/*)     echo "Hotfix — OK (remember to forward-port to staging)" ;;
+            release/*)    echo "Release branch — OK" ;;
+            *)
+              echo "::error::'$HEAD_REF' targets main, but feature and chore work integrates on staging."
+              echo ""
+              echo "Retarget this PR:  gh pr edit ${{ github.event.pull_request.number }} --base staging"
+              echo ""
+              echo "Only 'staging' (release promotion), 'hotfix/*' and 'release/*' may target main."
+              echo "For a deliberate exception, add the 'base:main' label and explain why in the PR body."
+              exit 1
+              ;;
+          esac
