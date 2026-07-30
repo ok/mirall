@@ -27,9 +27,10 @@ git push --tags ─→ matrix build (5 archs)
 
 ## Branches & promotion
 
-`staging` is the repo's **default branch** and the integration branch where the next
-release accumulates; `main` is **production**. Features and chores squash-merge into
-`staging`, so a merged PR becomes exactly one commit (PR title + PR body). A release
+`main` is the repo's **default branch** and is **production** — every commit on it is
+releasable, and it is what a visitor cloning the public repo gets. `staging` is the
+integration branch where the next release accumulates. Features and chores squash-merge
+into `staging`, so a merged PR becomes exactly one commit (PR title + PR body). A release
 promotes `staging → main` as a pure fast-forward:
 
 ```
@@ -45,9 +46,28 @@ land on `main` directly, then gets forward-ported to `staging`.
 > OTA* below). They are independent: a `workflow_dispatch` build can publish any branch to
 > any channel.
 
-Because GitHub always pre-selects the repo's default branch as a PR base, new PRs — and
-Renovate's — target `staging` automatically. The occasional `staging → main` release PR is
-the one case where the base must be switched to `main` by hand.
+Because GitHub always pre-selects the repo's default branch as a PR base, new PRs open
+against `main`. **Feature and chore PRs must have their base switched to `staging` by
+hand** — only a release promotion or a hotfix legitimately targets `main`.
+
+`.github/workflows/pr-base-guard.yml` enforces this: a PR based on `main` fails unless its
+head is `staging`, `hotfix/*` or `release/*`. It is an allowlist, so an unfamiliar branch
+prefix fails closed. A deliberate exception — an infrastructure change that must land on
+`main` first, like the `renovate.json` case below — is unblocked with the `base:main`
+label, which should be justified in the PR body.
+
+Renovate is exempt: `renovate.json` sets `"baseBranches": ["staging"]`, so its PRs target
+the integration branch regardless of the default. That key must stay on `main` — Renovate
+defaults to `useBaseBranchConfig: "none"`, meaning it reads its config **only from the
+repo's default branch**. A `renovate.json` that exists on `staging` but not on `main` is
+silently ignored.
+
+Long-lived branches are limited to `main` and `staging`. Feature (`feat/*`, `fix/*`) and
+release (`release/*`) branches are short-lived and deleted after merge. There is no
+permanent branch per version: the channels are build flavors of one commit lineage, not
+divergent code, and OTA clients roll forward within a channel, so no released version
+needs parallel maintenance. Cut a `release/x.y` branch from its tag only if a patch to an
+older line is ever actually needed after `staging` has moved on.
 
 ## CI build — `.github/workflows/build-electron.yml`
 
