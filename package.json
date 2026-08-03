@@ -76,7 +76,7 @@
     "react": "^19.2.7",
     "react-aria": "^3.50.0",
     "react-dom": "^19.2.7",
-    "react-i18next": "^17.0.9",
+    "react-i18next": "^17.0.11",
     "serve": "^14.2.6",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
