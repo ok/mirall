@@ -15,7 +15,8 @@ async function parseDeepLink(input) {
   if (url.protocol !== 'mirall:') return null
   if (url.hostname !== 'join') return null
 
-  const fromPath = url.pathname.replace(/^\/+/, '')
+  // Trailing slashes too — mirrors src/shared/invite-envelope.js.
+  const fromPath = url.pathname.replace(/^\/+|\/+$/g, '')
   const fromQuery = url.searchParams.get('code') ?? ''
   let raw = (fromPath || fromQuery).trim()
   if (!raw) return null

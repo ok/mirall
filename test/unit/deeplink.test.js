@@ -38,6 +38,14 @@ test('omits name when envelope has no name', async (t) => {
   t.alike(out, { kind: 'join', code: env })
 })
 
+// REGRESSION (FIX-DEEPLINK-ARGV-1: a link that round-tripped through a browser or
+// chat client can arrive with a trailing slash). Neither hex nor base64url contains
+// '/', so the code is recovered rather than rejected as malformed.
+test('REGRESSION (FIX-DEEPLINK-ARGV-1): tolerates a trailing slash on the path form', async (t) => {
+  t.alike(await parseDeepLink(`mirall://join/${ENV}/`), { kind: 'join', code: ENV, name: 'Acme' })
+  t.alike(await parseDeepLink(`mirall://join/${HEX}/`), { kind: 'join', code: HEX })
+})
+
 test('returns null on wrong scheme', async (t) => {
   t.is(await parseDeepLink(`https://join/${HEX}`), null)
   t.is(await parseDeepLink(`mirall2://join/${HEX}`), null)
