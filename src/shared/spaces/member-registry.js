@@ -1,5 +1,5 @@
 import { getSpace, listSpaces, mutateMembers, setDerivedRequests, clearJoinRequest, loadLeftTombstones, clearLeftTombstone, persistLeftTombstone } from './space.js'
-import { getLocalPublicKeyHex, revokeApproval, readMembershipRecord, capturePeerBee, peerBeeLength } from './profile.js'
+import { getLocalPublicKeyHex, revokeApproval, adoptVouchees, readMembershipRecord, capturePeerBee, peerBeeLength } from './profile.js'
 import { createMemberView } from './member-view.js'
 import { makeCaptureScheduler } from './bee-capture.js'
 import { mergeMemberIdentity } from './member-identity.js'
@@ -228,14 +228,20 @@ function applyObservedLeaves (spaceId, entry, inactive) {
   }
 }
 
-// The revoke comes FIRST and gates the tombstone: markLeft would satisfy the isLeft skip above
-// (and the durable tombstone re-seeds it every boot), so tombstoning before a failed revoke
+// Adoption and the revoke come FIRST and gate the tombstone: markLeft would satisfy the isLeft skip
+// above (and the durable tombstone re-seeds it every boot), so tombstoning before either one failed
 // would silence every retry while the vouch survives — the exact re-admit hole this closes. A
-// failed revoke leaves the key unhandled instead: the vouch keeps it seeded in `prior` at the
-// next view open, so the next session's first fold retries. Both writes are idempotent, so an
-// overlapping fold double-applying is harmless.
+// failure leaves the key unhandled instead: the vouch keeps it seeded in `prior` at the next view
+// open, so the next session's first fold retries. Every write here is idempotent, so an overlapping
+// fold double-applying is harmless.
 async function applyObservedLeave (spaceId, key, leaveTs) {
   try {
+    // Adoption must precede the revoke: the revoke unroots the leaver, after which the fold stops
+    // walking its bee and the vouchees it alone carried could never be recovered.
+    if (!(await adoptVouchees(spaceId, key))) {
+      log.warn('observed-leave deferred — leaver record unreadable, cannot adopt:', spaceId, key.slice(0, 12))
+      return
+    }
     await revokeApproval(spaceId, key)
   } catch (err) {
     log.warn('observed-leave revoke failed (will retry on a later fold):', spaceId, key.slice(0, 12), err.message)

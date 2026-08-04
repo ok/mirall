@@ -3,50 +3,95 @@
 // and idempotent — a pure function of the records, no linearization step — so every
 // replica converges on the same set regardless of the order records arrive in.
 //
-// Rule — a peer p is a member of space S iff:
-//   (1) p authored `member/S = { active: true }` (p's own bee), AND
-//   (2) p is approved: p === creatorKey (the OR-Set root, who needs no approval), OR some
-//       *current member* authored `approved/S/p`.
-// (2) is recursive in "current member", so iterate to a fixpoint.
+// Two INDEPENDENT questions, never conflated:
+//   AUTHORIZATION — is p in the approval tree rooted at the creator? Historical and grow-only;
+//     the only retraction is deleting the vouch (revokeApproval), an edit to the author's own log.
+//   LIVENESS — does p assert `member/S = { active: true }`? Only p writes it, only p retracts it.
+// p is a member iff both hold.
 //
-// Leaving = `del member/S` ⇒ active becomes false ⇒ p drops out. Revocation (un-approving
-// someone) is NOT modelled here: approvals are grow-only — retracting one safely would
-// need an ordered log to decide which of two concurrent claims came first. A peer whose
-// bee hasn't replicated yet is simply absent from `records` — it (and anyone only it
-// approved) stays out until it arrives, then the next fold self-heals.
+// Deriving authorization from the MEMBER set rather than from the tree alone would let a departure
+// retroactively invalidate every vouch its author ever wrote — the creator leaving would unroot the
+// tree and empty the space, and any inviter leaving would orphan everyone it alone vouched for. So
+// the creator's key is the permanent root of authorization: it marks where the chain starts and
+// confers no powers, while the creator stays subject to liveness like every other member.
 //
-// `records`: Map<peerKeyHex, { active: boolean, approvals: Iterable<peerKeyHex> }>.
-//   `active`     — p's own `member/S.active` (false/absent ⇒ left or never joined).
-//   `approvals`  — the joiner keys p authored `approved/S/<joiner>` for.
-// Returns a Set<peerKeyHex> of current members.
+// A vouch authored AFTER its author recorded its own departure confers nothing. `approvalSeqs` and
+// `memberSeq` are positions in the same append-only log, so that comparison needs no clock and no
+// local state, and every replica derives the same answer. Absent seqs skip the check.
+//
+// Third-party removal is NOT modelled: a claim about someone else's membership would need an ordered
+// log to decide which of two concurrent claims came first. A peer whose bee hasn't replicated yet is
+// simply absent from `records` — it (and anyone only it approved) stays out until it arrives, then
+// the next fold self-heals.
+//
+// `records`: Map<peerKeyHex, { active, approvals, memberSeq?, approvalSeqs? }>.
+//   `active`       — p's own `member/S.active` (false ⇒ departed, absent ⇒ never joined).
+//   `approvals`    — the joiner keys p authored `approved/S/<joiner>` for.
+//   `memberSeq`    — log position of p's own `member/S` record, when known.
+//   `approvalSeqs` — Map<joinerKey, seq> for those approvals, when known.
 
-export function foldMemberSet (records, creatorKey) {
-  // Normalise once: coerce active to bool and approvals to a Set for O(1) lookup.
+// Members plus the authorization tree behind them. Callers that only need the roster take
+// `.members`; discovery takes `.authorized`, since it must open the bees of a departed member's
+// approvees too or they are never fetched and can never heal.
+export function foldMembership (records, creatorKey) {
   const norm = new Map()
   for (const [k, rec] of records) {
-    norm.set(k, { active: !!rec?.active, approvals: toSet(rec?.approvals) })
+    norm.set(k, {
+      active: !!rec?.active,
+      approvals: toSet(rec?.approvals),
+      memberSeq: typeof rec?.memberSeq === 'number' ? rec.memberSeq : null,
+      approvalSeqs: rec?.approvalSeqs instanceof Map ? rec.approvalSeqs : null,
+    })
+  }
+
+  // Reachability from the root through standing approval edges, ignoring `active`. Seeded with
+  // creatorKey unconditionally so the root anchors the tree even when its own record has not
+  // replicated — it then contributes no edges, leaving the tree at {creator}.
+  const authorized = new Set()
+  const approved = new Set()
+  const pending = []
+  if (creatorKey) { authorized.add(creatorKey); pending.push(creatorKey) }
+  while (pending.length) {
+    const rec = norm.get(pending.pop())
+    if (!rec) continue
+    for (const j of rec.approvals) {
+      if (!vouchStands(rec, j)) continue
+      approved.add(j)
+      if (authorized.has(j)) continue
+      authorized.add(j)
+      pending.push(j)
+    }
   }
 
   const members = new Set()
-  let grew = true
-  while (grew) {                       // OR-Set growth to a fixpoint
-    grew = false
-    for (const [k, rec] of norm) {
-      if (members.has(k) || !rec.active) continue
-      if (k === creatorKey || approvedByMember(k, members, norm)) {
-        members.add(k)
-        grew = true
-      }
-    }
-  }
-  return members
+  for (const k of authorized) if (norm.get(k)?.active) members.add(k)
+
+  return { members, authorized, approved }
 }
 
-function approvedByMember (k, members, norm) {
-  for (const m of members) {
-    if (norm.get(m).approvals.has(k)) return true
+// A departed peer's vouch stands only if the log shows it was authored before the departure.
+function vouchStands (rec, joiner) {
+  if (rec.active || rec.memberSeq === null || !rec.approvalSeqs) return true
+  const seq = rec.approvalSeqs.get(joiner)
+  return seq === undefined || seq < rec.memberSeq
+}
+
+export function foldMemberSet (records, creatorKey) {
+  return foldMembership(records, creatorKey).members
+}
+
+// Which of a departing peer's vouchees the observer takes over before revoking its own vouch for
+// that peer. Revoking alone unroots the leaver, and with it everyone the leaver alone vouched for,
+// so the observer re-parents that subtree onto itself — it had already authorized them
+// transitively, so no new trust is conferred. Never the leaver itself (that would re-vouch the
+// very peer being revoked) and never us (the fold roots authorization elsewhere).
+export function voucheesToAdopt (approvals, selfKey, leaverKey) {
+  const out = []
+  for (const k of approvals || []) {
+    if (k === selfKey || k === leaverKey) continue
+    out.push(k)
   }
-  return false
+  return out
 }
 
 function toSet (it) {

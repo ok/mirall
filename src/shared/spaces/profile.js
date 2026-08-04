@@ -9,6 +9,7 @@ import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '..
 import { mapLimit } from '../core/concurrency.js'
 import { getResourceCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
 import { clampDisplayName, sanitizeAvatar } from '../identity-limits.js'
+import { voucheesToAdopt } from './member-set.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 
@@ -98,8 +99,13 @@ export async function markOwnMembership(spaceId, { refresh = false } = {}) {
   await profileBee.put('member/' + spaceId, { active: true, ts: Date.now() })
 }
 
+// Record the departure as a value rather than deleting the key: the record's own seq is the log
+// position of the departure, which is what lets a reader tell a vouch authored while a member from
+// one authored after leaving. A delete erases that position. Readers fold a present-but-inactive
+// record and an absent one to the same `active: false`, so this stays compatible both ways.
 export async function clearOwnMembership(spaceId) {
-  await profileBee.del('member/' + spaceId)
+  await ensureMembershipManifestCap()
+  await profileBee.put('member/' + spaceId, { active: false, ts: Date.now() })
 }
 
 // Tri-state read of a peer's own `member/<S>.active` manifest (true / false=left /
@@ -140,6 +146,22 @@ export async function markApproval(spaceId, joinerKeyHex) {
 export async function revokeApproval(spaceId, joinerKeyHex) {
   if (!profileBee) return
   await profileBee.del('approved/' + spaceId + '/' + joinerKeyHex)
+}
+
+// Take over a departing peer's vouchees so revoking our vouch for it doesn't strand the subtree it
+// alone vouched for. MUST run before revokeApproval: once the leaver is unauthorized the fold stops
+// walking its bee, so its approvals may never be readable again. Returns false when the record is
+// unreadable — the caller then leaves the whole departure unapplied so a later fold retries, and
+// never revokes on its own.
+export async function adoptVouchees(spaceId, leaverKeyHex) {
+  const rec = await readMembershipRecord(leaverKeyHex, spaceId)
+  if (!rec) return false
+  for (const vouchee of voucheesToAdopt(rec.approvals, getLocalPublicKeyHex(), leaverKeyHex)) {
+    if (await hasOwnApproval(spaceId, vouchee)) continue
+    await markApproval(spaceId, vouchee)
+    log.info('adopted vouchee from a departing peer:', vouchee.slice(0, 12) + '...', '→', spaceId)
+  }
+  return true
 }
 
 // True iff WE authored an approval for joinerKeyHex in this space (our own bee — a local read).
@@ -344,6 +366,9 @@ async function loadPeerEntries(profileKeyHex, prefix) {
 // joiner keys it authored `approved/<S>/*` for. Returns null when the peer has no
 // membership manifest at all (cap unset) — i.e. "unknown / not replicated yet", which the
 // fold treats as absent (vs. a present record with active:false, which means "left").
+// `memberSeq`/`approvalSeqs` carry the log positions the fold compares to discount a vouch
+// authored after its author's own departure; both are null/empty for a peer that recorded its
+// departure by deleting the key, and the fold then skips that check.
 // Bounded like the other peer reads so an unreachable bee degrades to null, not a hang.
 export async function readMembershipRecord(profileKeyHex, spaceId) {
   try {
@@ -362,13 +387,17 @@ async function loadMembershipRecord(profileKeyHex, spaceId) {
   const memberEntry = await bee.get('member/' + spaceId)
   const active = memberEntry ? !!memberEntry.value?.active : false
   const memberTs = memberEntry ? (memberEntry.value?.ts || 0) : 0
+  const memberSeq = typeof memberEntry?.seq === 'number' ? memberEntry.seq : null
   const prefix = 'approved/' + spaceId + '/'
   const limit = getResourceCaps().approvalsPerMember
   const approvals = []
+  const approvalSeqs = new Map()
   for await (const entry of bee.createReadStream({ gte: prefix, lt: 'approved/' + spaceId + '0' }, limit ? { limit } : undefined)) {
-    approvals.push(entry.key.slice(prefix.length))
+    const joiner = entry.key.slice(prefix.length)
+    approvals.push(joiner)
+    if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)
   }
-  return { active, approvals, memberTs }
+  return { active, approvals, memberTs, memberSeq, approvalSeqs }
 }
 
 // Durably pull a joiner's OWN profile core into our store while the joiner is still connected —

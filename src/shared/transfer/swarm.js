@@ -18,7 +18,7 @@ import fs from 'bare-fs'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import {
   getProfileKey, getProfile, getLocalPublicKeyHex, openProfileBee, readPeerApproval, hasOwnApproval,
-  revokeApproval, getIdentitySigner, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite,
+  revokeApproval, adoptVouchees, getIdentitySigner, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite,
 } from '../spaces/profile.js'
 import {
   getDrive, getSpace, upsertMember, removeMember, listSpaces,
@@ -756,6 +756,17 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
   const space = await getSpace(spaceId)
   if (!space?.members) return
 
+  // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
+  // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
+  // could never be recovered. The leaver is connected right now, which is the best window there is
+  // to read that record. When it is unreadable, apply NOTHING: the replication-driven path retries
+  // once the departure record lands, which is strictly better than tombstoning here while our vouch
+  // still stands (a tombstone would suppress every retry).
+  if (!(await adoptVouchees(spaceId, profileKey))) {
+    log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
+    return
+  }
+
   // Tombstone the leaver FIRST so the member-view fold can't re-add them from their stale
   // still-active record (their del-record may not replicate before they disconnect). Set
   // before removeMember so any in-flight re-derive already subtracts them. Persist it so the
@@ -774,7 +785,8 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
 
   // Revoke our own approval so a later rejoin needs fresh approval, not a silent re-admit off the
   // surviving grow-only record. Unconditional + idempotent: a leaver already pruned by the fold (or a
-  // duplicate frame) must still lose our vouch. No-op for the creator (we hold no approval for the root).
+  // duplicate frame) must still lose our vouch. No-op for the creator (we hold no approval for the
+  // root). Safe to unroot the leaver here — its vouchees were adopted above.
   try { await revokeApproval(spaceId, profileKey) } catch (err) {
     durablyApplied = false
     log.warn('approval revoke on leave failed:', err.message)

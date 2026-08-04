@@ -1,7 +1,7 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex } from './profile.js'
-import { foldMemberSet } from './member-set.js'
+import { foldMembership } from './member-set.js'
 import { createDerivedView } from '../state/derived-view.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import { SHARE_PREFIX } from '../shares/shares.js'
@@ -9,8 +9,8 @@ import { SHARE_PREFIX } from '../shares/shares.js'
 // Transitive discovery + fold. Walks the approval graph FORWARD from the creator (the
 // root of the OR-Set fold — see member-set.js) and self, reading each reachable peer's
 // membership record, then folds them into the member set. Crucially it only opens the
-// bees of *confirmed members'* approvees — a peer approved by nobody (a Sybil) is never
-// fetched — so discovery is bounded by the real member tree, not by what strangers claim.
+// bees of *authorized* peers — a peer approved by nobody (a Sybil) is never fetched — so
+// discovery is bounded by the real member tree, not by what strangers claim.
 //
 // `readRecord(key) => Promise<{ active, approvals } | null>` is injected so the discovery
 // algorithm is unit-testable without a store; the live wiring (createMemberView) passes
@@ -32,19 +32,19 @@ export async function deriveMemberSet ({ creatorKey, selfKey, readRecord }) {
   await fetch(selfKey)
 
   for (;;) {
-    const members = foldMemberSet(records, creatorKey)
+    const { members, authorized, approved } = foldMembership(records, creatorKey)
     let grew = false
-    for (const m of members) {
-      for (const j of records.get(m)?.approvals || []) {
-        if (await fetch(j)) grew = true   // pull in this member's approvees
-      }
+    // Authorization is reachability from the root, so `authorized` already names every peer the
+    // tree reaches — including the approvees of a departed member, whose bees must still be
+    // opened or they could never heal.
+    for (const k of authorized) {
+      if (await fetch(k)) grew = true
     }
     if (!grew) {
-      const approved = new Set()
       const memberTs = new Map()
-      // Positive-evidence leave signal: a record we actually READ that says not-a-member (a
-      // replicated `del member/<S>`). Never a null/unreplicated peer, never a cascade victim
-      // (their record stays active:true) — so the observer can safely revoke on it.
+      // Positive-evidence leave signal: a record we actually READ that says not-a-member (the
+      // peer's own replicated departure). Never a null/unreplicated peer — so the observer can
+      // safely revoke on it.
       const inactive = new Set()
       for (const [k, rec] of records) {
         if (rec && rec.active === false) inactive.add(k)
@@ -56,8 +56,9 @@ export async function deriveMemberSet ({ creatorKey, selfKey, readRecord }) {
       for (const k of fetched) {
         if (!records.has(k)) unread.add(k)
       }
+      // memberTs stays keyed on the LIVE set: its consumers compare a member's own monotonic
+      // clock against a leave stamp, which is meaningless for a peer not asserting membership.
       for (const m of members) {
-        for (const j of records.get(m)?.approvals || []) approved.add(j)
         const ts = records.get(m)?.memberTs
         if (ts != null) memberTs.set(m, ts)
       }

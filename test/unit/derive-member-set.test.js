@@ -51,14 +51,57 @@ test('a member approved only by an unreachable bee stays pending, then heals', a
   t.alike(sorted(res.members), [A, B, C], 'converges once A replicates')
 })
 
-test('a left member (active:false) drops, and its approvees with it', async (t) => {
+test('REGRESSION (FIX-361: departure orphaning): a left member drops, its approvees keep authorization', async (t) => {
   const db = new Map([
     [C, { active: true, approvals: [A] }],
-    [A, { active: false, approvals: [B] }],   // A left
+    [A, { active: false, approvals: [B] }],   // A invited B, then left
     [B, { active: true, approvals: [] }],
   ])
-  const { members } = await deriveMemberSet({ creatorKey: C, selfKey: S, readRecord: reader(db) })
-  t.alike(sorted(members), [C], 'A left ⇒ A out, and B (only A approved it) out too')
+  const { members, considered } = await deriveMemberSet({ creatorKey: C, selfKey: S, readRecord: reader(db) })
+  t.alike(sorted(members), [B, C], 'A left ⇒ A out; B keeps the authorization A conferred')
+  t.ok(considered.has(B), 'discovery reaches B through a departed voucher')
+})
+
+test('REGRESSION (FIX-361: creator-leave collapse): the whole tree survives the creator leaving', async (t) => {
+  const db = new Map([
+    [C, { active: false, approvals: [A] }],   // the creator left
+    [A, { active: true, approvals: [B] }],
+    [B, { active: true, approvals: [] }],
+  ])
+  const { members, considered, inactive } = await deriveMemberSet({ creatorKey: C, selfKey: B, readRecord: reader(db) })
+  t.alike(sorted(members), [A, B], 'the roster survives its creator leaving')
+  t.ok(considered.has(A) && considered.has(B), 'every roster bee is still walked and followed')
+  t.alike(sorted(inactive), [C], 'the departed creator is reported as a genuine leaver')
+})
+
+test('a Sybil bee is still never fetched once the creator has left', async (t) => {
+  const db = new Map([
+    [C, { active: false, approvals: [A] }],
+    [A, { active: true, approvals: [] }],
+    [X, { active: true, approvals: [Y] }],
+    [Y, { active: true, approvals: [] }],
+  ])
+  const { considered } = await deriveMemberSet({ creatorKey: C, selfKey: S, readRecord: reader(db) })
+  t.absent(considered.has(X), 'an unreachable clique is never opened, even with a departed root')
+  t.absent(considered.has(Y))
+})
+
+test('REGRESSION (FIX-362: post-departure vouch): discovery skips a bee reachable only through one', async (t) => {
+  // A recorded its departure at seq 10; the vouch for B predates it, the vouch for Y does not.
+  const db = new Map([
+    [C, { active: true, approvals: [A] }],
+    [A, {
+      active: false,
+      approvals: [B, Y],
+      memberSeq: 10,
+      approvalSeqs: new Map([[B, 4], [Y, 20]]),
+    }],
+    [B, { active: true, approvals: [] }],
+    [Y, { active: true, approvals: [] }],
+  ])
+  const { members, considered } = await deriveMemberSet({ creatorKey: C, selfKey: S, readRecord: reader(db) })
+  t.alike(sorted(members), [B, C], 'the pre-departure vouch stands, the post-departure one does not')
+  t.absent(considered.has(Y), 'a bee reachable only through a post-departure vouch is never opened')
 })
 
 test('lone creator with no roster', async (t) => {

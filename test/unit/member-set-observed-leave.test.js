@@ -6,9 +6,9 @@ const rec = (active, approvals = [], memberTs = 1) => ({ active, approvals, memb
 const reader = (db) => async (k) => db.get(k) ?? null
 
 // `inactive` is the fold's positive-evidence leave signal: a peer whose bee we READ and whose
-// record says active:false (a replicated `del member/<S>`). A null (unreplicated) peer or a
-// cascade victim (active:true, lost approver) must never surface there — a false positive
-// would revoke a legitimate member's approval.
+// record says active:false (its own replicated departure). A null (unreplicated) peer, or one
+// that merely lost an approver, must never surface there — a false positive would revoke a
+// legitimate member's approval.
 
 test('deriveMemberSet reports an observed leave (active:false record) as inactive', async (t) => {
   const db = new Map([
@@ -33,9 +33,9 @@ test('deriveMemberSet does NOT mark an unreplicated peer inactive', async (t) =>
   t.absent(inactive.has('B'), 'a not-yet-replicated peer is not "inactive" (no false leave)')
 })
 
-test('deriveMemberSet does NOT mark a cascade victim inactive', async (t) => {
-  // E is active:true but its only approver B left — E drops from members via the fold,
-  // yet E did not leave, so it must not be reported inactive.
+test('deriveMemberSet marks only the genuine leaver inactive', async (t) => {
+  // B left. E, which B had vouched for while a member, keeps that authorization and stays —
+  // and since E never departed, it must not be reported inactive either.
   const db = new Map([
     ['C', rec(true, ['B'])],
     ['B', rec(false, ['E'])],
@@ -44,8 +44,8 @@ test('deriveMemberSet does NOT mark a cascade victim inactive', async (t) => {
   const { members, inactive } = await deriveMemberSet({
     creatorKey: 'C', selfKey: 'C', readRecord: reader(db),
   })
-  t.absent(members.has('E'), 'E folded out (approver gone)')
-  t.absent(inactive.has('E'), 'cascade victim not inactive')
+  t.ok(members.has('E'), 'E keeps the authorization B conferred before leaving')
+  t.absent(inactive.has('E'), 'a peer that did not leave is never inactive')
   t.ok(inactive.has('B'), 'only the genuine leaver is inactive')
 })
 
