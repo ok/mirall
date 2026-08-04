@@ -293,6 +293,15 @@ test('extractInviteCode trims whitespace around a link', (t) => {
   t.is(extractInviteCode(`  mirall://join/${env}\n`), env)
 })
 
+// REGRESSION (FIX-DEEPLINK-ARGV-1: pasting an invite link that came back from a
+// browser or chat client with a trailing slash failed while the bare code worked).
+test('REGRESSION (FIX-DEEPLINK-ARGV-1): extractInviteCode strips a trailing slash', (t) => {
+  const env = encodeInvite({ topic: HEX, name: 'Acme' })
+  t.is(extractInviteCode(`mirall://join/${env}/`), env)
+  t.is(extractInviteCode(`mirall://join/${HEX_DASHED}/`), HEX_DASHED)
+  t.alike(decodeInvite(`mirall://join/${env}/`), { v: 1, topic: HEX, name: 'Acme' })
+})
+
 test('extractInviteCode passes a bare code through unchanged', (t) => {
   t.is(extractInviteCode(HEX), HEX)
   t.is(extractInviteCode(HEX_DASHED), HEX_DASHED)

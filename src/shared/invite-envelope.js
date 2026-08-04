@@ -33,7 +33,10 @@ export function extractInviteCode(input) {
   let url
   try { url = new URL(trimmed) } catch { return trimmed } // not a URL → raw code
   if (url.protocol !== 'mirall:' || url.hostname !== 'join') return trimmed
-  const fromPath = url.pathname.replace(/^\/+/, '')
+  // Trailing slashes too: a link that round-tripped through a browser or chat
+  // client can come back as mirall://join/<code>/, and neither hex nor base64url
+  // contains '/', so stripping it can never eat part of a real code.
+  const fromPath = url.pathname.replace(/^\/+|\/+$/g, '')
   const fromQuery = url.searchParams.get('code') ?? ''
   let raw = (fromPath || fromQuery).trim()
   try { raw = decodeURIComponent(raw) } catch {}

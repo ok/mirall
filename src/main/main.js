@@ -36,12 +36,12 @@ childProcess.spawn = function (file, args, options) {
   return _spawn.call(this, file, args, options)
 }
 
-const { command, flag } = require('paparam')
 const { isMac, isLinux, isWindows } = require('which-runtime')
 const PearRuntime = require('pear-runtime')
 const Hyperswarm = require('hyperswarm')
 const Corestore = require('corestore')
 const debounceify = require('debounceify')
+const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
 const { buildAppMenuTemplate } = require('./menu.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { ConfigStore } = require('./config-store.js')
@@ -53,20 +53,19 @@ const protocol = pkg.name
 const version = pkg.version
 const upgrade = pkg.upgrade
 
-const cmd = command(
-  appName,
-  flag('--storage <dir>', 'pass custom storage to pear-runtime'),
-  flag('--no-updates', 'start without OTA updates'),
-  flag('--hidden', 'start minimised to tray (used by autostart at login)'),
-  // Chromium consumes --no-sandbox itself; declare it here only so paparam
-  // doesn't bail with UNKNOWN_ARG when AppRun forwards the flag on Linux.
-  flag('--no-sandbox', 'start without Chromium sandbox').hide()
-)
-cmd.parse(app.isPackaged ? process.argv.slice(1) : process.argv.slice(2))
-const customStorage = cmd.flags.storage
+// Deep links arrive as a positional in our own argv on Win/Linux, so they are
+// peeled off here rather than parsed — see boot-argv.js for why a strict parse
+// at module top is fatal. boot.deepLinks is dispatched once the instance lock is
+// known to be ours, further down.
+const boot = parseBootArgv(app.isPackaged ? process.argv.slice(1) : process.argv.slice(2), {
+  name: appName,
+  protocol,
+})
+for (const w of boot.warnings) console.warn('[argv] ignored:', w)
+const customStorage = boot.flags.storage
 // No upgrade key (e.g. running from source) → disable OTA. pear-runtime-updater throws otherwise.
-const updatesEnabled = cmd.flags.updates !== false && !!upgrade
-const startHiddenFlag = !!cmd.flags.hidden
+const updatesEnabled = boot.flags.updates !== false && !!upgrade
+const startHiddenFlag = !!boot.flags.hidden
 
 // When --storage is set, redirect Electron's userData path too so that
 // window-bounds.json, the corestore, and the applied-version marker all
@@ -1404,19 +1403,15 @@ if (!lock) {
   app.quit()
 } else {
   app.on('second-instance', (_evt, args) => {
-    const url = args.find((arg) => typeof arg === 'string' && arg.startsWith(protocol + '://'))
+    const [url] = extractDeepLinks(args, protocol)
     if (url) dispatchDeepLink(url).catch((err) => console.error('dispatchDeepLink failed:', err))
     else revealWindow().catch((err) => console.error('revealWindow failed:', err))
   })
 
-  // Cold start on Win/Linux: the URL arrives in our own argv. paparam already
-  // ran for flags at module-top, but URLs are positional and would trip
-  // UNKNOWN_ARG. Scan argv directly instead.
-  const bootArgv = app.isPackaged ? process.argv.slice(1) : process.argv.slice(2)
-  for (const a of bootArgv) {
-    if (typeof a === 'string' && a.startsWith(protocol + '://')) {
-      dispatchDeepLink(a).catch((err) => console.error('dispatchDeepLink failed:', err))
-    }
+  // Cold start on Win/Linux: the URL arrived in our own argv, already peeled off
+  // by parseBootArgv at module top.
+  for (const url of boot.deepLinks) {
+    dispatchDeepLink(url).catch((err) => console.error('dispatchDeepLink failed:', err))
   }
 
   app.whenReady().then(async () => {
