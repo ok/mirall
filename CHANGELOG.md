@@ -10,6 +10,25 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## v1.7.1
+### 2026-08-05
+
+#### Fixed
+
+- **A space keeps working when someone leaves.** When the person who
+  created a space left it, the space quietly froze for everyone else —
+  nobody new could join, join requests went unanswered, and the member
+  list stopped updating. When any other member left, the people they had
+  invited were dropped along with them. Now only the person who actually
+  left is removed, and everyone else keeps their place.
+- **Invite links open instead of quitting the app on Windows and Linux.**
+  Clicking a `mirall://join` invite link shut Mirall down on the spot —
+  whether it was already running or started by the click — so the only
+  way in was to copy the code out of the link and paste it into the Join
+  dialog by hand. Invite links now open the Join dialog as intended, and
+  a link with a trailing slash works as well as a bare code.
+
+
 ## v1.7.0
 ### 2026-07-12
 
