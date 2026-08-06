@@ -269,6 +269,70 @@ Progress streams locally as `event:decoration { channel:'transfer', phase:'publi
 
 **Boot sweeps.** `cleanupOrphanedPartials` removes `.mirall.part` files (download dir + every foreign mount) that no pending row or journal references — a resumable partial is preserved. `cleanupOrphanedJournals` drops corrupt, stale (>7 d), or partner-less journals. Shutdown marks nothing: resume state reconstructs from the durable rows.
 
+### 3.5b Audit-log bee (`audit-log`) — local only, never replicated
+
+The on-device activity record (`shared/audit/`). Registered in `LOCAL_BEE_NAMES`, so it inherits
+the M-derived at-rest encryption, the metadata migration and the leftover-scan wanted-set.
+
+| Key | Value |
+|---|---|
+| `evt/<seq zero-padded to 16>` | the audit record (schema v1) |
+| `by-space/<spaceId>/<seq>` | `seq` — the space filter's index |
+| `config` | `{ enabled, retentionDays, maxEntries }` — worker-owned |
+| `seen/<beeId>` | the version of a peer's bee already turned into rows (§3.5c). Working state, not a record — `audit:purge` deliberately leaves it |
+
+Zero-padded seqs make lexicographic order numeric order, so one reverse range scan is both the
+newest-first listing and the pagination cursor. `seq` is a monotonic local counter, never
+`Date.now()`: a backwards clock jump would otherwise reorder or collide rows.
+
+**Every row is self-contained.** Participant names (`actor` / `space` / `target`) are snapshotted
+at write time because nothing can be joined at render time — §6 deletes the space record on
+leave, and a peer's name needs that peer reachable. A `search` blob of lowercased proper nouns
+backs free-text search; the *kind* is deliberately excluded so stored text stays locale-neutral
+(the renderer resolves a typed term against translated kind labels and passes matching kinds as a
+filter).
+
+Attribution is recorded per row as a tier: **A** first-party, **B** a peer action authenticated
+through the §16 identity binding or a Noise-authenticated socket, **C** derived from a peer's
+replicated bee (authorship proven, timestamp self-reported). A transfer between two *other*
+members is unobservable — overlay transfers are point-to-point, so only the holder sees them.
+
+Volume is bounded structurally: no event class scales with file count (a folder share is one row
+carrying the totals; the recurring reconcile records nothing), byte-moving activity is folded into
+one row per transfer by `audit-sessions.js`, and a per-kind token bucket collapses any overflow
+into a single `audit.suppressed` row.
+
+Retention prunes by age **and** count on boot and daily. A Hyperbee `del` only appends a
+tombstone, so the prune follows up with `core.clear()` over the released block range to actually
+reclaim disk.
+
+**The log survives a space leave** — a deliberate exception to §6's "leave removes everything
+space-scoped" rule, since a space left under dispute is exactly when the trail matters. It never
+replicates and never leaves the device; `audit:purge` is the user's explicit wipe.
+
+#### Observing peer actions
+
+A peer's profile bee and share catalog are append-only logs, so "what did they just do" needs no
+snapshot of their records — only the version we last processed (`seen/<beeId>`) plus
+`createHistoryStream`, which replays the put/del operations since then. `audit/peer-observer.js`
+classifies those operations; `audit/peer-watch.js` resolves names and writes the rows.
+
+Three rules make it correct:
+
+- **Baseline at registration, after a head sync.** Taken when the watch is attached rather than on
+  the first append — adopting lazily swallows the very first act, and adopting before the head
+  replicates turns a peer's whole existing catalog into a flood of "just shared" rows.
+- **Fingerprint dedupe.** One logical act can be several puts (a mirror record is written
+  `syncing` then `active`), so changes collapse to a stable fingerprint; the opposite transition
+  clears it, so mirror → unmirror → re-mirror still records three times.
+- **Relevance gates.** A share/file event counts only for a space we are in; a mirror event counts
+  only when the mirrored share is *ours*. Folder-share catalog contents are excluded outright —
+  one mount is one act (`share.mounted`), never five thousand file rows.
+
+This yields the peer-action kinds (`peer.file_shared`/`_unshared`, `peer.share_created`/`_deleted`,
+`mirror.peer_mirrored`/`_unmirrored`), all tier C: authorship is proven by the bee signature, but
+the timing is the author's clock and we learn of it only when their append reaches us.
+
 ### 3.6 Mounts bee (`mounts-meta`) — local only
 
 Owned by `src/shared/folders/mount-store.js`. Records which local paths back a share and which mirror a peer's share. §7.
@@ -597,6 +661,12 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true }` |
 | `feedback:send` | `{ comment, screenshot? }` | `{ ok:true }` — POSTs to `feedback.mirall.app` |
 | `ping` | `{}` | `{ pong:true, timestamp }` |
+| `audit:list` | `{ spaceId?, kinds?, categories?, actorKey?, search?, since?, until?, cursor?, limit }` | `{ entries[], nextCursor }` — a **partial page with a non-null cursor is normal** (the scan is budgeted) |
+| `audit:spaces` / `audit:actors` | `{}` | filter facets read from the **log**, so a left space stays filterable |
+| `audit:stats` | `{}` | `{ count, oldestTs, newestTs, oldestSeq, newestSeq }` |
+| `audit:get-config` / `audit:configure` | `{}` / `{ enabled?, retentionDays?, maxEntries? }` | `AuditConfig` |
+| `audit:purge` | `{}` | `{ purged }` |
+| `audit:export` | `{ spaceId?, since?, until? }` | `{ version, exportedAt, entries[] }` — send with `timeout:0` |
 
 **Folder-sharing requests** (§7)
 
@@ -642,6 +712,7 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 | `event:reconcile` | `{ scope }` — the coalesced, level-triggered "state in this scope changed, refetch it" hint (§4.7), fanned from the named `*-updated` pokes via `POKE_SCOPE` |
 | `event:decoration` | `{ channel:'transfer', spaceId, key, bytes, total, speed?, eta?, phase?, verifyFraction?, done? }` — the **one** per-file progress channel (download *and* owner-side publish/prepare, tagged `phase:'publishing'\|'preparing'\|'verifying'`). Loose rows key by drive path, folder rows by `shareId:relPath` (`decoration-key.js`); cleared only by a terminal `done` |
 | `event:awareness` | `{ channel:'serving'\|'serving-detail', spaceId, path, … }` — ephemeral "who is downloading" cross-peer soft-state, re-announced on the ledger sweep, expired by a receiver TTL. Never persisted, never a status source |
+| `event:audit-updated` | `{}` — poke; fans to `Scope.audit()` so the viewer refetches |
 | `event:shares-updated` / `event:share-files-updated` | `{ spaceId }` / `{ spaceId, shareId? }` (shareId absent = space-wide) |
 | `event:owned-folder-mount-status` | `{ spaceId, shareId, status, error? }` — `active` / `scanning` / `paused-error` / `mount-point-gone` |
 | `event:owned-folder-scan-completed` | `{ spaceId, shareId, uploaded, deleted, totalOnDisk }` |
@@ -721,7 +792,9 @@ Adding a locale: drop `locales/<code>/{common,errors}.json`, add a `SUPPORTED_LA
 | **Shared Spaces** | Default after onboarding | `SpaceCard` grid, Create/Join, empty state |
 | **Space View** | Click a space | A **Folders Shared** section (`ShareCard` grid — one per owned/mirrored/browsable share) above the loose-files grid (`FileCard`s), plus a sidebar (`DropZone`, `StorageIndicator`, `MemberCard`s, invite + edit + leave). Dropping a *folder* (or `⌘⇧U`) opens `AddFolderShareModal`; clicking a `ShareCard` navigates to Folder View |
 | **Folder View** | Click a `ShareCard` | Full-screen browse of one share (`screens/FolderView.tsx`): file rows with per-file download/reveal + progress, an owner/role sidebar, and role-dependent actions — **Mirror to Disk** (browse), pause/resume + unmount (mirrored), relocate + **Delete Folder** (owned) |
-| **Settings** | Gear icon | Profile edit, theme toggle, nav to Storage / About |
+| **Activity Log** | Account → Activity | The audit-log viewer: search, space/person/time/category filters, day-grouped rows, Load more. Cross-links to its settings |
+| **Activity Log settings** | Settings → Activity Log | Recording toggle, retention, JSON export, delete. Cross-links back to the viewer |
+| **Settings** | Gear icon | Profile edit, theme toggle, nav to Storage / Activity Log / About |
 | **Storage Settings** | From Settings | `StorageIndicator` per space, total / other breakdown, cleanup → `storage:cleanup` |
 | **About** | From Settings | Version info, "Send feedback" → `FeedbackModal` |
 
@@ -756,7 +829,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `InviteModal` | Copy the invite code for an existing space |
 | `DropZone` | Drag-and-drop + file picker. Files → `addFileToSpace`; a dropped **folder** → `AddFolderShareModal`. Rejects ephemeral/promised drop sources (`temp-paths`) |
 | `FileCard` | Renders the file states of §3.5; per-state action button (Download / Cancel / Resume / Discard / Reveal / Remove) |
-| `ActionMenu` | Three-dot menu with state-appropriate actions (Reveal, Discard partial, Remove local copy, …) |
+| `ActionMenu` | The dropdown-button primitive (react-aria menu, portalled popup). Three triggers: `primary` (labelled key action — Space View / Folder View "More"), `subtle` (icon-only three-dot — `ShareCard`), `neutral` (labelled, secondary-button tokens — the Activity Log filter bar, where several menus sit together and none is the screen's main action). Items may omit `icon`, which single-choice menus use to check only the selected row |
 | `RemoveFileModal` | Delete confirmation with a "members keep their copy" warning |
 | `StorageIndicator` | Local-mirror progress bar (Space View + Storage Settings) |
 | `FeedbackModal` | Textarea + optional screenshot toggle; POSTs through `feedback:send` |
@@ -839,6 +912,13 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}`; shared by single-file transfers and folder mirroring |
 | `state/presence.js`, `state/hints.js` | Presence leases; coalesced `event:reconcile` hints. §4.7 |
 | `storage/storage.js` | Per-space byte accounting + orphan-core cleanup |
+| `audit/audit-kinds.js` | The closed audit vocabulary + category/tier tables. Pure |
+| `audit/audit-record.js` | `buildRecord()` — schema v1, name snapshots, search blob. Pure |
+| `audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
+| `audit/audit-sessions.js` | Folds start/end activity into one row per transfer. Pure |
+| `audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune/purge/export, config, and the peer-bee watermarks. Imports only from `core/` so the instrumentation call sites can't form a cycle |
+| `audit/peer-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, and the bounded history read. No I/O |
+| `audit/peer-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, and the registration-time baseline |
 | `telemetry/feedback.js` | HTTPS POST (via `bare-https`) of the feedback caption + optional screenshot. Sends `x-mirall-install-id`, `x-mirall-version`, `x-mirall-channel` |
 | `telemetry/install-id.js` | Lazily mints + persists an opaque per-install UUID at `<storage>/install-id`, for rate-limit bucketing on the relay |
 | `invite-envelope.js` *(root)* | `encodeInvite` / `decodeInvite`, v0 + v1. ESM, dynamically imported by `main/deeplink.js`. Twin of `renderer/invite-envelope.ts`. §5.1 |
@@ -1044,6 +1124,7 @@ File bytes are served only when three gates pass (`transfer/backends/overlay/ove
 - **Capability flag** — `caps/<feature>` marker in the profile bee; absence means "this peer doesn't publish that data", never "the data is gone".
 - **Presence lease** — a short-lived, re-announced liveness claim; expiry means the peer is treated as offline.
 - **Hint / `event:reconcile`** — the coalesced worker→renderer signal "state in this scope changed, refetch it".
+- **Audit tier** — the confidence recorded with every audit row: A first-party, B a peer action authenticated on the socket, C derived from a peer's replicated bee (timestamp self-reported).
 - **Partial** — an in-progress download file (`*.mirall.part`), atomically renamed on completion. The suffix is defined once in `src/shared/transfer/partial-suffix.js` and injected into the vendored overlay engine; it deliberately is not a bare `*.part`, which would collide with Firefox/KDE downloads in the same folder.
 - **Pending transfer** — the persisted row describing an unfinished download; the source of resume and of paused/error UI states.
 - **Channel** — a release line (`dev` / `staging` / `prod`), each an independently-keyed update drive.

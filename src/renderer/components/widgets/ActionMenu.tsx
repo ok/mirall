@@ -12,7 +12,7 @@ import Icon, { type IconName } from '../primitives/Icon.js'
 export interface ActionMenuItemConfig {
   id: string
   label: string
-  icon: IconName
+  icon?: IconName
   iconFilled?: boolean
   onAction: () => void
   variant?: 'default' | 'danger'
@@ -24,7 +24,10 @@ interface ActionMenuProps {
   label: string
   icon?: IconName
   items: ActionMenuItemConfig[]
-  triggerVariant?: 'primary' | 'subtle'
+  // 'primary' is the key action on a screen; 'subtle' is the icon-only three-dot trigger;
+  // 'neutral' wears the secondary-button tokens, for places where several menus sit together and
+  // none of them is the screen's main action (a filter bar).
+  triggerVariant?: 'primary' | 'subtle' | 'neutral'
   ariaLabel?: string
 }
 
@@ -70,7 +73,9 @@ function MenuItemRow({ node, state, config, showSeparator }: {
           }
         `}
       >
-        <Icon name={config.icon} filled={config.iconFilled} size={20} />
+        {config.icon
+          ? <Icon name={config.icon} filled={config.iconFilled} size={20} />
+          : <span className="w-5 h-5 shrink-0" aria-hidden="true" />}
         <span className="flex-grow whitespace-nowrap">{config.label}</span>
         {isDisabled && config.hint && (
           <Icon name="info" size={14} className="text-outline opacity-70" />
@@ -192,9 +197,12 @@ export default function ActionMenu({ label, icon, items, triggerVariant, ariaLab
   }
 
   const isSubtle = triggerVariant === 'subtle'
+  const labelledBase = 'flex items-center gap-2 rounded-xl px-5 py-2.5 font-headline font-bold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
   const triggerClass = isSubtle
     ? `w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${isPressed ? 'scale-95' : ''}`
-    : `flex items-center gap-2 bg-primary text-on-primary rounded-xl px-5 py-2.5 font-headline font-bold text-sm shadow-lg shadow-primary/10 transition-all hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${isPressed ? 'scale-95' : ''}`
+    : triggerVariant === 'neutral'
+      ? `${labelledBase} bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high ${isPressed ? 'scale-95' : ''}`
+      : `${labelledBase} bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 ${isPressed ? 'scale-95' : ''}`
 
   return (
     <div className="relative">

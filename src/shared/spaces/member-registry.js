@@ -6,6 +6,7 @@ import { mergeMemberIdentity } from './member-identity.js'
 import { foldPendingSet } from './pending-set.js'
 import { tombstoneActive, observedLeavers } from './member-set.js'
 import { createLogger } from '../core/logger.js'
+import { record } from '../audit/audit-log.js'
 
 // Set by the worker. A hook, not an import: the overlay reaches back into spaces/ for the
 // membership gate, so importing it here would close the cycle.
@@ -253,6 +254,19 @@ async function applyObservedLeave (spaceId, key, leaveTs) {
   // one is driven by replication, and it must invalidate cached serve grants just the same:
   // without it we keep serving an ex-member whose departure we learned about through the fold.
   membershipRevokedHook?.(spaceId, key)
+  // Learned through replication rather than a live frame, hence tier C on this kind. It records
+  // our own vouch being withdrawn as a consequence of their departure — not a removal.
+  getSpace(spaceId).then((space) => {
+    record('membership.approval_revoked', {
+      actor: { type: 'system', key: null, name: null },
+      space: { id: spaceId, name: space?.name ?? null },
+      target: {
+        kind: 'member',
+        id: key,
+        name: (space?.members || []).find((m) => m.publicKey === key)?.displayName ?? null,
+      },
+    })
+  }).catch(() => {})
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 

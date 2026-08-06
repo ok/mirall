@@ -20,6 +20,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'palette',         label: t('settings.appearance'),    desc: t('settings.appearanceDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'appearance-settings' },
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
+    { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
     { icon: 'info',            label: t('settings.about'),         desc: t('settings.aboutDesc'),      bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'about' },
   ]
 

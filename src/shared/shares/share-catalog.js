@@ -220,18 +220,22 @@ export async function resolvePeerCatalog(spaceId, rec, { space } = {}) {
 // listeners — one core 'append' hook fans out to every registered callback, deduped
 // by listenerId so repeated browse/download calls don't double-register.
 const peerCatalogWatchers = new Map() // catalogKeyHex -> { ids: Set<string>, cbs: Set<fn> }
+// Returns the watched bee so a caller that needs to know WHAT changed can read its history: the
+// append event itself is only a poke.
 export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null) {
   let w = peerCatalogWatchers.get(catalogKeyHex)
   if (!w) {
     const bee = openPeerCatalog(catalogKeyHex, sck)
-    if (!bee) return
-    w = { ids: new Set(), cbs: new Set() }
+    if (!bee) return null
+    w = { ids: new Set(), cbs: new Set(), bee }
     peerCatalogWatchers.set(catalogKeyHex, w)
-    bee.core.on('append', () => { for (const cb of w.cbs) cb() })
+    bee.core.on('append', () => { for (const cb of w.cbs) cb(bee) })
   }
-  if (w.ids.has(listenerId)) return
-  w.ids.add(listenerId)
-  w.cbs.add(onAppend)
+  if (!w.ids.has(listenerId)) {
+    w.ids.add(listenerId)
+    w.cbs.add(onAppend)
+  }
+  return w.bee
 }
 
 // Pull the owner's latest catalog head before reading. A read-only core opened

@@ -316,3 +316,74 @@ export interface NetworkStatus {
     dht: string
   }
 }
+
+export type AuditCategory = 'members' | 'files' | 'folders' | 'security'
+export type AuditTier = 'A' | 'B' | 'C'
+export type AuditOutcome = 'ok' | 'denied' | 'error'
+
+export interface AuditParty {
+  type: 'self' | 'peer' | 'system'
+  key: string | null
+  name: string | null
+}
+
+export interface AuditSpaceRef {
+  id: string
+  name: string | null
+}
+
+export interface AuditTargetRef {
+  kind: string | null
+  id: string | null
+  name: string | null
+}
+
+export interface AuditEntry {
+  v: number
+  seq: number
+  ts: number
+  tzOffset: number
+  kind: string
+  category: AuditCategory
+  tier: AuditTier
+  outcome: AuditOutcome
+  code: string | null
+  device: string | null
+  actor: AuditParty | null
+  space: AuditSpaceRef | null
+  target: AuditTargetRef | null
+  subject: Record<string, string | number | boolean | null> | null
+  search: string
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]
+  nextCursor: number | null
+}
+
+export interface AuditConfig {
+  enabled: boolean
+  retentionDays: number
+  maxEntries: number
+}
+
+export interface AuditStats {
+  count: number
+  oldestTs: number | null
+  newestTs: number | null
+  oldestSeq: number | null
+  newestSeq: number | null
+}
+
+export interface AuditActorRef {
+  key: string
+  name: string | null
+}
+
+export interface AuditFilters {
+  spaceId: string | null
+  categories: AuditCategory[]
+  actorKey: string | null
+  search: string
+  sinceDays: number | null
+}

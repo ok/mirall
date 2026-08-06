@@ -5,7 +5,7 @@
 import { createLocalBee, createDrive, getStore, hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isMembershipApprovalEnabled, isInPlaceFilesEnabled } from '../core/runtime-config.js'
-import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership } from './profile.js'
+import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
 import { ownCatalogPublish } from '../shares/share-catalog.js'
 import { listOwnedMounts, deleteOwnedMount, listForeignMounts, deleteForeignMount } from '../folders/mount-store.js'
 import { readOwnShares, tombstoneShare } from '../shares/shares.js'
@@ -13,6 +13,7 @@ import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import keysMod from 'hypercore-storage/lib/keys.js'
 import { createLogger } from '../core/logger.js'
+import { record } from '../audit/audit-log.js'
 
 const log = createLogger('space')
 const { store: keysStore, core: keysCore } = keysMod
@@ -272,10 +273,14 @@ export function mutateMembers(spaceId, mutate) {
   const run = async () => {
     const entry = await spacesBee.get('space/' + spaceId)
     if (!entry) return false
+    // Snapshot the keys BEFORE mutate runs: callers mutate `current` in place and return the same
+    // array, so a before/after comparison of the arrays themselves would always come up empty.
+    const before = new Set((entry.value.members || []).map((m) => m.publicKey))
     const current = (entry.value.members || []).map((m) => ({ ...m }))
     const next = mutate(current)
     if (!next) return false
     await spacesBee.put('space/' + spaceId, { ...entry.value, members: next })
+    auditArrivals(spaceId, entry.value, next.filter((m) => !before.has(m.publicKey)))
     return true
   }
   const prev = memberWriteChains.get(spaceId) ?? Promise.resolve()
@@ -283,6 +288,30 @@ export function mutateMembers(spaceId, mutate) {
   // Swallow rejections on the tail so one failed write can't poison the chain.
   memberWriteChains.set(spaceId, next.then(() => {}, () => {}))
   return next
+}
+
+// The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection
+// state is rebuilt from scratch on every boot, so recording at handshake time re-reported every
+// known member as a fresh arrival on each app start. This is the one funnel every path runs
+// through — approval, handshake upsert, the join-time inviter pre-seed, and the replicated
+// membership fold — so an arrival is recorded exactly once regardless of which lands first.
+// Fire-and-forget: auditing must never delay or fail a membership write.
+function auditArrivals(spaceId, space, added) {
+  if (!added.length) return
+  // While we are still pending we are not a member ourselves, so the roster we adopt during our
+  // own join is the state we joined INTO — not a stream of arrivals. Our own `space.joined` row
+  // already records that moment.
+  if (space.status === 'pending') return
+  Promise.all(added.map(async (m) => {
+    // We approved them ourselves, so `membership.approved` already tells that story; a second
+    // arrival row seconds later is noise.
+    if (await hasOwnApproval(spaceId, m.publicKey)) return
+    record('member.joined', {
+      actor: { type: 'peer', key: m.publicKey, name: m.displayName || null },
+      space: { id: spaceId, name: space.name ?? null },
+      target: { kind: 'member', id: m.publicKey, name: m.displayName || null },
+    })
+  })).catch((err) => log.debug('arrival audit failed:', err.message))
 }
 
 // Serialized read-modify-write of a space's non-member fields (e.g. status),

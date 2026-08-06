@@ -30,6 +30,7 @@ const POKE_SCOPE = {
   'event:join-requests-updated': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),
   'event:foreign-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
   'event:owned-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
+  'event:audit-updated': () => Scope.audit(),
 }
 
 export function scopeForEvent(type, payload = {}) {
