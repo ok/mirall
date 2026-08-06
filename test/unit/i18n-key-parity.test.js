@@ -27,26 +27,20 @@ function loadKeys (locale, ns) {
 const locales = fs.readdirSync(LOCALES_DIR).filter((d) => fs.statSync(path.join(LOCALES_DIR, d)).isDirectory())
 const namespaces = fs.readdirSync(path.join(LOCALES_DIR, REF)).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''))
 
-// Pre-existing translation debt this guard surfaced: the reclaim / storage-settings
-// UI strings were added to en only and never translated. NEW keys must NOT join
-// this list — that is exactly what the guard below enforces (it fails if any
-// missing key is NOT in here). TODO: translate these and shrink the set to empty.
-const KNOWN_MISSING = new Set([
-  'storageSettings.reclaimable', 'storageSettings.reclaimableA11y', 'storageSettings.looseFiles',
-  'storageSettings.perShare', 'storageSettings.aboutReclaimable', 'storageSettings.aboutReclaimableDismiss',
-  'storageSettings.reclaimAction', 'reclaimSpace.titleConfirm', 'reclaimSpace.titleProgress',
-  'reclaimSpace.body', 'reclaimSpace.confirmAction', 'reclaimSpace.running', 'reclaimSpace.done',
-])
+// The translation debt this guard originally carried was the en-only reclaim /
+// storage-settings strings. That UI is gone (the overlay transfer approach made
+// per-space reclaim unnecessary), so the keys were dropped rather than
+// translated and the allowlist is now empty — parity is enforced outright.
 
 for (const ns of namespaces) {
   const ref = loadKeys(REF, ns)
   for (const loc of locales) {
     if (loc === REF) continue
-    test(`i18n: ${loc}/${ns}.json introduces no NEW key drift vs ${REF}`, (t) => {
+    test(`i18n: ${loc}/${ns}.json has full key parity with ${REF}`, (t) => {
       const cur = loadKeys(loc, ns)
-      const newMissing = [...ref].filter((k) => !cur.has(k) && !KNOWN_MISSING.has(k))
+      const missing = [...ref].filter((k) => !cur.has(k))
       const extra = [...cur].filter((k) => !ref.has(k))
-      t.alike(newMissing, [], `NEW missing keys in ${loc}/${ns}: ${newMissing.join(', ') || 'none'}`)
+      t.alike(missing, [], `missing keys in ${loc}/${ns}: ${missing.join(', ') || 'none'}`)
       t.alike(extra, [], `extra keys in ${loc}/${ns}: ${extra.join(', ') || 'none'}`)
     })
   }
