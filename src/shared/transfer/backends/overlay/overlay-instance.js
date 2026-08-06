@@ -18,7 +18,8 @@ import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
 import { senderAuthorizedOnSocket, isApprovedMember } from '../../swarm.js'
 import { contentSenderAuthorizedOnSocket } from '../../content-swarm.js'
 import { createRateLimiter } from '../../handshake-guard.js'
-import { getOverlayServeLimit, isSeparateContentPlaneEnabled } from '../../../core/runtime-config.js'
+import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits } from '../../../core/runtime-config.js'
+import { createBandwidthLimiter } from '../../bandwidth-limiter.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay')
@@ -79,6 +80,10 @@ export function getJournalDir() {
 export async function initOverlay() {
   if (overlay) return overlay
   serveLimiter = createRateLimiter(getOverlayServeLimit())
+  // Rates are read per call, so a settings change reaches in-flight transfers without
+  // rebuilding anything.
+  const uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload)
+  const downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download)
   // With the content plane on, the overlay channel rides the content connection, so serve
   // authorization keys on that socket's content-hello; otherwise on the control handshake.
   const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : senderAuthorizedOnSocket
@@ -116,6 +121,8 @@ export async function initOverlay() {
     onServeControl: ({ from, path, state }) => ledgerServeControl({ from, contentHash: contentHashOf(path), state }),
     // Resume baseline: the downloader's true on-disk have-bytes raise its ledger row.
     onServeProgress: ({ from, path, have }) => ledgerServeBaseline({ from, contentHash: contentHashOf(path), have }),
+    uploadLimiter,
+    downloadLimiter,
   })
   await overlay.ready() // builds protocol/index/sync cores; REQUIRED before attach
   log.info('instance ready')

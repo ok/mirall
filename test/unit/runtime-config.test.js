@@ -1,5 +1,5 @@
 import {
-  setRuntimeConfig, setDownloadFolder, getRuntimeConfig,
+  setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
   getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow,
 } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
@@ -158,5 +158,38 @@ test('REGRESSION (FIX-MIR-12): avatar cap default matches AVATAR_MAX_BYTES', (t)
   t.is(getResourceCaps().avatarMaxBytes, 1024, 'override applied')
   setRuntimeConfig({ maxAvatarBytes: 0 })
   t.is(getResourceCaps().avatarMaxBytes, 0, '0 disables the bound')
+  setRuntimeConfig({})
+})
+
+test('bandwidth limits default to unlimited and convert KB/s to bytes/s', (t) => {
+  setRuntimeConfig({})
+  t.alike(getBandwidthLimits(), { download: 0, upload: 0 }, '0 = unlimited on both directions')
+  setRuntimeConfig({ downloadKBps: 5120, uploadKBps: 1024 })
+  t.alike(getBandwidthLimits(), { download: 5120 * 1024, upload: 1024 * 1024 }, 'converted to bytes/s')
+  setRuntimeConfig({})
+})
+
+// Inverted fail-safe: these are a user convenience, not a protective bound, so a corrupt
+// value must return to UNLIMITED rather than throttle every transfer to a crawl.
+test('a corrupt bandwidth value fails OPEN, not closed', (t) => {
+  for (const bad of [-1, NaN, Infinity, '5000', {}, null]) {
+    setRuntimeConfig({ downloadKBps: bad, uploadKBps: bad })
+    t.alike(getBandwidthLimits(), { download: 0, upload: 0 }, `${String(bad)} falls back to unlimited`)
+  }
+  setRuntimeConfig({})
+})
+
+test('setBandwidthLimits updates live and leaves the rest of the config alone', (t) => {
+  setRuntimeConfig({ downloadFolder: '/tmp/dl', downloadKBps: 100 })
+  setBandwidthLimits({ downloadKBps: 2048, uploadKBps: 512 })
+  t.alike(getBandwidthLimits(), { download: 2048 * 1024, upload: 512 * 1024 }, 'new caps applied')
+  t.is(getRuntimeConfig().downloadFolder, '/tmp/dl', 'unrelated config preserved')
+
+  setBandwidthLimits({ uploadKBps: 0 })
+  t.is(getBandwidthLimits().upload, 0, '0 is honoured — it means unlimited')
+  t.is(getBandwidthLimits().download, 2048 * 1024, 'an omitted direction keeps its value')
+
+  setBandwidthLimits({ downloadKBps: 'nonsense' })
+  t.is(getBandwidthLimits().download, 2048 * 1024, 'an invalid value keeps the previous cap')
   setRuntimeConfig({})
 })

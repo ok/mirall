@@ -78,6 +78,10 @@ export class OverlayProtocolV2 {
     this._serveStartCb = opts.onServeStart || null
     this._chunkServeCb = opts.onChunkServe || null
     this._serveEndCb = opts.onServeEnd || null
+    // [mirall] Content-plane transfer caps, injected by the app layer so this module keeps
+    // no app imports. Absent → unthrottled.
+    this._uploadLimiter = opts.uploadLimiter || null
+    this._downloadLimiter = opts.downloadLimiter || null
     // [mirall] Serve grants are cached per (peer, syntheticPath) at request time and every later
     // chunkNeed is checked against that cache alone, so a request-time authorization would
     // otherwise be trusted forever. The epoch moves on any membership/space mutation, which
@@ -151,7 +155,8 @@ export class OverlayProtocolV2 {
       onVerify: opts.onVerify,
       onEnd: opts.onEnd,
       onBaseline: (have) => this.sendTransferProgress(contentHash, have),
-      contentHash   // [mirall] verify the whole-file hash incrementally during the transfer
+      contentHash,   // [mirall] verify the whole-file hash incrementally during the transfer
+      limiter: this._downloadLimiter   // [mirall] download cap
     })
     this._schedulers.set(p, sched)
     // [mirall] shared promise so joiners (above) can await the same completion —
@@ -666,6 +671,13 @@ export class OverlayProtocolV2 {
       const c = chunkMap[index]
       const data = this._transferManager.readChunk(diskPath, c.offset, c.length)
       if (!data) continue
+      // [mirall] Upload cap. The wait opens a revocation window exactly like the drain
+      // boundary below, so the grant is re-checked on the far side of it.
+      if (this._uploadLimiter && !this._uploadLimiter.isUnlimited()) {
+        await this._uploadLimiter.take(data.length)
+        if (peer.channel?.closed) return
+        if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
+      }
       const flushed = peer.msgs.chunkData.send({ path: msg.path, index, data })
       if (this._chunkServeCb) {
         try { this._chunkServeCb({ path: msg.path, index, bytes: data.length, peer, from: peer.authorizedServe.get(msg.path)?.from ?? null }) } catch {}

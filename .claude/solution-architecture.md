@@ -598,6 +598,15 @@ The dispatch seam is `getContentBackend(share)` (`transfer/content-backends.js`)
 
 The generic v2 serve/fetch engine is a vendored subset of the `hyper-overlay` project; `backends/overlay/vendor/PROVENANCE.md` documents what was vendored and every local modification. Mirall-specific policy (authorization, catalogs, lifecycle) lives **outside** `vendor/`.
 
+#### Bandwidth limiting
+
+User-set transfer caps (`transfer/bandwidth-limiter.js`) are byte-denominated token buckets — one for each direction, created in `overlay-instance.js` and **injected** into the protocol so `vendor/` keeps no app imports. Both read their rate through a getter on every call, so a settings change applies to **in-flight** transfers with nothing to re-plumb.
+
+- **Upload** is charged in `_onChunkNeed` before each `chunkData.send`. The wait opens a revocation window just like the existing drain boundary, so the serve grant is re-checked on the far side of it.
+- **Download** is charged in `ChunkScheduler._assign`. It is a *pull* protocol, so inbound bytes are paced by pacing chunk **requests** — by arrival the bytes are already spent.
+- **Two invariants.** A chunk larger than one second of budget (tier-3 chunks reach 4 MB; a cap may be 64 KB/s) is released on a full bucket and the deficit repaid, or it could never be afforded. And a gated `_assign` **re-arms the idle watchdog**: that timer measures *silence*, and time spent waiting on our own limiter is not silence — without the re-arm a low cap fails a healthy transfer as "stalled".
+- Caps govern the **content plane only**. Catalog/profile replication, handshakes and DHT traffic stay unthrottled — throttling them would starve the convergence that `test/flow/content-plane-hol.test.js` guards. A corrupt cap value fails **open** (unlimited), the inverse of the protective bounds in `runtime-config.js`.
+
 ---
 
 ## 8. IPC Protocol
@@ -631,6 +640,7 @@ The generic v2 serve/fetch engine is a vendored subset of the `hyper-overlay` pr
 | `onMainLog(fn)` | Main-process log lines (only while the debug gate is on); the dev console mirrors them as `[main]` |
 | `deepLink.subscribe(fn)` | `mirall://join/<code>` links. First subscribe drains the cold-start queue via `deeplink:flush`. Returns an unsubscribe fn. §5.2 |
 | `browseShareFolder()` | OS folder picker (`share:browseFolder`) → absolute dir path or `null` |
+| `getBandwidth()` / `setBandwidth(patch)` | Read/persist the content-plane transfer caps (`network.downloadKBps` / `network.uploadKBps` in `config.json`, `0` = unlimited). Main validates and returns the stored value; the renderer then forwards it to the worker as `settings:set-bandwidth` — the same two-step the download folder uses |
 | `startOwnedFolderWatcher(shareId, mountPath, ignore)` / `stopOwnedFolderWatcher(shareId)` | Start/stop the chokidar watcher in main (§2 step 12) |
 
 ### Renderer ↔ Worker (NDJSON)
@@ -658,6 +668,7 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `storage:info` | `{}` | `{ totalDiskUsage, storagePath, spaces[], otherBytes }` |
 | `storage:cleanup` / `storage:free-space` | `{}` | `{ purged }` / `{ freedBytes }` — `free-space` reclaims resident-cache bytes across every space (called by `StorageSettings.tsx`) |
 | `settings:set-download-folder` | `{ path }` | `{ ok:true }` — relocate the loose-file download dir |
+| `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
 | `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true }` |
 | `feedback:send` | `{ comment, screenshot? }` | `{ ok:true }` — POSTs to `feedback.mirall.app` |
 | `ping` | `{}` | `{ pong:true, timestamp }` |

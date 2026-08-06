@@ -9,6 +9,7 @@ import AboutSettings from '../../screens/AboutSettings.js'
 import NotificationSettings from '../../screens/NotificationSettings.js'
 import AppearanceSettings from '../../screens/AppearanceSettings.js'
 import GeneralSettings from '../../screens/GeneralSettings.js'
+import NetworkSettings from '../../screens/NetworkSettings.js'
 import NetworkStatus from '../../screens/NetworkStatus.js'
 import Account from '../../screens/Account.js'
 import ActivityLog from '../../screens/ActivityLog.js'
@@ -95,6 +96,8 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       return <NotificationSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'general-settings':
       return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
+    case 'network-settings':
+      return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-status':
       return <NetworkStatus onBack={() => nav.setCurrentScreen('account')} />
     case 'activity-log':

@@ -92,6 +92,7 @@ export class ChunkScheduler {
     this._reject = null
     this._onEnd = opts.onEnd || null
     this._contentHash = opts.contentHash || null   // [mirall] enables incremental whole-file verify
+    this._limiter = opts.limiter || null           // [mirall] download cap; absent → unthrottled
     this._startedAt = Date.now()
     // [mirall] idle timeout — re-armed on each progress signal (see _armIdleTimer).
     this._idleTimeout = opts.timeout || DEFAULT_IDLE_TIMEOUT
@@ -337,6 +338,10 @@ export class ChunkScheduler {
   /** Assign needed-but-not-inflight chunks to peers with spare capacity. */
   _assign () {
     if (this._done || !this._chunks) return
+    // [mirall] A pull protocol paces its inbound bytes by pacing its REQUESTS, so the
+    // download cap is charged here rather than on arrival (by then the bytes are spent).
+    const limiter = this._limiter && !this._limiter.isUnlimited() ? this._limiter : null
+    let gatedBytes = 0
     // Per peer, batch the indices we hand it this round.
     const batches = new Map()
     for (const peer of this._peers) {
@@ -345,15 +350,23 @@ export class ChunkScheduler {
       for (const index of this._needed) {
         if (slots <= 0) break
         if (this._inflight.has(index)) continue
+        if (limiter && !limiter.tryTake(this._chunks[index].length)) { gatedBytes = this._chunks[index].length; break }
         this._inflight.set(index, peer)
         this._peerInflight.set(peer, (this._peerInflight.get(peer) || 0) + 1)
         if (!batches.has(peer)) batches.set(peer, [])
         batches.get(peer).push(index)
         slots--
       }
+      if (gatedBytes) break
     }
     for (const [peer, indices] of batches) {
       if (indices.length) this._sendNeed(peer, indices)
+    }
+    // [mirall] Deliberate pacing is not idleness: re-arm the watchdog and retry on refill,
+    // or a low cap would trip the no-progress timeout and fail a healthy transfer.
+    if (gatedBytes) {
+      this._armIdleTimer()
+      limiter.whenAvailable(gatedBytes, () => this._assign())
     }
   }
 }

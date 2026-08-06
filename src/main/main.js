@@ -602,6 +602,14 @@ function readDownloadFolder() {
   return getDefaultDownloadFolder()
 }
 
+function readBandwidth() {
+  const network = config().get('network')
+  return {
+    downloadKBps: network?.downloadKBps ?? 0,
+    uploadKBps: network?.uploadKBps ?? 0,
+  }
+}
+
 function writeDownloadFolder(folder) {
   config().set('downloads.folder', folder)
 }
@@ -659,6 +667,7 @@ function getWorker(specifier) {
     dev: isDev,
     verbose,
     downloadFolder: readDownloadFolder(),
+    ...readBandwidth(),
     dhtBootstrap: process.env.MIRALL_DHT_BOOTSTRAP ? JSON.parse(process.env.MIRALL_DHT_BOOTSTRAP) : null,
     // Test/debug override for the share:list-files row cap (undefined → omitted by JSON →
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
@@ -905,6 +914,10 @@ ipcMain.handle('downloads:set', (_evt, folder) => {
   writeDownloadFolder(folder)
   return folder
 })
+
+ipcMain.handle('bandwidth:get', () => readBandwidth())
+
+ipcMain.handle('bandwidth:set', (_evt, patch) => config().setBandwidth(patch))
 
 ipcMain.handle('prefs:get', () => prefs)
 

@@ -75,6 +75,10 @@ contextBridge.exposeInMainWorld('bridge', {
   getDownloadFolder: () => ipcRenderer.invoke('downloads:get'),
   setDownloadFolder: (folder) => ipcRenderer.invoke('downloads:set', folder),
   browseDownloadFolder: () => ipcRenderer.invoke('downloads:browse'),
+
+  getBandwidth: () => ipcRenderer.invoke('bandwidth:get'),
+  setBandwidth: (patch) => ipcRenderer.invoke('bandwidth:set', patch),
+
   browseShareFolder: () => ipcRenderer.invoke('share:browseFolder'),
   startOwnedFolderWatcher: (shareId, mountPath, ignore) =>
     ipcRenderer.invoke('owned-folder:start-watcher', { shareId, mountPath, ignore }),

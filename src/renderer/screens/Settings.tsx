@@ -19,6 +19,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'desktop_windows', label: t('settings.general'),       desc: generalDesc,                  bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'general-settings' },
     { icon: 'palette',         label: t('settings.appearance'),    desc: t('settings.appearanceDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'appearance-settings' },
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },
+    { icon: 'hub',             label: t('settings.network'),       desc: t('settings.networkDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'network-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
     { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
     { icon: 'info',            label: t('settings.about'),         desc: t('settings.aboutDesc'),      bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'about' },

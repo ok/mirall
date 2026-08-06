@@ -47,6 +47,7 @@ const SCREEN_TITLE_KEYS: Record<string, string> = {
   'appearance-settings': 'a11y.screens.appearance',
   'notification-settings': 'a11y.screens.notifications',
   'general-settings': 'a11y.screens.general',
+  'network-settings': 'a11y.screens.networkSettings',
   'network-status': 'a11y.screens.network',
   'activity-log': 'a11y.screens.activityLog',
   'activity-log-settings': 'a11y.screens.activityLogSettings',

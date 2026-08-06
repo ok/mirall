@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
 import { getDownloadDir } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -2166,6 +2166,13 @@ ipc.handle('storage:free-space', async () => {
 ipc.handle('settings:set-download-folder', async (msg) => {
   const folder = validateDownloadFolder(msg?.folder)
   setDownloadFolder(folder)
+  return { ok: true }
+})
+
+// The limiters read their rate per call, so this reaches in-flight transfers with no
+// further plumbing.
+ipc.handle('settings:set-bandwidth', async (msg) => {
+  setBandwidthLimits({ downloadKBps: msg?.downloadKBps, uploadKBps: msg?.uploadKBps })
   return { ok: true }
 })
 

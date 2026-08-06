@@ -125,6 +125,10 @@ const DEFAULTED = {
   //   { flapEveryMs, flapJitterMs }  periodically destroy each live connection (a flaky link →
   //                                  reconnect churn, handshake re-rate-limiting, state re-sync)
   netImpair: null,
+  // User-facing content-plane transfer caps, KB/s, 0 = unlimited (the default). Unlike the
+  // protective bounds above these fail OPEN — see getBandwidthLimits.
+  downloadKBps: 0,
+  uploadKBps: 0,
 }
 
 function buildConfig(next) {
@@ -156,6 +160,19 @@ export function setRuntimeConfig(next) {
 
 export function setDownloadFolder(folder) {
   config = { ...config, downloadFolder: folder }
+}
+
+export function setBandwidthLimits({ downloadKBps, uploadKBps } = {}) {
+  config = {
+    ...config,
+    downloadKBps: coerceKBps(downloadKBps, config.downloadKBps),
+    uploadKBps: coerceKBps(uploadKBps, config.uploadKBps),
+  }
+}
+
+function coerceKBps(next, fallback) {
+  if (next === undefined || next === null) return fallback
+  return typeof next === 'number' && Number.isFinite(next) && next >= 0 ? next : fallback
 }
 
 export function getRuntimeConfig() {
@@ -214,6 +231,20 @@ export function getMaxFilesPerShare() {
   if (n === 0 || n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
   return DEFAULT_MAX_FILES_PER_SHARE
+}
+
+// Bytes per second, 0 = unlimited. The fail-safe polarity is INVERTED relative to
+// getListFilesCap: those guard against resource exhaustion, so a bad value must keep the
+// cap; this is a user convenience, so a bad value must return to unlimited rather than
+// throttle every transfer to a crawl.
+export function getBandwidthLimits() {
+  const c = config
+  return { download: toBytesPerSecond(c.downloadKBps), upload: toBytesPerSecond(c.uploadKBps) }
+}
+
+function toBytesPerSecond(kbps) {
+  if (typeof kbps !== 'number' || !Number.isFinite(kbps) || kbps <= 0) return 0
+  return kbps * 1024
 }
 
 export function getCaptureMemberRecordMs() {

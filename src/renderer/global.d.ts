@@ -14,6 +14,12 @@ export interface WindowBounds {
   height: number
 }
 
+// Content-plane transfer caps in KB/s; 0 = unlimited.
+export interface BandwidthLimits {
+  downloadKBps: number
+  uploadKBps: number
+}
+
 export type PearEventName = 'updating' | 'updated'
 
 export type NotificationUrgency = 'normal' | 'critical' | 'low'
@@ -115,6 +121,8 @@ export interface MirallBridge {
   getDownloadFolder(): Promise<string>
   setDownloadFolder(folder: string): Promise<string>
   browseDownloadFolder(): Promise<string | null>
+  getBandwidth(): Promise<BandwidthLimits>
+  setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
   startOwnedFolderWatcher(shareId: string, mountPath: string, ignore: string[]): Promise<{ ok: boolean; reason?: string }>
   stopOwnedFolderWatcher(shareId: string): Promise<{ ok: boolean }>

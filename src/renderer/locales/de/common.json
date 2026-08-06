@@ -439,6 +439,8 @@
     "generalDescMac": "Menüleiste, beim Anmelden starten.",
     "notifications": "Benachrichtigungen",
     "notificationsDesc": "Lege fest, welche Ereignisse einen Hinweis zeigen.",
+    "network": "Netzwerk",
+    "networkDesc": "Limits für Uploads und Downloads.",
     "storage": "Speicher",
     "storageDesc": "Mirall-Datennutzung auf diesem Gerät.",
     "about": "Über",
@@ -637,6 +639,27 @@
     "restoredToast": "Wieder online",
     "showDetails": "Details anzeigen"
   },
+  "networkSettings": {
+    "title": "Netzwerk",
+    "intro": "Limits für Uploads und Downloads.",
+    "transferLimits": "Übertragungslimits",
+    "download": "Download",
+    "upload": "Upload",
+    "unlimited": "Unbegrenzt",
+    "custom": "Eigenes",
+    "downloadCustomLabel": "Download-Limit in KB/s",
+    "uploadCustomLabel": "Upload-Limit in KB/s",
+    "customEcho": "Etwa {{rate}}. Gib 0 ein für kein Limit.",
+    "customUnlimited": "Kein Limit.",
+    "floorAdvisory": "Sehr niedrige Limits können Übertragungen blockieren. Mirall nutzt mindestens {{min}} KB/s.",
+    "scopeNote": "Limits gelten für Dateiübertragungen. Das Synchronisieren deiner Räume und Mitglieder wird nicht begrenzt — es braucht sehr wenig Daten, und eine Drosselung würde verhindern, dass neue Ordner erscheinen.",
+    "a11y": {
+      "downloadPreset": "Download-Limit: {{rate}}",
+      "uploadPreset": "Upload-Limit: {{rate}}",
+      "downloadCustom": "Download-Limit: eigenes",
+      "uploadCustom": "Upload-Limit: eigenes"
+    }
+  },
   "networkStatus": {
     "title": "Netzwerkstatus",
     "intro": "Verbindungsdetails und Diagnose.",
@@ -717,7 +740,8 @@
       "general": "Allgemein",
       "network": "Netzwerkstatus",
       "activityLog": "Aktivitätsprotokoll",
-      "activityLogSettings": "Einstellungen für das Aktivitätsprotokoll"
+      "activityLogSettings": "Einstellungen für das Aktivitätsprotokoll",
+      "networkSettings": "Netzwerkeinstellungen"
     }
   },
   "avatar": {

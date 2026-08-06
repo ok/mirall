@@ -439,6 +439,8 @@
     "generalDescMac": "Barra de menús, iniciar al iniciar sesión.",
     "notifications": "Notificaciones",
     "notificationsDesc": "Elige qué eventos muestran una alerta de escritorio.",
+    "network": "Red",
+    "networkDesc": "Límites de subida y bajada.",
     "storage": "Almacenamiento",
     "storageDesc": "Consulta el uso de datos de Mirall en este dispositivo.",
     "about": "Acerca de",
@@ -637,6 +639,27 @@
     "restoredToast": "De nuevo en línea",
     "showDetails": "Ver detalles"
   },
+  "networkSettings": {
+    "title": "Red",
+    "intro": "Límites de subida y bajada.",
+    "transferLimits": "Límites de transferencia",
+    "download": "Descarga",
+    "upload": "Subida",
+    "unlimited": "Sin límite",
+    "custom": "Personalizado",
+    "downloadCustomLabel": "Límite de descarga en KB/s",
+    "uploadCustomLabel": "Límite de subida en KB/s",
+    "customEcho": "Aproximadamente {{rate}}. Escribe 0 para no poner límite.",
+    "customUnlimited": "Sin límite.",
+    "floorAdvisory": "Los límites muy bajos pueden detener las transferencias. Mirall usará al menos {{min}} KB/s.",
+    "scopeNote": "Los límites se aplican a las transferencias de archivos. La sincronización de tus espacios y sus miembros no se limita — usa muy pocos datos, y ralentizarla impediría que aparezcan carpetas nuevas.",
+    "a11y": {
+      "downloadPreset": "Límite de descarga: {{rate}}",
+      "uploadPreset": "Límite de subida: {{rate}}",
+      "downloadCustom": "Límite de descarga: personalizado",
+      "uploadCustom": "Límite de subida: personalizado"
+    }
+  },
   "networkStatus": {
     "title": "Estado de la red",
     "intro": "Detalles de conexión y diagnóstico.",
@@ -717,7 +740,8 @@
       "general": "General",
       "network": "Estado de la red",
       "activityLog": "Registro de actividad",
-      "activityLogSettings": "Ajustes del registro de actividad"
+      "activityLogSettings": "Ajustes del registro de actividad",
+      "networkSettings": "Ajustes de red"
     }
   },
   "avatar": {

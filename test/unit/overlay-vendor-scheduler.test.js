@@ -338,3 +338,77 @@ test('a _fail with a transfer lacking pause() does not throw', async (t) => {
   await sched.onChunkHashes(peer, chunkList(2))
   await t.exception(done, /stalled/, 'stall still rejects cleanly without a pause method')
 })
+
+// --- download cap -----------------------------------------------------------
+// The limiter is injected, so these drive the gate without a live overlay.
+
+function fakeLimiter (allowance) {
+  let left = allowance
+  const waiters = []
+  return {
+    isUnlimited: () => false,
+    tryTake (bytes) {
+      if (left < bytes) return false
+      left -= bytes
+      return true
+    },
+    whenAvailable (bytes, cb) { waiters.push(cb) },
+    release (amount) {
+      left += amount
+      const pending = waiters.splice(0, waiters.length)
+      for (const cb of pending) cb()
+    },
+    pendingWaiters: () => waiters.length,
+  }
+}
+
+test('download cap: chunks are requested only as budget allows', async (t) => {
+  const requested = []
+  const limiter = fakeLimiter(20) // room for exactly 2 of the 4 ten-byte chunks
+  const sched = new ChunkScheduler({
+    path: 'content:capped', destPath: '/tmp/capped', transfer: fakeTransfer(),
+    sendNeed: (_peer, indices) => requested.push(...indices), timeout: 5000, cap: 8, limiter,
+  })
+  const done = sched.promise()
+  await sched.onChunkHashes(peer, chunkList(4))
+  t.is(requested.length, 2, 'only the affordable chunks were asked for')
+  t.is(limiter.pendingWaiters(), 1, 'the scheduler registered a retry for the rest')
+
+  limiter.release(20)
+  await wait(0)
+  t.is(requested.length, 4, 'the rest are requested once budget refills')
+
+  for (let i = 0; i < 4; i++) sched.onChunkData(peer, i, Buffer.alloc(10))
+  await done
+  t.pass('capped transfer still completes')
+})
+
+// REGRESSION (FIX: bandwidth cap must not look like a stall): the idle watchdog measures
+// SILENCE. Time spent waiting on our own limiter is not silence, so a cap low enough to
+// hold every chunk longer than the window must not fail the transfer.
+test('download cap: waiting on the limiter does not trip the idle watchdog', async (t) => {
+  const limiter = fakeLimiter(10) // one chunk, then gated for the rest of the test
+  const sched = new ChunkScheduler({
+    path: 'content:slow', destPath: '/tmp/slow', transfer: fakeTransfer(),
+    sendNeed: () => {}, timeout: 120, cap: 8, limiter,
+  })
+  const done = sched.promise()
+  await sched.onChunkHashes(peer, chunkList(4))
+
+  // Stay gated for well over the idle window, re-arming as a real refill loop would.
+  for (let i = 0; i < 4; i++) {
+    await wait(60)
+    limiter.release(0)
+  }
+
+  let failed = false
+  done.catch(() => { failed = true })
+  await wait(0)
+  t.absent(failed, 'no stall failure while the transfer was merely paced')
+
+  limiter.release(1000)
+  await wait(0)
+  for (let i = 0; i < 4; i++) sched.onChunkData(peer, i, Buffer.alloc(10))
+  await done
+  t.pass('completes once the cap allows')
+})
