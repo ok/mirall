@@ -570,12 +570,6 @@
     "infoText": "This is the cache Mirall uses to share files with your space members and to receive their shared files. It does not include files saved to your Downloads folder. When you leave a space, its cache is automatically removed.",
     "clearPeerCache": "Clear peer cache",
     "spaceActions": "Actions for {{name}}",
-    "reclaimable": "Reclaimable: {{size}} ({{percent}}%)",
-    "reclaimableA11y": "{{size}} reclaimable, {{percent}} percent of this space",
-    "looseFiles": "Loose files",
-    "perShare": "{{size}} · {{count}} files",
-    "aboutReclaimable": "Reclaimable space builds up when files in shared folders are edited or replaced. Mirall reclaims it automatically once it grows large and the folder is idle — or reclaim a space yourself from its actions menu.",
-    "aboutReclaimableDismiss": "Dismiss",
     "reclaimAction": "Free up space",
     "appStorageDesc": "Space Mirall uses on this device to share and sync your files. It never keeps a second copy of your files.",
     "sharingIndex": "Shared-file index",
@@ -586,14 +580,6 @@
     "reclaimDone": "Freed {{size}}.",
     "reclaimNone": "Storage is already optimized.",
     "otherHeading": "Other"
-  },
-  "reclaimSpace": {
-    "titleConfirm": "Reclaim space in {{name}}?",
-    "titleProgress": "Reclaiming space…",
-    "body": "This frees about {{size}} by dropping old versions of files you have edited or replaced in this space. Your current files are unaffected.",
-    "confirmAction": "Reclaim space",
-    "running": "Dropping old file versions…",
-    "done": "Reclaimed {{size}}"
   },
   "clearPeerCache": {
     "titleConfirm": "Clear peer cache for {{name}}?",
