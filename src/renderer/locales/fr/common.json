@@ -439,6 +439,8 @@
     "generalDescMac": "Barre des menus, lancer à l'ouverture de session.",
     "notifications": "Notifications",
     "notificationsDesc": "Choisissez ce qui déclenche une alerte de bureau.",
+    "network": "Réseau",
+    "networkDesc": "Limites d'envoi et de téléchargement.",
     "storage": "Stockage",
     "storageDesc": "Voir l'utilisation des données Mirall sur cet appareil.",
     "about": "À propos",
@@ -637,6 +639,27 @@
     "restoredToast": "De nouveau en ligne",
     "showDetails": "Voir les détails"
   },
+  "networkSettings": {
+    "title": "Réseau",
+    "intro": "Limites d'envoi et de téléchargement.",
+    "transferLimits": "Limites de transfert",
+    "download": "Téléchargement",
+    "upload": "Envoi",
+    "unlimited": "Illimité",
+    "custom": "Personnalisé",
+    "downloadCustomLabel": "Limite de téléchargement en Ko/s",
+    "uploadCustomLabel": "Limite d'envoi en Ko/s",
+    "customEcho": "Environ {{rate}}. Saisissez 0 pour aucune limite.",
+    "customUnlimited": "Aucune limite.",
+    "floorAdvisory": "Des limites très basses peuvent bloquer les transferts. Mirall utilisera au moins {{min}} Ko/s.",
+    "scopeNote": "Les limites s'appliquent aux transferts de fichiers. La synchronisation de vos espaces et de leurs membres n'est pas limitée — elle consomme très peu de données, et la ralentir empêcherait les nouveaux dossiers d'apparaître.",
+    "a11y": {
+      "downloadPreset": "Limite de téléchargement : {{rate}}",
+      "uploadPreset": "Limite d'envoi : {{rate}}",
+      "downloadCustom": "Limite de téléchargement : personnalisée",
+      "uploadCustom": "Limite d'envoi : personnalisée"
+    }
+  },
   "networkStatus": {
     "title": "État du réseau",
     "intro": "Détails de connexion et diagnostics.",
@@ -717,7 +740,8 @@
       "general": "Général",
       "network": "État du réseau",
       "activityLog": "Journal d'activité",
-      "activityLogSettings": "Réglages du journal d'activité"
+      "activityLogSettings": "Réglages du journal d'activité",
+      "networkSettings": "Paramètres réseau"
     }
   },
   "avatar": {

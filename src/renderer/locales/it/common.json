@@ -439,6 +439,8 @@
     "generalDescMac": "Barra dei menu, avvia all'accesso.",
     "notifications": "Notifiche",
     "notificationsDesc": "Scegli quali eventi mostrano un avviso sul desktop.",
+    "network": "Rete",
+    "networkDesc": "Limiti di caricamento e download.",
     "storage": "Archiviazione",
     "storageDesc": "Visualizza l'utilizzo dei dati di Mirall su questo dispositivo.",
     "about": "Informazioni",
@@ -637,6 +639,27 @@
     "restoredToast": "Di nuovo online",
     "showDetails": "Mostra dettagli"
   },
+  "networkSettings": {
+    "title": "Rete",
+    "intro": "Limiti di caricamento e download.",
+    "transferLimits": "Limiti di trasferimento",
+    "download": "Download",
+    "upload": "Caricamento",
+    "unlimited": "Nessun limite",
+    "custom": "Personalizzato",
+    "downloadCustomLabel": "Limite di download in KB/s",
+    "uploadCustomLabel": "Limite di caricamento in KB/s",
+    "customEcho": "Circa {{rate}}. Inserisci 0 per nessun limite.",
+    "customUnlimited": "Nessun limite.",
+    "floorAdvisory": "Limiti molto bassi possono bloccare i trasferimenti. Mirall userà almeno {{min}} KB/s.",
+    "scopeNote": "I limiti si applicano ai trasferimenti di file. La sincronizzazione dei tuoi spazi e dei loro membri non è limitata — usa pochissimi dati, e rallentarla impedirebbe la comparsa di nuove cartelle.",
+    "a11y": {
+      "downloadPreset": "Limite di download: {{rate}}",
+      "uploadPreset": "Limite di caricamento: {{rate}}",
+      "downloadCustom": "Limite di download: personalizzato",
+      "uploadCustom": "Limite di caricamento: personalizzato"
+    }
+  },
   "networkStatus": {
     "title": "Stato della rete",
     "intro": "Dettagli di connessione e diagnostica.",
@@ -717,7 +740,8 @@
       "general": "Generale",
       "network": "Stato della rete",
       "activityLog": "Registro attività",
-      "activityLogSettings": "Impostazioni del registro attività"
+      "activityLogSettings": "Impostazioni del registro attività",
+      "networkSettings": "Impostazioni di rete"
     }
   },
   "avatar": {

@@ -22,6 +22,8 @@ function defaults() {
     appearance: { theme: 'system', locale: null },
     general: { minimizeToTray: true, openAtLogin: false, firstHideNoticeShown: false, appMenuAutoHide: false },
     downloads: { folder: null },
+    // Shared group: plan-blind-relay-client-adoption adds relayMode/relays here.
+    network: { downloadKBps: 0, uploadKBps: 0 },
     storage: { cacheBudgetBytes: 0 },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
@@ -142,6 +144,20 @@ class ConfigStore {
       notifications: d.notifications,
       ui: { lastSeenVersion: d.ui.lastSeenVersion, feedbackEmail: d.ui.feedbackEmail },
     }
+  }
+
+  // Non-negative finite KB/s only; 0 means unlimited. Anything else leaves the stored
+  // value untouched rather than persisting a cap the worker would reject anyway.
+  setBandwidth(patch) {
+    if (!isPlainObject(patch)) return this._data.network
+    for (const key of ['downloadKBps', 'uploadKBps']) {
+      const next = patch[key]
+      if (typeof next === 'number' && Number.isFinite(next) && next >= 0) {
+        this._data.network[key] = Math.floor(next)
+      }
+    }
+    this._schedule()
+    return this._data.network
   }
 
   setRenderer(patch) {

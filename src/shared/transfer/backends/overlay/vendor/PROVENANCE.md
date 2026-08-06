@@ -331,6 +331,21 @@ re-diffable against upstream. Categories:
     (`test/unit/partial-suffix.test.js`); the opt itself is covered by
     `test/integration/partial-suffix-injection.test.js`.
 
+19. **Host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js`).**
+    User-set transfer caps are enforced inside the serve/fetch engine, but the limiter itself lives
+    in app code (`src/shared/transfer/bandwidth-limiter.js`) and is **injected** as
+    `uploadLimiter` / `downloadLimiter` constructor opts, so `vendor/` gains no app imports and an
+    embedder that injects nothing is unthrottled. `overlay-v2.js` forwards both to
+    `OverlayProtocolV2`; `protocol-v2._onChunkNeed` awaits `uploadLimiter.take(bytes)` before each
+    `chunkData.send` — and, because that wait opens a revocation window, re-checks the serve grant
+    on the far side of it exactly as the existing drain boundary does. `protocol-v2.fetchContent`
+    passes `downloadLimiter` through as the scheduler's `limiter` opt;
+    `chunk-scheduler._assign` charges each chunk with `tryTake` and, when gated, **re-arms the idle
+    watchdog** before `whenAvailable(bytes, …)` — the watchdog measures silence, and time spent
+    waiting on our own limiter is not silence, so without the re-arm a low cap fails a healthy
+    transfer as "stalled". Covered by `test/unit/bandwidth-limiter.test.js` and the two download-cap
+    cases in `test/unit/overlay-vendor-scheduler.test.js`.
+
 ## Re-diffing against upstream
 
 ```

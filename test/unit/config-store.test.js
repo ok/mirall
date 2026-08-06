@@ -137,3 +137,51 @@ test('setRenderer applies valid patches and rejects bad values', (t) => {
   store.setRenderer({ notifications: null })
   t.is(store.get('notifications'), null)
 })
+
+test('network defaults to unlimited and self-heals onto a config written before it existed', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('network.downloadKBps'), 0, 'download unlimited by default')
+  t.is(store.get('network.uploadKBps'), 0, 'upload unlimited by default')
+
+  // A config.json from a build that predates the network group must gain it via
+  // mergeDefaults, without losing what that build did set.
+  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, appearance: { theme: 'dark' } })
+  const reopened = new ConfigStore(dir).load()
+  t.is(reopened.get('network.downloadKBps'), 0, 'missing group filled with defaults')
+  t.is(reopened.get('appearance.theme'), 'dark', 'existing values preserved')
+})
+
+test('setBandwidth stores non-negative integers and ignores anything else', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+
+  store.setBandwidth({ downloadKBps: 5120, uploadKBps: 1024 })
+  t.is(store.get('network.downloadKBps'), 5120)
+  t.is(store.get('network.uploadKBps'), 1024)
+
+  store.setBandwidth({ downloadKBps: 512.7 })
+  t.is(store.get('network.downloadKBps'), 512, 'floored to a whole KB/s')
+
+  for (const bad of [-1, NaN, Infinity, '900', null, {}]) {
+    store.setBandwidth({ downloadKBps: bad })
+    t.is(store.get('network.downloadKBps'), 512, `rejects ${String(bad)}`)
+  }
+
+  store.setBandwidth({ uploadKBps: 0 })
+  t.is(store.get('network.uploadKBps'), 0, '0 is valid — it means unlimited')
+
+  store.setBandwidth(null)
+  t.is(store.get('network.downloadKBps'), 512, 'a non-object patch is a no-op')
+})
+
+test('network survives a persist/reload round-trip', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  store.setBandwidth({ downloadKBps: 2048, uploadKBps: 256 })
+  store.flush()
+  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256 })
+  const reopened = new ConfigStore(dir).load()
+  t.is(reopened.get('network.downloadKBps'), 2048)
+  t.is(reopened.get('network.uploadKBps'), 256)
+})

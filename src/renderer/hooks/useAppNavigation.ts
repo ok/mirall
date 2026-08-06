@@ -84,6 +84,7 @@ export function useAppNavigation(): AppNavigation {
       case 'about': setCurrentScreen(preAboutScreen); break
       case 'appearance-settings':
       case 'notification-settings':
+      case 'network-settings':
       case 'general-settings': setCurrentScreen('settings'); break
       case 'network-status': setCurrentScreen('account'); break
       // The viewer hangs off Account and the config off Settings, so each backs out to its own

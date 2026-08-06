@@ -82,6 +82,10 @@ export class HyperOverlayV2 extends ReadyResource {
     this._onServeControl = opts.onServeControl || null
     this._onServeProgress = opts.onServeProgress || null
 
+    // [mirall] content-plane transfer caps, injected by the app layer.
+    this._uploadLimiter = opts.uploadLimiter || null
+    this._downloadLimiter = opts.downloadLimiter || null
+
     // Shared maps the protocol reads: overlayPath → diskPath (for serving an
     // offered/known path), contentHash → diskPath (fast path for content
     // requests). Both populated by registerFile.
@@ -138,7 +142,9 @@ export class HyperOverlayV2 extends ReadyResource {
         onChunkServe: this._onChunkServe,
         onServeEnd: this._onServeEnd,
         onServeControl: this._onServeControl,
-        onServeProgress: this._onServeProgress
+        onServeProgress: this._onServeProgress,
+        uploadLimiter: this._uploadLimiter,
+        downloadLimiter: this._downloadLimiter
       })
       try { fs.mkdirSync(this._destDir, { recursive: true }) } catch {}
       if (this._journalDir) { try { fs.mkdirSync(this._journalDir, { recursive: true }) } catch {} }
