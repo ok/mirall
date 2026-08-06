@@ -542,32 +542,9 @@
     "reclaimNone": "L'archiviazione è già ottimizzata.",
     "folderError": "Impossibile impostare la cartella: {{error}}",
     "calculating": "Calcolo dell'archiviazione…",
-    "totalStorage": "Archiviazione totale",
     "appStorage": "Spazio dell'app",
     "showDetails": "Mostra dettagli",
-    "hideDetails": "Nascondi dettagli",
-    "activeSpaces": "Spazi attivi",
-    "perSpaceEstimates": "I valori per spazio sono stime",
-    "cache": "Cache: {{size}}",
-    "metadata": "Metadati: {{size}}",
-    "percentTotal": "{{percent}}% del totale",
-    "other": "Altro",
-    "infoText": "Questa è la cache che Mirall usa per condividere file con i membri del tuo spazio e per ricevere i loro file condivisi. Non include i file salvati nella cartella Download. Quando esci da uno spazio, la sua cache viene rimossa automaticamente.",
-    "clearPeerCache": "Svuota cache dei peer",
-    "spaceActions": "Azioni per {{name}}",
-    "otherHeading": "Altro"
-  },
-  "clearPeerCache": {
-    "titleConfirm": "Svuotare la cache dei peer di {{name}}?",
-    "titleProgress": "Svuotamento della cache dei peer…",
-    "body": "Verranno rimossi tutti i contenuti scaricati dai peer in questo spazio. Potrai scaricarli di nuovo quando saranno online. I file che hai pubblicato vengono mantenuti.",
-    "confirmAction": "Svuota cache",
-    "preparing": "Preparazione…",
-    "done": "Cache svuotata",
-    "phases": {
-      "cleaningPeer": "Rimozione dei contenuti in cache di {{peerName}}…",
-      "compactingPeerCache": "Recupero dello spazio su disco…"
-    }
+    "hideDetails": "Nascondi dettagli"
   },
   "aboutSettings": {
     "title": "Informazioni",

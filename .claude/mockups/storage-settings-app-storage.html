@@ -165,7 +165,7 @@
       Storage Settings — “App Storage” redesign
     </h1>
     <p class="text-sm mt-1" style="color:#4a454b; max-width: 760px">
-      The eager-cache UI is hidden (flag <code>eagerTransferMode</code> off), so the screen no longer needs a
+      The eager-cache UI is gone, so the screen no longer needs a
       “Total Storage” headline and a separate “Other” box. This collapses them into one <strong>App Storage</strong>
       card. Recreated from <code>src/renderer/screens/StorageSettings.tsx</code>; tokens from <code>design.md</code>.
       Toggle dark to verify both themes.
@@ -419,7 +419,7 @@
     <p class="text-sm" style="color:#4a454b">
       <strong>New:</strong> <code>appStorage</code> = “App Storage”, <code>showDetails</code> = “Show details”, <code>hideDetails</code> = “Hide details” (× 5 locales).
       <strong>Dropped from this screen:</strong> the <code>totalStorage</code> and <code>otherHeading</code> section headings, and the <code>other</code> row label.
-      <code>otherDesc</code> is reused (relocated under the total). The eager-only keys (<code>infoText</code>, <code>activeSpaces</code>, <code>cache</code>, <code>reclaimable</code>, …) stay in the file for Phase 2 but remain unrendered while <code>eagerTransferMode</code> is off.
+      <code>otherDesc</code> is reused (relocated under the total). The eager-only keys (<code>infoText</code>, <code>activeSpaces</code>, <code>cache</code>, <code>reclaimable</code>, …) were originally parked for a Phase 2, but the components, the per-space storage IPC handlers and the <code>eagerTransferMode</code> flag are all gone, so the keys were deleted rather than left unreachable — a Phase 2 would write its own copy.
     </p>
   </div>
 </div>
