@@ -542,32 +542,9 @@
     "reclaimNone": "Der Speicher ist bereits optimiert.",
     "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",
     "calculating": "Berechne Speicher…",
-    "totalStorage": "Gesamtspeicher",
     "appStorage": "App-Speicher",
     "showDetails": "Details anzeigen",
-    "hideDetails": "Details ausblenden",
-    "activeSpaces": "Aktive Räume",
-    "perSpaceEstimates": "Werte pro Raum sind Schätzungen",
-    "cache": "Cache: {{size}}",
-    "metadata": "Metadaten: {{size}}",
-    "percentTotal": "{{percent}} % gesamt",
-    "other": "Sonstiges",
-    "infoText": "Dies ist der Cache, mit dem Mirall Dateien im Raum teilt und empfängt. Dateien im Downloads-Ordner sind nicht enthalten. Beim Verlassen eines Raums wird der Cache automatisch entfernt.",
-    "clearPeerCache": "Peer-Cache leeren",
-    "spaceActions": "Aktionen für {{name}}",
-    "otherHeading": "Sonstiges"
-  },
-  "clearPeerCache": {
-    "titleConfirm": "Peer-Cache für {{name}} leeren?",
-    "titleProgress": "Peer-Cache wird geleert…",
-    "body": "Damit werden alle von Peers heruntergeladenen Inhalte in diesem Raum entfernt. Sobald die Peers wieder online sind, kannst du die Dateien erneut laden. Deine eigenen veröffentlichten Dateien bleiben erhalten.",
-    "confirmAction": "Cache leeren",
-    "preparing": "Vorbereiten…",
-    "done": "Cache geleert",
-    "phases": {
-      "cleaningPeer": "Cache von {{peerName}} wird entfernt…",
-      "compactingPeerCache": "Speicherplatz wird freigegeben…"
-    }
+    "hideDetails": "Details ausblenden"
   },
   "aboutSettings": {
     "title": "Über",

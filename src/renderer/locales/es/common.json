@@ -542,32 +542,9 @@
     "reclaimNone": "El almacenamiento ya está optimizado.",
     "folderError": "No se pudo establecer la carpeta: {{error}}",
     "calculating": "Calculando almacenamiento…",
-    "totalStorage": "Almacenamiento total",
     "appStorage": "Almacenamiento de la app",
     "showDetails": "Mostrar detalles",
-    "hideDetails": "Ocultar detalles",
-    "activeSpaces": "Espacios activos",
-    "perSpaceEstimates": "Las cifras por espacio son estimaciones",
-    "cache": "Caché: {{size}}",
-    "metadata": "Metadatos: {{size}}",
-    "percentTotal": "{{percent}} % del total",
-    "other": "Otros",
-    "infoText": "Esta es la caché que Mirall usa para compartir archivos con los miembros de tu espacio y para recibir los suyos. No incluye los archivos guardados en tu carpeta de Descargas. Cuando sales de un espacio, su caché se elimina automáticamente.",
-    "clearPeerCache": "Vaciar caché de pares",
-    "spaceActions": "Acciones para {{name}}",
-    "otherHeading": "Otros"
-  },
-  "clearPeerCache": {
-    "titleConfirm": "¿Vaciar la caché de pares de {{name}}?",
-    "titleProgress": "Vaciando caché de pares…",
-    "body": "Esto elimina todo el contenido descargado de los pares de este espacio. Podrás volver a descargarlo cuando estén en línea. Tus archivos publicados se conservan.",
-    "confirmAction": "Vaciar caché",
-    "preparing": "Preparando…",
-    "done": "Caché vaciada",
-    "phases": {
-      "cleaningPeer": "Eliminando contenido en caché de {{peerName}}…",
-      "compactingPeerCache": "Recuperando espacio en disco…"
-    }
+    "hideDetails": "Ocultar detalles"
   },
   "aboutSettings": {
     "title": "Acerca de",

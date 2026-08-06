@@ -557,19 +557,9 @@
     "changeFolder": "Change…",
     "folderError": "Could not set folder: {{error}}",
     "calculating": "Calculating storage...",
-    "totalStorage": "Total Storage",
     "appStorage": "App Storage",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
-    "activeSpaces": "Active Spaces",
-    "perSpaceEstimates": "Per-space figures are estimates",
-    "cache": "Cache: {{size}}",
-    "metadata": "Metadata: {{size}}",
-    "percentTotal": "{{percent}}% of total",
-    "other": "Other",
-    "infoText": "This is the cache Mirall uses to share files with your space members and to receive their shared files. It does not include files saved to your Downloads folder. When you leave a space, its cache is automatically removed.",
-    "clearPeerCache": "Clear peer cache",
-    "spaceActions": "Actions for {{name}}",
     "reclaimAction": "Free up space",
     "appStorageDesc": "Space Mirall uses on this device to share and sync your files. It never keeps a second copy of your files.",
     "sharingIndex": "Shared-file index",
@@ -578,20 +568,7 @@
     "appDatabaseDesc": "Your spaces, members, and sync history.",
     "reclaimRunning": "Freeing up space…",
     "reclaimDone": "Freed {{size}}.",
-    "reclaimNone": "Storage is already optimized.",
-    "otherHeading": "Other"
-  },
-  "clearPeerCache": {
-    "titleConfirm": "Clear peer cache for {{name}}?",
-    "titleProgress": "Clearing peer cache…",
-    "body": "This removes all downloaded content from peers in this space. You can re-download anytime they're online. Your own published files are kept.",
-    "confirmAction": "Clear cache",
-    "preparing": "Preparing…",
-    "done": "Cache cleared",
-    "phases": {
-      "cleaningPeer": "Removing cached content from {{peerName}}…",
-      "compactingPeerCache": "Reclaiming disk space…"
-    }
+    "reclaimNone": "Storage is already optimized."
   },
   "aboutSettings": {
     "title": "About",

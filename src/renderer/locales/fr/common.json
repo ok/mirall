@@ -542,32 +542,9 @@
     "reclaimNone": "Le stockage est déjà optimisé.",
     "folderError": "Impossible de définir le dossier : {{error}}",
     "calculating": "Calcul du stockage…",
-    "totalStorage": "Stockage total",
     "appStorage": "Stockage de l'application",
     "showDetails": "Afficher les détails",
-    "hideDetails": "Masquer les détails",
-    "activeSpaces": "Espaces actifs",
-    "perSpaceEstimates": "Les valeurs par espace sont des estimations",
-    "cache": "Cache : {{size}}",
-    "metadata": "Métadonnées : {{size}}",
-    "percentTotal": "{{percent}} % du total",
-    "other": "Autre",
-    "infoText": "Il s'agit du cache utilisé par Mirall pour partager des fichiers avec les membres de votre espace et recevoir leurs fichiers partagés. Il n'inclut pas les fichiers enregistrés dans votre dossier Téléchargements. Lorsque vous quittez un espace, son cache est automatiquement supprimé.",
-    "clearPeerCache": "Vider le cache des pairs",
-    "spaceActions": "Actions pour {{name}}",
-    "otherHeading": "Autres"
-  },
-  "clearPeerCache": {
-    "titleConfirm": "Vider le cache des pairs pour {{name}} ?",
-    "titleProgress": "Vidage du cache des pairs…",
-    "body": "Cela supprime tout le contenu téléchargé depuis les pairs de cet espace. Vous pourrez le retélécharger à tout moment lorsqu'ils sont en ligne. Vos propres fichiers publiés sont conservés.",
-    "confirmAction": "Vider le cache",
-    "preparing": "Préparation…",
-    "done": "Cache vidé",
-    "phases": {
-      "cleaningPeer": "Suppression du contenu en cache de {{peerName}}…",
-      "compactingPeerCache": "Récupération de l'espace disque…"
-    }
+    "hideDetails": "Masquer les détails"
   },
   "aboutSettings": {
     "title": "À propos",
