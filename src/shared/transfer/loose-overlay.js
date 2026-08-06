@@ -16,6 +16,8 @@ import { markListIncomplete } from './list-deficits.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from './files.js'
 import { getPendingFor, recordPending } from './pending-transfers.js'
 import { resolveDest } from './download-dest.js'
+import { record } from '../audit/audit-log.js'
+import { observePeerCatalog } from '../audit/peer-watch.js'
 import { getDownloadDir } from '../core/paths.js'
 import { listSpaces, getSpace } from '../spaces/space.js'
 import { makeProgressTicker } from './progress-ticker.js'
@@ -261,14 +263,20 @@ export async function looseListPeer (spaceId, member, timeoutMs, space) {
 // transfer whose content the owner just replaced.
 function ensureLooseCatalogWatch (spaceId, member, keyHex, sck) {
   if (!keyHex) return
-  watchPeerCatalog(keyHex, 'loose', () => {
+  const watched = watchPeerCatalog(keyHex, 'loose', (bee) => {
     ipcRef?.emit('event:files-updated', { spaceId })
+    // A peer publishing or removing a loose file in a space we share. The append is a bare poke,
+    // so the observer diffs the catalog's own history to find what actually changed.
+    observePeerCatalog(member.publicKey, spaceId, keyHex, bee, LOOSE_SHARE_ID)
     reconcileActiveLooseTransfers(spaceId, member).catch((err) => log.debug('loose source-change reconcile failed:', err.message))
     // One reconcile pass over our inactive pending rows: tear down downloads for a source the
     // owner tombstoned OR re-published (so a re-add does NOT auto-resume), and re-drive genuinely
     // interrupted ones — the owner may never have disconnected.
     looseEngine.reconcileOnAppend(member.publicKey, spaceId).catch((err) => log.debug('loose catalog-append reconcile failed:', err.message))
   }, sck)
+  // Baseline at registration so the peer's existing catalog is adopted, not replayed, and the
+  // next file they publish is the first thing recorded.
+  if (watched) observePeerCatalog(member.publicKey, spaceId, keyHex, watched, LOOSE_SHARE_ID, { baselineOnly: true })
 }
 
 // On an owner-catalog append, re-resolve every active loose transfer from THIS owner.
@@ -324,6 +332,24 @@ async function buildLooseJob (spaceId, member, drivePath, prevPending, entry) {
 // bytes in the renderer's per-key decoration map.
 const deco = (spaceId, key, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key, ...p })
 
+// One row per finished download, at its terminal outcome — never per chunk. An integrity
+// failure is promoted out of the generic failure kind because it is a security signal, not a
+// network one: the bytes a holder served did not match the hash they were advertised under.
+function recordTransferOutcome(job, outcome, errorCode) {
+  const fileName = path.basename(job.relPath || job.path || '')
+  const isIntegrity = errorCode === 'TRANSFER_CHECKSUM' || errorCode === 'EHASHMISMATCH'
+  getSpace(job.spaceId).then((space) => {
+    record(isIntegrity ? 'security.integrity_failure' : outcome === 'ok' ? 'transfer.completed' : 'transfer.failed', {
+      actor: { type: 'self' },
+      space: { id: job.spaceId, name: space?.name ?? null },
+      target: { kind: 'file', id: job.path ?? null, name: fileName || null },
+      subject: { bytes: job.size ?? null, ownerKey: job.ownerKey ?? null },
+      outcome: outcome === 'ok' ? 'ok' : 'error',
+      code: errorCode || null,
+    })
+  }).catch(() => {})
+}
+
 const looseEngine = createOverlayDownloadEngine({
   diagLabel: 'loose download',
   inPlace: true,
@@ -333,8 +359,8 @@ const looseEngine = createOverlayDownloadEngine({
   // remain as signals for notifications; the row's status is re-derived from files:list.
   emitProgress: (job, p) => deco(job.spaceId, job.path, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
   emitVerifying: (job, fraction) => deco(job.spaceId, job.path, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
-  emitError: (job, errorCode) => { ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode }); deco(job.spaceId, job.path, { done: true }) },
-  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); deco(job.spaceId, job.path, { done: true }) },
+  emitError: (job, errorCode) => { ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode }); recordTransferOutcome(job, 'error', errorCode); deco(job.spaceId, job.path, { done: true }) },
+  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); recordTransferOutcome(job, 'ok', null); deco(job.spaceId, job.path, { done: true }) },
   emitCancelled: (spaceId, transferId, pendingKey) => deco(spaceId, pendingKey, { done: true }),
   emitSuperseded: (job) => { ipcRef?.emit('event:transfer-superseded', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, fileName: path.basename(job.relPath) }); deco(job.spaceId, job.path, { bytes: 0, total: job.size, speed: 0, eta: null }) },
   emitPaused: (job, reason) => { ipcRef?.emit('event:transfer-paused', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, reason }); deco(job.spaceId, job.path, { done: true }) },

@@ -17,9 +17,10 @@ interface AccountProps {
   onSave: (data: { displayName: string; avatar: string | null }) => Promise<unknown>
   onBack: () => void
   onOpenNetworkStatus: () => void
+  onOpenActivityLog: () => void
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog }: AccountProps) {
   const { t } = useTranslation()
   const [displayName, setDisplayName] = useState(profile?.displayName || '')
   const [avatar, setAvatar] = useState<string | null>(profile?.avatar || null)
@@ -137,6 +138,25 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus }
               </div>
             </section>
           )}
+
+          <section>
+            <SectionHeading>{t('account.activity')}</SectionHeading>
+            <button
+              type="button"
+              onClick={onOpenActivityLog}
+              aria-label={t('settings.activityLog')}
+              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+                <Icon name="history" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-accent">{t('settings.activityLog')}</p>
+                <p className="text-xs text-on-surface-variant">{t('account.activityDesc')}</p>
+              </div>
+              <Icon name="chevron_right" className="text-secondary" />
+            </button>
+          </section>
 
           <section>
             <SectionHeading>{t('settings.networkStatus')}</SectionHeading>

@@ -18,6 +18,8 @@ export interface AppNavigation {
   openAccount: () => void
   openAbout: () => void
   openStorageSettings: (from: 'settings' | 'space-view') => void
+  openActivityLog: () => void
+  openActivityLogSettings: () => void
   goBack: () => void
   goHome: () => void
   resetToRoot: () => void
@@ -60,6 +62,9 @@ export function useAppNavigation(): AppNavigation {
     setCurrentScreen('storage-settings')
   }, [])
 
+  const openActivityLog = useCallback(() => setCurrentScreen('activity-log'), [])
+  const openActivityLogSettings = useCallback(() => setCurrentScreen('activity-log-settings'), [])
+
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
     setCurrentScreen('space-view')
@@ -81,6 +86,10 @@ export function useAppNavigation(): AppNavigation {
       case 'notification-settings':
       case 'general-settings': setCurrentScreen('settings'); break
       case 'network-status': setCurrentScreen('account'); break
+      // The viewer hangs off Account and the config off Settings, so each backs out to its own
+      // parent; a cross-link between them is a lateral jump, not a step in a history stack.
+      case 'activity-log': setCurrentScreen('account'); break
+      case 'activity-log-settings': setCurrentScreen('settings'); break
       default: break
     }
   }, [currentScreen, preSettingsScreen, preAccountScreen, preAboutScreen, storageBackTarget])
@@ -113,6 +122,8 @@ export function useAppNavigation(): AppNavigation {
     openAccount,
     openAbout,
     openStorageSettings,
+    openActivityLog,
+    openActivityLogSettings,
     goBack,
     goHome,
     resetToRoot,

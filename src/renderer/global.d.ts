@@ -151,6 +151,7 @@ export interface MirallDevConsole {
   spaces(): Promise<unknown>
   members(spaceId: string): Promise<unknown>
   storage(): Promise<unknown>
+  audit(opts?: Record<string, unknown>): Promise<unknown>
   profile(): Promise<unknown>
   mounts(): Promise<unknown>
   features(): Promise<unknown>

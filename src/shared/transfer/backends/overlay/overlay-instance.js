@@ -6,7 +6,9 @@
 // .claude/solution-architecture.md, "Serve authorization").
 import { HyperOverlayV2 } from './vendor/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
-import { makeServeAuthorizer } from './overlay-authorize.js'
+import { makeServeAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
+import { record } from '../../../audit/audit-log.js'
+import { getSpace } from '../../../spaces/space.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from './overlay-backend.js'
 import { getStore, getStoragePath, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
 import { PARTIAL_SUFFIX } from '../../partial-suffix.js'
@@ -80,8 +82,20 @@ export async function initOverlay() {
   // With the content plane on, the overlay channel rides the content connection, so serve
   // authorization keys on that socket's content-hello; otherwise on the control handshake.
   const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : senderAuthorizedOnSocket
+  // A denial must stay observationally identical to "I don't hold it" TO THE REQUESTER, so
+  // membership cannot be probed. Recording it locally does not weaken that — the audit log never
+  // goes on the wire — and a refused content request is exactly the "unauthorized access attempt"
+  // line an audit trail exists for. Do not "simplify" this away.
+  //
+  // Only a SECURITY denial is recorded. A rate-limited request is flow control and fires
+  // routinely mid-transfer; a missing socket is a teardown race. Recording those produced a wall
+  // of identical "A file request was refused" rows during an ordinary folder mirror.
   const serveAuthorizer = makeServeAuthorizer({
     peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex,
+    onDeny: (reason, ctx) => {
+      if (!SECURITY_DENIALS.has(reason)) return
+      recordServeDenial(reason, ctx)
+    },
   })
   const enc = useEncryptedOverlay()
   overlay = new HyperOverlayV2(getStore(), {
@@ -116,6 +130,46 @@ export async function initOverlay() {
  * connection's handshake (mirall/handshake or mirall/content-hello) authenticates
  * the sender on this socket.
  */
+// A refusal row has to say WHAT was refused and BY WHOM, or it reads as "A file request was
+// refused" with a blank avatar and tells the reader nothing. Both are best-effort: a denied peer
+// is often not a member of any space we share (that is why it was denied), and a hash we do not
+// hold has no name here — in which case the row falls back to a short key rather than nothing.
+//
+// Repeats collapse: a peer that keeps retrying the same hash is one incident, not twenty. The
+// window is in-memory because a burst is a within-session phenomenon; across a restart the first
+// retry legitimately re-reports.
+const DENIAL_WINDOW_MS = 3600000
+const deniedRecently = new Map()
+
+function recordServeDenial(reason, { from, contentHash }) {
+  const key = (from || '') + '\0' + (contentHash || '')
+  const now = Date.now()
+  const last = deniedRecently.get(key)
+  if (last && now - last < DENIAL_WINDOW_MS) return
+  deniedRecently.set(key, now)
+  // Bounded: one entry per (peer, hash) seen this session, pruned as the window lapses.
+  if (deniedRecently.size > 500) {
+    for (const [k, ts] of deniedRecently) if (now - ts >= DENIAL_WINDOW_MS) deniedRecently.delete(k)
+  }
+
+  const spaceId = [...serveIndex.spacesFor(contentHash)][0] || null
+  const refs = serveIndex.refsFor ? serveIndex.refsFor(contentHash) : []
+  const relPath = refs[0]?.relPath || null
+  Promise.resolve(spaceId ? getSpace(spaceId) : null).then((space) => {
+    record('security.serve_denied', {
+      actor: {
+        type: 'peer',
+        key: from || null,
+        name: (space?.members || []).find((m) => m.publicKey === from)?.displayName || null,
+      },
+      space: space ? { id: space.spaceId, name: space.name ?? null } : null,
+      target: { kind: 'file', id: contentHash || null, name: relPath ? relPath.split('/').pop() : null },
+      subject: { reason, requester: from ? from.slice(0, 12) : null },
+      outcome: 'denied',
+    })
+  }).catch(() => {})
+}
+
 export function attachOverlay(mux, socket) {
   if (!overlay) return
   const peer = overlay.attachProtocol(mux) // protocol 'hyper-overlay/v2' on the SAME mux as mirall/handshake

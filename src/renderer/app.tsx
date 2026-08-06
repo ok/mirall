@@ -48,6 +48,8 @@ const SCREEN_TITLE_KEYS: Record<string, string> = {
   'notification-settings': 'a11y.screens.notifications',
   'general-settings': 'a11y.screens.general',
   'network-status': 'a11y.screens.network',
+  'activity-log': 'a11y.screens.activityLog',
+  'activity-log-settings': 'a11y.screens.activityLogSettings',
 }
 
 export default function App() {

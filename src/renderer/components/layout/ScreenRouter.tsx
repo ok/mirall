@@ -11,6 +11,8 @@ import AppearanceSettings from '../../screens/AppearanceSettings.js'
 import GeneralSettings from '../../screens/GeneralSettings.js'
 import NetworkStatus from '../../screens/NetworkStatus.js'
 import Account from '../../screens/Account.js'
+import ActivityLog from '../../screens/ActivityLog.js'
+import ActivityLogSettings from '../../screens/ActivityLogSettings.js'
 
 interface ScreenRouterProps {
   nav: AppNavigation
@@ -80,6 +82,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onSave={onSaveProfile}
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
+          onOpenActivityLog={nav.openActivityLog}
         />
       )
     case 'storage-settings':
@@ -94,6 +97,20 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-status':
       return <NetworkStatus onBack={() => nav.setCurrentScreen('account')} />
+    case 'activity-log':
+      return (
+        <ActivityLog
+          onBack={() => nav.setCurrentScreen('account')}
+          onOpenSettings={nav.openActivityLogSettings}
+        />
+      )
+    case 'activity-log-settings':
+      return (
+        <ActivityLogSettings
+          onBack={() => nav.setCurrentScreen('settings')}
+          onOpenLog={nav.openActivityLog}
+        />
+      )
     default:
       return null
   }

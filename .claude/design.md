@@ -269,6 +269,20 @@ a 48×28 pill track on the right (`bg-primary` on / `bg-surface-container-high`
 off) with a 20px translating thumb. Hover lifts to
 `bg-surface-container-high/50`.
 
+### Dropdown button — `widgets/ActionMenu.tsx`
+The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
+trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a
+trailing `keyboard_arrow_down` that rotates 180° when open:
+- **`primary`** (default) — the labelled `bg-primary` key action ("More" in Space/Folder View).
+- **`subtle`** — the icon-only `w-10 h-10 rounded-full` three-dot trigger (`ShareCard`).
+- **`neutral`** — the labelled trigger wearing the **secondary-button** tokens
+  (`bg-surface-container-high` → `hover:bg-surface-container-highest`, dark inverts one tier,
+  `text-on-surface-variant`). For a row of sibling menus where none is the screen's main action —
+  the Activity Log filter bar. Three `primary` triggers side by side would read as three CTAs.
+
+Menu items may omit `icon`; a fixed-size blank keeps labels aligned, which is how a
+single-choice menu marks only the selected row with `check`.
+
 ### Segmented control — inline pattern (no primitive)
 Not a shared primitive — implemented inline in `screens/AppearanceSettings.tsx`
 (theme + zoom selectors) and `components/modals/InviteModal.tsx` (expiry group).

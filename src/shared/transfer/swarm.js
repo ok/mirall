@@ -35,6 +35,8 @@ import { applyNetImpairment } from './net-impair.js'
 import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from './decoration-key.js'
+import { record } from '../audit/audit-log.js'
+import { observePeerProfile } from '../audit/peer-watch.js'
 import { sealSck } from './sck-seal.js'
 import { sanitizeAvatar } from '../identity-limits.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
@@ -664,9 +666,16 @@ async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
       emitPeerSharesUpdated(peerKey).catch(err => {
         log.warn('peer shares-updated emit failed:', err.message)
       })
+      // The same append is the only signal that a peer created/deleted a folder share or started
+      // mirroring one of ours. This hook is coarse — it fires for ANY bee change — so the
+      // observer diffs the bee's own history rather than trusting the poke.
+      observePeerProfile(peerKey, peerProfileBee)
     }
     peerProfileBee.core.on('append', listener)
     profileBeeAppendListeners.set(peerKey, listener)
+    // Baseline now, not on the first append — otherwise the first share a peer creates after we
+    // meet them is swallowed as "history".
+    observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true })
   }
 
   for (let attempt = 0; attempt < AVATAR_FETCH_ATTEMPTS; attempt++) {
@@ -733,6 +742,23 @@ function handleDisconnect(socket) {
   scheduleStatusEmit()
 }
 
+// Captured before the teardown drops the member from the roster: the audit row has to stay
+// readable once the record is gone.
+function memberSnapshot (space, publicKey) {
+  return {
+    spaceName: space?.name ?? null,
+    memberName: (space?.members || []).find((m) => m.publicKey === publicKey)?.displayName ?? null,
+  }
+}
+
+function recordMemberLeft (spaceId, profileKey, snapshot) {
+  record('member.left', {
+    actor: { type: 'peer', key: profileKey, name: snapshot.memberName },
+    space: { id: spaceId, name: snapshot.spaceName },
+    target: { kind: 'member', id: profileKey, name: snapshot.memberName },
+  })
+}
+
 // === Leave protocol ===
 
 async function handleLeaveFrame(socket, peerInfo, msg) {
@@ -766,6 +792,9 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
     log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
     return
   }
+
+  // After the deferral above, so a leave we did not apply records nothing.
+  const leftSnapshot = memberSnapshot(space, profileKey)
 
   // Tombstone the leaver FIRST so the member-view fold can't re-add them from their stale
   // still-active record (their del-record may not replicate before they disconnect). Set
@@ -826,6 +855,8 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
   // request time and re-checked against that cache only, so a membership change has to invalidate
   // it actively — otherwise an in-flight transfer keeps streaming to a peer no longer entitled.
   revokeServesForSpaceHook?.(spaceId, profileKey)
+
+  recordMemberLeft(spaceId, profileKey, leftSnapshot)
 
   ipcRef.emit('event:member-left', { spaceId, publicKey: profileKey })
   ipcRef.emit('event:files-updated', { spaceId })
