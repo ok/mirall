@@ -204,7 +204,10 @@ test('REGRESSION (FIX-3): the owner records a peer downloading their file', { ti
   t.is(served.subject.bytes, bytes.length, 'the full transfer size is recorded')
   t.is(served.tier, 'B')
 
-  // The other side of the same transfer, on the downloader.
+  // The other side of the same transfer, on the downloader. Recording is fire-and-forget
+  // through the write chain, so wait for the row the same way A's side does — without this
+  // the read can land first under load, and `own.tier` then throws out of the test.
+  await B.until('audit:list', { limit: 200 }, (page) => kindsOf(page.entries).includes('transfer.completed'))
   const own = find(await rows(B), 'transfer.completed')
   t.ok(own, 'the downloader records its own download')
   t.is(own.tier, 'A')

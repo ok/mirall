@@ -7,6 +7,7 @@ import { initStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/co
 import {
   initAuditLog, record, flushAudit, queryAudit, auditSpaces, auditActors,
   auditStats, getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
+  getPeerSubjectState, setPeerSubjectState,
 } from '../../src/shared/audit/audit-log.js'
 
 let seq = 0
@@ -272,4 +273,71 @@ test('the rate guard collapses a burst into one suppressed row', async (t) => {
   const { entries } = await queryAudit({ limit: 1000 })
   t.ok(entries.length < 400, 'the burst was capped rather than written in full')
   t.ok(entries.length >= 120, 'the window budget was spent before capping')
+})
+
+// Rows are stamped with Date.now() inside record(), so building a pathological ts order
+// means driving the clock.
+async function recordAt (ts, spaceId, actorName) {
+  const real = Date.now
+  Date.now = () => ts
+  try {
+    record('member.joined', {
+      actor: { type: 'peer', key: 'k-' + actorName, name: actorName },
+      space: { id: spaceId, name: 'Design Team' },
+      target: { kind: 'member', id: 'k-' + actorName, name: actorName },
+    })
+    await flushAudit()
+  } finally {
+    Date.now = real
+  }
+}
+
+test('REGRESSION: a stale-ts row after fresh rows does not drag the prune watermark over them', async (t) => {
+  await boot(t)
+  await setAuditConfig({ retentionDays: 1, maxEntries: 200000 })
+  const now = Date.now()
+  const OLD = now - 10 * 86400000
+  const YOUNG = now - 60000
+
+  await recordAt(OLD, 'sp1', 'old-a')      // seq 0
+  await recordAt(OLD, 'sp1', 'old-b')      // seq 1
+  await recordAt(YOUNG, 'sp1', 'keep-a')   // seq 2 — inside retention
+  await recordAt(YOUNG, 'sp1', 'keep-b')   // seq 3 — inside retention
+  await recordAt(OLD, 'sp1', 'clock-glitch') // seq 4 — stale ts written AFTER fresh rows
+  // Enough young rows to trip AGE_HYSTERESIS and end the scan.
+  for (let i = 0; i < 25; i++) await recordAt(YOUNG, 'sp1', 'young-' + i)
+
+  await pruneAudit({ now })
+  const names = (await queryAudit({ limit: 100 })).entries.map((e) => e.actor.name)
+  t.ok(names.includes('keep-a'), 'an in-retention row before the stale one survives')
+  t.ok(names.includes('keep-b'), 'and so does its neighbour')
+  t.absent(names.includes('old-a'), 'the genuinely old prefix is still pruned')
+  t.absent(names.includes('old-b'), 'both of it')
+})
+
+test('purging the log clears the per-peer observed-state mirror', async (t) => {
+  await boot(t)
+  await setPeerSubjectState('share|peer1|sp1|share1', 'on')
+  t.is(await getPeerSubjectState('share|peer1|sp1|share1'), 'on')
+
+  await purgeAudit()
+  t.is(await getPeerSubjectState('share|peer1|sp1|share1'), null,
+    'delete-all-activity must not leave the record of what we observed')
+})
+
+test("an 'off' subject state is dropped rather than stored forever", async (t) => {
+  await boot(t)
+  await setPeerSubjectState('file|peer1|sp1|a.txt', 'on')
+  await setPeerSubjectState('file|peer1|sp1|a.txt', 'off')
+  t.is(await getPeerSubjectState('file|peer1|sp1|a.txt'), null,
+    'absence reads the same as off, and bounds growth to currently-shared subjects')
+})
+
+test('record() reports whether the row was admitted', async (t) => {
+  await boot(t)
+  t.is(record('member.joined', { actor: { type: 'self' }, space: { id: 'sp1', name: 'S' } }), true)
+
+  await setAuditConfig({ enabled: false })
+  t.is(record('member.joined', { actor: { type: 'self' }, space: { id: 'sp1', name: 'S' } }), false,
+    'a disabled log admits nothing — callers must not mirror it as recorded')
 })

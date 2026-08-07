@@ -101,3 +101,36 @@ test('whenAvailable waits only as long as the requested bytes need', async (t) =
   t.ok(waited < 500, `waited ${waited}ms for 1/16th of a second of budget, not a full second`)
   l.destroy()
 })
+
+test('give() refunds bytes charged for work that never happened', (t) => {
+  let clock = 0
+  const limiter = createBandwidthLimiter(() => 64 * 1024, { now: () => clock })
+  clock += 1000
+  t.ok(limiter.tryTake(64 * 1024), 'a full second of budget is affordable')
+  t.absent(limiter.tryTake(1024), 'and then the bucket is empty')
+
+  limiter.give(64 * 1024)
+  t.ok(limiter.tryTake(64 * 1024), 'a refund makes the same bytes affordable again')
+})
+
+test('give() cannot bank credit beyond one second of budget', (t) => {
+  let clock = 0
+  const limiter = createBandwidthLimiter(() => 64 * 1024, { now: () => clock })
+  clock += 1000
+  limiter.give(64 * 1024 * 10)
+  t.ok(limiter.tryTake(64 * 1024), 'one second is available')
+  t.absent(limiter.tryTake(64 * 1024), 'a burst of cancellations does not overshoot the cap')
+})
+
+test('give() is inert when unlimited or handed a non-positive size', (t) => {
+  const unlimited = createBandwidthLimiter(() => 0)
+  t.execution(() => unlimited.give(1024), 'no-op when unthrottled')
+
+  let clock = 0
+  const limiter = createBandwidthLimiter(() => 64 * 1024, { now: () => clock })
+  clock += 1000
+  limiter.tryTake(64 * 1024)
+  limiter.give(0)
+  limiter.give(-5)
+  t.absent(limiter.tryTake(1), 'a zero or negative refund adds nothing')
+})

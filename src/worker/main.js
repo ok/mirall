@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
 import { getDownloadDir } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -41,7 +41,7 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, setRelayThrough, testRelayReachable, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
 import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
@@ -364,6 +364,16 @@ setRevokeServesForSpaceHook((spaceId, profileKey) => { revokeServesForSpace(spac
 setMembershipRevokedHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
 initSwarm(ipc)
 if (useContentPlane) initContentSwarm(getSwarmDht())
+// After BOTH constructors: getContentSwarm() is null until the line above runs, and a
+// relay installed on the control swarm alone leaves every file byte unrelayed.
+applyRelayConfig()
+
+function applyRelayConfig() {
+  const { mode, relays } = getRelayConfig()
+  const res = setRelayThrough(relays, mode)
+  if (res.applied > 0) log.info('relay configured:', res.applied, 'key(s), mode', mode)
+  return res
+}
 
 // Deferred past the core-opening init above so the one-time compaction (which
 // scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.
@@ -2179,6 +2189,14 @@ ipc.handle('settings:set-bandwidth', async (msg) => {
 
 ipc.handle('network:status:get', async () => getSwarmStatus())
 ipc.handle('network:reconnect', async () => await reconnectAll())
+
+ipc.handle('network:set-relays', async (msg) => {
+  if (!isRelayEnabled()) return { ok: false, reason: 'disabled' }
+  setRelayConfig(msg?.relayMode, msg?.relays)
+  return { ok: true, ...applyRelayConfig() }
+})
+
+ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))
 
 ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
 

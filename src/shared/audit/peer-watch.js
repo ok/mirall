@@ -27,13 +27,16 @@ export function resetPeerWatch() {
 // A row is emitted only when the subject's state actually flips, and the previous state is read
 // from disk — a peer re-writes a mirror record on every sync-state change and again at their own
 // boot, so an in-memory guard would let either side's restart emit a duplicate.
+// Returns a commit thunk on a genuine transition, or null. The caller commits only after
+// record() reports the row was admitted: record() no-ops when the log is disabled or the
+// kind is rate-limited, and mirroring "recorded" for a row that never existed would
+// permanently suppress that subject's next standing-state row.
 async function transitioned(kind, peerKey, spaceId, id, removed) {
   const key = subjectKey(kind, peerKey, spaceId, id)
   const next = stateOf(removed)
   const previous = await getPeerSubjectState(key)
-  if (!isTransition(previous, next)) return false
-  await setPeerSubjectState(key, next)
-  return true
+  if (!isTransition(previous, next)) return null
+  return () => setPeerSubjectState(key, next)
 }
 
 async function ownsShare(spaceId, shareId) {
@@ -56,24 +59,28 @@ async function applyProfileChange(peerKey, change) {
   const spaceRef = { id: space.spaceId, name: space.name ?? null }
 
   if (change.kind === 'share') {
-    if (!(await transitioned('share', peerKey, change.spaceId, change.shareId, change.removed))) return
-    record(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
+    const commit = await transitioned('share', peerKey, change.spaceId, change.shareId, change.removed)
+    if (!commit) return
+    const written = record(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
       actor,
       space: spaceRef,
       target: { kind: 'share', id: change.shareId, name: change.name },
     })
+    if (written) await commit()
     return
   }
 
   // A mirror of someone else's share tells us nothing about our own data.
   if (!(await ownsShare(change.spaceId, change.shareId))) return
-  if (!(await transitioned('mirror', peerKey, change.spaceId, change.shareId, change.removed))) return
+  const commit = await transitioned('mirror', peerKey, change.spaceId, change.shareId, change.removed)
+  if (!commit) return
   const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
-  record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
+  const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
     space: spaceRef,
     target: { kind: 'share', id: change.shareId, name: own?.name ?? null },
   })
+  if (written) await commit()
 }
 
 async function applyCatalogChange(peerKey, spaceId, change) {
@@ -81,12 +88,14 @@ async function applyCatalogChange(peerKey, spaceId, change) {
   if (!space || space.leaving) return
   // Keyed on the path, not the content hash, so a peer re-publishing an edited file does not
   // record a second "shared" row — matching how our own side records files:add once.
-  if (!(await transitioned('file', peerKey, spaceId, change.relPath, change.removed))) return
-  record(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
+  const commit = await transitioned('file', peerKey, spaceId, change.relPath, change.removed)
+  if (!commit) return
+  const written = record(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
     actor: { type: 'peer', key: peerKey, name: peerName(space, peerKey) },
     space: { id: space.spaceId, name: space.name ?? null },
     target: { kind: 'file', id: change.relPath, name: change.relPath },
   })
+  if (written) await commit()
 }
 
 // One sweep of a peer bee: read what changed since our watermark, turn it into rows, advance the

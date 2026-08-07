@@ -18,6 +18,7 @@ const FIELD_PATHS = [
   'stats.connects.client.opened', 'stats.connects.client.closed',
   'stats.connects.server.opened', 'stats.connects.server.closed',
   'stats.bannedPeers',
+  'stats.relaying.selected', 'stats.relaying.attempts', 'stats.relaying.successes', 'stats.relaying.aborts',
 ]
 
 function makeStatus () {
@@ -32,6 +33,7 @@ function makeStatus () {
       updates: 4,
       connects: { client: { opened: 5, closed: 1 }, server: { opened: 6, closed: 2 } },
       bannedPeers: 0,
+      relaying: { selected: 0, attempts: 0, successes: 0, aborts: 0 },
     },
   }
 }
@@ -53,7 +55,7 @@ test('statusEqual: reference / deep-equal / nullish', (t) => {
   t.ok(statusEqual(null, null), 'both null are reference-equal (a === b guard) → equal')
 })
 
-test('statusEqual: any single field difference breaks equality (all 24 compared)', (t) => {
+test('statusEqual: any single field difference breaks equality (all 28 compared)', (t) => {
   const base = makeStatus()
   for (const path of FIELD_PATHS) {
     const mutated = clone(base)

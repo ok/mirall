@@ -7,6 +7,8 @@ import { formatSpeed } from '../utils.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
+import RelaySettingsSection from '../components/settings/RelaySettingsSection.js'
+import { isRelayFeatureEnabled } from '../config-client.js'
 import type { BandwidthLimits } from '../global.js'
 
 interface NetworkSettingsProps {
@@ -203,6 +205,8 @@ export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
               </p>
             </div>
           </section>
+
+          {isRelayFeatureEnabled() && <RelaySettingsSection />}
         </div>
       </div>
     </div>

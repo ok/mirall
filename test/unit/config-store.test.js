@@ -113,7 +113,7 @@ test('rendererSnapshot exposes only renderer-facing config', (t) => {
   const store = new ConfigStore(dir).load()
   store.set('appearance.locale', 'de')
   const snap = store.rendererSnapshot()
-  t.alike(Object.keys(snap).sort(), ['appearance', 'notifications', 'ui'])
+  t.alike(Object.keys(snap).sort(), ['appearance', 'features', 'network', 'notifications', 'ui'])
   t.is(snap.appearance.theme, 'system')
   t.is(snap.appearance.locale, 'de')
   t.is(snap.ui.feedbackEmail, '')
@@ -180,8 +180,134 @@ test('network survives a persist/reload round-trip', (t) => {
   const store = new ConfigStore(dir).load()
   store.setBandwidth({ downloadKBps: 2048, uploadKBps: 256 })
   store.flush()
-  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256 })
+  // Bandwidth and relay share the `network` group, so the persisted block carries both.
+  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [] })
   const reopened = new ConfigStore(dir).load()
   t.is(reopened.get('network.downloadKBps'), 2048)
   t.is(reopened.get('network.uploadKBps'), 256)
+})
+
+// === network / relay block ===
+
+const RELAY_KEY = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
+
+test('network defaults appear on a config.json written before relays existed', (t) => {
+  const dir = tmpDir()
+  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, appearance: { theme: 'dark' } })
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('appearance.theme'), 'dark', 'existing values are preserved')
+  t.is(store.get('network.relayMode'), 'off')
+  t.alike(store.get('network.relays'), [])
+})
+
+test('the renderer snapshot exposes network and read-only features', (t) => {
+  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: true }) }).load()
+  const snap = store.rendererSnapshot()
+  t.is(snap.network.relayMode, 'off')
+  t.alike(snap.network.relays, [])
+  t.alike(snap.features, { relay: true })
+})
+
+test('the relay feature flag defaults off in the snapshot', (t) => {
+  t.is(new ConfigStore(tmpDir()).load().rendererSnapshot().features.relay, false)
+  t.is(new ConfigStore(tmpDir(), { readFeatures: () => ({}) }).load().rendererSnapshot().features.relay, false)
+  t.is(new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: 'yes' }) }).load().rendererSnapshot().features.relay, false)
+})
+
+test('setRenderer cannot write a feature flag', (t) => {
+  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: false }) }).load()
+  store.setRenderer({ readFeatures: () => ({ relay: true }) })
+  t.is(store.rendererSnapshot().features.relay, false, 'the renderer is not a trust boundary')
+})
+
+test('setRenderer validates relay keys and modes', (t) => {
+  const store = new ConfigStore(tmpDir()).load()
+
+  store.setRenderer({ network: { relayMode: 'nonsense' } })
+  t.is(store.get('network.relayMode'), 'off', 'an unknown mode degrades to off')
+
+  store.setRenderer({ network: { relayMode: 'always' } })
+  t.is(store.get('network.relayMode'), 'always')
+
+  store.setRenderer({ network: { relays: [{ id: 'a', publicKey: 'not-a-key' }] } })
+  t.alike(store.get('network.relays'), [], 'an undecodable key never reaches relayThrough')
+
+  store.setRenderer({ network: { relays: [{ id: 'a', label: 'A', publicKey: RELAY_KEY }] } })
+  t.is(store.get('network.relays').length, 1)
+  t.is(store.get('network.relays')[0].publicKey, RELAY_KEY)
+})
+
+test('a malformed network patch leaves the stored block untouched', (t) => {
+  const store = new ConfigStore(tmpDir()).load()
+  store.setRenderer({ network: { relayMode: 'auto', relays: [{ id: 'a', publicKey: RELAY_KEY }] } })
+  store.setRenderer({ network: 'nope' })
+  t.is(store.get('network.relayMode'), 'auto')
+  t.is(store.get('network.relays').length, 1)
+})
+
+test('removal persists the replaced array, not a merge', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  store.setRenderer({ network: { relays: [{ id: 'a', publicKey: RELAY_KEY }] } })
+  store.setRenderer({ network: { relays: [] } })
+  store.flush()
+  t.alike(readConfig(dir).network.relays, [], 'the empty array wins over the stored one')
+  t.alike(new ConfigStore(dir).load().get('network.relays'), [], 'and survives a reload')
+})
+
+test('a hand-edited config.json is re-sanitized on load', (t) => {
+  const dir = tmpDir()
+  writeJson(path.join(dir, 'config.json'), {
+    version: CONFIG_VERSION,
+    network: { relayMode: 'sideways', relays: [{ id: 'a', publicKey: 'garbage' }, { id: 'b', publicKey: RELAY_KEY }] },
+  })
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('network.relayMode'), 'off')
+  t.is(store.get('network.relays').length, 1)
+  t.is(store.get('network.relays')[0].id, 'b')
+})
+
+// Bandwidth caps and relay config share the `network` group. Each writer must leave
+// the other's fields alone — rebuilding the whole block on load silently reset the
+// user's transfer limits on every app start.
+test('relay and bandwidth coexist in the network group', (t) => {
+  const dir = tmpDir()
+  writeJson(path.join(dir, 'config.json'), {
+    version: CONFIG_VERSION,
+    network: { downloadKBps: 4096, uploadKBps: 512, relayMode: 'auto', relays: [{ id: 'a', publicKey: RELAY_KEY }] },
+  })
+
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('network.downloadKBps'), 4096, 'load preserves the bandwidth caps')
+  t.is(store.get('network.uploadKBps'), 512)
+  t.is(store.get('network.relayMode'), 'auto')
+
+  store.setRenderer({ network: { relayMode: 'always', relays: [] } })
+  t.is(store.get('network.downloadKBps'), 4096, 'a relay write does not clear the caps')
+  t.is(store.get('network.uploadKBps'), 512)
+
+  store.setBandwidth({ downloadKBps: 1024 })
+  t.is(store.get('network.relayMode'), 'always', 'a bandwidth write does not clear the relay config')
+
+  store.flush()
+  const reopened = new ConfigStore(dir).load()
+  t.is(reopened.get('network.downloadKBps'), 1024, 'both survive a reload together')
+  t.is(reopened.get('network.relayMode'), 'always')
+
+  const snap = reopened.rendererSnapshot().network
+  t.alike(Object.keys(snap).sort(), ['downloadKBps', 'relayMode', 'relays', 'uploadKBps'],
+    'the snapshot carries the whole group, not just one writer half')
+})
+
+// The store is constructed before primeFeatureFlags runs (main.js: readPrefs at app-ready,
+// preloadAsarCache six lines later). Latching the flag at construction would capture the
+// degraded pre-prime read and could disagree with the copy the worker gets.
+test('the relay flag is read lazily, not latched at construction', (t) => {
+  const dir = tmpDir()
+  let primed = false
+  const store = new ConfigStore(dir, { readFeatures: () => ({ relay: primed }) }).load()
+
+  t.is(store.rendererSnapshot().features.relay, false, 'pre-prime read resolves off')
+  primed = true
+  t.is(store.rendererSnapshot().features.relay, true, 'the snapshot follows the primed value')
 })

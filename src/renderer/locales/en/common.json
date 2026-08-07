@@ -659,6 +659,35 @@
       "uploadPreset": "Upload limit: {{rate}}",
       "downloadCustom": "Download limit: custom",
       "uploadCustom": "Upload limit: custom"
+    },
+    "relays": {
+      "heading": "Relays",
+      "desc": "A relay helps two devices connect when the network blocks a direct link — a space that never syncs on office Wi-Fi, for example. Relays forward encrypted data only; they cannot read your files.",
+      "modeLabel": "When to use a relay",
+      "mode": {
+        "off": "Never",
+        "auto": "When needed",
+        "always": "Always"
+      },
+      "alwaysWarning": "Every connection goes through a relay, even when a direct one would work. Useful for testing, slower for everyday use.",
+      "empty": "No relays configured yet.",
+      "unnamed": "Unnamed relay",
+      "test": "Test",
+      "testing": "Testing",
+      "notTested": "Not tested",
+      "reachable": "Reachable",
+      "unreachable": "Unreachable",
+      "testAction": "Test {{name}}",
+      "useAction": "Use {{name}}",
+      "removeAction": "Remove {{name}}",
+      "addAction": "Add relay",
+      "addTitle": "Add a relay",
+      "addDesc": "Paste the public key of the relay you want to use. Your files stay encrypted end to end — the relay only forwards them.",
+      "keyLabel": "Relay key",
+      "keyPlaceholder": "Public key",
+      "labelLabel": "Name (optional)",
+      "labelPlaceholder": "e.g. Office relay",
+      "invalidKey": "That does not look like a relay key. Check for a missing or extra character."
     }
   },
   "networkStatus": {
@@ -722,7 +751,11 @@
       "noPublicAddr": "Couldn't determine your public IP. Check your internet connection.",
       "smallRoutingTable": "Few DHT peers known so far. Bootstrap may still be in progress.",
       "stillBootstrapping": "Still joining the DHT — give it a moment."
-    }
+    },
+    "relaying": "Relaying",
+    "relayedActive": "Relayed connections",
+    "relayedAttempts": "Relay attempts",
+    "relayedAborts": "Relay failures"
   },
   "activityLog": {
     "title": "Activity Log",

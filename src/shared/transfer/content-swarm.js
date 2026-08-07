@@ -42,6 +42,10 @@ let contentBinding = null
 export function setContentAttachHook(fn) { contentAttachHook = fn }
 export function setContentResumeHook(fn) { contentResumeHook = fn }
 
+// Null between worker boot and initContentSwarm, and again after destroyContentSwarm
+// has run during shutdown. Callers must tolerate both.
+export function getContentSwarm() { return contentSwarm }
+
 export function contentSenderAuthorizedOnSocket(socket, profileKeyHex) {
   return contentPeerSockets.authorized(socket, profileKeyHex)
 }
