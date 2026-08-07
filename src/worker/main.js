@@ -256,7 +256,12 @@ try { didMigrateOverlayIndex = (await migrateOverlayIndexToEncrypted())?.migrate
   log.warn('overlay-index at-rest migration failed:', err.message)
 }
 await initMounts()
-initOwnedFolders(ipc)
+// settleScanStatus (hoisted, defined with the reconcile scheduling below) also settles the
+// trailing catch-up reconcile a watcher event schedules, so a source that disappears or returns
+// between probe ticks still updates the durable status and notifies the UI. Forward-referencing it
+// here is safe: the hook can only fire off a watcher event, and no frame is dispatched until
+// ipc.start() at the end of this module — well after the state it touches is initialised.
+initOwnedFolders(ipc, { settleScan: settleScanStatus })
 initForeignFolders(ipc)
 const knownSpaces = await listSpaces()
 // Finish any leave a prior process interrupted (durable `leaving` marker still present) BEFORE
@@ -792,6 +797,21 @@ async function setOwnedStatus(spaceId, shareId, status, error) {
   ipc.emit('event:owned-folder-mount-status', { spaceId, shareId, status, ...(error ? { error } : {}) })
 }
 
+// Everything that must happen once an owned source folder is known to be missing, from whichever
+// signal noticed first: the mount-point probe, or a scan/reconcile that bailed on the absent root.
+// Recording the absence in `lastMountPointStatus` is what lets the probe read the RETURN as a
+// gone→present edge. Without it, a folder that vanished and came back inside a single 60s probe
+// window produced no transition at all — so no status event, and every derived-from-event UI
+// (the FolderView banner, the share card badge) stayed latched on "source missing" indefinitely.
+async function handleOwnedMountGone(spaceId, shareId) {
+  lastMountPointStatus.set('owned-folder:' + shareId, false)
+  // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
+  // mount config are left untouched — a missing root is ambiguous, never a delete.
+  ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
+  cancelPeriodicReconcile(spaceId, shareId)
+  await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
+}
+
 // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
 // with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
 // — so treating any resolution as 'active' would durably record a healthy scan that never ran.
@@ -799,7 +819,7 @@ async function setOwnedStatus(spaceId, shareId, status, error) {
 async function settleScanStatus(promise, spaceId, shareId) {
   try {
     const result = await promise
-    if (result?.skipped === 'mount-point-gone') await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
+    if (result?.skipped === 'mount-point-gone') await handleOwnedMountGone(spaceId, shareId)
     else if (result?.skipped) await setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
     else await setOwnedStatus(spaceId, shareId, 'active')
     return result
@@ -914,12 +934,8 @@ async function probeMountPoints() {
 
     if (mount.role === 'owned-folder') {
       if (!exists) {
-        // Source folder just disappeared — tear down the live machinery so we stop pointing a
-        // watcher at a dead path and stop reconciling, and persist the gone status. The
-        // published snapshot and mount config are left untouched.
-        ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: mount.shareId } })
-        cancelPeriodicReconcile(mount.spaceId, mount.shareId)
-        await setOwnedStatus(mount.spaceId, mount.shareId, 'mount-point-gone')
+        // Source folder just disappeared — same teardown the watcher-driven path runs.
+        await handleOwnedMountGone(mount.spaceId, mount.shareId)
       } else if (wasGone) {
         // Source folder came back (USB replugged, network mount up, moved back). Resume: restart
         // the watcher, run one catch-up reconcile whose OUTCOME sets the durable status (so a
