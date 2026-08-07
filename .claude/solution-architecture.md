@@ -430,6 +430,18 @@ Liveness is tracked separately from connection state. Peers hold short-lived **p
 
 Durable state changes reach the renderer as **level-triggered hints**: the worker coalesces them into `event:reconcile { scope }` (`state/hints.js`) and the UI refetches that scope, so a missed event can never leave the UI stale. Every list view rides this channel — `files`, `shares`, `share-files`, `members`, `join-requests` — fanned from the named `*-updated` pokes via `POKE_SCOPE` (`core/ipc.js`). The named events stay on the wire as the emit-site API and as test/debug observables.
 
+### 4.8 Blind relay (behind the `relay` feature flag, default off)
+
+When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` option routes the connection through a **blind relay** — a `hyperdht` node that pairs two raw UDX streams by token. Noise runs *over* the relayed stream, so the relay sees ciphertext only. The client side is entirely built into the stack; Mirall only decides which key to supply and when.
+
+- **Configuration** is one 32-byte public key per relay, stored in `config.json` under `network` (`relayMode: 'off' | 'auto' | 'always'`, plus a `relays` array). Main validates every key with `hypercore-id-encoding` before persisting (`main/relay-keys.js`) and re-sanitizes the block on load — a hand-edited file cannot smuggle a malformed key onto `relayThrough`.
+- **Delivery**: the `bootstrap` frame carries `relayEnabled` / `relayMode` / `relays` to the worker; live changes ride `network:set-relays` over the existing NDJSON channel, and re-apply without a restart.
+- **Application** — `setRelayThrough` (`transfer/swarm.js`) installs the relay function on **both** the control and content swarms. Configuring only the control swarm yields a build whose handshakes connect and whose transfers stall, so it must run **after** `initContentSwarm` — the two swarms are constructed on consecutive lines in `worker/main.js` and `getContentSwarm()` is null in between.
+- **Mode** maps onto hyperswarm's own semantics: `off` installs no function at all (byte-identical to a build without relay support), `auto` engages after a failed punch or on a randomized NAT, `always` relays every connection (the only way to *test* a relay end-to-end).
+- **Probe** — `network:test-relay` dials the key and waits for the `blind-relay` Protomux channel to open, so a mistyped key fails at paste time rather than weeks later as a space that silently never syncs.
+- **Gate** — `isRelayEnabled()` short-circuits `setRelayThrough` to `null` and the probe to `{ ok: false, reason: 'disabled' }`. With the flag off, a stale `config.json` carrying `relayMode: 'always'` cannot change transport behaviour. Note this stops us *offering* a relay; per hyperdht's negotiation, a peer that advertises its own relay key is still honoured, so a flag-off build is not "relay-free".
+- **Enabling it** without a build, for QA or a self-hoster: `MIRALL_FEATURE_FLAGS='{"relay":true}' npm start`. Flags are primed once per process, so the change needs an app restart. Obtaining a key is an operator task — a relay publishes the public key of its `hyperdht` node, and that string is the entire client-side configuration.
+
 ---
 
 ## 5. Invitation Mechanism

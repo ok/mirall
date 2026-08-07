@@ -1,6 +1,7 @@
 // Network diagnostics screen: connectivity verdict plus DHT/swarm details with maskable, copyable fields.
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isRelayFeatureEnabled } from '../config-client.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import NetworkStatusIndicator from '../components/widgets/NetworkStatusIndicator.js'
@@ -252,6 +253,7 @@ export default function NetworkStatusScreen({ onBack }: Props) {
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const relayVisible = isRelayFeatureEnabled()
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
@@ -336,6 +338,14 @@ export default function NetworkStatusScreen({ onBack }: Props) {
                 <Field label={t('networkStatus.randomized')} value={formatBool(status?.nat.randomized ?? null, t)} />
                 <Field label={t('networkStatus.ephemeral')}  value={formatBool(status?.nat.ephemeral ?? null, t)} />
               </Section>
+
+              {relayVisible && (
+                <Section title={t('networkStatus.relaying')}>
+                  <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status?.stats.relaying.successes)} />
+                  <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status?.stats.relaying.attempts)} />
+                  <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status?.stats.relaying.aborts)} />
+                </Section>
+              )}
 
               <Section title={t('networkStatus.dht')}>
                 <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status?.routing.tableSize)} />

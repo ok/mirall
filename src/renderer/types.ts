@@ -281,6 +281,7 @@ export interface NetworkStatusStats {
     server: { opened: number; closed: number; attempted: number }
   }
   bannedPeers: number
+  relaying: { attempts: number; successes: number; aborts: number }
 }
 
 export interface NetworkStatus {

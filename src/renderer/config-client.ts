@@ -2,22 +2,46 @@
 import type { ThemeMode } from './theme.js'
 import type { NotificationPrefs } from './notifications/prefs.js'
 
+export type RelayMode = 'off' | 'auto' | 'always'
+
+export interface RelayTestVerdict {
+  at: number
+  ok: boolean
+}
+
+export interface RelayEntry {
+  id: string
+  label: string
+  publicKey: string
+  enabled: boolean
+  lastTest: RelayTestVerdict | null
+}
+
 export interface RendererConfig {
   appearance: { theme: ThemeMode; locale: string | null }
   notifications: NotificationPrefs | null
   ui: { lastSeenVersion: string | null; feedbackEmail: string }
+  // Bandwidth caps share this group; main owns them via its own setBandwidth path,
+  // so they are readable here but never written through setConfig.
+  network: { downloadKBps: number; uploadKBps: number; relayMode: RelayMode; relays: RelayEntry[] }
+  // Read-only: main populates it from feature-flags.json and setRenderer has no
+  // counterpart, so the renderer can observe a flag but never write one.
+  features: { relay: boolean }
 }
 
 export interface RendererConfigPatch {
   appearance?: { theme?: ThemeMode; locale?: string }
   notifications?: NotificationPrefs
   ui?: { lastSeenVersion?: string; feedbackEmail?: string }
+  network?: { relayMode?: RelayMode; relays?: RelayEntry[] }
 }
 
 const FALLBACK: RendererConfig = {
   appearance: { theme: 'system', locale: null },
   notifications: null,
   ui: { lastSeenVersion: null, feedbackEmail: '' },
+  network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [] },
+  features: { relay: false },
 }
 
 // INVARIANT — read this before adding a setting or "optimizing" a setter.
@@ -35,6 +59,11 @@ const cache: RendererConfig = window.bridge?.getConfig?.() ?? FALLBACK
 
 function persist(patch: RendererConfigPatch): void {
   window.bridge?.setConfig?.(patch)
+}
+
+async function persistAndAdopt(patch: RendererConfigPatch): Promise<RendererConfig> {
+  const stored = await window.bridge?.setConfig?.(patch)
+  return stored ?? cache
 }
 
 // One-time fold of the pre-unification localStorage keys into config.json, then
@@ -129,4 +158,30 @@ export function getFeedbackEmail(): string {
 export function setFeedbackEmail(email: string): void {
   cache.ui.feedbackEmail = email
   persist({ ui: { feedbackEmail: email } })
+}
+
+// Flags reach the renderer through the boot snapshot (sendSync), so a gated section
+// resolves on first paint rather than mounting absent and popping in.
+export function isRelayFeatureEnabled(): boolean {
+  return cache.features.relay === true
+}
+
+export function getRelayMode(): RelayMode {
+  return cache.network.relayMode
+}
+
+export function getRelays(): RelayEntry[] {
+  return cache.network.relays
+}
+
+// One round trip for both fields, and the cache adopts what main actually stored —
+// main drops duplicates, caps the list and truncates labels, so the optimistic array
+// can differ from the persisted one.
+export async function persistRelayConfig(mode: RelayMode, relays: RelayEntry[]): Promise<RelayEntry[]> {
+  cache.network.relayMode = mode
+  cache.network.relays = relays
+  const stored = await persistAndAdopt({ network: { relayMode: mode, relays } })
+  cache.network.relayMode = stored.network.relayMode
+  cache.network.relays = stored.network.relays
+  return stored.network.relays
 }

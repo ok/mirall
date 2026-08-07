@@ -21,7 +21,7 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap']
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
   'dev', 'verbose',
-  'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled',
+  'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled', 'relayEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -149,6 +149,10 @@ function buildConfig(next) {
   // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
   // only an explicit `false` reverts.
   out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
+  // Relay config is carried whether or not the flag is on; relayEnabled is the gate,
+  // and setRelayThrough refuses to install a relay function without it.
+  out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
+  out.relays = Array.isArray(next?.relays) ? next.relays : []
   return out
 }
 
@@ -201,6 +205,19 @@ export function isSharePrepareProgressEnabled() {
 
 export function isSeparateContentPlaneEnabled() {
   return config.separateContentPlane
+}
+
+export function isRelayEnabled() {
+  return config.relayEnabled
+}
+
+export function getRelayConfig() {
+  return { mode: config.relayMode, relays: config.relays }
+}
+
+export function setRelayConfig(mode, relays) {
+  const relayMode = mode === 'auto' || mode === 'always' ? mode : 'off'
+  config = { ...config, relayMode, relays: Array.isArray(relays) ? relays : [] }
 }
 
 export function getOverlayServeLimit() {

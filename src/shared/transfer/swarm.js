@@ -25,12 +25,14 @@ import {
   recordJoinRequest, listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
   pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, ownLooseCatalogPublish, persistLeftTombstone,
 } from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow } from '../core/runtime-config.js'
+import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled } from '../core/runtime-config.js'
+import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
+import BlindRelay from 'blind-relay'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
 import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
-import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, contentPlaneHasPeer, getContentPlaneStatus } from './content-swarm.js'
+import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, contentPlaneHasPeer, getContentPlaneStatus, getContentSwarm } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
@@ -1880,7 +1882,15 @@ function snapshotStats() {
       server: { opened: sv.opened || 0, closed: sv.closed || 0, attempted: sv.attempted || 0 },
     },
     bannedPeers: s.bannedPeers || 0,
+    relaying: snapshotRelayingStats(),
   }
+}
+
+// hyperdht counts relayed connection attempts on the DHT node, not the swarm, so this
+// reads through to the shared node rather than swarm.stats.
+function snapshotRelayingStats() {
+  const r = swarm?.dht?.stats?.relaying || {}
+  return { selected: relaySelections, attempts: r.attempts || 0, successes: r.successes || 0, aborts: r.aborts || 0 }
 }
 
 function offlineStatusSnapshot() {
@@ -1905,9 +1915,74 @@ function offlineStatusSnapshot() {
         server: { opened: 0, closed: 0, attempted: 0 },
       },
       bannedPeers: 0,
+      relaying: { selected: 0, attempts: 0, successes: 0, aborts: 0 },
     },
     versions: { dht: DHT_VERSION },
   }
+}
+
+// === Blind relay ===
+
+const RELAY_PROBE_TIMEOUT_MS = 10000
+
+// hyperdht increments dht.stats.relaying only on its ANNOUNCE path (server.js:630-681);
+// the dialing side is never counted. Since the relay function is ours, counting its
+// selections is the one signal that covers both directions — without it the diagnostics
+// read 0 on the peer doing the relaying, which is precisely the peer checking.
+let relaySelections = 0
+
+// BOTH swarms, always. The content plane carries every file byte, so configuring only
+// the control swarm produces a build whose handshakes connect and whose transfers stall.
+// Call this after initContentSwarm has run — the two swarms are constructed on
+// consecutive lines and getContentSwarm() is null in between.
+export function setRelayThrough(relays, mode) {
+  const enabled = isRelayEnabled()
+  const keys = enabled ? enabledRelayKeys(relays) : []
+  const fn = enabled ? relayFunctionFor(keys, mode, () => { relaySelections++ }) : null
+  for (const s of [swarm, getContentSwarm()]) {
+    if (!s) continue
+    s.relayThrough = fn
+  }
+  return { applied: fn ? keys.length : 0 }
+}
+
+// A mistyped or stale key is otherwise invisible until a space silently fails to sync
+// weeks later. Reaching the Noise stream only proves something answers on that key, so
+// the verdict waits for the blind-relay protomux channel to open.
+export async function testRelayReachable(publicKey) {
+  if (!isRelayEnabled()) return { ok: false, reason: 'disabled' }
+  const key = decodeRelayKey(publicKey)
+  if (!key) return { ok: false, reason: 'invalid-key' }
+  const dht = swarm?.dht
+  if (!dht) return { ok: false, reason: 'offline' }
+
+  let socket = null
+  let settle = null
+  const verdict = new Promise((resolve) => { settle = resolve })
+  const timer = setTimeout(() => settle({ ok: false, reason: 'timeout' }), RELAY_PROBE_TIMEOUT_MS)
+  timer.unref?.()
+
+  try {
+    socket = dht.connect(key)
+    socket.on('error', () => settle({ ok: false, reason: 'unreachable' }))
+    socket.on('close', () => settle({ ok: false, reason: 'unreachable' }))
+    const client = BlindRelay.Client.from(socket, { id: socket.publicKey })
+    // 'open' fires when the remote opens ITS side of the blind-relay channel, which is
+    // what distinguishes a relay from any other reachable hyperdht node. The Client
+    // class emits only open/close/destroy/pair — it has no 'error' event — so a peer
+    // that answers but speaks no blind-relay is caught by close/destroy or the timeout.
+    client.on('open', () => settle({ ok: true }))
+    client.on('close', () => settle({ ok: false, reason: 'not-a-relay' }))
+    client.on('destroy', () => settle({ ok: false, reason: 'not-a-relay' }))
+  } catch (err) {
+    log.debug('relay probe failed:', err.message)
+    settle({ ok: false, reason: 'unreachable' })
+  }
+
+  const result = await verdict
+  clearTimeout(timer)
+  if (socket) { try { socket.destroy() } catch {} }
+  return result
 }
 
 export function getSwarmStatus() {
@@ -1988,6 +2063,12 @@ const STATUS_FIELDS = [
   (s) => s.stats.connects.server.opened,
   (s) => s.stats.connects.server.closed,
   (s) => s.stats.bannedPeers,
+  // Without these three the status emitter's dedup drops every relay counter change
+  // and the diagnostics screen never updates.
+  (s) => s.stats.relaying.selected,
+  (s) => s.stats.relaying.attempts,
+  (s) => s.stats.relaying.successes,
+  (s) => s.stats.relaying.aborts,
 ]
 
 export function statusEqual(a, b) {

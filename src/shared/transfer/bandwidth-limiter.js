@@ -90,6 +90,18 @@ export function createBandwidthLimiter(getBytesPerSecond, { now = Date.now } = {
       }
     },
 
+    // Returns bytes charged for work that never happened — a chunk assigned to a peer that
+    // then disappeared, or a write that failed and will be re-assigned. Without this the
+    // re-assignment charges the same bytes twice and the achieved rate drifts below the
+    // configured cap for every transfer sharing this (process-wide) limiter.
+    give(bytes) {
+      const bps = ratePerSecond()
+      if (bps === 0 || !(bytes > 0)) return
+      // Capped at one second of budget, like refill: returning more would let a burst of
+      // cancellations bank credit and overshoot the cap on the next assign.
+      tokens = Math.min(bps, tokens + bytes)
+    },
+
     // Retry hook for tryTake callers: fires once `bytes` should be affordable.
     whenAvailable(bytes, cb) {
       waiters.push(cb)

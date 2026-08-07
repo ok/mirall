@@ -346,6 +346,15 @@ re-diffable against upstream. Categories:
     transfer as "stalled". Covered by `test/unit/bandwidth-limiter.test.js` and the two download-cap
     cases in `test/unit/overlay-vendor-scheduler.test.js`.
 
+    **Refund on abandonment.** `_assign` charges a chunk to the download limiter when it hands
+    it to a peer, but the charge is for work that may never happen: `removePeer` returns the
+    peer's in-flight chunks to `needed`, and a TRANSIENT write failure in `onChunkData` does the
+    same. Both re-enter `_assign`, which charges the identical bytes again. `_refund(index)`
+    gives them back (`limiter.give`, capped at one second of budget like `refill`), so the
+    achieved rate does not sink below the configured cap under peer churn — the limiter is a
+    process-wide singleton, so leaked debt from one flapping fetch throttles every concurrent
+    one. Covered by the refund cases in `test/unit/bandwidth-limiter.test.js`.
+
 ## Re-diffing against upstream
 
 ```

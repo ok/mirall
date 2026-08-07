@@ -246,6 +246,8 @@ export class ChunkScheduler {
       this._peerInflight.set(peer, Math.max(0, (this._peerInflight.get(peer) || 1) - 1))
     }
     if (!res.ok) {
+      // [mirall] Same refund as removePeer: a retried chunk is re-charged on re-assign.
+      this._refund(index)
       // [mirall] A coded failure is a local fs error. A TRANSIENT code (device busy,
       // fd pressure, interrupted syscall) can succeed on retry — leave the chunk in
       // `needed` and reassign. Any other coded error (ENOSPC / EACCES / ENOENT / …) is
@@ -297,6 +299,14 @@ export class ChunkScheduler {
   }
 
   /** A peer went away — return its inflight chunks to the pool. */
+  // [mirall] Return a chunk's bytes to the download limiter. Safe to call for any index that
+  // was charged by _assign; a no-op when unthrottled or when the chunk list is gone.
+  _refund (index) {
+    if (!this._limiter || this._limiter.isUnlimited()) return
+    const len = this._chunks?.[index]?.length
+    if (len > 0) this._limiter.give(len)
+  }
+
   removePeer (peer) {
     const wasRequested = this._requested.delete(peer)
     if (!this._peers.has(peer)) {
@@ -310,7 +320,12 @@ export class ChunkScheduler {
     this._peers.delete(peer)
     this._peerInflight.delete(peer)
     for (const [index, p] of this._inflight) {
-      if (p === peer) this._inflight.delete(index) // back to needed (still in _needed)
+      if (p !== peer) continue
+      this._inflight.delete(index) // back to needed (still in _needed)
+      // [mirall] The assign charged these bytes to the download limiter; the peer never
+      // delivered them, and _assign() below re-charges the same chunk. Refund, or the
+      // bucket leaks on every peer churn and the achieved rate sinks below the cap.
+      this._refund(index)
     }
     if (this._done) return
     if (this._peers.size === 0 && this._requested.size === 0 && this._needed.size > 0) {

@@ -17,6 +17,7 @@
 import { createLocalBee } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { buildRecord } from './audit-record.js'
+import { STATE_OFF } from './peer-observer.js'
 import {
   AGE_HYSTERESIS,
   DEFAULT_MAX_ENTRIES,
@@ -128,12 +129,16 @@ function admit(kind) {
 
 // Fire-and-forget from every call site: auditing must never fail, slow, or throw into the
 // operation it describes. Failures are logged and swallowed.
+// Returns whether the row was ADMITTED (log open, enabled, within the rate budget). The
+// write itself stays fire-and-forget, but callers that mirror "we recorded this" into
+// durable state need to know when nothing was recorded at all.
 export function record(kind, fields = {}) {
-  if (!bee || !config.enabled) return
-  if (!admit(kind)) return
+  if (!bee || !config.enabled) return false
+  if (!admit(kind)) return false
   writeChain = writeChain
     .then(() => append(kind, fields))
     .catch((err) => log.warn('write failed:', kind, err.message))
+  return true
 }
 
 function withSelfIdentity(actor) {
@@ -255,10 +260,16 @@ export async function queryAudit({
 // The spaces the LOG knows about — not the spaces the user is currently in. Rows survive a
 // space leave (which deletes the spaces-meta record), and they must stay filterable, so the
 // viewer's space filter reads this rather than spaces:list.
+// Both walk newest-first under the same SCAN_BUDGET as queryAudit. These fill the filter
+// dropdowns, and the Activity Log fires both on every open — an unbounded scan of a
+// 200k-row encrypted bee stalls the single worker loop that also runs transfers. Bounded
+// means the lists describe recent activity, which is what a filter is for.
 export async function auditSpaces() {
   if (!bee) return []
   const seen = new Map()
+  let walked = 0
   for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true })) {
+    if (walked++ >= SCAN_BUDGET) break
     const space = entry.value?.space
     if (space?.id && !seen.has(space.id)) seen.set(space.id, space.name || null)
   }
@@ -268,7 +279,9 @@ export async function auditSpaces() {
 export async function auditActors() {
   if (!bee) return []
   const seen = new Map()
+  let walked = 0
   for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true })) {
+    if (walked++ >= SCAN_BUDGET) break
     const actor = entry.value?.actor
     if (actor?.key && !seen.has(actor.key)) seen.set(actor.key, actor.name || null)
   }
@@ -282,8 +295,9 @@ export async function auditStats() {
   if (oldest < 0) return { count: 0, oldestTs: null, newestTs: null, oldestSeq: null, newestSeq: null }
   const first = await bee.get(evtKey(oldest))
   const last = await bee.get(evtKey(newest))
-  let count = 0
-  for await (const _entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) count += 1
+  // seqs are dense: appends increment nextSeq and pruning only ever deletes a contiguous
+  // prefix, so the row count is derivable without walking the whole range.
+  const count = newest - oldest + 1
   return {
     count,
     oldestTs: first?.value?.ts ?? null,
@@ -316,7 +330,11 @@ export async function getPeerSubjectState(key) {
 
 export async function setPeerSubjectState(key, state) {
   if (!bee) return
-  await bee.put(PSTATE + key, state)
+  // 'off' is the absence of a subject, so drop the key instead of storing a tombstone that
+  // lives forever. Otherwise every path a peer ever shared leaves a permanent row — a peer
+  // that shares and unshares 50k loose files would keep 50k keys for good.
+  if (state === STATE_OFF) await bee.del(PSTATE + key)
+  else await bee.put(PSTATE + key, state)
 }
 
 export function getAuditConfig() {
@@ -349,6 +367,7 @@ export async function pruneAudit({ now = Date.now() } = {}) {
     // Forward walk from the oldest row: the first run of rows younger than the cutoff ends the
     // scan, using the same hysteresis as the query so a clock jump cannot over-prune.
     let aboveAge = 0
+    let firstYoungSeq = null
     for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) {
       const rec = entry.value
       if (!rec) continue
@@ -357,9 +376,18 @@ export async function pruneAudit({ now = Date.now() } = {}) {
         aboveAge = 0
         continue
       }
+      if (firstYoungSeq === null) firstYoungSeq = rec.seq
       aboveAge += 1
       if (aboveAge >= AGE_HYSTERESIS) break
     }
+    // Deletion is inclusive of the watermark, so it must never reach a row inside the
+    // retention window. A clock step-back can put a stale ts AFTER fresh rows, which
+    // would otherwise drag the watermark past them — the hysteresis above only ends the
+    // scan, it does not stop the watermark advancing. Cap at the first young row.
+    if (firstYoungSeq !== null && seqAtOrBelowAge !== null && seqAtOrBelowAge >= firstYoungSeq) {
+      seqAtOrBelowAge = firstYoungSeq - 1
+    }
+    if (seqAtOrBelowAge !== null && seqAtOrBelowAge < 0) seqAtOrBelowAge = null
   }
 
   const upTo = pruneUpTo({
@@ -392,6 +420,12 @@ export async function purgeAudit() {
     purged += 1
   }
   for await (const entry of bee.createReadStream({ gte: BY_SPACE, lt: BY_SPACE + HIGH })) {
+    await bee.del(entry.key)
+  }
+  // The per-peer observed-state mirror is part of the log, not of replication state: leaving
+  // it behind both defeats "delete all activity" as a privacy action and suppresses the next
+  // standing-state row for every subject (the mirror would still read 'on').
+  for await (const entry of bee.createReadStream({ gte: PSTATE, lt: PSTATE + HIGH })) {
     await bee.del(entry.key)
   }
   rateBuckets.clear()

@@ -137,7 +137,7 @@ export interface MirallBridge {
   getPrefs(): Promise<AppPrefs>
   setPrefs(partial: Partial<AppPrefs>): Promise<AppPrefs>
   getConfig(): RendererConfig
-  setConfig(patch: RendererConfigPatch): Promise<void>
+  setConfig(patch: RendererConfigPatch): Promise<RendererConfig>
   setTrayLabels(labels: TrayLabels): Promise<void>
   menuContextChanged(ctx: MenuContext): Promise<void>
   onFirstHideNotice(listener: (payload: FirstHideNoticePayload) => void): () => void
