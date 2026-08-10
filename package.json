@@ -60,7 +60,7 @@
     "app-builder-lib": "^26.15.3",
     "bare-runtime": "^1.30.3",
     "brittle": "^4.1.0",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "electron": "^42.8.0",
     "electron-forge-plugin-prune-prebuilds": "^1.0.1",
     "electron-forge-plugin-universal-prebuilds": "^1.0.0",
