@@ -5,16 +5,21 @@
   "schedule": ["before 8am on Monday"],
   "baseBranchPatterns": ["staging"],
   "labels": ["dependencies"],
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "rangeStrategy": "bump",
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
-      "description": "Routine dependency updates auto-merge once CI passes; with rebaseWhen above, Renovate keeps them rebased so package-lock conflicts resolve without manual cycles. The smoke-test groups below come after and override this back to manual for their packages.",
+      "description": "Routine updates are flagged for automerge, but be aware this has never actually fired — every dependency PR so far was merged by hand. GitHub's auto-merge is only offered on PRs blocked by something (required status checks or reviews) and this repo has neither, so Renovate falls back to its own automerge, which only runs when the weekly workflow runs. By then rebaseWhen has usually just rebased the branch and CI is pending again. The flag is kept because the intent is right: it starts working the moment either a more frequent Renovate cron or required status checks exist. The smoke-test groups below come after and override this back to manual for their packages.",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeStrategy": "squash"
+    },
+    {
+      "description": "Majors are adopted deliberately, and several are blocked upstream for months at a time (eslint 10 on eslint-plugin-jsx-a11y's peer range, typescript 7 on typescript-eslint's). An open PR for one of those sits untouched indefinitely, occupying a prConcurrentLimit slot and getting rebased plus fully re-tested every run. Queue them on the dependency dashboard instead: they stay visible as checkboxes and only become a branch when someone ticks one.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Pear runtime hosts the worker process; bump deliberately and smoke-test OTA, DMG, MSIX, AppImage, and native modules before merging",
