@@ -10,6 +10,38 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## v1.8.0
+### 2026-08-11
+
+#### Added
+
+- **A record of what happened in your spaces.** The new Activity Log
+  gathers what's gone on — who joined, left, or was approved, files
+  shared and downloaded, folders shared and mirrored, and requests that
+  were refused. It's kept on your device only and never leaves it. Open
+  it from your Account page, then search it or narrow it down by space,
+  person, category, or date. Entries stay readable even for spaces
+  you've since left. Settings → Activity Log turns recording off, sets
+  how long events are kept (30, 90, or 365 days), exports everything as
+  JSON, or deletes the log outright.
+- **Limit how much bandwidth Mirall uses.** A new Network page in
+  Settings caps download and upload speed — pick 1, 5, or 25 MB/s,
+  type your own figure, or leave it unlimited. A change takes effect
+  straight away, including on transfers already running. The cap
+  covers file transfers only: keeping your spaces and members in sync
+  is left alone, since it uses very little data and slowing it down
+  would stop new folders from appearing.
+
+#### Fixed
+
+- **A shared folder that comes back is no longer flagged as missing.**
+  If the folder you shared went away and returned quickly — an external
+  drive reconnecting, a network share remounting — the "source missing"
+  warning on the folder and on its card stayed up even though
+  everything was working again. The warning now clears as soon as the
+  folder is back.
+
+
 ## v1.7.1
 ### 2026-08-05
 
