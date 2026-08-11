@@ -16,21 +16,22 @@ changes do not appear here.
 #### Added
 
 - **A record of what happened in your spaces.** The new Activity Log
-  gathers what's gone on — who joined, left, or was approved, files
-  shared and downloaded, folders shared and mirrored, and requests that
-  were refused. It's kept on your device only and never leaves it. Open
-  it from your Account page, then search it or narrow it down by space,
-  person, category, or date. Entries stay readable even for spaces
-  you've since left. Settings → Activity Log turns recording off, sets
-  how long events are kept (30, 90, or 365 days), exports everything as
-  JSON, or deletes the log outright.
+  gathers who joined, left, or was approved, and what was shared and
+  downloaded — kept on your device only. Open it from your Account
+  page, then search it or narrow it down by space, person, or date.
+  Settings → Activity Log turns recording off, sets how long events are
+  kept, or clears the log.
 - **Limit how much bandwidth Mirall uses.** A new Network page in
-  Settings caps download and upload speed — pick 1, 5, or 25 MB/s,
-  type your own figure, or leave it unlimited. A change takes effect
-  straight away, including on transfers already running. The cap
-  covers file transfers only: keeping your spaces and members in sync
-  is left alone, since it uses very little data and slowing it down
-  would stop new folders from appearing.
+  Settings caps download and upload speed — pick a preset, type your
+  own figure, or leave it unlimited. A change takes effect straight
+  away, including on transfers already running. The cap covers file
+  transfers only, so your spaces and members keep syncing normally.
+- **A download folder of its own for each space.** Each space can save
+  its downloads wherever suits it — set Download Folder in Edit Space.
+  Spaces you leave alone keep using the folder from Settings → Storage,
+  and "Use default folder" puts a space back on it. Files you already
+  downloaded aren't moved, and a folder you share or mirror can't be
+  used, since anything landing there would be published to your peers.
 
 #### Fixed
 
