@@ -71,7 +71,7 @@
     "hyperdht": "^6.32.0",
     "i18next": "^26.3.6",
     "knip": "^6.25.0",
-    "marked": "^18.0.6",
+    "marked": "^18.0.9",
     "modern-screenshot": "^4.7.0",
     "react": "^19.2.7",
     "react-aria": "^3.50.0",
