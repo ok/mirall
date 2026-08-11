@@ -3,7 +3,7 @@
   "extends": ["config:recommended", ":dependencyDashboard"],
   "timezone": "Europe/Berlin",
   "schedule": ["before 8am on Monday"],
-  "baseBranches": ["staging"],
+  "baseBranchPatterns": ["staging"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
@@ -51,6 +51,11 @@
       "groupName": "electron",
       "labels": ["dependencies", "needs-smoke-test"],
       "automerge": false
+    },
+    {
+      "description": "hyperdht 6.33.0 rewrote the LAN shortcut in lib/connect.js to race the LAN ping against holepunch, which degrades connection setup on the loopback testnet under Linux CI — every flow shard times out waiting for member-join-request while macOS passes (see issue #13). Cap below 6.33.0 so the known-bad version cannot land unattended, while patches on the 6.32 line still flow through the holepunch group. Raise this only after a Linux runner proves the newer version green.",
+      "matchPackageNames": ["hyperdht"],
+      "allowedVersions": "<6.33.0"
     }
   ],
   "lockFileMaintenance": {
