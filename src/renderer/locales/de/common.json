@@ -305,7 +305,13 @@
   },
   "editSpace": {
     "title": "Raum bearbeiten",
-    "desc": "Aktualisiere Name und Symbol dieses Raums."
+    "desc": "Aktualisiere Name, Symbol und Download-Ordner für diesen Raum.",
+    "downloadFolder": "Download-Ordner",
+    "downloadFolderDesc": "Hier werden Dateien gespeichert, die du aus diesem Raum lädst. Bereits anderswo geladene Dateien werden nicht verschoben.",
+    "usingDefault": "Der Standard-Download-Ordner wird verwendet.",
+    "useDefault": "Standardordner verwenden",
+    "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",
+    "saveError": "Änderungen konnten nicht gespeichert werden: {{error}}"
   },
   "joinSpace": {
     "title": "Raum beitreten",

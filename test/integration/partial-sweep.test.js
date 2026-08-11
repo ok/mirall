@@ -50,3 +50,56 @@ test('cleanupOrphanedPartials is a no-op on a missing downloads dir', async (t) 
   await cleanupOrphanedPartials(path.join('/nonexistent', 'dl-' + Date.now()))
   t.pass('returns without throwing when the dir does not exist')
 })
+
+// Per-space download folders mean there is no longer a single downloads dir. A root
+// the sweep skips leaks crash-orphaned partials forever, so every root must be walked
+// and one missing root must not abort the rest.
+test('cleanupOrphanedPartials walks every download root and skips missing ones', async (t) => {
+  const { downloads, tmpDir } = await freshPeer(t)
+  await initPendingTransfers()
+  const second = tmpDir('dl-space')
+  const inGlobal = path.join(downloads, 'a.bin.mirall.part')
+  const inSecond = path.join(second, 'b.bin.mirall.part')
+  for (const f of [inGlobal, inSecond]) fs.writeFileSync(f, 'half')
+
+  const missing = path.join('/nonexistent', 'dl-' + Date.now())
+  await cleanupOrphanedPartials([downloads, missing, second])
+
+  t.absent(fs.existsSync(inGlobal), 'orphan in the global root swept')
+  t.absent(fs.existsSync(inSecond), 'orphan in a per-space root swept')
+})
+
+test('cleanupOrphanedPartials deduplicates repeated roots', async (t) => {
+  const { downloads } = await freshPeer(t)
+  await initPendingTransfers()
+  const orphan = path.join(downloads, 'dup.bin.mirall.part')
+  fs.writeFileSync(orphan, 'half')
+
+  const res = await cleanupOrphanedPartials([downloads, downloads, downloads])
+
+  // Asserting only that the orphan is gone passes with or without the dedup — the repeat
+  // passes would simply find nothing left. The scan count is what actually proves it.
+  t.is(res.rootsScanned, 1, 'three copies of one root are walked once')
+  t.absent(fs.existsSync(orphan), 'and the orphan is swept')
+})
+
+// REGRESSION (PART-2): only ENOENT was tolerated, so any other readdir failure was rethrown —
+// abandoning every remaining root AND the foreign-mount sweep in the same call, with the sole
+// caller swallowing it as one log line. Per-space roots multiply the exposure to N user-chosen
+// folders that are validated when they are set and never again.
+test('cleanupOrphanedPartials skips an unreadable root and still sweeps the rest', async (t) => {
+  const { downloads, tmpDir } = await freshPeer(t)
+  await initPendingTransfers()
+  const second = tmpDir('dl-space')
+  const orphan = path.join(second, 'late.bin.mirall.part')
+  fs.writeFileSync(orphan, 'half')
+  // A root that is a FILE, not a directory: readdir fails with ENOTDIR, standing in for the
+  // EACCES / EIO / ENOTCONN an ejected volume or a stale network mount produces.
+  const notADir = path.join(downloads, 'not-a-folder')
+  fs.writeFileSync(notADir, 'x')
+
+  const res = await cleanupOrphanedPartials([notADir, second])
+
+  t.is(res.failed, 1, 'the bad root is counted, not thrown')
+  t.absent(fs.existsSync(orphan), 'a root listed after it is still swept')
+})

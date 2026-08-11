@@ -19,6 +19,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
@@ -136,7 +137,9 @@ test('resolveRevealTarget prefers a downloaded landed path over the owned source
 
 test('markDownloaded records the actual landed path for reveal/status', async (t) => {
   const { spaceId, tmpDir } = await setup(t)
-  const landed = path.join(tmpDir('dl'), 'remote (1).txt')
+  const dir = tmpDir('dl')
+  setSpaceDownloadRoot(spaceId, dir)
+  const landed = path.join(dir, 'remote (1).txt')
   fs.writeFileSync(landed, 'bytes')
   await markDownloaded(spaceId, '/remote.txt', landed)
   t.is(await getDownloadedPath(spaceId, '/remote.txt'), landed)
@@ -148,7 +151,9 @@ test('markDownloaded records the actual landed path for reveal/status', async (t
 // (and the stale claim is pruned), so a re-share never shows a phantom copy.
 test('isDownloadedFile drops the claim once the landed file is gone', async (t) => {
   const { spaceId, tmpDir } = await setup(t)
-  const landed = path.join(tmpDir('dl'), 'r.txt')
+  const dir = tmpDir('dl')
+  setSpaceDownloadRoot(spaceId, dir)
+  const landed = path.join(dir, 'r.txt')
   fs.writeFileSync(landed, 'bytes')
   await markDownloaded(spaceId, '/r.txt', landed, { hash: 'h1' })
   t.ok(await isDownloadedFile(spaceId, '/r.txt', 'h1'), 'present + hash match → downloaded')

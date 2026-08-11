@@ -305,7 +305,13 @@
   },
   "editSpace": {
     "title": "Editar espacio",
-    "desc": "Actualiza el nombre y el icono de este espacio."
+    "desc": "Actualiza el nombre, el icono y la carpeta de descargas de este espacio.",
+    "downloadFolder": "Carpeta de descargas",
+    "downloadFolderDesc": "Dónde se guardan los archivos que descargas de este espacio. Los archivos ya descargados en otra ubicación no se mueven.",
+    "usingDefault": "Se usa la carpeta de descargas predeterminada.",
+    "useDefault": "Usar carpeta predeterminada",
+    "folderError": "No se pudo establecer la carpeta: {{error}}",
+    "saveError": "No se pudieron guardar los cambios: {{error}}"
   },
   "joinSpace": {
     "title": "Unirse a un espacio",

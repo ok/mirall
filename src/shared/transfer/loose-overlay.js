@@ -15,7 +15,7 @@ import {
 import { markListIncomplete } from './list-deficits.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from './files.js'
 import { getPendingFor, recordPending } from './pending-transfers.js'
-import { resolveDest } from './download-dest.js'
+import { reuseDest } from './download-dest.js'
 import { record } from '../audit/audit-log.js'
 import { observePeerCatalog } from '../audit/peer-watch.js'
 import { getDownloadDir } from '../core/paths.js'
@@ -317,13 +317,15 @@ async function buildLooseJob (spaceId, member, drivePath, prevPending, entry) {
   entry = entry || await getPeerEntry(keyHex, LOOSE_SHARE_ID, relPath, { sck })
   if (!entry?.contentHash) return null
   const pending = prevPending || await getPendingFor(spaceId, drivePath)
-  const finalPath = pending?.finalPath || resolveDest(getDownloadDir(), path.basename(relPath))
+  // Re-anchored when the recorded destination no longer sits in the space's download folder
+  // (the user re-pointed the space while this row was paused) — see reuseDest.
+  const finalPath = reuseDest(pending?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
   return {
     spaceId, pendingKey: drivePath, path: drivePath, relPath,
     transferId: looseTransferIdFor(spaceId, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
     ownerPublicKey: member.publicKey, verifyKey: LOOSE_SHARE_ID + '|' + relPath,
-    finalPath, prevBytes: pending?.bytesTransferred,
+    finalPath, prevBytes: finalPath === pending?.finalPath ? pending.bytesTransferred : 0,
   }
 }
 

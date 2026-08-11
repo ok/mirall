@@ -12,7 +12,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
-import { getDownloadDir } from '../shared/core/paths.js'
+import { hydrateDownloadRoots, setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { initStore, getStore, setMasterSecret } from '../shared/core/store.js'
@@ -53,7 +53,7 @@ import {
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
-import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload } from '../shared/transfer/files.js'
+import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload, claimedPathFor } from '../shared/transfer/files.js'
 import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
@@ -82,7 +82,7 @@ import { ensureFolderMirrorsCap, publishMirror, ensureMirror } from '../shared/f
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
-import { validateMountPath, validateDownloadFolder } from '../shared/folders/mount-validate.js'
+import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import { relKeyEscapes } from '../shared/folders/path-keys.js'
 import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
@@ -99,6 +99,20 @@ import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMo
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
+
+// Main authorizes "reveal in folder" against these, and cannot read the space records
+// that hold the per-space overrides, so the set is pushed to it on every change.
+function publishDownloadRoots() {
+  ipc.emit('main-request', { command: 'downloads:roots', args: { roots: listDownloadRoots() } })
+}
+
+// Dropping a root is a NARROWING of that allowlist, so it has to be published like any other
+// change: main's copy is push-only, and a forget that never republishes leaves it authorizing
+// reveals under a departed space's folder for the rest of the process lifetime.
+function dropSpaceDownloadRoot(spaceId) {
+  forgetSpaceDownloadRoot(spaceId)
+  publishDownloadRoots()
+}
 
 // === Crash safety & shutdown ===
 
@@ -297,6 +311,14 @@ for (const space of knownSpaces) {
   }
 }
 const activeSpaces = knownSpaces.filter((s) => !s.leaving)
+// Hydrated here, from the spaces that SURVIVED the interrupted-leave pass above, and off the
+// scan that pass already did. A space being left keeps no download root: hydrating it would
+// leak a dead space's folder into main's reveal allowlist and into mount validation for the
+// whole session (the resume path purges the record without going through space:leave's forget).
+// Safe this late — nothing between store init and here reads a download root, and ipc.start()
+// (which admits the first frame that could) is the last statement in this module.
+hydrateDownloadRoots(activeSpaces)
+publishDownloadRoots()
 for (const space of activeSpaces) {
   try { await markOwnMembership(space.spaceId) } catch (err) {
     log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
@@ -716,6 +738,7 @@ async function discardPendingSpace(spaceId) {
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', err.message) }
     try { await cleanupSpaceDrives(spaceId, peerMembers) } catch (err) { log.warn('discard pending: peer-drive cleanup failed:', err.message) }
     try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', err.message) }
+    dropSpaceDownloadRoot(spaceId)
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', err.message) }
   } finally {
     unmarkSpaceLeaving(spaceId)
@@ -729,7 +752,10 @@ try {
   // write partials at the file's nested location), reclaiming crash-orphaned partials
   // while keeping any a paused/in-flight transfer can still resume from.
   const foreignDirs = (await listForeignMounts()).map((m) => m.mountPath)
-  await cleanupOrphanedPartials(getDownloadDir(), foreignDirs)
+  const sweep = await cleanupOrphanedPartials(listDownloadRoots(), foreignDirs)
+  if (sweep.swept || sweep.failed) {
+    log.info('partial sweep:', sweep.swept, 'reclaimed across', sweep.rootsScanned, 'roots,', sweep.failed, 'unreadable')
+  }
 } catch (err) {
   log.warn('partial sweep failed:', err.message)
 }
@@ -1104,13 +1130,6 @@ function statSizeOrNull(absPath) {
   try { return fs.statSync(absPath).size } catch { return null }
 }
 
-function pathFromDownloadDir(drivePath) {
-  const dir = getDownloadDir()
-  const sep = dir.includes('\\') ? '\\' : '/'
-  const basename = drivePath.split('/').pop() || ''
-  return dir.replace(/[/\\]+$/, '') + sep + basename
-}
-
 // Consumer-side status for a catalog-backed overlay share row. A null contentHash means
 // the owner is still hashing → `preparing` while the owner is online, else `unavailable`
 // (entries are advertised before hashing completes). Downloads land in the downloads folder and are recorded in the downloaded
@@ -1134,7 +1153,7 @@ async function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignM
   const drivePath = '/' + share.name + '/' + entry.relPath
   if (await isDownloadedFile(spaceId, drivePath, entry.contentHash)) {
     const verified = await isVerifiedDownload(spaceId, share.id + '|' + entry.relPath, entry.contentHash)
-    return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || pathFromDownloadDir(drivePath), verified }
+    return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || claimedPathFor(drivePath, null), verified }
   }
   // A failed (non-active) download surfaces as 'error' with the code, so the row
   // offers Retry/Dismiss + the message — parity with the loose path, instead of a
@@ -1224,7 +1243,7 @@ ipc.handle('share:reveal-file', async (msg) => {
       target = pathFromMount(foreignMount.mountPath, msg.relPath)
     } else {
       const drivePath = '/' + share.name + '/' + msg.relPath
-      target = (await getDownloadedPath(msg.spaceId, drivePath)) || pathFromDownloadDir(drivePath)
+      target = (await getDownloadedPath(msg.spaceId, drivePath)) || claimedPathFor(drivePath, null)
     }
   }
   return revealLocalPath(target)
@@ -1780,8 +1799,21 @@ ipc.handle('space:update', async (msg) => {
   const space = await getSpace(msg.spaceId)
   if (space?.status === 'pending') return null
   log.info('updating space:', msg.spaceId)
-  const updated = await updateSpace(msg.spaceId, msg.name, msg.icon)
+  // Tri-state: absent leaves the override alone, null clears it, a string is validated.
+  let downloadFolder
+  if (msg.downloadFolder !== undefined) {
+    downloadFolder = msg.downloadFolder === null
+      ? null
+      : await validateDownloadFolderAgainstMounts(msg.downloadFolder)
+  }
+  const updated = await updateSpace(msg.spaceId, msg.name, msg.icon, { downloadFolder })
   if (updated) {
+    if (downloadFolder !== undefined) {
+      setSpaceDownloadRoot(msg.spaceId, downloadFolder)
+      publishDownloadRoots()
+      // Every row's downloaded status derives from the root, so re-derive the file views.
+      ipc.emit('event:files-updated', { spaceId: msg.spaceId })
+    }
     record('space.updated', {
       actor: selfActor(),
       space: spaceRef(updated),
@@ -1950,6 +1982,7 @@ ipc.handle('space:leave', async (msg) => {
       try { await forgetSpaceRecord(msg.spaceId) } catch (err) {
         log.warn('leave: catalog record delete failed:', err.message)
       }
+      dropSpaceDownloadRoot(msg.spaceId)
 
       // Cache-size precompute is best-effort; cap at 2s so a stuck drive read
       // can't block the rest of the leave teardown.
@@ -2190,8 +2223,12 @@ ipc.handle('storage:free-space', async () => {
 })
 
 ipc.handle('settings:set-download-folder', async (msg) => {
-  const folder = validateDownloadFolder(msg?.folder)
+  // Same mount-overlap rejection as a per-space folder: the global root is the effective root
+  // of every space that never overrode it, so pointing it into a folder the user shares or
+  // mirrors publishes their downloads to peers just as surely.
+  const folder = await validateDownloadFolderAgainstMounts(msg?.folder)
   setDownloadFolder(folder)
+  publishDownloadRoots()
   return { ok: true }
 })
 

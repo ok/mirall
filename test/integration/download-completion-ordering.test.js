@@ -6,6 +6,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { initDownloads, markDownloaded, markVerified, isDownloadedFile, peerFileStatus } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 
 const here = path.dirname(url.fileURLToPath(import.meta.url))
 const engineSrc = fs.readFileSync(
@@ -37,7 +38,9 @@ test('a pending row lingering after markDownloaded is masked by the downloaded s
   const space = await createSpace('Aurora')
   const spaceId = space.spaceId
 
-  const landed = path.join(tmpDir('dl-landed'), 'report.pdf')
+  const dir = tmpDir('dl-landed')
+  setSpaceDownloadRoot(spaceId, dir)
+  const landed = path.join(dir, 'report.pdf')
   fs.writeFileSync(landed, 'downloaded bytes')
   const drivePath = '/report.pdf'
 

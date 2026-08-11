@@ -305,7 +305,13 @@
   },
   "editSpace": {
     "title": "Modifier l'espace",
-    "desc": "Mettez à jour le nom et l'icône de cet espace."
+    "desc": "Modifiez le nom, l'icône et le dossier de téléchargement de cet espace.",
+    "downloadFolder": "Dossier de téléchargement",
+    "downloadFolderDesc": "Emplacement où sont enregistrés les fichiers que vous téléchargez depuis cet espace. Les fichiers déjà téléchargés ailleurs ne sont pas déplacés.",
+    "usingDefault": "Le dossier de téléchargement par défaut est utilisé.",
+    "useDefault": "Utiliser le dossier par défaut",
+    "folderError": "Impossible de définir le dossier : {{error}}",
+    "saveError": "Impossible d'enregistrer les modifications : {{error}}"
   },
   "joinSpace": {
     "title": "Rejoindre un espace",

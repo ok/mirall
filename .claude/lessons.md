@@ -66,6 +66,41 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 
 **"Which code path throws X" is a hypothesis — read the library's exact throw CONDITION and reproduce before a targeted fix/self-heal.** hypercore/corestore behavior changes entirely with call shape (by-key vs by-discoveryKey vs by-name): `STORAGE_EMPTY` fires ONLY for open-by-discovery-key with no key/manifest (replication machinery serving a zombie core), never open-by-key. A truncated async stack naming only low-level frames is NOT evidence of the high-level caller. When the on-disk corruption can't be fabricated reliably, test the GUARANTEE at a deterministic layer instead. Here the real fix was process-level: a Bare worker with no `Bare.on('uncaughtException'|'unhandledRejection')` handler turns any unhandled rejection into total death — install the backstop, tested directly under brittle-bare.
 
+**A "not present" check that PRUNES its own record makes the state change one-way.** The downloads
+claim (`downloads-meta`) is verified against disk on every listing, and every failing branch used to
+`del` the row. Adding a second reason to report not-downloaded — the file sits outside the space's
+current download folder — must NOT reuse that branch: pruning there would mean re-pointing the space
+at the old folder can never restore the status, because the evidence is gone. Order the checks by
+whether the claim is worthless (file deleted, upstream hash changed → prune) or merely out of scope
+(→ report false, keep the row). Generally: before adding a condition to a predicate that has
+side effects, check whether the new condition is *reversible* — if it is, it does not belong in the
+destructive path.
+
+**Scope a stored claim against the setting the user PROMISED, not against the effective value.**
+`getDownloadDir(spaceId)` falls back to the global root, so "is this file inside the space's
+download folder?" silently answered "no" for every space that never overrode it as soon as the
+GLOBAL folder changed — un-downloading hundreds of untouched files and inviting a duplicate
+re-fetch of each. The per-space override is a promise about one named folder; inheriting a default
+is not a promise about anything, so only the override may narrow scope. Generally: when a value has
+an explicit-vs-inherited form, ask which one a stored record was written against before comparing —
+`getX() ?? getGlobalX()` is the wrong reader for a scope check even though it's the right one for
+"where does the next write go".
+
+**A cross-cutting invariant has to be enforced at EVERY entry point, or it isn't one.** "A download
+root never overlaps a share" was checked when picking a download folder and when adding a *mirror* —
+but not when adding an *owned* share, and not for the global download folder. Both gaps were
+reachable by doing the same two operations in the other order, which is the normal way to hit them.
+When adding a rule about two pieces of state, enumerate every path that can write EITHER one, and
+make each rejection run before any side effect (a write probe inside a folder you're about to refuse
+lands a file in a watched, published tree).
+
+**`shared/core/paths.js` imports `bare-*`, so anything importing it becomes Bare-only.** Adding an
+import of it to `shared/spaces/space.js` dragged `bare-os` into four `test/unit` files that are
+Node-runnable precisely because that chain is bare-free (`require.addon is not a function` at
+import time, before any test runs). The bare-free rule `path-keys.js` documents in its header is a
+real, load-bearing layering constraint — pure string math goes in `path-keys.js`, and lifecycle
+hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway.
+
 ## Stopping long-running work
 
 **Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Clearing `setInterval`/pending timers leaves a materialize/download pass already iterating thousands of files running to completion — and its trailing persist can RESURRECT the just-torn-down state. Use a per-key generation counter checked between items (bail if it changed), abort the active stream/transfer (track it in a map the stop path can `destroy()`), and guard the trailing persist. Test with enough files/bytes that the pass is genuinely in flight at stop time; assert both "progress halts" AND "state not resurrected."

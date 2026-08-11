@@ -74,7 +74,7 @@ contextBridge.exposeInMainWorld('bridge', {
 
   getDownloadFolder: () => ipcRenderer.invoke('downloads:get'),
   setDownloadFolder: (folder) => ipcRenderer.invoke('downloads:set', folder),
-  browseDownloadFolder: () => ipcRenderer.invoke('downloads:browse'),
+  browseDownloadFolder: (defaultPath) => ipcRenderer.invoke('downloads:browse', defaultPath),
 
   getBandwidth: () => ipcRenderer.invoke('bandwidth:get'),
   setBandwidth: (patch) => ipcRenderer.invoke('bandwidth:set', patch),

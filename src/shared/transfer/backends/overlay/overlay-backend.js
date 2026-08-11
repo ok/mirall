@@ -42,7 +42,7 @@ import { walkDisk } from '../../../folders/walk-disk.js'
 import { pathFromMount } from '../../path-guard.js'
 import { shareDecoKey } from '../../decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
-import { resolveDest } from '../../download-dest.js'
+import { reuseDest } from '../../download-dest.js'
 import { supersedeDecision, republishDecision } from '../../supersede-decision.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
@@ -947,6 +947,10 @@ const folderEngine = createOverlayDownloadEngine({
     const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
     if (state?.removed) return { removed: true, seq: undefined, job: null }
     if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null }
+    // Re-anchor to the space's CURRENT download folder: a row pinned before the user
+    // re-pointed the space would otherwise resume into the old one. A re-anchored row starts
+    // from zero — its bytes live in the old folder's partial, which the boot sweep reclaims.
+    const finalPath = reuseDest(row.finalPath, getDownloadDir(spaceId), path.basename(row.relPath))
     return {
       removed: false, seq: state.seq,
       job: {
@@ -954,7 +958,7 @@ const folderEngine = createOverlayDownloadEngine({
         transferId: transferIdFor(spaceId, row.shareId, row.relPath),
         contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
         ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
-        finalPath: row.finalPath, prevBytes: row.bytesTransferred,
+        finalPath, prevBytes: finalPath === row.finalPath ? row.bytesTransferred : 0,
       },
     }
   },
@@ -976,13 +980,13 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   if (!entry?.contentHash) return { queued: true }
   const drivePath = '/' + share.name + '/' + relPath
   const prev = await getPendingFor(spaceId, drivePath)
-  const finalPath = prev?.finalPath || resolveDest(getDownloadDir(), path.basename(relPath))
+  const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
   return folderEngine.start({
     spaceId, pendingKey: drivePath, path: drivePath, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
     ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
-    finalPath, prevBytes: prev?.bytesTransferred,
+    finalPath, prevBytes: finalPath === prev?.finalPath ? prev.bytesTransferred : 0,
   })
 }
 
