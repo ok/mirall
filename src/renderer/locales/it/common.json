@@ -305,7 +305,13 @@
   },
   "editSpace": {
     "title": "Modifica spazio",
-    "desc": "Aggiorna il nome e l'icona di questo spazio."
+    "desc": "Aggiorna il nome, l'icona e la cartella di download di questo spazio.",
+    "downloadFolder": "Cartella download",
+    "downloadFolderDesc": "Dove vengono salvati i file che scarichi da questo spazio. I file già scaricati altrove non vengono spostati.",
+    "usingDefault": "Viene usata la cartella di download predefinita.",
+    "useDefault": "Usa cartella predefinita",
+    "folderError": "Impossibile impostare la cartella: {{error}}",
+    "saveError": "Impossibile salvare le modifiche: {{error}}"
   },
   "joinSpace": {
     "title": "Entra in uno spazio",

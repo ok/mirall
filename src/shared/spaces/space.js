@@ -579,20 +579,36 @@ export async function purgeSpace(spaceId) {
   }
 }
 
-export async function updateSpace(spaceId, name, icon) {
-  const entry = await spacesBee.get('space/' + spaceId)
-  if (!entry) return null
-  const updated = { ...entry.value, name, icon }
-  await spacesBee.put('space/' + spaceId, updated)
-  return { spaceId, ...updated }
+// `downloadFolder` is tri-state: undefined leaves the override untouched, null clears it
+// (the space falls back to the global download root), a string sets it. Routed through
+// mutateSpace so it serializes against concurrent member writes.
+export async function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
+  let updated = null
+  await mutateSpace(spaceId, (space) => {
+    space.name = name
+    space.icon = icon
+    if (downloadFolder !== undefined) {
+      if (downloadFolder === null) delete space.downloadFolder
+      else space.downloadFolder = downloadFolder
+    }
+    updated = space
+    return space
+  })
+  return updated ? { spaceId, ...updated } : null
 }
 
+// Routed through mutateSpace for the same reason as updateSpace: a raw get/put here would
+// not serialize against it, and a star clicked while a space:update is still validating a
+// download folder (statSync + write probe + a mount scan) would write back the record it read
+// BEFORE that update landed — silently dropping the folder the user just chose.
 export async function toggleFavorite(spaceId) {
-  const entry = await spacesBee.get('space/' + spaceId)
-  if (!entry) return null
-  const updated = { ...entry.value, favorite: !entry.value.favorite }
-  await spacesBee.put('space/' + spaceId, updated)
-  return { spaceId, ...updated }
+  let updated = null
+  await mutateSpace(spaceId, (space) => {
+    space.favorite = !space.favorite
+    updated = space
+    return space
+  })
+  return updated ? { spaceId, ...updated } : null
 }
 
 export function getDrive(spaceId) {

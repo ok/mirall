@@ -19,8 +19,11 @@
   "mountForbiddenCloudSync": "Las carpetas sincronizadas en la nube (Dropbox, iCloud, OneDrive…) no se pueden compartir. La sincronización doble puede provocar pérdida de datos: elige una carpeta fuera de tu área de sincronización en la nube.",
   "mountForbiddenPersonalRoot": "Esta es una carpeta personal principal (Inicio, Escritorio, Documentos o Descargas). Elige o crea una subcarpeta dentro de ella.",
   "mountInsideDownloads": "Esto está dentro de tu carpeta de descargas. Elige una ubicación fuera de ella.",
+  "mountContainsDownloads": "Esta carpeta contiene una carpeta de descargas de Mirall. Las descargas allí se publicarían a tus pares: elige otra carpeta.",
   "mountInsideSelf": "Esta carpeta está dentro de otra carpeta compartida. Elige otra carpeta.",
   "mountNotWritable": "Mirall no puede escribir en esta carpeta. Revisa sus permisos o elige otra.",
   "looseFileLimit": "Puedes compartir hasta 100 archivos por espacio. Elimina algunos para añadir más.",
-  "shareFileLimit": "Las carpetas compartidas están limitadas a 5000 archivos. Elige una carpeta más pequeña o divídela en varios recursos compartidos."
+  "shareFileLimit": "Las carpetas compartidas están limitadas a 5000 archivos. Elige una carpeta más pequeña o divídela en varios recursos compartidos.",
+  "downloadFolderOverlapsMount": "Esta carpeta se solapa con una carpeta que compartes o replicas. Las descargas allí se publicarían a tus pares: elige otra carpeta.",
+  "downloadFolderInvalid": "Mirall no puede usar esta carpeta. Puede que se haya movido o eliminado, o que Mirall no pueda escribir en ella."
 }

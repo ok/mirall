@@ -17,7 +17,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import os from 'bare-os'
 import { spawn } from 'bare-subprocess'
-import { getDownloadDir } from '../core/paths.js'
+import { getDownloadDir, getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
 import { revealExitIsFailure } from './reveal-exit.js'
@@ -108,21 +108,37 @@ export async function isVerifiedDownload(spaceId, key, contentHash) {
   return (await getVerifiedHash(spaceId, key)) === contentHash
 }
 
-// "Downloaded / on your device" must reflect bytes ACTUALLY present on disk, not
-// a claim that outlives them. The downloads-meta record is only a hint; the file
-// is the truth. Verify the recorded landed path still exists and — when we know
-// the hash we downloaded — that it still matches the currently-shared content,
-// pruning the stale claim otherwise. A copy the user deleted reverts to
-// remote; a copy still on disk stays "on device" across an owner unshare/re-share
-// as long as the content matches; a copy whose path the owner replaced with
-// different content reverts to remote so the user fetches the current version.
+// "Downloaded / on your device" must reflect bytes ACTUALLY present on disk, and — for a
+// space that pins its own download folder — inside that folder. The downloads-meta record
+// is only a hint; the file is the truth.
+//
+// Ordering is load-bearing. Existence and upstream-hash currency are checked FIRST and
+// PRUNE the claim — a copy the user deleted, or one the owner replaced, is worthless. The
+// scope check comes LAST and is NON-DESTRUCTIVE: a file that still exists but sits outside
+// this space's pinned download folder reports not-downloaded while KEEPING the claim, so
+// pointing the space back at the old folder restores the status instead of having silently
+// destroyed the record.
+//
+// The scope check keys on the space's OVERRIDE, never on the effective root. An override is
+// a promise that this space's downloads live in one named folder; following the global root
+// is no such promise, so changing the global folder in Storage Settings must not un-download
+// every space that never opted into a folder of its own (the files are untouched on disk,
+// and re-fetching them would just duplicate them).
 async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   const key = spaceId + ':' + filePath
   const node = await downloadsBee.get(key)
   if (!node) return false
   const rec = node.value || {}
-  const onDisk = rec.localPath || localDownloadPath(filePath)
+  const onDisk = claimedPathFor(filePath, rec)
   if (!fs.existsSync(onDisk)) {
+    // A missing file whose CONTAINING FOLDER is also missing means the volume is detached
+    // (ejected drive, dropped network share), not that the user deleted the copy. Pruning
+    // there would destroy the claim for a file that is still on that disk, and the re-download
+    // it invites lands a duplicate next to it. Report not-downloaded, keep the record.
+    if (!fs.existsSync(path.dirname(onDisk))) {
+      log.debug('claim folder unavailable, keeping claim:', filePath)
+      return false
+    }
     await downloadsBee.del(key)
     log.info('reset on-device claim (local file gone):', filePath)
     return false
@@ -130,6 +146,11 @@ async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   if (rec.hash && currentHash && rec.hash !== currentHash) {
     await downloadsBee.del(key)
     log.info('reset on-device claim (content changed upstream):', filePath)
+    return false
+  }
+  const pinned = getSpaceDownloadOverride(spaceId)
+  if (pinned && !isInsideDownloadDir(onDisk, pinned)) {
+    log.debug('claim outside the space download folder:', filePath)
     return false
   }
   return true
@@ -329,8 +350,12 @@ export async function removeFile(spaceId, filePath) {
   log.info('file removed:', filePath, 'from space', spaceId)
 }
 
-function localDownloadPath(filePath) {
-  return path.join(getDownloadDir(), path.basename(filePath))
+// Where a claim's file lives. `localPath` is authoritative — a collision-avoiding
+// download may not sit at <root>/<basename>. Rows written before localPath existed have
+// no recorded path; those can only ever have landed under the GLOBAL root, since
+// per-space roots did not exist when they were written.
+export function claimedPathFor(filePath, rec) {
+  return rec?.localPath || path.join(getGlobalDownloadDir(), path.basename(filePath))
 }
 
 // Where "Open in folder" should point: a downloaded file lives at its landed
@@ -341,7 +366,7 @@ function localDownloadPath(filePath) {
 export async function resolveRevealTarget(spaceId, filePath) {
   return (await getDownloadedPath(spaceId, filePath))
     || (await getOwnedSourcePath(spaceId, filePath))
-    || localDownloadPath(filePath)
+    || path.join(getDownloadDir(spaceId), path.basename(filePath))
 }
 
 export async function revealFile(spaceId, filePath) {

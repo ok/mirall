@@ -109,7 +109,7 @@ Three processes. **Main** owns lifecycle, the BrowserWindow, and all access to `
 6. **DevTools shortcut** — `webContents.before-input-event` toggles DevTools on F12 / Ctrl-Shift-I (Win/Linux) or Cmd-Opt-I (mac). Needed because the menu is hidden on Win/Linux by default.
 7. **Update apply** — automatic, no user action. Windows/Linux pre-stage the swap in the background as soon as the updater reports `updated`; macOS defers to quit. A `before-quit` hook promotes any staged-but-unapplied bundle. §9.
 8. **Diagnostic IPC** — `pear:checkForUpdate` → `pear.updater._debouncedUpdate()`, reports `{length, fork}`. `pear:appVersion` reads the live drive head's `package.json#version`. Both feed the renderer's update flow (§8).
-9. **Native notifications & shell** (`src/main/notifications.js`) — `notify:show` builds an Electron `Notification` (per-platform fallback icon under `resources/{darwin/icon.icns,win32/icon.ico,linux/icon.png}`); `notify:isWindowFocused` lets the renderer suppress notifications when focused; `notify:focus` raises the window on click; `shell:showInFolder` reveals a path, **gated to `os.homedir()`** so the renderer can't poke arbitrary disk locations.
+9. **Native notifications & shell** (`src/main/notifications.js`) — `notify:show` builds an Electron `Notification` (per-platform fallback icon under `resources/{darwin/icon.icns,win32/icon.ico,linux/icon.png}`); `notify:isWindowFocused` lets the renderer suppress notifications when focused; `notify:focus` raises the window on click; `shell:showInFolder` reveals a path, **gated to `os.homedir()` plus the download roots the worker publishes** (`downloads:roots`, which carries the per-space overrides) so the renderer can't poke arbitrary disk locations.
 10. **Asar spawn shim** — when the bundle is asar-packed (§13), `child_process.spawn` is monkey-patched to rewrite `app.asar/` → `app.asar.unpacked/` in both the executable path and argv. Without it `bare-sidecar`'s `spawn(bareBinary, [workerEntry, …])` ENOTDIRs, because `require.resolve()` returns asar paths and the OS can't walk into the archive. No-op outside packaged builds.
 11. **Custom protocol** — `app.setAsDefaultProtocolClient('mirall')` registers `mirall://` on macOS/Windows; `app.requestSingleInstanceLock()` makes repeat launches focus the running instance. Three paths funnel into `dispatchDeepLink()`: macOS `open-url`, Win/Linux `second-instance` (warm), and a direct argv scan at boot (cold-start URLs are positional, so paparam can't help). `parseDeepLink` (`src/main/deeplink.js`) validates and returns `{kind:'join', code, name?}`; main forwards on the `deeplink` channel, queueing in `pendingDeepLinks[]` until the renderer calls `deeplink:flush`. Linux AppImage installs additionally rewrite `~/.local/share/applications/Mirall.desktop` at launch (`integrateXdgLinux`) to declare the MimeType and an absolute `Exec=`, so xdg-mime can route URLs to a possibly-moved AppImage. §5.2.
 12. **Filesystem watchers** — `chokidar` lives in Electron main, never in the worker, because Bare has no native recursive watch.
@@ -195,7 +195,7 @@ Defined today: `caps/membership-manifest`, `caps/leave-observations`, `caps/fold
 
 | Key | Value |
 |---|---|
-| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving? }` |
+| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder? }` |
 
 `id` = first 16 hex chars of the topic. `icon` = Material Symbols name. `topic` = 32-byte Hyperswarm discovery topic (hex). `members` = `[{ publicKey, driveKey, displayName, avatar? }]`.
 
@@ -203,7 +203,18 @@ The user's own drive key is **not stored** — it derives from `store.namespace(
 
 ### 3.3 Downloads bee (`downloads-meta`) — local only
 
-`<spaceId>:<filePath>` → `{ downloadedAt }`. Survives restarts; cleared per-space on leave (`cleanupDownloadHistory`). A file counts as `downloaded` iff this bee has an entry **and** the disk agrees (§3.5).
+`<spaceId>:<filePath>` → `{ downloadedAt, localPath, hash }` — `localPath` is the ACTUAL landed
+path (a collision-avoiding download may not sit at `<root>/<basename>`). The same bee also holds
+`verified:<spaceId>:<shareId>|<relPath>` → `{ hash, at }` and `src:<spaceId>:<filePath>` →
+`{ sourcePath, addedAt }` (where a file you OWN lives, for reveal). Survives restarts; cleared
+per-space on leave (`cleanupDownloadHistory`).
+
+A file counts as `downloaded` iff the bee has an entry, the recorded path exists on disk, the
+recorded hash still matches the advertised content, **and** the path is inside the space's current
+download folder. The first two prune the claim on failure; the scope check does **not** — a copy
+outside the current folder reports not-downloaded while the claim survives, so re-pointing the space
+at the old folder restores it. Download roots resolve through `shared/core/paths.js`:
+per-space override (from `space/<id>.downloadFolder`) → the global root → the OS downloads folder.
 
 ### 3.4 Pending-transfers bee (`pending-transfers`) — local only
 
@@ -646,7 +657,7 @@ User-set transfer caps (`transfer/bandwidth-limiter.js`) are byte-denominated to
 | `notify(spec)` / `notifyIsSupported()` | Native OS notification. `spec` = `{ id?, title, body, urgency?, silent?, icon?, payload?, groupId? }` |
 | `isWindowFocused()` / `focusWindow()` | Suppress notifications when focused; raise the window from a click handler |
 | `onNotificationClick(fn)` | `notify:click`; the worker dispatches the routed payload back through standard IPC |
-| `showInFolder(fullPath)` | Reveal in the OS file manager. **Rejected unless under `os.homedir()`** |
+| `showInFolder(fullPath)` | Reveal in the OS file manager. **Rejected unless under `os.homedir()` or a published download root** |
 | `setVerbose(on)` | Flip main's live debug-log gate (and the verbose seed for future worker spawns); returns the new state |
 | `getIdentityProtection()` | The identity-at-rest protection level (§16) |
 | `onMainLog(fn)` | Main-process log lines (only while the debug gate is on); the dev console mirrors them as `[main]` |
@@ -668,7 +679,7 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `spaces:list` | `{}` | `Space[]` — rosters are **slim** (`{publicKey, driveKey, displayName, status?}`, no avatars/catalog keys) + `memberCount`/`pendingCount` |
 | `space:members` | `{ spaceId }` | `SpaceMember[]` — full self-first roster **incl. avatars** (the only payload carrying them) |
 | `space:create` / `space:join` | `{ name, icon? }` / `{ inviteCode, name?, icon? }` | `Space` |
-| `space:update` / `space:toggle-favorite` | `{ spaceId, … }` | `Space` |
+| `space:update` / `space:toggle-favorite` | `{ spaceId, … }` | `Space` — `space:update` also takes `downloadFolder?` (absent = unchanged, `null` = inherit the global root, string = validated per-space override) |
 | `space:invite` | `{ spaceId }` | `string` (formatted invite) |
 | `space:leave` | `{ spaceId }` | `{ ok:true }` (progress via events) |
 | `members:online` | `{ spaceId }` | `publicKey[]` |
@@ -679,7 +690,7 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `files:pause-download` / `files:cancel-download` | `{ transferId }` | `{ ok:true }` |
 | `storage:info` | `{}` | `{ totalDiskUsage, storagePath, spaces[], otherBytes }` |
 | `storage:cleanup` / `storage:free-space` | `{}` | `{ purged }` / `{ freedBytes }` — `free-space` reclaims resident-cache bytes across every space (called by `StorageSettings.tsx`) |
-| `settings:set-download-folder` | `{ path }` | `{ ok:true }` — relocate the loose-file download dir |
+| `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
 | `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
 | `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true }` |
 | `feedback:send` | `{ comment, screenshot? }` | `{ ok:true }` — POSTs to `feedback.mirall.app` |

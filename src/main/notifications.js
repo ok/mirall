@@ -1,7 +1,7 @@
 // Native notification host for the renderer: the notify:* IPC channels map to
 // Electron's Notification, with per-id replacement (a re-shown id closes its
 // predecessor), click routing back to the renderer, and a "show in folder"
-// shell helper restricted to paths under the user's home.
+// shell helper restricted to the user's home plus the configured download roots.
 const { Notification, BrowserWindow, ipcMain, nativeImage, shell } = require('electron')
 const path = require('node:path')
 const os = require('node:os')
@@ -9,6 +9,7 @@ const crypto = require('node:crypto')
 
 const active = new Map()
 let revealWindowFn = null
+let downloadRootsFn = () => []
 
 // Windows caps a toast notification's Tag (the `id` option) and Group (the
 // `groupId` option) at 64 UTF-16 code units, and Electron's Notification
@@ -61,17 +62,42 @@ function focusMainWindow() {
   win.focus()
 }
 
-function isUnderHome(fullPath) {
-  const home = os.homedir()
+// The real containment helper, not a copy of it: `src/shared/package.json` marks that tree as
+// ESM, which a CommonJS main can reach with a dynamic import (as deeplink.js already does for
+// invite-envelope). A local reimplementation is what let the home branch and the roots branch
+// of one authorization decision drift to different case-folding rules.
+// Caught here, not at the await: an unhandled module-scope rejection would take down more than
+// this feature, and an authorization check with no comparator must fail CLOSED.
+const pathKeys = import('../shared/folders/path-keys.js').catch((err) => {
+  console.error('[notifications] path-keys import failed, reveal disabled:', err.message)
+  return null
+})
+
+// Only Windows genuinely case-folds. Folding on darwin too would authorize a DIFFERENT
+// directory on a case-sensitive APFS volume (`/Volumes/Data/dl` vouching for
+// `/Volumes/Data/DL`), and nothing needs it: every path compared here — the recorded
+// localPath, the roots pushed by the worker — is produced by us from the same strings.
+const FOLD_CASE = process.platform === 'win32'
+
+// The renderer supplies this path and it ends at a shell call, so this is an authorization
+// check: keep it a bounded allowlist of the user's home plus the configured download roots.
+// Resolve BEFORE comparing, or `<root>/../../etc/passwd` passes a prefix test.
+async function isRevealable(fullPath, roots) {
+  if (typeof fullPath !== 'string' || fullPath.length === 0) return false
+  const mod = await pathKeys
+  if (!mod) return false
+  const { pathContains } = mod
   const resolved = path.resolve(fullPath)
-  if (process.platform === 'win32') {
-    return resolved.toLowerCase().startsWith((home + path.sep).toLowerCase())
-  }
-  return resolved.startsWith(home + path.sep)
+  const allows = (dir) =>
+    typeof dir === 'string' && dir.length > 0 &&
+    pathContains(path.resolve(dir), resolved, path.sep, FOLD_CASE)
+  if (allows(os.homedir())) return true
+  return Array.isArray(roots) && roots.some(allows)
 }
 
 function register(opts) {
   if (opts && typeof opts.revealWindow === 'function') revealWindowFn = opts.revealWindow
+  if (opts && typeof opts.downloadRoots === 'function') downloadRootsFn = opts.downloadRoots
 
   ipcMain.handle('notify:isSupported', () => Notification.isSupported())
 
@@ -119,12 +145,12 @@ function register(opts) {
 
   ipcMain.handle('notify:focus', () => { focusMainWindow() })
 
-  ipcMain.handle('shell:showInFolder', (_evt, fullPath) => {
+  ipcMain.handle('shell:showInFolder', async (_evt, fullPath) => {
     if (typeof fullPath !== 'string' || fullPath.length === 0) return { ok: false }
-    if (!isUnderHome(fullPath)) return { ok: false }
+    if (!await isRevealable(fullPath, downloadRootsFn())) return { ok: false }
     shell.showItemInFolder(path.resolve(fullPath))
     return { ok: true }
   })
 }
 
-module.exports = { register, toastSafeId }
+module.exports = { register, toastSafeId, isRevealable }

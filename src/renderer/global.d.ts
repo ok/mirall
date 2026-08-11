@@ -120,7 +120,7 @@ export interface MirallBridge {
 
   getDownloadFolder(): Promise<string>
   setDownloadFolder(folder: string): Promise<string>
-  browseDownloadFolder(): Promise<string | null>
+  browseDownloadFolder(defaultPath?: string): Promise<string | null>
   getBandwidth(): Promise<BandwidthLimits>
   setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>

@@ -5,6 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
@@ -238,7 +239,9 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKey: await ownCatalogKeyHex(ctx.spaceId) }
 
   const spaceB = await createSpace('Borealis')
-  const landed = path.join(ctx.tmpDir('dl'), 'v.bin')
+  const dir = ctx.tmpDir('dl')
+  setSpaceDownloadRoot(spaceB.spaceId, dir)
+  const landed = path.join(dir, 'v.bin')
   fs.writeFileSync(landed, fs.readFileSync(abs))
   await markDownloaded(spaceB.spaceId, '/v.bin', landed, { hash: entry.contentHash })
 

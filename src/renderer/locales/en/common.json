@@ -329,7 +329,13 @@
   },
   "editSpace": {
     "title": "Edit Space",
-    "desc": "Update the name and icon for this space."
+    "desc": "Update the name, icon and download folder for this space.",
+    "downloadFolder": "Download Folder",
+    "downloadFolderDesc": "Where files you download from this space are saved. Files already downloaded elsewhere are not moved.",
+    "usingDefault": "Using the default download folder.",
+    "useDefault": "Use default folder",
+    "folderError": "Could not set folder: {{error}}",
+    "saveError": "Could not save changes: {{error}}"
   },
   "joinSpace": {
     "title": "Join a Space",

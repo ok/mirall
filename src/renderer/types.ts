@@ -47,6 +47,7 @@ export interface Space {
   pendingCount?: number
   memberCount?: number
   creatorDivergence?: boolean
+  downloadFolder?: string
 }
 
 export type FileStatus =

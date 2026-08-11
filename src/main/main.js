@@ -595,6 +595,10 @@ function clearApplyError() {
   try { fs.rmSync(applyErrorPath(), { force: true }) } catch {}
 }
 
+// Per-space download roots, pushed by the worker (it owns the space records). Main
+// needs them to authorize "reveal in folder" for files outside the home directory.
+let workerDownloadRoots = []
+
 function getDefaultDownloadFolder() {
   return app.getPath('downloads')
 }
@@ -961,11 +965,13 @@ ipcMain.handle('tray:setLabels', (_evt, labels) => {
   refreshTrayMenu()
 })
 
-ipcMain.handle('downloads:browse', async (evt) => {
+ipcMain.handle('downloads:browse', async (evt, defaultPath) => {
   const win = BrowserWindow.fromWebContents(evt.sender)
     ?? BrowserWindow.getFocusedWindow()
     ?? BrowserWindow.getAllWindows()[0]
-  const current = readDownloadFolder()
+  const current = typeof defaultPath === 'string' && defaultPath.length > 0
+    ? defaultPath
+    : readDownloadFolder()
   const result = await dialog.showOpenDialog(win, {
     properties: ['openDirectory', 'createDirectory'],
     defaultPath: current,
@@ -991,6 +997,12 @@ const ownedFolderWatchers = require('./owned-folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
 async function handleMainRequest(command, args, worker) {
+  if (command === 'downloads:roots') {
+    workerDownloadRoots = Array.isArray(args?.roots)
+      ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
+      : []
+    return
+  }
   if (command === 'loose-file:watch') {
     looseFileWatchers.addLooseWatch(
       args.spaceId,
@@ -1448,7 +1460,10 @@ if (!lock) {
     // can race with _update and return ENOTDIR.
     preloadAsarCache()
     registerAppProtocol()
-    require('./notifications').register({ revealWindow })
+    require('./notifications').register({
+      revealWindow,
+      downloadRoots: () => [readDownloadFolder(), ...workerDownloadRoots],
+    })
 
     // Harden identity at rest before the worker can spawn (pear:startWorker only
     // fires after the window loads): restrict the storage dir to the current user

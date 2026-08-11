@@ -29,8 +29,13 @@ const MOUNT_ERROR_I18N_KEY_BY_CODE: Record<string, string> = {
   MOUNT_FORBIDDEN_CLOUD_SYNC: 'mountForbiddenCloudSync',
   MOUNT_FORBIDDEN_PERSONAL_ROOT: 'mountForbiddenPersonalRoot',
   MOUNT_INSIDE_DOWNLOADS: 'mountInsideDownloads',
+  MOUNT_CONTAINS_DOWNLOADS: 'mountContainsDownloads',
   MOUNT_INSIDE_SELF: 'mountInsideSelf',
   MOUNT_NOT_WRITABLE: 'mountNotWritable',
+  DOWNLOAD_FOLDER_OVERLAPS_MOUNT: 'downloadFolderOverlapsMount',
+  // Thrown by the folder validator itself (missing, unwritable, not a directory), and thrown
+  // FIRST — so leaving it unmapped shows an untranslated English literal to every user.
+  DOWNLOAD_FOLDER_INVALID: 'downloadFolderInvalid',
 }
 
 export function mountErrorI18nKey(code: string | null | undefined): string | null {
