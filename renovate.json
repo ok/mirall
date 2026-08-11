@@ -11,7 +11,7 @@
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
-      "description": "Routine dependency updates auto-merge once CI passes; with rebaseWhen above, Renovate keeps them rebased so package-lock conflicts resolve without manual cycles. The smoke-test groups below come after and override this back to manual for their packages.",
+      "description": "Routine updates are flagged for automerge, but be aware this has never actually fired — every dependency PR so far was merged by hand. GitHub's auto-merge is only offered on PRs blocked by something (required status checks or reviews) and this repo has neither, so Renovate falls back to its own automerge, which only runs when the weekly workflow runs. By then rebaseWhen has usually just rebased the branch and CI is pending again. The flag is kept because the intent is right: it starts working the moment either a more frequent Renovate cron or required status checks exist. The smoke-test groups below come after and override this back to manual for their packages.",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeStrategy": "squash"
