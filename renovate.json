@@ -5,7 +5,7 @@
   "schedule": ["before 8am on Monday"],
   "baseBranchPatterns": ["staging"],
   "labels": ["dependencies"],
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "rangeStrategy": "bump",
   "rebaseWhen": "behind-base-branch",
@@ -15,6 +15,11 @@
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeStrategy": "squash"
+    },
+    {
+      "description": "Majors are adopted deliberately, and several are blocked upstream for months at a time (eslint 10 on eslint-plugin-jsx-a11y's peer range, typescript 7 on typescript-eslint's). An open PR for one of those sits untouched indefinitely, occupying a prConcurrentLimit slot and getting rebased plus fully re-tested every run. Queue them on the dependency dashboard instead: they stay visible as checkboxes and only become a branch when someone ticks one.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Pear runtime hosts the worker process; bump deliberately and smoke-test OTA, DMG, MSIX, AppImage, and native modules before merging",
