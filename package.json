@@ -1,7 +1,7 @@
 {
   "name": "mirall",
   "productName": "Mirall",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "Mirall - secure data transfer without middleman",
   "license": "AGPL-3.0-or-later",
   "author": "Oliver Kohl",
