@@ -77,11 +77,29 @@ Non-trivial code changes happen on a **feature branch checked out in a git workt
 **Conventions:**
 - Worktrees live at `mirall-app/worktrees/<branch>/`. The `worktrees/` folder is gitignored.
 - Branch slug is descriptive (`feat-linux-process-name-fix`, `fix-appimage-icons`); slashes in branch names are preserved as subfolders.
+- **Always create with `--no-track`, based on `origin/staging`** — feature PRs target `staging`, never `main` (CI enforces this):
+
+  ```
+  git worktree add --no-track -b <branch> worktrees/<branch> origin/staging
+  ```
+
+  Without `--no-track` the new branch's upstream becomes `origin/staging`, which is wrong in two ways: `git status` reports "ahead of origin/staging", and a bare `git push` fails with a message whose **first suggestion is `git push origin HEAD:staging`** — following it lands the feature branch straight on the integration branch. Nothing server-side stops that: the `protect-main-staging` ruleset blocks only deletion and non-fast-forward, so an ordinary push to `staging` succeeds. With no upstream, the first push must name the branch, which creates it on the remote and sets the correct upstream:
+
+  ```
+  git push -u origin <branch>
+  gh pr create --base staging
+  ```
+- **Exception — a hotfix branches from `origin/main`.** A hotfix targets `main` directly (`build-process.md` → "Branches & promotion"), so basing one on `staging` drags every unreleased commit onto production with it. `pr-base-guard.yml` will **not** catch that: it allowlists by branch **name** (`hotfix/*`), with no merge-base or content check, so a staging-based `hotfix/…` passes the gate and merges clean. Cut it from `main` and forward-port to `staging` afterwards:
+
+  ```
+  git worktree add --no-track -b hotfix/<slug> worktrees/hotfix-<slug> origin/main
+  gh pr create --base main
+  ```
 - Each worktree is its own checkout — needs its own `npm install` and Electron native-dep rebuild. Pick a non-default dev-server port to avoid clashes with sibling worktrees.
 - Cleanup is explicit: `git worktree remove worktrees/<branch>` after merge/abandon. Never auto-clean — uncommitted work would be lost.
 
 **Two modes:**
-- **Interactive** — `git worktree add worktrees/<branch> -b <branch> main`, then work there turn-by-turn with the user. Use for iterative tasks, design exploration, anything where the user will review intermediate steps.
+- **Interactive** — create it per the recipe above, then work there turn-by-turn with the user. Use for iterative tasks, design exploration, anything where the user will review intermediate steps.
 - **Background subagent** — spawn `Agent(isolation: "worktree", run_in_background: true)` for well-scoped single-shot work. The user keeps working in the main session in parallel; agent reports path + branch on completion.
 
 **Skip the worktree** (work in the main checkout) for: one-line typo fixes, README/comment tweaks, `.claude/` doc edits, anything trivial enough that worktree overhead isn't worth it.
