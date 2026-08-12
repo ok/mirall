@@ -53,7 +53,7 @@ When a fix's precise guarantee isn't cleanly observable at a higher layer (e.g. 
 
 - **CI (automatic, every PR):** `.github/workflows/test.yml` runs three jobs: **node** (`typecheck` + `lint:ci` [jsx-a11y + a `--max-warnings` ceiling + comment-hygiene] + `knip` [advisory] + `test:node:core` = unit + `test/raw`), **flow** (`test:flow` sharded 6×), and **bare** (`test:bare` = integration). Green CI is required to merge.
 - **Local (you run it — not optional):** `npm run test:fe` is **required** for any UI-affecting change and runs fine on a dev machine (only CI can't drive the AX tree). Run it, confirm it's green, plus the manual a11y spot-check. Capture the evidence (the suite writes screenshots to `test/frontend/evidence/`) and note which UI flows were exercised.
-- **PR checklist (humans):** `.github/pull_request_template.md` reproduces the coverage + a11y checklist so non-AI PRs confirm the same bar.
+- **PR body:** `.github/pull_request_template.md` asks only for what CI cannot check — which layers the change touches (and why an obvious one is skipped), plus the local-only runs: `test:fe` and which flows it exercised, dev axe, VoiceOver. Everything CI already enforces is deliberately absent from it; restating a machine-verified fact in prose is noise, and a checklist of them trains people to tick without reading.
 - **AI-assisted work:** adding the appropriate-layer tests + a11y check is part of the change itself (see `CLAUDE.md` → Testing & Accessibility Discipline), not a follow-up.
 
 ## 5. Frontend scenario authoring (agent-desktop)
