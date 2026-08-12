@@ -26,9 +26,8 @@
       "spaceView": "Space",
       "folderView": "Folder",
       "settings": "Settings",
-      "account": "Account",
+      "account": "Profile",
       "storage": "Storage",
-      "about": "About",
       "appearance": "Appearance",
       "notifications": "Notifications",
       "general": "General",
@@ -51,14 +50,20 @@
   "topnav": {
     "feedback": "Send Feedback",
     "settings": "Settings",
-    "account": "Account",
-    "accountWithIssue": "Account — connection issue"
+    "account": "Profile",
+    "accountWithIssue": "Profile — connection issue"
   },
   "account": {
-    "title": "Account",
-    "intro": "Your profile and network connection.",
-    "activity": "Activity",
-    "activityDesc": "A record of what happened in your spaces."
+    "title": "Profile",
+    "intro": "Your profile, this device, and app info.",
+    "groupDevice": "This device",
+    "groupApp": "App",
+    "connection": "Connection",
+    "connectionDesc": "{{state}} · {{peers}}",
+    "identityTitle": "Identity protection",
+    "upToDate": "Up to date.",
+    "activityDesc": "A record of what happened in your spaces.",
+    "recordingOff": "Recording is off · {{kept}}"
   },
   "spaces": {
     "title": "Shared",
@@ -457,7 +462,6 @@
   "settings": {
     "title": "Settings",
     "intro": "Manage your experience and interface preferences.",
-    "profile": "Profile",
     "displayName": "Display Name",
     "changeAvatar": "Change profile picture",
     "avatarTooLarge": "That image is too large — please choose a file under 16 MB.",
@@ -473,13 +477,9 @@
     "networkDesc": "Limits for uploads and downloads.",
     "storage": "Storage",
     "storageDesc": "View Mirall data usage on this device.",
-    "about": "About",
-    "aboutDesc": "Version, documentation & support.",
-    "security": "Security",
     "identityProtected": "Your identity key is protected by the system keychain.",
     "identityWeak": "No system keychain is available — your identity key relies on full-disk encryption.",
     "identityDisabled": "Identity-key protection is disabled.",
-    "networkStatus": "Network",
     "networkStatusDesc_one": "{{count}} peer connected",
     "networkStatusDesc_other": "{{count}} peers connected",
     "activityLog": "Activity Log",
@@ -577,10 +577,6 @@
     "reclaimNone": "Storage is already optimized."
   },
   "aboutSettings": {
-    "title": "About",
-    "intro": "Version, documentation & support.",
-    "version": "Version",
-    "resources": "Resources",
     "documentation": "Documentation",
     "documentationDesc": "Guides and FAQ.",
     "keyboardShortcuts": "Keyboard shortcuts",

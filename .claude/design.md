@@ -161,7 +161,7 @@ plain Tailwind sizes + `font-headline`:
 | Page title | `text-4xl font-headline font-extrabold text-accent tracking-tight` (`md:text-5xl` on onboarding) | `components/layout/PageHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
-| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, what's-new |
+| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |
 | Body | default Manrope, muted via `text-on-surface-variant`; `leading-relaxed` on intros | everywhere |
 | Metadata / fine print | `text-xs` / `text-sm text-on-surface-variant` | cards, badges |
 
@@ -187,6 +187,15 @@ plain Tailwind sizes + `font-headline`:
 - **Section pattern:** `<SectionHeading>` followed by a
   `bg-surface-container-low rounded-xl p-6` card. All settings sub-pages share
   this shell.
+- **Row-group pattern:** several short groups on one screen render as
+  `<SectionHeading>` (the same label every settings sub-page uses) above a
+  `bg-surface-container-low rounded-xl overflow-hidden` card of `p-6` rows —
+  40px icon tile, `font-semibold text-accent` label, `text-xs` description,
+  trailing chevron, no dividers. Used by `screens/Settings.tsx` (one unlabelled
+  group) and `screens/Account.tsx`. A group the page title already names takes
+  no heading — Account's profile card sits directly under the `<h1>`. The eyebrow
+  label is **not** used for this job: it is for sub-labels inside a surface
+  (shortcut groups, activity-log day headings).
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
 - **Responsive:** effectively one breakpoint — `min-[900px]:grid-cols-[1fr_300px] gap-8`
   (content + sidebar in `screens/SpaceView.tsx`, `screens/FolderView.tsx`), plus a
