@@ -4,13 +4,17 @@ Operational playbook for keeping the Holepunch / Bare / Pear stack and the rest 
 
 ## What's wired up
 
-- **`renovate.json`** — Renovate config at the repo root. Four `packageRules`: an unnamed first rule auto-merges routine `minor`/`patch`/`pin`/`digest` bumps (`automerge: true`, squash) once CI is green; the three named groups below come after and override it back to manual (`automerge: false`):
+- **`renovate.json`** — Renovate config at the repo root. **Renovate reads this file from `main`, not `staging`** — `renovate.yml` runs `actions/checkout` with no `ref`, so it takes the default branch. `baseBranchPatterns: ["staging"]` only controls which branch Renovate *targets*. A config change merged to `staging` alone does nothing; it needs a `hotfix/*` PR to `main` too (the `pr-base-guard` allowlist permits `staging`, `hotfix/*`, `release/*`, or a `base:main` label). Six `packageRules`, in order:
+  - routine `minor`/`patch`/`pin`/`digest` — flagged `automerge: true` (squash). **This has never actually fired** — see "Automerge is aspirational" below. The named groups after it override back to manual (`automerge: false`).
+  - `major` — `dependencyDashboardApproval: true`. Majors are adopted deliberately and several stay blocked upstream for months, so they queue on the dashboard as checkboxes instead of opening PRs that squat on `prConcurrentLimit` and get re-tested every run. Tick the box when you want one.
   - `pear-runtime` — isolated group, pinned, `prPriority: 10`, `needs-smoke-test` label.
   - `holepunch` — single grouped weekly PR for the whole P2P stack (`b4a`, `corestore`, `debounceify`, `hypercore-crypto`, `paparam`, `sodium-native`, `which-runtime`, `brittle`, `compact-encoding`, plus `bare-*`, `hyper*`, `pear-*` minus `pear-runtime`).
   - `electron` + `@electron-forge/*` — grouped, `needs-smoke-test`.
+  - `hyperdht` — `allowedVersions: "<6.33.0"`. 6.33.0 rewrote the LAN shortcut and fails every flow shard on Linux CI while passing on macOS (issue #13); holding it back turned the four-week-red holepunch PR green in one run. Patches on the 6.32 line still flow. Raise only after a Linux runner proves a newer version green.
+- **`prConcurrentLimit: 10`** — Renovate's own default. With majors on the dashboard the limit rarely binds; it can go to `0` (unlimited) if it ever does.
 - **Schedule** — Mondays before 8am Europe/Berlin (00:00 → 06:00 UTC during CEST / → 07:00 UTC during CET). Vulnerability alerts run outside the schedule (immediate).
 - **`test/raw/holepunch-integration.test.js`** — the merge gate for the `holepunch` group. Spins up an in-memory `hyperdht/testnet`, two Corestores in tmp dirs, two Hyperswarms, and asserts Hyperdrive + Hyperbee replicate end-to-end across namespaced cores. Runs in ~1s.
-- **`.github/workflows/test.yml`** — three jobs on every PR and push to `main`: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory, `continue-on-error`) + `test:node:core`), a `flow` job (sharded two-peer flow tests), and a `bare` job (`test:bare`). Together they give a Renovate PR its green/red signal.
+- **`.github/workflows/test.yml`** — three jobs on every PR and on pushes to `staging` and `main`. There are no path filters, so a docs- or config-only PR still runs the full suite including all six flow shards: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory, `continue-on-error`) + `test:node:core`), a `flow` job (sharded two-peer flow tests), and a `bare` job (`test:bare`). Together they give a Renovate PR its green/red signal.
 - **`.github/workflows/renovate.yml`** — self-hosted Renovate runner. Fires Mondays at 01:00 UTC and on manual `workflow_dispatch`. The cron must fire inside the `renovate.json` schedule window — `before 8am Europe/Berlin` gives ~5h of slack to absorb GitHub Actions cron delay (which routinely runs 30–90min late). Authenticates via the `RENOVATE_TOKEN` repo secret (a fine-grained PAT — required instead of `GITHUB_TOKEN` so PRs opened by Renovate trigger the test workflow).
 
 ## Regular cadence
@@ -34,6 +38,17 @@ For the weekly `holepunch` group PR, when CI is green:
 4. Squash-merge.
 
 Total time: ~2 minutes.
+
+## Automerge is aspirational — merge by hand
+
+`automerge: true` is set for routine bumps, but **it has never once fired**. Verified 2026-08-11 across six PRs (#29, #30, #31, #41, #43, #44): every one was merged manually, including three that sat through two scheduled Renovate runs.
+
+Two independent causes:
+
+1. **GitHub's auto-merge is unavailable here.** It is only offered on PRs that *cannot* be merged immediately — blocked by required status checks or required reviews. The `protect-main-staging` ruleset carries only `deletion` and `non_fast_forward`, no required checks, so every Renovate PR is `MERGEABLE`/`CLEAN` the moment it opens and the option never appears. **Enabling the repo's `allow_auto_merge` setting alone is a no-op** — it is not the fix.
+2. **Renovate's native fallback only runs when the workflow runs**, and that cron is weekly. (Timing-consistent hypothesis, not verified in Renovate's logs: `rebaseWhen: behind-base-branch` re-rebases the branch on each run, so CI is pending again at the moment automerge is evaluated.)
+
+Either lever would fix it — a more frequent `renovate.yml` cron, or required status checks on `staging`. Both were considered and declined 2026-08-11 in favour of merging by hand. Treat the flag as intent, not behavior, and don't be misled into thinking a PR will land itself.
 
 ## Smoke-test workflow (pear-runtime, electron, anything `needs-smoke-test`)
 
@@ -63,7 +78,7 @@ Before merging:
 
 ## hyperdrive — pinned
 
-`hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.2"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-folders.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.
+`hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.3"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-folders.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.
 
 There is **no** automated pin-guard test — nothing fails CI when the version changes. Any manual hyperdrive bump is therefore a `needs-smoke-test` candidate: re-read the release notes for replication/wire-format changes, run the two-window smoke test, and confirm end-to-end replication before merging.
 
