@@ -27,14 +27,20 @@
   "topnav": {
     "feedback": "Enviar comentarios",
     "settings": "Ajustes",
-    "account": "Cuenta",
-    "accountWithIssue": "Cuenta — problema de conexión"
+    "account": "Perfil",
+    "accountWithIssue": "Perfil — problema de conexión"
   },
   "account": {
-    "title": "Cuenta",
-    "intro": "Tu perfil y tu conexión de red.",
-    "activity": "Actividad",
-    "activityDesc": "Un registro de lo que ha ocurrido en tus espacios."
+    "title": "Perfil",
+    "intro": "Tu perfil, este dispositivo y la información de la app.",
+    "groupDevice": "Este dispositivo",
+    "groupApp": "Aplicación",
+    "connection": "Conexión",
+    "connectionDesc": "{{state}} · {{peers}}",
+    "identityTitle": "Protección de identidad",
+    "upToDate": "Actualizado.",
+    "activityDesc": "Un registro de lo que ha ocurrido en tus espacios.",
+    "recordingOff": "El registro está desactivado · {{kept}}"
   },
   "spaces": {
     "title": "Espacios",
@@ -433,7 +439,6 @@
   "settings": {
     "title": "Ajustes",
     "intro": "Gestiona tu experiencia y las preferencias de la interfaz.",
-    "profile": "Perfil",
     "displayName": "Nombre visible",
     "changeAvatar": "Cambiar foto de perfil",
     "avatarTooLarge": "Esa imagen es demasiado grande — elige un archivo de menos de 16 MB.",
@@ -449,13 +454,9 @@
     "networkDesc": "Límites de subida y bajada.",
     "storage": "Almacenamiento",
     "storageDesc": "Consulta el uso de datos de Mirall en este dispositivo.",
-    "about": "Acerca de",
-    "aboutDesc": "Versión, documentación y soporte.",
-    "security": "Seguridad",
     "identityProtected": "Tu clave de identidad está protegida por el llavero del sistema.",
     "identityWeak": "No hay llavero del sistema disponible — tu clave de identidad depende del cifrado del disco.",
     "identityDisabled": "La protección de la clave de identidad está desactivada.",
-    "networkStatus": "Red",
     "networkStatusDesc_one": "{{count}} par conectado",
     "networkStatusDesc_other": "{{count}} pares conectados",
     "activityLog": "Registro de actividad",
@@ -553,10 +554,6 @@
     "hideDetails": "Ocultar detalles"
   },
   "aboutSettings": {
-    "title": "Acerca de",
-    "intro": "Versión, documentación y soporte.",
-    "version": "Versión",
-    "resources": "Recursos",
     "documentation": "Documentación",
     "documentationDesc": "Guías y preguntas frecuentes.",
     "keyboardShortcuts": "Atajos de teclado",
@@ -748,9 +745,8 @@
       "spaceView": "Espacio",
       "folderView": "Carpeta",
       "settings": "Ajustes",
-      "account": "Cuenta",
+      "account": "Perfil",
       "storage": "Almacenamiento",
-      "about": "Acerca de",
       "appearance": "Apariencia",
       "notifications": "Notificaciones",
       "general": "General",

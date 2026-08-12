@@ -3,10 +3,9 @@ import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
 import { makeReport } from '../assert.mjs'
 
-// Account profile edit: A changes its display name and saves; the new name
-// broadcasts and B sees it on A's member card. (Avatar upload goes through a
-// native picker + crop and isn't asserted here; the input-file size guard +
-// worker-side clamp are covered by the unit/integration layers.)
+// Profile edit: A changes its display name and saves; the new name broadcasts and B sees it on
+// A's member card. (Avatar upload goes through a native picker + crop and isn't asserted here; the
+// input-file size guard + worker-side clamp are covered by the unit/integration layers.)
 export default async function s14 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -20,8 +19,9 @@ export default async function s14 ({ runDir, bootstrap }) {
       await connectInSpace(A, B, { name: 'Aurora' })
       await B.waitText('Alice', 60000)
     })
-    await r.ok('A renames itself in Account and saves', async () => {
+    await r.ok('A renames itself in Profile and saves', async () => {
       await A.openAccount()
+      await A.waitText('This device', 8000)
       await A.type({ role: 'textfield' }, 'Alice Cooper')
       await A.click({ role: 'button', name: 'Save Changes' })
       await A.back()

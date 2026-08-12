@@ -27,14 +27,20 @@
   "topnav": {
     "feedback": "Invia feedback",
     "settings": "Impostazioni",
-    "account": "Account",
-    "accountWithIssue": "Account — problema di connessione"
+    "account": "Profilo",
+    "accountWithIssue": "Profilo — problema di connessione"
   },
   "account": {
-    "title": "Account",
-    "intro": "Il tuo profilo e la tua connessione di rete.",
-    "activity": "Attività",
-    "activityDesc": "Un resoconto di ciò che è accaduto nei tuoi spazi."
+    "title": "Profilo",
+    "intro": "Il tuo profilo, questo dispositivo e le informazioni sull'app.",
+    "groupDevice": "Questo dispositivo",
+    "groupApp": "App",
+    "connection": "Connessione",
+    "connectionDesc": "{{state}} · {{peers}}",
+    "identityTitle": "Protezione dell'identità",
+    "upToDate": "Aggiornato.",
+    "activityDesc": "Un resoconto di ciò che è accaduto nei tuoi spazi.",
+    "recordingOff": "Registrazione disattivata · {{kept}}"
   },
   "spaces": {
     "title": "Spazi",
@@ -433,7 +439,6 @@
   "settings": {
     "title": "Impostazioni",
     "intro": "Gestisci la tua esperienza e le preferenze dell'interfaccia.",
-    "profile": "Profilo",
     "displayName": "Nome visualizzato",
     "changeAvatar": "Cambia foto del profilo",
     "avatarTooLarge": "Quell'immagine è troppo grande — scegli un file di meno di 16 MB.",
@@ -449,13 +454,9 @@
     "networkDesc": "Limiti di caricamento e download.",
     "storage": "Archiviazione",
     "storageDesc": "Visualizza l'utilizzo dei dati di Mirall su questo dispositivo.",
-    "about": "Informazioni",
-    "aboutDesc": "Versione, documentazione e supporto.",
-    "security": "Sicurezza",
     "identityProtected": "La tua chiave d'identità è protetta dal portachiavi di sistema.",
     "identityWeak": "Nessun portachiavi di sistema disponibile — la chiave d'identità dipende dalla cifratura del disco.",
     "identityDisabled": "La protezione della chiave d'identità è disattivata.",
-    "networkStatus": "Rete",
     "networkStatusDesc_one": "{{count}} peer connesso",
     "networkStatusDesc_other": "{{count}} peer connessi",
     "activityLog": "Registro attività",
@@ -553,10 +554,6 @@
     "hideDetails": "Nascondi dettagli"
   },
   "aboutSettings": {
-    "title": "Informazioni",
-    "intro": "Versione, documentazione e supporto.",
-    "version": "Versione",
-    "resources": "Risorse",
     "documentation": "Documentazione",
     "documentationDesc": "Guide e domande frequenti.",
     "keyboardShortcuts": "Scorciatoie da tastiera",
@@ -748,9 +745,8 @@
       "spaceView": "Spazio",
       "folderView": "Cartella",
       "settings": "Impostazioni",
-      "account": "Account",
+      "account": "Profilo",
       "storage": "Archiviazione",
-      "about": "Informazioni",
       "appearance": "Aspetto",
       "notifications": "Notifiche",
       "general": "Generale",

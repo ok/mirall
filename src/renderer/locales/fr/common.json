@@ -27,14 +27,20 @@
   "topnav": {
     "feedback": "Envoyer un commentaire",
     "settings": "Paramètres",
-    "account": "Compte",
-    "accountWithIssue": "Compte — problème de connexion"
+    "account": "Profil",
+    "accountWithIssue": "Profil — problème de connexion"
   },
   "account": {
-    "title": "Compte",
-    "intro": "Votre profil et votre connexion réseau.",
-    "activity": "Activité",
-    "activityDesc": "Un relevé de ce qui s'est passé dans vos espaces."
+    "title": "Profil",
+    "intro": "Votre profil, cet appareil et les infos de l'application.",
+    "groupDevice": "Cet appareil",
+    "groupApp": "Application",
+    "connection": "Connexion",
+    "connectionDesc": "{{state}} · {{peers}}",
+    "identityTitle": "Protection de l'identité",
+    "upToDate": "À jour.",
+    "activityDesc": "Un relevé de ce qui s'est passé dans vos espaces.",
+    "recordingOff": "Enregistrement désactivé · {{kept}}"
   },
   "spaces": {
     "title": "Espaces",
@@ -433,7 +439,6 @@
   "settings": {
     "title": "Paramètres",
     "intro": "Gérez votre expérience et vos préférences d'interface.",
-    "profile": "Profil",
     "displayName": "Nom affiché",
     "changeAvatar": "Changer la photo de profil",
     "avatarTooLarge": "Cette image est trop volumineuse — choisissez un fichier de moins de 16 Mo.",
@@ -449,13 +454,9 @@
     "networkDesc": "Limites d'envoi et de téléchargement.",
     "storage": "Stockage",
     "storageDesc": "Voir l'utilisation des données Mirall sur cet appareil.",
-    "about": "À propos",
-    "aboutDesc": "Version, documentation et assistance.",
-    "security": "Sécurité",
     "identityProtected": "Votre clé d'identité est protégée par le trousseau du système.",
     "identityWeak": "Aucun trousseau système disponible — votre clé d'identité dépend du chiffrement du disque.",
     "identityDisabled": "La protection de la clé d'identité est désactivée.",
-    "networkStatus": "Réseau",
     "networkStatusDesc_one": "{{count}} pair connecté",
     "networkStatusDesc_other": "{{count}} pairs connectés",
     "activityLog": "Journal d'activité",
@@ -553,10 +554,6 @@
     "hideDetails": "Masquer les détails"
   },
   "aboutSettings": {
-    "title": "À propos",
-    "intro": "Version, documentation et assistance.",
-    "version": "Version",
-    "resources": "Ressources",
     "documentation": "Documentation",
     "documentationDesc": "Guides et FAQ.",
     "keyboardShortcuts": "Raccourcis clavier",
@@ -748,9 +745,8 @@
       "spaceView": "Espace",
       "folderView": "Dossier",
       "settings": "Paramètres",
-      "account": "Compte",
+      "account": "Profil",
       "storage": "Stockage",
-      "about": "À propos",
       "appearance": "Apparence",
       "notifications": "Notifications",
       "general": "Général",

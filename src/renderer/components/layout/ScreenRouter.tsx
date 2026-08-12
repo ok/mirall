@@ -5,7 +5,6 @@ import SpaceView from '../../screens/SpaceView.js'
 import FolderView from '../../screens/FolderView.js'
 import Settings from '../../screens/Settings.js'
 import StorageSettings from '../../screens/StorageSettings.js'
-import AboutSettings from '../../screens/AboutSettings.js'
 import NotificationSettings from '../../screens/NotificationSettings.js'
 import AppearanceSettings from '../../screens/AppearanceSettings.js'
 import GeneralSettings from '../../screens/GeneralSettings.js'
@@ -84,12 +83,11 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
           onOpenActivityLog={nav.openActivityLog}
+          onFeedback={onOpenFeedback}
         />
       )
     case 'storage-settings':
       return <StorageSettings onBack={() => nav.setCurrentScreen(nav.storageBackTarget)} />
-    case 'about':
-      return <AboutSettings onBack={() => nav.setCurrentScreen(nav.preAboutScreen)} onFeedback={onOpenFeedback} />
     case 'appearance-settings':
       return <AppearanceSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'notification-settings':

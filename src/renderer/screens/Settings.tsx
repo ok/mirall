@@ -22,7 +22,6 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'hub',             label: t('settings.network'),       desc: t('settings.networkDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'network-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
     { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
-    { icon: 'info',            label: t('settings.about'),         desc: t('settings.aboutDesc'),      bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'about' },
   ]
 
   return (

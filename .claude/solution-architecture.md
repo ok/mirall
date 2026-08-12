@@ -975,7 +975,7 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `dev-console.ts` | `window.mirall` debugging surface (§8) |
 | `global.d.ts` | Type declarations for `window.bridge` |
 | `hooks/` | `useIpc`, `useProfile`, `useSpaces`, `useFiles`, `useMembers`, `useSpaceMembers`, `useDecorations`, `useUpdates`, `useShares`, `useShareFiles`, `useFolderMount`, `useForeignMount` |
-| `screens/` | `Onboarding`, `SharedSpaces`, `SpaceView`, `FolderView`, and the settings family — `Settings` (shell) + `Account`, `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkStatus`, `StorageSettings`, `AboutSettings` |
+| `screens/` | `Onboarding`, `SharedSpaces`, `SpaceView`, `FolderView`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |
 | `components/` | `primitives/`, `cards/`, `modals/`, `layout/`, `widgets/`, `toast/` (§10) |
 | `styles/tailwind.css` | Font faces, custom utilities, glass classes → `design.md` |
 | `i18n.ts` | `i18next` setup, initial-locale resolver, `setLocale`, `SUPPORTED_LANGUAGES` |

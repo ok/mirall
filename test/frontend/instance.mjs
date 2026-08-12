@@ -294,13 +294,15 @@ export class Instance {
   }
 
   async openAccount() {
-    await this.click({ name: 'Account' })
+    // Role-scoped: the page's own <h1> is named "Profile" too, so an unscoped name match can
+    // resolve to the heading instead of the TopNav avatar button.
+    await this.click({ role: 'button', name: 'Profile' })
     await this.waitText('Your profile', 8000)
   }
 
   async openNetworkStatus() {
     await this.openAccount()
-    await this.click({ role: 'button', contains: 'Network' })
+    await this.click({ role: 'button', contains: 'Connection' })
     await this.waitText('Network status', 8000)
   }
 

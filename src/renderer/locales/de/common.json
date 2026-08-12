@@ -27,14 +27,20 @@
   "topnav": {
     "feedback": "Feedback",
     "settings": "Einstellungen",
-    "account": "Konto",
-    "accountWithIssue": "Konto — Verbindungsproblem"
+    "account": "Profil",
+    "accountWithIssue": "Profil — Verbindungsproblem"
   },
   "account": {
-    "title": "Konto",
-    "intro": "Dein Profil und deine Netzwerkverbindung.",
-    "activity": "Aktivität",
-    "activityDesc": "Eine Aufzeichnung dessen, was in deinen Räumen passiert ist."
+    "title": "Profil",
+    "intro": "Dein Profil, dieses Gerät und App-Infos.",
+    "groupDevice": "Dieses Gerät",
+    "groupApp": "App",
+    "connection": "Verbindung",
+    "connectionDesc": "{{state}} · {{peers}}",
+    "identityTitle": "Identitätsschutz",
+    "upToDate": "Aktuell.",
+    "activityDesc": "Eine Aufzeichnung dessen, was in deinen Räumen passiert ist.",
+    "recordingOff": "Aufzeichnung ist aus · {{kept}}"
   },
   "spaces": {
     "title": "Geteilte",
@@ -433,7 +439,6 @@
   "settings": {
     "title": "Einstellungen",
     "intro": "Verwalte App- und Oberflächeneinstellungen.",
-    "profile": "Profil",
     "displayName": "Anzeigename",
     "changeAvatar": "Profilbild ändern",
     "avatarTooLarge": "Das Bild ist zu groß — bitte wähle eine Datei unter 16 MB.",
@@ -449,13 +454,9 @@
     "networkDesc": "Limits für Uploads und Downloads.",
     "storage": "Speicher",
     "storageDesc": "Mirall-Datennutzung auf diesem Gerät.",
-    "about": "Über",
-    "aboutDesc": "Version, Doku und Support.",
-    "security": "Sicherheit",
     "identityProtected": "Der Identitätsschlüssel ist durch den Systemschlüsselbund geschützt.",
     "identityWeak": "Kein Systemschlüsselbund verfügbar — der Identitätsschlüssel ist nur durch die Festplattenverschlüsselung geschützt.",
     "identityDisabled": "Der Schutz des Identitätsschlüssels ist deaktiviert.",
-    "networkStatus": "Netzwerk",
     "networkStatusDesc_one": "{{count}} Peer verbunden",
     "networkStatusDesc_other": "{{count}} Peers verbunden",
     "activityLog": "Aktivitätsprotokoll",
@@ -553,10 +554,6 @@
     "hideDetails": "Details ausblenden"
   },
   "aboutSettings": {
-    "title": "Über",
-    "intro": "Version, Doku und Support.",
-    "version": "Version",
-    "resources": "Ressourcen",
     "documentation": "Dokumentation",
     "documentationDesc": "Anleitungen und FAQ.",
     "keyboardShortcuts": "Tastenkürzel",
@@ -748,9 +745,8 @@
       "spaceView": "Raum",
       "folderView": "Ordner",
       "settings": "Einstellungen",
-      "account": "Konto",
+      "account": "Profil",
       "storage": "Speicher",
-      "about": "Über",
       "appearance": "Darstellung",
       "notifications": "Benachrichtigungen",
       "general": "Allgemein",
