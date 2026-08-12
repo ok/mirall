@@ -22,6 +22,9 @@
 import { hashChunk } from './chunker.js'
 
 const DEFAULT_CAP = 8
+// [mirall] How far _assign scans past chunks the download cap cannot currently afford
+// before giving up on this round. See the gated branch in _assign.
+const GATED_SCAN_LIMIT = 32
 // [mirall] §HOL — cede the worker loop every YIELD_EVERY accepted chunks so a burst of
 // buffered chunkData frames (protomux dispatches every frame from one socket read
 // synchronously) can't starve the profile-bee `append` listener that surfaces a
@@ -86,6 +89,7 @@ export class ChunkScheduler {
     this._needed = new Set()       // indices not yet written
     this._inflight = new Map()     // index → peer (one peer per chunk)
     this._peerInflight = new Map() // peer → count
+    this._peerCursor = 0           // [mirall] rotates which holder _assign offers to first
     this._received = new Map()     // peer → chunks accepted (multi-source proof)
 
     this._resolve = null
@@ -108,8 +112,23 @@ export class ChunkScheduler {
   // forward-progress signal so only a genuine stall — no accepted bytes for the
   // idle window — aborts the fetch, regardless of total file size.
   _armIdleTimer () {
-    if (this._done) return
+    // [mirall] `_finalizing` too: _finalize clears this timer precisely because the digest
+    // drain can outlast the window, and `_done` is still false throughout that await — so
+    // without this guard any re-arm during the verify resurrects the timer _finalize just
+    // disabled and stall-fails a fully downloaded file.
+    if (this._done || this._finalizing) return
     clearTimeout(this._timer)
+    this._timer = null
+    // [mirall] The watchdog measures SILENCE FROM A PEER, so it only runs while something
+    // is actually outstanding with one: chunks in flight, or a content request whose chunk
+    // list has not come back. With nothing outstanding we are waiting on our own bandwidth
+    // cap, and a stall is impossible by definition — there is no one to be silent.
+    //
+    // Suppressing it that way, rather than re-arming it on a timer while gated, is what
+    // keeps a low cap from failing a healthy transfer WITHOUT also blinding the watchdog:
+    // a heartbeat that re-arms on pacing alone never fires again, so a peer that wedges
+    // while still TCP-alive (no FIN, so removePeer never runs) is never detected at all.
+    if (this._inflight.size === 0 && this._requested.size === 0) return
     this._timer = setTimeout(
       () => this._fail(new Error('multi-source fetch stalled (no progress for ' + this._idleTimeout + 'ms)')),
       this._idleTimeout,
@@ -136,6 +155,7 @@ export class ChunkScheduler {
     if (this._done) return
     this._done = true
     clearTimeout(this._timer)
+    this._detachLimiter()
     this._reportEnd(false, err.message)
     // [mirall] Release the receiver state at the failure boundary: journal the hash
     // frontier and close the fd + chunk stash so a never-retried failure parks
@@ -151,6 +171,7 @@ export class ChunkScheduler {
     if (this._done) return
     this._done = true
     clearTimeout(this._timer)
+    this._detachLimiter()
     this._reportEnd(true, 'complete')
     if (this._resolve) this._resolve({ chunksPerPeer: this._received, peerCount: this._received.size, size: this._totalBytes })
   }
@@ -162,6 +183,7 @@ export class ChunkScheduler {
     if (this._done) return
     this._done = true
     clearTimeout(this._timer)
+    this._detachLimiter()
     this._reportEnd(false, 'cancelled')
     const err = new Error('fetch cancelled')
     err.code = 'ECANCELLED'
@@ -295,16 +317,41 @@ export class ChunkScheduler {
   // [mirall] We asked this peer for the content; it has not answered yet. Tracked so its loss is
   // still a loss (see _requested).
   noteRequested (peer) {
-    if (!this._done) this._requested.add(peer)
+    if (this._done) return
+    this._requested.add(peer)
+    // [mirall] Something is outstanding with a peer now, so the watchdog applies — see
+    // _armIdleTimer, which no-ops while nothing is awaited.
+    this._armIdleTimer()
   }
 
   /** A peer went away — return its inflight chunks to the pool. */
   // [mirall] Return a chunk's bytes to the download limiter. Safe to call for any index that
   // was charged by _assign; a no-op when unthrottled or when the chunk list is gone.
-  _refund (index) {
+  // [mirall] `give` clamps each call at one second of budget, so refunding N chunks in N
+  // calls silently destroys everything past the first second's worth — a peer dropping 8
+  // in-flight 256 KB chunks at a 1 MB/s cap would return 2 MB and keep 1 MB. Callers sum
+  // first and refund once; `indices` is an iterable of chunk indices.
+  _refundAll (indices) {
     if (!this._limiter || this._limiter.isUnlimited()) return
-    const len = this._chunks?.[index]?.length
-    if (len > 0) this._limiter.give(len)
+    let total = 0
+    for (const index of indices) {
+      const len = this._chunks?.[index]?.length
+      if (len > 0) total += len
+    }
+    if (total > 0) this._limiter.give(total)
+  }
+
+  _refund (index) {
+    this._refundAll([index])
+  }
+
+  // [mirall] This fetch is over (complete, failed or cancelled). Give up our place in the
+  // limiter's queue and hand back any budget granted but never spent — otherwise a
+  // transfer that ends between a grant and its assign leaks that credit out of the
+  // shared bucket, and every remaining transfer runs below the configured cap.
+  _detachLimiter () {
+    if (typeof this._limiter?.detach !== 'function') return
+    try { this._limiter.detach() } catch {}
   }
 
   removePeer (peer) {
@@ -319,14 +366,17 @@ export class ChunkScheduler {
     }
     this._peers.delete(peer)
     this._peerInflight.delete(peer)
+    const abandoned = []
     for (const [index, p] of this._inflight) {
       if (p !== peer) continue
       this._inflight.delete(index) // back to needed (still in _needed)
-      // [mirall] The assign charged these bytes to the download limiter; the peer never
-      // delivered them, and _assign() below re-charges the same chunk. Refund, or the
-      // bucket leaks on every peer churn and the achieved rate sinks below the cap.
-      this._refund(index)
+      abandoned.push(index)
     }
+    // [mirall] The assign charged these bytes to the download limiter; the peer never
+    // delivered them, and _assign() below re-charges the same chunk. Refund as ONE sum —
+    // see _refundAll — or the bucket leaks on every peer churn and the achieved rate sinks
+    // below the cap.
+    this._refundAll(abandoned)
     if (this._done) return
     if (this._peers.size === 0 && this._requested.size === 0 && this._needed.size > 0) {
       return this._fail(new Error('all peers gone with ' + this._needed.size + ' chunk(s) outstanding'))
@@ -356,33 +406,66 @@ export class ChunkScheduler {
     // [mirall] A pull protocol paces its inbound bytes by pacing its REQUESTS, so the
     // download cap is charged here rather than on arrival (by then the bytes are spent).
     const limiter = this._limiter && !this._limiter.isUnlimited() ? this._limiter : null
+    let gated = false
     let gatedBytes = 0
+    let probes = 0
+    let blocked = false
     // Per peer, batch the indices we hand it this round.
     const batches = new Map()
-    for (const peer of this._peers) {
+    // [mirall] Rotate which holder is offered chunks first. Under a cap a round's budget is
+    // only a chunk or two, so a fixed starting peer takes all of it every time and the
+    // others are never reached — multi-source fetch silently becomes single-source the
+    // moment a user sets a limit. Iteration order of a Set is insertion order, hence the
+    // explicit cursor.
+    const peers = this._peers.size > 1 ? [...this._peers] : null
+    const peerCount = peers ? peers.length : this._peers.size
+    if (peers) this._peerCursor = (this._peerCursor + 1) % peerCount
+    const ordered = peers
+      ? peers.map((_, n) => peers[(this._peerCursor + n) % peerCount])
+      : this._peers
+    for (const peer of ordered) {
+      if (blocked) break
       let slots = this._cap - (this._peerInflight.get(peer) || 0)
       if (slots <= 0) continue
       for (const index of this._needed) {
         if (slots <= 0) break
         if (this._inflight.has(index)) continue
-        if (limiter && !limiter.tryTake(this._chunks[index].length)) { gatedBytes = this._chunks[index].length; break }
+        if (limiter) {
+          // [mirall] Chunk sizes vary 4x within a tier, so an unaffordable chunk at the
+          // head of `needed` must not block a smaller one behind it — scan on rather than
+          // break. Two bounds, because `needed` can hold tens of thousands of entries:
+          // `wouldBlock` stops immediately when the refusal is structural (nothing of any
+          // size can be taken this round), and GATED_SCAN_LIMIT caps the size-only case.
+          const len = this._chunks[index].length
+          if (!limiter.tryTake(len)) {
+            gatedBytes = gated ? Math.min(gatedBytes, len) : len
+            gated = true
+            // Optional: an embedder may inject a limiter without it, in which case only the
+            // probe budget bounds the scan.
+            if (typeof limiter.wouldBlock === 'function' && limiter.wouldBlock()) { blocked = true; break }
+            if (++probes >= GATED_SCAN_LIMIT) break
+            continue
+          }
+        }
         this._inflight.set(index, peer)
         this._peerInflight.set(peer, (this._peerInflight.get(peer) || 0) + 1)
         if (!batches.has(peer)) batches.set(peer, [])
         batches.get(peer).push(index)
         slots--
       }
-      if (gatedBytes) break
+      // [mirall] NOTE: no break on `gated` alone. Ending the peer loop the moment the cap
+      // bites collapses multi-source fetch to single-source under ANY cap — the first peer
+      // in iteration order gets gated before it ever fills its slots, so the others are
+      // never reached. Only a structural block ends the round, since then no peer can be
+      // served either.
     }
     for (const [peer, indices] of batches) {
       if (indices.length) this._sendNeed(peer, indices)
     }
-    // [mirall] Deliberate pacing is not idleness: re-arm the watchdog and retry on refill,
-    // or a low cap would trip the no-progress timeout and fail a healthy transfer.
-    if (gatedBytes) {
-      this._armIdleTimer()
-      limiter.whenAvailable(gatedBytes, () => this._assign())
-    }
+    // [mirall] Bytes are outstanding with a peer now (or no longer are) — re-evaluate the
+    // watchdog, which arms only while we are actually waiting on someone.
+    this._armIdleTimer()
+    if (gated) limiter.whenAvailable(gatedBytes, () => this._assign())
   }
 }
 

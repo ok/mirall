@@ -342,23 +342,33 @@ test('a _fail with a transfer lacking pause() does not throw', async (t) => {
 // --- download cap -----------------------------------------------------------
 // The limiter is injected, so these drive the gate without a live overlay.
 
+// Mirrors the shape of a real bandwidth-limiter STREAM handle (createBandwidthLimiter().
+// stream()), which is what OverlayProtocolV2 injects — including `wouldBlock` and `detach`,
+// so this double cannot certify an interface production never sees. `topUp` is the double's
+// own budget knob and has no counterpart in the real handle; it is deliberately NOT called
+// `release`, which used to collide with the scheduler's teardown hook and poison `left`.
 function fakeLimiter (allowance) {
   let left = allowance
+  let detached = false
   const waiters = []
   return {
     isUnlimited: () => false,
     tryTake (bytes) {
-      if (left < bytes) return false
+      if (detached || left < bytes) return false
       left -= bytes
       return true
     },
-    whenAvailable (bytes, cb) { waiters.push(cb) },
-    release (amount) {
+    wouldBlock: () => detached,
+    give (bytes) { left += bytes },
+    whenAvailable (bytes, cb) { if (!detached) waiters.push(cb) },
+    detach () { detached = true; waiters.length = 0 },
+    topUp (amount) {
       left += amount
       const pending = waiters.splice(0, waiters.length)
       for (const cb of pending) cb()
     },
     pendingWaiters: () => waiters.length,
+    detached: () => detached,
   }
 }
 
@@ -374,7 +384,7 @@ test('download cap: chunks are requested only as budget allows', async (t) => {
   t.is(requested.length, 2, 'only the affordable chunks were asked for')
   t.is(limiter.pendingWaiters(), 1, 'the scheduler registered a retry for the rest')
 
-  limiter.release(20)
+  limiter.topUp(20)
   await wait(0)
   t.is(requested.length, 4, 'the rest are requested once budget refills')
 
@@ -398,7 +408,7 @@ test('download cap: waiting on the limiter does not trip the idle watchdog', asy
   // Stay gated for well over the idle window, re-arming as a real refill loop would.
   for (let i = 0; i < 4; i++) {
     await wait(60)
-    limiter.release(0)
+    limiter.topUp(0)
   }
 
   let failed = false
@@ -406,7 +416,7 @@ test('download cap: waiting on the limiter does not trip the idle watchdog', asy
   await wait(0)
   t.absent(failed, 'no stall failure while the transfer was merely paced')
 
-  limiter.release(1000)
+  limiter.topUp(1000)
   await wait(0)
   for (let i = 0; i < 4; i++) sched.onChunkData(peer, i, Buffer.alloc(10))
   await done

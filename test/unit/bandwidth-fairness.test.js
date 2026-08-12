@@ -1,0 +1,269 @@
+// Several transfers sharing ONE global cap, driven through real ChunkSchedulers.
+//
+// This is the cross-component case the per-module suites both missed:
+// bandwidth-limiter.test.js only ever drove a single consumer, and
+// overlay-vendor-scheduler.test.js drove a single ChunkScheduler against a hand-rolled
+// fakeLimiter. Every bug in the FIX-BW series only exists when two or more real schedulers
+// share one real limiter, so they lived in the gap between the two files.
+//
+// Real ChunkScheduler + real createBandwidthLimiter. The only fakes are the TransferManager
+// (accept every chunk) and the wire (deliver a requested chunk after 1ms, i.e. a line rate
+// far above any cap used here, so the CAP is what binds).
+
+import test from 'brittle'
+import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
+import { scaled } from '../helpers/timing.js'
+
+const KB = 1024
+const CHUNK = 64 * KB
+const TOTAL_CHUNKS = 4000        // ~256 MB: far more than any run below can finish
+
+const fakeTransfer = {
+  startReceive: () => ({ received: new Set() }),
+  writeChunk: () => ({ ok: true }),
+  finalize: () => ({ ok: true }),
+  pause: async () => {},
+}
+
+const chunkList = (n = TOTAL_CHUNKS, size = CHUNK) =>
+  Array.from({ length: n }, (_, i) => ({ hash: 'h' + i, length: size }))
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// One transfer: a scheduler, its own limiter stream (exactly how OverlayProtocolV2 wires a
+// scheduler up), one peer, and a byte counter.
+function startTransfer (limiter, name, { chunkSize = CHUNK, mute = false } = {}) {
+  const rec = { name, bytes: 0, chunkSize }
+  const peer = { id: `peer-${name}` }
+  const sched = new ChunkScheduler({
+    path: `content:${name}`,
+    destPath: `/tmp/${name}`,
+    transfer: fakeTransfer,
+    timeout: scaled(30_000),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: (_p, indices) => {
+      if (mute) return
+      indices.forEach((index, k) => setTimeout(() => {
+        if (sched.done) return
+        rec.bytes += chunkSize
+        sched.onChunkData(peer, index, { length: chunkSize })
+      }, k + 1))
+    },
+  })
+  sched.promise().catch(() => {})
+  sched.onChunkHashes(peer, chunkList(TOTAL_CHUNKS, chunkSize))
+  rec.sched = sched
+  return rec
+}
+
+const report = (recs) => recs.map((r) => `${r.name}=${Math.round(r.bytes / KB)}KB`).join(' ')
+
+test('REGRESSION (FIX-BW1): four parallel downloads all progress under one cap', async (t) => {
+  const CAP = 2 * 1024 * KB
+  const limiter = createBandwidthLimiter(() => CAP)
+  const recs = ['a', 'b', 'c', 'd'].map((n) => startTransfer(limiter, n))
+
+  await wait(scaled(1500))
+  for (const r of recs) r.sched.cancel()
+  limiter.destroy()
+
+  for (const r of recs) t.ok(r.bytes > 0, `${r.name} downloaded something (${Math.round(r.bytes / KB)} KB)`)
+  const total = recs.reduce((s, r) => s + r.bytes, 0)
+  t.ok(Math.min(...recs.map((r) => r.bytes)) >= total * 0.08, `no transfer was squeezed out — ${report(recs)}`)
+})
+
+// The shape from the field report: one big file already running at the cap, then more
+// downloads started on top of it. Before the fix the later ones received zero bytes for as
+// long as the first kept running.
+test('REGRESSION (FIX-BW1): downloads started later are not starved by the incumbent', async (t) => {
+  const CAP = 2 * 1024 * KB
+  const limiter = createBandwidthLimiter(() => CAP)
+  const first = startTransfer(limiter, 'incumbent')
+  await wait(scaled(400))                      // let it settle at the full cap
+  const later = ['late1', 'late2'].map((n) => startTransfer(limiter, n))
+
+  await wait(scaled(1200))
+  for (const r of [first, ...later]) r.sched.cancel()
+  limiter.destroy()
+
+  for (const r of later) t.ok(r.bytes > 0, `${r.name} broke through the incumbent (${Math.round(r.bytes / KB)} KB)`)
+  const lateTotal = later.reduce((s, r) => s + r.bytes, 0)
+  t.ok(lateTotal >= first.bytes * 0.25, `the late starters got a real share — ${report([first, ...later])}`)
+})
+
+// REGRESSION (FIX-BW3): fairness must be in BYTES, not in turns. Chunk size comes from the
+// file-size tier, so two concurrent transfers routinely differ by 64x. A turn-based queue
+// gives the large-chunk transfer 100% and the small one exactly 0.
+test('REGRESSION (FIX-BW3): transfers with different chunk sizes share the cap', async (t) => {
+  const CAP = 2 * 1024 * KB
+  const limiter = createBandwidthLimiter(() => CAP)
+  const big = startTransfer(limiter, 'big-file', { chunkSize: 1024 * KB })
+  const small = startTransfer(limiter, 'small-file', { chunkSize: 16 * KB })
+
+  await wait(scaled(1500))
+  for (const r of [big, small]) r.sched.cancel()
+  limiter.destroy()
+
+  t.ok(small.bytes > 0, `the small-chunk transfer was not starved (${Math.round(small.bytes / KB)} KB)`)
+  t.ok(big.bytes > 0, `the large-chunk transfer ran too (${Math.round(big.bytes / KB)} KB)`)
+  const total = big.bytes + small.bytes
+  t.ok(small.bytes >= total * 0.15, `and the split is by bytes, not by turns — ${report([big, small])}`)
+})
+
+// The aggregate cap was never the broken part — it held even while the split was
+// winner-take-all. This is an invariant guard, NOT a regression test: it passes against the
+// pre-fix code too.
+test('five parallel downloads still respect the aggregate cap', async (t) => {
+  const CAP = 1024 * KB
+  const limiter = createBandwidthLimiter(() => CAP)
+  const recs = ['a', 'b', 'c', 'd', 'e'].map((n) => startTransfer(limiter, n))
+
+  const startedAt = Date.now()
+  await wait(scaled(1500))
+  const elapsed = (Date.now() - startedAt) / 1000
+  for (const r of recs) r.sched.cancel()
+  limiter.destroy()
+
+  const total = recs.reduce((s, r) => s + r.bytes, 0)
+  // One second of bucket depth is allowed on top of the steady rate.
+  t.ok(total <= CAP * (elapsed + 1.5), `five transfers together stayed under the cap (${Math.round(total / KB)} KB in ${elapsed.toFixed(2)}s)`)
+  t.ok(total >= CAP * elapsed * 0.5, `and the cap was actually being used (${Math.round(total / KB)} KB)`)
+})
+
+// A cap far below one chunk is the worst case for a byte bucket: every chunk needs several
+// seconds of budget, so a naive implementation hands the whole bucket to whoever asks first.
+test('REGRESSION (FIX-BW1): three downloads share a cap smaller than one chunk', async (t) => {
+  const CAP = 48 * KB                  // one 64 KB chunk costs more than a second
+  const limiter = createBandwidthLimiter(() => CAP)
+  const recs = ['a', 'b', 'c'].map((n) => startTransfer(limiter, n))
+
+  await wait(scaled(5000))
+  for (const r of recs) r.sched.cancel()
+  limiter.destroy()
+
+  t.is(recs.filter((r) => r.bytes > 0).length, 3, `every transfer got at least one chunk — ${report(recs)}`)
+})
+
+// REGRESSION (FIX-BW2): MIN_BYTES_PER_SECOND is documented as the floor that keeps one chunk
+// inside the 30s idle watchdog, but the arithmetic never held: 32 KB/s x 30 s = 983,040
+// bytes, under the 1 MB tier-2 max chunk. Pre-fix, a wake scheduled past the window (the
+// bucket goes deeply negative after an oversized chunk) failed a perfectly healthy transfer.
+test('REGRESSION (FIX-BW2): a chunk costing more than the watchdog window is paced, not failed', async (t) => {
+  const limiter = createBandwidthLimiter(() => 32 * KB)    // the floor
+  const BIG = 256 * KB                                      // 8 seconds of budget per chunk
+  const peer = { id: 'p1' }
+  let delivered = 0
+  let rejection = null
+  const sched = new ChunkScheduler({
+    path: 'content:paced',
+    destPath: '/tmp/paced',
+    transfer: fakeTransfer,
+    timeout: scaled(500),                                   // far shorter than one chunk costs
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: (_p, indices) => {
+      indices.forEach((index, k) => setTimeout(() => {
+        if (sched.done) return
+        delivered++
+        sched.onChunkData(peer, index, { length: BIG })
+      }, k + 1))
+    },
+  })
+  sched.promise().catch((err) => { rejection = err.message })
+  sched.onChunkHashes(peer, chunkList(40, BIG))
+
+  await wait(scaled(2000))
+  const stalled = rejection
+  sched.cancel()
+  limiter.destroy()
+
+  t.absent(stalled, `the transfer was paced, not stall-failed (${stalled || 'no rejection'})`)
+  t.ok(delivered > 0, `and it is still moving bytes (${delivered} chunk(s) at 32 KB/s)`)
+})
+
+// REGRESSION (FIX-BW4): the first attempt at FIX-BW2 re-armed the watchdog from a limiter
+// heartbeat, which fires on a timer with no peer involvement — so it never fired again and a
+// peer that wedged while still TCP-alive (no FIN, so removePeer never runs) was NEVER
+// detected. Measured on that revision: not detected after 6000ms against a 500ms window.
+// The watchdog must still catch a silent peer while a cap is in force.
+test('REGRESSION (FIX-BW4): a silent peer is still detected while a cap is in force', async (t) => {
+  const limiter = createBandwidthLimiter(() => 512 * KB)
+  const peer = { id: 'mute' }
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:mute',
+    destPath: '/tmp/mute',
+    transfer: fakeTransfer,
+    timeout: scaled(400),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: () => {},          // answers the chunk list, then never sends a byte
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  sched.onChunkHashes(peer, chunkList(200, CHUNK))
+
+  await wait(scaled(2500))
+  limiter.destroy()
+
+  t.ok(failedAfter !== null, `the stall was detected (after ${failedAfter}ms)`)
+  t.ok(failedAfter < scaled(2000), 'and promptly — not swallowed by pacing')
+})
+
+// REGRESSION (FIX-BW5): ending the peer loop the moment the cap bites collapses
+// multi-source fetch to single-source — the first peer in iteration order is gated before it
+// ever fills its slots, so the others are never reached. Measured pre-fix at a 2 MB/s cap:
+// A=38 / B=0 / C=0 chunk-needs.
+test('REGRESSION (FIX-BW5): a capped download still spreads across every holder', async (t) => {
+  const limiter = createBandwidthLimiter(() => 2 * 1024 * KB)
+  const served = new Map()
+  const peers = [{ id: 'A' }, { id: 'B' }, { id: 'C' }]
+  const sched = new ChunkScheduler({
+    path: 'content:multi',
+    destPath: '/tmp/multi',
+    transfer: fakeTransfer,
+    timeout: scaled(30_000),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: (peer, indices) => {
+      served.set(peer.id, (served.get(peer.id) || 0) + indices.length)
+      indices.forEach((index, k) => setTimeout(() => {
+        if (sched.done) return
+        sched.onChunkData(peer, index, { length: CHUNK })
+      }, k + 1))
+    },
+  })
+  sched.promise().catch(() => {})
+  for (const p of peers) await sched.onChunkHashes(p, chunkList(TOTAL_CHUNKS, CHUNK))
+
+  await wait(scaled(1200))
+  sched.cancel()
+  limiter.destroy()
+
+  const counts = peers.map((p) => `${p.id}=${served.get(p.id) || 0}`).join(' ')
+  for (const p of peers) t.ok((served.get(p.id) || 0) > 0, `holder ${p.id} was used under the cap (${counts})`)
+})
+
+test('an uncapped limiter leaves parallel downloads unthrottled', async (t) => {
+  const limiter = createBandwidthLimiter(() => 0)
+  const recs = ['a', 'b', 'c'].map((n) => startTransfer(limiter, n))
+  await wait(scaled(300))
+  for (const r of recs) r.sched.cancel()
+  limiter.destroy()
+  for (const r of recs) t.ok(r.bytes > 2 * 1024 * KB, `${r.name} ran at wire speed (${Math.round(r.bytes / KB)} KB)`)
+})
+
+// A finished scheduler must hand its unspent grant back, or a cap's worth of budget leaks
+// out of the shared bucket on every transfer that ends mid-round.
+test('a cancelled transfer detaches its stream and returns unspent budget', async (t) => {
+  const limiter = createBandwidthLimiter(() => 256 * KB)
+  const held = limiter.stream()
+  const rec = startTransfer(limiter, 'ending')
+  await wait(scaled(300))
+  rec.sched.cancel()
+  await wait(scaled(50))
+  // With the transfer gone nothing is queued, so a fresh consumer sees the bucket directly.
+  t.absent(held.wouldBlock(), 'the ended transfer left no entry blocking the queue')
+  limiter.destroy()
+})

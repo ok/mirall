@@ -339,12 +339,64 @@ re-diffable against upstream. Categories:
     `OverlayProtocolV2`; `protocol-v2._onChunkNeed` awaits `uploadLimiter.take(bytes)` before each
     `chunkData.send` — and, because that wait opens a revocation window, re-checks the serve grant
     on the far side of it exactly as the existing drain boundary does. `protocol-v2.fetchContent`
-    passes `downloadLimiter` through as the scheduler's `limiter` opt;
-    `chunk-scheduler._assign` charges each chunk with `tryTake` and, when gated, **re-arms the idle
-    watchdog** before `whenAvailable(bytes, …)` — the watchdog measures silence, and time spent
-    waiting on our own limiter is not silence, so without the re-arm a low cap fails a healthy
-    transfer as "stalled". Covered by `test/unit/bandwidth-limiter.test.js` and the two download-cap
-    cases in `test/unit/overlay-vendor-scheduler.test.js`.
+    passes **`downloadLimiter.stream()`** — a per-scheduler handle, not the limiter itself — as the
+    scheduler's `limiter` opt, and `_onChunkNeed` charges the upload cap against a **per-peer**
+    `uploadLimiter.stream()` (`_uploadStreamFor`, detached in the channel's `onclose` so a serve
+    loop parked on `take()` resolves 0 and hands its budget back instead of writing to a dead
+    channel); `chunk-scheduler._assign` charges each chunk with `tryTake` and, when
+    gated, **re-arms the idle watchdog** before `whenAvailable(bytes, …)` — the watchdog measures
+    silence, and time spent waiting on our own limiter is not silence, so without the re-arm a low
+    cap fails a healthy transfer as "stalled". Covered by `test/unit/bandwidth-limiter.test.js` and
+    the two download-cap cases in `test/unit/overlay-vendor-scheduler.test.js`.
+
+    **One stream per scheduler (FIX-BW1).** The handle is not decoration: one bucket paces every
+    concurrent transfer, so the bucket has to arbitrate. Passing the limiter directly made `tryTake`
+    an unsynchronized grab, and a scheduler with chunks in flight re-enters `_assign` on *every*
+    arrival — so it consumed each refill increment microseconds after it accrued, while a scheduler
+    with nothing in flight could only retry on the shared timer and always found the bucket empty.
+    Measured against that code: a 1 MB/s cap with three transfers gave the first 19.9 MB and the
+    other two **exactly zero bytes**, indefinitely; the aggregate cap was honoured perfectly, only
+    the split was wrong. The limiter now queues waiters, grants them credit in round-robin order,
+    and refuses `tryTake` from the shared bucket while anyone is queued. `_assign` also **scans past**
+    an unaffordable chunk (bounded by `GATED_SCAN_LIMIT`) instead of breaking, since chunk sizes vary
+    4x within a tier and the head of `needed` must not block a smaller chunk behind it; and the three
+    terminal paths (`_finish` / `_fail` / `cancel`) call `_releaseLimiter()` so a grant that was never
+    spent goes back to the bucket. Covered by `test/unit/bandwidth-fairness.test.js`, which drives
+    three to five real schedulers through one real limiter — the case neither per-module suite could
+    see, because each only ever exercised a single consumer.
+
+    **Watchdog scoping (FIX-BW2 / FIX-BW4).** `_armIdleTimer` now arms only while something is
+    outstanding with a peer — `_inflight` or `_requested` non-empty — and is additionally guarded on
+    `_finalizing` (which `_done` does not cover: `_finalize` clears the timer precisely because the
+    digest drain outlasts the window, and any re-arm during that await resurrects it and stall-fails
+    a complete file). The re-arm on the gated assign was never sufficient on its own: it runs only
+    when the limiter wakes the scheduler, and after an oversized chunk drives the bucket negative
+    that wake is scheduled past the window (measured: an 8s wake against a 3s watchdog, transfer
+    failed as "stalled"). The first attempt at this fixed it with a limiter *heartbeat* re-arming
+    the watchdog on a timer — which made the watchdog never fire at all, so a peer wedging while
+    still TCP-alive went undetected (measured: not caught after 6000ms against a 500ms window).
+    Scoping is the correct axis: waiting on our own cap is not silence, and with nothing outstanding
+    there is nobody to be silent. Note `MIN_BYTES_PER_SECOND` does NOT keep a chunk inside the
+    window and never did — 32 KB/s x 30 s = 983,040 bytes, under the 1 MB tier-2 max chunk; the
+    floor is a usability guard and its comment is corrected in both the worker and
+    `NetworkSettings.tsx`. Covered by the FIX-BW2 and FIX-BW4 cases in `bandwidth-fairness.test.js`.
+
+    **Peer rotation under a cap (FIX-BW5).** `_assign` rotates which holder it offers chunks to
+    first (`_peerCursor`). Under a cap a round's budget is only a chunk or two, so a fixed starting
+    peer takes all of it every round and multi-source fetch silently collapses to single-source
+    (measured at a 2 MB/s cap: `A=38 / B=0 / C=0` chunk-needs). The peer loop also no longer breaks
+    merely because the cap bit — only on a *structural* block, which `stream.wouldBlock()` reports
+    (no credit and other streams queued, so no chunk of any size can be taken and scanning on is
+    pure waste on the worker's single thread).
+
+    **Refunds are summed, not looped.** `give` clamps each call at one second of budget, so the old
+    per-chunk refund in `removePeer` destroyed everything past the first second's worth — a peer
+    dropping 8 in-flight 256 KB chunks at a 1 MB/s cap returned 2 MB and kept 1 MB. `_refundAll`
+    sums first and refunds once.
+
+    **Still open:** an UPLOAD cap has no cross-peer heartbeat — a throttled sender can exceed the
+    *receiver's* idle watchdog. Fixing it needs a keep-alive frame from the serve loop, not a
+    limiter change.
 
     **Refund on abandonment.** `_assign` charges a chunk to the download limiter when it hands
     it to a peer, but the charge is for work that may never happen: `removePeer` returns the
