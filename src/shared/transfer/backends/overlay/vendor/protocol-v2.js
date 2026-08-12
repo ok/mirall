@@ -664,6 +664,12 @@ export class OverlayProtocolV2 {
   // shared by every serve loop would make them race each other instead.
   _uploadStreamFor (peer) {
     if (!this._uploadLimiter || !peer) return null
+    // [mirall] Never re-mint for a dead peer. A serve loop suspended across an await can
+    // resume after onclose has already detached and nulled the handle; minting a fresh one
+    // there creates an orphan nothing will ever detach, which then takes a share of every
+    // refill in distribute() and — because a queued stream trips the anti-barge rule —
+    // blocks every live transfer until the limiter is destroyed.
+    if (peer.channel?.closed) return null
     if (!peer.uploadStream) peer.uploadStream = this._uploadLimiter.stream()
     return peer.uploadStream
   }
@@ -699,8 +705,14 @@ export class OverlayProtocolV2 {
       if (uploadStream && !uploadStream.isUnlimited()) {
         const paid = await uploadStream.take(data.length)
         if (paid <= 0) return
-        if (peer.channel?.closed) return
-        if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
+        // [mirall] Past this point the bytes are DEBITED. Both bails below abandon them, so
+        // refund or the cap silently under-delivers on every revocation and disconnect —
+        // the same accounting the download side does via _refundAll.
+        if (peer.channel?.closed) { uploadStream.give(paid); return }
+        if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) {
+          uploadStream.give(paid)
+          return
+        }
       }
       const flushed = peer.msgs.chunkData.send({ path: msg.path, index, data })
       if (this._chunkServeCb) {

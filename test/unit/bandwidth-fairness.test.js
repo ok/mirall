@@ -245,6 +245,77 @@ test('REGRESSION (FIX-BW5): a capped download still spreads across every holder'
   for (const p of peers) t.ok((served.get(p.id) || 0) > 0, `holder ${p.id} was used under the cap (${counts})`)
 })
 
+// REGRESSION (FIX-BW8): scoping the watchdog to "bytes outstanding with a peer" removed the
+// fetch's only unconditional liveness bound. Suppression must key on being PACED — the
+// limiter holding our retry — not merely on having nothing outstanding, or a limiter that
+// refuses the retry (torn down mid-transfer) leaves the fetch with no timer at all: it never
+// settles, its `content:<hash>` entry is never cleared, and every later fetch of that hash
+// joins the dead promise.
+test('REGRESSION (FIX-BW8): a torn-down limiter fails the fetch instead of hanging it', async (t) => {
+  const limiter = createBandwidthLimiter(() => 32 * KB)
+  const peer = { id: 'p1' }
+  let settled = null
+  const sched = new ChunkScheduler({
+    path: 'content:torn',
+    destPath: '/tmp/torn',
+    transfer: fakeTransfer,
+    timeout: scaled(400),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: () => {},
+  })
+  sched.promise().then(() => { settled = 'ok' }).catch((e) => { settled = e.message })
+  sched.onChunkHashes(peer, chunkList(40, 512 * KB))   // each chunk is 16s of budget: gated
+  await wait(scaled(100))
+  limiter.destroy()                                     // teardown while parked
+  await wait(scaled(1200))
+
+  t.ok(settled !== null, `the fetch settled rather than hanging forever (${settled})`)
+  t.ok(/stalled/.test(settled || ''), 'and it settled as a stall, releasing the download slot')
+})
+
+// REGRESSION (FIX-BW8): _assign re-arms the watchdog on every call, and a second holder's
+// chunk list re-enters _assign during the first holder's startReceive await. onChunkHashes
+// clears the timer for exactly that window, so _armIdleTimer must honour `_settingUp` or a
+// healthy journal-less resume with 3+ holders is stall-failed.
+test('REGRESSION (FIX-BW8): a second holder mid-setup does not resurrect the watchdog', async (t) => {
+  const limiter = createBandwidthLimiter(() => 8 * 1024 * KB)
+  let release
+  const slowTransfer = {
+    startReceive: () => new Promise((r) => { release = () => r({ received: new Set() }) }),
+    writeChunk: () => ({ ok: true }),
+    finalize: () => ({ ok: true }),
+    pause: async () => {},
+  }
+  let failed = null
+  const sched = new ChunkScheduler({
+    path: 'content:resume',
+    destPath: '/tmp/resume',
+    transfer: slowTransfer,
+    timeout: scaled(300),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: (peer, indices) => {
+      indices.forEach((index, k) => setTimeout(() => {
+        if (sched.done) return
+        sched.onChunkData(peer, index, { length: CHUNK })
+      }, k + 1))
+    },
+  })
+  sched.promise().catch((e) => { failed = e.message })
+  for (const id of ['A', 'B', 'C']) sched.noteRequested({ id })
+  const first = sched.onChunkHashes({ id: 'A' }, chunkList(200, CHUNK))   // begins the long setup
+  await sched.onChunkHashes({ id: 'B' }, chunkList(200, CHUNK))           // re-enters _assign
+  await wait(scaled(800))                                                 // well past the window
+  t.absent(failed, `no stall-fail during setup (${failed || 'none'})`)
+  release()
+  await first
+  await wait(scaled(200))
+  t.absent(failed, 'and none after setup completed either')
+  sched.cancel()
+  limiter.destroy()
+})
+
 test('an uncapped limiter leaves parallel downloads unthrottled', async (t) => {
   const limiter = createBandwidthLimiter(() => 0)
   const recs = ['a', 'b', 'c'].map((n) => startTransfer(limiter, n))

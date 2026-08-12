@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { createBandwidthLimiter, MIN_BYTES_PER_SECOND } from '../../src/shared/transfer/bandwidth-limiter.js'
-import { scaled } from '../helpers/timing.js'
+import { scaled, unscaled } from '../helpers/timing.js'
 
 // A manual clock so refill is deterministic — drive the bucket, never sleep.
 function clock (start = 1_000_000) {
@@ -122,7 +122,11 @@ test('take() resolves once the bytes are paid for', async (t) => {
   await s.take(256 * KB)
   const startedAt = Date.now()
   await s.take(64 * KB)
-  t.ok(Date.now() - startedAt >= scaled(100), 'the second take waited for a refill')
+  // A LOWER bound on a quantity fixed by the limiter's own arithmetic — 64 KB at 256 KB/s
+  // is 250 ms on any machine. Scaling it up would overtake the real value and fail a
+  // correct implementation as soon as MIRALL_TEST_TIMEOUT_SCALE rises; unscaled() cancels
+  // the helper's scaling out.
+  t.ok(Date.now() - startedAt >= unscaled(100), 'the second take waited for a refill')
   l.destroy()
 })
 
@@ -340,6 +344,44 @@ test('wouldBlock separates a structural refusal from one about size', (t) => {
   t.absent(a.wouldBlock(), 'but a smaller chunk might — keep scanning')
   b.whenAvailable(10 * KB, () => {})       // someone is now queued
   t.ok(a.wouldBlock(), 'with a stream queued no size can be taken — stop scanning')
+  l.destroy()
+})
+
+// REGRESSION (FIX-BW6): a handle holds ONE queue entry. take() used to overwrite
+// `s.request` and push the handle onto the queue a second time, orphaning the first
+// promise and leaving a request-less entry that threw `Cannot read properties of null
+// (reading 'bytes')` out of the pump — fatal on the Bare worker. Reachable on any capped
+// upload: one handle per peer, and protomux does not serialise its async onmessage
+// handlers, so two chunkNeed messages for one peer overlap.
+test('REGRESSION (FIX-BW6): concurrent take() on one handle is serialised, not corrupting', async (t) => {
+  const { l, s } = oneStream(64 * KB)
+  const results = await Promise.all([s.take(4 * KB), s.take(4 * KB), s.take(4 * KB)])
+  t.alike(results, [4 * KB, 4 * KB, 4 * KB], 'every concurrent take was paid in full')
+  l.destroy()
+})
+
+test('REGRESSION (FIX-BW6): detach resolves the backlog, not just the head', async (t) => {
+  const { l, s } = oneStream(64 * KB)
+  await s.take(4 * 1024 * KB)                  // borrow; bucket now deep in debt
+  const both = Promise.all([s.take(8 * KB), s.take(8 * KB)])
+  await wait(scaled(50))
+  s.detach()
+  t.alike(await both, [0, 0], 'head and backlog both resolve, so no serve loop hangs')
+  l.destroy()
+})
+
+// REGRESSION (FIX-BW7): the cap-lifted branch granted 0, and take() reports what it was
+// paid — so the serve loop read "aborted, do not send" and RAISING the upload cap to
+// Unlimited abandoned every in-flight upload mid-batch.
+test('REGRESSION (FIX-BW7): lifting the cap pays parked uploads instead of aborting them', async (t) => {
+  let bps = 64 * KB
+  const l = createBandwidthLimiter(() => bps)
+  const s = l.stream()
+  await s.take(4 * 1024 * KB)                  // borrow so the next take parks
+  const parked = s.take(8 * KB)
+  await wait(scaled(50))
+  bps = 0                                       // user drags the cap to Unlimited
+  t.is(await parked, 8 * KB, 'the parked upload is released as PAID, not as aborted')
   l.destroy()
 })
 

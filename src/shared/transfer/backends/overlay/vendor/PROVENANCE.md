@@ -343,11 +343,12 @@ re-diffable against upstream. Categories:
     scheduler's `limiter` opt, and `_onChunkNeed` charges the upload cap against a **per-peer**
     `uploadLimiter.stream()` (`_uploadStreamFor`, detached in the channel's `onclose` so a serve
     loop parked on `take()` resolves 0 and hands its budget back instead of writing to a dead
-    channel); `chunk-scheduler._assign` charges each chunk with `tryTake` and, when
-    gated, **re-arms the idle watchdog** before `whenAvailable(bytes, …)` — the watchdog measures
-    silence, and time spent waiting on our own limiter is not silence, so without the re-arm a low
-    cap fails a healthy transfer as "stalled". Covered by `test/unit/bandwidth-limiter.test.js` and
-    the two download-cap cases in `test/unit/overlay-vendor-scheduler.test.js`.
+    channel); `chunk-scheduler._assign` charges each chunk with `tryTake` and registers a
+    retry with `whenAvailable(bytes, cb)` when gated. Time spent waiting on our own limiter is not
+    silence, so a paced fetch must not be timed out — but the mechanism is watchdog SCOPING, not a
+    re-arm while gated; see "Watchdog scoping" below for why the re-arm approach was removed.
+    Covered by `test/unit/bandwidth-limiter.test.js` and the two download-cap cases in
+    `test/unit/overlay-vendor-scheduler.test.js`.
 
     **One stream per scheduler (FIX-BW1).** The handle is not decoration: one bucket paces every
     concurrent transfer, so the bucket has to arbitrate. Passing the limiter directly made `tryTake`
@@ -360,7 +361,7 @@ re-diffable against upstream. Categories:
     and refuses `tryTake` from the shared bucket while anyone is queued. `_assign` also **scans past**
     an unaffordable chunk (bounded by `GATED_SCAN_LIMIT`) instead of breaking, since chunk sizes vary
     4x within a tier and the head of `needed` must not block a smaller chunk behind it; and the three
-    terminal paths (`_finish` / `_fail` / `cancel`) call `_releaseLimiter()` so a grant that was never
+    terminal paths (`_finish` / `_fail` / `cancel`) call `_detachLimiter()` so a grant that was never
     spent goes back to the bucket. Covered by `test/unit/bandwidth-fairness.test.js`, which drives
     three to five real schedulers through one real limiter — the case neither per-module suite could
     see, because each only ever exercised a single consumer.
@@ -389,10 +390,12 @@ re-diffable against upstream. Categories:
     (no credit and other streams queued, so no chunk of any size can be taken and scanning on is
     pure waste on the worker's single thread).
 
-    **Refunds are summed, not looped.** `give` clamps each call at one second of budget, so the old
-    per-chunk refund in `removePeer` destroyed everything past the first second's worth — a peer
-    dropping 8 in-flight 256 KB chunks at a 1 MB/s cap returned 2 MB and kept 1 MB. `_refundAll`
-    sums first and refunds once.
+    **Refunds are summed (an efficiency, not a fix).** `removePeer` refunds its abandoned chunks
+    through `_refundAll` in one call rather than one per chunk. This does NOT recover budget: `give`
+    clamps the resulting total, and min(c, min(c, t+a)+b) equals min(c, t+a+b), so N calls credit
+    exactly what one summed call credits (measured — an earlier revision of this note claimed
+    otherwise and was wrong). The real limit is the clamp: a refund can never lift the bucket above
+    one second of budget, so churn beyond that loses the excess either way.
 
     **Still open:** an UPLOAD cap has no cross-peer heartbeat — a throttled sender can exceed the
     *receiver's* idle watchdog. Fixing it needs a keep-alive frame from the serve loop, not a
@@ -401,7 +404,7 @@ re-diffable against upstream. Categories:
     **Refund on abandonment.** `_assign` charges a chunk to the download limiter when it hands
     it to a peer, but the charge is for work that may never happen: `removePeer` returns the
     peer's in-flight chunks to `needed`, and a TRANSIENT write failure in `onChunkData` does the
-    same. Both re-enter `_assign`, which charges the identical bytes again. `_refund(index)`
+    same. Both re-enter `_assign`, which charges the identical bytes again. `_refundAll(indices)`
     gives them back (`limiter.give`, capped at one second of budget like `refill`), so the
     achieved rate does not sink below the configured cap under peer churn — the limiter is a
     process-wide singleton, so leaked debt from one flapping fetch throttles every concurrent

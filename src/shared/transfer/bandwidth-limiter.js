@@ -101,8 +101,9 @@ function bucketAllows(ctx, bytes, bps) {
 // Bytes charged for work that never happened go back to the shared bucket, not to the
 // stream's credit, so a churning transfer cannot bank budget others are waiting on. Capped
 // at one second like refill: returning more would let a burst of cancellations overshoot
-// the cap. Callers refunding several chunks must SUM them into one call — clamping per
-// chunk silently destroys everything past the first second's worth.
+// the cap — so churn beyond one second's worth genuinely loses the excess. Note the clamp
+// is on the TOTAL, so refunding N chunks in N calls credits exactly what one summed call
+// credits; summing is only cheaper, never more accurate.
 function refund(ctx, bytes) {
   const bps = ratePerSecond(ctx)
   if (bps === 0 || !(bytes > 0)) return
@@ -124,6 +125,30 @@ function grant(ctx, s, amount) {
   s.request = null
   s.credit += amount
   if (req && req.cb) { try { req.cb() } catch {} }
+  promote(ctx, s)
+}
+
+// A handle holds ONE queue entry, but take() may be called concurrently on it — the serve
+// side hands a single handle to every serve loop for a peer, and protomux does not
+// serialise its async onmessage handlers. Extra calls wait in the handle's own backlog and
+// are promoted one at a time, so the handle never appears in ctx.waiting twice (which
+// stranded the earlier entry's request as null and threw out of the pump).
+function promote(ctx, s) {
+  if (s.detached || ctx.destroyed || s.request || !s.backlog.length) return
+  s.request = s.backlog.shift()
+  ctx.waiting.push(s)
+  arm(ctx)
+}
+
+// Resolve everything this handle has parked, granting nothing. Used by detach and destroy:
+// an unresolved take() hangs its serve loop forever.
+function abortRequests(s) {
+  const reqs = s.request ? [s.request, ...s.backlog] : [...s.backlog]
+  s.request = null
+  s.backlog.length = 0
+  for (const req of reqs) {
+    if (req && req.cb) { try { req.cb() } catch {} }
+  }
 }
 
 // Each waiting stream accrues an equal share of the budget that just became available.
@@ -174,8 +199,11 @@ function pump(ctx) {
   try {
     const bps = ratePerSecond(ctx)
     if (bps === 0) {
-      // The cap was lifted while these were parked — release them all, uncharged.
-      for (const s of ctx.waiting.splice(0, ctx.waiting.length)) grant(ctx, s, 0)
+      // The cap was lifted while these were parked — release them all. Credit the FULL ask
+      // even though nothing is charged: take() reports what it was paid, and the serve loop
+      // treats 0 as "aborted, do not send". Granting 0 here made *raising* the cap abandon
+      // every in-flight upload mid-batch.
+      for (const s of ctx.waiting.splice(0, ctx.waiting.length)) grant(ctx, s, s.request ? s.request.bytes : 0)
       return
     }
     const elapsed = advance(ctx)
@@ -218,18 +246,14 @@ function destroy(ctx) {
   // would hang whichever serve loop is awaiting it. Nothing can re-queue afterwards —
   // whenAvailable/take short-circuit once destroyed — so the queue cannot be left non-empty
   // with no timer, which would wedge every stream on the anti-barge rule.
-  for (const s of ctx.waiting.splice(0, ctx.waiting.length)) {
-    const req = s.request
-    s.request = null
-    if (req && req.cb) { try { req.cb() } catch {} }
-  }
+  for (const s of ctx.waiting.splice(0, ctx.waiting.length)) abortRequests(s)
 }
 
 // A per-consumer handle. ONE per ChunkScheduler, and one per peer on the serve side. A
 // handle carries a single pending request, so a consumer uses either the tryTake/
 // whenAvailable pair (download assign loop) or take() (upload serve loop), not both.
 function createStream(ctx) {
-  const s = { deficit: 0, credit: 0, request: null, detached: false }
+  const s = { deficit: 0, credit: 0, request: null, backlog: [], detached: false }
 
   function spend(bytes) {
     if (s.credit < bytes) return false
@@ -257,9 +281,10 @@ function createStream(ctx) {
     // streams are queued — rather than because this particular size does not fit. The
     // assign loop uses it to stop probing smaller chunks: while the queue is non-empty no
     // size can succeed, so scanning on is pure waste on the worker's single thread.
+    // Only ever consulted after tryTake returned false, which already established that the
+    // rate is non-zero — so no rate lookup (and no config-object allocation) here.
     wouldBlock() {
       if (s.detached || ctx.destroyed) return true
-      if (ratePerSecond(ctx) === 0) return false
       if (s.credit > 0) return false
       return ctx.waiting.length > 0
     },
@@ -270,17 +295,23 @@ function createStream(ctx) {
 
     // Retry hook for tryTake callers: takes a place in the queue and fires once this stream
     // has been GRANTED the bytes, not merely once they might be affordable.
+    //
+    // Returns whether the retry was actually registered. FALSE means nothing will ever call
+    // back (the limiter is torn down, or this handle is detached), which the caller must be
+    // able to tell from being paced — a scheduler that suppresses its stall watchdog while
+    // paced would otherwise wait forever on a callback that cannot come.
     whenAvailable(bytes, cb) {
-      if (s.detached || ctx.destroyed) return
+      if (s.detached || ctx.destroyed) return false
       if (s.request) {
         // Already queued — keep our place, and wake as early as the cheapest ask allows.
         s.request.bytes = Math.min(s.request.bytes, bytes)
         s.request.cb = cb
-        return
+        return true
       }
       s.request = { bytes, cb }
       ctx.waiting.push(s)
       arm(ctx)
+      return true
     },
 
     // Awaited before serving a chunk. Resolves with the number of bytes actually PAID FOR:
@@ -294,10 +325,12 @@ function createStream(ctx) {
       if (bps === 0) return bytes
       if (api.tryTake(bytes)) return bytes
       return new Promise((resolve) => {
-        s.request = {
-          bytes,
-          cb: () => resolve(spend(bytes) ? bytes : 0),
-        }
+        const req = { bytes, cb: () => resolve(spend(bytes) ? bytes : 0) }
+        // A handle holds one queue entry; concurrent take()s wait in its backlog. Pushing a
+        // second entry for the same handle stranded the first request as null and threw out
+        // of the pump — see promote().
+        if (s.request) { s.backlog.push(req); return }
+        s.request = req
         ctx.waiting.push(s)
         arm(ctx)
       })
@@ -313,11 +346,9 @@ function createStream(ctx) {
       if (s.detached) return
       s.detached = true
       dropWaiting(ctx, s)
-      const req = s.request
-      s.request = null
       s.deficit = 0
       if (s.credit > 0) { refund(ctx, s.credit); s.credit = 0 }
-      if (req && req.cb) { try { req.cb() } catch {} }
+      abortRequests(s)   // resolves every parked take() with 0, backlog included
     },
   }
 

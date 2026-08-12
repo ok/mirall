@@ -634,7 +634,7 @@
     "uploadCustomLabel": "Límite de subida en KB/s",
     "customEcho": "Aproximadamente {{rate}}. Escribe 0 para no poner límite.",
     "customUnlimited": "Sin límite.",
-    "floorAdvisory": "Los límites muy bajos pueden detener las transferencias. Mirall usará al menos {{min}} KB/s.",
+    "floorAdvisory": "Mirall usa al menos {{min}} KB/s para las transferencias. Un límite inferior se redondea a ese valor.",
     "scopeNote": "Los límites se aplican a las transferencias de archivos. La sincronización de tus espacios y sus miembros no se limita — usa muy pocos datos, y ralentizarla impediría que aparezcan carpetas nuevas.",
     "a11y": {
       "downloadPreset": "Límite de descarga: {{rate}}",
