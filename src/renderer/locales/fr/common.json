@@ -631,7 +631,7 @@
     "uploadCustomLabel": "Limite d'envoi en Ko/s",
     "customEcho": "Environ {{rate}}. Saisissez 0 pour aucune limite.",
     "customUnlimited": "Aucune limite.",
-    "floorAdvisory": "Des limites très basses peuvent bloquer les transferts. Mirall utilisera au moins {{min}} Ko/s.",
+    "floorAdvisory": "Mirall utilise au moins {{min}} Ko/s pour les transferts. Une limite inférieure est arrondie à cette valeur.",
     "scopeNote": "Les limites s'appliquent aux transferts de fichiers. La synchronisation de vos espaces et de leurs membres n'est pas limitée — elle consomme très peu de données, et la ralentir empêcherait les nouveaux dossiers d'apparaître.",
     "a11y": {
       "downloadPreset": "Limite de téléchargement : {{rate}}",

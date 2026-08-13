@@ -631,7 +631,7 @@
     "uploadCustomLabel": "Upload-Limit in KB/s",
     "customEcho": "Etwa {{rate}}. Gib 0 ein für kein Limit.",
     "customUnlimited": "Kein Limit.",
-    "floorAdvisory": "Sehr niedrige Limits können Übertragungen blockieren. Mirall nutzt mindestens {{min}} KB/s.",
+    "floorAdvisory": "Mirall nutzt für Übertragungen mindestens {{min}} KB/s. Ein niedrigeres Limit wird darauf aufgerundet.",
     "scopeNote": "Limits gelten für Dateiübertragungen. Das Synchronisieren deiner Räume und Mitglieder wird nicht begrenzt — es braucht sehr wenig Daten, und eine Drosselung würde verhindern, dass neue Ordner erscheinen.",
     "a11y": {
       "downloadPreset": "Download-Limit: {{rate}}",

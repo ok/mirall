@@ -17,8 +17,9 @@ interface NetworkSettingsProps {
 
 type Direction = 'download' | 'upload'
 
-// Below this a single chunk can outlive the transfer watchdog; the worker clamps to the
-// same floor (bandwidth-limiter.js).
+// Usability floor for a non-zero cap — below this the app looks broken. The worker clamps
+// to the same value (bandwidth-limiter.js), which carries the full rationale; note it is
+// NOT what keeps a chunk inside the transfer watchdog, as this comment used to claim.
 const MIN_KBPS = 32
 const PRESET_KBPS = [0, 1024, 5120, 25600]
 const COMMIT_DEBOUNCE_MS = 400
@@ -49,15 +50,24 @@ function LimitRow({
   // The field is a draft until it settles: persisting per keystroke would push "1", then
   // "12", then "120" to the worker, and each write is an IPC round-trip.
   const [draft, setDraft] = useState(String(kbps))
-  useEffect(() => { setDraft(String(kbps)) }, [kbps])
+  const [focused, setFocused] = useState(false)
+  // Re-syncing the field from the committed value while it has focus would overwrite what
+  // is being typed the moment a debounced commit clamps it — "1" on the way to "128" would
+  // become "32" and then "322".
+  useEffect(() => { if (!focused) setDraft(String(kbps)) }, [kbps, focused])
   const parsed = Math.max(0, Math.floor(Number(draft) || 0))
   const belowFloor = parsed > 0 && parsed < MIN_KBPS
 
   const latest = useRef({ parsed, kbps, onValue })
   latest.current = { parsed, kbps, onValue }
+  // Clamp HERE, not only in the worker. The worker enforces the same floor, but if the UI
+  // let a lower value through, the stored setting and the rate actually used would diverge
+  // permanently and invisibly — the field would read 8 while transfers ran at 32.
   const commit = useCallback(() => {
     const now = latest.current
-    if (now.parsed !== now.kbps) now.onValue(now.parsed)
+    const next = now.parsed > 0 ? Math.max(MIN_KBPS, now.parsed) : 0
+    if (next !== now.kbps) now.onValue(next)
+    return next
   }, [])
 
   useEffect(() => {
@@ -68,7 +78,7 @@ function LimitRow({
 
   // Navigating away must not silently discard what was typed — a click that never blurs
   // the field (or a keyboard-driven back) would otherwise lose it.
-  useEffect(() => () => commit(), [commit])
+  useEffect(() => () => { commit() }, [commit])
 
   return (
     <div>
@@ -117,8 +127,12 @@ function LimitRow({
             value={draft}
             aria-describedby={helpId}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => { if (e.key === 'Enter') commit() }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => { setFocused(false); commit() }}
+            // Enter confirms without blurring, so the field would keep showing the
+            // pre-clamp draft while a clamped value was already stored — show what was
+            // actually committed.
+            onKeyDown={(e) => { if (e.key === 'Enter') setDraft(String(commit())) }}
             className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 transition-all text-lg tabular-nums"
           />
           {belowFloor ? (

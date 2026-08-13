@@ -654,7 +654,7 @@
     "uploadCustomLabel": "Upload limit in KB/s",
     "customEcho": "About {{rate}}. Enter 0 for no limit.",
     "customUnlimited": "No limit.",
-    "floorAdvisory": "Very low limits can stall transfers. Mirall will use at least {{min}} KB/s.",
+    "floorAdvisory": "Mirall uses at least {{min}} KB/s for transfers. A lower limit is rounded up to it.",
     "scopeNote": "Limits apply to file transfers. Keeping your spaces and members in sync is not limited — it uses very little data, and slowing it down would stop new folders from appearing.",
     "a11y": {
       "downloadPreset": "Download limit: {{rate}}",

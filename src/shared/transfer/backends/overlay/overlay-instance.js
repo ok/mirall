@@ -58,6 +58,10 @@ export async function getOverlayLocalByteLength() {
 
 let overlay = null
 let serveLimiter = null
+// Module-scoped so teardownOverlay can destroy them: each owns a live timer while a
+// transfer is parked on it.
+let uploadLimiter = null
+let downloadLimiter = null
 // overlay protocol peer → swarm socket, captured at attach. The authorizer maps
 // a content-request's peer back to the socket the handshake authenticated on.
 const peerSocket = new WeakMap()
@@ -82,8 +86,13 @@ export async function initOverlay() {
   serveLimiter = createRateLimiter(getOverlayServeLimit())
   // Rates are read per call, so a settings change reaches in-flight transfers without
   // rebuilding anything.
-  const uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload)
-  const downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download)
+  // A sub-floor cap is raised to the floor. The Network settings screen clamps to the same
+  // value on commit, so this only fires for a caller with no UI — a hand-edited config, or
+  // the daemon — where an unexplained 4x discrepancy is otherwise very hard to diagnose.
+  const warnClamped = (dir) => (requested, effective) =>
+    log.warn(`${dir} cap ${requested} B/s is below the ${effective} B/s floor — using the floor`)
+  uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload, { onClamp: warnClamped('upload') })
+  downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download, { onClamp: warnClamped('download') })
   // With the content plane on, the overlay channel rides the content connection, so serve
   // authorization keys on that socket's content-hello; otherwise on the control handshake.
   const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : senderAuthorizedOnSocket
@@ -223,5 +232,13 @@ export async function teardownOverlay() {
   } finally {
     overlay = null
     serveLimiter = null
+    // The bandwidth limiters own a live (deliberately non-unref'd) timer whenever a
+    // transfer is parked on them, and resolve anything still awaiting take() on destroy.
+    // Leaving them behind keeps that timer alive past teardown.
+    for (const limiter of [uploadLimiter, downloadLimiter]) {
+      try { limiter?.destroy() } catch {}
+    }
+    uploadLimiter = null
+    downloadLimiter = null
   }
 }
