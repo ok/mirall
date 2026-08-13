@@ -86,8 +86,13 @@ export async function initOverlay() {
   serveLimiter = createRateLimiter(getOverlayServeLimit())
   // Rates are read per call, so a settings change reaches in-flight transfers without
   // rebuilding anything.
-  uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload)
-  downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download)
+  // A sub-floor cap is raised to the floor. The Network settings screen clamps to the same
+  // value on commit, so this only fires for a caller with no UI — a hand-edited config, or
+  // the daemon — where an unexplained 4x discrepancy is otherwise very hard to diagnose.
+  const warnClamped = (dir) => (requested, effective) =>
+    log.warn(`${dir} cap ${requested} B/s is below the ${effective} B/s floor — using the floor`)
+  uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload, { onClamp: warnClamped('upload') })
+  downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download, { onClamp: warnClamped('download') })
   // With the content plane on, the overlay channel rides the content connection, so serve
   // authorization keys on that socket's content-hello; otherwise on the control handshake.
   const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : senderAuthorizedOnSocket

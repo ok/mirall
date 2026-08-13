@@ -26,22 +26,30 @@
 // refills continuously in wall-clock time, so whoever calls most often consumes each
 // increment microseconds after it accrues.
 
-// Floor for a non-zero cap, clamped here as well as in the UI. This is a USABILITY guard
-// against a cap so low the app looks broken — it is NOT what keeps a chunk inside
-// ChunkScheduler's idle watchdog, though it was originally documented that way. The
-// arithmetic never worked: 32 KB/s x 30 s = 983,040 bytes, under the 1 MB tier-2 max chunk
-// and far under the 4 MB tier-3 one. A chunk costing more than the window is safe because
-// the watchdog only runs while bytes are actually outstanding with a peer (see
-// ChunkScheduler._armIdleTimer), not because of this value.
+// Floor for a non-zero cap. This is a USABILITY guard, not a correctness one — it is NOT
+// what keeps a chunk inside ChunkScheduler's idle watchdog, though it was originally
+// documented that way. The arithmetic never worked: 32 KB/s x 30 s = 983,040 bytes, under
+// the 1 MB tier-2 max chunk and far under the 4 MB tier-3 one. What it actually buys is
+// that "slow" stays distinguishable from "dead": the watchdog only runs while bytes are
+// outstanding with a peer, so an absurd cap would otherwise crawl forever with no error.
+//
+// The UI clamps to the same value on commit, so a user's stored setting matches what runs.
+// This clamp is the backstop for callers with no UI (a hand-edited config, the daemon), and
+// it reports through `onClamp` rather than overriding in silence — a caller that cannot see
+// the advisory text has no other way to learn why its cap is not being honoured. Keep the
+// value in step with `MIN_KBPS` in `NetworkSettings.tsx`; the renderer may not import from
+// `src/shared/`, so the two constants are necessarily duplicated.
 export const MIN_BYTES_PER_SECOND = 32 * 1024
 
 // Longest a waiting stream goes before the bucket re-evaluates it. Bounds how long a live
 // cap change takes to reach a stream that is already parked.
 const MAX_ARM_MS = 250
 
-export function createBandwidthLimiter(getBytesPerSecond, { now = Date.now } = {}) {
+export function createBandwidthLimiter(getBytesPerSecond, { now = Date.now, onClamp = null } = {}) {
   const ctx = {
     now,
+    onClamp,
+    clampedFrom: 0,   // last sub-floor rate reported, so onClamp fires once per value
     tokens: 0,
     last: now(),
     timer: null,
@@ -68,9 +76,16 @@ export function createBandwidthLimiter(getBytesPerSecond, { now = Date.now } = {
 // exception would both crash the worker and leave the queue with nothing to re-arm it.
 function ratePerSecond(ctx) {
   let n
-  try { n = ctx.getBytesPerSecond() } catch { return 0 }
-  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return 0
-  return Math.max(n, MIN_BYTES_PER_SECOND)
+  try { n = ctx.getBytesPerSecond() } catch { ctx.clampedFrom = 0; return 0 }
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) { ctx.clampedFrom = 0; return 0 }
+  if (n >= MIN_BYTES_PER_SECOND) { ctx.clampedFrom = 0; return n }
+  // Below the floor. Raise it, but say so — once per distinct configured value, because
+  // this runs thousands of times a second and a per-call log would drown the worker.
+  if (ctx.clampedFrom !== n) {
+    ctx.clampedFrom = n
+    if (ctx.onClamp) { try { ctx.onClamp(n, MIN_BYTES_PER_SECOND) } catch {} }
+  }
+  return MIN_BYTES_PER_SECOND
 }
 
 // Move the clock forward, refill, and report the elapsed ms so the caller can hand each

@@ -83,6 +83,44 @@ test('a cap below the floor is clamped, not honoured', (t) => {
   t.absent(l.isUnlimited(), 'still a limit, just not an unusable one')
 })
 
+// The UI clamps to the same floor on commit, so this path is only reached by a caller with
+// no UI — a hand-edited config, or the daemon. Overriding their setting 4x in silence is
+// close to undiagnosable, so it is reported; but ratePerSecond runs thousands of times a
+// second, so it must report once per configured value, not once per call.
+test('a sub-floor cap reports through onClamp, once per configured value', (t) => {
+  const c = clock()
+  let bps = 8 * KB
+  const seen = []
+  const l = createBandwidthLimiter(() => bps, { now: c.now, onClamp: (req, eff) => seen.push([req, eff]) })
+  const s = l.stream()
+  for (let i = 0; i < 50; i++) { c.advance(10); s.tryTake(1 * KB) }
+  t.alike(seen, [[8 * KB, MIN_BYTES_PER_SECOND]], 'reported exactly once despite 50+ rate reads')
+
+  bps = 4 * KB
+  s.tryTake(1 * KB)
+  t.is(seen.length, 2, 'a different sub-floor value is reported again')
+
+  bps = 1024 * KB
+  s.tryTake(1 * KB)
+  bps = 4 * KB
+  s.tryTake(1 * KB)
+  t.is(seen.length, 3, 'and again after the cap went back above the floor in between')
+})
+
+test('onClamp is not called for a legal cap, for unlimited, or for a corrupt value', (t) => {
+  const c = clock()
+  let bps = 512 * KB
+  let calls = 0
+  const l = createBandwidthLimiter(() => bps, { now: c.now, onClamp: () => { calls++ } })
+  const s = l.stream()
+  s.tryTake(1 * KB)
+  bps = 0
+  s.tryTake(1 * KB)
+  bps = NaN
+  s.tryTake(1 * KB)
+  t.is(calls, 0, 'only a positive sub-floor value is a clamp; the rest are unlimited or legal')
+})
+
 // Fail-safe polarity: a corrupt value must return to UNLIMITED, never throttle to a crawl.
 for (const bad of [-1, NaN, Infinity, '5000', null, undefined]) {
   test(`a non-positive or non-numeric rate (${String(bad)}) falls back to unlimited`, (t) => {

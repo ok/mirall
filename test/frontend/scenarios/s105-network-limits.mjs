@@ -49,6 +49,19 @@ export default async function s105 ({ runDir, bootstrap }) {
       await A.shot('s105-advisory', runDir)
     })
 
+    // The worker enforces the same floor, so without this the field would keep reading 12
+    // while transfers actually ran at 32 — the stored setting and the effective rate
+    // diverging permanently, with only the advisory sentence hinting at it.
+    await r.ok('a below-floor value is raised to the floor on commit', async () => {
+      await A.press('return')
+      await waitFor(
+        async () => (await A.nodeValue({ name: 'Upload limit in KB/s' })) === '32',
+        8000,
+        'field shows the committed floor, not the rejected draft',
+      )
+      await A.shot('s105-clamped', runDir)
+    })
+
     await r.ok('a valid custom value echoes its MB/s equivalent', async () => {
       await A.type({ name: 'Upload limit in KB/s' }, '768')
       await A.waitText('About', 8000)
