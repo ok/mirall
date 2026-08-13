@@ -2,7 +2,7 @@
   "name": "mirall",
   "productName": "Mirall",
   "version": "1.8.0",
-  "description": "Mirall - secure data transfer without middleman",
+  "description": "Secure large file transfer. No cloud. No accounts.",
   "license": "AGPL-3.0-or-later",
   "author": "Oliver Kohl",
   "type": "commonjs",

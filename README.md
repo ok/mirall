@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Secure large file transfer. No cloud. No middleman.
+  Secure large file transfer. No cloud. No accounts.
   <br>
   <a href="https://mirall.app"><strong>mirall.app »</strong></a>
   <br>
@@ -29,9 +29,9 @@
 ---
 
 Mirall moves terabyte-scale files directly between devices. You and the people you share with
-form private **spaces**; files transfer peer-to-peer over end-to-end encrypted connections —
-no third-party servers, no cloud storage, GDPR-compliant by architecture. Built for workflows
-where files are huge and privacy is non-negotiable.
+form private **spaces**; files transfer peer-to-peer over end-to-end encrypted connections — no
+cloud storage, no accounts, no telemetry. Built for workflows where files are huge and privacy
+is non-negotiable.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.png">
