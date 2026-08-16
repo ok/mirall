@@ -10,6 +10,15 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## Unreleased
+
+#### Changed
+
+- **A tidier way around your profile and settings.** The Account screen is
+  now Profile, with its entries grouped under "This device" and "App", and
+  About moved there out of Settings — which now holds preferences only.
+
+
 ## v1.8.0
 ### 2026-08-11
 
