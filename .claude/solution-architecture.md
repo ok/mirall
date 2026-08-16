@@ -1123,6 +1123,8 @@ File bytes are served only when three gates pass (`transfer/backends/overlay/ove
 
 **A denial is observationally identical to "I don't hold this file"**, so membership cannot be probed.
 
+Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` are refusals, and only those reach the audit log as `security.serve_denied` (the Activity Log row names the reason). `NO_SOCKET` (teardown race), `RATE_LIMITED` (flow control) and `NOT_HELD` (gate 3 found no space advertising the hash) are ordinary operation and record nothing — a multi-source fetch broadcasts its content-request to every connected peer instead of asking holders first, so being asked for content this device does not advertise is the normal case, not an incident.
+
 ### Resource bounds
 
 `core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, and the serve-gate rate limiter.

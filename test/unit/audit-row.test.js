@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  actorInitials, actorLabel, avatarKind, dayKey, formatBytes, formatCount,
+  actorInitials, actorLabel, avatarKind, dayKey, denialReasonKey, formatBytes, formatCount,
   groupByDay, isSystemRow, metaParts, rowBadge, sentenceKey, sentenceValues,
   splitSentence, sentinelValues, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/auditRow.js'
@@ -43,6 +43,22 @@ test('a refused request names the requester even with no display name', (t) => {
   t.is(sentenceValues(denied).actor, 'ab3f9c2d1e5a', 'the short key stands in for the missing name')
   t.is(sentenceValues(denied).target, 'budget.xlsx', 'and the file is named when we hold the hash')
   t.is(rowBadge(denied).labelKey, 'activityLog.badgeDenied')
+})
+
+// Two very different events render the same sentence: a peer that may not have the content, and a
+// peer that asked before its identity was verified. The reason is recorded but was never shown,
+// so a reader could not tell an intrusion from a stranger asking for a hash we don't hold.
+test('REGRESSION (FIX-364: a refusal shows WHY it was refused)', (t) => {
+  const denied = (reason) => row({ kind: 'security.serve_denied', outcome: 'denied', subject: { reason, requester: 'ab3f9c2d1e5a' } })
+  t.is(denialReasonKey(denied('not-a-member')), 'activityLog.denialReason.not-a-member')
+  t.is(denialReasonKey(denied('unauthenticated')), 'activityLog.denialReason.unauthenticated')
+
+  // Only the reasons the copy covers. A row from another version — or any kind that carries an
+  // unrelated `reason` — must not render a raw key or an i18n miss.
+  t.is(denialReasonKey(denied('not-held')), null, 'a reason with no copy renders nothing')
+  t.is(denialReasonKey(denied(null)), null)
+  t.is(denialReasonKey(row()), null, 'an ordinary row has no reason to show')
+  t.is(denialReasonKey(row({ subject: { reason: 'quota' } })), null)
 })
 
 test('REGRESSION (FIX-2): an own action renders as "You", never a bare "?" avatar', (t) => {

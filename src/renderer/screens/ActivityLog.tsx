@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useAuditLog, useAuditFacets, hasActiveFilters, EMPTY_FILTERS, AUDIT_CATEGORIES } from '../hooks/useAuditLog.js'
-import { actorInitials, avatarKind, groupByDay, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence } from '../auditRow.js'
+import { actorInitials, avatarKind, denialReasonKey, groupByDay, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence } from '../auditRow.js'
 import { AUDIT_KINDS } from '../auditKinds.js'
 import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
@@ -40,7 +40,10 @@ function selectItems(
 function AuditRow({ entry }: { entry: AuditEntry }) {
   const { t } = useTranslation()
   const badge = rowBadge(entry)
-  const meta = metaParts(entry).join(' · ')
+  // The reason trails the row's own context (space, totals): "DENIED" says something was refused,
+  // this says what a reader should do about it — nothing, if we simply had no verified identity yet.
+  const reasonKey = denialReasonKey(entry)
+  const meta = [...metaParts(entry), ...(reasonKey ? [t(reasonKey)] : [])].join(' · ')
   const avatar = avatarKind(entry)
   const badgeClasses = badge?.tone === 'error'
     ? 'bg-error-container text-on-error-container'

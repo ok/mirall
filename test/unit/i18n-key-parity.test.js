@@ -2,6 +2,8 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { denialReasonKey } from '../../src/renderer/auditRow.js'
+import { DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
 
 // Every locale must carry the SAME translation keys as the reference (en) for
 // every namespace — a missing key silently falls back to the key string in the
@@ -45,3 +47,19 @@ for (const ns of namespaces) {
     })
   }
 }
+
+// Parity above only proves the locales agree with each other. This pins the other end: every
+// denial reason the gate can RECORD must have copy in the reference locale, so adding a reason to
+// the serve gate can never ship a row that renders a raw i18n key at the reader.
+test('i18n: every recorded denial reason has copy in ' + REF, (t) => {
+  const ref = loadKeys(REF, 'common')
+  for (const reason of Object.values(DENY)) {
+    const key = denialReasonKey({ outcome: 'denied', subject: { reason } })
+    if (!SECURITY_DENIALS.has(reason)) {
+      t.is(key, null, reason + ' is not recorded, so it needs no copy')
+      continue
+    }
+    t.ok(key, reason + ' is recorded, so the row must be able to name it')
+    t.ok(ref.has(key), key + ' exists in ' + REF)
+  }
+})

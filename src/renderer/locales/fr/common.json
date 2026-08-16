@@ -790,6 +790,10 @@
     "yesterday": "Hier",
     "badgeDenied": "Refusé",
     "badgeFailed": "Échec",
+    "denialReason": {
+      "not-a-member": "Pas membre de cet espace",
+      "unauthenticated": "Identité non vérifiée"
+    },
     "actorSelf": "Vous",
     "actorSystem": "Mirall",
     "logSettings": "Réglages du journal",

@@ -45,6 +45,33 @@ test('(c2) authenticated member but hash advertised by no space → deny', async
   t.is(await auth(peer, 'fromKey', 'hash'), false)
 })
 
+// A multi-source fetch broadcasts its content-request to EVERY connected peer, not just the
+// holders, so being asked for content we don't advertise is the routine case, not an intrusion.
+// Reporting it as NOT_A_MEMBER made every ordinary mirror of a peer's folder write one red
+// "Refused a file request" row per file into the other members' activity logs.
+test('REGRESSION (FIX-364: a hash we advertise nowhere is NOT_HELD, not a membership refusal)', async (t) => {
+  const nonHolder = build({ serveIndex: { spacesFor: () => [] } })
+  t.is(await nonHolder.auth(nonHolder.peer, 'fromKey', 'hash'), false, 'still refused — we have nothing to serve')
+  t.is(nonHolder.denials[0].reason, DENY.NOT_HELD)
+  t.absent(SECURITY_DENIALS.has(DENY.NOT_HELD), 'not holding the content is not an access refusal')
+
+  // The genuine refusal must keep its reason: the hash IS advertised, the asker just isn't in
+  // any space advertising it.
+  const outsider = build({ isApprovedMember: async () => false })
+  t.is(await outsider.auth(outsider.peer, 'fromKey', 'hash'), false)
+  t.is(outsider.denials[0].reason, DENY.NOT_A_MEMBER, 'a real membership refusal is unchanged')
+})
+
+test('membership is not consulted for a hash we advertise nowhere', async (t) => {
+  let memberChecked = false
+  const { peer, auth } = build({
+    serveIndex: { spacesFor: () => [] },
+    isApprovedMember: async () => { memberChecked = true; return true },
+  })
+  t.is(await auth(peer, 'fromKey', 'hash'), false)
+  t.absent(memberChecked, 'nothing to be a member OF — the space read is skipped')
+})
+
 test('(d) approved member of an advertising space → allow', async (t) => {
   const { peer, auth } = build()
   t.is(await auth(peer, 'fromKey', 'hash'), true)
@@ -111,6 +138,10 @@ test('each gate reports a distinct denial reason', async (t) => {
   const outsider = build({ isApprovedMember: async () => false })
   await outsider.auth(outsider.peer, 'k', 'h')
   t.is(outsider.denials[0].reason, DENY.NOT_A_MEMBER)
+
+  const nonHolder = build({ serveIndex: { spacesFor: () => [] } })
+  await nonHolder.auth(nonHolder.peer, 'k', 'h')
+  t.is(nonHolder.denials[0].reason, DENY.NOT_HELD)
 })
 
 test('only genuine refusals count as security denials', (t) => {
@@ -118,6 +149,7 @@ test('only genuine refusals count as security denials', (t) => {
   t.ok(SECURITY_DENIALS.has(DENY.NOT_A_MEMBER))
   t.absent(SECURITY_DENIALS.has(DENY.RATE_LIMITED), 'flow control is not an access refusal')
   t.absent(SECURITY_DENIALS.has(DENY.NO_SOCKET), 'a teardown race is not an access refusal')
+  t.absent(SECURITY_DENIALS.has(DENY.NOT_HELD), 'being asked for content we do not have is not an access refusal')
 })
 
 test('the denial carries the requester and hash so a row can name them', async (t) => {

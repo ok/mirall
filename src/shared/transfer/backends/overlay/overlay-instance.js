@@ -102,8 +102,10 @@ export async function initOverlay() {
   // line an audit trail exists for. Do not "simplify" this away.
   //
   // Only a SECURITY denial is recorded. A rate-limited request is flow control and fires
-  // routinely mid-transfer; a missing socket is a teardown race. Recording those produced a wall
-  // of identical "A file request was refused" rows during an ordinary folder mirror.
+  // routinely mid-transfer; a missing socket is a teardown race; a request for a hash we
+  // advertise nowhere is a peer's multi-source fetch asking every connected peer, holder or not.
+  // Recording those produced a wall of identical "A file request was refused" rows during an
+  // ordinary folder mirror.
   const serveAuthorizer = makeServeAuthorizer({
     peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex,
     onDeny: (reason, ctx) => {

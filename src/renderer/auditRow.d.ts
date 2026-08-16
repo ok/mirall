@@ -27,6 +27,7 @@ export function avatarKind(entry: AuditEntry): 'self' | 'peer' | 'system'
 export function actorInitials(entry: AuditEntry): string | null
 export function rowBadge(entry: AuditEntry): RowBadge | null
 export function isSystemRow(entry: AuditEntry): boolean
+export function denialReasonKey(entry: AuditEntry): string | null
 export function sentenceKey(entry: AuditEntry): string
 export function sentenceValues(entry: AuditEntry): SentenceValues
 
