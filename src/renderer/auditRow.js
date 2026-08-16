@@ -49,6 +49,20 @@ export function isSystemRow(entry) {
   return !entry.actor || entry.actor.type === 'system'
 }
 
+// WHY a request was refused, as an i18n key for the meta line. Without it the two refusals a
+// reader can actually act on are indistinguishable: a peer asking for content it is not entitled
+// to, and a peer asking before its identity was verified (routine on a fresh connection, since the
+// content channel is bound before the hello that authenticates it).
+//
+// Closed set, not a passthrough: an unknown reason — a row written by another version, or a kind
+// whose subject.reason means something else entirely — renders nothing rather than a raw key.
+const DENIAL_REASONS = new Set(['not-a-member', 'unauthenticated'])
+
+export function denialReasonKey(entry) {
+  const reason = entry.outcome === 'denied' ? entry.subject?.reason : null
+  return DENIAL_REASONS.has(reason) ? 'activityLog.denialReason.' + reason : null
+}
+
 // The i18n key for the sentence. One key per kind keeps the whole sentence translatable as a
 // unit — a sentence assembled from fragments cannot be reordered for other languages.
 export function sentenceKey(entry) {

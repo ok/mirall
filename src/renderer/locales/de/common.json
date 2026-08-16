@@ -790,6 +790,10 @@
     "yesterday": "Gestern",
     "badgeDenied": "Abgelehnt",
     "badgeFailed": "Fehlgeschlagen",
+    "denialReason": {
+      "not-a-member": "Kein Mitglied dieses Raums",
+      "unauthenticated": "Identität nicht bestätigt"
+    },
     "actorSelf": "Du",
     "actorSystem": "Mirall",
     "logSettings": "Protokolleinstellungen",
