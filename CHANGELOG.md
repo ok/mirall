@@ -10,15 +10,6 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
-## Unreleased
-
-#### Changed
-
-- **A tidier way around your profile and settings.** The Account screen is
-  now Profile, with its entries grouped under "This device" and "App", and
-  About moved there out of Settings — which now holds preferences only.
-
-
 ## v1.8.0
 ### 2026-08-11
 
@@ -26,7 +17,7 @@ changes do not appear here.
 
 - **A record of what happened in your spaces.** The new Activity Log
   gathers who joined, left, or was approved, and what was shared and
-  downloaded — kept on your device only. Open it from your Account
+  downloaded — kept on your device only. Open it from your Profile
   page, then search it or narrow it down by space, person, or date.
   Settings → Activity Log turns recording off, sets how long events are
   kept, or clears the log.
@@ -41,6 +32,15 @@ changes do not appear here.
   and "Use default folder" puts a space back on it. Files you already
   downloaded aren't moved, and a folder you share or mirror can't be
   used, since anything landing there would be published to your peers.
+
+#### Changed
+
+- **A tidier way around your profile and settings.** The Account page is
+  now Profile, and everything on it is grouped: "This device" for your
+  connection, identity protection, and the Activity Log, "App" for the
+  version you're running, What's New, keyboard shortcuts, documentation,
+  and feedback. About has moved here out of Settings, which now holds
+  your preferences only.
 
 #### Fixed
 
