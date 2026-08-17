@@ -61,7 +61,7 @@
     "bare-runtime": "^1.31.0",
     "brittle": "^4.1.0",
     "concurrently": "^10.0.5",
-    "electron": "^42.8.1",
+    "electron": "^42.9.2",
     "electron-forge-plugin-prune-prebuilds": "^1.0.1",
     "electron-forge-plugin-universal-prebuilds": "^1.0.0",
     "esbuild": "^0.28.2",
