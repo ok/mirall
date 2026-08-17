@@ -11,7 +11,7 @@ changes do not appear here.
 
 
 ## v1.8.0
-### 2026-08-11
+### 2026-08-18
 
 #### Added
 
