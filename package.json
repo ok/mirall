@@ -45,7 +45,7 @@
     "test:layout:mirrorers": "node test/frontend-layout/run-mirrorers.mjs"
   },
   "devDependencies": {
-    "@axe-core/react": "^4.12.1",
+    "@axe-core/react": "^4.13.0",
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-msix": "^7.11.2",
