@@ -52,6 +52,12 @@ const CONTROL_STOPPED = 1
 // this window (a wedged-but-TCP-alive peer); the receiver re-requests, so it self-heals.
 const DRAIN_TIMEOUT_MS = 60000
 
+// [mirall] FIX-BW9 — how often a serve loop parked on our own upload cap tells the
+// downloader it is still there (message 14). Must stay comfortably under the downloader's
+// no-progress watchdog (chunk-scheduler's 30s DEFAULT_IDLE_TIMEOUT): waiting on a cap puts
+// nothing on the wire, so without this a capped-but-healthy holder reads as a wedged one.
+const KEEPALIVE_INTERVAL_MS = 5000
+
 export class OverlayProtocolV2 {
   constructor (syncEngine, transferManager, opts = {}) {
     this._syncEngine = syncEngine
@@ -113,6 +119,8 @@ export class OverlayProtocolV2 {
     // (indistinguishable from "I don't hold it" — no membership oracle).
     // _localProfileKey is stamped on outbound content-requests as msg.from.
     this._serveAuthorizer = opts.serveAuthorizer || null
+    // [mirall] FIX-BW9 — keep-alive cadence while a serve loop is parked on the upload cap.
+    this._keepAliveInterval = opts.keepAliveInterval || KEEPALIVE_INTERVAL_MS
     this._localProfileKey = opts.localProfileKey || null
   }
 
@@ -288,10 +296,13 @@ export class OverlayProtocolV2 {
     peer.msgs.treeRequest = channel.addMessage({ encoding: messages.treeRequest, onmessage: (msg) => self._onTreeRequest(peer, msg) })
     peer.msgs.treeResponse = channel.addMessage({ encoding: messages.treeResponse, onmessage: (msg) => self._onTreeResponse(peer, msg) })
     peer.msgs.contentRequest = channel.addMessage({ encoding: messages.contentRequest, onmessage: (msg) => self._onContentRequest(peer, msg) })
-    // Appended-last slots: ids 0-11 stay fixed for peers without 12/13, which just
-    // never register these channels and ignore the frames.
+    // Appended-last slots: ids 0-11 stay fixed for peers without 12/13/14, which just
+    // never register these channels and ignore the frames. Anything new goes at the END —
+    // protomux dispatches positionally, so an insertion shifts every later id and silently
+    // mis-routes frames between versions.
     peer.msgs.transferControl = channel.addMessage({ encoding: messages.transferControl, onmessage: (msg) => self._onTransferControl(peer, msg) })
     peer.msgs.transferProgress = channel.addMessage({ encoding: messages.transferProgress, onmessage: (msg) => self._onTransferProgress(peer, msg) })
+    peer.msgs.keepAlive = channel.addMessage({ encoding: messages.keepAlive, onmessage: (msg) => self._onKeepAlive(peer, msg) })
 
     this._peers.set(mux, peer)
     channel.open({ version: VERSION, capabilities: CAP_LOCAL_FILES | CAP_ADAPTIVE_CHUNKS })
@@ -674,6 +685,58 @@ export class OverlayProtocolV2 {
     return peer.uploadStream
   }
 
+  // [mirall] FIX-BW9 — pay for a chunk while telling the downloader we are alive. Our upload
+  // cap is invisible to it: it sees nothing on the wire and has no way to learn a cap exists,
+  // so a wait longer than its no-progress watchdog fails a transfer that is merely paced (and
+  // the failure looks exactly like a disconnect, which is what parks the row). The keep-alive
+  // is what separates slow from dead — the receiver still gates it on us actually owing it a
+  // chunk, so this cannot be used to hold a fetch open (see chunk-scheduler.notePeerAlive).
+  //
+  // Only 'content:' paths carry a scheduler on the far side, so nothing else is worth
+  // announcing. Whether the REMOTE understands slot 14 is neither knowable nor important —
+  // protomux drops any id past a channel's registered message count — so an older peer simply
+  // ignores the frame; the `peer.msgs.keepAlive` guard is for a channel built without it.
+  //
+  // `synthPath`, not `path`: this module imports bare-path under that name, and a shadow here
+  // would make any path.join() added later resolve against a 'content:<hash>' string — inside a
+  // message handler, where protomux turns a throw into a teardown of the whole muxer.
+  async _takeWithKeepAlive (peer, synthPath, index, bytes, uploadStream) {
+    if (!peer.msgs.keepAlive || !synthPath.startsWith('content:')) return uploadStream.take(bytes)
+    const contentHash = contentHashOf(synthPath)
+    const timer = setInterval(() => {
+      // A closed channel resolves the take() with 0 on its own (the handle is detached in
+      // onclose); until then, writing to it is pointless.
+      if (peer.channel?.closed) return
+      // Revocation applies to this frame like every other outbound one — gated on the authorizer
+      // being in force at all, exactly as _onChunkNeed gates its own re-checks, so an embedder
+      // that runs the engine ungated still gets keep-alives. A grant dropped while
+      // we are parked (member removed, space left) must stop the announcements too: they name
+      // a content hash, so continuing to send them tells a peer we just revoked that we hold
+      // and are actively serving it — the membership oracle the serve gate exists to deny —
+      // and holds its watchdog open instead of letting the fetch fail promptly.
+      if (this._serveAuthorizer && !peer.authorizedServe.has(synthPath)) return
+      try { peer.msgs.keepAlive.send({ contentHash, index }) } catch {}
+    }, this._keepAliveInterval)
+    // Unref'd: the take() resolving is what advances the serve loop, never this timer.
+    timer.unref?.()
+    // try/finally rather than .finally(): `vendor/` duck-types the limiter for embedders, and a
+    // take() that returns a plain value (or throws synchronously) would otherwise leak this
+    // interval for the process lifetime and throw out of _onChunkNeed.
+    try {
+      return await uploadStream.take(bytes)
+    } finally {
+      clearInterval(timer)
+    }
+  }
+
+  // [mirall] FIX-BW9 — a holder tells us it is parked on its own upload cap. Route it to the
+  // scheduler for that hash, which decides whether it earns a watchdog re-arm; an unknown hash
+  // (a fetch we already finished or cancelled) is a silent drop.
+  _onKeepAlive (peer, msg) {
+    const sched = this._schedulers.get('content:' + msg.contentHash)
+    if (sched) sched.notePeerAlive(peer, msg.index)
+  }
+
   async _onChunkNeed (peer, msg) {
     // [mirall] serve bytes ONLY for a synthetic path THIS peer was
     // authorized for via a gated _onContentRequest. Blocks a peer pulling bytes
@@ -703,7 +766,7 @@ export class OverlayProtocolV2 {
       // window exactly like the drain boundary below, so re-check the grant after it.
       const uploadStream = this._uploadStreamFor(peer)
       if (uploadStream && !uploadStream.isUnlimited()) {
-        const paid = await uploadStream.take(data.length)
+        const paid = await this._takeWithKeepAlive(peer, msg.path, index, data.length, uploadStream)
         if (paid <= 0) return
         // [mirall] Past this point the bytes are DEBITED. Both bails below abandon them, so
         // refund or the cap silently under-delivers on every revocation and disconnect —

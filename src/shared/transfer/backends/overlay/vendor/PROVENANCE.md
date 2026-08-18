@@ -331,7 +331,7 @@ re-diffable against upstream. Categories:
     (`test/unit/partial-suffix.test.js`); the opt itself is covered by
     `test/integration/partial-suffix-injection.test.js`.
 
-19. **Host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js`).**
+19. **Host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js` + `messages-v2.js`).**
     User-set transfer caps are enforced inside the serve/fetch engine, but the limiter itself lives
     in app code (`src/shared/transfer/bandwidth-limiter.js`) and is **injected** as
     `uploadLimiter` / `downloadLimiter` constructor opts, so `vendor/` gains no app imports and an
@@ -397,9 +397,40 @@ re-diffable against upstream. Categories:
     otherwise and was wrong). The real limit is the clamp: a refund can never lift the bucket above
     one second of budget, so churn beyond that loses the excess either way.
 
-    **Still open:** an UPLOAD cap has no cross-peer heartbeat — a throttled sender can exceed the
-    *receiver's* idle watchdog. Fixing it needs a keep-alive frame from the serve loop, not a
-    limiter change.
+    **Cross-peer keep-alive (FIX-BW9).** The upload cap is the mirror image of everything above:
+    the holder waits on `take()` inside `_onChunkNeed`, nothing goes on the wire, and the
+    DOWNLOADER — which cannot know a cap exists — reads the silence as a wedge. Past its 30s
+    watchdog it aborts a transfer that is merely paced, and because the engine reads a code-less
+    fetch failure as "holder gone" the row parks with no auto-resume trigger left to fire (the
+    holder never disconnects). Measured before the fix, at a 2:1 chunk-cost-to-window ratio: one
+    chunk delivered, then `multi-source fetch stalled`, and every subsequent resume bought about
+    one more chunk. It trips when `chunkBytes x filesFromThatPeer x peersBeingServed >
+    30s x uploadCap` — so the 32 KB/s cap FLOOR is already under the tier-2 max chunk (1 MB /
+    30s = 34.1 KB/s), and even the 1 MB/s preset trips on a tier-3 share once `F x P >= 8`.
+
+    The fix is a **keep-alive frame** (message 14, appended-last like slots 12/13 — protomux
+    drops any id past a channel's registered message count, so older peers ignore it): the serve
+    loop announces itself every `KEEPALIVE_INTERVAL_MS` while parked on the cap, naming the
+    content hash and the chunk index it is paying for. `chunk-scheduler.notePeerAlive` re-arms the
+    watchdog only if that peer currently owes us THAT chunk, and only within
+    `KEEPALIVE_MAX_SILENCE_MS` (30 min) of the last VERIFIED progress — a hash-checked chunk or
+    local setup completing, never a chunk list or a chunkHashes page, both of which any connected
+    peer can send on a loop. Without all three properties this is FIX-BW4 again (a watchdog that
+    never fires), because an unverifiable claim would otherwise let any peer hold a fetch open on
+    zero bytes. The bound is sized from `chunkBytes x F x P / cap`, not from one chunk: 5 minutes
+    (the first cut) covered only `F x P < 3` at the cap floor and would have re-broken the very
+    transfers the fix rescues. The announcement is also gated on the serve grant still standing —
+    it names a content hash, so continuing after a revocation hands the removed peer the
+    membership oracle §16 exists to deny. Deliberately NOT fixed by raising
+    `MIN_BYTES_PER_SECOND`: tier 3 would need a 136.5 KB/s floor, and `F x P` contention defeats
+    any fixed floor. Covered by the FIX-BW9 cases in `test/unit/bandwidth-fairness.test.js` (the
+    receiver gates) and `test/integration/overlay-vendor-backpressure.test.js` (the serve loop
+    actually emitting them).
+
+    **Still open (related, different bug):** `DRAIN_TIMEOUT_MS` is 60s — twice the downloader's
+    window — so a serve loop parked on BACKPRESSURE is silent past it with no cap set at all. A
+    keep-alive cannot help there: the frame would queue behind the backpressured data it is
+    waiting on.
 
     **Refund on abandonment.** `_assign` charges a chunk to the download limiter when it hands
     it to a peer, but the charge is for work that may never happen: `removePeer` returns the

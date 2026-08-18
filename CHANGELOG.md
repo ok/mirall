@@ -10,6 +10,17 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## Unreleased
+
+#### Fixed
+
+- **Downloads no longer stall when someone limits their upload speed.** A
+  transfer from a peer with an upload cap could stop with the file shown as
+  paused, and clicking Resume only moved it a little further each time. A
+  capped peer now says it is still there while it waits its turn to send, and a
+  download that does get interrupted retries on its own for as long as it keeps
+  making progress.
+
 ## v1.8.0
 ### 2026-08-18
 
