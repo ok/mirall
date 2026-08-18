@@ -1,11 +1,10 @@
-// Home screen: the user's spaces as cards, with create/join entry points and space editing.
+// Home screen: the user's spaces as cards, with create/join entry points. Per-space
+// actions (edit, favorite) live in the space's own header menu, not on the cards.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import type { Space } from '../types.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
-import EditSpaceModal from '../components/modals/EditSpaceModal.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 
@@ -17,8 +16,7 @@ interface YourSpacesProps {
 
 export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: YourSpacesProps) {
   const { t } = useTranslation()
-  const { spaces, updateSpace, toggleFavorite } = useSpaces()
-  const [editingSpace, setEditingSpace] = useState<Space | null>(null)
+  const { spaces } = useSpaces()
   const [filter, setFilter] = useState<'all' | 'favorites'>('all')
   const { ref: listRef, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -90,20 +88,10 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             <SpaceCard
               space={space}
               onClick={() => onSelectSpace(space.spaceId)}
-              onToggleFavorite={toggleFavorite}
-              onEdit={setEditingSpace}
             />
           </div>
         ))}
       </div>
-
-      {editingSpace && (
-        <EditSpaceModal
-          space={editingSpace}
-          onSave={updateSpace}
-          onClose={() => setEditingSpace(null)}
-        />
-      )}
     </div>
   )
 }
