@@ -23,14 +23,20 @@ In scope:
 Not in scope:
 
 - P2P transfer flows (would need a second Mirall instance — separate harness).
-- Windows / Linux (`agent-desktop` is macOS-only).
+- Windows / Linux. `agent-desktop` is macOS-only and the non-macOS release assets do not change that: the `agent-desktop-ffi-*` artifacts are the C-ABI library, the CLI ships for Darwin only, and upstream's `crates/windows` / `crates/linux` are empty scaffolds whose adapters return `PlatformNotSupported`. Upstream's own README lists every Windows/Linux capability as *Planned*.
 - Worker / Bare-runtime logic (use the brittle suite under `test/index.test.js`).
 
 ## Preconditions
 
-1. **macOS** with the `agent-desktop` CLI on `PATH`. Install once:
+1. **macOS** with the `agent-desktop` CLI on `PATH` (>= 0.8.0). Install once:
    ```bash
    npm install -g agent-desktop
+   ```
+   Upgrading from a pre-0.5 CLI? Delete the two root state files first — older
+   versions wrote refmap entries without a `process_instance`, and 0.8.x rejects
+   them, so every `status` call fails with `INVALID_ARGS` until they are gone:
+   ```bash
+   rm -f ~/.agent-desktop/last_refmap.json ~/.agent-desktop/latest_snapshot_id
    ```
 2. **Accessibility permission** granted to whichever process runs the CLI (your terminal, or the Claude Code harness). Verify with:
    ```bash
@@ -41,7 +47,7 @@ Not in scope:
 4. **Mirall is running** in one of two modes:
    - Installed app — process name `Mirall`. This is what end users see.
    - Dev build via `npm start` / `electron-forge start` — process name `Electron`.
-5. **Only one Electron window open.** If Chrome DevTools is attached, close it first (Cmd+Opt+I in Mirall, or Cmd+W from inside DevTools). Both windows are owned by the same `Electron` app and the CLI cannot disambiguate them; the focused one wins, which is usually DevTools.
+5. **Only one Electron window open.** If Chrome DevTools is attached, close it first (Cmd+Opt+I in Mirall, or Cmd+W from inside DevTools). Both windows are owned by the same `Electron` app, and this script targets by `--app`. On 0.8.x that is a hard `AMBIGUOUS_TARGET` error listing the candidates — earlier versions silently snapshotted whichever window had focus, which was usually DevTools and produced a confusing "button not found" instead.
 
 ## How to run
 
@@ -62,8 +68,8 @@ PASS: sidebar: All Spaces
 PASS: sidebar: Favorites
 PASS: sidebar: Create Space
 PASS: sidebar: Join Space
-PASS: space card found: Open <space-name> (@e8)
-PASS: clicked @e8
+PASS: space card found: Open <space-name> (@s359l44w95ysun:e8)
+PASS: clicked @s359l44w95ysun:e8
 PASS: left SharedSpaces screen
 PASS: on space screen (Files Shared)
 
@@ -79,6 +85,8 @@ Side effect: the script clicks into the first space card it finds and leaves the
 | `APP_NOT_FOUND: No window found for app 'Mirall'` | Wrong process name. Dev build runs as `Electron`. | Pass the right argument: `smoke-test.sh Electron`. |
 | Snapshot returns DevTools UI (`Send Feedback` not found, ref_count ~8, "Developer Tools" in tree) | Chrome DevTools window is open under the same `Electron` process. | Close DevTools and rerun. |
 | `permissions.granted: false` | Terminal lost Accessibility permission (common after macOS updates or terminal upgrades). | Re-grant in System Settings → Privacy & Security → Accessibility. |
+| `AMBIGUOUS_TARGET: More than one window matches the target` | More than one `Electron` window (usually DevTools, sometimes a second dev instance). The error's `details.candidates` lists them. | Close the extra window, or re-run the failing command with `--window-id <id>` from `list-windows`. |
+| `INVALID_ARGS: RefEntry requires a positive pid and process instance` | Left-over `~/.agent-desktop` state written by a pre-0.5 CLI. | `rm -f ~/.agent-desktop/last_refmap.json ~/.agent-desktop/latest_snapshot_id` |
 | `ACTION_FAILED: All chain steps exhausted` on click | Transient focus state, modal overlay, or the target stopped being interactable since the snapshot. | Rerun. If reproducible, fall back to `agent-desktop mouse-click --xy X,Y` after `agent-desktop get @ref bounds`. |
 | `STALE_REF: Element not found: role=..., name="..."` | A ref from an earlier snapshot no longer matches because the UI changed (e.g. a button's accessible name changed after a fix). | Re-run `snapshot` and use the new ref. |
 
@@ -95,7 +103,7 @@ agent-desktop snapshot --root @e3 --app "Electron" -i --compact   # drill into a
 agent-desktop screenshot --app "Electron"
 ```
 
-Refs (`@e1`, `@e2`, ...) are scoped to a single `snapshot` invocation and assigned in depth-first interactive order. Re-snapshot after any UI change before reusing a ref.
+Refs are scoped to a single `snapshot` invocation and assigned in depth-first interactive order. Re-snapshot after any UI change before reusing a ref. Since 0.8.0 a ref is **snapshot-qualified** — `@s359l44w95ysun:e3`, not `@e3` — so it carries its own scope and resolves in a later CLI process on its own. A bare `@e3` still works, but only with an explicit `--snapshot <id>` (or a `--session` whose latest snapshot is the one you meant).
 
 aria-label on icon-only buttons and on `<div role="button">` lands in the AX `description` field, not `name`. Use both when matching:
 

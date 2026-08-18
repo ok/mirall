@@ -157,6 +157,17 @@ function pruneAgentDesktopStore() {
   for (const sub of ['snapshots', 'sessions']) {
     rmSync(path.join(store, sub), { recursive: true, force: true })
   }
+  // The two root-level files are the global "latest snapshot" pointer and its
+  // refmap. agent-desktop <0.5 wrote RefEntry records with a pid but no
+  // process_instance; 0.8.x's deserializer rejects those outright, so a store
+  // carried over from an older CLI makes `agent-desktop status` fail with
+  // INVALID_ARGS ("RefEntry requires a positive pid and process instance") until
+  // they are gone. Nothing here reads them — each Instance uses its own
+  // --session namespace — so clearing them is free and keeps the CLI usable
+  // by hand (and by the agent-desktop skill) after this suite has run.
+  for (const f of ['last_refmap.json', 'latest_snapshot_id']) {
+    rmSync(path.join(store, f), { force: true })
+  }
   if (stale) console.error(`pruned ${stale} stale agent-desktop snapshot(s)`)
 }
 
