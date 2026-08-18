@@ -7,7 +7,7 @@ import { initStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/co
 import {
   initAuditLog, record, flushAudit, queryAudit, auditSpaces, auditActors,
   auditStats, getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
-  getPeerSubjectState, setPeerSubjectState,
+  getPeerSubjectState, setPeerSubjectState, getSeenVersion, setSeenVersion,
 } from '../../src/shared/audit/audit-log.js'
 
 let seq = 0
@@ -210,6 +210,120 @@ test('purge empties the log and resets nothing else', async (t) => {
   t.is((await queryAudit({})).entries.length, 0)
   t.alike(await auditSpaces(), [], 'the space filter empties with it')
   t.is(getAuditConfig().enabled, true, 'purge is not a disable')
+})
+
+// Writes across many kinds: the per-kind token bucket admits only 120 rows per kind per minute,
+// so a single-kind loop silently caps at 120 and makes a byte measurement meaningless.
+const BULK_KINDS = ['file.shared', 'file.unshared', 'invite.minted', 'member.joined', 'member.left',
+  'mirror.created', 'mirror.removed', 'serve.completed', 'share.created', 'share.deleted',
+  'space.created', 'space.joined', 'transfer.completed', 'transfer.failed']
+
+function bulkRows (rounds) {
+  let written = 0
+  for (let i = 0; i < rounds; i++) {
+    for (const kind of BULK_KINDS) {
+      const ok = record(kind, {
+        actor: { type: 'peer', key: 'ab12cd34'.repeat(8), name: 'Peer Number ' + i },
+        space: { id: 'sp' + (i % 4), name: 'Space Number ' + (i % 4) },
+        target: { kind: 'member', id: 'ab12cd34'.repeat(8), name: 'Target Number ' + i },
+      })
+      if (ok) written += 1
+    }
+  }
+  return written
+}
+
+function dirSize (dir) {
+  let total = 0
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name)
+    const st = fs.statSync(p)
+    total += st.isDirectory() ? dirSize(p) : st.size
+  }
+  return total
+}
+
+// REGRESSION (FIX-365: purge deleted rows key-by-key, which reclaimed nothing — a Hyperbee `del`
+// is an append, so every original block stayed on disk and gained a tombstone on top. The user's
+// explicit "delete the log" left the store BIGGER than before. Purge now truncates the core to
+// zero and compacts.)
+test('REGRESSION (FIX-365): purge reclaims the log’s bytes, it does not just hide the rows', async (t) => {
+  const storage = await boot(t)
+  const baseline = dirSize(storage)
+
+  const written = bulkRows(110)
+  await flushAudit()
+  t.ok(written > 1000, 'wrote enough rows for a byte measurement (' + written + ')')
+
+  const grown = dirSize(storage)
+  t.ok(grown > baseline * 2, 'the log actually took disk: ' + baseline + ' -> ' + grown)
+
+  const { purged } = await purgeAudit()
+  t.is(purged, written, 'every row is counted as purged')
+
+  const reclaimed = dirSize(storage)
+  t.ok(reclaimed < grown / 2, 'purge freed the bytes: ' + grown + ' -> ' + reclaimed)
+  t.is((await queryAudit({})).entries.length, 0, 'and the rows are gone')
+})
+
+// The core is emptied wholesale, so anything that must outlive a purge has to be written back
+// explicitly. These two keys are the ones that must — and the one that must not.
+test('purge carries config and peer watermarks across the reset, but not observed state', async (t) => {
+  await boot(t)
+  await setAuditConfig({ retentionDays: 30, maxEntries: 4242 })
+  await setSeenVersion('beefbeef', 987)
+  await setPeerSubjectState('beefbeef/some/path', 'on')
+  bulkRows(2)
+  await flushAudit()
+
+  await purgeAudit()
+
+  const cfg = getAuditConfig()
+  t.is(cfg.retentionDays, 30, 'retention is a user setting, not log content')
+  t.is(cfg.maxEntries, 4242, 'and so is the entry cap')
+  t.is(await getSeenVersion('beefbeef'), 987,
+    'dropping the watermark would replay every peer’s whole history as if it just happened')
+  t.is(await getPeerSubjectState('beefbeef/some/path'), null,
+    'observed peer state IS log content — it must not survive a wipe')
+})
+
+// testing.md: a two-mode subsystem must exercise its production-default mode in destructive
+// paths — and the reset must not quietly depend on identity mode. Without M the bee opens by
+// NAME (an aliased core) rather than by derived keyPair, which is exactly where a purge that
+// deleted-and-recreated the core would strand a stale alias.
+test('purge reclaims in insecure mode too, where the bee opens by name', async (t) => {
+  const storage = await boot(t, { identity: false })
+  const baseline = dirSize(storage)
+  const written = bulkRows(110)
+  await flushAudit()
+
+  const grown = dirSize(storage)
+  t.ok(grown > baseline * 2, 'the log took disk without M: ' + baseline + ' -> ' + grown)
+
+  const { purged } = await purgeAudit()
+  t.is(purged, written, 'every row purged')
+  t.ok(dirSize(storage) < grown / 2, 'bytes freed without M too: ' + grown + ' -> ' + dirSize(storage))
+
+  record('space.created', { actor: { type: 'self' }, space: { id: 'sp1', name: 'Still Works' } })
+  await flushAudit()
+  t.is((await queryAudit({})).entries.length, 1, 'and the name-opened core still accepts writes')
+})
+
+test('the log is fully usable after a purge', async (t) => {
+  await boot(t)
+  bulkRows(3)
+  await flushAudit()
+  await purgeAudit()
+
+  record('space.created', { actor: { type: 'self' }, space: { id: 'sp9', name: 'After Purge' } })
+  await flushAudit()
+
+  const { entries } = await queryAudit({})
+  t.is(entries.length, 1, 'the truncated core accepts writes')
+  t.is(entries[0].kind, 'space.created')
+  t.is(entries[0].seq, 0, 'seq restarts from zero on an emptied core')
+  const stats = await auditStats()
+  t.is(stats.count, 1, 'and stats read the emptied tree, not a stale snapshot')
 })
 
 test('stats report the true range', async (t) => {

@@ -313,9 +313,24 @@ carrying the totals; the recurring reconcile records nothing), byte-moving activ
 one row per transfer by `audit-sessions.js`, and a per-kind token bucket collapses any overflow
 into a single `audit.suppressed` row.
 
-Retention prunes by age **and** count on boot and daily. A Hyperbee `del` only appends a
-tombstone, so the prune follows up with `core.clear()` over the released block range to actually
-reclaim disk.
+Retention prunes by age **and** count on boot and daily (`maxEntries`, default 200k, binds
+whenever a burst outruns the age window). It bounds the **row count, not the bytes**: a Hyperbee
+`del` only appends a tombstone, so pruned rows stop being readable while their blocks stay on
+disk. Byte reclamation is deliberately not attempted — `core.clear()` over the pruned range is
+unsafe here, because every Hyperbee block carries B-tree index data alongside its key/value, so
+clearing old blocks strands index nodes the live tree still points at (measured: after clearing a
+pruned prefix, a fresh open reads back **0** surviving rows and stalls on a missing block).
+Residue after RocksDB compaction is on the order of ~1&nbsp;KB per pruned row, retained
+indefinitely — see the NOTE above `pruneAudit()` in `audit-log.js`.
+
+**`audit:purge` is the one path that does reclaim.** A purge discards the whole event set, so it
+can reset the core outright where a partial prune cannot: `truncate(0)` empties the tree in place
+and drops its blocks, and a `compactRange` then returns the bytes (measured: 8.3&nbsp;MB
+of log → 0.08&nbsp;MB, against 22&nbsp;MB when the same rows were deleted key-by-key). Truncation
+rather than a core purge-and-recreate is deliberate — recreating the core hands back a stale
+corestore tracker entry whose storage is gone, and every later read hangs. The retention config and
+the `seen/` watermarks are written back across the reset; `pstate/` is not, since observed peer
+state is log content.
 
 **The log survives a space leave** — a deliberate exception to §6's "leave removes everything
 space-scoped" rule, since a space left under dispute is exactly when the trail matters. It never

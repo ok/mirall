@@ -105,6 +105,25 @@ import time, before any test runs). The bare-free rule `path-keys.js` documents 
 real, load-bearing layering constraint — pure string math goes in `path-keys.js`, and lifecycle
 hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway.
 
+**Never `core.clear()` a block range of a Hyperbee to reclaim deleted rows — it corrupts the live
+tree.** Every append writes one block holding `{key, value, index}`, so blocks are simultaneously
+data *and* B-tree index, and old blocks stay referenced by the current root long after their keys
+are deleted. The tell: a fresh reopen (not the warm handle — the node cache masks it) reads back 0
+rows and stalls on a non-local block. `del` is an append too, so pruning a Hyperbee always *costs*
+disk and never frees it. To reset a bee wholesale use `core.truncate(0)` + `compactRange` (a
+`clear()` after the truncate is a no-op — hypercore early-returns once `start >= length`) — **not**
+`clearAndPurgeCore`: deleting a core's storage and reopening it under
+the same (derived, deterministic) key hands back corestore's cached tracker entry, which reports
+the old length over storage that is gone, so every later read hangs. Truncation keeps the handle
+valid and needs no alias surgery. Order matters too — clearing a bee's blocks *before* closing it
+wedges `bee.close()`, since the close path reads blocks that are no longer local.
+
+**Size a store problem only after `compactRange` — raw directory size is mostly write
+amplification.** A bee measuring 25 MB on disk fell to 4.4 MB from RocksDB compaction alone and to
+1.1 MB after a full clear + compaction, so an uncompacted `du` overstated the reclaimable residue
+by ~6x. Compact first, then measure, or you optimize transient SST/WAL churn instead of the real
+retained bytes.
+
 ## Stopping long-running work
 
 **Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Clearing `setInterval`/pending timers leaves a materialize/download pass already iterating thousands of files running to completion — and its trailing persist can RESURRECT the just-torn-down state. Use a per-key generation counter checked between items (bail if it changed), abort the active stream/transfer (track it in a map the stop path can `destroy()`), and guard the trailing persist. Test with enough files/bytes that the pass is genuinely in flight at stop time; assert both "progress halts" AND "state not resurrected."
