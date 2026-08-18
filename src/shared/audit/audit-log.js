@@ -14,7 +14,7 @@
 //                                  Working state, not a record: audit:purge deliberately leaves
 //                                  it, because resetting it would replay every peer's whole
 //                                  history as if it had just happened.
-import { createLocalBee } from '../core/store.js'
+import { createLocalBee, getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { buildRecord } from './audit-record.js'
 import { STATE_OFF } from './peer-observer.js'
@@ -29,6 +29,7 @@ import {
 
 const log = createLogger('audit')
 
+const AUDIT_BEE_NAME = 'audit-log'
 const SEQ_WIDTH = 16
 const EVT = 'evt/'
 const BY_SPACE = 'by-space/'
@@ -65,7 +66,7 @@ let writeChain = Promise.resolve()
 const rateBuckets = new Map()
 
 export async function initAuditLog({ installId = null } = {}) {
-  bee = createLocalBee('audit-log')
+  bee = createLocalBee(AUDIT_BEE_NAME)
   await bee.ready()
   device = installId
   const stored = await bee.get(CONFIG_KEY)
@@ -350,10 +351,15 @@ export async function setAuditConfig(patch = {}) {
 // NOTE — byte-level reclamation is deliberately NOT done here. A Hyperbee `del` only appends a
 // tombstone, so pruned rows stop being readable but their blocks stay on disk. Releasing them
 // with core.clear() is unsafe as written: Hyperbee interleaves B-tree index nodes with value
-// blocks, so a range clear can drop a node the live index still points at. Growth is bounded in
-// the meantime by `maxEntries`, which caps the row count regardless of the age window. Reclaiming
-// the bytes needs its own change (measure first; the established pattern elsewhere in the
-// codebase is purge-and-recreate the core, not an in-place clear).
+// blocks, so a range clear can drop a node the live index still points at — measured, clearing a
+// pruned prefix leaves a fresh open reading back zero rows and stalling on a missing block.
+// Growth is bounded in the meantime by `maxEntries`, which caps the row count regardless of the
+// age window; the residue is ~1KB per pruned row after compaction.
+//
+// A TOTAL wipe can reclaim, because it need not preserve any index — see purgeAudit, which
+// truncates the core to zero instead. That does not generalize to a partial prune: keeping the
+// newest N rows would mean copy-forward (read the survivors, truncate, re-append), whose cost
+// scales with `maxEntries` on every prune. Worth building only if the residue is shown to matter.
 
 export async function pruneAudit({ now = Date.now() } = {}) {
   if (!bee) return { removed: 0 }
@@ -411,25 +417,67 @@ export async function pruneAudit({ now = Date.now() } = {}) {
   return { removed }
 }
 
+// The user's explicit wipe — and the ONE place bytes are actually reclaimed. Deleting the rows
+// key-by-key would free nothing (see the NOTE above pruneAudit): a `del` is an append, so a
+// row-wise purge left every original block on disk and added a tombstone per row on top, ending
+// with a bigger store than before. A purge discards the whole event set, so it can do what a
+// partial prune cannot — reset the core itself.
+//
+// `truncate(0)` (not a core purge-and-recreate) is the primitive: it empties the tree in place AND
+// drops the blocks, so the bee handle stays valid and corestore never has to resolve a same-key
+// core it still has cached — recreating the core instead reopens a stale in-memory tracker entry
+// whose storage is gone, and every later read hangs. No `clear()` follows it: hypercore's clear
+// early-returns once `start >= length`, so after a truncate to zero it is a measured no-op.
+//
+// Two keys are written back rather than being lost with the reset:
+//   config  — retention settings are user preferences, not log content.
+//   seen/   — the peer-bee watermarks. Dropping them makes first contact re-read every peer's
+//             whole history and replay it as if it had just happened (see the header), turning
+//             "delete my activity" into "flood it with a decade of theirs".
+// `pstate/` is deliberately NOT written back: it mirrors observed peer state, so it is log
+// content, and keeping it would suppress the next standing-state row for every subject.
 export async function purgeAudit() {
   if (!bee) return { purged: 0 }
   await flushAudit()
+
   let purged = 0
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) {
-    await bee.del(entry.key)
-    purged += 1
+  for await (const _entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) purged += 1
+  const seen = []
+  for await (const entry of bee.createReadStream({ gte: SEEN, lt: SEEN + HIGH })) {
+    seen.push([entry.key, entry.value])
   }
-  for await (const entry of bee.createReadStream({ gte: BY_SPACE, lt: BY_SPACE + HIGH })) {
-    await bee.del(entry.key)
+  const keptConfig = { ...config }
+
+  // A row recorded during those scans is racing a total wipe, so losing it is the right outcome —
+  // but the append chain must be idle before the core is reset under it.
+  await flushAudit()
+
+  const live = bee
+  const core = bee.core
+  bee = null // record() no-ops for the reset window rather than appending into a truncating core
+  try {
+    await core.truncate(0)
+  } finally {
+    bee = live // same handle, now an empty tree
   }
-  // The per-peer observed-state mirror is part of the log, not of replication state: leaving
-  // it behind both defeats "delete all activity" as a privacy action and suppresses the next
-  // standing-state row for every subject (the mirror would still read 'on').
-  for await (const entry of bee.createReadStream({ gte: PSTATE, lt: PSTATE + HIGH })) {
-    await bee.del(entry.key)
-  }
+
+  nextSeq = 0
+  await bee.put(CONFIG_KEY, keptConfig)
+  for (const [key, value] of seen) await bee.put(key, value)
   rateBuckets.clear()
-  log.info('purged', purged, 'rows')
+
+  // The truncate releases the blocks; compaction is what returns the bytes to the filesystem
+  // (without it the store still reads ~1.5MB of SST churn for a log this size). It is a
+  // whole-store pass, affordable here only because a purge is a deliberate, confirmed, one-off
+  // user action — never do this on the recurring prune path.
+  try {
+    await getStore().storage.db.compactRange(null, null, {
+      blobGarbageCollectionPolicy: 1,
+      blobGarbageCollectionAgeCutoff: 1.0,
+    })
+  } catch (err) { log.warn('compaction after purge failed:', err.message) }
+
+  log.info('purged', purged, 'rows and reclaimed the core')
   return { purged }
 }
 
