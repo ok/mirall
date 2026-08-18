@@ -44,7 +44,7 @@ const CHAIN_TIMEOUT_MS = process.env.AGENT_DESKTOP_CHAIN_TIMEOUT_MS ?? '2500'
 // that would have fixed it. Cap it low and let the retry do the settling.
 // Only these subcommands accept the flag (verified against 0.8.1 --help).
 const AUTO_WAIT_CMDS = new Set(['click', 'type', 'focus', 'set-value', 'scroll', 'hover', 'toggle', 'select'])
-const ACTION_TIMEOUT_MS = process.env.AGENT_DESKTOP_ACTION_TIMEOUT_MS ?? '1500'
+export const ACTION_TIMEOUT_MS = process.env.AGENT_DESKTOP_ACTION_TIMEOUT_MS ?? '1500'
 
 // agent-desktop 0.3.0+ takes --session / --headed as GLOBAL options that must
 // precede the subcommand. --session namespaces the persisted "latest snapshot"

@@ -115,10 +115,12 @@ const args = process.argv.slice(2)
 // Fail fast on an environment that can't drive the UI, instead of letting every
 // scenario stall for 90s on "Mirall window never appeared" / STALE_REF.
 //
-// The harness requires agent-desktop >= 0.3.0 (see preflight.mjs): 0.3.0
-// reintroduced persisted, session-scoped snapshots, so a ref taken in one CLI
-// process resolves in the next (the snapshot-then-act pattern this suite makes).
-// Older 0.2.x re-resolved refs per-command and returned STALE_REF cross-process.
+// The harness requires agent-desktop >= 0.8.0 (preflight.mjs carries the full
+// ladder): 0.3.0 brought back persisted, session-scoped snapshots, so a ref taken
+// in one CLI process resolves in the next (the snapshot-then-act pattern this
+// suite makes), and 0.7.0 turned an over-budget snapshot into ok:true +
+// complete:false, which instance.snap() reads so a truncated tree is never
+// asserted against as if it were the whole window.
 function preflight() {
   let version, granted
   try {
