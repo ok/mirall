@@ -89,6 +89,7 @@ export function createBee(name, { encryptionKey = null } = {}) {
 export const LOCAL_BEE_NAMES = [
   'spaces-meta', 'downloads-meta', 'pending-transfers',
   'reclaim-meta', 'mounts-meta', 'app-migrations',
+  'audit-log',
 ]
 
 function metadataBeeKey() {

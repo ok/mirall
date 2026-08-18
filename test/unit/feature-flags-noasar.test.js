@@ -127,3 +127,35 @@ test('REGRESSION (structural): preloadAsarCache primes feature flags before the 
   t.absent(/readFileSync\([^)]*getAppPath\(\)[^)]*feature-flags\.json/.test(mainSrc),
     'main.js no longer does a lazy fs read of the asar feature-flags.json path')
 })
+
+test('the relay flag is opt-in: absent, degraded, and explicit-false all read off', (t) => {
+  __resetForTest()
+  resetEnv(t)
+
+  // Absent from the shipped file — the state this feature ships in.
+  primeFeatureFlags(tmpRootWith({ overlay: true, inPlaceFiles: true }))
+  t.is(readFeatureFlags().relay === true, false, 'a missing key means off')
+
+  // A failed / malformed read collapses every flag to {} — relay must fall off, not on.
+  __resetForTest()
+  primeFeatureFlags(tmpRootWith(undefined))
+  t.is(readFeatureFlags().relay === true, false, 'an unreadable flag file means off')
+
+  __resetForTest()
+  primeFeatureFlags(tmpRootWith({ relay: false }))
+  t.is(readFeatureFlags().relay === true, false)
+})
+
+test('the relay flag turns on via the file or the env escape hatch', (t) => {
+  __resetForTest()
+  resetEnv(t)
+
+  primeFeatureFlags(tmpRootWith({ relay: true }))
+  t.is(readFeatureFlags().relay === true, true, 'flipped in feature-flags.json')
+
+  __resetForTest()
+  primeFeatureFlags(tmpRootWith({ overlay: true }))
+  t.is(readFeatureFlags().relay === true, false)
+  process.env.MIRALL_FEATURE_FLAGS = JSON.stringify({ relay: true })
+  t.is(readFeatureFlags().relay === true, true, 'MIRALL_FEATURE_FLAGS enables it without a build')
+})

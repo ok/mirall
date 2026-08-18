@@ -14,6 +14,12 @@ export interface WindowBounds {
   height: number
 }
 
+// Content-plane transfer caps in KB/s; 0 = unlimited.
+export interface BandwidthLimits {
+  downloadKBps: number
+  uploadKBps: number
+}
+
 export type PearEventName = 'updating' | 'updated'
 
 export type NotificationUrgency = 'normal' | 'critical' | 'low'
@@ -114,7 +120,9 @@ export interface MirallBridge {
 
   getDownloadFolder(): Promise<string>
   setDownloadFolder(folder: string): Promise<string>
-  browseDownloadFolder(): Promise<string | null>
+  browseDownloadFolder(defaultPath?: string): Promise<string | null>
+  getBandwidth(): Promise<BandwidthLimits>
+  setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
   startOwnedFolderWatcher(shareId: string, mountPath: string, ignore: string[]): Promise<{ ok: boolean; reason?: string }>
   stopOwnedFolderWatcher(shareId: string): Promise<{ ok: boolean }>
@@ -129,7 +137,7 @@ export interface MirallBridge {
   getPrefs(): Promise<AppPrefs>
   setPrefs(partial: Partial<AppPrefs>): Promise<AppPrefs>
   getConfig(): RendererConfig
-  setConfig(patch: RendererConfigPatch): Promise<void>
+  setConfig(patch: RendererConfigPatch): Promise<RendererConfig>
   setTrayLabels(labels: TrayLabels): Promise<void>
   menuContextChanged(ctx: MenuContext): Promise<void>
   onFirstHideNotice(listener: (payload: FirstHideNoticePayload) => void): () => void
@@ -151,6 +159,7 @@ export interface MirallDevConsole {
   spaces(): Promise<unknown>
   members(spaceId: string): Promise<unknown>
   storage(): Promise<unknown>
+  audit(opts?: Record<string, unknown>): Promise<unknown>
   profile(): Promise<unknown>
   mounts(): Promise<unknown>
   features(): Promise<unknown>

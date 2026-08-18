@@ -26,12 +26,19 @@ export { shouldIgnore, DEFAULT_IGNORE }
 const log = createLogger('owned-folders')
 
 let ipcRef = null
+// Injected by the worker: maps a scan/reconcile outcome onto the mount's durable status, the
+// live UI event, and (for a missing root) the watcher/timer teardown. This module reports
+// outcomes; the policy for acting on one belongs to the process that owns the watcher and the
+// mount-point probe. Unset outside the worker (integration helpers), which keeps the old
+// fire-and-forget behaviour.
+let settleScanRef = null
 
 const reconcileTimers = new Map()
 const POST_EVENT_RECONCILE_MS = 2000
 
-export function initOwnedFolders(_ipc) {
+export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
   ipcRef = _ipc
+  settleScanRef = settleScan
 }
 
 // Chokidar can drop `add` events when several files land in a new subfolder at
@@ -43,8 +50,12 @@ function scheduleCatchupReconcile(mount) {
   clearTimeout(reconcileTimers.get(key))
   const timer = setTimeout(() => {
     reconcileTimers.delete(key)
-    periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE)
-      .catch((err) => log.debug('catch-up reconcile failed:', err.message))
+    const scan = periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE)
+    // Settle the OUTCOME rather than swallowing it. This reconcile is the fastest signal that a
+    // vanished source is back — or still gone — and running it silently repaired the catalog while
+    // leaving the durable status (and the "source missing" banner) latched on the last bad value.
+    if (settleScanRef) settleScanRef(scan, mount.spaceId, mount.shareId)
+    else scan.catch((err) => log.debug('catch-up reconcile failed:', err.message))
   }, POST_EVENT_RECONCILE_MS)
   timer.unref?.()
   reconcileTimers.set(key, timer)

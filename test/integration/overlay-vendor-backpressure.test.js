@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
 
 // chunkData, mirall/handshake, and the Corestore replication that carries a peer's
 // freshly shared folder all multiplex over ONE Noise stream. The seeder must stop
@@ -122,4 +123,93 @@ test('_onChunkNeed skips a chunk whose readChunk returns null and serves the res
   }
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   t.alike(sent, [0, 2], 'the null chunk (index 1) is skipped; 0 and 2 still served')
+})
+
+// --- upload cap -------------------------------------------------------------
+// The serve side of the bandwidth limiter, which no unit test can reach: `_onChunkNeed` is
+// where take() is awaited, where an aborted wait must stop the send, and where one handle is
+// shared by every concurrent serve loop for a peer.
+
+const KB = 1024
+
+function drainedPeer () {
+  const sent = []
+  const peer = {
+    mux: { stream: { on () {}, removeListener () {}, emit () {} } },
+    channel: { closed: false, drained: true },
+    authorizedServe: new Map(),
+    uploadStream: null,
+    msgs: { chunkData: { send (m) { sent.push(m); return true } } },
+  }
+  return { peer, sent }
+}
+
+const bigMap = (n, len) => Array.from({ length: n }, (_, i) => ({ hash: 'h' + i, offset: i * len, length: len }))
+
+test('upload cap: the serve loop is paced by the cap rather than flushing the batch', async (t) => {
+  const LEN = 16 * KB
+  const map = bigMap(8, LEN)
+  const limiter = createBandwidthLimiter(() => 32 * KB)   // 2 chunks/second
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(8 * LEN, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    uploadLimiter: limiter,
+  })
+  const { peer, sent } = drainedPeer()
+
+  const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2, 3, 4, 5, 6, 7] })
+  await new Promise((r) => setTimeout(r, 600))
+  const early = sent.length
+  t.ok(early > 0, `some chunks went out (${early})`)
+  t.ok(early < 8, `but the batch was paced, not flushed (${early}/8 after 600ms at 32 KB/s)`)
+
+  limiter.destroy()   // releases the parked wait so the loop can finish
+  await p
+  t.pass('the serve loop unwinds cleanly')
+})
+
+// REGRESSION (FIX-BW6): protomux does not serialise its async onmessage handlers, so two
+// chunkNeed messages for ONE peer run concurrently against that peer's single upload handle.
+// Overwriting the handle's pending request threw out of the limiter's pump and killed the
+// worker; the handle now serialises them.
+test('REGRESSION (FIX-BW6): concurrent serve loops on one peer do not corrupt the handle', async (t) => {
+  const LEN = 4 * KB
+  const map = bigMap(6, LEN)
+  const limiter = createBandwidthLimiter(() => 64 * KB)
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(6 * LEN, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    uploadLimiter: limiter,
+  })
+  const { peer, sent } = drainedPeer()
+
+  // Corruption showed up as a throw out of the limiter's pump, which strands both loops —
+  // so "every chunk arrived and both awaits resolved" is the assertion that catches it.
+  await Promise.all([
+    proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] }),
+    proto._onChunkNeed(peer, { path: 'content:abc', indices: [3, 4, 5] }),
+  ])
+  limiter.destroy()
+
+  t.is(sent.length, 6, 'both serve loops delivered their whole batch')
+  t.alike(sent.map((m) => m.index).sort((a, b) => a - b), [0, 1, 2, 3, 4, 5], 'no chunk lost or duplicated')
+})
+
+// A take() that resolves 0 means the wait was aborted; sending anyway would put unmetered
+// bytes on a channel that is very likely gone.
+test('upload cap: an aborted wait stops the serve loop instead of sending unpaid bytes', async (t) => {
+  const LEN = 64 * KB
+  const map = bigMap(4, LEN)
+  const limiter = createBandwidthLimiter(() => 32 * KB)   // one chunk is 2s of budget
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    uploadLimiter: limiter,
+  })
+  const { peer, sent } = drainedPeer()
+
+  const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2, 3] })
+  await new Promise((r) => setTimeout(r, 100))
+  const before = sent.length
+  limiter.destroy()                                        // abort the parked wait
+  await p
+  await new Promise((r) => setTimeout(r, 50))
+  t.is(sent.length, before, 'nothing was sent after the wait was aborted')
 })

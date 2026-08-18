@@ -19,8 +19,11 @@
   "mountForbiddenCloudSync": "Le cartelle sincronizzate sul cloud (Dropbox, iCloud, OneDrive…) non possono essere condivise. La doppia sincronizzazione rischia la perdita di dati: scegli una cartella fuori dall'area di sincronizzazione cloud.",
   "mountForbiddenPersonalRoot": "Questa è una cartella personale principale (Home, Scrivania, Documenti o Download). Scegli o crea invece una sottocartella al suo interno.",
   "mountInsideDownloads": "Questa posizione è all'interno della cartella dei download. Scegli una posizione esterna ad essa.",
+  "mountContainsDownloads": "Questa cartella contiene una cartella di download di Mirall. I download finirebbero pubblicati ai tuoi peer: scegli un'altra cartella.",
   "mountInsideSelf": "Questa cartella si trova all'interno di un'altra cartella condivisa. Scegli un'altra cartella.",
   "mountNotWritable": "Mirall non può scrivere in questa cartella. Controlla i permessi o scegline un'altra.",
   "looseFileLimit": "Puoi condividere fino a 100 file per spazio. Rimuovine alcuni per aggiungerne altri.",
-  "shareFileLimit": "Le cartelle condivise sono limitate a 5.000 file. Scegli una cartella più piccola oppure suddividila in più condivisioni."
+  "shareFileLimit": "Le cartelle condivise sono limitate a 5.000 file. Scegli una cartella più piccola oppure suddividila in più condivisioni.",
+  "downloadFolderOverlapsMount": "Questa cartella si sovrappone a una cartella che condividi o replichi. I download finirebbero pubblicati ai tuoi peer: scegli un'altra cartella.",
+  "downloadFolderInvalid": "Mirall non può usare questa cartella. Potrebbe essere stata spostata o rimossa, oppure Mirall non può scriverci."
 }

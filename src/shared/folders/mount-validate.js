@@ -1,19 +1,19 @@
 // Mount-target validation: refuses dangerous mount paths — system folders, the
 // app's own storage, personal roots (~, Desktop, …), cloud-sync folders, Windows
-// reserved names, overlaps with existing mounts, and (for mirrors) the downloads
-// dir — then probes writability. The async and sync variants apply the same rules;
+// reserved names, overlaps with existing mounts, and any overlap with a download
+// root — then probes writability. The async and sync variants apply the same rules;
 // both also return non-blocking advisories to surface to the user.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import os from 'bare-os'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { getStoragePath } from '../core/store.js'
-import { getDownloadDir } from '../core/paths.js'
+import { listDownloadRoots } from '../core/paths.js'
 import { listAllMounts } from './mount-store.js'
 import { createLogger } from '../core/logger.js'
 import {
   systemRootViolation, personalRootViolation, isWindowsReservedName, pathsOverlap, cloudSyncHint,
-  overlapAllowed,
+  overlapAllowed, pathContains,
 } from './path-keys.js'
 
 const log = createLogger('mount-validate')
@@ -64,14 +64,58 @@ function writeProbe(dir) {
     fs.unlinkSync(probe + '.r')
     return true
   } catch (err) {
-    try { fs.unlinkSync(probe) } catch {}
+    // Both names: the failure may have landed after the rename, and a stranded probe file
+    // in a folder we then REFUSE is litter the user can neither explain nor find.
+    for (const leftover of [probe, probe + '.r']) {
+      try { fs.unlinkSync(leftover) } catch {}
+    }
     log.debug('write probe failed for', dir, '-', err.message)
     return false
   }
 }
 
-// Keep in parity with the main-process validateDownloadFolder (src/main/main.js).
-export function validateDownloadFolder (folder) {
+// A mount and a download root must never overlap, in either direction and for either role:
+// downloads landing inside an OWNED folder are picked up by its watcher and published to
+// peers, and a mirrored tree intermixed with flat downloads (either nesting) leaves the user
+// unable to tell their own downloads from peer content. Every root counts, not just the
+// global one. The mirror image of this rule lives in validateDownloadFolderAgainstMounts — both
+// orders of the same two operations have to be refused, or the hazard is simply reachable
+// by doing them the other way round.
+function rejectIfOverlapsAnyDownloadRoot (normalized, role) {
+  if (role !== 'foreign-folder' && role !== 'owned-folder') return
+  const fold = caseInsensitive(os.platform())
+  for (const dl of listDownloadRoots()) {
+    if (pathContains(dl, normalized, path.sep, fold)) {
+      throw new AppError(ErrorCodes.MOUNT_INSIDE_DOWNLOADS, dl)
+    }
+    if (pathContains(normalized, dl, path.sep, fold)) {
+      throw new AppError(ErrorCodes.MOUNT_CONTAINS_DOWNLOADS, dl)
+    }
+  }
+}
+
+// The download-folder side of the same invariant. Two spaces sharing one download folder is
+// the default state and stays allowed. Every rejection runs BEFORE the write probe: probing
+// first would create (and, on a failure between the rename and the unlink, strand) a file
+// inside the very shared folder the next line refuses — and a watcher on an owned share would
+// publish that probe to every peer.
+export async function validateDownloadFolderAgainstMounts (folder) {
+  const normalized = normalizePath(checkDownloadFolderShape(folder))
+  const fold = caseInsensitive(os.platform())
+  for (const mount of await listAllMounts()) {
+    if (pathsOverlap(normalized, mount.mountPath, path.sep, fold)) {
+      throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT, mount.mountPath)
+    }
+  }
+  if (!writeProbe(normalized)) {
+    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
+  }
+  return normalized
+}
+
+// Everything about the path itself, with no side effect on disk — so the callers that also
+// have rejections to run can order the probe last.
+function checkDownloadFolderShape (folder) {
   if (typeof folder !== 'string' || folder.length === 0) {
     throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Path is empty')
   }
@@ -87,6 +131,15 @@ export function validateDownloadFolder (folder) {
   if (!stat.isDirectory()) {
     throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Path is not a directory')
   }
+  return folder
+}
+
+// The shape+writability rules ALONE, kept in parity with the main-process
+// validateDownloadFolder (src/main/main.js) that pre-screens the folder picker. Every worker
+// entry point goes through validateDownloadFolderAgainstMounts instead — this is the twin the
+// parity tests pin, so main's copy can't drift unnoticed.
+export function validateDownloadFolder (folder) {
+  checkDownloadFolderShape(folder)
   if (!writeProbe(folder)) {
     throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
   }
@@ -168,12 +221,7 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
     }
   }
 
-  if (role === 'foreign-folder') {
-    const dl = getDownloadDir()
-    if (dl && (normalized === dl || normalized.startsWith(dl + path.sep))) {
-      throw new AppError(ErrorCodes.MOUNT_INSIDE_DOWNLOADS, dl)
-    }
-  }
+  rejectIfOverlapsAnyDownloadRoot(normalized, role)
 
   if (!writeProbe(normalized)) {
     throw new AppError(ErrorCodes.MOUNT_NOT_WRITABLE, normalized)
@@ -214,12 +262,7 @@ export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
     }
   }
 
-  if (role === 'foreign-folder') {
-    const dl = getDownloadDir()
-    if (dl && (normalized === dl || normalized.startsWith(dl + path.sep))) {
-      throw new AppError(ErrorCodes.MOUNT_INSIDE_DOWNLOADS, dl)
-    }
-  }
+  rejectIfOverlapsAnyDownloadRoot(normalized, role)
 
   if (!writeProbe(normalized)) {
     throw new AppError(ErrorCodes.MOUNT_NOT_WRITABLE, normalized)

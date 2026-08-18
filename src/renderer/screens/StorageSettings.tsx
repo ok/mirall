@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
+import { mountErrorI18nKey } from '../errorMessages.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
@@ -76,6 +77,7 @@ function StorageBreakdown({ info, freeing, freedBytes, onFreeSpace }: { info: St
 
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
+  const { t: tErr } = useTranslation('errors')
   const [info, setInfo] = useState<StorageInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloadFolder, setDownloadFolder] = useState<string>('')
@@ -124,13 +126,16 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
     try {
       const picked = await window.bridge.browseDownloadFolder()
       if (!picked) return
-      const persisted = await window.bridge.setDownloadFolder(picked)
-      await request('settings:set-download-folder', { folder: persisted })
-      setDownloadFolder(persisted)
+      // The WORKER validates first: only it can see the owned/mirrored folders a download
+      // root must not overlap. Persisting in main first would leave a rejected folder in the
+      // config, and the next launch would spawn the worker on it with nothing left to check it.
+      await request('settings:set-download-folder', { folder: picked })
+      setDownloadFolder(await window.bridge.setDownloadFolder(picked))
     } catch (err) {
-      setFolderError(err instanceof Error ? err.message : String(err))
+      const key = mountErrorI18nKey((err as { code?: string } | null)?.code)
+      setFolderError(key ? tErr(key) : err instanceof Error ? err.message : String(err))
     }
-  }, [])
+  }, [tErr])
 
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 

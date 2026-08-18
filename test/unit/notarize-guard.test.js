@@ -1,5 +1,8 @@
 import test from 'brittle'
 import { createRequire } from 'node:module'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 const require = createRequire(import.meta.url)
 const CONFIG = require.resolve('../../forge.config.js')
@@ -32,6 +35,10 @@ const prePackage = (env, platform = 'darwin') =>
   withEnv(env, (cfg) => cfg.hooks.prePackage({}, platform, 'arm64'))
 const failureOf = (env, platform) =>
   prePackage(env, platform).then(() => null, (err) => err)
+const afterCopy = (env, buildPath) =>
+  withEnv(env, (cfg) => new Promise((resolve, reject) => {
+    cfg.packagerConfig.afterCopy[0](buildPath, '', 'linux', 'x64', (err) => (err ? reject(err) : resolve()))
+  }))
 
 test('signing identity plus full credentials arms notarization', async (t) => {
   const cfg = await loadConfig({ APPLE_SIGNING_IDENTITY: SIGNING, ...CREDS })
@@ -87,4 +94,31 @@ test('UPGRADE_KEY check still fires first', async (t) => {
   const err = await failureOf({ UPGRADE_KEY: '', APPLE_SIGNING_IDENTITY: SIGNING })
   t.ok(err, 'build fails')
   t.ok(/UPGRADE_KEY/.test(err.message), 'existing fail-fast intact and takes precedence')
+  t.ok(/UPGRADE_KEY=none/.test(err.message), 'error points at the keyless escape hatch')
+})
+
+// Building from source without a Pear channel key. A made-up link can't stand in
+// (pear-runtime-updater decodes the key in its constructor and throws), so the
+// packager has to ship package.json with no `upgrade` field at all — that is what
+// main.js's updater-less shim path expects.
+test('UPGRADE_KEY=none packages with no OTA channel', async (t) => {
+  await t.execution(prePackage({ UPGRADE_KEY: 'none' }), 'pre-flight allows the keyless build')
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mirall-forge-'))
+  t.teardown(() => fs.rm(dir, { recursive: true, force: true }))
+  await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: 'mirall' }))
+
+  await afterCopy({ UPGRADE_KEY: 'none' }, dir)
+  const staged = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+  t.absent('upgrade' in staged, 'no upgrade field is injected')
+})
+
+test('a real UPGRADE_KEY is still injected into the staged package.json', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mirall-forge-'))
+  t.teardown(() => fs.rm(dir, { recursive: true, force: true }))
+  await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: 'mirall' }))
+
+  await afterCopy({ UPGRADE_KEY: 'pear://test' }, dir)
+  const staged = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+  t.is(staged.upgrade, 'pear://test', 'release path unchanged')
 })

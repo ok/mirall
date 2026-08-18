@@ -19,8 +19,11 @@
   "mountForbiddenCloudSync": "Cloud-synchronisierte Ordner (Dropbox, iCloud, OneDrive …) können nicht geteilt werden. Doppelte Synchronisierung kann zu Datenverlust führen – wähle einen Ordner außerhalb deines Cloud-Sync-Bereichs.",
   "mountForbiddenPersonalRoot": "Dies ist ein persönlicher Hauptordner (Benutzerordner, Schreibtisch, Dokumente oder Downloads). Wähle stattdessen einen Unterordner darin aus oder erstelle einen.",
   "mountInsideDownloads": "Dies liegt in deinem Downloads-Ordner. Wähle einen Speicherort außerhalb davon aus.",
+  "mountContainsDownloads": "Dieser Ordner enthält einen Download-Ordner von Mirall. Downloads darin würden an deine Peers veröffentlicht — wähle einen anderen Ordner.",
   "mountInsideSelf": "Dieser Ordner liegt in einem bereits geteilten Ordner. Wähle einen anderen Ordner aus.",
   "mountNotWritable": "Mirall kann in diesen Ordner nicht schreiben. Prüfe die Berechtigungen oder wähle einen anderen aus.",
   "looseFileLimit": "Du kannst pro Space bis zu 100 Dateien teilen. Entferne einige, um weitere hinzuzufügen.",
-  "shareFileLimit": "Freigegebene Ordner sind auf 5.000 Dateien begrenzt. Wähle einen kleineren Ordner oder teile ihn auf mehrere Freigaben auf."
+  "shareFileLimit": "Freigegebene Ordner sind auf 5.000 Dateien begrenzt. Wähle einen kleineren Ordner oder teile ihn auf mehrere Freigaben auf.",
+  "downloadFolderOverlapsMount": "Dieser Ordner überschneidet sich mit einem geteilten oder gespiegelten Ordner. Downloads darin würden an deine Peers veröffentlicht — wähle einen anderen Ordner.",
+  "downloadFolderInvalid": "Mirall kann diesen Ordner nicht verwenden. Er wurde möglicherweise verschoben oder entfernt, oder Mirall kann nicht hineinschreiben."
 }

@@ -224,7 +224,11 @@ let configStore = null
 // folds single-setting files written by older releases into config.json and
 // removes them (see config-store.js).
 function config() {
-  if (!configStore) configStore = new ConfigStore(getDataDir()).load()
+  if (!configStore) {
+    configStore = new ConfigStore(getDataDir(), {
+      readFeatures: () => ({ relay: readFeatureFlags().relay === true }),
+    }).load()
+  }
   return configStore
 }
 
@@ -591,6 +595,10 @@ function clearApplyError() {
   try { fs.rmSync(applyErrorPath(), { force: true }) } catch {}
 }
 
+// Per-space download roots, pushed by the worker (it owns the space records). Main
+// needs them to authorize "reveal in folder" for files outside the home directory.
+let workerDownloadRoots = []
+
 function getDefaultDownloadFolder() {
   return app.getPath('downloads')
 }
@@ -600,6 +608,14 @@ function readDownloadFolder() {
   const folder = config().get('downloads.folder')
   if (typeof folder === 'string' && folder.length > 0) return folder
   return getDefaultDownloadFolder()
+}
+
+function readBandwidth() {
+  const network = config().get('network')
+  return {
+    downloadKBps: network?.downloadKBps ?? 0,
+    uploadKBps: network?.uploadKBps ?? 0,
+  }
 }
 
 function writeDownloadFolder(folder) {
@@ -659,6 +675,7 @@ function getWorker(specifier) {
     dev: isDev,
     verbose,
     downloadFolder: readDownloadFolder(),
+    ...readBandwidth(),
     dhtBootstrap: process.env.MIRALL_DHT_BOOTSTRAP ? JSON.parse(process.env.MIRALL_DHT_BOOTSTRAP) : null,
     // Test/debug override for the share:list-files row cap (undefined → omitted by JSON →
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
@@ -679,6 +696,12 @@ function getWorker(specifier) {
     // Bulk content rides its own transport by default when overlay is on; feature-flags.json
     // can set separateContentPlane:false to revert to the single-plane overlay.
     separateContentPlane: readFeatureFlags().separateContentPlane !== false,
+    // Relay config rides the boot frame unconditionally: it is inert when relayMode is
+    // 'off', and a stable frame shape means flipping the flag can never be the change
+    // that breaks worker boot.
+    relayEnabled: readFeatureFlags().relay === true,
+    relayMode: config().get('network.relayMode'),
+    relays: config().get('network.relays'),
     identityKEK: identityKEKHex,
   }
   worker.write(Buffer.from(JSON.stringify(bootstrap) + '\n'))
@@ -774,7 +797,9 @@ ipcMain.on('app:getLocale', (evt) => { evt.returnValue = app.getLocale() })
 // writer). The snapshot is read synchronously at renderer boot so theme/locale
 // are known before first paint; writes are async patches.
 ipcMain.on('config:get', (evt) => { evt.returnValue = config().rendererSnapshot() })
-ipcMain.handle('config:set', (_evt, patch) => { config().setRenderer(patch) })
+// Returns the post-write snapshot: main sanitizes on write (relay dedupe, cap, label
+// length), so the renderer must adopt what was stored rather than its optimistic copy.
+ipcMain.handle('config:set', (_evt, patch) => { config().setRenderer(patch); return config().rendererSnapshot() })
 
 ipcMain.handle('pear:applyUpdate', async () => {
   const u = getPear().updater
@@ -906,6 +931,10 @@ ipcMain.handle('downloads:set', (_evt, folder) => {
   return folder
 })
 
+ipcMain.handle('bandwidth:get', () => readBandwidth())
+
+ipcMain.handle('bandwidth:set', (_evt, patch) => config().setBandwidth(patch))
+
 ipcMain.handle('prefs:get', () => prefs)
 
 ipcMain.handle('prefs:set', (_evt, partial) => {
@@ -936,11 +965,13 @@ ipcMain.handle('tray:setLabels', (_evt, labels) => {
   refreshTrayMenu()
 })
 
-ipcMain.handle('downloads:browse', async (evt) => {
+ipcMain.handle('downloads:browse', async (evt, defaultPath) => {
   const win = BrowserWindow.fromWebContents(evt.sender)
     ?? BrowserWindow.getFocusedWindow()
     ?? BrowserWindow.getAllWindows()[0]
-  const current = readDownloadFolder()
+  const current = typeof defaultPath === 'string' && defaultPath.length > 0
+    ? defaultPath
+    : readDownloadFolder()
   const result = await dialog.showOpenDialog(win, {
     properties: ['openDirectory', 'createDirectory'],
     defaultPath: current,
@@ -966,6 +997,12 @@ const ownedFolderWatchers = require('./owned-folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
 async function handleMainRequest(command, args, worker) {
+  if (command === 'downloads:roots') {
+    workerDownloadRoots = Array.isArray(args?.roots)
+      ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
+      : []
+    return
+  }
   if (command === 'loose-file:watch') {
     looseFileWatchers.addLooseWatch(
       args.spaceId,
@@ -1423,7 +1460,10 @@ if (!lock) {
     // can race with _update and return ENOTDIR.
     preloadAsarCache()
     registerAppProtocol()
-    require('./notifications').register({ revealWindow })
+    require('./notifications').register({
+      revealWindow,
+      downloadRoots: () => [readDownloadFolder(), ...workerDownloadRoots],
+    })
 
     // Harden identity at rest before the worker can spawn (pear:startWorker only
     // fires after the window loads): restrict the storage dir to the current user

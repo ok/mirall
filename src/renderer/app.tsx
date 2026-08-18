@@ -43,11 +43,13 @@ const SCREEN_TITLE_KEYS: Record<string, string> = {
   'settings': 'a11y.screens.settings',
   'account': 'a11y.screens.account',
   'storage-settings': 'a11y.screens.storage',
-  'about': 'a11y.screens.about',
   'appearance-settings': 'a11y.screens.appearance',
   'notification-settings': 'a11y.screens.notifications',
   'general-settings': 'a11y.screens.general',
+  'network-settings': 'a11y.screens.networkSettings',
   'network-status': 'a11y.screens.network',
+  'activity-log': 'a11y.screens.activityLog',
+  'activity-log-settings': 'a11y.screens.activityLogSettings',
 }
 
 export default function App() {
@@ -144,7 +146,7 @@ export default function App() {
       <AppCommands
         spaces={spaces}
         openSettings={nav.openSettings}
-        openAbout={nav.openAbout}
+        openProfile={nav.openAccount}
         openWhatsNew={openWhatsNew}
         openFeedback={() => setShowFeedback(true)}
         navigateToSpace={nav.navigateToSpace}
@@ -222,7 +224,7 @@ export default function App() {
 interface AppCommandsProps {
   spaces: Space[]
   openSettings: () => void
-  openAbout: () => void
+  openProfile: () => void
   openWhatsNew: () => void
   openFeedback: () => void
   navigateToSpace: (spaceId: string) => void
@@ -236,7 +238,7 @@ interface AppCommandsProps {
 function AppCommands({
   spaces,
   openSettings,
-  openAbout,
+  openProfile,
   openWhatsNew,
   openFeedback,
   navigateToSpace,
@@ -310,7 +312,9 @@ function AppCommands({
     [],
   )
   useRegisterCommand(
-    { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: openAbout },
+    // The native "About Mirall" menu item dispatches this id too; the version now lives in the
+    // profile screen's App group, so that is where both land.
+    { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: openProfile },
     [],
   )
   useRegisterCommand(

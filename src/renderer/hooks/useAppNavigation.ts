@@ -8,7 +8,6 @@ export interface AppNavigation {
   selectedShare: ShareWithRole | null
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
-  preAboutScreen: 'spaces' | 'space-view' | 'settings'
   storageBackTarget: 'settings' | 'space-view'
   setCurrentScreen: Dispatch<SetStateAction<string>>
   setSelectedSpaceId: Dispatch<SetStateAction<string | null>>
@@ -16,8 +15,9 @@ export interface AppNavigation {
   navigateToSpace: (spaceId: string) => void
   openSettings: () => void
   openAccount: () => void
-  openAbout: () => void
   openStorageSettings: (from: 'settings' | 'space-view') => void
+  openActivityLog: () => void
+  openActivityLogSettings: () => void
   goBack: () => void
   goHome: () => void
   resetToRoot: () => void
@@ -27,7 +27,6 @@ export function useAppNavigation(): AppNavigation {
   const [currentScreen, setCurrentScreen] = useState('spaces')
   const [preSettingsScreen, setPreSettingsScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [preAccountScreen, setPreAccountScreen] = useState<'spaces' | 'space-view'>('spaces')
-  const [preAboutScreen, setPreAboutScreen] = useState<'spaces' | 'space-view' | 'settings'>('settings')
   const [storageBackTarget, setStorageBackTarget] = useState<'settings' | 'space-view'>('settings')
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
   const [selectedShare, setSelectedShare] = useState<ShareWithRole | null>(null)
@@ -48,17 +47,13 @@ export function useAppNavigation(): AppNavigation {
     setCurrentScreen('account')
   }, [currentScreen])
 
-  const openAbout = useCallback(() => {
-    if (currentScreen === 'spaces' || currentScreen === 'space-view' || currentScreen === 'settings') {
-      setPreAboutScreen(currentScreen)
-    }
-    setCurrentScreen('about')
-  }, [currentScreen])
-
   const openStorageSettings = useCallback((from: 'settings' | 'space-view') => {
     setStorageBackTarget(from)
     setCurrentScreen('storage-settings')
   }, [])
+
+  const openActivityLog = useCallback(() => setCurrentScreen('activity-log'), [])
+  const openActivityLogSettings = useCallback(() => setCurrentScreen('activity-log-settings'), [])
 
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
@@ -76,14 +71,18 @@ export function useAppNavigation(): AppNavigation {
       case 'settings': setCurrentScreen(preSettingsScreen); break
       case 'account': setCurrentScreen(preAccountScreen); break
       case 'storage-settings': setCurrentScreen(storageBackTarget); break
-      case 'about': setCurrentScreen(preAboutScreen); break
       case 'appearance-settings':
       case 'notification-settings':
+      case 'network-settings':
       case 'general-settings': setCurrentScreen('settings'); break
       case 'network-status': setCurrentScreen('account'); break
+      // The viewer hangs off Account and the config off Settings, so each backs out to its own
+      // parent; a cross-link between them is a lateral jump, not a step in a history stack.
+      case 'activity-log': setCurrentScreen('account'); break
+      case 'activity-log-settings': setCurrentScreen('settings'); break
       default: break
     }
-  }, [currentScreen, preSettingsScreen, preAccountScreen, preAboutScreen, storageBackTarget])
+  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget])
 
   const goHome = useCallback(() => {
     setSelectedShare(null)
@@ -103,7 +102,6 @@ export function useAppNavigation(): AppNavigation {
     selectedShare,
     preSettingsScreen,
     preAccountScreen,
-    preAboutScreen,
     storageBackTarget,
     setCurrentScreen,
     setSelectedSpaceId,
@@ -111,8 +109,9 @@ export function useAppNavigation(): AppNavigation {
     navigateToSpace,
     openSettings,
     openAccount,
-    openAbout,
     openStorageSettings,
+    openActivityLog,
+    openActivityLogSettings,
     goBack,
     goHome,
     resetToRoot,

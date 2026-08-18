@@ -14,9 +14,13 @@ Compact, actionable rules distilled from real debugging — gotchas, root causes
 
 **Session cwd persists across Bash calls.** With two checkouts of one repo (main + worktree), prefix every repo-touching command with an explicit `cd <right-checkout> &&` — a one-off `cd elsewhere && …` silently redirects all later relative-path commands, and wrong-cwd runs succeed convincingly (identical relative paths). Verify from the output: evidence/log paths must contain the `worktrees/` segment; an `ls`/glob-built file list must include the branch's untracked files. A green suite whose output paths point at the wrong checkout is baseline data, not verification.
 
-**A worktree branched off `origin/staging` pushes TO `staging`.** `git worktree add <path> -b <feat> origin/staging` sets `branch.<feat>.merge = refs/heads/staging`, so a bare `git push` lands the commit directly on the integration branch and never creates `<feat>` on the remote — the tell is "I pushed the branch but it doesn't show up on GitHub." Diagnose with `git config --get branch.<feat>.merge`. Fix by making the first push explicit (`git push -u origin <feat>`, which also resets the upstream), or branch from the local `staging` instead of `origin/staging`.
+**A worktree branched off `origin/staging` inherits `staging` as its upstream — create it with `--no-track`.** `git worktree add -b <feat> <path> origin/staging` sets `branch.<feat>.merge = refs/heads/staging`, so `git status` reads "ahead of origin/staging" and `<feat>` never appears on GitHub until pushed by name. A bare `git push` does **not** silently land on staging — `push.default=simple` (the git ≥2.0 default) refuses on the name mismatch — but its error offers **`git push origin HEAD:staging` as the first suggestion**, and nothing server-side stops that: the `protect-main-staging` ruleset carries only `deletion` + `non_fast_forward`, so an ordinary push to staging succeeds. Fix at creation — `git worktree add --no-track -b <feat> worktrees/<feat> origin/staging` leaves the upstream unset, so the first push must name the branch (`git push -u origin <feat>`) and sets the right one. Verify with `git config --get branch.<feat>.merge` (should be empty) before the first push.
 
-**Recovering an accidental merge into `main`.** Opening a PR from a staging-based branch with `base=main` and squash-merging it dumps all of `staging` onto `main` as one giant commit. There is no branch protection (private repo, free plan), so `staging`-as-default plus discipline is the only guard. To recover: confirm nothing is uniquely stranded on `main` (`git diff --stat origin/staging <bad-tip>`), tag the bad tip (`git tag backup-main-<date> <bad-tip> && git push origin <tag>`), then `git branch -f main <last-good>` and `git push --force-with-lease origin main` — the lease correctly rejects if `origin/main` moved under you, so re-fetch and retry rather than forcing. Force-pushing `main` is safe with respect to releases: `build-electron.yml` triggers on `v*` tags, never on a `main` push.
+**Recovering an accidental merge into `main`.** Opening a PR from a staging-based branch with `base=main` and squash-merging it dumps all of `staging` onto `main` as one giant commit. The guards are `staging`-as-default, `pr-base-guard.yml` (allowlists the head branch by NAME only — no merge-base check, so a staging-based `hotfix/*` still passes) and the `protect-main-staging` ruleset.
+
+**Recovery is a revert, not a force-push.** The ruleset (id `20080050`, enforcement `active`, `bypass_actors: []`, `current_user_can_bypass: "never"`) carries `deletion` + `non_fast_forward` on `main`, so `git push --force-with-lease origin main` is rejected server-side with no way to bypass — do not reach for it mid-incident. Instead: confirm nothing is uniquely stranded on `main` (`git diff --stat origin/staging <bad-tip>`), tag the bad tip (`git tag backup-main-<date> <bad-tip> && git push origin <tag>`), then `git revert -m 1 <merge-sha>` (or `git revert <squash-sha>`) and push that forward. If a rewrite is genuinely required, the ruleset must be edited or temporarily disabled first — an admin action, taken deliberately. Either way releases are unaffected: `build-electron.yml` triggers on `v*` tags, never on a `main` push. (Note the repo is **public** — the old "private repo, free plan, so no protection" premise was wrong on both counts.)
+
+**`main` is a release tag, not the shipped UI — baseline design work on `origin/staging`.** Features land on `staging` and reach `main` only at release, so reading `src/` in the main checkout can describe an app one or more releases old. A design proposal built that way looks internally consistent and is wrong: Account was recreated as three sections and Settings as five tiles when staging already had four and seven (v1.8.0 added the Activity Log, Network settings, per-space download folders, `ScreenRouter.tsx`). Before recreating any screen, run `git log --oneline main..origin/staging` and `git diff --stat main origin/staging -- src/renderer`; read the screens with `git show origin/staging:<path>` (or work in a staging-based worktree) and state the baseline commit/version in the artifact. The same applies to locale strings — new copy lands with the feature. Corollary: a "current state" claim in a mockup or review is a factual claim about a branch; name which one.
 
 **Look before you overwrite.** Treat any overwrite/delete of a file you didn't create this session as a destructive merge decision: run the comparison (`wc`/mtime/`diff`) as its OWN command, read the result, then copy — never chain evidence-gathering `&&` overwrite (the overwrite runs regardless of the evidence). Plan docs under `~/Projects/Mirall/plans/` diverge in BOTH directions (plan authored in main, logs appended in worktree) — reconcile by appending, never whole-file copy. Recovery if clobbered: `~/.claude/file-history/<sessionId>/` snapshots + session transcripts (Write/Edit inputs, Bash heredocs), validated against an invariant (exact pre-loss line count).
 
@@ -66,6 +70,41 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 
 **"Which code path throws X" is a hypothesis — read the library's exact throw CONDITION and reproduce before a targeted fix/self-heal.** hypercore/corestore behavior changes entirely with call shape (by-key vs by-discoveryKey vs by-name): `STORAGE_EMPTY` fires ONLY for open-by-discovery-key with no key/manifest (replication machinery serving a zombie core), never open-by-key. A truncated async stack naming only low-level frames is NOT evidence of the high-level caller. When the on-disk corruption can't be fabricated reliably, test the GUARANTEE at a deterministic layer instead. Here the real fix was process-level: a Bare worker with no `Bare.on('uncaughtException'|'unhandledRejection')` handler turns any unhandled rejection into total death — install the backstop, tested directly under brittle-bare.
 
+**A "not present" check that PRUNES its own record makes the state change one-way.** The downloads
+claim (`downloads-meta`) is verified against disk on every listing, and every failing branch used to
+`del` the row. Adding a second reason to report not-downloaded — the file sits outside the space's
+current download folder — must NOT reuse that branch: pruning there would mean re-pointing the space
+at the old folder can never restore the status, because the evidence is gone. Order the checks by
+whether the claim is worthless (file deleted, upstream hash changed → prune) or merely out of scope
+(→ report false, keep the row). Generally: before adding a condition to a predicate that has
+side effects, check whether the new condition is *reversible* — if it is, it does not belong in the
+destructive path.
+
+**Scope a stored claim against the setting the user PROMISED, not against the effective value.**
+`getDownloadDir(spaceId)` falls back to the global root, so "is this file inside the space's
+download folder?" silently answered "no" for every space that never overrode it as soon as the
+GLOBAL folder changed — un-downloading hundreds of untouched files and inviting a duplicate
+re-fetch of each. The per-space override is a promise about one named folder; inheriting a default
+is not a promise about anything, so only the override may narrow scope. Generally: when a value has
+an explicit-vs-inherited form, ask which one a stored record was written against before comparing —
+`getX() ?? getGlobalX()` is the wrong reader for a scope check even though it's the right one for
+"where does the next write go".
+
+**A cross-cutting invariant has to be enforced at EVERY entry point, or it isn't one.** "A download
+root never overlaps a share" was checked when picking a download folder and when adding a *mirror* —
+but not when adding an *owned* share, and not for the global download folder. Both gaps were
+reachable by doing the same two operations in the other order, which is the normal way to hit them.
+When adding a rule about two pieces of state, enumerate every path that can write EITHER one, and
+make each rejection run before any side effect (a write probe inside a folder you're about to refuse
+lands a file in a watched, published tree).
+
+**`shared/core/paths.js` imports `bare-*`, so anything importing it becomes Bare-only.** Adding an
+import of it to `shared/spaces/space.js` dragged `bare-os` into four `test/unit` files that are
+Node-runnable precisely because that chain is bare-free (`require.addon is not a function` at
+import time, before any test runs). The bare-free rule `path-keys.js` documents in its header is a
+real, load-bearing layering constraint — pure string math goes in `path-keys.js`, and lifecycle
+hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway.
+
 ## Stopping long-running work
 
 **Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Clearing `setInterval`/pending timers leaves a materialize/download pass already iterating thousands of files running to completion — and its trailing persist can RESURRECT the just-torn-down state. Use a per-key generation counter checked between items (bail if it changed), abort the active stream/transfer (track it in a map the stop path can `destroy()`), and guard the trailing persist. Test with enough files/bytes that the pass is genuinely in flight at stop time; assert both "progress halts" AND "state not resurrected."
@@ -99,6 +138,8 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 **Never destroy a peer's socket to "heal" a wedged hypercore replication session.** That socket is the single Noise mux carrying every core, transfer, and control channel for that peer, so the "recovery" is itself the outage. A wedged session starves even explicit `core.get()` calls (it is per-core, not per-request) — recover by capturing what you need through an explicit get with a bounded timeout, falling back to `bee.checkout(core.contiguousLength)` when the peer is offline.
 
 **Injecting latency into a reliable stream must preserve FIFO order.** Per-frame independent `setTimeout`s with jitter let a later frame overtake an earlier one, corrupting a stream whose consumers (Protomux framing, hypercore replication proofs) assume strict order — real links shape BELOW the reliable layer (udx reassembles in order), so app-level shaping must keep order. Release frames through a single FIFO queue with monotonic release times: `at = max(now + latency + rand(jitter), prevFrameAt)`. Don't wrap the socket in a fresh Duplex (the Noise stream carries load-bearing `.remotePublicKey`/handshake hash that Protomux reads) — override `.write` in place. Proof: an impaired transfer still lands byte-exact AND is measurably slower.
+
+**Piping a test run into `tail` throws away its exit code, and its failures.** `npm test 2>&1 | tail -8` reports the exit status of `tail` (always 0), and an 8-line window shows a crash's stack trace while hiding the summary — so a suite that aborted reads as "exit code 0" with nothing obviously wrong. It also truncates the TAP `not ok` lines that say WHAT failed. Redirect to a file and check `$?` (`npm test > /tmp/run.log 2>&1; echo $?`), then grep the file for `^not ok`. A green claim built on a piped tail is not evidence.
 
 ## Release / build
 

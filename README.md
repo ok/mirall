@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Secure large file transfer. No cloud. No middleman.
+  Secure large file transfer. No cloud. No accounts.
   <br>
   <a href="https://mirall.app"><strong>mirall.app »</strong></a>
   <br>
@@ -29,9 +29,9 @@
 ---
 
 Mirall moves terabyte-scale files directly between devices. You and the people you share with
-form private **spaces**; files transfer peer-to-peer over end-to-end encrypted connections —
-no third-party servers, no cloud storage, GDPR-compliant by architecture. Built for workflows
-where files are huge and privacy is non-negotiable.
+form private **spaces**; files transfer peer-to-peer over end-to-end encrypted connections — no
+cloud storage, no accounts, no telemetry. Built for workflows where files are huge and privacy
+is non-negotiable.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.png">
@@ -133,6 +133,22 @@ hot-reloading renderer. Useful flags: `--storage <dir>` (separate data directory
 multiple instances), `--no-updates`, `--menu` (show the menu on Windows/Linux). DevTools:
 <kbd>F12</kbd> / <kbd>Ctrl-Shift-I</kbd> (<kbd>Cmd-Opt-I</kbd> on macOS).
 
+### Packaged builds
+
+Packaging needs `UPGRADE_KEY` — the Pear channel the built app checks for over-the-air
+updates. Official releases pass the key for their channel; set `UPGRADE_KEY=none` to build
+an app with no update channel at all. Don't invent a `pear://` link instead: the key is
+decoded at startup, so a made-up one crashes the app rather than disabling updates.
+
+```bash
+UPGRADE_KEY=none npm run package        # unpackaged app dir in out/
+UPGRADE_KEY=none npm run make:linux     # AppImage in out/make/ (needs jq + squashfs-tools)
+```
+
+`make:linux` builds for the host architecture and must run on Linux. macOS (`make:darwin`)
+and Windows (`make:win32`) additionally need signing credentials for a distributable
+artifact; a local unsigned build works without them.
+
 ### Two-peer testing
 
 Mirall is a P2P app — most features need **two or more running instances**. Electron's
@@ -141,7 +157,7 @@ dev instance plus one packaged instance:
 
 ```bash
 npm run dev                                          # instance 1
-npm run package                                      # then, instance 2:
+UPGRADE_KEY=none npm run package                     # then, instance 2:
 out/Mirall-darwin-*/Mirall.app/Contents/MacOS/Mirall --storage /tmp/mirall-peer2
 ```
 

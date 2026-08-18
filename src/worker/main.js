@@ -11,8 +11,8 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap } from '../shared/core/runtime-config.js'
-import { getDownloadDir } from '../shared/core/paths.js'
+import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
+import { hydrateDownloadRoots, setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { initStore, getStore, setMasterSecret } from '../shared/core/store.js'
@@ -41,7 +41,7 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, setRelayThrough, testRelayReachable, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
 import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
@@ -53,7 +53,7 @@ import {
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
-import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload } from '../shared/transfer/files.js'
+import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload, claimedPathFor } from '../shared/transfer/files.js'
 import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
@@ -68,6 +68,11 @@ import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
+import { getInstallId } from '../shared/telemetry/install-id.js'
+import {
+  initAuditLog, record, setAuditIdentity, queryAudit, auditSpaces, auditActors, auditStats,
+  getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
+} from '../shared/audit/audit-log.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId, ensureSharesCap } from '../shared/shares/shares.js'
 import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
@@ -77,7 +82,7 @@ import { ensureFolderMirrorsCap, publishMirror, ensureMirror } from '../shared/f
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
-import { validateMountPath, validateDownloadFolder } from '../shared/folders/mount-validate.js'
+import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import { relKeyEscapes } from '../shared/folders/path-keys.js'
 import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
@@ -94,6 +99,20 @@ import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMo
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
+
+// Main authorizes "reveal in folder" against these, and cannot read the space records
+// that hold the per-space overrides, so the set is pushed to it on every change.
+function publishDownloadRoots() {
+  ipc.emit('main-request', { command: 'downloads:roots', args: { roots: listDownloadRoots() } })
+}
+
+// Dropping a root is a NARROWING of that allowlist, so it has to be published like any other
+// change: main's copy is push-only, and a forget that never republishes leaves it authorizing
+// reveals under a departed space's folder for the rest of the process lifetime.
+function dropSpaceDownloadRoot(spaceId) {
+  forgetSpaceDownloadRoot(spaceId)
+  publishDownloadRoots()
+}
 
 // === Crash safety & shutdown ===
 
@@ -164,6 +183,61 @@ await initProfile()
 await initSpaces()
 await initDownloads()
 await initPendingTransfers()
+// Before loadDrives and the swarm, so the log is writable before anything worth recording can
+// happen. A failure here must not abort boot — an unavailable audit log degrades to no rows.
+try {
+  await initAuditLog({ installId: await getInstallId(bootstrap.storage) })
+} catch (err) {
+  log.warn('audit log unavailable — events will not be recorded:', err.message)
+}
+
+// Audit rows must render with zero joins: a space record is deleted on leave and a peer's name
+// needs that peer reachable, so both are snapshotted into the row at write time. These helpers
+// are the single place that resolution happens.
+function refreshAuditSelfName(displayName) {
+  setAuditIdentity({ key: getLocalPublicKeyHex(), name: displayName })
+}
+
+function selfActor() {
+  return { type: 'self', key: null, name: null }
+}
+
+function peerActor(space, publicKey) {
+  const live = space ? getConnectedMemberMeta(space.spaceId, publicKey) : null
+  const persisted = (space?.members || []).find((m) => m.publicKey === publicKey)
+  return { type: 'peer', key: publicKey, name: live?.displayName || persisted?.displayName || null }
+}
+
+function spaceRef(space) {
+  return space ? { id: space.spaceId, name: space.name } : null
+}
+
+function fileNameOf(path) {
+  if (typeof path !== 'string') return null
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return i >= 0 ? path.slice(i + 1) : path
+}
+
+// A peer handed us the space content key — the moment read access was actually granted, and the
+// counterpart to the approver's own `membership.approved` row. Extracted so onGrant, already at
+// the complexity ceiling, gains no branches.
+async function recordGrantReceived(spaceId, space, granterKey) {
+  const name = getConnectedMemberMeta(spaceId, granterKey)?.displayName || null
+  record('membership.granted', {
+    actor: { type: 'peer', key: granterKey || null, name },
+    space: spaceRef(await getSpace(spaceId)),
+    target: { kind: 'space', id: spaceId, name: space?.name ?? null },
+  })
+}
+
+async function shareNameOrNull(spaceId, ownerKey, shareId) {
+  try {
+    const all = await listSharesForSpace(spaceId)
+    return all.find((s) => s.id === shareId && s.owner === ownerKey)?.name ?? null
+  } catch {
+    return null
+  }
+}
 
 const driveLoad = await loadDrives()
 if (driveLoad.hadFailure) {
@@ -196,7 +270,12 @@ try { didMigrateOverlayIndex = (await migrateOverlayIndexToEncrypted())?.migrate
   log.warn('overlay-index at-rest migration failed:', err.message)
 }
 await initMounts()
-initOwnedFolders(ipc)
+// settleScanStatus (hoisted, defined with the reconcile scheduling below) also settles the
+// trailing catch-up reconcile a watcher event schedules, so a source that disappears or returns
+// between probe ticks still updates the durable status and notifies the UI. Forward-referencing it
+// here is safe: the hook can only fire off a watcher event, and no frame is dispatched until
+// ipc.start() at the end of this module — well after the state it touches is initialised.
+initOwnedFolders(ipc, { settleScan: settleScanStatus })
 initForeignFolders(ipc)
 const knownSpaces = await listSpaces()
 // Finish any leave a prior process interrupted (durable `leaving` marker still present) BEFORE
@@ -232,6 +311,14 @@ for (const space of knownSpaces) {
   }
 }
 const activeSpaces = knownSpaces.filter((s) => !s.leaving)
+// Hydrated here, from the spaces that SURVIVED the interrupted-leave pass above, and off the
+// scan that pass already did. A space being left keeps no download root: hydrating it would
+// leak a dead space's folder into main's reveal allowlist and into mount validation for the
+// whole session (the resume path purges the record without going through space:leave's forget).
+// Safe this late — nothing between store init and here reads a download root, and ipc.start()
+// (which admits the first frame that could) is the last statement in this module.
+hydrateDownloadRoots(activeSpaces)
+publishDownloadRoots()
 for (const space of activeSpaces) {
   try { await markOwnMembership(space.spaceId) } catch (err) {
     log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
@@ -304,6 +391,16 @@ setRevokeServesForSpaceHook((spaceId, profileKey) => { revokeServesForSpace(spac
 setMembershipRevokedHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
 initSwarm(ipc)
 if (useContentPlane) initContentSwarm(getSwarmDht())
+// After BOTH constructors: getContentSwarm() is null until the line above runs, and a
+// relay installed on the control swarm alone leaves every file byte unrelayed.
+applyRelayConfig()
+
+function applyRelayConfig() {
+  const { mode, relays } = getRelayConfig()
+  const res = setRelayThrough(relays, mode)
+  if (res.applied > 0) log.info('relay configured:', res.applied, 'key(s), mode', mode)
+  return res
+}
 
 // Deferred past the core-opening init above so the one-time compaction (which
 // scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.
@@ -342,7 +439,10 @@ configureMemberRegistry({
     ipc.emit('event:shares-updated', { spaceId })
     ipc.emit('event:files-updated', { spaceId })
   },
-  emitJoinRequest: (spaceId, req) => ipc.emit('event:member-join-request', { spaceId, ...req }),
+  emitJoinRequest: (spaceId, req) => {
+    ipc.emit('event:member-join-request', { spaceId, ...req })
+    auditJoinRequest(spaceId, req.publicKey, req.displayName)
+  },
   emitJoinRequestsUpdated: (spaceId) => ipc.emit('event:join-requests-updated', { spaceId }),
   // A followed member added/removed a share/<space>/* record (shares live in the profile bee, which
   // doesn't move the member set). Poke the share + file lists so a derived-only member's share
@@ -435,12 +535,37 @@ async function onJoinRequest(msg) {
   await markRequest(spaceId, msg.profileKey, { displayName, avatar: msg.avatar || null, refresh: hadLeft })
   if (changed || hadLeft) {
     ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar: msg.avatar || null })
+    auditJoinRequest(spaceId, msg.profileKey, displayName)
   }
 }
 
 // The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
 // A grant only reaches a connected peer, so this is the single reliable source (boundSignerKeys is
 // populated from every verified identity frame); no need to thread it through the request record.
+// A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
+// co-member heard it first — and either can arrive first. Both record through here so the row
+// appears regardless of path, and appears once. Cleared when the request resolves, so a later
+// re-knock after a denial is recorded again.
+const recordedJoinRequests = new Set()
+const joinRequestKey = (spaceId, publicKey) => spaceId + '|' + publicKey
+
+function auditJoinRequest(spaceId, publicKey, displayName) {
+  const key = joinRequestKey(spaceId, publicKey)
+  if (recordedJoinRequests.has(key)) return
+  recordedJoinRequests.add(key)
+  getSpace(spaceId).then((space) => {
+    record('membership.requested', {
+      actor: { type: 'peer', key: publicKey, name: displayName || null },
+      space: spaceRef(space),
+      target: { kind: 'member', id: publicKey, name: displayName || null },
+    })
+  }).catch(() => {})
+}
+
+function forgetJoinRequestRecord(spaceId, publicKey) {
+  recordedJoinRequests.delete(joinRequestKey(spaceId, publicKey))
+}
+
 function boundSignerPk(profileKeyHex) {
   const hex = getBoundSignerKey(profileKeyHex)
   return hex ? b4a.from(hex, 'hex') : null
@@ -458,6 +583,13 @@ async function reconcileGrantCreator(spaceId, space, asserted) {
     ipc.emit('event:membership-creator-divergence', { spaceId })
   }
   if (decision === 'refuse') {
+    record('security.creator_divergence', {
+      actor: { type: 'system', key: null, name: null },
+      space: spaceRef(space),
+      target: { kind: 'space', id: spaceId, name: space?.name ?? null },
+      subject: { pinned: space.creatorKey ?? null, asserted: asserted ?? null },
+      outcome: 'denied',
+    })
     log.warn('membership:grant creator divergence — confirmed', space.creatorKey?.slice(0, 12) + '...', 'vs granter', asserted?.slice(0, 12) + '...')
     await markCreatorDivergence(spaceId)
     ipc.emit('event:membership-creator-divergence', { spaceId })
@@ -501,6 +633,7 @@ async function onGrant(msg, ctx = {}) {
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)   // space is now approved → derive its membership
+  await recordGrantReceived(spaceId, space, msg.profileKey)
   ipc.emit('event:membership-granted', { spaceId })
 }
 
@@ -540,6 +673,9 @@ async function onDeny(msg) {
 // co-members to drop the banner. Routing all decision sites (manual approve, auto-admit,
 // deny) through here means none can omit a step. outcome: 'approve' | 'deny'.
 async function resolveJoinRequest(space, joinerKey, outcome) {
+  // The knock is settled; forget it so a genuine later re-knock (e.g. after a denial) records
+  // again rather than being swallowed by the first one's dedupe.
+  forgetJoinRequestRecord(space.spaceId, joinerKey)
   const spaceId = space.spaceId
   if (outcome === 'approve') {
     // A confirmed creator-root conflict disputes the roster's trust anchor — handing out the
@@ -602,6 +738,7 @@ async function discardPendingSpace(spaceId) {
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', err.message) }
     try { await cleanupSpaceDrives(spaceId, peerMembers) } catch (err) { log.warn('discard pending: peer-drive cleanup failed:', err.message) }
     try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', err.message) }
+    dropSpaceDownloadRoot(spaceId)
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', err.message) }
   } finally {
     unmarkSpaceLeaving(spaceId)
@@ -615,7 +752,10 @@ try {
   // write partials at the file's nested location), reclaiming crash-orphaned partials
   // while keeping any a paused/in-flight transfer can still resume from.
   const foreignDirs = (await listForeignMounts()).map((m) => m.mountPath)
-  await cleanupOrphanedPartials(getDownloadDir(), foreignDirs)
+  const sweep = await cleanupOrphanedPartials(listDownloadRoots(), foreignDirs)
+  if (sweep.swept || sweep.failed) {
+    log.info('partial sweep:', sweep.swept, 'reclaimed across', sweep.rootsScanned, 'roots,', sweep.failed, 'unreadable')
+  }
 } catch (err) {
   log.warn('partial sweep failed:', err.message)
 }
@@ -683,6 +823,21 @@ async function setOwnedStatus(spaceId, shareId, status, error) {
   ipc.emit('event:owned-folder-mount-status', { spaceId, shareId, status, ...(error ? { error } : {}) })
 }
 
+// Everything that must happen once an owned source folder is known to be missing, from whichever
+// signal noticed first: the mount-point probe, or a scan/reconcile that bailed on the absent root.
+// Recording the absence in `lastMountPointStatus` is what lets the probe read the RETURN as a
+// gone→present edge. Without it, a folder that vanished and came back inside a single 60s probe
+// window produced no transition at all — so no status event, and every derived-from-event UI
+// (the FolderView banner, the share card badge) stayed latched on "source missing" indefinitely.
+async function handleOwnedMountGone(spaceId, shareId) {
+  lastMountPointStatus.set('owned-folder:' + shareId, false)
+  // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
+  // mount config are left untouched — a missing root is ambiguous, never a delete.
+  ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
+  cancelPeriodicReconcile(spaceId, shareId)
+  await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
+}
+
 // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
 // with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
 // — so treating any resolution as 'active' would durably record a healthy scan that never ran.
@@ -690,7 +845,7 @@ async function setOwnedStatus(spaceId, shareId, status, error) {
 async function settleScanStatus(promise, spaceId, shareId) {
   try {
     const result = await promise
-    if (result?.skipped === 'mount-point-gone') await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
+    if (result?.skipped === 'mount-point-gone') await handleOwnedMountGone(spaceId, shareId)
     else if (result?.skipped) await setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
     else await setOwnedStatus(spaceId, shareId, 'active')
     return result
@@ -805,12 +960,8 @@ async function probeMountPoints() {
 
     if (mount.role === 'owned-folder') {
       if (!exists) {
-        // Source folder just disappeared — tear down the live machinery so we stop pointing a
-        // watcher at a dead path and stop reconciling, and persist the gone status. The
-        // published snapshot and mount config are left untouched.
-        ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: mount.shareId } })
-        cancelPeriodicReconcile(mount.spaceId, mount.shareId)
-        await setOwnedStatus(mount.spaceId, mount.shareId, 'mount-point-gone')
+        // Source folder just disappeared — same teardown the watcher-driven path runs.
+        await handleOwnedMountGone(mount.spaceId, mount.shareId)
       } else if (wasGone) {
         // Source folder came back (USB replugged, network mount up, moved back). Resume: restart
         // the watcher, run one catch-up reconcile whose OUTCOME sets the durable status (so a
@@ -921,12 +1072,24 @@ ipc.handle('share:create', async (msg) => {
   const { keyHex, encrypted } = await ownCatalogPublish(msg.spaceId)
   Object.assign(share, catalogKeyField(keyHex, encrypted))
   await publishShare(msg.spaceId, share)
+  record('share.created', {
+    actor: selfActor(),
+    space: spaceRef(space),
+    target: { kind: 'share', id: share.id, name: share.name },
+  })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
   return share
 })
 
 ipc.handle('share:delete', async (msg) => {
+  const space = await getSpace(msg.spaceId)
+  const share = (await readOwnShares(msg.spaceId)).find((s) => s.id === msg.shareId)
   await tombstoneShare(msg.spaceId, msg.shareId)
+  record('share.deleted', {
+    actor: selfActor(),
+    space: spaceRef(space),
+    target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+  })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
   return { ok: true }
 })
@@ -967,13 +1130,6 @@ function statSizeOrNull(absPath) {
   try { return fs.statSync(absPath).size } catch { return null }
 }
 
-function pathFromDownloadDir(drivePath) {
-  const dir = getDownloadDir()
-  const sep = dir.includes('\\') ? '\\' : '/'
-  const basename = drivePath.split('/').pop() || ''
-  return dir.replace(/[/\\]+$/, '') + sep + basename
-}
-
 // Consumer-side status for a catalog-backed overlay share row. A null contentHash means
 // the owner is still hashing → `preparing` while the owner is online, else `unavailable`
 // (entries are advertised before hashing completes). Downloads land in the downloads folder and are recorded in the downloaded
@@ -997,7 +1153,7 @@ async function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignM
   const drivePath = '/' + share.name + '/' + entry.relPath
   if (await isDownloadedFile(spaceId, drivePath, entry.contentHash)) {
     const verified = await isVerifiedDownload(spaceId, share.id + '|' + entry.relPath, entry.contentHash)
-    return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || pathFromDownloadDir(drivePath), verified }
+    return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || claimedPathFor(drivePath, null), verified }
   }
   // A failed (non-active) download surfaces as 'error' with the code, so the row
   // offers Retry/Dismiss + the message — parity with the loose path, instead of a
@@ -1087,7 +1243,7 @@ ipc.handle('share:reveal-file', async (msg) => {
       target = pathFromMount(foreignMount.mountPath, msg.relPath)
     } else {
       const drivePath = '/' + share.name + '/' + msg.relPath
-      target = (await getDownloadedPath(msg.spaceId, drivePath)) || pathFromDownloadDir(drivePath)
+      target = (await getDownloadedPath(msg.spaceId, drivePath)) || claimedPathFor(drivePath, null)
     }
   }
   return revealLocalPath(target)
@@ -1215,8 +1371,16 @@ ipc.handle('owned-folder:mount', async (msg) => {
   })
 
   settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
-    .then((result) => {
+    .then(async (result) => {
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+      // One row for the deliberate act, carrying the totals from the initial scan. The recurring
+      // reconcile deliberately records nothing — it is machine churn, not a user action.
+      record('share.mounted', {
+        actor: selfActor(),
+        space: spaceRef(await getSpace(msg.spaceId)),
+        target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+        subject: { fileCount: result?.totalOnDisk ?? null, uploaded: result?.uploaded ?? null, mountPath },
+      })
       schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, ignore)
     })
 
@@ -1241,6 +1405,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
+  const previousMountPath = mount.mountPath
   mount.mountPath = mountPath
   await saveOwnedMount(mount)
   lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
@@ -1260,6 +1425,12 @@ ipc.handle('owned-folder:relocate', async (msg) => {
       schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
     })
 
+  record('share.relocated', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'share', id: msg.shareId, name: null },
+    subject: { from: previousMountPath, to: mountPath },
+  })
   return { mount, advisories }
 })
 
@@ -1278,6 +1449,11 @@ ipc.handle('owned-folder:delete', async (msg) => {
   // tombstone below retires the catalog from every consumer's view.
   await deleteOwnedMount(msg.spaceId, msg.shareId)
   await tombstoneShare(msg.spaceId, msg.shareId)
+  record('share.deleted', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+  })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
   ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
   return { ok: true }
@@ -1344,6 +1520,12 @@ ipc.handle('foreign-folder:mount', async (msg) => {
     })
     .finally(() => { startForeignLoop(mount) })
 
+  record('mirror.created', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, msg.ownerKey, msg.shareId) },
+    subject: { mountPath: mount.mountPath, ownerKey: msg.ownerKey },
+  })
   return { mount, advisories }
 })
 
@@ -1356,7 +1538,14 @@ ipc.handle('foreign-folder:set-enabled', async (msg) => {
 })
 
 ipc.handle('foreign-folder:unmount', async (msg) => {
+  const mount = await getForeignMount(msg.spaceId, msg.shareId)
   await unmountForeignFolder(msg.spaceId, msg.shareId)
+  record('mirror.removed', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, mount?.ownerKey, msg.shareId) },
+    subject: { mountPath: mount?.mountPath ?? null },
+  })
   return { ok: true }
 })
 
@@ -1369,6 +1558,7 @@ ipc.handle('foreign-folder:list-all', async () => {
 ipc.handle('profile:get', async () => await getProfile())
 ipc.handle('profile:set', async (msg) => {
   await setProfile({ displayName: msg.displayName, avatar: msg.avatar })
+  refreshAuditSelfName(msg.displayName)
   broadcastProfileUpdate().catch(err => log.warn('profile broadcast failed:', err.message))
   return await getProfile()
 })
@@ -1439,6 +1629,7 @@ ipc.handle('space:create', async (msg) => {
   await joinSpaceTopic(space.spaceId)
   await openMemberView(space.spaceId)   // the creator's own space derives its membership too
   log.info('space created:', space.spaceId)
+  record('space.created', { actor: selfActor(), space: spaceRef(space), target: { kind: 'space', id: space.spaceId, name: space.name } })
   return space
 })
 // Block a rejoin until a concurrent leave of the same space has fully torn down (the leaving flag
@@ -1508,6 +1699,12 @@ ipc.handle('space:join', async (msg) => {
   await joinSpaceTopic(space.spaceId)
   await openMemberView(space.spaceId)   // no-op while pending; opens on re-join of an approved space
   log.info('space joined:', space.spaceId)
+  record('space.joined', {
+    actor: selfActor(),
+    space: spaceRef(space),
+    target: { kind: 'space', id: space.spaceId, name: space.name },
+    subject: { inviteId: decoded.inviteId || null, autoAdmit: !!decoded.autoAdmit },
+  })
   return space
 })
 ipc.handle('space:invite', async (msg) => {
@@ -1534,6 +1731,12 @@ ipc.handle('space:invite', async (msg) => {
     inviteId = b4a.toString(crypto.randomBytes(16), 'hex')
     expiresAt = Number.isInteger(msg.expiresInMs) ? Date.now() + msg.expiresInMs : null
     await markInvite(space.spaceId, inviteId, { autoApprove: !!msg.autoAdmit, expiresAt })
+    record('invite.minted', {
+      actor: selfActor(),
+      space: spaceRef(space),
+      target: { kind: 'invite', id: inviteId, name: null },
+      subject: { autoAdmit: !!msg.autoAdmit, expiresAt },
+    })
   }
   return encodeInvite({
     topic: space.topic,
@@ -1557,7 +1760,15 @@ ipc.handle('space:approve-member', async (msg) => {
   // (pending, or otherwise unauthorized) physically cannot approve anyone — enforced by
   // the sck check inside resolveJoinRequest.
   if (!space || space.schemaVersion !== 2 || space.status === 'pending') return false
-  return resolveJoinRequest(space, msg.publicKey, 'approve')
+  const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
+  if (approved) {
+    record('membership.approved', {
+      actor: selfActor(),
+      space: spaceRef(space),
+      target: { kind: 'member', id: msg.publicKey, name: peerActor(space, msg.publicKey).name },
+    })
+  }
+  return approved
 })
 ipc.handle('space:deny-member', async (msg) => {
   const space = await getSpace(msg.spaceId)
@@ -1568,7 +1779,16 @@ ipc.handle('space:deny-member', async (msg) => {
     if (clearJoinRequest(msg.spaceId, msg.publicKey)) ipc.emit('event:join-requests-updated', { spaceId: msg.spaceId })
     return false
   }
-  return resolveJoinRequest(space, msg.publicKey, 'deny')
+  const denied = await resolveJoinRequest(space, msg.publicKey, 'deny')
+  if (denied) {
+    record('membership.denied', {
+      actor: selfActor(),
+      space: spaceRef(space),
+      target: { kind: 'member', id: msg.publicKey, name: peerActor(space, msg.publicKey).name },
+      outcome: 'denied',
+    })
+  }
+  return denied
 })
 ipc.handle('space:pending-requests', async (msg) => {
   const space = await getSpace(msg.spaceId)
@@ -1579,7 +1799,29 @@ ipc.handle('space:update', async (msg) => {
   const space = await getSpace(msg.spaceId)
   if (space?.status === 'pending') return null
   log.info('updating space:', msg.spaceId)
-  return await updateSpace(msg.spaceId, msg.name, msg.icon)
+  // Tri-state: absent leaves the override alone, null clears it, a string is validated.
+  let downloadFolder
+  if (msg.downloadFolder !== undefined) {
+    downloadFolder = msg.downloadFolder === null
+      ? null
+      : await validateDownloadFolderAgainstMounts(msg.downloadFolder)
+  }
+  const updated = await updateSpace(msg.spaceId, msg.name, msg.icon, { downloadFolder })
+  if (updated) {
+    if (downloadFolder !== undefined) {
+      setSpaceDownloadRoot(msg.spaceId, downloadFolder)
+      publishDownloadRoots()
+      // Every row's downloaded status derives from the root, so re-derive the file views.
+      ipc.emit('event:files-updated', { spaceId: msg.spaceId })
+    }
+    record('space.updated', {
+      actor: selfActor(),
+      space: spaceRef(updated),
+      target: { kind: 'space', id: msg.spaceId, name: updated.name },
+      subject: { previousName: space?.name ?? null },
+    })
+  }
+  return updated
 })
 ipc.handle('space:toggle-favorite', async (msg) => {
   return await toggleFavorite(msg.spaceId)
@@ -1630,6 +1872,16 @@ ipc.handle('space:leave', async (msg) => {
   // A pending space was never joined — take the lightweight cancel path instead of
   // the drive-purge teardown, which assumes a materialized drive and crashes without one.
   const pending = await getSpace(msg.spaceId)
+  // Recorded up front, while the space record still exists: the teardown deletes it, and the row
+  // must carry the name snapshot or it renders as raw hex forever afterwards.
+  if (pending) {
+    record('space.left', {
+      actor: selfActor(),
+      space: spaceRef(pending),
+      target: { kind: 'space', id: pending.spaceId, name: pending.name },
+      subject: { wasPending: pending.status === 'pending' },
+    })
+  }
   if (pending?.status === 'pending') {
     unmarkSpaceLeaving(msg.spaceId)   // a pending cancel is not a drive teardown
     log.info('cancel pending join:', msg.spaceId)
@@ -1730,6 +1982,7 @@ ipc.handle('space:leave', async (msg) => {
       try { await forgetSpaceRecord(msg.spaceId) } catch (err) {
         log.warn('leave: catalog record delete failed:', err.message)
       }
+      dropSpaceDownloadRoot(msg.spaceId)
 
       // Cache-size precompute is best-effort; cap at 2s so a stuck drive read
       // can't block the rest of the leave teardown.
@@ -1850,6 +2103,11 @@ ipc.handle('files:list', async (msg) => {
 })
 ipc.handle('files:remove', async (msg) => {
   await removeFile(msg.spaceId, msg.path)
+  record('file.unshared', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'file', id: msg.path, name: fileNameOf(msg.path) },
+  })
   ipc.emit('event:files-updated', { spaceId: msg.spaceId })
   return { ok: true }
 })
@@ -1866,6 +2124,12 @@ ipc.handle('files:reveal', async (msg) => {
 ipc.handle('files:add', async (msg) => {
   log.info('adding file:', msg.fileName, 'from', msg.filePath)
   await addFile(msg.spaceId, msg.filePath, msg.fileName)
+  record('file.shared', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'file', id: msg.fileName, name: msg.fileName },
+    subject: { size: msg.fileSize ?? null },
+  })
   ipc.emit('event:files-updated', { spaceId: msg.spaceId })
   return { ok: true }
 })
@@ -1959,14 +2223,33 @@ ipc.handle('storage:free-space', async () => {
 })
 
 ipc.handle('settings:set-download-folder', async (msg) => {
-  const folder = validateDownloadFolder(msg?.folder)
+  // Same mount-overlap rejection as a per-space folder: the global root is the effective root
+  // of every space that never overrode it, so pointing it into a folder the user shares or
+  // mirrors publishes their downloads to peers just as surely.
+  const folder = await validateDownloadFolderAgainstMounts(msg?.folder)
   setDownloadFolder(folder)
+  publishDownloadRoots()
+  return { ok: true }
+})
+
+// The limiters read their rate per call, so this reaches in-flight transfers with no
+// further plumbing.
+ipc.handle('settings:set-bandwidth', async (msg) => {
+  setBandwidthLimits({ downloadKBps: msg?.downloadKBps, uploadKBps: msg?.uploadKBps })
   return { ok: true }
 })
 
 
 ipc.handle('network:status:get', async () => getSwarmStatus())
 ipc.handle('network:reconnect', async () => await reconnectAll())
+
+ipc.handle('network:set-relays', async (msg) => {
+  if (!isRelayEnabled()) return { ok: false, reason: 'disabled' }
+  setRelayConfig(msg?.relayMode, msg?.relays)
+  return { ok: true, ...applyRelayConfig() }
+})
+
+ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))
 
 ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
 
@@ -1982,6 +2265,33 @@ ipc.handle('setVerbose', async (msg) => {
 
 ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
 
+// === IPC: audit log ===
+
+ipc.handle('audit:list', async (msg) => await queryAudit(msg))
+ipc.handle('audit:spaces', async () => await auditSpaces())
+ipc.handle('audit:actors', async () => await auditActors())
+ipc.handle('audit:stats', async () => await auditStats())
+ipc.handle('audit:get-config', async () => getAuditConfig())
+ipc.handle('audit:configure', async (msg) => {
+  const next = await setAuditConfig(msg)
+  ipc.emit('event:audit-updated', {})
+  return next
+})
+ipc.handle('audit:purge', async () => {
+  const result = await purgeAudit()
+  ipc.emit('event:audit-updated', {})
+  return result
+})
+ipc.handle('audit:export', async (msg) => ({
+  version: 1,
+  exportedAt: Date.now(),
+  entries: await exportAudit(msg || {}),
+}))
+
+const AUDIT_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
+pruneAudit().catch((err) => log.warn('audit prune failed:', err.message))
+setInterval(() => { pruneAudit().catch((err) => log.debug('audit prune failed:', err.message)) }, AUDIT_PRUNE_INTERVAL_MS)
+
 // === Go live: flush queued frames, announce ready ===
 
 ipc.start()
@@ -1991,6 +2301,7 @@ ipc.emit('event:worker-ready')
 log.info('ready')
 
 const profile = await getProfile()
+refreshAuditSelfName(profile?.displayName)
 if (!profile) {
   ipc.emit('event:profile-needed')
 } else {

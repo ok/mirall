@@ -19,8 +19,11 @@
   "mountForbiddenCloudSync": "Cloud-synced folders (Dropbox, iCloud, OneDrive…) can't be shared. Double-syncing risks data loss — choose a folder outside your cloud-sync area.",
   "mountForbiddenPersonalRoot": "This is a top-level personal folder (Home, Desktop, Documents, or Downloads). Choose or create a subfolder inside it instead.",
   "mountInsideDownloads": "This is inside your downloads folder. Choose a location outside it.",
+  "mountContainsDownloads": "This folder contains a folder Mirall downloads into. Downloads there would be published to your peers — choose a different folder.",
   "mountInsideSelf": "This folder is inside another shared folder. Choose a different folder.",
   "mountNotWritable": "Mirall can't write to this folder. Check its permissions or choose another.",
   "looseFileLimit": "You can share up to 100 files per space. Remove some to add more.",
-  "shareFileLimit": "Shared folders are limited to 5,000 files. Choose a smaller folder, or split it into several shares."
+  "shareFileLimit": "Shared folders are limited to 5,000 files. Choose a smaller folder, or split it into several shares.",
+  "downloadFolderOverlapsMount": "This folder overlaps a folder you share or mirror. Downloads there would be published to your peers — choose a different folder.",
+  "downloadFolderInvalid": "Mirall can't use this folder. It may have been moved or removed, or Mirall can't write to it."
 }

@@ -10,6 +10,48 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## v1.8.0
+### 2026-08-18
+
+#### Added
+
+- **A record of what happened in your spaces.** The new Activity Log
+  gathers who joined, left, or was approved, and what was shared and
+  downloaded — kept on your device only. Open it from your Profile
+  page, then search it or narrow it down by space, person, or date.
+  Settings → Activity Log turns recording off, sets how long events are
+  kept, or clears the log.
+- **Limit how much bandwidth Mirall uses.** A new Network page in
+  Settings caps download and upload speed — pick a preset, type your
+  own figure, or leave it unlimited. A change takes effect straight
+  away, including on transfers already running. The cap covers file
+  transfers only, so your spaces and members keep syncing normally.
+- **A download folder of its own for each space.** Each space can save
+  its downloads wherever suits it — set Download Folder in Edit Space.
+  Spaces you leave alone keep using the folder from Settings → Storage,
+  and "Use default folder" puts a space back on it. Files you already
+  downloaded aren't moved, and a folder you share or mirror can't be
+  used, since anything landing there would be published to your peers.
+
+#### Changed
+
+- **A tidier way around your profile and settings.** The Account page is
+  now Profile, and everything on it is grouped: "This device" for your
+  connection, identity protection, and the Activity Log, "App" for the
+  version you're running, What's New, keyboard shortcuts, documentation,
+  and feedback. About has moved here out of Settings, which now holds
+  your preferences only.
+
+#### Fixed
+
+- **A shared folder that comes back is no longer flagged as missing.**
+  If the folder you shared went away and returned quickly — an external
+  drive reconnecting, a network share remounting — the "source missing"
+  warning on the folder and on its card stayed up even though
+  everything was working again. The warning now clears as soon as the
+  folder is back.
+
+
 ## v1.7.1
 ### 2026-08-05
 

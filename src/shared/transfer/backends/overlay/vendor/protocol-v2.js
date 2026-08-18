@@ -78,6 +78,10 @@ export class OverlayProtocolV2 {
     this._serveStartCb = opts.onServeStart || null
     this._chunkServeCb = opts.onChunkServe || null
     this._serveEndCb = opts.onServeEnd || null
+    // [mirall] Content-plane transfer caps, injected by the app layer so this module keeps
+    // no app imports. Absent → unthrottled.
+    this._uploadLimiter = opts.uploadLimiter || null
+    this._downloadLimiter = opts.downloadLimiter || null
     // [mirall] Serve grants are cached per (peer, syntheticPath) at request time and every later
     // chunkNeed is checked against that cache alone, so a request-time authorization would
     // otherwise be trusted forever. The epoch moves on any membership/space mutation, which
@@ -151,7 +155,11 @@ export class OverlayProtocolV2 {
       onVerify: opts.onVerify,
       onEnd: opts.onEnd,
       onBaseline: (have) => this.sendTransferProgress(contentHash, have),
-      contentHash   // [mirall] verify the whole-file hash incrementally during the transfer
+      contentHash,   // [mirall] verify the whole-file hash incrementally during the transfer
+      // [mirall] Download cap. Its OWN stream on the shared bucket: the limiter shares the
+      // cap fairly between streams, and a scheduler that raced the bucket directly would
+      // starve every transfer that is waiting its turn.
+      limiter: this._downloadLimiter ? this._downloadLimiter.stream() : null
     })
     this._schedulers.set(p, sched)
     // [mirall] shared promise so joiners (above) can await the same completion —
@@ -229,6 +237,10 @@ export class OverlayProtocolV2 {
       onclose () {
         const peer = self._peers.get(mux)
         self._peers.delete(mux)
+        // [mirall] Drop this peer's upload-cap handle: it resolves any serve loop parked on
+        // take() with 0 (so it returns instead of sending to a dead channel) and hands back
+        // budget charged for bytes that will never go out.
+        if (peer?.uploadStream) { try { peer.uploadStream.detach() } catch {} ; peer.uploadStream = null }
         // Failover: let any active multi-source fetch reassign this peer's
         // inflight chunks to the remaining peers.
         if (peer) for (const sched of self._schedulers.values()) sched.removePeer(peer)
@@ -257,7 +269,9 @@ export class OverlayProtocolV2 {
       // bytes by sending chunkNeed/fileRequest directly for a registered path it
       // was never authorized to fetch; the value flows the requester identity to
       // the serve telemetry.
-      authorizedServe: new Map()
+      authorizedServe: new Map(),
+      // [mirall] Lazily-created upload-cap handle — see _uploadStreamFor.
+      uploadStream: null
     }
 
     peer.msgs.syncState = channel.addMessage({ encoding: messages.syncState, onmessage: (msg) => self._onSyncState(peer, msg) })
@@ -645,6 +659,21 @@ export class OverlayProtocolV2 {
     return true
   }
 
+  // [mirall] This peer's handle on the shared upload cap, created on first serve. Per PEER,
+  // not per limiter: the limiter splits the cap fairly between its streams, so one handle
+  // shared by every serve loop would make them race each other instead.
+  _uploadStreamFor (peer) {
+    if (!this._uploadLimiter || !peer) return null
+    // [mirall] Never re-mint for a dead peer. A serve loop suspended across an await can
+    // resume after onclose has already detached and nulled the handle; minting a fresh one
+    // there creates an orphan nothing will ever detach, which then takes a share of every
+    // refill in distribute() and — because a queued stream trips the anti-barge rule —
+    // blocks every live transfer until the limiter is destroyed.
+    if (peer.channel?.closed) return null
+    if (!peer.uploadStream) peer.uploadStream = this._uploadLimiter.stream()
+    return peer.uploadStream
+  }
+
   async _onChunkNeed (peer, msg) {
     // [mirall] serve bytes ONLY for a synthetic path THIS peer was
     // authorized for via a gated _onContentRequest. Blocks a peer pulling bytes
@@ -666,6 +695,25 @@ export class OverlayProtocolV2 {
       const c = chunkMap[index]
       const data = this._transferManager.readChunk(diskPath, c.offset, c.length)
       if (!data) continue
+      // [mirall] Upload cap, charged against THIS peer's own stream so concurrent serve
+      // loops share the cap by bytes instead of racing (see bandwidth-limiter). take()
+      // resolves with the bytes actually paid for; 0 means the wait was aborted — the
+      // limiter was destroyed or the peer's handle detached on channel close — and sending
+      // anyway would put unmetered bytes on the wire. The wait also opens a revocation
+      // window exactly like the drain boundary below, so re-check the grant after it.
+      const uploadStream = this._uploadStreamFor(peer)
+      if (uploadStream && !uploadStream.isUnlimited()) {
+        const paid = await uploadStream.take(data.length)
+        if (paid <= 0) return
+        // [mirall] Past this point the bytes are DEBITED. Both bails below abandon them, so
+        // refund or the cap silently under-delivers on every revocation and disconnect —
+        // the same accounting the download side does via _refundAll.
+        if (peer.channel?.closed) { uploadStream.give(paid); return }
+        if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) {
+          uploadStream.give(paid)
+          return
+        }
+      }
       const flushed = peer.msgs.chunkData.send({ path: msg.path, index, data })
       if (this._chunkServeCb) {
         try { this._chunkServeCb({ path: msg.path, index, bytes: data.length, peer, from: peer.authorizedServe.get(msg.path)?.from ?? null }) } catch {}

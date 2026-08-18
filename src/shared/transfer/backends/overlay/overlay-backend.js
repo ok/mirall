@@ -30,17 +30,19 @@ import {
   resolvePeerCatalog,
   catalogKeyField,
 } from '../../../shares/share-catalog.js'
+import { record } from '../../../audit/audit-log.js'
+import { createSessionStore, sessionKey } from '../../../audit/audit-sessions.js'
 import { createCatalogBatch } from '../../../shares/catalog-writer.js'
 import { getOwnedMount } from '../../../folders/mount-store.js'
 import { readOwnShares, readPeerShareEntry } from '../../../shares/shares.js'
-import { listSpaces, clearAndPurgeCore } from '../../../spaces/space.js'
+import { listSpaces, getSpace, clearAndPurgeCore } from '../../../spaces/space.js'
 import { getStore } from '../../../core/store.js'
-import { compactStore } from '../../swarm.js'
+import { compactStore, getConnectedMemberMeta } from '../../swarm.js'
 import { walkDisk } from '../../../folders/walk-disk.js'
 import { pathFromMount } from '../../path-guard.js'
 import { shareDecoKey } from '../../decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
-import { resolveDest } from '../../download-dest.js'
+import { reuseDest } from '../../download-dest.js'
 import { supersedeDecision, republishDecision } from '../../supersede-decision.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
@@ -170,6 +172,11 @@ let idleTimer = null
 function fileKey(spaceId, path) { return spaceId + LEDGER_SEP + path }
 function pcKey(contentHash, from) { return contentHash + LEDGER_SEP + from }
 function rendererPath(shareId, relPath) { return shareId === LOOSE_SHARE_ID ? '/' + relPath : relPath }
+function baseName(relPath) {
+  if (typeof relPath !== 'string') return null
+  const i = relPath.lastIndexOf('/')
+  return i >= 0 ? relPath.slice(i + 1) : relPath
+}
 
 function emitBoth(key, force, now = Date.now()) {
   emitSummary(key, force, now)
@@ -189,6 +196,34 @@ function forEachServeEntry(contentHash, from, fn) {
     if (!entry) continue
     fn(entry, key, now)
   }
+}
+
+// One audit row per file served, not one per chunk or per reconnect. `from` is the requester's
+// profile key, already Noise-authenticated by the serve gate — that is what makes the row
+// attributable rather than a claim.
+const serveSessions = createSessionStore()
+const SERVE_SESSION_MAX_IDLE_MS = 300000
+
+function auditServeKey(contentHash, from) {
+  return sessionKey(contentHash, from)
+}
+
+// Names are resolved at record time, not at serve start: they must be snapshotted into the row
+// (nothing is joined at render time), and the live handshake meta is the freshest source while
+// the peer is still connected — which it is, having just pulled the bytes.
+function recordServeSession(session) {
+  if (!session || session.bytes <= 0) return
+  const meta = session.meta || {}
+  getSpace(meta.spaceId).then((space) => {
+    const live = getConnectedMemberMeta(meta.spaceId, meta.from)
+    const persisted = (space?.members || []).find((m) => m.publicKey === meta.from)
+    record('serve.completed', {
+      actor: { type: 'peer', key: meta.from ?? null, name: live?.displayName || persisted?.displayName || null },
+      space: { id: meta.spaceId, name: space?.name ?? null },
+      target: { kind: 'file', id: meta.contentHash ?? null, name: meta.fileName ?? null },
+      subject: { bytes: session.bytes, total: session.total || null, durationMs: session.durationMs, path: meta.path ?? null },
+    })
+  }).catch((err) => log.debug('serve audit failed:', err.message))
 }
 
 export function onServeStart({ from, contentHash, total }) {
@@ -227,6 +262,18 @@ export function onServeStart({ from, contentHash, total }) {
   }
   // Resolve hash→keys once so the per-chunk path below never re-parses the serve index.
   hashKeys.set(contentHash, keys)
+  const first = refs[0]
+  serveSessions.start(auditServeKey(contentHash, from), {
+    now: Date.now(),
+    total: total || 0,
+    meta: {
+      from,
+      contentHash,
+      spaceId: first.spaceId,
+      path: rendererPath(first.shareId, first.relPath),
+      fileName: baseName(first.relPath),
+    },
+  })
   // Apply a pause/stop that raced ahead of the serve-prep (it was stashed because
   // hashKeys wasn't populated yet).
   const pk = pcKey(contentHash, from)
@@ -306,10 +353,23 @@ export function onChunkServed({ from, contentHash, bytes }) {
     if (entry.total > 0 && entry.bytes >= entry.total) { dropPeer(key, from); return }
     emitBoth(key, false, now)
   })
+  // Tracked separately from the per-row entries above: those are cleared the moment a row
+  // completes, while the audit session must survive until the transfer is genuinely over.
+  //
+  // Completion has to be detected HERE. The protocol emits onServeEnd only on channel close or
+  // grant revocation — never on a successful transfer — and the idle sweep stops being scheduled
+  // once the last live row is dropped, so neither the end callback nor the reaper would ever
+  // close a completed serve. Without this the owner records nothing when a peer downloads a file.
+  const auditKey = auditServeKey(contentHash, from)
+  const session = serveSessions.advance(auditKey, { now: Date.now(), delta: bytes })
+  if (session && session.total > 0 && session.bytes >= session.total) {
+    recordServeSession(serveSessions.end(auditKey, { now: Date.now() }))
+  }
 }
 
 export function onServeEnd({ from, contentHash }) {
   if (!from) return
+  recordServeSession(serveSessions.end(auditServeKey(contentHash, from), { now: Date.now() }))
   pendingControls.delete(pcKey(contentHash, from))
   pendingBaselines.delete(pcKey(contentHash, from))
   const keys = hashKeys.get(contentHash)
@@ -438,6 +498,9 @@ function runIdleSweep(now = Date.now()) {
     }
   }
   for (const [key, from] of stale) dropPeer(key, from)
+  // A peer that vanished without an end frame would otherwise pin its session forever; reaping
+  // still records what was actually served rather than discarding it.
+  for (const session of serveSessions.reap(now, SERVE_SESSION_MAX_IDLE_MS)) recordServeSession(session)
   // Re-announce every still-live row (active AND paused): the renderer's soft-state TTL only
   // survives if summaries re-arrive without chunk traffic — a paused downloader otherwise
   // emits exactly one frame and is erased at the renderer TTL while this ledger keeps it for
@@ -456,12 +519,17 @@ function runIdleSweep(now = Date.now()) {
     wakefulSubs++
     emitDetailAuthoritative(key, now)
   }
-  if (downloads.size > 0 || wakefulSubs > 0) scheduleIdleSweep()
+  // Open audit sessions keep the sweep armed too. A serve that never reaches its total — the peer
+  // found the rest from another holder, paused, or resumed from an existing partial — is closed
+  // only by the reaper, and without this the sweep stops the moment the last live row drops and
+  // those bytes are never recorded at all.
+  if (downloads.size > 0 || wakefulSubs > 0 || serveSessions.size() > 0) scheduleIdleSweep()
 }
 
 export function _sweepServeLedgerNow(now) { runIdleSweep(now) }
 
 function resetServeLedger() {
+  serveSessions.clear()
   if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
   downloads.clear()
   detailSubs.clear()
@@ -879,6 +947,10 @@ const folderEngine = createOverlayDownloadEngine({
     const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
     if (state?.removed) return { removed: true, seq: undefined, job: null }
     if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null }
+    // Re-anchor to the space's CURRENT download folder: a row pinned before the user
+    // re-pointed the space would otherwise resume into the old one. A re-anchored row starts
+    // from zero — its bytes live in the old folder's partial, which the boot sweep reclaims.
+    const finalPath = reuseDest(row.finalPath, getDownloadDir(spaceId), path.basename(row.relPath))
     return {
       removed: false, seq: state.seq,
       job: {
@@ -886,7 +958,7 @@ const folderEngine = createOverlayDownloadEngine({
         transferId: transferIdFor(spaceId, row.shareId, row.relPath),
         contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
         ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
-        finalPath: row.finalPath, prevBytes: row.bytesTransferred,
+        finalPath, prevBytes: finalPath === row.finalPath ? row.bytesTransferred : 0,
       },
     }
   },
@@ -908,13 +980,13 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   if (!entry?.contentHash) return { queued: true }
   const drivePath = '/' + share.name + '/' + relPath
   const prev = await getPendingFor(spaceId, drivePath)
-  const finalPath = prev?.finalPath || resolveDest(getDownloadDir(), path.basename(relPath))
+  const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
   return folderEngine.start({
     spaceId, pendingKey: drivePath, path: drivePath, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
     ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
-    finalPath, prevBytes: prev?.bytesTransferred,
+    finalPath, prevBytes: finalPath === prev?.finalPath ? prev.bytesTransferred : 0,
   })
 }
 

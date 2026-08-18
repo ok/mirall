@@ -161,7 +161,7 @@ plain Tailwind sizes + `font-headline`:
 | Page title | `text-4xl font-headline font-extrabold text-accent tracking-tight` (`md:text-5xl` on onboarding) | `components/layout/PageHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
-| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, what's-new |
+| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |
 | Body | default Manrope, muted via `text-on-surface-variant`; `leading-relaxed` on intros | everywhere |
 | Metadata / fine print | `text-xs` / `text-sm text-on-surface-variant` | cards, badges |
 
@@ -187,6 +187,15 @@ plain Tailwind sizes + `font-headline`:
 - **Section pattern:** `<SectionHeading>` followed by a
   `bg-surface-container-low rounded-xl p-6` card. All settings sub-pages share
   this shell.
+- **Row-group pattern:** several short groups on one screen render as
+  `<SectionHeading>` (the same label every settings sub-page uses) above a
+  `bg-surface-container-low rounded-xl overflow-hidden` card of `p-6` rows —
+  40px icon tile, `font-semibold text-accent` label, `text-xs` description,
+  trailing chevron, no dividers. Used by `screens/Settings.tsx` (one unlabelled
+  group) and `screens/Account.tsx`. A group the page title already names takes
+  no heading — Account's profile card sits directly under the `<h1>`. The eyebrow
+  label is **not** used for this job: it is for sub-labels inside a surface
+  (shortcut groups, activity-log day headings).
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
 - **Responsive:** effectively one breakpoint — `min-[900px]:grid-cols-[1fr_300px] gap-8`
   (content + sidebar in `screens/SpaceView.tsx`, `screens/FolderView.tsx`), plus a
@@ -268,6 +277,20 @@ Full-width `role="switch"` row, `p-6`, label + optional description on the left,
 a 48×28 pill track on the right (`bg-primary` on / `bg-surface-container-high`
 off) with a 20px translating thumb. Hover lifts to
 `bg-surface-container-high/50`.
+
+### Dropdown button — `widgets/ActionMenu.tsx`
+The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
+trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a
+trailing `keyboard_arrow_down` that rotates 180° when open:
+- **`primary`** (default) — the labelled `bg-primary` key action ("More" in Space/Folder View).
+- **`subtle`** — the icon-only `w-10 h-10 rounded-full` three-dot trigger (`ShareCard`).
+- **`neutral`** — the labelled trigger wearing the **secondary-button** tokens
+  (`bg-surface-container-high` → `hover:bg-surface-container-highest`, dark inverts one tier,
+  `text-on-surface-variant`). For a row of sibling menus where none is the screen's main action —
+  the Activity Log filter bar. Three `primary` triggers side by side would read as three CTAs.
+
+Menu items may omit `icon`; a fixed-size blank keeps labels aligned, which is how a
+single-choice menu marks only the selected row with `check`.
 
 ### Segmented control — inline pattern (no primitive)
 Not a shared primitive — implemented inline in `screens/AppearanceSettings.tsx`

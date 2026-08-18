@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeServeAuthorizer } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
+import { makeServeAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
 
 // Build the authorizer with controllable fakes for each collaborator. Defaults
 // are the "everything passes" case; each test overrides one leg to drive a deny.
@@ -14,7 +14,9 @@ function build (overrides = {}) {
     serveLimiter: overrides.serveLimiter || { take: () => ({ ok: true }) },
     serveIndex: overrides.serveIndex || { spacesFor: () => ['space1'] },
   }
-  return { peer, socket, auth: makeServeAuthorizer(deps) }
+  const denials = []
+  deps.onDeny = (reason, ctx) => denials.push({ reason, ...ctx })
+  return { peer, socket, auth: makeServeAuthorizer(deps), denials }
 }
 
 test('(a) unknown peer (not attached on a socket) → deny', async (t) => {
@@ -41,6 +43,33 @@ test('(c) authenticated but not an approved member → deny', async (t) => {
 test('(c2) authenticated member but hash advertised by no space → deny', async (t) => {
   const { peer, auth } = build({ serveIndex: { spacesFor: () => [] } })
   t.is(await auth(peer, 'fromKey', 'hash'), false)
+})
+
+// A multi-source fetch broadcasts its content-request to EVERY connected peer, not just the
+// holders, so being asked for content we don't advertise is the routine case, not an intrusion.
+// Reporting it as NOT_A_MEMBER made every ordinary mirror of a peer's folder write one red
+// "Refused a file request" row per file into the other members' activity logs.
+test('REGRESSION (FIX-364: a hash we advertise nowhere is NOT_HELD, not a membership refusal)', async (t) => {
+  const nonHolder = build({ serveIndex: { spacesFor: () => [] } })
+  t.is(await nonHolder.auth(nonHolder.peer, 'fromKey', 'hash'), false, 'still refused — we have nothing to serve')
+  t.is(nonHolder.denials[0].reason, DENY.NOT_HELD)
+  t.absent(SECURITY_DENIALS.has(DENY.NOT_HELD), 'not holding the content is not an access refusal')
+
+  // The genuine refusal must keep its reason: the hash IS advertised, the asker just isn't in
+  // any space advertising it.
+  const outsider = build({ isApprovedMember: async () => false })
+  t.is(await outsider.auth(outsider.peer, 'fromKey', 'hash'), false)
+  t.is(outsider.denials[0].reason, DENY.NOT_A_MEMBER, 'a real membership refusal is unchanged')
+})
+
+test('membership is not consulted for a hash we advertise nowhere', async (t) => {
+  let memberChecked = false
+  const { peer, auth } = build({
+    serveIndex: { spacesFor: () => [] },
+    isApprovedMember: async () => { memberChecked = true; return true },
+  })
+  t.is(await auth(peer, 'fromKey', 'hash'), false)
+  t.absent(memberChecked, 'nothing to be a member OF — the space read is skipped')
 })
 
 test('(d) approved member of an advertising space → allow', async (t) => {
@@ -88,4 +117,63 @@ test('rateLimit:false skips the limiter but still enforces membership', async (t
 
   const denied = build({ serveLimiter: { take: () => ({ ok: true }) }, isApprovedMember: async () => false })
   t.is(await denied.auth(denied.peer, 'fromKey', 'hash', { rateLimit: false }), false, 'a non-member is still denied on re-validation')
+})
+
+// Each gate must be distinguishable. Only two of the four mean "access refused"; treating the
+// other two as security events buried the log in "A file request was refused" during an ordinary
+// folder mirror, where a busy peer routinely trips the per-requester budget.
+test('each gate reports a distinct denial reason', async (t) => {
+  const stranger = build()
+  await stranger.auth({ id: 'unattached' }, 'k', 'h')
+  t.is(stranger.denials[0].reason, DENY.NO_SOCKET)
+
+  const unauth = build({ socketAuthorized: () => false })
+  await unauth.auth(unauth.peer, 'k', 'h')
+  t.is(unauth.denials[0].reason, DENY.UNAUTHENTICATED)
+
+  const limited = build({ serveLimiter: { take: () => ({ ok: false }) } })
+  await limited.auth(limited.peer, 'k', 'h')
+  t.is(limited.denials[0].reason, DENY.RATE_LIMITED)
+
+  const outsider = build({ isApprovedMember: async () => false })
+  await outsider.auth(outsider.peer, 'k', 'h')
+  t.is(outsider.denials[0].reason, DENY.NOT_A_MEMBER)
+
+  const nonHolder = build({ serveIndex: { spacesFor: () => [] } })
+  await nonHolder.auth(nonHolder.peer, 'k', 'h')
+  t.is(nonHolder.denials[0].reason, DENY.NOT_HELD)
+})
+
+test('only genuine refusals count as security denials', (t) => {
+  t.ok(SECURITY_DENIALS.has(DENY.UNAUTHENTICATED))
+  t.ok(SECURITY_DENIALS.has(DENY.NOT_A_MEMBER))
+  t.absent(SECURITY_DENIALS.has(DENY.RATE_LIMITED), 'flow control is not an access refusal')
+  t.absent(SECURITY_DENIALS.has(DENY.NO_SOCKET), 'a teardown race is not an access refusal')
+  t.absent(SECURITY_DENIALS.has(DENY.NOT_HELD), 'being asked for content we do not have is not an access refusal')
+})
+
+test('the denial carries the requester and hash so a row can name them', async (t) => {
+  const { auth, peer, denials } = build({ isApprovedMember: async () => false })
+  await auth(peer, 'peerKey', 'contentHash')
+  t.is(denials[0].from, 'peerKey')
+  t.is(denials[0].contentHash, 'contentHash')
+})
+
+test('a granted serve reports no denial at all', async (t) => {
+  const { auth, peer, denials } = build()
+  t.is(await auth(peer, 'k', 'h'), true)
+  t.is(denials.length, 0)
+})
+
+test('an onDeny that throws can never break the gate', async (t) => {
+  const deps = {
+    peerSocket: new Map(),
+    socketAuthorized: () => true,
+    isApprovedMember: async () => true,
+    serveLimiter: { take: () => ({ ok: true }) },
+    serveIndex: { spacesFor: () => ['space1'] },
+    onDeny: () => { throw new Error('audit exploded') },
+  }
+  const auth = makeServeAuthorizer(deps)
+  t.is(await auth({ id: 'x' }, 'k', 'h'), false, 'the gate still returns its verdict')
 })

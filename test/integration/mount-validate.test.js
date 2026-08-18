@@ -2,8 +2,11 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
-import { validateMountPathSync, validateMountPath, validateDownloadFolder } from '../../src/shared/folders/mount-validate.js'
+import { validateMountPathSync, validateMountPath, validateDownloadFolder, validateDownloadFolderAgainstMounts } from '../../src/shared/folders/mount-validate.js'
 import { setDownloadFolder, setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setSpaceDownloadRoot, hydrateDownloadRoots } from '../../src/shared/core/paths.js'
+import { saveOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
+import { freshPeer } from '../helpers/store.js'
 import { ErrorCodes } from '../../src/shared/core/errors.js'
 
 function tmpDir (t) {
@@ -15,6 +18,10 @@ function tmpDir (t) {
 
 function codeOf (fn) {
   try { fn(); return null } catch (e) { return e.code }
+}
+
+async function asyncCodeOf (promise) {
+  try { await promise; return null } catch (e) { return e.code }
 }
 
 const SYSTEM_PATH = {
@@ -72,15 +79,17 @@ test('revalidating the same mount (same role + shareId) is allowed', (t) => {
   t.ok(r.mountPath, 'no overlap error when re-pointing the same share')
 })
 
-test('rejects a foreign mount inside the download folder', (t) => {
+test('rejects any mount inside the download folder', (t) => {
   const downloads = tmpDir(t)
   setDownloadFolder(downloads)
   t.teardown(() => setDownloadFolder(null))
   const inside = path.join(downloads, 'mirror')
   fs.mkdirSync(inside, { recursive: true })
   t.is(codeOf(() => validateMountPathSync(inside, 'foreign-folder', [])), ErrorCodes.MOUNT_INSIDE_DOWNLOADS)
-  // ...but the same path is fine for an owned folder (the rule is foreign-only).
-  t.ok(validateMountPathSync(inside, 'owned-folder', []).mountPath, 'owned folder inside downloads is allowed')
+  // Owned folders used to be exempt here. They must not be: a watcher on a share that contains
+  // a download folder publishes every file downloaded into it to that share's peers.
+  t.is(codeOf(() => validateMountPathSync(inside, 'owned-folder', [])), ErrorCodes.MOUNT_INSIDE_DOWNLOADS,
+    'an owned share inside a download folder is refused too')
 })
 
 test('rejects a cloud-sync location outright (both roles)', (t) => {
@@ -191,4 +200,94 @@ test('REGRESSION (MIR-34: valid folder updates the live downloadFolder)', (t) =>
   const dir = tmpDir(t)
   setDownloadFolder(validateDownloadFolder(dir))
   t.is(getRuntimeConfig().downloadFolder, dir, 'a valid folder is applied')
+})
+
+// Per-space download folders mean the "no mirror inside downloads" rule can no longer
+// look at a single directory — a mirror inside ANY space's folder is the same hazard.
+test('rejects a foreign mount inside a per-space download root', (t) => {
+  const globalDl = tmpDir(t)
+  const spaceDl = tmpDir(t)
+  setDownloadFolder(globalDl)
+  hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: spaceDl }])
+  t.teardown(() => { setDownloadFolder(null); hydrateDownloadRoots([]) })
+
+  const inside = path.join(spaceDl, 'mirror')
+  fs.mkdirSync(inside, { recursive: true })
+  t.is(codeOf(() => validateMountPathSync(inside, 'foreign-folder', [])), ErrorCodes.MOUNT_INSIDE_DOWNLOADS,
+    'a per-space root is guarded exactly like the global one')
+})
+
+// A download folder overlapping a mount is unsafe both ways: downloads landing inside an
+// OWNED folder get auto-published by its watcher, and a mirror inside a download folder
+// intermixes a mirrored tree with flat downloads.
+test('validateDownloadFolderAgainstMounts rejects overlap with a mount, in both directions', async (t) => {
+  const base = tmpDir(t)
+  const mount = path.join(base, 'shared')
+  const inside = path.join(mount, 'downloads')
+  fs.mkdirSync(inside, { recursive: true })
+
+  await freshPeer(t)
+  await initMounts()
+  await saveOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
+  t.teardown(() => deleteOwnedMount('sp', 'sh'))
+
+  t.is(await asyncCodeOf(validateDownloadFolderAgainstMounts(inside)), ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT,
+    'a folder inside an owned mount is refused')
+  t.is(await asyncCodeOf(validateDownloadFolderAgainstMounts(base)), ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT,
+    'a folder containing an owned mount is refused')
+
+  const sibling = path.join(base, 'sharedx')
+  fs.mkdirSync(sibling, { recursive: true })
+  const ok = await validateDownloadFolderAgainstMounts(sibling)
+  t.ok(ok, 'a name-prefix sibling of the mount is fine')
+})
+
+// REGRESSION (DL-3): the mount side of the invariant only covered a foreign mount nested
+// INSIDE a root. An OWNED share was exempt entirely and containment was one-directional, so
+// the hazard the error text describes — "downloads there would be published to your peers" —
+// stayed reachable simply by choosing the download folder first and sharing its parent second.
+test('rejects an OWNED share that overlaps a download root, in both directions', (t) => {
+  const globalDl = tmpDir(t)
+  const base = tmpDir(t)
+  const spaceDl = path.join(base, 'space-dl')
+  fs.mkdirSync(spaceDl, { recursive: true })
+  setDownloadFolder(globalDl)
+  hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: spaceDl }])
+  t.teardown(() => { setDownloadFolder(null); hydrateDownloadRoots([]) })
+
+  t.is(codeOf(() => validateMountPathSync(base, 'owned-folder', [])), ErrorCodes.MOUNT_CONTAINS_DOWNLOADS,
+    'sharing a parent of a per-space download root is refused')
+  const inside = path.join(spaceDl, 'sub')
+  fs.mkdirSync(inside, { recursive: true })
+  t.is(codeOf(() => validateMountPathSync(inside, 'owned-folder', [])), ErrorCodes.MOUNT_INSIDE_DOWNLOADS,
+    'and so is sharing a folder inside one')
+  t.is(codeOf(() => validateMountPathSync(path.join(globalDl, 'sub2'), 'foreign-folder', [])), ErrorCodes.MOUNT_INSIDE_DOWNLOADS,
+    'the global root keeps its own guard')
+})
+
+// REGRESSION (DL-4): the write probe ran first, so a folder the very next line REFUSED had a
+// probe file created and renamed inside it — inside a watched, published share.
+test('a rejected download folder is never written to', async (t) => {
+  const mount = tmpDir(t)
+  const inside = path.join(mount, 'downloads')
+  fs.mkdirSync(inside, { recursive: true })
+
+  await freshPeer(t)
+  await initMounts()
+  await saveOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
+  t.teardown(() => deleteOwnedMount('sp', 'sh'))
+
+  t.is(await asyncCodeOf(validateDownloadFolderAgainstMounts(inside)), ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT)
+  t.alike(fs.readdirSync(inside), [], 'no probe file was created in the refused folder')
+})
+
+test('validateDownloadFolderAgainstMounts allows a folder already used by another space', async (t) => {
+  const dir = tmpDir(t)
+  await freshPeer(t)
+  await initMounts()
+  setSpaceDownloadRoot('other-space', dir)
+  t.teardown(() => hydrateDownloadRoots([]))
+
+  const ok = await validateDownloadFolderAgainstMounts(dir)
+  t.is(ok, dir, 'sharing one download folder across spaces is the default state, never an overlap')
 })

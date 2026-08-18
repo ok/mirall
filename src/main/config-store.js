@@ -4,6 +4,7 @@
 // fsync + rename), so a crash never leaves a truncated config behind.
 const fs = require('fs')
 const path = require('path')
+const { normalizeRelayMode, sanitizeRelays } = require('./relay-keys.js')
 
 const CONFIG_FILENAME = 'config.json'
 const CONFIG_VERSION = 1
@@ -22,6 +23,8 @@ function defaults() {
     appearance: { theme: 'system', locale: null },
     general: { minimizeToTray: true, openAtLogin: false, firstHideNoticeShown: false, appMenuAutoHide: false },
     downloads: { folder: null },
+    // Shared group: bandwidth caps and relay configuration both live here.
+    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [] },
     storage: { cacheBudgetBytes: 0 },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
@@ -59,6 +62,10 @@ class ConfigStore {
     this._storageDir = opts.storageDir || path.join(dataDir, 'app-storage')
     this._file = path.join(dataDir, CONFIG_FILENAME)
     this._data = defaults()
+    // A thunk, not a value: the store is constructed before primeFeatureFlags runs, so
+    // latching the flag here would capture the degraded lazy-read result and could
+    // disagree with the copy the worker gets from the primed cache.
+    this._readFeatures = opts.readFeatures || (() => ({ relay: false }))
     this._dirty = false
     this._timer = null
   }
@@ -77,8 +84,16 @@ class ConfigStore {
     return this
   }
 
+  // A config.json can be hand-edited or written by a build with different validation,
+  // so the network block is re-sanitized on every load rather than trusted.
   _migrate(data) {
     data.version = CONFIG_VERSION
+    // Only the relay fields are re-derived — the bandwidth caps sharing this group
+    // must survive untouched. Rebuilding the whole block would silently reset them
+    // on every load.
+    if (!isPlainObject(data.network)) data.network = defaults().network
+    data.network.relayMode = normalizeRelayMode(data.network.relayMode)
+    data.network.relays = sanitizeRelays(data.network.relays)
     return data
   }
 
@@ -135,13 +150,36 @@ class ConfigStore {
     this._schedule()
   }
 
+  // `features` is read-only by construction: it has no counterpart in setRenderer, so
+  // the renderer can observe a flag but never write one.
   rendererSnapshot() {
     const d = this._data
     return {
       appearance: { theme: d.appearance.theme, locale: d.appearance.locale },
       notifications: d.notifications,
       ui: { lastSeenVersion: d.ui.lastSeenVersion, feedbackEmail: d.ui.feedbackEmail },
+      network: {
+        downloadKBps: d.network.downloadKBps,
+        uploadKBps: d.network.uploadKBps,
+        relayMode: d.network.relayMode,
+        relays: d.network.relays.map((r) => ({ ...r })),
+      },
+      features: { relay: this._readFeatures().relay === true },
     }
+  }
+
+  // Non-negative finite KB/s only; 0 means unlimited. Anything else leaves the stored
+  // value untouched rather than persisting a cap the worker would reject anyway.
+  setBandwidth(patch) {
+    if (!isPlainObject(patch)) return this._data.network
+    for (const key of ['downloadKBps', 'uploadKBps']) {
+      const next = patch[key]
+      if (typeof next === 'number' && Number.isFinite(next) && next >= 0) {
+        this._data.network[key] = Math.floor(next)
+      }
+    }
+    this._schedule()
+    return this._data.network
   }
 
   setRenderer(patch) {
@@ -158,6 +196,13 @@ class ConfigStore {
       const { lastSeenVersion, feedbackEmail } = patch.ui
       if (typeof lastSeenVersion === 'string') this._data.ui.lastSeenVersion = lastSeenVersion
       if (typeof feedbackEmail === 'string') this._data.ui.feedbackEmail = feedbackEmail
+    }
+    if (isPlainObject(patch.network)) {
+      const { relayMode, relays } = patch.network
+      if (relayMode !== undefined) this._data.network.relayMode = normalizeRelayMode(relayMode)
+      // The whole array is replaced, never merged — mergeDefaults treats arrays as
+      // opaque, so every add / remove / toggle must send the complete list.
+      if (relays !== undefined) this._data.network.relays = sanitizeRelays(relays)
     }
     this._schedule()
   }

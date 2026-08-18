@@ -38,10 +38,8 @@ export class Instance {
     this.bootstrap = bootstrap
     this.slot = slot
     this.total = total
-    // Merged over feature-flags.json via MIRALL_FEATURE_FLAGS. The eager transfer mode is
-    // hidden by default in shipped builds; the suite forces it on so the historical eager
-    // scenarios keep their UI. Scenarios pass eagerTransferMode:false to test the shipped default.
-    this.flags = { eagerTransferMode: true, ...(flags || {}) }
+    // Merged over feature-flags.json via MIRALL_FEATURE_FLAGS.
+    this.flags = { ...(flags || {}) }
     this.store = workDir(`store-${name}-`)
     this.downloadFolder = workDir(`dl-${name}-`)
     this.proc = null
@@ -296,13 +294,15 @@ export class Instance {
   }
 
   async openAccount() {
-    await this.click({ name: 'Account' })
+    // Role-scoped: the page's own <h1> is named "Profile" too, so an unscoped name match can
+    // resolve to the heading instead of the TopNav avatar button.
+    await this.click({ role: 'button', name: 'Profile' })
     await this.waitText('Your profile', 8000)
   }
 
   async openNetworkStatus() {
     await this.openAccount()
-    await this.click({ role: 'button', contains: 'Network' })
+    await this.click({ role: 'button', contains: 'Connection' })
     await this.waitText('Network status', 8000)
   }
 
@@ -510,18 +510,7 @@ export class Instance {
     await this.click({ name: 'More' })
     await new Promise((r) => setTimeout(r, POLL_MS))
     await this.click({ name: 'Manage Storage' })
-    // "Download Folder" is the one section present in both the eager (Total Storage +
-    // Active Spaces + Other) and the shipped (single App Storage card) layouts.
     await this.waitText('Download Folder', 10000)
-  }
-
-  // In StorageSettings: open a space's actions menu → Clear peer cache → confirm.
-  async clearPeerCache() {
-    await this.click({ contains: 'Actions for' })
-    await new Promise((r) => setTimeout(r, POLL_MS))
-    await this.click({ name: 'Clear peer cache' })
-    await this.waitText('Clear peer cache for', 10000)
-    await this.click({ role: 'button', name: 'Clear cache', last: true })
   }
 
   // Leave the current space via the More menu → Leave Space → confirm.

@@ -5,12 +5,14 @@ import SpaceView from '../../screens/SpaceView.js'
 import FolderView from '../../screens/FolderView.js'
 import Settings from '../../screens/Settings.js'
 import StorageSettings from '../../screens/StorageSettings.js'
-import AboutSettings from '../../screens/AboutSettings.js'
 import NotificationSettings from '../../screens/NotificationSettings.js'
 import AppearanceSettings from '../../screens/AppearanceSettings.js'
 import GeneralSettings from '../../screens/GeneralSettings.js'
+import NetworkSettings from '../../screens/NetworkSettings.js'
 import NetworkStatus from '../../screens/NetworkStatus.js'
 import Account from '../../screens/Account.js'
+import ActivityLog from '../../screens/ActivityLog.js'
+import ActivityLogSettings from '../../screens/ActivityLogSettings.js'
 
 interface ScreenRouterProps {
   nav: AppNavigation
@@ -80,20 +82,36 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onSave={onSaveProfile}
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
+          onOpenActivityLog={nav.openActivityLog}
+          onFeedback={onOpenFeedback}
         />
       )
     case 'storage-settings':
       return <StorageSettings onBack={() => nav.setCurrentScreen(nav.storageBackTarget)} />
-    case 'about':
-      return <AboutSettings onBack={() => nav.setCurrentScreen(nav.preAboutScreen)} onFeedback={onOpenFeedback} />
     case 'appearance-settings':
       return <AppearanceSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'notification-settings':
       return <NotificationSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'general-settings':
       return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
+    case 'network-settings':
+      return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-status':
       return <NetworkStatus onBack={() => nav.setCurrentScreen('account')} />
+    case 'activity-log':
+      return (
+        <ActivityLog
+          onBack={() => nav.setCurrentScreen('account')}
+          onOpenSettings={nav.openActivityLogSettings}
+        />
+      )
+    case 'activity-log-settings':
+      return (
+        <ActivityLogSettings
+          onBack={() => nav.setCurrentScreen('settings')}
+          onOpenLog={nav.openActivityLog}
+        />
+      )
     default:
       return null
   }

@@ -4,7 +4,7 @@ import {
   relToDriveKey, driveKeyToSegments,
   stripLongPathPrefix, isAbsoluteDriveKey, relKeyEscapes,
   sharePrefix, isInsideShare, isInsideAnyShare, relPathInShare,
-  pathsOverlap, overlapAllowed,
+  pathsOverlap, pathContains, overlapAllowed,
   DEFAULT_IGNORE, shouldIgnore,
   shouldHonorDeletions,
   splitFileName, nextFreeName,
@@ -120,6 +120,44 @@ test('pathsOverlap detects equal / ancestor / descendant, not a shared-prefix si
   t.ok(pathsOverlap('/a/b/c', '/a/b', '/'), 'descendant of b')
   t.absent(pathsOverlap('/a/b', '/a/bc', '/'), 'sibling sharing a name prefix does NOT overlap')
   t.absent(pathsOverlap('/a/b', '/x/y', '/'), 'unrelated')
+})
+
+test('pathContains matches self and descendants, not a name-prefix sibling', (t) => {
+  t.ok(pathContains('/a/b', '/a/b', '/'), 'a path contains itself')
+  t.ok(pathContains('/a/b', '/a/b/c.txt', '/'), 'direct child')
+  t.ok(pathContains('/a/b', '/a/b/c/d.txt', '/'), 'nested descendant')
+  t.absent(pathContains('/a/b', '/a/bc.txt', '/'), 'sibling sharing a name prefix is NOT contained')
+  t.absent(pathContains('/a/b/c', '/a/b', '/'), 'parent is not inside its child')
+  t.absent(pathContains('/a/b', '/x/y', '/'), 'unrelated')
+})
+
+test('pathContains tolerates trailing separators on the parent', (t) => {
+  t.ok(pathContains('/a/b/', '/a/b/c.txt', '/'), 'one trailing separator')
+  t.ok(pathContains('/a/b//', '/a/b', '/'), 'several trailing separators still match self')
+  t.ok(pathContains('/', '/a.txt', '/'), 'root is never stripped away')
+})
+
+test('pathContains folds case only when asked', (t) => {
+  t.absent(pathContains('/Users/o/Downloads', '/users/o/downloads/f.txt', '/'), 'case-sensitive by default')
+  t.ok(pathContains('/Users/o/Downloads', '/users/o/downloads/f.txt', '/', true), 'folded on request')
+  t.ok(pathContains('C:\\Users\\o\\Downloads', 'C:\\users\\o\\downloads\\f.txt', '\\', true), 'folded on Windows')
+  t.absent(pathContains('C:\\Users\\o\\Down', 'C:\\Users\\o\\Downloads\\f.txt', '\\', true), 'name-prefix sibling stays out when folded')
+})
+
+test('pathContains treats empty inputs as no match', (t) => {
+  t.absent(pathContains('', '/a', '/'))
+  t.absent(pathContains('/a', '', '/'))
+  t.absent(pathContains(null, '/a', '/'))
+  t.absent(pathContains('/a', undefined, '/'))
+})
+
+// Download-folder validation needs the folded form on darwin/win32; the mount-overlap
+// callers keep the exact one. One helper serves both rather than a second near-copy.
+test('pathsOverlap passes its fold flag through in both directions', (t) => {
+  t.absent(pathsOverlap('/a/B', '/a/b/c', '/'), 'exact by default')
+  t.ok(pathsOverlap('/a/B', '/a/b/c', '/', true), 'folded: ancestor')
+  t.ok(pathsOverlap('/a/b/c', '/A/B', '/', true), 'folded: descendant')
+  t.absent(pathsOverlap('/a/b', '/a/bc', '/', true), 'folding never defeats the separator boundary')
 })
 
 test('pathsOverlap honours the Windows separator', (t) => {

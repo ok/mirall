@@ -36,6 +36,7 @@ const TAXONOMY = {
   'event:join-requests-updated': 'poke',
   'event:foreign-folder-mount-status': 'poke',
   'event:owned-folder-mount-status': 'poke',
+  'event:audit-updated': 'poke',
   'event:decoration': 'decoration',
   'event:awareness': 'awareness',
   'event:member-joined': 'signal',

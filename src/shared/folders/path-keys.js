@@ -94,14 +94,25 @@ export function relPathInShare (key, prefix) {
   return key.slice(prefix.length)
 }
 
-// ─── mount overlap ────────────────────────────────────────────────────────────
-// True when one path is the other, or one is an ancestor of the other. A shared
-// separator boundary prevents the classic false positive: `/a/b` vs `/a/bc`.
-export function pathsOverlap (a, b, sep) {
-  if (a === b) return true
-  if (a.startsWith(b + sep)) return true
-  if (b.startsWith(a + sep)) return true
-  return false
+// ─── containment / mount overlap ──────────────────────────────────────────────
+// True when `child` is `parent` or sits inside it. The separator boundary prevents
+// the classic false positive: `/a/bc` is not inside `/a/b`. `fold` compares
+// case-insensitively, for the filesystems that case-fold (darwin/win32).
+export function pathContains (parent, child, sep, fold = false) {
+  if (!parent || !child) return false
+  let root = fold ? parent.toLowerCase() : parent
+  while (root.length > 1 && root.endsWith(sep)) root = root.slice(0, -1)
+  const c = fold ? child.toLowerCase() : child
+  if (c === root) return true
+  // A filesystem root ("/", "C:\") already ends in the separator; appending a second
+  // one would make every child miss.
+  return c.startsWith(root.endsWith(sep) ? root : root + sep)
+}
+
+// True when one path is the other, or one is an ancestor of the other. `fold` is passed
+// through to pathContains for the filesystems that case-fold (darwin/win32).
+export function pathsOverlap (a, b, sep, fold = false) {
+  return pathContains(a, b, sep, fold) || pathContains(b, a, sep, fold)
 }
 
 // `pathsOverlap` reports raw geometry; this is the policy on top of it. An

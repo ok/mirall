@@ -7,8 +7,8 @@ import { workDir } from '../paths.mjs'
 
 // P0 / G3 — the owner creates a nested subfolder with a file inside a shared
 // folder. The nested path must replicate (slash-keyed), show in the peer's
-// (flat, recursive) folder view, and materialize at the right nested path on a
-// mirror's disk via mkdir -p. Nesting is exactly where path-handling bugs hide.
+// folder view, and materialize at the right nested path on a mirror's disk via
+// mkdir -p. Nesting is exactly where path-handling bugs hide.
 export default async function s28 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -40,6 +40,12 @@ export default async function s28 ({ runDir, bootstrap }) {
     })
     await r.ok('the nested file shows in B’s folder view', async () => {
       await B.openFolder('Media')
+      // FolderView is a collapsible tree (s103): top-level folders open by default, deeper
+      // ones stay collapsed, and leaves render their basename — so the replicated nesting
+      // shows as a "trips" row containing a "2024" row, and the leaf appears once it's opened.
+      await B.waitText('trips', 20000)
+      assert(await B.hasText('2024'), 'the nested subfolder replicated as its own tree level')
+      await B.click({ role: 'button', name: '2024' })
       await B.waitText('lake.txt', 20000)
     })
   } catch {}

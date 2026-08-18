@@ -9,6 +9,9 @@ export const Scope = {
   members: (spaceId) => ({ kind: 'members', spaceId }),
   mirrors: (spaceId, shareId) => ({ kind: 'mirrors', spaceId, shareId }),
   joinRequests: (spaceId) => ({ kind: 'join-requests', spaceId }),
+  // Not space-scoped: the viewer's default listing is cross-space, and its space filter
+  // re-derives from the same refetch.
+  audit: () => ({ kind: 'audit' }),
 }
 
 // A hint matches a view iff the kind is equal and every id field the VIEW pins is equal.

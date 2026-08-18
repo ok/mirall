@@ -11,7 +11,13 @@ export function useNotificationClickRouter(deps: ClickRouterDeps): void {
       if (!payload) return
       switch (payload.kind) {
         case 'transfer-complete':
-          if (payload.localPath) void window.bridge.showInFolder(payload.localPath)
+          // A reveal main refuses (path outside home and every download root) would
+          // otherwise make the click do nothing at all.
+          if (payload.localPath) {
+            void window.bridge.showInFolder(payload.localPath).then((res) => {
+              if (!res?.ok) void window.bridge.focusWindow()
+            })
+          }
           return
         case 'member-joined':
         case 'member-left':

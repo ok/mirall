@@ -21,7 +21,7 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap']
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
   'dev', 'verbose',
-  'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled',
+  'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled', 'relayEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -125,6 +125,10 @@ const DEFAULTED = {
   //   { flapEveryMs, flapJitterMs }  periodically destroy each live connection (a flaky link →
   //                                  reconnect churn, handshake re-rate-limiting, state re-sync)
   netImpair: null,
+  // User-facing content-plane transfer caps, KB/s, 0 = unlimited (the default). Unlike the
+  // protective bounds above these fail OPEN — see getBandwidthLimits.
+  downloadKBps: 0,
+  uploadKBps: 0,
 }
 
 function buildConfig(next) {
@@ -145,6 +149,10 @@ function buildConfig(next) {
   // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
   // only an explicit `false` reverts.
   out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
+  // Relay config is carried whether or not the flag is on; relayEnabled is the gate,
+  // and setRelayThrough refuses to install a relay function without it.
+  out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
+  out.relays = Array.isArray(next?.relays) ? next.relays : []
   return out
 }
 
@@ -156,6 +164,19 @@ export function setRuntimeConfig(next) {
 
 export function setDownloadFolder(folder) {
   config = { ...config, downloadFolder: folder }
+}
+
+export function setBandwidthLimits({ downloadKBps, uploadKBps } = {}) {
+  config = {
+    ...config,
+    downloadKBps: coerceKBps(downloadKBps, config.downloadKBps),
+    uploadKBps: coerceKBps(uploadKBps, config.uploadKBps),
+  }
+}
+
+function coerceKBps(next, fallback) {
+  if (next === undefined || next === null) return fallback
+  return typeof next === 'number' && Number.isFinite(next) && next >= 0 ? next : fallback
 }
 
 export function getRuntimeConfig() {
@@ -186,6 +207,19 @@ export function isSeparateContentPlaneEnabled() {
   return config.separateContentPlane
 }
 
+export function isRelayEnabled() {
+  return config.relayEnabled
+}
+
+export function getRelayConfig() {
+  return { mode: config.relayMode, relays: config.relays }
+}
+
+export function setRelayConfig(mode, relays) {
+  const relayMode = mode === 'auto' || mode === 'always' ? mode : 'off'
+  config = { ...config, relayMode, relays: Array.isArray(relays) ? relays : [] }
+}
+
 export function getOverlayServeLimit() {
   const c = config
   return { burst: c.overlayServeBurst, refillMs: c.overlayServeRefillMs, abuseThreshold: c.overlayServeAbuseThreshold }
@@ -214,6 +248,20 @@ export function getMaxFilesPerShare() {
   if (n === 0 || n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
   return DEFAULT_MAX_FILES_PER_SHARE
+}
+
+// Bytes per second, 0 = unlimited. The fail-safe polarity is INVERTED relative to
+// getListFilesCap: those guard against resource exhaustion, so a bad value must keep the
+// cap; this is a user convenience, so a bad value must return to unlimited rather than
+// throttle every transfer to a crawl.
+export function getBandwidthLimits() {
+  const c = config
+  return { download: toBytesPerSecond(c.downloadKBps), upload: toBytesPerSecond(c.uploadKBps) }
+}
+
+function toBytesPerSecond(kbps) {
+  if (typeof kbps !== 'number' || !Number.isFinite(kbps) || kbps <= 0) return 0
+  return kbps * 1024
 }
 
 export function getCaptureMemberRecordMs() {

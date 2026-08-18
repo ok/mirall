@@ -49,6 +49,14 @@ function getWindowsKitVersion() {
 
 const isWindows = process.platform === 'win32'
 
+// UPGRADE_KEY sentinel: build a package with no OTA channel at all. Releases
+// pass a real `pear://` link; anyone building from source without access to a
+// channel key passes this instead. A made-up link is not a substitute — the
+// updater decodes the key in its constructor, before it consults its own
+// `updates` flag, so a non-key like `pear://none` throws "Invalid Hypercore
+// key" at startup and the app never opens.
+const NO_UPGRADE = 'none'
+
 // Forge / electron-packager takes a single `icon` base path and resolves the
 // extension per platform (.icns / .ico / .png). Each lives under its own
 // platform dir, so we pick the right base at config-load time. CI runs the
@@ -102,8 +110,12 @@ let packagerConfig = {
   // has no upgrade field by design — see hooks.readPackageJson below).
   // afterCopy fires after electron-packager stages files but before asar
   // seals, so edits to buildPath/package.json land in the shipped app.asar.
+  // UPGRADE_KEY=none skips the injection: the shipped package.json keeps no
+  // `upgrade` field, so main.js takes its updater-less shim path and OTA is
+  // off by construction rather than by a launch flag.
   afterCopy: [
     (buildPath, _electronVersion, _platform, _arch, callback) => {
+      if (process.env.UPGRADE_KEY === NO_UPGRADE) return callback()
       if (!process.env.UPGRADE_KEY) {
         return callback(new Error('UPGRADE_KEY env var unset in afterCopy — readPackageJson should have caught this earlier'))
       }
@@ -216,12 +228,14 @@ module.exports = {
     // doesn't need an upgrade key (the OTA path isn't exercised in dev). The
     // actual injection into the asar's package.json happens in
     // packagerConfig.afterCopy; this hook is a friendly pre-flight check.
+    // `none` is a real value, so it passes here and is honoured downstream.
     prePackage: async (_forgeConfig, platform) => {
       if (!process.env.UPGRADE_KEY) {
         throw new Error(
           'UPGRADE_KEY env var is required for electron-forge package/make. ' +
           'In CI it is set by the "Resolve UPGRADE_KEY for channel" step in build-electron.yml. ' +
-          'For local builds, set it explicitly: UPGRADE_KEY=pear://<key> npm run make:<platform>'
+          'For local builds, set it explicitly: UPGRADE_KEY=pear://<key> npm run make:<platform>. ' +
+          `To build without a Pear channel key: UPGRADE_KEY=${NO_UPGRADE} npm run make:<platform>`
         )
       }
 
