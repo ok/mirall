@@ -36,6 +36,12 @@ const NATIVE_PANEL_TITLES = new Set(['Open', 'Save'])
 // snapshot, so the snapshot dominates and a tight sleep just trims dead time
 // between polls without spamming the AX system.
 const POLL_MS = 150
+
+// Attempts (and per-attempt wait) for getting a native Open panel on screen; the
+// product is the old single 20s budget, so a lost trigger costs no extra wall
+// clock on the happy path. See nativeChoosePath.
+const PANEL_TRIES = 3
+const PANEL_WAIT_MS = 7000
 async function mirallWindows() {
   const { data } = await ad(['list-windows'])
   return data
@@ -416,17 +422,37 @@ export class Instance {
 
   // Drive a native NSOpenPanel (file or folder) belonging to THIS instance via
   // Go-to-folder. The panel surfaces as a window titled "Open" with our pid.
-  async nativeChoosePath(absPath) {
-    let openWin
-    // Generous window: late in a full run the system is loaded and the native
-    // NSOpenPanel can take several seconds to surface.
-    const deadline = Date.now() + 20000
-    while (Date.now() < deadline) {
-      openWin = (await ad(['list-windows'])).data.find(
-        (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
-      )
-      if (openWin) break
-      await new Promise((r) => setTimeout(r, POLL_MS))
+  //
+  // `trigger` is the action that asks the app for the panel (a menu accelerator
+  // press, or a "Browse…" click) and it is fired HERE rather than by the caller,
+  // because it can be swallowed and then has to be re-fired. A ⌘U / ⌘⇧U goes to
+  // whichever process is frontmost at that instant, so a sibling instance still
+  // finishing its launch or teardown can eat it, and the File-menu items behind
+  // those accelerators are `enabled: inSpace` — disabled, and therefore silently
+  // inert, until the renderer's menu:context-changed IPC has landed. Either way
+  // the panel never opens and no amount of extra waiting produces one: measured
+  // on an idle machine, a panel that is coming takes ~1.6s, and 12/12 tries hit
+  // it, so a multi-second wait that comes back empty means the trigger was LOST,
+  // not late. Re-fire it instead of stretching the deadline (testing.md §5) —
+  // re-firing is safe precisely because it only happens while NO panel is up.
+  async nativeChoosePath(absPath, { trigger = null } = {}) {
+    const findPanel = async () => (await ad(['list-windows'])).data.find(
+      (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
+    )
+    let openWin = null
+    // Same ~20s total budget as a single long wait, split into attempts so a lost
+    // trigger gets another chance instead of burning the whole budget on one.
+    for (let attempt = 0; attempt < PANEL_TRIES && !openWin; attempt++) {
+      if (attempt) console.error(`[${this.name}] no Open panel after ${PANEL_WAIT_MS}ms — re-firing trigger (${attempt + 1}/${PANEL_TRIES})`)
+      if (trigger) await trigger()
+      const deadline = Date.now() + PANEL_WAIT_MS
+      while (Date.now() < deadline) {
+        openWin = await findPanel()
+        if (openWin) break
+        await new Promise((r) => setTimeout(r, POLL_MS))
+      }
+      // Without a trigger to re-fire there is nothing a second pass would change.
+      if (!trigger) break
     }
     if (!openWin) throw new Error(`${this.name}: native Open panel not found`)
     await ad(['focus-window', '--window-id', openWin.id], { allowError: true })
@@ -469,9 +495,7 @@ export class Instance {
 
   // Add a loose file (mod+u opens the file picker) and pick it via the panel.
   async addFile(absPath) {
-    await this.press('cmd+u')
-    await new Promise((r) => setTimeout(r, 300))
-    await this.nativeChoosePath(absPath)
+    await this.nativeChoosePath(absPath, { trigger: () => this.press('cmd+u') })
   }
 
   // Shared tail of the AddFolder / MirrorFolder modals: wait for "Next: Preview"
@@ -492,9 +516,7 @@ export class Instance {
   }
 
   async addOwnedFolder(absDir) {
-    await this.press('cmd+shift+u')
-    await new Promise((r) => setTimeout(r, 300))
-    await this.nativeChoosePath(absDir)
+    await this.nativeChoosePath(absDir, { trigger: () => this.press('cmd+shift+u') })
     await this.waitText('Add Folder', 20000)
     // Overlay is the only content mode now — the modal has no Eager/In-place picker,
     // so a share always publishes in place via the overlay backend.
@@ -505,9 +527,7 @@ export class Instance {
   // the Folder Share segmented control can be inspected. Returns once the modal
   // is up; caller asserts on segment presence then dismisses.
   async openAddFolderModal(absDir) {
-    await this.press('cmd+shift+u')
-    await new Promise((r) => setTimeout(r, 300))
-    await this.nativeChoosePath(absDir)
+    await this.nativeChoosePath(absDir, { trigger: () => this.press('cmd+shift+u') })
     await this.waitText('Add Folder', 20000)
     await new Promise((r) => setTimeout(r, 300))
   }
@@ -515,9 +535,7 @@ export class Instance {
   // Open Add Folder, pick a path, advance to the ScanPreviewModal and STOP there (no confirm), so
   // the preview's own verdict can be inspected — e.g. the refusal for a folder over the file limit.
   async openAddFolderPreview(absDir) {
-    await this.press('cmd+shift+u')
-    await new Promise((r) => setTimeout(r, 300))
-    await this.nativeChoosePath(absDir)
+    await this.nativeChoosePath(absDir, { trigger: () => this.press('cmd+shift+u') })
     await this.waitText('Add Folder', 20000)
     await new Promise((r) => setTimeout(r, 400))
     for (let i = 0; i < 20; i++) {
@@ -533,9 +551,7 @@ export class Instance {
   // Open Add Folder and select a path, but stop on the edit step (no confirm) so
   // a validation rejection surfaces. Returns once async validation has run.
   async openAddFolderAndPick(absDir) {
-    await this.press('cmd+shift+u')
-    await new Promise((r) => setTimeout(r, 300))
-    await this.nativeChoosePath(absDir)
+    await this.nativeChoosePath(absDir, { trigger: () => this.press('cmd+shift+u') })
     await this.waitText('Add Folder', 20000)
     await new Promise((r) => setTimeout(r, 600))
   }
@@ -547,8 +563,7 @@ export class Instance {
     await new Promise((r) => setTimeout(r, POLL_MS))
     await this.click({ name: 'Mirror to Disk…' })
     await this.waitText('to Disk', 20000)
-    await this.click({ role: 'button', name: 'Browse…' })
-    await this.nativeChoosePath(mirrorDir)
+    await this.nativeChoosePath(mirrorDir, { trigger: () => this.click({ role: 'button', name: 'Browse…' }) })
     await this._confirmPreview('Start Mirroring', 'Download')
   }
 
