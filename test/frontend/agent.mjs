@@ -63,9 +63,10 @@ export function agentArgs(args, { session = null, headed = false } = {}) {
 
 // 0.8.x builds a global window inventory (CoreGraphics + AX) before resolving a
 // target, and fails the WHOLE command with TIMEOUT when that inventory will not hold
-// still. Seen in three wordings so far: "CoreGraphics window inventory did not
-// stabilize", "Global application window inventory did not stabilize", and
-// "NSWorkspace app inventory timed out". In this suite they fire while a sibling
+// still. Four wordings observed: "CoreGraphics window inventory did not stabilize",
+// "CoreGraphics window inventory timed out", "Global application window inventory did
+// not stabilize", and "NSWorkspace app inventory timed out" — hence matching on the
+// shared "inventory …" shape rather than any one string. They fire while a sibling
 // Electron instance is mid-launch — precisely when windows are churning — and it
 // says nothing about the app under test. Absorb it here, with a backoff long enough
 // for the launch to settle, instead of letting tool noise fail a scenario.
