@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { initPendingTransfers, recordPending, getPendingFor, updatePendingProgress, clearPending } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { ErrorCodes } from '../../src/shared/core/errors.js'
@@ -24,7 +24,7 @@ function testChannel (events) {
     emitComplete: () => {},
     emitCancelled: (...a) => events.push(['cancelled', ...a]),
     emitSuperseded: (job) => events.push(['superseded', job]),
-    emitPaused: (job, reason) => events.push(['paused', job, reason]),
+    emitPaused: (job, reason, opts) => events.push(['paused', job, reason, opts]),
     emitUpdated: (spaceId) => events.push(['updated', spaceId]),
     transferIdForRow: (spaceId, row) => spaceId + '|folder1|' + row.relPath,
     resolvePendingRow: async () => ({ removed: false, seq: undefined, job: null }),
@@ -127,11 +127,15 @@ test('#pause: keeps the resumable row and never warns (pause is not a give-up)',
 // the row stays clean so the status derives paused-offline and auto-resumes on reconnect,
 // mirroring the eager path. Previously it recorded PEER_NOT_AVAILABLE → status 'error' →
 // the user saw "Transfer failed").
+// [mirall] FIX-BW9 moved WHEN this give-up happens, not what it looks like: a code-less
+// failure is now retried a few times first (a throttled holder looks identical to a gone one
+// here), and only an exhausted retry — no bytes banked across attempts — parks the row. The
+// retry timings are shortened so the test still drives to the same end state.
 test('#holder-gone: a no-holder give-up surfaces paused, records no error, no WARN', async (t) => {
   const ctx = await setup(t)
   const events = []
   const channel = { ...testChannel(events), isOwnerOnline: () => true }
-  const engine = createOverlayDownloadEngine(channel)
+  const engine = createOverlayDownloadEngine(channel, { stallRetry: { baseMs: 10, maxMs: 10, dryLimit: 1 } })
   // fetchFile resolves null = no holder / all peers gone / stall → fetchContentToFile
   // returns { ok:false } with no code.
   getOverlay().fetchFile = () => Promise.resolve(null)
@@ -143,6 +147,7 @@ test('#holder-gone: a no-holder give-up surfaces paused, records no error, no WA
   try {
     await engine.start(job)
     await tick()
+    await new Promise((r) => setTimeout(r, 600))   // the retry, and its give-up
   } finally { console.warn = origWarn }
 
   const row = await getPendingFor('space1', '/Photos/doc.bin')
@@ -536,4 +541,322 @@ test('REGRESSION (FIX-ENOSPC-3): auto-resume skips a disk-full row', async (t) =
   await new Promise((r) => setTimeout(r, 400))
 
   t.alike(built, ['other.bin'], 'the disk-full row never reaches resolvePendingRow; the clean row does')
+})
+
+// === stall auto-retry (FIX-BW9) ===
+// A code-less fetch failure is "the bytes stopped": a holder that dropped, or one whose upload
+// cap kept it silent past the 30s no-progress watchdog. The engine cannot tell them apart, and
+// a holder that never disconnects fires neither auto-resume trigger — so the throttled case
+// parked the row until the user clicked Resume, and (measured) each click bought one chunk.
+
+// No `scaled()` here: test/helpers/timing.js reads process.env, which Bare does not provide, so
+// the bare suite cannot scale its waits. These are fixed and deliberately generous — each retry
+// window has to cover a RocksDB read, the backoff, a re-start and a RocksDB write on a loaded
+// runner, and this suite already carries a known one-random-failure-per-run flake.
+const fastRetry = { baseMs: 20, maxMs: 40, dryLimit: 3 }
+
+// A retry re-drives runReconcile, so its channel must resolve a row into a job the way the real
+// folder channel does (catalog read → destination re-anchor → prevBytes reset). The shared
+// testChannel returns `job: null` on purpose for the reconcile tests, which would make every
+// retry a no-op here and hide the behavior under test.
+function retryChannel (events) {
+  return {
+    ...testChannel(events),
+    isOwnerOnline: () => true,
+    resolvePendingRow: async (spaceId, row) => ({
+      removed: false,
+      seq: row.sourceSeq,
+      job: {
+        spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId,
+        transferId: spaceId + '|folder1|' + row.relPath, contentHash: row.contentHash, size: row.total || 4096,
+        sourceSeq: row.sourceSeq, ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
+        finalPath: row.finalPath, prevBytes: row.bytesTransferred || 0,
+      },
+    }),
+  }
+}
+
+test('REGRESSION (FIX-BW9): a stalled fetch retries itself while the owner is online', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: fastRetry,
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  t.is(fetches, 1, 'precondition: the first fetch is in flight')
+
+  settle({ ok: false })                      // no code: stalled / holder gone
+  await tick()
+  // The paused emit still fires — on the folder channel it IS the terminal decoration frame —
+  // but it carries `retrying`, which is what suppresses the OS notification on the loose
+  // channel. Withholding the emit entirely stranded a progress bar for the whole backoff.
+  const paused = events.find((e) => e[0] === 'paused')
+  t.ok(paused, 'the row still got its terminal paused emit')
+  t.is(paused[3]?.retrying, true, 'flagged as retrying, so no OS notification is raised')
+  await tick()
+  t.is(fetches, 2, 'the engine retried the stalled fetch on its own')
+})
+
+test('FIX-BW9: retries that bank no bytes give up and park the row as before', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: fastRetry,
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  for (let i = 0; i < 6 && settle; i++) { settle({ ok: false }); settle = null; await tick(); await tick() }
+
+  t.ok(fetches <= 1 + fastRetry.dryLimit, `a wedged holder is not retried forever (${fetches} attempts)`)
+  t.ok(events.some((e) => e[0] === 'paused'), 'and the row is finally parked, exactly as before the fix')
+})
+
+test('FIX-BW9: a retry that banks bytes keeps the transfer going', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: fastRetry,
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  // A throttled holder always banks SOME bytes per attempt — that progress is what resets the
+  // dry counter, so the retries continue past the give-up limit a wedged holder would hit.
+  for (let i = 1; i <= 5 && settle; i++) {
+    await updatePendingProgress(job.spaceId, job.pendingKey, i * 1024)
+    settle({ ok: false }); settle = null
+    await tick(); await tick()
+  }
+
+  t.ok(fetches > 1, `the transfer kept being retried (${fetches} attempts)`)
+  // The mechanism itself: banked bytes reset the dry counter, so the budget never runs out
+  // however long the transfer takes. (Attempt COUNT is not the assertion — runReconcile's
+  // 250 ms debounce coalesces retries at this test's 20 ms backoff; production is 3 s+.)
+  t.is(engine._stallRetries.get(job.transferId)?.dry, 0, 'progress reset the retry budget')
+  const pausedEmits = events.filter((e) => e[0] === 'paused')
+  t.ok(pausedEmits.length > 0 && pausedEmits.every((e) => e[3]?.retrying === true),
+    `every pause along the way was flagged retrying, so the user is never notified or asked to click Resume (${pausedEmits.length} emits)`)
+})
+
+test('FIX-BW9: a pause during the retry backoff stops the retry', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 120, maxMs: 120, dryLimit: 3 },
+  })
+  getOverlay().cancelFetch = () => {}
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false })
+  await tick()                       // inside the backoff window
+  t.ok(engine._stallRetries.has(job.transferId), 'precondition: a retry is armed')
+  engine.pause(job.transferId)
+
+  // The record itself must be gone. Asserting only "no second fetch" proves nothing: the
+  // timer's own `pausedHashes` guard would satisfy that even with an orphaned timer still
+  // armed — and an orphan survives discard and space-leave, which is how the row comes back.
+  t.absent(engine._stallRetries.has(job.transferId), 'the pause cleared the retry record and its timer')
+  await new Promise((r) => setTimeout(r, 600))
+  t.is(fetches, 1, 'and no retry fired')
+})
+
+// REPRODUCED in review: during the backoff there is NO registry slot, so `activeSlots()` — the
+// only thing space-leave teardown walks — is empty and cancels nothing. The timer then fired
+// after the row was purged and `start()`'s recordPending re-created it, re-downloading into a
+// space the user had left.
+test('REGRESSION (FIX-BW9): a retry cannot resurrect a pending row purged while it waited', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 80, maxMs: 80, dryLimit: 3 },
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false })
+  await tick()
+  t.is([...engine.activeSlots()].length, 0, 'precondition: no slot for teardown to find during the backoff')
+
+  // What leaving a space does to this row (worker/main.js clearPendingForSpace).
+  await clearPending(job.spaceId, job.pendingKey)
+  await new Promise((r) => setTimeout(r, 600))
+
+  t.is(fetches, 1, 'the retry declined to start once its row was gone')
+  t.absent(await getPendingFor(job.spaceId, job.pendingKey), 'and the purged row stayed purged')
+})
+
+// REPRODUCED in review: `stallRetries.set` replaced the record without clearing the old timer,
+// so a second stall during a backoff orphaned the first — unreachable by pause, discard or
+// leave, and it undid the user's Discard by re-creating the row.
+test('REGRESSION (FIX-BW9): a re-armed retry does not orphan the previous timer', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 150, maxMs: 150, dryLimit: 3 },
+  })
+  getOverlay().cancelFetch = () => {}
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false }); await tick()          // timer #1 armed
+  await engine.start(job)                       // a reconcile-driven start during the backoff
+  settle({ ok: false }); await tick()          // timer #2 armed — #1 must have been cleared
+  const started = fetches
+
+  await engine.cancelByKey(job.spaceId, job.pendingKey, job.transferId)   // the user discards
+  await new Promise((r) => setTimeout(r, 600))
+
+  t.is(fetches, started, 'no orphaned timer fired after the discard')
+  t.absent(await getPendingFor(job.spaceId, job.pendingKey), 'the discarded row was not re-created')
+})
+
+// The job captured before the stall carries a contentHash and a destination that can both be
+// stale by the time the timer fires. Because the retry re-drives the reconcile scan instead of
+// replaying that job, the source is re-read: a republish during the backoff is picked up rather
+// than overwritten with the old hash.
+test('FIX-BW9: a retry follows the row to a new content hash instead of replaying the old one', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const channel = retryChannel(events)
+  const asked = []
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: (contentHash) => { asked.push(contentHash); return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 150, maxMs: 150, dryLimit: 3 },
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false })
+  await tick()
+  const row = await getPendingFor(job.spaceId, job.pendingKey)
+  await recordPending(job.spaceId, job.pendingKey, { ...row, contentHash: 'f'.repeat(64), bytesTransferred: 0 })
+  await new Promise((r) => setTimeout(r, 700))
+
+  t.is(asked[0], job.contentHash, 'precondition: the first fetch used the original hash')
+  t.is(asked[asked.length - 1], 'f'.repeat(64), 'the retry fetched the NEW content the row points at')
+  const after = await getPendingFor(job.spaceId, job.pendingKey)
+  t.is(after.contentHash, 'f'.repeat(64), 'and the row was never rewritten back to the old hash')
+})
+
+// The same staleness applies to the destination: resolvePendingRow re-anchors it against the
+// space's current download folder (reuseDest), which a replayed job bypassed entirely — so a
+// folder changed during the backoff resumed into the old one.
+test('FIX-BW9: a retry re-anchors the destination the row resolves to', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const moved = path.join(ctx.tmpDir('dl2'), 'doc.bin')
+  const channel = {
+    ...retryChannel(events),
+    resolvePendingRow: async (spaceId, row) => ({
+      removed: false,
+      seq: row.sourceSeq,
+      job: {
+        spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId,
+        transferId: spaceId + '|folder1|' + row.relPath, contentHash: row.contentHash, size: 4096,
+        sourceSeq: row.sourceSeq, ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
+        finalPath: moved, prevBytes: 0,      // what reuseDest returns after a folder change
+      },
+    }),
+  }
+  const dests = []
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: (_h, opts) => { dests.push(opts.finalPath); return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 150, maxMs: 150, dryLimit: 3 },
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false })
+  await tick()
+  await new Promise((r) => setTimeout(r, 700))
+
+  t.is(dests[0], job.finalPath, 'precondition: the first fetch used the original destination')
+  t.is(dests[dests.length - 1], moved, 'the retry landed in the re-anchored folder, not the stale one')
+})
+
+// Giving up must still settle the row. On the folder channel emitPaused IS the terminal
+// decoration frame, so a silent bail strands a progress bar that then samples across the gap.
+test('FIX-BW9: an owner that goes offline during the backoff still settles the row as paused', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  let online = true
+  const channel = { ...retryChannel(events), isOwnerOnline: () => online }
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => new Promise((r) => { settle = r }),
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: { baseMs: 80, maxMs: 80, dryLimit: 3 },
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  settle({ ok: false })
+  await tick()
+  const beforeBail = events.filter((e) => e[0] === 'paused').length
+  online = false                                  // the owner drops during the backoff
+  await new Promise((r) => setTimeout(r, 600))
+
+  t.ok(events.filter((e) => e[0] === 'paused').length > beforeBail, 'the row was settled as paused, not left silent')
+  t.absent(engine._stallRetries.has(job.transferId), 'and the retry record was released')
+})
+
+test('FIX-BW9: an offline owner is left to the reconnect path, not retried', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  let online = true
+  const channel = { ...retryChannel(events), isOwnerOnline: () => online }
+  let fetches = 0
+  let settle = null
+  const engine = createOverlayDownloadEngine(channel, {
+    fetchImpl: () => { fetches += 1; return new Promise((r) => { settle = r }) },
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+    stallRetry: fastRetry,
+  })
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  online = false
+  settle({ ok: false })
+  await tick(); await tick()
+
+  t.is(fetches, 1, 'no retry — resumeForOwner already covers a reconnect')
+  t.ok(events.some((e) => e[0] === 'paused'), 'the row parks as paused-offline')
 })

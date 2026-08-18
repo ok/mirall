@@ -338,3 +338,142 @@ test('a cancelled transfer detaches its stream and returns unspent budget', asyn
   t.absent(held.wouldBlock(), 'the ended transfer left no entry blocking the queue')
   limiter.destroy()
 })
+
+// --- the SENDER's cap against the RECEIVER's watchdog (FIX-BW9) -------------
+// Every case above paces the DOWNLOAD side, where the scheduler can see its own limiter and
+// scope the watchdog around it (FIX-BW2/BW4/BW8). The upload side is the blind spot: the
+// holder waits on ITS cap, nothing goes on the wire, and the downloader — which cannot know
+// a cap exists — reads the silence as a wedge and aborts a transfer that is merely slow.
+// Measured pre-fix at a 2:1 cost-to-window ratio: 1 chunk delivered, then `multi-source fetch
+// stalled`, and (because the engine reads a code-less failure as "holder gone") a parked row
+// that no reconnect or catalog append ever comes to resume.
+//
+// The wire half — protocol-v2 emitting message 14 while parked — is covered in
+// test/integration/overlay-vendor-backpressure.test.js; here the serve loop is modelled so a
+// real limiter and a real scheduler meet, which is the pair that produces the bug.
+
+// A holder serving one receiver, paced by ITS OWN upload limiter. `announce` decides whether
+// it speaks FIX-BW9 keep-alives while parked (a new holder) or stays silent (a v1.8.0 one).
+function startSender (limiter, sched, peer, { chunkSize, announce, everyMs = 40 }) {
+  const stream = limiter.stream()
+  const rec = { stream, delivered: 0 }
+  rec.serve = (indices) => {
+    ;(async () => {
+      for (const index of indices) {
+        const beat = announce
+          ? setInterval(() => sched.notePeerAlive(peer, index), everyMs)
+          : null
+        const paid = await stream.take(chunkSize).finally(() => clearInterval(beat))
+        if (paid <= 0 || sched.done) return
+        rec.delivered++
+        sched.onChunkData(peer, index, { length: chunkSize })
+      }
+    })()
+  }
+  return rec
+}
+
+function startCappedFetch (limiter, { announce, chunkSize = 128 * KB, window = 400, maxSilence }) {
+  const peer = { id: 'holder' }
+  const state = { rejection: null }
+  let sender = null
+  const sched = new ChunkScheduler({
+    path: 'content:capped-' + (announce ? 'new' : 'old'),
+    destPath: '/tmp/capped',
+    transfer: fakeTransfer,
+    timeout: scaled(window),
+    cap: 8,
+    limiter: null,                                  // the RECEIVER is unthrottled
+    keepAliveMaxSilence: maxSilence,
+    sendNeed: (_p, indices) => sender.serve(indices),
+  })
+  sender = startSender(limiter, sched, peer, { chunkSize, announce })
+  sched.promise().catch((err) => { state.rejection = err.message })
+  sched.noteRequested(peer)
+  sched.onChunkHashes(peer, chunkList(80, chunkSize))
+  return { sched, peer, sender, state }
+}
+
+test('REGRESSION (FIX-BW9): a throttled holder no longer trips the receiver watchdog', async (t) => {
+  // 32 KB/s against 128 KB chunks: 4s per chunk, ten times the window. In production this is
+  // a 4 MB tier-3 chunk at the 32 KB/s cap floor — 128s against the 30s watchdog.
+  // A cap belongs to the HOLDER's machine, so the two holders get a limiter each.
+  const quietCap = createBandwidthLimiter(() => 32 * KB)
+  const talkingCap = createBandwidthLimiter(() => 32 * KB)
+  const quiet = startCappedFetch(quietCap, { announce: false })
+  const talking = startCappedFetch(talkingCap, { announce: true })
+
+  await wait(scaled(1500))
+  const stillFetching = !talking.sched.done          // read before the teardown settles it
+  const delivered = talking.sender.delivered
+  quiet.sched.cancel(); talking.sched.cancel()
+  quietCap.destroy(); talkingCap.destroy()
+
+  t.ok(/stalled/.test(quiet.state.rejection || ''), `a silent holder still fails the fetch (${quiet.state.rejection || 'no rejection'}) — the pre-fix behavior`)
+  t.absent(talking.state.rejection, `a holder that announces itself while paced does not (${talking.state.rejection || 'no rejection'})`)
+  t.ok(stillFetching, 'and its fetch is still alive, waiting on bytes that are coming')
+  t.ok(delivered > 0, `with bytes actually moving through the cap (${delivered} chunk(s))`)
+})
+
+// The gate that keeps this from becoming FIX-BW4 again: a keep-alive only counts from a peer
+// that actually owes us the chunk it names. Without it, ANY connected peer could hold a fetch
+// open forever with zero bytes — and the watchdog would never fire for anyone.
+test('FIX-BW9: a keep-alive from a peer that owes us nothing does not hold the fetch open', async (t) => {
+  const limiter = createBandwidthLimiter(() => 512 * KB)
+  const mute = { id: 'mute' }
+  const bystander = { id: 'bystander' }
+  let rejection = null
+  const sched = new ChunkScheduler({
+    path: 'content:bystander',
+    destPath: '/tmp/bystander',
+    transfer: fakeTransfer,
+    timeout: scaled(400),
+    cap: 8,
+    limiter: limiter.stream(),
+    sendNeed: () => {},                     // the real holder answers the list, then goes silent
+  })
+  sched.promise().catch((err) => { rejection = err.message })
+  sched.onChunkHashes(mute, chunkList(200, CHUNK))
+  // A peer with nothing assigned keep-alives hard for chunks it was never given.
+  const spam = setInterval(() => { for (let i = 0; i < 8; i++) sched.notePeerAlive(bystander, i) }, 10)
+
+  // The same warm-up FIX-BW4 allows: under a download cap nothing is assigned — and so no
+  // watchdog is armed — for well over a second, so a shorter window proves nothing.
+  await wait(scaled(2500))
+  clearInterval(spam)
+  limiter.destroy()
+
+  t.ok(/stalled/.test(rejection || ''), `the silent holder was still detected (${rejection || 'no rejection'})`)
+})
+
+// And the bound: a holder that keep-alives forever while sending nothing is a wedge wearing a
+// costume. The extension is measured from the last ACCEPTED progress, so it cannot be
+// refreshed by more keep-alives.
+test('FIX-BW9: keep-alives are bounded — a holder that never sends bytes is still failed', async (t) => {
+  const peer = { id: 'liar' }
+  let rejection = null
+  let failedAfter = null                     // stamped BY the rejection, not by the test's own wait
+  const startedAt = Date.now()
+  const sched = new ChunkScheduler({
+    path: 'content:liar',
+    destPath: '/tmp/liar',
+    transfer: fakeTransfer,
+    timeout: scaled(200),
+    cap: 8,
+    limiter: null,
+    keepAliveMaxSilence: scaled(600),       // production: 30 minutes
+    sendNeed: () => {},                     // never serves a byte, only talks
+  })
+  sched.promise().catch((err) => { rejection = err.message; failedAfter = Date.now() - startedAt })
+  sched.noteRequested(peer)
+  sched.onChunkHashes(peer, chunkList(80, CHUNK))
+  const beat = setInterval(() => { for (let i = 0; i < 8; i++) sched.notePeerAlive(peer, i) }, 20)
+
+  await wait(scaled(1600))
+  clearInterval(beat)
+
+  t.ok(/stalled/.test(rejection || ''), `the fetch was failed despite continuous keep-alives (${rejection || 'no rejection'})`)
+  // Sampling this after the fixed wait instead would make it ~1600ms whatever happened — a
+  // no-op notePeerAlive (failing at the 200ms window) would report the same number and pass.
+  t.ok(failedAfter > scaled(500), `but only after the bound was spent, not inside the window (${failedAfter}ms)`)
+})

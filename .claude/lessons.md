@@ -124,6 +124,8 @@ amplification.** A bee measuring 25 MB on disk fell to 4.4 MB from RocksDB compa
 by ~6x. Compact first, then measure, or you optimize transient SST/WAL churn instead of the real
 retained bytes.
 
+**A factory invoked during a circular import must not read its own module's `const`s in its body.** `overlay-download.js` and `overlay-backend.js` import each other directly, and BOTH `overlay-backend.js` and `loose-overlay.js` construct a download engine at module top level — so the hoisted `createOverlayDownloadEngine` runs while `overlay-download.js` is still evaluating and every `const` in that file is in its temporal dead zone. The tell is `ReferenceError: Cannot access 'X' before initialization` naming a constant declared plainly ABOVE the function — existing code escapes it by only touching those constants from methods called later. Read config constants inside the method that uses them, or a new option default added for testability wedges the worker at boot.
+
 ## Stopping long-running work
 
 **Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Clearing `setInterval`/pending timers leaves a materialize/download pass already iterating thousands of files running to completion — and its trailing persist can RESURRECT the just-torn-down state. Use a per-key generation counter checked between items (bail if it changed), abort the active stream/transfer (track it in a map the stop path can `destroy()`), and guard the trailing persist. Test with enough files/bytes that the pass is genuinely in flight at stop time; assert both "progress halts" AND "state not resurrected."

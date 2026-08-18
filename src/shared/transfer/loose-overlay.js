@@ -365,7 +365,11 @@ const looseEngine = createOverlayDownloadEngine({
   emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); recordTransferOutcome(job, 'ok', null); deco(job.spaceId, job.path, { done: true }) },
   emitCancelled: (spaceId, transferId, pendingKey) => deco(spaceId, pendingKey, { done: true }),
   emitSuperseded: (job) => { ipcRef?.emit('event:transfer-superseded', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, fileName: path.basename(job.relPath) }); deco(job.spaceId, job.path, { bytes: 0, total: job.size, speed: 0, eta: null }) },
-  emitPaused: (job, reason) => { ipcRef?.emit('event:transfer-paused', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, reason }); deco(job.spaceId, job.path, { done: true }) },
+  // [mirall] FIX-BW9 — `retrying` means the engine has an automatic retry armed for this row.
+  // The decoration still terminates (a stranded entry samples speed across the whole backoff),
+  // but the notification is withheld: 'event:transfer-paused' raises an OS notification, and one
+  // per attempt would turn a slow transfer into a stream of them.
+  emitPaused: (job, reason, opts) => { if (!opts?.retrying) ipcRef?.emit('event:transfer-paused', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, reason }); deco(job.spaceId, job.path, { done: true }) },
   emitDecorationDone: (job) => deco(job.spaceId, job.path, { done: true }),
   emitUpdated: (spaceId) => ipcRef?.emit('event:files-updated', { spaceId }),
   transferIdForRow: (spaceId, row) => looseTransferIdFor(spaceId, row.relPath),

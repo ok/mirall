@@ -440,3 +440,26 @@ export const transferProgress = {
     }
   }
 }
+
+// Message 14: keep-alive — holder→downloader liveness while a serve loop is parked on its
+// own UPLOAD cap. Time spent waiting on that cap puts nothing on the wire, so past the
+// downloader's no-progress watchdog a healthy paced holder is indistinguishable from one
+// that has wedged. `index` is the chunk being paid for, so the receiver can re-arm only a
+// fetch this peer actually owes bytes on. Appended last so a holder that predates this
+// never registers slot 14 and silently ignores it.
+export const keepAlive = {
+  preencode (state, m) {
+    c.buffer.preencode(state, toBuffer32(m.contentHash))
+    c.uint.preencode(state, m.index || 0)
+  },
+  encode (state, m) {
+    c.buffer.encode(state, toBuffer32(m.contentHash))
+    c.uint.encode(state, m.index || 0)
+  },
+  decode (state) {
+    return {
+      contentHash: c.buffer.decode(state).toString('hex'),
+      index: c.uint.decode(state)
+    }
+  }
+}

@@ -38,6 +38,19 @@ const YIELD_EVERY = 16
 // here capped large transfers (e.g. a multi-GB file at any bandwidth always
 // exceeded 30s) and aborted them mid-stream.
 const DEFAULT_IDLE_TIMEOUT = 30000
+// [mirall] FIX-BW9 — longest a holder's keep-alives (message 14, "I am parked on my own
+// upload cap") may hold this fetch open with no bytes accepted. It exists to bound a peer that
+// keep-alives forever while sending nothing; every legitimate wait must fit INSIDE it or the
+// fix silently stops working at exactly the loads it was written for.
+//
+// Size it from the same formula the bug does — chunkBytes x filesFromThatPeer x
+// peersBeingServed / cap — not from one chunk in isolation: a 4 MB tier-3 chunk at the 32 KB/s
+// cap floor costs 128 s alone, but 21 minutes once that holder is serving ten transfers. A
+// 5-minute bound (the first cut here) covered only F x P < 3 and would have re-broken the
+// transfer it just fixed. 30 minutes covers F x P up to ~14 at the floor, and a peer that
+// stalls a single fetch for 30 minutes costs one download slot — strictly less than the
+// unbounded hold a trickle of one chunk per 29 s already buys it.
+const KEEPALIVE_MAX_SILENCE_MS = 1800000
 // [mirall] Local write-error codes that may recover on retry (vs ENOSPC/EACCES/…
 // which are fatal): a transient one keeps the chunk retryable instead of failing
 // the whole multi-source fetch.
@@ -104,6 +117,14 @@ export class ChunkScheduler {
     // [mirall] idle timeout — re-armed on each progress signal (see _armIdleTimer).
     this._idleTimeout = opts.timeout || DEFAULT_IDLE_TIMEOUT
     this._timer = null
+    // [mirall] FIX-BW9 — when this fetch last made VERIFIED forward progress: a hash-checked
+    // chunk accepted, or local setup completing. Only this bounds a keep-alive's reach, so
+    // nothing a remote peer can drive at will may feed it — a chunk list and a chunkHashes
+    // page both arrive from any connected peer for the asking, and refreshing the bound with
+    // one would hand a liar exactly the unbounded hold the bound exists to deny (FIX-BW4).
+    // _assign is excluded for the same reason: re-arming the watchdog is not progress.
+    this._lastProgressAt = Date.now()
+    this._keepAliveMaxSilence = opts.keepAliveMaxSilence || KEEPALIVE_MAX_SILENCE_MS
     this._armIdleTimer()
   }
 
@@ -208,6 +229,23 @@ export class ChunkScheduler {
   // only once the final page lands).
   notePageProgress () { if (!this._done && !this._settingUp) this._armIdleTimer() }
 
+  // [mirall] FIX-BW9 — a holder tells us it is parked on its OWN upload cap (protocol-v2 sends
+  // message 14 while a serve loop waits on take()). Being paced by someone else's cap is not
+  // silence — but we cannot verify the claim, so two gates keep this from re-creating FIX-BW4,
+  // a watchdog that never fires:
+  //   - the frame must name a chunk THIS peer currently owes us, so a peer with nothing
+  //     outstanding — or one serving us nothing at all — cannot hold a fetch open on zero bytes;
+  //   - the reach is bounded by the last real progress, so a peer that keep-alives forever while
+  //     sending nothing is still failed, just later than a silent one.
+  // Deliberately does NOT touch _lastProgressAt: a keep-alive is a claim about the future, not
+  // progress, and letting it refresh its own bound would make the bound unreachable.
+  notePeerAlive (peer, index) {
+    if (this._done) return
+    if (this._inflight.get(index) !== peer) return
+    if (Date.now() - this._lastProgressAt > this._keepAliveMaxSilence) return
+    this._armIdleTimer()
+  }
+
   /** A peer responded with the chunk list. First response starts the transfer. */
   async onChunkHashes (peer, chunks) {
     this._requested.delete(peer) // it answered — from here on its loss is handled by _peers
@@ -245,6 +283,10 @@ export class ChunkScheduler {
       }
       this._settingUp = false
       if (this._done) return
+      // [mirall] FIX-BW9 — the keep-alive budget starts HERE, not at construction: the
+      // startReceive above (a journal-less partial re-verify) can run for minutes on a large
+      // file, and charging that to the budget spends it before the first keep-alive lands.
+      this._lastProgressAt = Date.now()
       // [mirall] resume: only fetch chunks the partial doesn't already hold, and
       // seed the byte counter so progress/ETA continue from the resumed offset.
       let have = 0
@@ -294,6 +336,7 @@ export class ChunkScheduler {
       return
     }
     this._needed.delete(index)
+    this._lastProgressAt = Date.now()   // [mirall] FIX-BW9 — bounds how far a keep-alive can reach
     this._received.set(peer, (this._received.get(peer) || 0) + 1)
     this._receivedBytes += (data ? data.length : 0)   // [mirall]
     this._armIdleTimer()   // [mirall] accepted bytes — reset the no-progress watchdog

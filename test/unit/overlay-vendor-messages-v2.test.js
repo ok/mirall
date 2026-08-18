@@ -378,3 +378,18 @@ test('transferProgress round-trip — have baseline', (t) => {
 test('transferProgress round-trip — zero have', (t) => {
   roundTrip(t, m.transferProgress, { contentHash: fakeHash2, have: 0 })
 })
+
+// ── [mirall] Message 14: keep-alive (FIX-BW9) ────────────────
+
+test('keepAlive round-trip', (t) => {
+  roundTrip(t, m.keepAlive, { contentHash: fakeHash, index: 4096 })
+})
+
+test('keepAlive accepts a missing index (defaults to 0)', (t) => {
+  const state = { start: 0, end: 0, buffer: null }
+  m.keepAlive.preencode(state, { contentHash: fakeHash2 })
+  state.buffer = Buffer.alloc(state.end)
+  m.keepAlive.encode(state, { contentHash: fakeHash2 })
+  state.start = 0
+  t.alike(m.keepAlive.decode(state), { contentHash: fakeHash2, index: 0 }, 'decodes with index 0')
+})
