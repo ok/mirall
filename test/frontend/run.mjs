@@ -115,10 +115,12 @@ const args = process.argv.slice(2)
 // Fail fast on an environment that can't drive the UI, instead of letting every
 // scenario stall for 90s on "Mirall window never appeared" / STALE_REF.
 //
-// The harness requires agent-desktop >= 0.3.0 (see preflight.mjs): 0.3.0
-// reintroduced persisted, session-scoped snapshots, so a ref taken in one CLI
-// process resolves in the next (the snapshot-then-act pattern this suite makes).
-// Older 0.2.x re-resolved refs per-command and returned STALE_REF cross-process.
+// The harness requires agent-desktop >= 0.8.0 (preflight.mjs carries the full
+// ladder): 0.3.0 brought back persisted, session-scoped snapshots, so a ref taken
+// in one CLI process resolves in the next (the snapshot-then-act pattern this
+// suite makes), and 0.7.0 turned an over-budget snapshot into ok:true +
+// complete:false, which instance.snap() reads so a truncated tree is never
+// asserted against as if it were the whole window.
 function preflight() {
   let version, granted
   try {
@@ -156,6 +158,17 @@ function pruneAgentDesktopStore() {
   try { stale = readdirSync(path.join(store, 'snapshots')).length } catch {}
   for (const sub of ['snapshots', 'sessions']) {
     rmSync(path.join(store, sub), { recursive: true, force: true })
+  }
+  // The two root-level files are the global "latest snapshot" pointer and its
+  // refmap. agent-desktop <0.5 wrote RefEntry records with a pid but no
+  // process_instance; 0.8.x's deserializer rejects those outright, so a store
+  // carried over from an older CLI makes `agent-desktop status` fail with
+  // INVALID_ARGS ("RefEntry requires a positive pid and process instance") until
+  // they are gone. Nothing here reads them — each Instance uses its own
+  // --session namespace — so clearing them is free and keeps the CLI usable
+  // by hand (and by the agent-desktop skill) after this suite has run.
+  for (const f of ['last_refmap.json', 'latest_snapshot_id']) {
+    rmSync(path.join(store, f), { force: true })
   }
   if (stale) console.error(`pruned ${stale} stale agent-desktop snapshot(s)`)
 }

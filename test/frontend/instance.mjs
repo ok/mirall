@@ -21,6 +21,17 @@ const REPO = path.resolve(import.meta.dirname, '../..')
 // exclude them by title to keep pid-based re-resolution on the main window.
 const NATIVE_PANEL_TITLES = new Set(['Open', 'Save'])
 
+// agent-desktop 0.8.x widened `list-windows`: one dev Electron app now reports the
+// real window plus ~8 helper windows that are titled "Electron", carry the same
+// pid, and are NOT exposed through accessibility (snapshotting one returns
+// ACTION_NOT_SUPPORTED). 0.4.x listed only the real window, so `launch()` could
+// take the last fresh entry and always land on it. Ordering across those entries is
+// not guaranteed, so the last fresh window is now sometimes a phantom — which is
+// why this presented as most-but-not-all scenarios failing at their first snapshot.
+// `visible` separates them cleanly: only the real window reports true. It is also
+// the property we actually depend on, since an off-screen or unpainted window has
+// no usable AX tree either.
+
 // Poll interval for the harness's own wait loops. Each iteration does a ~0.4s
 // snapshot, so the snapshot dominates and a tight sleep just trims dead time
 // between polls without spamming the AX system.
@@ -28,7 +39,7 @@ const POLL_MS = 150
 async function mirallWindows() {
   const { data } = await ad(['list-windows'])
   return data
-    .filter((w) => w.app_name === 'Electron' && !NATIVE_PANEL_TITLES.has(w.title))
+    .filter((w) => w.app_name === 'Electron' && w.visible === true && !NATIVE_PANEL_TITLES.has(w.title))
     .map((w) => ({ id: w.id, pid: w.pid }))
 }
 
@@ -95,8 +106,35 @@ export class Instance {
     // focus()) because focus() no-ops for single instances — the one-time initial
     // raise must still happen so the renderer paints and snapshots aren't empty.
     await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
+    await this._waitForAx()
     if (onboard) await this.onboard()
     return this
+  }
+
+  // A window appears in list-windows as soon as the OS has it, but Chromium builds
+  // web-content accessibility lazily per renderer process, so for a short window it
+  // is listed, painted, and still unable to answer an AX query. agent-desktop 0.4.x
+  // papered over that by returning an empty tree — the scenarios' own waitText loops
+  // absorbed it — while 0.8.x fails the snapshot outright with ACTION_NOT_SUPPORTED
+  // ("exists but is not exposed through accessibility"). It is a race, not a hard
+  // break: on a fast launch the renderer wins and the scenario passes, which is why
+  // it presents as most-but-not-all scenarios failing at their first step. Block
+  // here until the window actually answers, so every scenario starts from a window
+  // that is known to be drivable.
+  async _waitForAx(timeout = 30000) {
+    const deadline = Date.now() + timeout
+    let last = null
+    while (Date.now() < deadline) {
+      try {
+        await this.snap({ interactive: true })
+        return
+      } catch (e) {
+        if (e.code !== 'ACTION_NOT_SUPPORTED' && e.code !== 'WINDOW_NOT_FOUND') throw e
+        last = e
+        await new Promise((r) => setTimeout(r, POLL_MS))
+      }
+    }
+    throw new Error(`${this.name}: window ${this.windowId} never exposed an AX tree in ${timeout}ms (last: ${last?.code})`)
   }
 
   // `interactive` drops static-text / non-actionable nodes (-i) and collapses
@@ -106,9 +144,36 @@ export class Instance {
   // smaller payload to serialize/parse. Text/state assertions keep the full tree.
   async snap({ interactive = false } = {}) {
     const lens = interactive ? ['-i', '--compact'] : []
-    try {
+    // agent-desktop 0.7.0+ returns ok:true with data.complete=false when the AX
+    // walk exhausts its budget (it used to be a TIMEOUT error, which this
+    // harness surfaced as a retryable throw). A truncated tree is indistinguishable
+    // from a missing element once it reaches findNode/allText, so it would show up
+    // as unexplained "no element {...}" flake. Reject it here instead. `complete`
+    // is absent on <0.7.0, and `=== false` leaves that case untouched.
+    const take = async () => {
       const { data } = await this.ad(['snapshot', '--window-id', this.windowId, '--max-depth', '40', ...lens])
+      if (data.complete === false) {
+        throw Object.assign(new Error(`${this.name}: AX snapshot truncated (window ${this.windowId})`), {
+          code: 'SNAPSHOT_INCOMPLETE',
+        })
+      }
       return data.tree
+    }
+    // A truncated tree is almost always load, not size: the AX walk has an internal
+    // time budget (there is no flag to raise it), and with three or four Electron
+    // instances up, one window's walk can miss it while the same window snapshots
+    // fine a moment later. withRetry's flat 150ms is too tight to ride that out, so
+    // back off here first and only surface SNAPSHOT_INCOMPLETE once it persists.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await take()
+      } catch (e) {
+        if (e.code !== 'SNAPSHOT_INCOMPLETE' || attempt === 2) break
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
+      }
+    }
+    try {
+      return await take()
     } catch (e) {
       // agent-desktop reassigns a window's AX id when the renderer repaints/
       // reloads, so a cached windowId can go stale mid-scenario (WINDOW_NOT_FOUND)
@@ -118,14 +183,13 @@ export class Instance {
       const match = (await mirallWindows()).find((w) => w.pid === this.pid)
       if (!match) throw e
       this.windowId = match.id
-      const { data } = await this.ad(['snapshot', '--window-id', this.windowId, '--max-depth', '40', ...lens])
-      return data.tree
+      return take()
     }
   }
 
   async _ref(sel) {
     const tree = await this.snap({ interactive: true })
-    const node = findNode(tree, sel)
+    const node = findNode(tree, { ...sel, actionable: true })
     if (!node || !node.ref) {
       throw Object.assign(new Error(`${this.name}: no element ${JSON.stringify(sel)}`), {
         code: 'ELEMENT_NOT_FOUND',
@@ -143,7 +207,21 @@ export class Instance {
   click(sel) {
     return withRetry(async () => {
       await this.focus()
-      return this.ad(['click', await this._ref(sel)])
+      const ref = await this._ref(sel)
+      try {
+        return await this.ad(['click', ref])
+      } catch (e) {
+        // agent-desktop 0.8.x separates semantic delivery (AXPress) from physical
+        // delivery (a real cursor click) and will not cross that line by itself:
+        // an element exposing no usable press action returns POLICY_DENIED instead
+        // of quietly falling back, which is what 0.4.x's activation chain did. A
+        // few of our controls only have the physical path (react-aria composites
+        // whose press handler sits on a wrapper node). Opt into it for exactly
+        // those, rather than running the whole suite --headed — the default stays
+        // cursor-free, and only the elements that need the pointer take it.
+        if (e.code !== 'POLICY_DENIED') throw e
+        return await this.ad(['click', ref], { headed: true })
+      }
     })
   }
 
@@ -214,18 +292,17 @@ export class Instance {
   // Case-insensitive: macOS AX reflects CSS text-transform, so uppercased badges
   // ("MIRRORED", "SHARED BY YOU") come through transformed.
   async waitText(substr, timeout = 30000) {
-    // Single window: agent-desktop's native text wait blocks in ONE process with
-    // efficient internal polling — no per-iteration full snapshot — and is
-    // case-insensitive substring, so it's strictly faster than our JS loop
-    // (~0.13s when the text is already up vs a ~0.4s snapshot). It scopes by
-    // --app, so it's only definitive when this instance is the sole Electron
-    // window; multi-instance keeps the per-window snapshot loop so the text is
-    // proven on THIS window, not a sibling that happens to show the same string.
-    if (this.total === 1) {
-      const res = await ad(['wait', '--text', substr, '--app', 'Electron', '--timeout', String(timeout)], { allowError: true })
-      if (res.ok) return true
-      throw new Error(`${this.name}: text "${substr}" not seen in ${timeout}ms (window ${this.windowId})`)
-    }
+    // NO native `wait --text` fast path. It used to be worth it for the
+    // single-window case (~0.13s vs a ~0.4s snapshot), but agent-desktop 0.8.x
+    // matches --text against an element's accessible NAME only, while the strings
+    // this suite asserts on are mostly static text — and macOS AX puts static-text
+    // content in `value`, not `name` (see tree.mjs). So the fast path silently
+    // stopped seeing headings and body copy: `wait --text "Settings"` still matched
+    // the nav BUTTON, while `wait --text "Manage your experience"` timed out on a
+    // Settings screen that demonstrably contained it. The snapshot loop below reads
+    // name + description + value via allText(), which is the behaviour every
+    // assertion here was written against, and it is what the multi-instance path
+    // already used — which is exactly why only single-instance scenarios broke.
     const needle = substr.toLowerCase()
     const deadline = Date.now() + timeout
     let last = ''
@@ -250,8 +327,14 @@ export class Instance {
   }
 
   // Read a node's AX value (e.g. "0"/"1" for aria-pressed / aria-checked toggles).
+  // Reads a CONTROL's value — a toggle's pressed state ("0"/"1"), a field's text —
+  // so it takes the same `actionable` lens as _ref(): a <label for> surfaces as a
+  // ref'd statictext with the control's accessible name and its own text as `value`,
+  // and being earlier in document order it would otherwise win every name-only match
+  // and return the label string instead of the control's value. Visible-text
+  // assertions go through hasText()/waitText(), which deliberately still see it.
   async nodeValue(sel) {
-    const node = findNode(await this.snap(), sel)
+    const node = findNode(await this.snap(), { ...sel, actionable: true })
     return node ? node.value : null
   }
 
@@ -262,8 +345,12 @@ export class Instance {
     await this.waitText('Create Space', 30000)
   }
 
+  // Same `actionable` lens as nodeValue(): a control's disabled state is meaningless
+  // on the label that shares its name, and a statictext never carries `disabled` —
+  // so matching the label would quietly report an actually-disabled control as
+  // enabled, which is a false PASS rather than a visible failure.
   async isDisabled(sel) {
-    const node = findNode(await this.snap(), sel)
+    const node = findNode(await this.snap(), { ...sel, actionable: true })
     return !!node && (node.states ?? []).includes('disabled')
   }
 
