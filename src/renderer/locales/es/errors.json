@@ -5,6 +5,7 @@
   "transferRemoved": "El propietario ya no comparte el archivo",
   "transferNetwork": "Error de red",
   "transferRenameFailed": "No se pudo finalizar la descarga",
+  "transferDestUnavailable": "Carpeta de descargas no disponible",
   "transferFailed": "Error de transferencia",
   "joinFailed": "Error al unirse al espacio",
   "feedbackFailed": "Error al enviar los comentarios",

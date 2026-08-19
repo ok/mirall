@@ -432,6 +432,11 @@
     "appliedOnNextStart": "se aplicará la próxima vez que cierres y vuelvas a abrir Mirall",
     "dismiss": "Descartar"
   },
+  "downloadFolder": {
+    "unavailableToast": "Carpeta de descargas no disponible. Mirall no puede acceder a {{path}}: las descargas fallarán hasta que vuelvas a conectarla o elijas otra carpeta.",
+    "changeFolder": "Cambiar carpeta",
+    "restoredToast": "La carpeta de descargas vuelve a estar disponible"
+  },
   "storageIndicator": {
     "title": "Almacenamiento del espacio",
     "sizeOnDevice": "{{size}} en este dispositivo"
@@ -548,6 +553,7 @@
     "reclaimDone": "Se liberaron {{size}}.",
     "reclaimNone": "El almacenamiento ya está optimizado.",
     "folderError": "No se pudo establecer la carpeta: {{error}}",
+    "folderUnavailable": "Esta carpeta no está disponible en este momento. Puede que se haya movido o eliminado, o que esté en una unidad desconectada: las descargas fallarán hasta que vuelvas a conectarla o elijas otra carpeta.",
     "calculating": "Calculando almacenamiento…",
     "appStorage": "Almacenamiento de la app",
     "showDetails": "Mostrar detalles",

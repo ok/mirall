@@ -21,6 +21,7 @@ export const ErrorCodes = {
   TRANSFER_CHECKSUM: 'TRANSFER_CHECKSUM',
   TRANSFER_REMOVED: 'TRANSFER_REMOVED',
   TRANSFER_RENAME_FAILED: 'TRANSFER_RENAME_FAILED',
+  TRANSFER_DEST_UNAVAILABLE: 'TRANSFER_DEST_UNAVAILABLE',
   EOWNERSHIP: 'EOWNERSHIP',
   SHARE_NAME_COLLISION: 'SHARE_NAME_COLLISION',
   SHARE_NAME_INVALID: 'SHARE_NAME_INVALID',
@@ -62,6 +63,20 @@ export function classifyTransferError(err) {
     return ErrorCodes.TRANSFER_REMOVED
   }
   return ErrorCodes.TRANSFER_NETWORK
+}
+
+// Local-filesystem failures that a download folder which has been deleted, ejected, replaced by
+// a file, or served off a dropped network mount can produce. The errno ALONE never settles it —
+// the same codes arise from ordinary transient faults — so a caller must confirm by probing the
+// destination folder; this set only says "worth probing". Kept here, next to
+// classifyTransferError, so the two can't drift, and free of any fs import — that is what keeps
+// this module loadable under plain Node, and so unit-testable rather than integration-only.
+const LOCAL_DEST_FAULT_CODES = new Set([
+  'ENOENT', 'ENOTDIR', 'ENODEV', 'ENXIO', 'EIO', 'ESTALE', 'EACCES', 'EPERM', 'EROFS',
+])
+
+export function isLocalDestFault(code) {
+  return LOCAL_DEST_FAULT_CODES.has(code)
 }
 
 export function isRetryableTransferError(errorCode) {

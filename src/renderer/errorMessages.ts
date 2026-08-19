@@ -7,6 +7,12 @@ const ERROR_I18N_KEY_BY_CODE: Record<string, string> = {
   TRANSFER_REMOVED: 'transferRemoved',
   TRANSFER_NETWORK: 'transferNetwork',
   TRANSFER_RENAME_FAILED: 'transferRenameFailed',
+  TRANSFER_DEST_UNAVAILABLE: 'transferDestUnavailable',
+  // The worker's catch-all for a fetch it could not classify. Mapped EXPLICITLY even though it
+  // resolves to the same string as the fallback: leaving it out is what let every unclassified
+  // local-filesystem failure — a deleted, ejected, or file-shadowed download folder among them —
+  // reach the user as a bare "Transfer failed", and it would silently swallow the next new code too.
+  DOWNLOAD_FAILED: 'transferFailed',
   LOOSE_FILE_LIMIT: 'looseFileLimit',
   SHARE_FILE_LIMIT: 'shareFileLimit',
 }

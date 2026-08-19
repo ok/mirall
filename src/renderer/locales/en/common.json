@@ -455,6 +455,11 @@
     "appliedOnNextStart": "will be applied next time you quit and reopen Mirall",
     "dismiss": "Dismiss"
   },
+  "downloadFolder": {
+    "unavailableToast": "Download folder unavailable. Mirall can't reach {{path}} — downloads will fail until you reconnect it or choose another folder.",
+    "changeFolder": "Change folder",
+    "restoredToast": "Download folder is available again"
+  },
   "storageIndicator": {
     "title": "Space Storage",
     "sizeOnDevice": "{{size}} on this device"
@@ -562,6 +567,7 @@
     "downloadFolderDesc": "Where Mirall saves files downloaded from your space members.",
     "changeFolder": "Change…",
     "folderError": "Could not set folder: {{error}}",
+    "folderUnavailable": "This folder is currently unavailable. It may have been moved, deleted, or is on a disconnected drive — downloads will fail until you reconnect it or choose another folder.",
     "calculating": "Calculating storage...",
     "appStorage": "App Storage",
     "showDetails": "Show details",

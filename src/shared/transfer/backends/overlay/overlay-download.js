@@ -18,7 +18,7 @@ import { makeProgressTicker } from '../../progress-ticker.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
-import { ErrorCodes, classifyTransferError } from '../../../core/errors.js'
+import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay-download')
@@ -53,11 +53,28 @@ function defaultFreeBytes (dir) {
   }
 }
 
+// Is `dir` a usable destination folder right now? Anything other than a live directory —
+// missing, or a plain file sitting where the folder belongs — reads as unavailable.
+function defaultDirExists (dir) {
+  try { return fs.statSync(dir).isDirectory() } catch { return false }
+}
+
 // A terminal fetch failure's ErrorCode. Disk-full/permission/removed classify specifically
 // (the renderer has dedicated messages and disk-full is excluded from auto-resume); anything
 // unrecognized stays the generic DOWNLOAD_FAILED rather than masquerading as a network error.
-function terminalCodeFor (r) {
+//
+// The download folder is checked FIRST, because a local-fs errno on its own is ambiguous: the
+// very same ENOENT/ENOTDIR/EACCES arise from a transient fault and from a download folder the
+// user deleted, ejected, or replaced with a file. Only probing the folder separates them, and
+// without that the whole class lands on DOWNLOAD_FAILED — the generic "Transfer failed" that
+// tells the user nothing they can act on. macOS makes the ambiguity concrete: /Volumes is
+// root-owned, so a fetch into an ejected volume fails EACCES and would otherwise report
+// "Permission denied" and send the user to check permissions that are perfectly fine.
+function terminalCodeFor (r, job, dirExists) {
   if (r.code === 'EHASHMISMATCH') return ErrorCodes.TRANSFER_CHECKSUM
+  if (isLocalDestFault(r.cause?.code) && !dirExists(path.dirname(job.finalPath))) {
+    return ErrorCodes.TRANSFER_DEST_UNAVAILABLE
+  }
   const classified = classifyTransferError(r.cause)
   return classified === ErrorCodes.TRANSFER_NETWORK ? ErrorCodes.DOWNLOAD_FAILED : classified
 }
@@ -82,7 +99,7 @@ function discardPartial (finalPath) {
 // }
 // job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq,
 //        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
-export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = defaultFreeBytes, stallRetry = {} } = {}) {
+export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = defaultFreeBytes, stallRetry = {}, dirExists = defaultDirExists } = {}) {
   const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
   // transferId -> contentHash for a paused transfer whose single-flight slot was
   // released (the fetch IIFE deletes it on settle). Lets a later discard still tell
@@ -231,9 +248,10 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       return
     }
     diag.finish('failed')
-    const code = terminalCodeFor(r)
+    const code = terminalCodeFor(r, job, dirExists)
     if (code === ErrorCodes.TRANSFER_CHECKSUM) log.warn('overlay integrity failure — holder served bytes that do not match the content hash:', job.relPath)
     else if (code === ErrorCodes.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
+    else if (code === ErrorCodes.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
     else log.debug('overlay fetch failed:', job.relPath, '-', r.code)
     await recordPendingError(job.spaceId, job.pendingKey, code).catch(() => {})
     channel.emitError(job, code)
@@ -345,6 +363,22 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       if (!ownerOnline(job.ownerPublicKey)) {
         registry.delete(transferId)
         log.debug('overlay download queued — owner not present on the control plane:', job.relPath)
+        channel.emitUpdated(job.spaceId)
+        return { queued: true }
+      }
+
+      // Preflight: the download folder must still be there. This is not redundant with the
+      // terminal classification below — the receive path mkdir -p's the destination
+      // (vendor/transfer.js), so a folder the user simply DELETED is silently recreated and the
+      // download completes into a resurrected empty folder with no error to classify at all.
+      // Downloads are flat (finalPath is always <root>/<basename>), so dirname IS the root.
+      // Runs BEFORE the free-space gate on purpose: defaultFreeBytes fails open on a statfs
+      // error, so a gone root sails straight past that check.
+      if (!dirExists(path.dirname(job.finalPath))) {
+        registry.delete(transferId)
+        log.warn('overlay download refused — download folder unavailable:', path.dirname(job.finalPath))
+        await recordPendingError(job.spaceId, job.pendingKey, ErrorCodes.TRANSFER_DEST_UNAVAILABLE).catch(() => {})
+        channel.emitError(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
         channel.emitUpdated(job.spaceId)
         return { queued: true }
       }
@@ -545,7 +579,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       if (!channel.ownsPendingRow(row) || row.ownerKey !== ownerKey) continue
       const transferId = channel.transferIdForRow(spaceId, row)
       if (registry.has(transferId)) continue // active → reconcileActive* owns supersede + removal
-      const suppressed = pausedHashes.has(transferId) || row.errorCode === ErrorCodes.TRANSFER_CHECKSUM || row.errorCode === ErrorCodes.TRANSFER_DISK_FULL
+      const suppressed = pausedHashes.has(transferId) || row.errorCode === ErrorCodes.TRANSFER_CHECKSUM || row.errorCode === ErrorCodes.TRANSFER_DISK_FULL || row.errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE
       if (suppressed && !deep) continue
       const { removed, seq, job } = await channel.resolvePendingRow(spaceId, row)
       const decision = republishDecision(row.contentHash, { removed, seq, contentHash: job?.contentHash ?? null }, row.sourceSeq)

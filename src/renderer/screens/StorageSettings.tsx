@@ -5,6 +5,7 @@ import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
 import { mountErrorI18nKey } from '../errorMessages.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
 import Icon from '../components/primitives/Icon.js'
@@ -75,6 +76,13 @@ function StorageBreakdown({ info, freeing, freedBytes, onFreeSpace }: { info: St
   )
 }
 
+// Trailing separators and Unicode composition are the two ways the same folder reaches us
+// spelled differently; neither changes which folder it is.
+function samePath(a: string, b: string) {
+  const strip = (p: string) => p.replace(/[/\\]+$/, '').normalize('NFC')
+  return strip(a) === strip(b)
+}
+
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
@@ -83,6 +91,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const [downloadFolder, setDownloadFolder] = useState<string>('')
   const [folderError, setFolderError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
   const [freeing, setFreeing] = useState(false)
   const [freedBytes, setFreedBytes] = useState<number | null>(null)
   const freeingRef = useRef(false)
@@ -131,11 +140,22 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       // config, and the next launch would spawn the worker on it with nothing left to check it.
       await request('settings:set-download-folder', { folder: picked })
       setDownloadFolder(await window.bridge.setDownloadFolder(picked))
+      // The picker only accepts a folder that validated, so the warning below is stale the
+      // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
+      await refreshRootStatus()
     } catch (err) {
       const key = mountErrorI18nKey((err as { code?: string } | null)?.code)
       setFolderError(key ? tErr(key) : err instanceof Error ? err.message : String(err))
     }
-  }, [tErr])
+  }, [tErr, refreshRootStatus])
+
+  // This screen shows the GLOBAL root; `unavailableRoots` also carries per-space overrides, so
+  // match rather than test for a non-empty list. The two strings reach us by different routes —
+  // main stores the path the picker returned, the worker stores its own resolved + NFC-normalized
+  // copy — so compare them normalized instead of raw, or a folder with an umlaut in its name
+  // silently fails to match and the warning never shows.
+  const folderUnavailable = downloadFolder.length > 0
+    && unavailableRoots.some((root) => samePath(root, downloadFolder))
 
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -165,8 +185,14 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                   {t('storageSettings.changeFolder')}
                 </button>
               </div>
+              {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
+                  new one was refused. Order matters for a screen reader: the rejection is what
+                  just happened and what the user can act on, so it is announced first. */}
               {folderError && (
                 <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: folderError })}</p>
+              )}
+              {folderUnavailable && (
+                <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderUnavailable')}</p>
               )}
             </div>
           </section>

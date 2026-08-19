@@ -432,6 +432,11 @@
     "appliedOnNextStart": "sera appliquée au prochain redémarrage de Mirall",
     "dismiss": "Ignorer"
   },
+  "downloadFolder": {
+    "unavailableToast": "Dossier de téléchargement indisponible. Mirall ne peut pas accéder à {{path}} — les téléchargements échoueront tant qu'il n'est pas reconnecté ou qu'un autre dossier n'est pas choisi.",
+    "changeFolder": "Changer de dossier",
+    "restoredToast": "Le dossier de téléchargement est de nouveau disponible"
+  },
   "storageIndicator": {
     "title": "Stockage de l'espace",
     "sizeOnDevice": "{{size}} sur cet appareil"
@@ -548,6 +553,7 @@
     "reclaimDone": "{{size}} libérés.",
     "reclaimNone": "Le stockage est déjà optimisé.",
     "folderError": "Impossible de définir le dossier : {{error}}",
+    "folderUnavailable": "Ce dossier est actuellement indisponible. Il a peut-être été déplacé ou supprimé, ou il se trouve sur un disque déconnecté — les téléchargements échoueront tant qu'il n'est pas reconnecté ou qu'un autre dossier n'est pas choisi.",
     "calculating": "Calcul du stockage…",
     "appStorage": "Stockage de l'application",
     "showDetails": "Afficher les détails",
