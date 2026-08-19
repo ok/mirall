@@ -51,6 +51,9 @@ const TAXONOMY = {
   'event:transfer-removed': 'signal',
   'event:leave-progress': 'signal',
   'event:network-status': 'signal',
+  // App-global, like network-status: there is no space/share axis for the hint bus to fan on, and
+  // it is durably backstopped by the downloads:roots-status request the renderer makes on mount.
+  'event:download-roots-status': 'signal',
   'event:profile-needed': 'signal',
   'event:worker-ready': 'signal',
   'event:owned-folder-preview-progress': 'signal',

@@ -915,10 +915,13 @@ const folderEngine = createOverlayDownloadEngine({
   emitProgress: (job, p) => shareDeco(job, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
   emitVerifying: (job, fraction) => shareDeco(job, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
   // Folder rows surface errors via the list refresh (Resume retries); only the terminal
-  // failures cross the wire — disk-full and an integrity mismatch need the user's attention
-  // (toast + notification) and no automatic retry can fix either.
+  // failures cross the wire — disk-full, an integrity mismatch and an unreachable download
+  // folder need the user's attention (toast + notification) and no automatic retry can fix any
+  // of them. The membership of this set and the auto-resume suppression in overlay-download.js
+  // are the same judgement: a fault the user must clear before a retry can ever succeed.
   emitError: (job, errorCode) => {
-    if (errorCode === ErrorCodes.TRANSFER_DISK_FULL || errorCode === ErrorCodes.TRANSFER_CHECKSUM) {
+    if (errorCode === ErrorCodes.TRANSFER_DISK_FULL || errorCode === ErrorCodes.TRANSFER_CHECKSUM
+      || errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE) {
       ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode })
     }
     shareDeco(job, { done: true })

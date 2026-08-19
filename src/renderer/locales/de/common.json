@@ -432,6 +432,11 @@
     "appliedOnNextStart": "wird beim nächsten Beenden und Öffnen von Mirall angewendet",
     "dismiss": "Ausblenden"
   },
+  "downloadFolder": {
+    "unavailableToast": "Download-Ordner nicht verfügbar. Mirall kann {{path}} nicht erreichen – Downloads schlagen fehl, bis der Ordner wieder verfügbar ist oder ein anderer gewählt wird.",
+    "changeFolder": "Ordner ändern",
+    "restoredToast": "Download-Ordner ist wieder verfügbar"
+  },
   "storageIndicator": {
     "title": "Speicher im Raum",
     "sizeOnDevice": "{{size}} auf diesem Gerät"
@@ -548,6 +553,7 @@
     "reclaimDone": "{{size}} freigegeben.",
     "reclaimNone": "Der Speicher ist bereits optimiert.",
     "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",
+    "folderUnavailable": "Dieser Ordner ist derzeit nicht verfügbar. Er wurde möglicherweise verschoben oder gelöscht, oder er liegt auf einem getrennten Laufwerk – Downloads schlagen fehl, bis der Ordner wieder verfügbar ist oder ein anderer gewählt wird.",
     "calculating": "Berechne Speicher…",
     "appStorage": "App-Speicher",
     "showDetails": "Details anzeigen",

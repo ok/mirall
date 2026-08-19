@@ -5,6 +5,7 @@
   "transferRemoved": "File no longer shared by owner",
   "transferNetwork": "Network error",
   "transferRenameFailed": "Could not finalize download",
+  "transferDestUnavailable": "Download folder unavailable",
   "transferFailed": "Transfer failed",
   "joinFailed": "Failed to join space",
   "feedbackFailed": "Failed to send feedback",

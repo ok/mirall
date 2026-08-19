@@ -1001,8 +1001,52 @@ async function probeMountPoints() {
   }
 }
 
+// === Download-root availability ===
+//
+// The mount probe above covers owned/mirrored folders; download roots had no equivalent, which
+// is why a deleted or ejected download folder only ever surfaced as a failing transfer. Every
+// root counts, not just the global one — a per-space override can vanish on its own.
+//
+// Level-triggered probe, edge-triggered emit: re-broadcasting an unchanged set every minute
+// would churn the renderer for nothing, so the event fires only when the set actually changes.
+// The renderer gets its INITIAL state from downloads:roots-status instead of waiting up to a
+// full interval for the first transition.
+let unavailableRoots = []
+
+// The download-root twin of owned-folders' mountRootAvailable, deliberately kept separate: a
+// download root is not a mount, and borrowing the mount-named helper would imply it is.
+function rootAvailable(root) {
+  try { return fs.statSync(root).isDirectory() } catch { return false }
+}
+
+function readUnavailableRoots() {
+  return listDownloadRoots().filter((root) => !rootAvailable(root))
+}
+
+function sameRootSet(a, b) {
+  return a.length === b.length && a.every((root, i) => root === b[i])
+}
+
+function probeDownloadRoots() {
+  const next = readUnavailableRoots()
+  if (sameRootSet(next, unavailableRoots)) return
+  unavailableRoots = next
+  if (next.length > 0) log.warn('download folder unavailable:', next.join(', '))
+  else log.info('all download folders are available again')
+  ipc.emit('event:download-roots-status', { unavailable: next })
+}
+
+// The renderer asks on mount and again whenever a transfer reports the folder gone, so the
+// banner can appear at once rather than on the next tick. Re-probing (rather than returning the
+// cached set) is what makes that second call worth making.
+ipc.handle('downloads:roots-status', async () => {
+  probeDownloadRoots()
+  return { unavailable: unavailableRoots }
+})
+
 const mountProbeTimer = setInterval(() => {
   probeMountPoints().catch((err) => log.debug('mount probe failed:', err.message))
+  try { probeDownloadRoots() } catch (err) { log.debug('download-root probe failed:', err.message) }
 }, MOUNT_PROBE_INTERVAL_MS)
 mountProbeTimer.unref?.()
 

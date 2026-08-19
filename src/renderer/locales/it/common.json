@@ -432,6 +432,11 @@
     "appliedOnNextStart": "verrà applicato la prossima volta che chiudi e riapri Mirall",
     "dismiss": "Ignora"
   },
+  "downloadFolder": {
+    "unavailableToast": "Cartella di download non disponibile. Mirall non riesce a raggiungere {{path}}: i download falliranno finché non la ricolleghi o non scegli un'altra cartella.",
+    "changeFolder": "Cambia cartella",
+    "restoredToast": "La cartella di download è di nuovo disponibile"
+  },
   "storageIndicator": {
     "title": "Archiviazione dello spazio",
     "sizeOnDevice": "{{size}} su questo dispositivo"
@@ -548,6 +553,7 @@
     "reclaimDone": "Liberati {{size}}.",
     "reclaimNone": "L'archiviazione è già ottimizzata.",
     "folderError": "Impossibile impostare la cartella: {{error}}",
+    "folderUnavailable": "Questa cartella non è al momento disponibile. Potrebbe essere stata spostata o eliminata, oppure si trova su un'unità scollegata: i download falliranno finché non la ricolleghi o non scegli un'altra cartella.",
     "calculating": "Calcolo dell'archiviazione…",
     "appStorage": "Spazio dell'app",
     "showDetails": "Mostra dettagli",

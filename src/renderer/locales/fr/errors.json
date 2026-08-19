@@ -5,6 +5,7 @@
   "transferRemoved": "Fichier n'est plus partagé par le propriétaire",
   "transferNetwork": "Erreur réseau",
   "transferRenameFailed": "Impossible de finaliser le téléchargement",
+  "transferDestUnavailable": "Dossier de téléchargement indisponible",
   "transferFailed": "Échec du transfert",
   "joinFailed": "Échec de l'adhésion à l'espace",
   "feedbackFailed": "Échec de l'envoi du commentaire",

@@ -334,6 +334,22 @@ not a status tint; the status hue lives only on the **icon** (`iconColor`). Exce
 `warning` keeps dark `on-warning` text because its container stays bright yellow in
 dark mode. A11y: error = `role="alert" aria-live="assertive"`, others = `status` / `polite`.
 
+**Toast vs. banner — when to use which.** A **persistent, app-wide fault that blocks one
+subsystem** (network down, download folder unreachable) is a **sticky toast**, not a banner:
+`duration: 0`, a stable `id` so re-detection replaces rather than stacks, an `action` pointing at
+the screen that fixes it, and a `success` toast on recovery. Drive it from a renderless *bridge*
+component that watches the state and emits transitions —
+`widgets/ConnectivityToastBridge.tsx` and `widgets/DownloadFolderToastBridge.tsx` are the two
+worked examples; copy their shape rather than inventing a surface. Toasting only on a
+**transition** is what lets a dismissed toast stay dismissed while the fault persists.
+
+The **top-nav banner slot is reserved for `UpdateBanner`** — an informational notice that cannot
+resolve itself (the update is staged until the app restarts) and so needs manual dismissal. It is
+the only banner, and it owns `--banner-h`; adding a second one means reworking that variable's
+ownership and every screen's scroll-height math, so reach for a toast first. Per-*screen*
+affordances that are neither (a pending join request inside a space) are ordinary in-screen cards
+— see `widgets/JoinRequestBanner.tsx`, which despite its name is a card, not a banner.
+
 ### Cards — `components/cards/`
 All share `bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container transition-colors`,
 **no border, no shadow**:

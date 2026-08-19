@@ -5,6 +5,7 @@
   "transferRemoved": "Vom Eigentümer nicht mehr geteilt",
   "transferNetwork": "Netzwerkfehler",
   "transferRenameFailed": "Download konnte nicht abgeschlossen werden",
+  "transferDestUnavailable": "Download-Ordner nicht verfügbar",
   "transferFailed": "Übertragung fehlgeschlagen",
   "joinFailed": "Beitritt zum Raum fehlgeschlagen",
   "feedbackFailed": "Feedback konnte nicht gesendet werden",

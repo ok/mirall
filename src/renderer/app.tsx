@@ -18,6 +18,7 @@ import { ToastProvider, useToast } from './components/toast/ToastProvider.js'
 import { ConnectionStatusProvider } from './hooks/useConnectionStatus.js'
 import ConnectivityToastBridge from './components/widgets/ConnectivityToastBridge.js'
 import WorkerToastBridge from './components/widgets/WorkerToastBridge.js'
+import DownloadFolderToastBridge from './components/widgets/DownloadFolderToastBridge.js'
 import CommandPalette from './keyboard/CommandPalette.js'
 import ShortcutsHint from './keyboard/ShortcutsHint.js'
 import type { Command } from './keyboard/registry.js'
@@ -141,6 +142,7 @@ export default function App() {
     <ToastProvider>
     <ConnectionStatusProvider>
     <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} />
+    <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
     <WorkerToastBridge />
     <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>
       <AppCommands
