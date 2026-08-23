@@ -1,8 +1,8 @@
 <p align="center">
   <a href="https://mirall.app">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/media/wordmark-dark.png">
-      <img src="docs/media/wordmark-light.png" width="240" alt="Mirall">
+      <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
+      <img src="docs/media/logo-light.svg" width="240" alt="Mirall">
     </picture>
   </a>
 </p>
