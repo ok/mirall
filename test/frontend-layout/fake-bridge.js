@@ -82,7 +82,7 @@
   }
 
   // Expose a driver surface to the harness entry.
-  window.__fake = { SPACE_ID, SHARE_ID, OWNER_PK, files }
+  window.__fake = { SPACE_ID, SHARE_ID, OWNER_PK, files, members }
   window.__fakeEmit = (eventObj) => reply(eventObj)
 
   const noop = () => {}

@@ -19,12 +19,13 @@ interface FakeDriver {
   SHARE_ID: string
   OWNER_PK: string
   files: Array<{ relPath: string; size: number }>
+  // The array space:members answers with — the harness grows it in place.
+  members: SpaceMember[]
 }
 
-interface MemberJoinedEvent {
-  type: 'event:member-joined'
-  spaceId: string
-  member: SpaceMember
+interface ReconcileEvent {
+  type: 'event:reconcile'
+  scope: { kind: string; spaceId: string }
 }
 
 interface PhaseMetrics {
@@ -52,7 +53,7 @@ interface HarnessResults {
 declare global {
   interface Window {
     __fake: FakeDriver
-    __fakeEmit: (event: MemberJoinedEvent) => void
+    __fakeEmit: (event: ReconcileEvent) => void
     __results: HarnessResults
   }
 }
@@ -87,10 +88,14 @@ function membersCard(): HTMLElement | null {
   return null
 }
 
-// The only non-header button in the card: "Show all" when collapsed, "Show less"
-// when expanded.
+// The stack/list toggle: "Show all" when collapsed, "Show less" when expanded.
+// Matched by its label rather than by the shape of its attributes — it carries
+// aria-expanded of its own (it is a disclosure), so "the button that isn't the
+// card header" cannot be spelled as :not([aria-expanded]).
 function toggleButton(card: HTMLElement): HTMLButtonElement | null {
-  return card.querySelector<HTMLButtonElement>('button:not([aria-expanded])')
+  const labels = [i18n.t('space.showAllMembers'), i18n.t('space.showFewerMembers')]
+  const buttons = Array.from(card.querySelectorAll<HTMLButtonElement>('button'))
+  return buttons.find((b) => labels.includes((b.textContent ?? '').trim())) ?? null
 }
 
 function scrollRegion(card: HTMLElement): HTMLElement | null {
@@ -156,20 +161,22 @@ async function run() {
   const few = measure(card)
 
   // Grow the roster far past the available height to exercise cap + internal
-  // scroll. useMembers folds these in via the member-joined subscription.
+  // scroll. useMembers re-reads space:members on a members-scoped reconcile hint —
+  // it never folds a roster out of an event payload — so the growth has to land in
+  // the fake bridge's roster first and be announced with a hint.
   for (let i = 0; i < 30; i++) {
-    window.__fakeEmit({
-      type: 'event:member-joined',
-      spaceId: f.SPACE_ID,
-      member: {
-        publicKey: `grown-${i}-`.padEnd(64, '0'),
-        driveKey: 'd'.repeat(64),
-        displayName: `Member ${i}`,
-        online: i % 2 === 0,
-        avatar: null,
-      },
+    f.members.push({
+      publicKey: `grown-${i}-`.padEnd(64, '0'),
+      driveKey: 'd'.repeat(64),
+      displayName: `Member ${i}`,
+      online: i % 2 === 0,
+      avatar: null,
     })
   }
+  window.__fakeEmit({
+    type: 'event:reconcile',
+    scope: { kind: 'members', spaceId: f.SPACE_ID },
+  })
   const growDeadline = Date.now() + 4000
   while (memberRowCount(card) < 24 && Date.now() < growDeadline) {
     await sleep(50)

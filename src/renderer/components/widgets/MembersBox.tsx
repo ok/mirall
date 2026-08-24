@@ -1,22 +1,33 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember } from '../../types.js'
 import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import MemberCard from '../cards/MemberCard.js'
 import Avatar from '../primitives/Avatar.js'
 import { summarizeMembers } from '../../memberSummary.js'
+import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
 
 interface MembersBoxProps {
+  spaceId: string
   members: SpaceMember[]
 }
 
-export default function MembersBox({ members }: MembersBoxProps) {
+export default function MembersBox({ spaceId, members }: MembersBoxProps) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
+  // The card's fold and the stack-vs-list choice inside it are independent, and both
+  // are restored per space: a collapsed card can hold an expanded list underneath.
+  const [open, setOpen] = useSpaceCardState(spaceId, 'membersOpen')
+  const [expanded, setExpanded] = useSpaceCardState(spaceId, 'membersExpanded')
   const { stack, overflow } = summarizeMembers(members, { stackMax: 8 })
 
   return (
-    <CollapsibleCard icon="group" title={t('space.members')} count={members.length} fill={expanded}>
+    <CollapsibleCard
+      icon="group"
+      title={t('space.members')}
+      count={members.length}
+      open={open}
+      onOpenChange={setOpen}
+      fill={expanded}
+    >
       {members.length === 0 ? (
         <p className="text-on-surface-variant text-sm py-4">{t('space.emptyMembers')}</p>
       ) : expanded ? (
@@ -35,6 +46,7 @@ export default function MembersBox({ members }: MembersBoxProps) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
+              aria-expanded={true}
               className="text-secondary font-bold rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
             >
               {t('space.showFewerMembers')}
@@ -72,6 +84,7 @@ export default function MembersBox({ members }: MembersBoxProps) {
           <button
             type="button"
             onClick={() => setExpanded(true)}
+            aria-expanded={false}
             className="ml-auto text-secondary font-bold rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
           >
             {t('space.showAllMembers')}
