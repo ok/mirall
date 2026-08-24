@@ -69,7 +69,7 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "globals": "^17.11.0",
     "hyperdht": "^6.32.0",
-    "i18next": "^26.3.6",
+    "i18next": "^26.4.0",
     "knip": "^6.32.2",
     "marked": "^18.0.9",
     "modern-screenshot": "^4.7.0",
