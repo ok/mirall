@@ -308,8 +308,40 @@ jobs:
           else
             DEST="s3://$BUCKET/$BASE/$ARCH_PATH/Mirall.$EXT"
           fi
-          echo "Uploading artifact/Mirall.$EXT -> $DEST"
-          aws s3 cp "artifact/Mirall.$EXT" "$DEST"
+          # R2 serves the stored contentType verbatim, and `aws s3 cp` derives nothing for
+          # these extensions (Python's mimetypes knows none of them), so a bare copy
+          # publishes an artifact with NO Content-Type header at all. Microsoft requires
+          # application/msix for HTTP-delivered MSIX. An unmapped extension is a hard
+          # failure rather than an octet-stream fallback: a new artifact type has to be a
+          # deliberate choice.
+          case "$EXT" in
+            msix)     CT="application/msix" ;;
+            dmg)      CT="application/x-apple-diskimage" ;;
+            AppImage) CT="application/vnd.appimage" ;;
+            *)        echo "::error::no Content-Type mapping for .$EXT"; exit 1 ;;
+          esac
+          echo "Uploading artifact/Mirall.$EXT -> $DEST  (Content-Type: $CT)"
+          aws s3 cp "artifact/Mirall.$EXT" "$DEST" --content-type "$CT"
+          echo "R2_KEY=${DEST#s3://$BUCKET/}" >> "$GITHUB_ENV"
+          echo "R2_CT=$CT" >> "$GITHUB_ENV"
+
+      - name: Verify uploaded Content-Type
+        if: env.R2_KEY != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          BUCKET: ${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          OBSERVED=$(aws s3api head-object --bucket "$BUCKET" --key "$R2_KEY" \
+                       --query 'ContentType' --output text)
+          echo "observed=$OBSERVED expected=$R2_CT"
+          if [ "$OBSERVED" != "$R2_CT" ]; then
+            echo "::error::Content-Type mismatch on $R2_KEY: '$OBSERVED' != '$R2_CT'"
+            exit 1
+          fi
 
       - name: Upload artifact (CI fallback)
         uses: actions/upload-artifact@v7
