@@ -20,7 +20,10 @@
 //     already has chunks in flight — and therefore re-enters its assign loop on every
 //     arrival — cannot barge past a transfer that is waiting its turn;
 //   - a grant hands the stream CREDIT, so the retry it was woken for cannot lose the bytes
-//     to someone else in between.
+//     to someone else in between;
+//   - every byte leaves through the ledger, whichever path served it. An uncontended
+//     `tryTake` debits `deficit` exactly as a grant does — bytes taken while the queue
+//     happened to be empty are still bytes this stream owes the next one to arrive.
 //
 // Without all three, the caller with the highest polling rate takes everything: the bucket
 // refills continuously in wall-clock time, so whoever calls most often consumes each
@@ -289,6 +292,20 @@ function createStream(ctx) {
       advance(ctx)
       if (!bucketAllows(ctx, bytes, bps)) return false
       ctx.tokens -= bytes
+      // FIX-BW10 — charge the LEDGER too, not just the bucket. serve() debits `deficit` on
+      // every grant it makes; this path used to debit nothing, so bytes taken while the
+      // queue happened to be empty were invisible to the round-robin. That is not a rare
+      // corner: streams attach long after the limiter is built, so an uncontended take is
+      // the normal way a transfer starts, and an oversized chunk may borrow a whole second
+      // of the cap here. Measured on a 1 MB/s cap with 2 MB chunks against 16 KB ones, the
+      // unrecorded borrow halved the large stream's repayment time and starved the small
+      // one to exactly 0% for the whole run.
+      //
+      // Floored at one chunk or one second, whichever is larger — the symmetric partner of
+      // the ceiling in distribute(). Without a floor a long solo transfer would accrue debt
+      // for as long as it ran alone and then sit frozen while it repaid, the moment a
+      // second transfer arrived.
+      s.deficit = Math.max(s.deficit - bytes, -Math.max(bytes, bps))
       return true
     },
 

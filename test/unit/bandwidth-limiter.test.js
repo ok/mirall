@@ -306,8 +306,16 @@ test('REGRESSION (FIX-BW1): three competing streams all make progress', async (t
 // The window must span several grants of the LARGE chunk, or the measurement says nothing:
 // one 1 MB chunk at a 4 MB/s cap is a quarter-second of the whole cap, and whichever stream
 // happens to hold the borrow when the clock stops looks like it took everything.
+// The wait before the first take is LOAD-BEARING, not padding (FIX-BW10). With none, the
+// bucket is still empty when the first stream asks — `last` is stamped at construction — so
+// that ask is refused and every byte in the window is arbitrated by serve(). Production
+// never looks like that: the limiters are built at worker start and streams attach when a
+// transfer begins, so the first ask lands on a full bucket and goes through tryTake's
+// uncontended path. This test only saw the CI runner's scheduling latency stand in for that
+// wait, which is why the bug below reproduced on a 2-vCPU runner and passed on a dev box.
 async function splitBetween (cap, sizes, ms) {
   const l = createBandwidthLimiter(() => cap)
+  await wait(scaled(5))
   const got = sizes.map(() => 0)
   let stopped = false
   sizes.forEach((bytes, i) => {
@@ -344,6 +352,32 @@ test('REGRESSION (FIX-BW3): a chunk bigger than the whole bucket still gets its 
   t.ok(got[0] > 0, `the oversized-chunk stream was served (${Math.round(got[0] / KB)} KB)`)
   t.ok(Math.min(...got) >= total * 0.2,
     `neither side was starved — big=${Math.round(got[0] / KB)}KB small=${Math.round(got[1] / KB)}KB`)
+})
+
+// REGRESSION (FIX-BW10): tryTake's uncontended path charged the shared bucket but not the
+// taker's deficit, so bytes taken while the queue happened to be empty never reached the
+// round-robin. The two tests above only catch it through wall-clock ratios; this one pins
+// the ledger itself on a manual clock, so the ordering is decided by arithmetic rather than
+// by how promptly a runner fires a timer.
+test('REGRESSION (FIX-BW10): an uncontended take is charged to the taker, not just the bucket', async (t) => {
+  const c = clock()
+  const l = createBandwidthLimiter(() => 100 * KB, { now: c.now })
+  const a = l.stream()
+  const b = l.stream()
+  c.advance(1000)
+  t.ok(a.tryTake(100 * KB), 'A takes a full second of budget with nobody queued')
+
+  // Both now queue for the same 100 KB, and one second of budget arrives for the two of
+  // them. A already spent this second, so the refill owes B — reaching A first would mean
+  // A's take never happened as far as fairness is concerned.
+  const served = []
+  a.whenAvailable(100 * KB, () => served.push('a'))
+  b.whenAvailable(100 * KB, () => served.push('b'))
+  c.advance(1000)
+  await wait(scaled(600))   // MAX_ARM_MS is 250; this leaves room for a loaded runner
+  const order = served.slice()   // snapshot: destroy() settles whatever is still parked
+  l.destroy()
+  t.alike(order, ['b'], 'the refill went to B — A owes the second it already took')
 })
 
 test('the aggregate cap still binds once sharing is fair', async (t) => {
