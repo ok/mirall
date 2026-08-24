@@ -78,6 +78,22 @@ of the latest release:
 | Linux (x64) | [Mirall.AppImage](https://mirall.app/download/linux-x64) |
 | Linux (arm64) | [Mirall.AppImage](https://mirall.app/download/linux-arm64) |
 
+**Installing:** on macOS, open the `.dmg` and drag Mirall to Applications. On Windows,
+double-click the `.msix`. On Linux, make the AppImage executable before running it:
+
+```sh
+chmod +x Mirall.AppImage && ./Mirall.AppImage
+```
+
+> [!TIP]
+> **Windows: if double-clicking the `.msix` fails** with "The app package could not be opened",
+> install it directly from a normal (non-elevated) PowerShell window:
+> ```powershell
+> Add-AppxPackage -Path "$HOME\Downloads\Mirall.msix"
+> ```
+> That bypasses App Installer, which is what produces the error. Full explanation:
+> [Install Mirall on Windows when the package won't open](https://mirall.app/docs/guides#install-on-windows).
+
 > [!NOTE]
 > After the first install, Mirall keeps itself up to date automatically — new releases are
 > distributed over the same peer-to-peer network and applied on the next start.
