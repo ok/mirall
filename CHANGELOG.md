@@ -10,7 +10,24 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
-## Unreleased
+## v1.9.0
+### 2026-08-24
+
+This release brings Mirall's new brand: a refined logo and a redrawn app
+icon. The website and GitHub now carry the same brand.
+
+#### Added
+
+- **The cards beside a space remember how you left them.** Fold Space
+  Storage away, or switch the member list between the avatar row and the
+  full list, and each space keeps its own arrangement — leaving the space
+  and coming back restores it. The arrangement lasts until you quit Mirall.
+- **A PowerShell route for installing on Windows.** App Installer can refuse
+  a package that Windows itself installs without complaint. When it does, a
+  script installs the package directly — checking its signature first, and
+  explaining the error codes worth acting on. The install steps are now
+  written down for every platform, including the executable bit a Linux
+  AppImage needs.
 
 #### Fixed
 
@@ -20,6 +37,21 @@ changes do not appear here.
   capped peer now says it is still there while it waits its turn to send, and a
   download that does get interrupted retries on its own for as long as it keeps
   making progress.
+- **A download that can't reach its folder now says so.** If the download
+  folder had been deleted, renamed, or sat on a drive that was ejected, the
+  transfer failed with a generic "Transfer failed" or a misleading
+  "Permission denied" — and a deleted folder was quietly recreated
+  mid-download. Mirall now checks the folder first, names it as the problem
+  on the file and in a notice that offers to change it, and stops retrying a
+  download that has nowhere to land.
+- **Clearing the Activity Log frees the disk space it was using.** Clearing
+  the log emptied it from view but left every entry on disk, so the store
+  came out larger than before. It is now cleared properly and the space
+  comes back, with your retention setting carried across.
+- **The Windows download installs again.** Every published download went out
+  with no content type at all, and Windows refuses to install an MSIX
+  delivered over the web without the right one. Downloads are now published
+  with the correct type.
 
 ## v1.8.0
 ### 2026-08-18
