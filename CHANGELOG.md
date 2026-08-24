@@ -22,12 +22,6 @@ icon. The website and GitHub now carry the same brand.
   Storage away, or switch the member list between the avatar row and the
   full list, and each space keeps its own arrangement — leaving the space
   and coming back restores it. The arrangement lasts until you quit Mirall.
-- **A PowerShell route for installing on Windows.** App Installer can refuse
-  a package that Windows itself installs without complaint. When it does, a
-  script installs the package directly — checking its signature first, and
-  explaining the error codes worth acting on. The install steps are now
-  written down for every platform, including the executable bit a Linux
-  AppImage needs.
 
 #### Fixed
 
@@ -48,10 +42,6 @@ icon. The website and GitHub now carry the same brand.
   the log emptied it from view but left every entry on disk, so the store
   came out larger than before. It is now cleared properly and the space
   comes back, with your retention setting carried across.
-- **The Windows download installs again.** Every published download went out
-  with no content type at all, and Windows refuses to install an MSIX
-  delivered over the web without the right one. Downloads are now published
-  with the correct type.
 
 ## v1.8.0
 ### 2026-08-18
