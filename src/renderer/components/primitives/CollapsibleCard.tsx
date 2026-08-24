@@ -6,6 +6,11 @@ interface CollapsibleCardProps {
   title: string
   count?: number
   defaultOpen?: boolean
+  // Controlled when `open` is passed: the card then renders what the caller owns and
+  // reports every toggle through onOpenChange, so state that has to outlive the mount
+  // (per-space card state) can live outside this primitive without it importing a store.
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   fill?: boolean
   children: ReactNode
 }
@@ -15,10 +20,19 @@ export default function CollapsibleCard({
   title,
   count,
   defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
   fill = false,
   children,
 }: CollapsibleCardProps) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
+  const open = controlledOpen ?? uncontrolledOpen
+
+  const toggle = () => {
+    const next = !open
+    if (controlledOpen === undefined) setUncontrolledOpen(next)
+    onOpenChange?.(next)
+  }
 
   const root = fill && open
     ? 'bg-surface-container-low rounded-2xl p-8 flex flex-col min-h-0 overflow-hidden'
@@ -28,7 +42,7 @@ export default function CollapsibleCard({
     <div className={root}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={toggle}
         aria-expanded={open}
         className="shrink-0 w-full flex items-center gap-2 text-left text-xl font-headline font-bold text-accent rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
       >

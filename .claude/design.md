@@ -397,7 +397,12 @@ while the ETA is still warming up (no stable rate yet). Indeterminate renders a
 
 ### Collapsible card — `primitives/CollapsibleCard.tsx`
 `bg-surface-container-low rounded-2xl p-8`; header button carrying the standard
-disclosure chevron (below).
+disclosure chevron (below). Open by default, and uncontrolled unless the caller passes
+`open` + `onOpenChange`. The SpaceView sidebar cards do pass them: **Space Storage** and
+**Members** keep their fold per space for the session (`hooks/useSpaceCardState.ts`), as
+does the Members card's avatar-stack-vs-list choice, so leaving a space and coming back
+restores what you left. The two are independent — a collapsed Members card still holds an
+expanded list underneath — and a space you have not touched opens at the defaults.
 
 ### Disclosure chevron (expand / collapse affordance)
 Every expand/collapse control — `CollapsibleCard`, the `NetworkStatus` sections, the

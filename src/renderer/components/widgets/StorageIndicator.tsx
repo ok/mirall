@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { formatSize } from '../../utils.js'
 import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import { useSpaceStorage } from '../../hooks/useSpaceStorage.js'
+import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
 
 interface StorageIndicatorProps {
   spaceId: string
@@ -12,9 +13,10 @@ export default function StorageIndicator({ spaceId }: StorageIndicatorProps) {
   // Space-wide totals (folders + loose files); on-device is what is actually on
   // this disk — owned content fully, mirrors their materialized subset.
   const summary = useSpaceStorage(spaceId)
+  const [open, setOpen] = useSpaceCardState(spaceId, 'storageOpen')
 
   return (
-    <CollapsibleCard icon="folder" title={t('storageIndicator.title')}>
+    <CollapsibleCard icon="folder" title={t('storageIndicator.title')} open={open} onOpenChange={setOpen}>
       <div className="text-5xl font-headline font-extrabold text-accent tracking-tighter leading-none break-words">
         {formatSize(summary?.totalBytes ?? 0)}
       </div>

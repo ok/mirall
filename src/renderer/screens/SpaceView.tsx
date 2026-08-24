@@ -492,7 +492,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           <div className="shrink-0">
             <StorageIndicator spaceId={spaceId} />
           </div>
-          <MembersBox members={members} />
+          <MembersBox spaceId={spaceId} members={members} />
         </div>
 
         <DropOverlay active={dragActive} kind={dragKind} fileCount={fileCount} folderName={folderName} />

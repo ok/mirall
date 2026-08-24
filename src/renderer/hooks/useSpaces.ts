@@ -4,6 +4,7 @@ import { request, subscribe } from '../ipc.js'
 import { scopeMatches, type Scope as ScopeType } from '../scope.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
+import { pruneSpaceCardState } from './useSpaceCardState.js'
 import type { Space } from '../types.js'
 
 export function useSpaces() {
@@ -15,6 +16,7 @@ export function useSpaces() {
     setSpaces(data)
     pruneRosterCache(data.map((s) => s.spaceId))
     pruneMirrorCache(data.map((s) => s.spaceId))
+    pruneSpaceCardState(data.map((s) => s.spaceId))
     setLoading(false)
   }
 
@@ -26,6 +28,7 @@ export function useSpaces() {
         setSpaces(data)
         pruneRosterCache(data.map((s) => s.spaceId))
         pruneMirrorCache(data.map((s) => s.spaceId))
+        pruneSpaceCardState(data.map((s) => s.spaceId))
       }
     })
     // This list spans every space, so it is a wildcard view on the members/join-requests axes:
