@@ -57,7 +57,7 @@
     "@tailwindcss/cli": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react-dom": "^19.2.5",
     "app-builder-lib": "^26.15.3",
     "bare-runtime": "^1.31.0",
     "brittle": "^4.1.0",
