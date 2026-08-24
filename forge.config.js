@@ -151,6 +151,9 @@ let packagerConfig = {
     // compliance; everything else is internal noise that has no business
     // shipping to end users.
     /^\/[^/]+\.md$/,
+    // docs/ is README material only (hero screenshots, wordmarks) — ~850 KB that
+    // nothing reads at runtime but that shipped in every bundle on every platform.
+    /^\/docs($|\/)/,
     /^\/\.env(\..*)?$/,
     /^\/\.gitignore$/,
     /^\/\.gitattributes$/,
