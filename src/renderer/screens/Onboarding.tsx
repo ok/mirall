@@ -5,6 +5,7 @@ import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../utils.js'
 import Icon from '../components/primitives/Icon.js'
 import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'
+import Logo from '../components/primitives/Logo.js'
 
 interface OnboardingProps {
   onComplete: (data: { displayName: string; avatar: string | null }) => Promise<unknown>
@@ -48,8 +49,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       <header className="fixed top-0 w-full z-50" style={{ WebkitAppRegion: 'drag' }}>
         <div className="bg-surface-container-lowest/70 backdrop-blur-xl shadow-[0_12px_40px_rgba(74,59,82,0.06)]">
           <div className="flex items-center justify-center py-4 px-8 w-full max-w-7xl mx-auto">
-            <span className="text-2xl font-extrabold text-on-surface tracking-tighter font-headline">
-              Mirall<span className="text-[#fd9c42]">.</span>
+            <span className="flex h-8 items-center text-on-surface">
+              <Logo label="Mirall" />
             </span>
           </div>
         </div>

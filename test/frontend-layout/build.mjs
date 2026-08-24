@@ -67,6 +67,11 @@ await build({
 })
 await build({
   ...common,
+  entryPoints: [path.join(HERE, 'harness-logohover-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-logohover.js'),
+})
+await build({
+  ...common,
   entryPoints: [path.join(HERE, 'harness-mirrorers-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-mirrorers.js'),
 })

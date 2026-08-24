@@ -164,9 +164,11 @@ let packagerConfig = {
     // path-only sourcemap data.
     /^\/assets\/dist\/.*\.map$/,
     // resources/ is mostly package-time inputs read from the source tree by
-    // forge makers (DMG layout, MSIX manifest, AppImage staging) — none
+    // forge makers (DMG layout, MSIX manifest, AppImage staging) — plus
+    // resources/brand, the SVG the committed icons are generated from. None
     // of it is read at runtime. Keep only the per-platform Notification
     // icons (resources/{darwin/icon.icns,win32/icon.ico,linux/icon.png}).
+    /^\/resources\/brand($|\/)/,
     /^\/resources\/darwin\/dmg($|\/)/,
     /^\/resources\/darwin\/entitlements\.plist$/,
     /^\/resources\/win32\/AppxManifest\.xml$/,
