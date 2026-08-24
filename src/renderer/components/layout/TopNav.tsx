@@ -7,6 +7,7 @@ import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Avatar from '../primitives/Avatar.js'
+import Logo from '../primitives/Logo.js'
 
 interface TopNavProps {
   profile: Profile | null
@@ -35,9 +36,9 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
               aria-label={t('shortcuts.home')}
               title={t('shortcuts.home')}
               style={{ WebkitAppRegion: 'no-drag' }}
-              className="pointer-events-auto text-2xl font-extrabold text-black dark:text-white tracking-tighter font-headline rounded-lg px-2 hover:opacity-80 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+              className="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
             >
-              Mirall<span className="text-[#fd9c42]">.</span>
+              <Logo />
             </button>
           </div>
           <div className="flex items-center gap-4 ml-auto" style={{ WebkitAppRegion: 'no-drag' }}>

@@ -428,6 +428,22 @@ Inline **Material Symbols** SVG paths (`viewBox="0 -960 960 960"`,
 Default size 24. `aria-hidden` unless `ariaLabel` is provided. No icon font, no
 sprite sheet. File-type icon mapping lives in `src/renderer/fileIcon.js`.
 
+### Logo — `primitives/Logo.tsx`
+The Mirall wordmark, inline SVG (`viewBox="0 0 2835 844"`, so height drives
+width — default `h-5 w-auto`). Lettering is `currentColor`, so the caller sets
+the theme with a text colour (`text-black dark:text-white` in TopNav,
+`text-on-surface` in Onboarding) and one component covers both the black and
+white brand exports. The dot is a literal `#fd9c42`, **not**
+`secondary-container` — that token goes muted brown in dark, and the signature
+orange must not. `aria-hidden` unless a `label` is passed, since the top bar
+already names its home button. Source of truth:
+`resources/brand/mirall-logo.svg`.
+
+**No hover treatment.** The logo button carries `active:scale-95` and the focus
+ring only. A hover fade reads as a *colour* change on a wordmark painted in the
+surface's own text colour — white lettering at 80% over the dark bar is a grey
+logo. Pinned by `npm run test:layout:logohover`.
+
 ---
 
 ## 8. Motion & accessibility

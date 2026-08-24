@@ -42,6 +42,7 @@
     "test:layout:peerdownload": "node test/frontend-layout/run-peerdownload.mjs",
     "test:layout:filecard": "node test/frontend-layout/run-filecard.mjs",
     "test:layout:modaltitle": "node test/frontend-layout/run-modaltitle.mjs",
+    "test:layout:logohover": "node test/frontend-layout/run-logohover.mjs",
     "test:layout:mirrorers": "node test/frontend-layout/run-mirrorers.mjs"
   },
   "devDependencies": {
