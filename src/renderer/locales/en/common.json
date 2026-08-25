@@ -34,7 +34,8 @@
       "network": "Network status",
       "activityLog": "Activity log",
       "activityLogSettings": "Activity log settings",
-      "networkSettings": "Network settings"
+      "networkSettings": "Network settings",
+      "connectionProblem": "Connection problem"
     }
   },
   "avatar": {
@@ -646,7 +647,25 @@
     "offlineToast": "Network connection lost. Mirall is paused.",
     "connectingToast": "Reconnecting…",
     "restoredToast": "Back online",
-    "showDetails": "Show details"
+    "showDetails": "Show details",
+    "whatCanIDo": "What can I do?",
+    "blockedToast": {
+      "generic": "Your network is blocking connections to other people. Invites and shares won't arrive.",
+      "peers-unreachable": "We can find other people but can't connect to them. Invites and shares won't arrive.",
+      "os-offline": "This device isn't connected to any network.",
+      "vpn-only-route": "Mirall can't reach the network. Your VPN appears to be the only route out."
+    },
+    "atRiskToast": {
+      "generic": "Connections to many people will fail on this network.",
+      "symmetric-nat": "Connections to many people will fail on this network. Mobile routers and tethering are the usual cause."
+    },
+    "fix": {
+      "vpn": "Turn off your VPN and check again.",
+      "mobile": "Use a cable or DSL connection instead of a mobile router or phone tethering. On a mobile network there's no router setting that fixes this.",
+      "otherNetwork": "Try a different Wi-Fi — company and guest networks often filter this traffic.",
+      "turnOnNetwork": "Turn your Wi-Fi back on, or plug in a network cable."
+    },
+    "limited": "Limited"
   },
   "networkSettings": {
     "title": "Network",
@@ -711,7 +730,14 @@
       "connectingTitle": "Connecting to the Mirall network…",
       "connectingBody": "This is taking longer than expected. Check your firewall, VPN, or ISP.",
       "offlineTitle": "You're offline",
-      "offlineBody": "Mirall is paused until your network returns."
+      "offlineBody": "Mirall is paused until your network returns.",
+      "unknownTitle": "Checking your connection…",
+      "unknownBody": "Working out how this network behaves.",
+      "at-riskTitle": "Limited connection",
+      "at-riskBody": "Connections to many people will fail on this network.",
+      "blockedTitle": "Mirall can't reach other people",
+      "blockedBody": "Invites and shares won't arrive while this is the case.",
+      "body": {}
     },
     "advancedToggle": "Show advanced details",
     "advancedHint": "Address, NAT, DHT, counters",
@@ -755,15 +781,50 @@
       "osOffline": "Your operating system reports no internet connection. Check your Wi-Fi or Ethernet.",
       "firewalled": "Your router appears to be blocking inbound UDP. Peers will reach you only via holepunching.",
       "randomizedNat": "Your network randomises outbound ports. Direct connections may fail.",
-      "symmetricNat": "Symmetric NAT detected — connectivity will rely on holepunched paths.",
+      "symmetricNat": "Your connection uses changing ports. Connections to many people will fail — mobile routers and tethering are the usual cause.",
       "noPublicAddr": "Couldn't determine your public IP. Check your internet connection.",
       "smallRoutingTable": "Few DHT peers known so far. Bootstrap may still be in progress.",
-      "stillBootstrapping": "Still joining the DHT — give it a moment."
+      "stillBootstrapping": "Still joining the DHT — give it a moment.",
+      "symmetricNatFix": "On a mobile network there's no router setting that fixes this. A cable or DSL connection will work.",
+      "udpDegraded": "Your network keeps dropping traffic to the Mirall network. Transfers may stall.",
+      "stillSettling": "Still working out how this network behaves — give it a moment."
     },
     "relaying": "Relaying",
     "relayedActive": "Relayed connections",
     "relayedAttempts": "Relay attempts",
-    "relayedAborts": "Relay failures"
+    "relayedAborts": "Relay failures",
+    "summary": {
+      "title": "Connection summary",
+      "connection": "Connection",
+      "connectionValue": {
+        "healthy": "Working",
+        "at-risk": "Limited",
+        "blocked": "Blocked",
+        "unknown": "Checking…"
+      },
+      "reachable": "Reachable from outside",
+      "reachableValue": {
+        "yes": "Yes",
+        "changingPorts": "No — your network uses changing ports",
+        "noAddress": "No — we can't tell how you appear to others",
+        "unknown": "Checking…"
+      },
+      "connectionTest": "Connection test",
+      "testValue": {
+        "reachable": "Passed",
+        "unreachable": "Failed",
+        "seeder-down": "Test server unavailable",
+        "unavailable": "Not run",
+        "pending": "Running…"
+      },
+      "people": "People",
+      "peopleValue": "{{found}} found · {{connected}} connected",
+      "runningFor": "Running for"
+    },
+    "canary": "Connection test",
+    "canaryState": "Result",
+    "canaryRecords": "Test servers found",
+    "canaryChecked": "Last checked"
   },
   "activityLog": {
     "title": "Activity Log",
@@ -907,5 +968,74 @@
     "deleteConfirmBody": "Every recorded event is removed from this device. This can't be undone.",
     "deleteDone_one": "Deleted {{count}} event.",
     "deleteDone_other": "Deleted {{count}} events."
+  },
+  "connectionProblem": {
+    "title": "Connection problem",
+    "subtitle": {
+      "blocked": "Mirall can't reach other people from this network.",
+      "atRisk": "Mirall can only reach some people from this network.",
+      "offline": "This device isn't connected to any network.",
+      "vpnOnly": "Your VPN appears to be the only route out."
+    },
+    "verdict": {
+      "blocked": "Your network is blocking Mirall",
+      "atRisk": "Limited connection",
+      "offline": "You're offline",
+      "vpnOnly": "Can't reach the network"
+    },
+    "body": {
+      "generic": "We can find other people on the Mirall network, but we can't connect to them.",
+      "symmetric-nat": "Your connection uses a different port every time it reaches out. Connections to some people will work; to many others they will fail. Mobile routers and phone tethering are the usual cause.",
+      "no-public-address": "We couldn't work out how you appear to the rest of the network, so other people have no way to reach you.",
+      "peers-unreachable": "We can find other people on the Mirall network, but we can't connect to them. While this is the case, invites you send won't arrive and spaces you join won't sync.",
+      "dht-unreachable": "Mirall can't reach the network from here at all.",
+      "udp-degraded": "Your connection to the network keeps dropping traffic, so transfers may stall.",
+      "os-offline": "This device isn't connected to any network.",
+      "vpn-only-route": "Every route on this device goes through a VPN, and nothing is answering through it. If the VPN lost its own connection, Mirall cannot get out either."
+    },
+    "fixHeading": "What helps, in this order",
+    "checkAgain": "Check again",
+    "checking": "Checking…",
+    "networkDetails": "Network details",
+    "checkedJustNow": "Checked just now",
+    "checkedMinutes_one": "Checked {{count}} minute ago",
+    "checkedMinutes_other": "Checked {{count}} minutes ago",
+    "checkedNever": "Not checked yet",
+    "stillWorks": {
+      "blocked": "You can still set up spaces — they'll stay on this device and start syncing once the connection works.",
+      "atRisk": "Sharing will still work with some people.",
+      "offline": "Spaces you set up now will start syncing as soon as you reconnect.",
+      "vpnOnly": "Spaces you set up now will start syncing once the connection works."
+    },
+    "continueToSpaces": "Continue to Spaces",
+    "recoveredTitle": "Connection restored",
+    "recoveredSubtitle": "Mirall can reach other people again.",
+    "recoveredVerdict": "Your connection is working",
+    "recoveredBody": "Whatever was blocking Mirall has cleared. You can create or join a space.",
+    "heading": {
+      "blocked": "Connection problem",
+      "atRisk": "Connection problem",
+      "offline": "No network connection",
+      "vpnOnly": "Mirall can't reach the network"
+    }
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "intro": "If we ask you for details, save this file and send it to us. It describes how your network behaves — not what you share or who you share it with.",
+    "redactLabel": "Remove identifying details",
+    "redactDescription": "Your IP address, keys and space names are shortened or left out. Recommended — this is enough for us to diagnose connection problems.",
+    "logsLabel": "Include detailed logs",
+    "logsDescription": "Turns on detailed logging, then asks you to reproduce the problem before saving.",
+    "save": "Save diagnostics",
+    "preview": "Preview what's included",
+    "previewTitle": "What's in the file",
+    "previewIntro": "Identifying details removed. This is exactly what will be saved.",
+    "previewRegion": "Diagnostics file contents",
+    "previewTruncated": "(truncated — the saved file contains everything)",
+    "saveFile": "Save file",
+    "approxSize": "about {{size}}",
+    "saved": "Diagnostics file saved.",
+    "verboseOn": "Detailed logging is on. Reproduce the problem, then save the file.",
+    "previewIntroRaw": "Identifying details are INCLUDED. This is exactly what will be saved."
   }
 }

@@ -13,6 +13,8 @@ import NetworkStatus from '../../screens/NetworkStatus.js'
 import Account from '../../screens/Account.js'
 import ActivityLog from '../../screens/ActivityLog.js'
 import ActivityLogSettings from '../../screens/ActivityLogSettings.js'
+import ConnectionProblem from '../../screens/ConnectionProblem.js'
+import { useConnectionGate } from '../../hooks/useConnectionGate.js'
 
 interface ScreenRouterProps {
   nav: AppNavigation
@@ -25,13 +27,27 @@ interface ScreenRouterProps {
 
 export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedback, onShowCreate, onShowJoin }: ScreenRouterProps) {
   const { currentScreen, selectedSpaceId, selectedShare } = nav
+  const gate = useConnectionGate()
   switch (currentScreen) {
     case 'spaces':
-      return (
+      return gate.showConnectionProblem ? (
+        <ConnectionProblem
+          onContinue={gate.dismiss}
+          onShowDetails={() => nav.setCurrentScreen('network-status')}
+        />
+      ) : (
         <SharedSpaces
           onSelectSpace={nav.navigateToSpace}
           onShowCreate={onShowCreate}
           onShowJoin={onShowJoin}
+        />
+      )
+    case 'connection-problem':
+      return (
+        <ConnectionProblem
+          onBack={() => nav.setCurrentScreen('spaces')}
+          onContinue={() => nav.setCurrentScreen('spaces')}
+          onShowDetails={() => nav.setCurrentScreen('network-status')}
         />
       )
     case 'space-view':

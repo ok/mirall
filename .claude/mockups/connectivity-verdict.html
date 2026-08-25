@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connectivity verdict — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span {
+    width: 12px; height: 12px; border-radius: 9999px; display: inline-block;
+  }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Section note plate — mockup chrome only, never shipped UI */
+  .note-plate { background: rgba(255,255,255,.72); }
+  .dark .note-plate { background: rgba(0,0,0,.30); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- =========== Page header / theme toggle ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-10 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Connectivity verdict — mockup
+    </h1>
+    <p class="text-sm" style="color:#4a454b">
+      UI delta for <code class="bg-black/5 px-1 rounded text-xs">~/Projects/Mirall/plans/plan-connectivity-verdict.md</code>.
+      Click the toggle to flip light/dark.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Annotation banner ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#d6e6f5; border-color:#9bc6e8">
+    <div class="flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#1f4a78" class="shrink-0 mt-0.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">What's proposed vs. recreated</p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          <strong>Proposed (the delta):</strong> a dedicated
+          <code class="bg-white/60 px-1 rounded text-xs">ConnectionProblem</code> screen — its own title, its own
+          purpose, and none of the space-management actions (§2, §3), shown in place of the spaces screen when the
+          verdict is degraded and the user has no spaces; connectivity <strong>toasts</strong> for everything that
+          arrives mid-session (§1, §5); a new <strong>onboarding check step</strong> (§6); and a reworked
+          <strong>Network status</strong> screen — a plain-language Connection summary plus a savable diagnostics
+          bundle, with the raw protocol fields demoted to an optional disclosure (§7, §7b). §1b is the timing
+          evidence that picks screen over modal.
+          <br/>
+          <strong>Recreated from code (baseline truth):</strong> the spaces screen header, filter chips and empty
+          state from <code class="bg-white/60 px-1 rounded text-xs">src/renderer/screens/SharedSpaces.tsx</code>;
+          the toast from <code class="bg-white/60 px-1 rounded text-xs">components/toast/Toast.tsx</code> (variant
+          styles, countdown ring, action button); the onboarding shell from
+          <code class="bg-white/60 px-1 rounded text-xs">screens/Onboarding.tsx</code>; the verdict panel, field
+          rows and suggestion list from <code class="bg-white/60 px-1 rounded text-xs">screens/NetworkStatus.tsx</code>.
+          Existing strings are the real <code class="bg-white/60 px-1 rounded text-xs">locales/en/common.json</code>
+          values; everything under <code class="bg-white/60 px-1 rounded text-xs">connectivity.*</code> /
+          <code class="bg-white/60 px-1 rounded text-xs">networkCheck.*</code> is marked proposed new copy.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== Decision note ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#ffdad6; border-color:#93000a">
+    <div class="flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#93000a" class="shrink-0 mt-0.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">Rejected: a persistent top banner, and a blocking modal</p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          An earlier draft reused the <code class="bg-white/60 px-1 rounded text-xs">UpdateBanner</code> slot for
+          connectivity errors. <strong>Rejected</strong> — the update banner stays for updates only and is not
+          overloaded with error messaging. Errors go to the toast system; the standing explanation lives in the
+          dedicated Connection problem screen. See §8a for the rejected treatment, kept so the decision stays legible.
+          <br/>
+          Side benefit: <code class="bg-white/60 px-1 rounded text-xs">--banner-h</code> keeps its single owner, so
+          the banner-stacking refactor in the plan (§9.2) is no longer needed.
+          <br/><br/>
+          A <strong>blocking modal</strong> was also considered and rejected — see §1b for the timing evidence and
+          §8 for the treatment. Short version: we know the verdict before the user has acted, so there is nothing
+          to interrupt; and blocking would be unjustified anyway, because creating a space works fine offline.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- =========== SECTION 1: connectivity toasts in isolation =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-12">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">1 · Connectivity toasts (the error channel)</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Recreated verbatim from <code class="bg-black/5 px-1 rounded text-xs">Toast.tsx</code>: container
+    <code class="bg-black/5 px-1 rounded text-xs">min-w-[280px] max-w-[720px] rounded-lg px-4 py-3 shadow-lg</code>,
+    per-variant fill, 20px leading icon, underlined action button, and the dismiss control whose countdown ring
+    swaps to a close glyph on hover. <strong>Blocked and at-risk toasts are sticky</strong>
+    (<code class="bg-black/5 px-1 rounded text-xs">duration: 0</code>) — the existing offline toast already is.
+    <br/>
+    A11y: <code class="bg-black/5 px-1 rounded text-xs">error</code> renders
+    <code class="bg-black/5 px-1 rounded text-xs">role="alert" aria-live="assertive"</code>; the others
+    <code class="bg-black/5 px-1 rounded text-xs">role="status" aria-live="polite"</code> — unchanged from the
+    shipped component. Meaning lives in the text, never in the fill colour alone.
+  </p>
+
+  <div class="device-frame p-8 flex flex-col items-end gap-3" style="background:var(--color-surface)">
+
+    <!-- BLOCKED — error variant, sticky -->
+    <div role="alert" aria-live="assertive"
+         class="pointer-events-auto flex items-center gap-3 min-w-[280px] max-w-[720px] rounded-lg px-4 py-3 shadow-lg bg-error-container text-on-surface-variant">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-error-container" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <span class="min-w-0 flex-1 text-sm leading-snug break-words">Your network is blocking connections to other people. Invites and shares won't arrive.</span>
+      <button type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm font-medium underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40">What can I do?</button>
+      <button type="button" aria-label="Dismiss" class="relative shrink-0 w-7 h-7 rounded-full hover:bg-black/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40">
+        <span class="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/></svg>
+        </span>
+      </button>
+    </div>
+
+    <!-- AT-RISK — warning variant, sticky -->
+    <div role="status" aria-live="polite"
+         class="pointer-events-auto flex items-center gap-3 min-w-[280px] max-w-[720px] rounded-lg px-4 py-3 shadow-lg bg-warning text-on-warning">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-warning" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <span class="min-w-0 flex-1 text-sm leading-snug break-words">Connections to many people will fail on this network. Mobile routers and tethering are the usual cause.</span>
+      <button type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm font-medium underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40">What can I do?</button>
+      <button type="button" aria-label="Dismiss" class="relative shrink-0 w-7 h-7 rounded-full hover:bg-black/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40">
+        <span class="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/></svg>
+        </span>
+      </button>
+    </div>
+
+    <!-- RECOVERED — success variant, auto-dismisses (real string, unchanged) -->
+    <div role="status" aria-live="polite"
+         class="pointer-events-auto flex items-center gap-3 min-w-[280px] max-w-[720px] rounded-lg px-4 py-3 shadow-lg bg-success text-on-surface-variant">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-success" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>
+      <span class="min-w-0 flex-1 text-sm leading-snug break-words">Back online</span>
+      <button type="button" aria-label="Dismiss" class="relative shrink-0 w-7 h-7 rounded-full hover:bg-black/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40">
+        <span class="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/>
+            <circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="50.3" stroke-dashoffset="18" stroke-linecap="round" transform="rotate(-90 9 9)"/>
+          </svg>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Copy status:</strong> "Back online" is the shipped
+    <code class="text-xs bg-black/5 px-1 rounded">connectivity.restoredToast</code>. The blocked and at-risk
+    messages are <strong>proposed</strong> new keys
+    (<code class="text-xs bg-black/5 px-1 rounded">connectivity.blockedToast</code> /
+    <code class="text-xs bg-black/5 px-1 rounded">connectivity.atRiskToast</code>). The existing
+    <code class="text-xs bg-black/5 px-1 rounded">offlineToast</code> / <code class="text-xs bg-black/5 px-1 rounded">connectingToast</code>
+    stay for the OS-offline and boot cases.
+    <br/><br/>
+    <strong>Toast identity:</strong> all connectivity toasts keep sharing the single
+    <code class="text-xs bg-black/5 px-1 rounded">TOAST_ID = 'connectivity'</code> from
+    <code class="text-xs bg-black/5 px-1 rounded">ConnectivityToastBridge.tsx</code>, so a verdict change
+    <em>replaces</em> the previous toast rather than stacking a second one.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 1b: WHEN do we know? =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">1b · When the verdict is actually available</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    This table decides the surface. Measured from the library sources, not assumed —
+    <code class="bg-black/5 px-1 rounded text-xs">dht-rpc</code> emits
+    <code class="bg-black/5 px-1 rounded text-xs">'ready'</code> only <em>after</em> its bootstrap
+    <code class="bg-black/5 px-1 rounded text-xs">FIND_NODE</code> walk finishes
+    (<code class="bg-black/5 px-1 rounded text-xs">index.js:395-404</code>), and every response on that walk
+    already fed <code class="bg-black/5 px-1 rounded text-xs">_natAdd()</code>. So NAT consensus exists at the
+    same instant <code class="bg-black/5 px-1 rounded text-xs">dhtReady</code> flips.
+  </p>
+
+  <div class="note-plate rounded-2xl p-6 overflow-x-auto">
+    <table class="w-full text-sm" style="color:#4a454b; min-width:640px">
+      <thead>
+        <tr class="text-left" style="color:#33253b">
+          <th class="font-headline font-extrabold pb-3 pr-4">Signal</th>
+          <th class="font-headline font-extrabold pb-3 pr-4">Gated on</th>
+          <th class="font-headline font-extrabold pb-3">Typical</th>
+        </tr>
+      </thead>
+      <tbody class="align-top">
+        <tr style="border-top:1px solid rgba(0,0,0,.08)">
+          <td class="py-3 pr-4"><strong>Tier 1 — NAT shape</strong></td>
+          <td class="py-3 pr-4">the bootstrap query, which already sampled it</td>
+          <td class="py-3"><strong style="color:#0d8b80">~1–3 s</strong> — same moment as <code class="text-xs bg-black/5 px-1 rounded">dhtReady</code></td>
+        </tr>
+        <tr style="border-top:1px solid rgba(0,0,0,.08)">
+          <td class="py-3 pr-4"><strong>Tier 4 — canary</strong></td>
+          <td class="py-3 pr-4">stage 1 lookup, then a dial (10 s cap each)</td>
+          <td class="py-3"><strong style="color:#0d8b80">~2–20 s</strong></td>
+        </tr>
+        <tr style="border-top:1px solid rgba(0,0,0,.08)">
+          <td class="py-3 pr-4"><strong>Tier 3 — transport health</strong></td>
+          <td class="py-3 pr-4">4 ticks × <code class="text-xs bg-black/5 px-1 rounded">TICK_INTERVAL 5000</code>; <code class="text-xs bg-black/5 px-1 rounded">cold</code> until then</td>
+          <td class="py-3">~20 s</td>
+        </tr>
+        <tr style="border-top:1px solid rgba(0,0,0,.08)">
+          <td class="py-3 pr-4"><strong>Tier 2 — real peers</strong></td>
+          <td class="py-3 pr-4">having spaces, plus dials that actually failed</td>
+          <td class="py-3">30 s – minutes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="mt-5 pt-5 text-sm leading-relaxed" style="border-top:2px solid rgba(0,0,0,.12); color:#4a454b">
+      <p class="font-headline font-extrabold text-base mb-2" style="color:#33253b">What follows</p>
+      <p>
+        The decisive verdict for a brand-new user — Tier 1, optionally confirmed by the canary — lands
+        <strong>before the user has done anything</strong>. That is the first frame of the app, not an interruption.
+        A dedicated screen is therefore the right home for it, and no modal is needed: there is no context to seize.
+      </p>
+      <p class="mt-2">
+        The cases that arrive <em>late</em> — a network change mid-session, Tier 2 evidence, a VPN toggled after
+        launch — are exactly the cases where seizing context would be wrong. Those get the toast.
+        <strong>Fast ⇒ screen. Slow ⇒ toast.</strong> A modal is the one shape that is wrong for both.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SECTION 2: dedicated screen — BLOCKED =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">
+    2 · Connection problem — a screen of its own <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#ffdad6;color:#93000a">blocked</span>
+    <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#fce8d2;color:#7a2d30">primary case — the report</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Its own title, its own purpose, and <strong>none of the space-management actions</strong> — no "Shared Spaces"
+    heading, no filter chips, no Create / Join. An earlier draft kept those in place while telling the user nothing
+    could connect, which was incoherent. The top nav stays: Settings and Account must remain reachable, and the
+    avatar ring already carries the status.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+
+    <!-- TopNav (recreated: TopNav.tsx) — avatar ring statusVariant="offline" -->
+    <div class="bg-surface-container-lowest/70 border-b border-outline-variant">
+      <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span class="text-2xl font-extrabold text-black dark:text-white tracking-tighter font-headline">Mirall<span style="color:#fd9c42">.</span></span>
+        </div>
+        <div class="flex items-center gap-4 ml-auto">
+          <span class="flex items-center gap-2 bg-surface-container-high text-on-surface-variant rounded-xl px-5 py-2.5 font-headline font-bold text-sm">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Send feedback
+          </span>
+          <span class="w-7 h-7 flex items-center justify-center text-on-surface-variant" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
+          </span>
+          <span class="w-10 h-10 rounded-full flex items-center justify-center">
+            <span class="relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-on-primary" style="background:#4a3b52; box-shadow:0 0 0 2px var(--color-error)">R</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-8 pt-10 pb-10" style="min-height:620px">
+      <div class="max-w-2xl mx-auto">
+
+        <!-- PageHeader pattern (recreated: PageHeader via NetworkStatus.tsx). No back arrow:
+             with no spaces there is nowhere to go back TO. §5 shows the variant that has one. -->
+        <div class="mb-8">
+          <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Connection problem</h1>
+          <p class="text-on-surface-variant mt-1">Mirall can't reach other people from this network.</p>
+        </div>
+
+        <div role="status" aria-live="polite" class="space-y-6">
+          <!-- verdict card (same recipe as NetworkStatus VerdictBanner) -->
+          <div class="bg-surface-container-low rounded-xl p-6 flex items-start gap-5">
+            <span class="w-4 h-4 rounded-full shrink-0 mt-1.5 bg-error" style="box-shadow:0 0 0 4px color-mix(in srgb, var(--color-error) 25%, transparent)" aria-hidden="true"></span>
+            <div class="flex-1 min-w-0">
+              <p class="text-2xl font-headline font-bold text-accent">Your network is blocking Mirall</p>
+              <p class="text-sm text-on-surface-variant mt-2 leading-relaxed">
+                We can find other people on the Mirall network, but we can't connect to them. While this is the
+                case, invites you send won't arrive and spaces you join won't sync.
+              </p>
+            </div>
+          </div>
+
+          <!-- fix list -->
+          <div>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">What helps, in this order</h2>
+            <ol class="bg-surface-container-low rounded-xl p-6 space-y-5">
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">1</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5"><span class="font-bold">Turn off your VPN</span> and check again.</span>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">2</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5">
+                  <span class="font-bold">Use a cable or DSL connection</span> instead of a mobile router or phone tethering.
+                  <span class="text-on-surface-variant">On a mobile network there's no router setting that fixes this.</span>
+                </span>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">3</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5"><span class="font-bold">Try a different Wi-Fi</span> — company and guest networks often filter this traffic.</span>
+              </li>
+            </ol>
+          </div>
+
+          <!-- actions -->
+          <div class="flex items-center gap-3 flex-wrap">
+            <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+              Check again
+            </button>
+            <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Network details</button>
+            <span class="text-xs text-on-surface-variant ml-auto">Checked just now</span>
+          </div>
+
+          <!-- the escape hatch: creating a space locally still works -->
+          <div class="rounded-xl bg-surface-container-lowest p-5 flex items-start gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-surface-variant mt-0.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+            <p class="text-sm text-on-surface-variant leading-relaxed">
+              You can still set up spaces — they'll stay on this device and start syncing once the connection works.
+              <button class="font-bold text-accent underline underline-offset-2 ml-1">Continue to Spaces</button>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Why this is a screen and not a modal:</strong> at launch we know the verdict in ~1–3 s (§1b), so this
+    <em>is</em> the first frame — there is no context to interrupt. And blocking would be unjustified anyway:
+    creating a space works fine offline; only inviting and syncing fail. Hence "Continue to Spaces" rather than a
+    dead end. See §8 for the rejected modal.
+    <br/><br/>
+    <strong>Routing:</strong> substituted for the spaces screen when the verdict is degraded <em>and</em>
+    <code class="text-xs bg-black/5 px-1 rounded">spaces.length === 0</code>. Also reachable any time from the
+    toast's "What can I do?" and from Network status.
+    <br/><br/>
+    <strong>A11y:</strong> the verdict + fix list sit in one <code class="text-xs bg-black/5 px-1 rounded">role="status" aria-live="polite"</code>
+    region so a re-check is announced. The lamp and step numerals are
+    <code class="text-xs bg-black/5 px-1 rounded">aria-hidden</code> — severity is in the heading text. The fix list
+    is a real <code class="text-xs bg-black/5 px-1 rounded">&lt;ol&gt;</code>. Focus moves to the
+    <code class="text-xs bg-black/5 px-1 rounded">&lt;h1&gt;</code> on mount.
+    <br/><br/>
+    <strong>Deliberately absent:</strong> no IP, no port, no NAT flags. Those stay behind "Network details" (§7).
+  </div>
+</section>
+
+
+<!-- =========== SECTION 3: dedicated screen — AT-RISK =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">
+    3 · Same screen, verdict <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#ffdcc2;color:#6b3800">at-risk</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Symmetric NAT / randomised ports — the actual state in the report. Copy says <em>many</em>, not <em>all</em>:
+    this user really can reach peers whose NAT has a stable mapping, so claiming total failure would be wrong.
+    The fix list reorders — mobile first, because that signal is overwhelmingly a carrier NAT.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-10 pb-10" style="min-height:560px">
+      <div class="max-w-2xl mx-auto">
+        <div class="mb-8">
+          <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Connection problem</h1>
+          <p class="text-on-surface-variant mt-1">Mirall can only reach some people from this network.</p>
+        </div>
+
+        <div role="status" aria-live="polite" class="space-y-6">
+          <div class="bg-surface-container-low rounded-xl p-6 flex items-start gap-5">
+            <span class="w-4 h-4 rounded-full shrink-0 mt-1.5" style="background:var(--color-secondary-container); box-shadow:0 0 0 4px color-mix(in srgb, var(--color-secondary-container) 30%, transparent)" aria-hidden="true"></span>
+            <div class="flex-1 min-w-0">
+              <p class="text-2xl font-headline font-bold text-accent">Limited connection</p>
+              <p class="text-sm text-on-surface-variant mt-2 leading-relaxed">
+                Your connection uses a different port every time it reaches out. Connections to some people will
+                work; to many others they'll fail. Mobile routers and phone tethering are the usual cause.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">What helps, in this order</h2>
+            <ol class="bg-surface-container-low rounded-xl p-6 space-y-5">
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">1</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5">
+                  <span class="font-bold">Use a cable or DSL connection</span> instead of a mobile router or phone tethering.
+                  <span class="text-on-surface-variant">On a mobile network there's no router setting that fixes this.</span>
+                </span>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">2</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5"><span class="font-bold">Turn off your VPN</span> and check again.</span>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center" aria-hidden="true">3</span>
+                <span class="text-sm text-on-surface leading-relaxed pt-0.5"><span class="font-bold">Try a different Wi-Fi</span> — company and guest networks often filter this traffic.</span>
+              </li>
+            </ol>
+          </div>
+
+          <div class="flex items-center gap-3 flex-wrap">
+            <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+              Check again
+            </button>
+            <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Network details</button>
+            <span class="text-xs text-on-surface-variant ml-auto">Checked 2 min ago</span>
+          </div>
+
+          <div class="rounded-xl bg-surface-container-lowest p-5 flex items-start gap-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-surface-variant mt-0.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+            <p class="text-sm text-on-surface-variant leading-relaxed">
+              Sharing will still work with some people.
+              <button class="font-bold text-accent underline underline-offset-2 ml-1">Continue to Spaces</button>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Why not the warning-yellow lamp:</strong> <code class="text-xs bg-black/5 px-1 rounded">--color-warning</code>
+    (<code class="text-xs bg-black/5 px-1 rounded">#fcd34d</code>) reads too faint as a 16px dot on the near-white
+    surface, so the lamp uses <code class="text-xs bg-black/5 px-1 rounded">secondary-container</code> — the same
+    amber the app already uses for the update banner and the brand dot. Toasts keep the real
+    <code class="text-xs bg-black/5 px-1 rounded">bg-warning</code> fill, where the larger area carries it.
+    Same divergence the <code class="text-xs bg-black/5 px-1 rounded">space-connectivity-stall</code> mockup flagged.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 4: baseline for comparison =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">
+    4 · Baseline — what ships today <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#efeeea;color:#4a454b">recreated, unchanged</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The current empty state (<code class="bg-black/5 px-1 rounded text-xs">SharedSpaces.tsx:74-79</code>), shown for
+    contrast. This is exactly what a blocked first-run user sees today: an invitation to create a space that will
+    silently never sync. <strong>Unchanged by this delivery</strong> — it stays exactly as-is whenever the verdict
+    is <code class="bg-black/5 px-1 rounded text-xs">healthy</code> or
+    <code class="bg-black/5 px-1 rounded text-xs">unknown</code>, which is the overwhelming majority of users.
+    When the verdict is degraded the router renders §2 instead of this screen entirely.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-8 flex flex-col" style="min-height:420px">
+      <div class="pb-4 shrink-0">
+        <h1 class="text-5xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">
+          Shared <span class="text-transparent bg-clip-text" style="background-image:linear-gradient(to right,var(--color-accent),var(--color-secondary));-webkit-background-clip:text">Spaces</span>
+        </h1>
+        <p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Create spaces to share files with your colleagues and peers.</p>
+      </div>
+      <div class="flex-1 flex flex-col items-center justify-center py-20 text-center">
+        <h2 class="text-2xl font-headline font-bold text-accent mb-3">No spaces yet</h2>
+        <p class="text-on-surface-variant max-w-md leading-relaxed">Create one or join with an invite code.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- =========== SECTION 5: user WITH spaces =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">
+    5 · User who already has spaces, verdict <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#ffdad6;color:#93000a">blocked</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Substituting the whole screen is only right when there is nothing to substitute <em>for</em>. This user has
+    spaces and may be mid-task, so the signal is the <strong>sticky toast</strong> plus the avatar's status ring;
+    "What can I do?" navigates to the same §2 screen, which then renders with a back arrow because there is
+    somewhere to return to. This is also the path for a verdict that turns degraded <em>during</em> a session.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-8 flex flex-col relative" style="min-height:520px">
+      <div class="pb-4 shrink-0">
+        <h1 class="text-5xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">
+          Shared <span class="text-transparent bg-clip-text" style="background-image:linear-gradient(to right,var(--color-accent),var(--color-secondary));-webkit-background-clip:text">Spaces</span>
+        </h1>
+        <p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Create spaces to share files with your colleagues and peers.</p>
+      </div>
+
+      <!-- two SpaceCards (approximated: SpaceCard.tsx) -->
+      <div role="list" class="flex-1 space-y-4">
+        <div role="listitem" class="bg-surface-container-low rounded-2xl p-6 flex items-center gap-5" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+          <span class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-headline font-extrabold text-xl shrink-0" style="background:#8a5a2b">P</span>
+          <div class="flex-1 min-w-0">
+            <p class="font-headline font-bold text-lg text-accent truncate">Project Aurora</p>
+            <p class="text-sm text-on-surface-variant">3 members · Created 12 Aug 2026</p>
+          </div>
+          <span class="flex items-center gap-2 text-sm text-on-surface-variant">
+            <span class="w-2 h-2 rounded-full" style="background:var(--color-outline)" aria-hidden="true"></span>
+            Offline
+          </span>
+        </div>
+        <div role="listitem" class="bg-surface-container-low rounded-2xl p-6 flex items-center gap-5" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+          <span class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-headline font-extrabold text-xl shrink-0" style="background:#3f6f5e">F</span>
+          <div class="flex-1 min-w-0">
+            <p class="font-headline font-bold text-lg text-accent truncate">Family Photos</p>
+            <p class="text-sm text-on-surface-variant">2 members · Created 4 Jul 2026</p>
+          </div>
+          <span class="flex items-center gap-2 text-sm text-on-surface-variant">
+            <span class="w-2 h-2 rounded-full" style="background:var(--color-outline)" aria-hidden="true"></span>
+            Offline
+          </span>
+        </div>
+      </div>
+
+      <!-- sticky toast, bottom-right (ToastContainer position) -->
+      <div class="absolute right-8 bottom-8">
+        <div role="alert" aria-live="assertive"
+             class="pointer-events-auto flex items-center gap-3 min-w-[280px] max-w-[720px] rounded-lg px-4 py-3 shadow-lg bg-error-container text-on-surface-variant">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-on-error-container" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <span class="min-w-0 flex-1 text-sm leading-snug break-words">Your network is blocking connections to other people. Invites and shares won't arrive.</span>
+          <button type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm font-medium underline underline-offset-2">What can I do?</button>
+          <button type="button" aria-label="Dismiss" class="relative shrink-0 w-7 h-7 rounded-full hover:bg-black/10">
+            <span class="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Note the honest gap:</strong> both spaces read a plain "Offline", which is exactly the ambiguity called
+    out in <code class="text-xs bg-black/5 px-1 rounded">plan-pairwise-connectivity-diagnostics.md</code> — an
+    unreachable peer looks identical to one who quit. Fixing that is the <em>pairwise</em> plan's job and is
+    <strong>out of scope here</strong>; this delivery only guarantees the toast explains why every space looks dead
+    at once.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 6: onboarding step =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">6 · Onboarding — the connectivity check step</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    A second step after the profile step, in the same centred
+    <code class="bg-black/5 px-1 rounded text-xs">max-w-md</code> card shell recreated from
+    <code class="bg-black/5 px-1 rounded text-xs">Onboarding.tsx</code> (fixed drag header, card
+    <code class="bg-black/5 px-1 rounded text-xs">bg-surface-container-low rounded-2xl p-8</code>). Four states.
+    <strong>"Continue anyway" is always present</strong> — never trap someone in a check.
+  </p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- CHECKING -->
+    <div>
+      <div class="device-frame">
+        <div class="flex items-center justify-between border-b border-outline-variant">
+          <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="px-8 py-10 flex flex-col items-center" style="min-height:430px">
+          <div class="w-full max-w-md">
+            <div class="flex items-center gap-2 mb-8" aria-hidden="true">
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+            </div>
+            <div class="mb-8">
+              <h1 class="text-3xl font-headline font-extrabold text-accent tracking-tight mb-3">Checking your connection</h1>
+              <p class="text-on-surface-variant leading-relaxed">One moment — we're testing whether you can reach the Mirall network.</p>
+            </div>
+            <div class="bg-surface-container-low rounded-2xl p-8" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+              <div role="status" aria-live="polite" class="flex items-center gap-4">
+                <span class="w-4 h-4 rounded-full shrink-0" style="background:var(--color-outline)" aria-hidden="true"></span>
+                <p class="text-on-surface-variant">Testing…</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs mt-2 text-center" style="color:#4a454b"><strong>Checking</strong> — runs <code class="bg-black/5 px-1 rounded">network:probe-canary</code> with <code class="bg-black/5 px-1 rounded">force: true</code>.</p>
+    </div>
+
+    <!-- HEALTHY -->
+    <div>
+      <div class="device-frame">
+        <div class="flex items-center justify-between border-b border-outline-variant">
+          <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="px-8 py-10 flex flex-col items-center" style="min-height:430px">
+          <div class="w-full max-w-md">
+            <div class="flex items-center gap-2 mb-8" aria-hidden="true">
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+            </div>
+            <div class="mb-8">
+              <h1 class="text-3xl font-headline font-extrabold text-accent tracking-tight mb-3">You're connected</h1>
+              <p class="text-on-surface-variant leading-relaxed">We reached the Mirall network and tested a real connection. You're ready to create or join a space.</p>
+            </div>
+            <div class="bg-surface-container-low rounded-2xl p-8" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+              <div role="status" aria-live="polite" class="flex items-center gap-4 mb-6">
+                <span class="w-4 h-4 rounded-full shrink-0" style="background:var(--color-online); box-shadow:0 0 0 4px color-mix(in srgb, var(--color-online) 25%, transparent)" aria-hidden="true"></span>
+                <p class="font-bold text-on-surface">Connection working</p>
+              </div>
+              <button class="flex items-center justify-center gap-2 w-full rounded-xl font-headline font-bold bg-primary text-on-primary h-14 px-5 text-lg" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+                Continue
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs mt-2 text-center" style="color:#4a454b"><strong>Healthy</strong> — canary <code class="bg-black/5 px-1 rounded">reachable</code>. Also the <code class="bg-black/5 px-1 rounded">unknown</code> / source-build copy.</p>
+    </div>
+
+    <!-- AT-RISK -->
+    <div>
+      <div class="device-frame">
+        <div class="flex items-center justify-between border-b border-outline-variant">
+          <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="px-8 py-10 flex flex-col items-center" style="min-height:520px">
+          <div class="w-full max-w-md">
+            <div class="flex items-center gap-2 mb-8" aria-hidden="true">
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+            </div>
+            <div class="mb-8">
+              <h1 class="text-3xl font-headline font-extrabold text-accent tracking-tight mb-3">Limited connection</h1>
+              <p class="text-on-surface-variant leading-relaxed">Connections to some people will work; to many others they'll fail.</p>
+            </div>
+            <div class="bg-surface-container-low rounded-2xl p-8" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+              <div role="status" aria-live="polite" class="flex items-start gap-4">
+                <span class="w-4 h-4 rounded-full shrink-0 mt-1.5" style="background:var(--color-secondary-container); box-shadow:0 0 0 4px color-mix(in srgb, var(--color-secondary-container) 30%, transparent)" aria-hidden="true"></span>
+                <div>
+                  <p class="font-bold text-on-surface">Your connection uses changing ports</p>
+                  <p class="text-sm text-on-surface-variant leading-relaxed mt-1">Mobile routers and phone tethering are the usual cause.</p>
+                </div>
+              </div>
+              <div class="mt-6 flex flex-col gap-3">
+                <button class="flex items-center justify-center gap-2 w-full rounded-xl font-headline font-bold bg-primary text-on-primary h-14 px-5 text-lg" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                  Check again
+                </button>
+                <button class="flex items-center justify-center gap-2 w-full rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Continue anyway</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs mt-2 text-center" style="color:#4a454b"><strong>At-risk</strong> — symmetric NAT. The report's actual state.</p>
+    </div>
+
+    <!-- BLOCKED -->
+    <div>
+      <div class="device-frame">
+        <div class="flex items-center justify-between border-b border-outline-variant">
+          <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+          <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+          <div class="w-20"></div>
+        </div>
+        <div class="px-8 py-10 flex flex-col items-center" style="min-height:520px">
+          <div class="w-full max-w-md">
+            <div class="flex items-center gap-2 mb-8" aria-hidden="true">
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+              <span class="h-1 flex-1 rounded-full bg-primary"></span>
+            </div>
+            <div class="mb-8">
+              <h1 class="text-3xl font-headline font-extrabold text-accent tracking-tight mb-3">Your network is blocking Mirall</h1>
+              <p class="text-on-surface-variant leading-relaxed">We can find other people, but we can't connect to them.</p>
+            </div>
+            <div class="bg-surface-container-low rounded-2xl p-8" style="box-shadow:0 12px 40px rgba(74,59,82,0.04)">
+              <div role="status" aria-live="polite" class="flex items-start gap-4 mb-6">
+                <span class="w-4 h-4 rounded-full shrink-0 mt-1.5 bg-error" style="box-shadow:0 0 0 4px color-mix(in srgb, var(--color-error) 25%, transparent)" aria-hidden="true"></span>
+                <div>
+                  <p class="font-bold text-on-surface">No connection to other people</p>
+                  <p class="text-sm text-on-surface-variant leading-relaxed mt-1">Invites and shares won't arrive while this is the case.</p>
+                </div>
+              </div>
+              <ol class="space-y-3 mb-6">
+                <li class="flex items-start gap-3">
+                  <span class="shrink-0 w-5 h-5 rounded-full bg-primary text-on-primary font-headline font-bold text-[10px] flex items-center justify-center mt-0.5" aria-hidden="true">1</span>
+                  <span class="text-sm text-on-surface leading-relaxed">Turn off your VPN.</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <span class="shrink-0 w-5 h-5 rounded-full bg-primary text-on-primary font-headline font-bold text-[10px] flex items-center justify-center mt-0.5" aria-hidden="true">2</span>
+                  <span class="text-sm text-on-surface leading-relaxed">Use a cable or DSL connection instead of mobile.</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <span class="shrink-0 w-5 h-5 rounded-full bg-primary text-on-primary font-headline font-bold text-[10px] flex items-center justify-center mt-0.5" aria-hidden="true">3</span>
+                  <span class="text-sm text-on-surface leading-relaxed">Try a different Wi-Fi.</span>
+                </li>
+              </ol>
+              <div class="flex flex-col gap-3">
+                <button class="flex items-center justify-center gap-2 w-full rounded-xl font-headline font-bold bg-primary text-on-primary h-14 px-5 text-lg" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                  Check again
+                </button>
+                <button class="flex items-center justify-center gap-2 w-full rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Continue anyway</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs mt-2 text-center" style="color:#4a454b"><strong>Blocked</strong> — canary <code class="bg-black/5 px-1 rounded">unreachable</code> after stage 1 found the seeder.</p>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-4 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>A11y:</strong> focus moves to the step heading on mount; the result sits in
+    <code class="text-xs bg-black/5 px-1 rounded">role="status" aria-live="polite"</code> so the outcome is
+    announced when the probe settles rather than silently swapping. The progress bar is
+    <code class="text-xs bg-black/5 px-1 rounded">aria-hidden</code> (decorative — step position is already in the
+    heading). Every button has a visible name; nothing relies on the lamp colour.
+    <br/><br/>
+    <strong>Seeder-down / source build:</strong> both resolve to the <em>healthy-toned</em> card with neutral copy
+    and a plain "Continue" — never the red state. A developer on an
+    <code class="text-xs bg-black/5 px-1 rounded">UPGRADE_KEY=none</code> build, or any user during one of our
+    outages, must not be told their network is broken.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 7: network status screen =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">7 · Network status — plain summary, with the detail in a file</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Today the only route to any of this is a disclosure labelled "Address, NAT, DHT, counters", which then shows
+    ~15 rows of raw protocol data — public IP, UDP ports, <code class="bg-black/5 px-1 rounded text-xs">firewalled</code>,
+    <code class="bg-black/5 px-1 rounded text-xs">randomized</code>, <code class="bg-black/5 px-1 rounded text-xs">ephemeral</code>,
+    routing-table size. An ordinary user can read none of it, and two of those NAT flags are misleading anyway.
+    <br/>
+    <strong>Three deltas:</strong> a <strong>Connection summary</strong> in plain language that a user could read
+    back over the phone; a <strong>Diagnostics</strong> card that saves the full detail as a file; and the raw
+    fields demoted to a genuinely optional disclosure rather than being the only way in.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-10" style="min-height:760px">
+      <div class="max-w-2xl mx-auto">
+        <div class="flex items-start gap-4 mb-8">
+          <button aria-label="Back" class="w-10 h-10 mt-1 shrink-0 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div>
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Network status</h1>
+            <p class="text-on-surface-variant mt-1">Connection details and diagnostics.</p>
+          </div>
+        </div>
+
+        <div class="space-y-8">
+          <!-- Verdict -->
+          <section>
+            <div class="bg-surface-container-low rounded-xl p-6 flex items-center gap-5">
+              <span class="w-4 h-4 rounded-full shrink-0" style="background:var(--color-secondary-container); box-shadow:0 0 0 4px color-mix(in srgb, var(--color-secondary-container) 30%, transparent)" aria-hidden="true"></span>
+              <div role="status" aria-live="polite" class="flex-1 min-w-0">
+                <p class="text-2xl font-headline font-bold text-accent">Limited connection</p>
+                <p class="text-sm text-on-surface-variant mt-1">Your connection uses a different port every time. Connections to many people will fail.</p>
+              </div>
+              <button class="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm">Reconnect</button>
+            </div>
+          </section>
+
+          <!-- Suggestions, promoted -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Suggestions</h2>
+            <ul class="bg-surface-container-low rounded-xl p-6 space-y-3 text-sm text-on-surface">
+              <li class="flex items-start gap-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-secondary mt-0.5" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></svg>
+                <span>On a mobile network there's no router setting that fixes this. A cable or DSL connection will work.</span>
+              </li>
+            </ul>
+          </section>
+
+          <!-- NEW: Connection summary, plain language -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Connection summary</h2>
+            <div class="bg-surface-container-low rounded-xl">
+              <div class="px-6 py-4 flex items-center gap-4" style="border-bottom:1px solid color-mix(in srgb, var(--color-surface-container-high) 30%, transparent)">
+                <span class="text-sm text-on-surface-variant w-56 shrink-0">Connection</span>
+                <span class="flex-1 min-w-0 text-sm text-accent">Limited</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4" style="border-bottom:1px solid color-mix(in srgb, var(--color-surface-container-high) 30%, transparent)">
+                <span class="text-sm text-on-surface-variant w-56 shrink-0">Reachable from outside</span>
+                <span class="flex-1 min-w-0 text-sm text-accent">No — your network uses changing ports</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4" style="border-bottom:1px solid color-mix(in srgb, var(--color-surface-container-high) 30%, transparent)">
+                <span class="text-sm text-on-surface-variant w-56 shrink-0">Connection test</span>
+                <span class="flex-1 min-w-0 text-sm text-accent">Failed · 2 min ago</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4" style="border-bottom:1px solid color-mix(in srgb, var(--color-surface-container-high) 30%, transparent)">
+                <span class="text-sm text-on-surface-variant w-56 shrink-0">People</span>
+                <span class="flex-1 min-w-0 text-sm text-accent">4 found · 0 connected</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-56 shrink-0">Running for</span>
+                <span class="flex-1 min-w-0 text-sm text-accent">12 minutes</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- NEW: Diagnostics export -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Diagnostics</h2>
+            <div class="bg-surface-container-low rounded-xl p-6 space-y-5">
+              <p class="text-sm text-on-surface-variant leading-relaxed">
+                If we ask you for details, save this file and send it to us. It describes how your network behaves —
+                not what you share or who you share it with.
+              </p>
+
+              <div class="rounded-xl bg-surface-container-lowest p-5 space-y-4">
+                <div class="flex items-start gap-3">
+                  <input id="mock-redact" type="checkbox" checked class="mt-1 w-4 h-4 shrink-0" />
+                  <label for="mock-redact" class="text-sm text-on-surface leading-relaxed">
+                    <span class="font-bold">Remove identifying details</span>
+                    <span class="block text-on-surface-variant mt-0.5">Your IP address, keys and space names are shortened or left out. Recommended — this is enough for us to diagnose connection problems.</span>
+                  </label>
+                </div>
+                <div class="flex items-start gap-3">
+                  <input id="mock-logs" type="checkbox" class="mt-1 w-4 h-4 shrink-0" />
+                  <label for="mock-logs" class="text-sm text-on-surface leading-relaxed">
+                    <span class="font-bold">Include detailed logs</span>
+                    <span class="block text-on-surface-variant mt-0.5">Turns on detailed logging, then asks you to reproduce the problem before saving.</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 flex-wrap">
+                <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+                  Save diagnostics
+                </button>
+                <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">
+                  Preview what's included
+                </button>
+              </div>
+
+              <div class="flex items-center gap-3 pt-1">
+                <span class="text-xs text-on-surface-variant">Reference code</span>
+                <span class="text-xs font-mono text-accent">4f2a-91c7</span>
+                <button aria-label="Copy reference code" class="w-7 h-7 rounded-lg hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- advanced disclosure — now genuinely optional -->
+          <section>
+            <button aria-expanded="false" class="w-full bg-surface-container-low rounded-xl p-4 flex items-center gap-3 text-left">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="font-medium text-accent">Show advanced details</span>
+              <span class="ml-auto text-xs text-on-surface-variant">Address, NAT, DHT, counters</span>
+            </button>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>What each summary row hides:</strong> "Reachable from outside" collapses
+    <code class="text-xs bg-black/5 px-1 rounded">firewalled</code> + <code class="text-xs bg-black/5 px-1 rounded">randomized</code> +
+    <code class="text-xs bg-black/5 px-1 rounded">publicPort</code> into one sentence — and drops
+    <code class="text-xs bg-black/5 px-1 rounded">ephemeral</code> entirely, which is
+    <code class="text-xs bg-black/5 px-1 rounded">true</code> for every consumer client and means nothing to anyone.
+    "People" is <code class="text-xs bg-black/5 px-1 rounded">peerReach.discovered</code> vs
+    <code class="text-xs bg-black/5 px-1 rounded">.connected</code>: the gap between those two numbers is the single
+    most diagnostic thing on the screen, and today neither is shown.
+    <br/><br/>
+    <strong>Delivery reuses an existing pattern.</strong> <code class="text-xs bg-black/5 px-1 rounded">ActivityLogSettings.tsx:52-70</code>
+    already does worker → JSON payload → <code class="text-xs bg-black/5 px-1 rounded">Blob</code> →
+    <code class="text-xs bg-black/5 px-1 rounded">&lt;a download&gt;</code>. No save dialog, no main-process change,
+    no new dependency.
+    <br/><br/>
+    <strong>Reference code</strong> is the first 8 chars of the existing
+    <code class="text-xs bg-black/5 px-1 rounded">installId</code> — already sent as the
+    <code class="text-xs bg-black/5 px-1 rounded">x-mirall-install-id</code> header on every feedback POST, so a
+    saved file and a feedback message correlate with no new infrastructure.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 7b: the preview =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">7b · "Preview what's included"</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The trust move. A privacy-focused app that masks your IP behind a reveal-with-30s-auto-hide on the very same
+    screen cannot then ship that IP off in a file without showing you. The preview renders the <em>actual</em>
+    bundle that will be written — redactions already applied — in a scrollable
+    <code class="bg-black/5 px-1 rounded text-xs">Modal</code>.
+  </p>
+
+  <div class="device-frame relative">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="relative" style="min-height:560px">
+      <div class="px-8 pt-8 opacity-40">
+        <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Network status</h1>
+        <div class="mt-6 space-y-3">
+          <div class="h-20 rounded-xl bg-surface-container-low"></div>
+          <div class="h-32 rounded-xl bg-surface-container-low"></div>
+        </div>
+      </div>
+
+      <div class="absolute inset-0 flex items-center justify-center p-6" style="background:rgba(15,12,20,0.5)">
+        <div role="dialog" aria-modal="true" aria-labelledby="preview-title"
+             class="w-full max-w-xl bg-surface-container-lowest rounded-2xl shadow-2xl overflow-hidden flex flex-col" style="max-height:480px">
+          <div class="px-6 py-5 shrink-0" style="border-bottom:1px solid var(--color-outline-variant)">
+            <h2 id="preview-title" class="text-xl font-headline font-bold text-accent">What's in the file</h2>
+            <p class="text-sm text-on-surface-variant mt-1">Identifying details removed. This is exactly what will be saved.</p>
+          </div>
+
+          <div class="px-6 py-5 overflow-y-auto text-xs font-mono leading-relaxed" style="color:var(--color-on-surface-variant)">
+<pre style="white-space:pre-wrap">{
+  "schema": 1,
+  "reference": "4f2a-91c7",
+  "app":     { "version": "1.7.1", "channel": "prod", "build": "packaged" },
+  "system":  { "platform": "darwin", "release": "24.6.0", "arch": "arm64" },
+
+  "verdict": {
+    "current": { "verdict": "at-risk", "cause": "symmetric-nat",
+                 "confidence": "measured", "since": 1756000000000 },
+    "history": [
+      { "at": 1755999100000, "verdict": "unknown"  },
+      { "at": 1755999103400, "verdict": "at-risk", "cause": "symmetric-nat" }
+    ]
+  },
+
+  "network": {
+    "dhtReady": true, "readyAfterMs": 3400,
+    "publicHostKnown": true,          <span style="opacity:.65">// the IP itself is NOT included</span>
+    "publicHostChanged": false,
+    "publicPort": 0,                  <span style="opacity:.65">// 0 = symmetric NAT — the finding</span>
+    "localPortStable": true,
+    "firewalled": true, "randomized": true, "ephemeral": true,
+    "routingTableSize": 50,
+    "health": { "degraded": false, "timeoutsRate": 0.04, "cold": false }
+  },
+
+  "peers": {
+    "discovered": 4, "connected": 0, "exhausted": 4,
+    "dials": { "attempted": 17, "opened": 0, "closed": 17 },
+    "samples": [
+      { "peer": "a91c…", "topic": "t0", "attempts": 5, "proven": false },
+      { "peer": "3f77…", "topic": "t0", "attempts": 4, "proven": false }
+    ]
+  },
+
+  "canary": {
+    "state": "unreachable",
+    "stage1": { "announceRecords": 3, "ms": 820 },
+    "stage2": { "dials": 3, "opened": 0, "ms": 30000 }
+  },
+
+  "spaces": { "count": 1, "topics": ["t0"] },   <span style="opacity:.65">// names and ids omitted</span>
+
+  "logs": <span style="opacity:.65">"(not included — enable detailed logs first)"</span>
+}</pre>
+          </div>
+
+          <div class="px-6 py-4 shrink-0 flex items-center gap-3" style="border-top:1px solid var(--color-outline-variant)">
+            <button class="rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm">Save file</button>
+            <button class="rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Close</button>
+            <span class="ml-auto text-xs text-on-surface-variant">~14 KB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>The redaction rule that makes this work:</strong> for connectivity debugging we need
+    <em>shapes</em>, not identities. Whether host consensus formed, whether the port is 0, whether it changed over
+    time, how many dials opened — none of that requires the actual IP, the real keys, or space names. So the default
+    bundle answers every diagnostic question while carrying almost nothing identifying, and "remove identifying
+    details" can stay checked for essentially every real support case.
+    <br/><br/>
+    <strong>The one genuinely new dependency:</strong> <code class="text-xs bg-black/5 px-1 rounded">logs</code>.
+    <code class="text-xs bg-black/5 px-1 rounded">logger.js</code> writes to <code class="text-xs bg-black/5 px-1 rounded">console</code>
+    only — nothing is ever persisted — and at default level it emits <em>warn and error only</em>. Main already taps
+    every stream (worker <code class="text-xs bg-black/5 px-1 rounded">stdout</code>/<code class="text-xs bg-black/5 px-1 rounded">stderr</code>
+    at <code class="text-xs bg-black/5 px-1 rounded">main.js:741-747</code>, its own console at
+    <code class="text-xs bg-black/5 px-1 rounded">installMainLogForwarding</code>, and the renderer echo) but keeps
+    none of it. A bounded ring buffer there is the whole feature — see the plan's Phase 10.
+    <br/><br/>
+    <strong>A11y:</strong> the preview is a real <code class="text-xs bg-black/5 px-1 rounded">Modal</code> — focus
+    trapped, Escape closes, <code class="text-xs bg-black/5 px-1 rounded">aria-modal</code> with a labelled title.
+    The <code class="text-xs bg-black/5 px-1 rounded">&lt;pre&gt;</code> is scrollable and keyboard-focusable so it
+    can be read without a mouse. The two checkboxes are real inputs with real
+    <code class="text-xs bg-black/5 px-1 rounded">&lt;label&gt;</code>s, not styled divs.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 8: rejected alternative =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">
+    8 · Rejected alternatives <span class="text-xs font-bold ml-1 px-2 py-1 rounded-full align-middle" style="background:#ffdad6;color:#93000a">not building these</span>
+  </h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    Kept so the decisions stay legible. <strong>8a</strong> reused the
+    <code class="bg-black/5 px-1 rounded text-xs">UpdateBanner</code> slot for connectivity errors;
+    <strong>8b</strong> blocked the current screen with a modal.
+  </p>
+  <h3 class="font-headline font-bold text-base mb-2" style="color:#33253b">8a · Persistent top banner</h3>
+
+  <div class="device-frame opacity-60">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="bg-surface-container-lowest/70">
+      <div class="flex items-center py-4 px-8 max-w-7xl mx-auto relative">
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span class="text-2xl font-extrabold text-black dark:text-white tracking-tighter font-headline">Mirall<span style="color:#fd9c42">.</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="bg-error-container text-on-error-container px-8 py-2 flex items-center justify-between">
+      <span class="text-sm font-semibold">Your network is blocking connections to other people.</span>
+      <span class="text-xs font-bold underline">What can I do?</span>
+    </div>
+    <div class="bg-secondary-container text-on-secondary-container px-8 py-2 flex items-center justify-between">
+      <span class="text-sm font-semibold">Update 1.8.0 downloaded — applied on next start</span>
+      <span class="text-xs font-bold px-3 py-1 rounded bg-secondary text-on-secondary">Dismiss</span>
+    </div>
+    <div class="px-8 py-10 text-center text-on-surface-variant text-sm">…app content pushed down by two stacked banners…</div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Why rejected:</strong>
+    <br/>· The update banner is for <em>updates</em>. Overloading it with error messaging dilutes what it means and
+    trains people to ignore it.
+    <br/>· Two banners stack, as shown, and both would fight over
+    <code class="text-xs bg-black/5 px-1 rounded">--banner-h</code> — <code class="text-xs bg-black/5 px-1 rounded">UpdateBanner</code>
+    is its sole owner today and resets it to <code class="text-xs bg-black/5 px-1 rounded">0px</code> on unmount, so
+    last-effect-wins would hide content under the fixed nav. Dropping this treatment removes the need for the
+    <code class="text-xs bg-black/5 px-1 rounded">BannerStack</code> refactor entirely.
+    <br/>· A permanent bar is the wrong weight for something a user can act on once: it nags on every screen without
+    ever explaining more.
+    <br/><strong>Superseded by:</strong> §8b's rejection too — see below for why the modal went the same way.
+  </div>
+
+
+  <h3 class="font-headline font-bold text-base mb-2 mt-10" style="color:#33253b">8b · Blocking modal over the current screen</h3>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The shape suggested for the case where a user has already navigated into a space when the verdict lands.
+  </p>
+
+  <div class="device-frame opacity-60 relative">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="relative" style="min-height:420px">
+      <!-- the space the user was working in, scrimmed out -->
+      <div class="px-8 pt-8">
+        <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter">Project Aurora</h1>
+        <div class="mt-6 space-y-3">
+          <div class="h-16 rounded-2xl bg-surface-container-low"></div>
+          <div class="h-16 rounded-2xl bg-surface-container-low"></div>
+          <div class="h-16 rounded-2xl bg-surface-container-low"></div>
+        </div>
+      </div>
+      <!-- scrim + modal (Modal.tsx pattern) -->
+      <div class="absolute inset-0 flex items-center justify-center" style="background:rgba(15,12,20,0.5)">
+        <div role="dialog" aria-modal="true" aria-labelledby="rej-modal-title"
+             class="w-full max-w-md mx-6 bg-surface-container-lowest rounded-2xl p-8 shadow-2xl">
+          <div class="flex items-start gap-4">
+            <span class="w-4 h-4 rounded-full shrink-0 mt-1.5 bg-error" aria-hidden="true"></span>
+            <div>
+              <h2 id="rej-modal-title" class="text-xl font-headline font-bold text-accent">Your network is blocking Mirall</h2>
+              <p class="text-sm text-on-surface-variant mt-2 leading-relaxed">Invites and shares won't arrive while this is the case.</p>
+            </div>
+          </div>
+          <div class="mt-6 flex gap-3">
+            <button class="flex-1 rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm">Check again</button>
+            <button class="flex-1 rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Why rejected:</strong>
+    <br/>· <strong>The premise mostly doesn't hold.</strong> §1b: Tier 1 lands in ~1–3 s, at the same instant
+    <code class="text-xs bg-black/5 px-1 rounded">dhtReady</code> flips, because
+    <code class="text-xs bg-black/5 px-1 rounded">dht-rpc</code> emits
+    <code class="text-xs bg-black/5 px-1 rounded">'ready'</code> only after the bootstrap walk that already sampled
+    the NAT. The user has not navigated anywhere yet — there is no context to seize.
+    <br/>· <strong>Where the premise does hold, seizing is exactly wrong.</strong> A verdict that arrives 30 s+ in
+    (network change, Tier 2 evidence, VPN toggled) finds someone mid-task. Yanking them out of a space to announce
+    something they cannot fix in the next five seconds is the classic interrupting-dialog antipattern.
+    <br/>· <strong>Blocking isn't justified.</strong> Creating a space works fine offline; only inviting and syncing
+    fail. A modal that blocks access asserts a severity the situation doesn't have.
+    <br/>· <strong>No room to explain.</strong> The fix list is the actually useful content, and it doesn't fit a
+    dialog without becoming a scrolling wall.
+    <br/><strong>Chosen instead:</strong> fast ⇒ screen (§2, §3), slow ⇒ toast (§1, §5). The toast's action
+    navigates to the same screen, so there is exactly one place the explanation lives.
+  </div>
+</section>
+
+
+<!-- =========== Faithfulness notes =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14 pb-16">
+  <h2 class="font-headline font-extrabold text-lg mb-3" style="color:#33253b">Notes</h2>
+  <div class="note-plate rounded-2xl p-6">
+    <ul class="space-y-3 text-sm leading-relaxed" style="color:#4a454b">
+      <li>· <strong>Recreated from code:</strong> spaces header / filter chips / empty state
+        (<code class="text-xs bg-black/5 px-1 rounded">SharedSpaces.tsx</code>); toast container, variant fills,
+        action button and countdown-ring dismiss (<code class="text-xs bg-black/5 px-1 rounded">Toast.tsx</code>,
+        <code class="text-xs bg-black/5 px-1 rounded">types.ts</code>); top nav incl. the avatar status ring
+        (<code class="text-xs bg-black/5 px-1 rounded">TopNav.tsx</code>); onboarding card shell
+        (<code class="text-xs bg-black/5 px-1 rounded">Onboarding.tsx</code>); verdict card, Section/Field rows,
+        suggestions list, advanced disclosure (<code class="text-xs bg-black/5 px-1 rounded">NetworkStatus.tsx</code>);
+        button geometry from the <code class="text-xs bg-black/5 px-1 rounded">Button</code> primitive; the
+        Connection problem screen is assembled entirely from existing recipes — the
+        <code class="text-xs bg-black/5 px-1 rounded">PageHeader</code> block, the
+        <code class="text-xs bg-black/5 px-1 rounded">VerdictBanner</code> card, and the
+        <code class="text-xs bg-black/5 px-1 rounded">Section</code> list container, all from
+        <code class="text-xs bg-black/5 px-1 rounded">NetworkStatus.tsx</code>. No new primitive.</li>
+      <li>· <strong>Real strings used verbatim:</strong> "Shared / Spaces", "Create spaces to share files with your
+        colleagues and peers.", "All Spaces", "Favorites", "Create Space", "Join Space", "No spaces yet", "Create one
+        or join with an invite code.", "Back online", "Network status", "Connection details and diagnostics.",
+        "Reconnect", "Suggestions", "Connected peers", "Spaces joined", "Show advanced details",
+        "Address, NAT, DHT, counters", "Continue", "Dismiss".</li>
+      <li>· <strong>Proposed new copy</strong> (to be added to all five locales; German uses the generic masculine,
+        no inclusive forms): the whole Connection problem screen (title, subtitle, verdict copy, fix list,
+        "Check again", "Continue to Spaces"), the blocked/at-risk toasts, the whole onboarding step, "Peers found",
+        "Connection test", the whole Connection summary and Diagnostics sections, and the preview modal.</li>
+      <li>· <strong>Tokens only</strong> — no raw hex except the two SpaceCard icon tiles (the curated space-icon
+        palette) and the traffic lights. The two documented divergences: the at-risk lamp uses
+        <code class="text-xs bg-black/5 px-1 rounded">secondary-container</code> rather than
+        <code class="text-xs bg-black/5 px-1 rounded">warning</code> (legibility at 16px on a near-white surface),
+        and icons are inline stroke SVGs approximating Material Symbols — the one divergence
+        <code class="text-xs bg-black/5 px-1 rounded">mockups.md</code> permits.</li>
+      <li>· <strong>A11y bar:</strong> every state region is <code class="text-xs bg-black/5 px-1 rounded">role="status"</code>
+        (or <code class="text-xs bg-black/5 px-1 rounded">role="alert"</code> for the error toast, matching the
+        shipped component); status is always in text, never colour alone; all lamps and step numerals are
+        <code class="text-xs bg-black/5 px-1 rounded">aria-hidden</code>; every control is a real
+        <code class="text-xs bg-black/5 px-1 rounded">&lt;button&gt;</code> with an accessible name and a
+        focus-visible ring, so <code class="text-xs bg-black/5 px-1 rounded">agent-desktop</code> can target it by
+        name/role in the frontend scenarios.</li>
+      <li>· <strong>Out of scope</strong> (deferred to
+        <code class="text-xs bg-black/5 px-1 rounded">plan-pairwise-connectivity-diagnostics.md</code>): per-member
+        direct / relayed / unreachable badges, the per-space stalled-join notice, per-space toast IDs. §5
+        deliberately shows spaces reading a plain "Offline" to make that gap visible rather than implying this
+        delivery closes it. Relay fallback is a separate later delivery.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>

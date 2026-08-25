@@ -19,6 +19,10 @@ const FIELD_PATHS = [
   'stats.connects.server.opened', 'stats.connects.server.closed',
   'stats.bannedPeers',
   'stats.relaying.selected', 'stats.relaying.attempts', 'stats.relaying.successes', 'stats.relaying.aborts',
+  'peerReach.discovered', 'peerReach.connected', 'peerReach.exhausted',
+  'dhtHealth.online', 'dhtHealth.degraded', 'dhtHealth.timeoutsRate',
+  'canary.state', 'canary.at', 'liveness.failures', 'liveness.interfaceKind',
+  'reachability.verdict', 'reachability.cause', 'reachability.confidence',
 ]
 
 function makeStatus () {
@@ -35,6 +39,11 @@ function makeStatus () {
       bannedPeers: 0,
       relaying: { selected: 0, attempts: 0, successes: 0, aborts: 0 },
     },
+    peerReach: { discovered: 4, connected: 1, exhausted: 2 },
+    dhtHealth: { online: true, degraded: false, cold: false, idle: false, timeoutsRate: 0.1 },
+    canary: { state: 'reachable', at: 900 },
+    liveness: { failures: 0, checkedAt: 880, interfaceKind: 'physical' },
+    reachability: { verdict: 'healthy', cause: null, confidence: 'measured', since: 800 },
   }
 }
 

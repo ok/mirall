@@ -351,6 +351,9 @@ export class Instance {
     await this.waitText('Create Space', 30000)
   }
 
+  // Second onboarding step: the connectivity check. Its primary control is disabled
+  // while the probe runs, and its label depends on the verdict — on the local testnet
+  // there is no canary target, so the neutral "Continue" is the expected path.
   // Same `actionable` lens as nodeValue(): a control's disabled state is meaningless
   // on the label that shares its name, and a statictext never carries `disabled` —
   // so matching the label would quietly report an actually-disabled control as

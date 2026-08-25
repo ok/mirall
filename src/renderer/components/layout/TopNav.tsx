@@ -22,8 +22,8 @@ interface TopNavProps {
 export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, update, onDismissUpdate }: TopNavProps) {
   const { t } = useTranslation()
   const { state } = useConnectionStatus()
-  const hasIssue = state === 'offline' || state === 'connecting'
-  const statusVariant = state === 'offline' ? 'offline' : state === 'connecting' ? 'connecting' : 'ok'
+  const hasIssue = state === 'offline' || state === 'connecting' || state === 'limited'
+  const statusVariant = state === 'offline' ? 'offline' : hasIssue ? 'connecting' : 'ok'
 
   return (
     <nav className="fixed top-0 w-full z-50" style={{ WebkitAppRegion: 'drag' }}>

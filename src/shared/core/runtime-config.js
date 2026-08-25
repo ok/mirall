@@ -16,7 +16,7 @@ const DEFAULT_MAX_FILES_PER_SHARE = 5000
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is test-only — a local
 // hyperdht/testnet bootstrap so integration tests stay off the public DHT; null → default.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap']
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
 
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
@@ -205,6 +205,10 @@ export function isSharePrepareProgressEnabled() {
 
 export function isSeparateContentPlaneEnabled() {
   return config.separateContentPlane
+}
+
+export function getUpgradeKey() {
+  return config.upgradeKey
 }
 
 export function isRelayEnabled() {

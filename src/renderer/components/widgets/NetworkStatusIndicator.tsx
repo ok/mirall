@@ -12,6 +12,7 @@ interface Props {
 
 const COLOR: Record<ConnectivityState, string> = {
   online: 'bg-online',
+  limited: 'bg-secondary-container',
   connecting: 'bg-warning',
   offline: 'bg-error',
 }
@@ -24,6 +25,7 @@ const DOT_SIZE: Record<IndicatorSize, string> = {
 
 const RING: Record<ConnectivityState, string> = {
   online: 'ring-2 ring-online/30',
+  limited: 'ring-2 ring-secondary-container/30',
   connecting: 'ring-2 ring-warning/30',
   offline: 'ring-2 ring-error/30',
 }

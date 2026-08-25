@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, getUpgradeKey, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -41,7 +41,7 @@ import {
 import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, setRelayThrough, testRelayReachable, reconnectAll, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
+import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, setRelayThrough, testRelayReachable, reconnectAll, probeCanary, setBrowserOnlineHint, checkLivenessNow, getVerdictHistory, getDiagnosticCounters, getPeerSamples, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
 import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
@@ -69,6 +69,8 @@ import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
+import { deriveChannel } from '../shared/core/channel.js'
+import { buildDiagnostics } from '../shared/transfer/diagnostics.js'
 import {
   initAuditLog, record, setAuditIdentity, queryAudit, auditSpaces, auditActors, auditStats,
   getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
@@ -2294,6 +2296,37 @@ ipc.handle('network:set-relays', async (msg) => {
 })
 
 ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))
+
+ipc.handle('network:probe-canary', async (msg) =>
+  await probeCanary(getUpgradeKey(), { force: !!msg?.force }))
+
+// The renderer owns navigator.onLine; the worker cannot see it. Without this a pulled
+// cable would be classified as a NAT problem.
+ipc.handle('network:online-hint', async (msg) => {
+  setBrowserOnlineHint(msg?.online !== false)
+  return { ok: true }
+})
+
+ipc.handle('network:check-liveness', async () => await checkLivenessNow())
+
+ipc.handle('diagnostics:export', async (msg) => {
+  const cfg = getRuntimeConfig()
+  return buildDiagnostics({
+    status: getSwarmStatus(),
+    history: getVerdictHistory(),
+    env: {
+      appVersion: cfg.appVersion || (cfg.dev ? 'dev' : 'unknown'),
+      channel: deriveChannel(cfg),
+      installId: cfg.storage ? await getInstallId(cfg.storage) : null,
+      packaged: !!getUpgradeKey(),
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+    },
+    counters: getDiagnosticCounters(),
+    peerSamples: getPeerSamples(),
+  }, msg?.redact !== false)
+})
 
 ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
 

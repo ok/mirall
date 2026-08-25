@@ -4,10 +4,11 @@
 // IPC frames renderer↔worker in both directions; runs the chokidar folder
 // watchers on the worker's behalf (Bare has no recursive watch). Main holds no
 // application state — durable state lives in the worker's store.
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, protocol: electronProtocol, shell, webContents } = require('electron')
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, net, protocol: electronProtocol, shell, webContents } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const { logRing } = require('./log-ring')
 
 // Custom app:// scheme. Registered as standard+secure so the renderer
 // document gets a stable origin across webContents.reload — file://
@@ -337,6 +338,19 @@ function getPear() {
 
 // === Renderer broadcast + log forwarding ===
 
+let redactLinePromise = null
+function loadRedactLine() {
+  if (!redactLinePromise) {
+    redactLinePromise = import('../shared/core/diagnostics-redact.js')
+      .then((m) => m.redactLine)
+      .catch((err) => {
+        console.error('[main] redaction module unavailable:', err.message)
+        return null
+      })
+  }
+  return redactLinePromise
+}
+
 function sendToAll(channel, payload) {
   for (const wc of webContents.getAllWebContents()) {
     if (wc.isDestroyed()) continue
@@ -366,8 +380,9 @@ function installMainLogForwarding() {
     const orig = console[level].bind(console)
     console[level] = (...args) => {
       orig(...args)
-      if (!debug || forwarding) return
       const text = format(...args)
+      logRing.push('main', level, text)
+      if (!debug || forwarding) return
       if (text.startsWith(RENDERER_ECHO_PREFIX)) return
       forwarding = true
       try { sendToAll('main:log', { level, text }) } catch {} finally { forwarding = false }
@@ -672,6 +687,7 @@ function getWorker(specifier) {
     type: 'bootstrap',
     storage: p.storage,
     appVersion: version,
+    upgradeKey: upgrade || null,
     dev: isDev,
     verbose,
     downloadFolder: readDownloadFolder(),
@@ -739,11 +755,15 @@ function getWorker(specifier) {
     }
   })
   worker.stdout.on('data', (data) => {
-    if (debug) process.stdout.write('[worker stdout] ' + data.toString())
+    const text = data.toString()
+    if (debug) process.stdout.write('[worker stdout] ' + text)
+    logRing.push('worker', 'log', text)
     sendToAll('pear:worker:stdout:' + specifier, data)
   })
   worker.stderr.on('data', (data) => {
-    process.stderr.write('[worker stderr] ' + data.toString())
+    const text = data.toString()
+    process.stderr.write('[worker stderr] ' + text)
+    logRing.push('worker', 'error', text)
     sendToAll('pear:worker:stderr:' + specifier, data)
   })
 
@@ -831,6 +851,36 @@ ipcMain.handle('app:identityProtection', () => identityProtection)
 // respawned worker inherits it). The renderer flips the already-running worker
 // separately over the worker IPC channel. A non-boolean arg leaves state
 // untouched and just reports it; turning off reverts to the build default.
+// net.online is documented as asymmetric: false is a strong indicator the user cannot
+// reach remote sites, true is inconclusive. So it is only ever used to declare offline —
+// never to declare healthy.
+const NET_ONLINE_POLL_MS = 2000
+let lastNetOnline = null
+
+function startNetOnlineWatch() {
+  const tick = () => {
+    let online = true
+    try { online = net.online !== false } catch {}
+    if (online === lastNetOnline) return
+    lastNetOnline = online
+    sendToAll('net:online', online)
+  }
+  tick()
+  const timer = setInterval(tick, NET_ONLINE_POLL_MS)
+  timer.unref?.()
+}
+
+ipcMain.handle('net:online', () => {
+  try { return net.online !== false } catch { return true }
+})
+
+ipcMain.handle('diagnostics:logs', async (_evt, opts) => {
+  const redactLine = opts?.redact !== false ? await loadRedactLine() : null
+  // Fail closed: if the redaction module could not load, ship no logs rather than raw ones.
+  if (opts?.redact !== false && !redactLine) return []
+  return logRing.snapshot(redactLine)
+})
+
 ipcMain.handle('app:setVerbose', (_evt, on) => {
   if (typeof on === 'boolean') { verbose = on; debug = on || baseDebug }
   return debug
@@ -1230,6 +1280,15 @@ async function createWindow() {
     if (!win.isDestroyed()) win.webContents.setZoomFactor(currentZoom)
   })
 
+  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    // Skip our own forwarded main logs (the renderer prints them as [main] …),
+    // otherwise mirroring them back here would feed the forwarding loop.
+    if (typeof message === 'string' && message.startsWith(MAIN_LOG_PREFIX)) return
+    const tag = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'][level] || 'INFO'
+    logRing.push('renderer', tag.toLowerCase(), `${sourceId}:${line} ${message}`)
+    if (debug) console.log(`[renderer ${tag}] ${sourceId}:${line} ${message}`)
+  })
+
   if (debug) {
     win.webContents.on('did-fail-load', (_e, code, desc, url) => {
       console.error('[mirall] renderer did-fail-load', code, desc, url)
@@ -1237,13 +1296,7 @@ async function createWindow() {
     win.webContents.on('render-process-gone', (_e, details) => {
       console.error('[mirall] renderer process gone:', details)
     })
-    win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-      // Skip our own forwarded main logs (the renderer prints them as [main] …),
-      // otherwise mirroring them back here would feed the forwarding loop.
-      if (typeof message === 'string' && message.startsWith(MAIN_LOG_PREFIX)) return
-      const tag = ['LOG', 'WARN', 'ERR', 'DEBUG'][level] || 'LOG'
-      console.log(`[renderer ${tag}] ${sourceId}:${line} ${message}`)
-    })
+
     win.webContents.on('preload-error', (_e, preloadPath, err) => {
       console.error('[mirall] preload error in', preloadPath, err)
     })
@@ -1460,6 +1513,7 @@ if (!lock) {
     // can race with _update and return ENOTDIR.
     preloadAsarCache()
     registerAppProtocol()
+    startNetOnlineWatch()
     require('./notifications').register({
       revealWindow,
       downloadRoots: () => [readDownloadFolder(), ...workerDownloadRoots],

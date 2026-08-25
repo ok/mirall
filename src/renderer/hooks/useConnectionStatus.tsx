@@ -10,12 +10,14 @@ import {
   type ReactNode,
 } from 'react'
 import { request, subscribe } from '../ipc.js'
-import type { ConnectivityState, NetworkStatus } from '../types.js'
+import type { CanaryResult, ConnectivityState, NetworkStatus, Reachability } from '../types.js'
 
 interface ConnectionStatusContextValue {
   state: ConnectivityState
   status: NetworkStatus | null
+  reachability: Reachability | null
   reconnect: () => Promise<void>
+  probeCanary: (opts?: { force?: boolean }) => Promise<CanaryResult | null>
 }
 
 const ConnectionStatusContext = createContext<ConnectionStatusContextValue | null>(null)
@@ -27,6 +29,14 @@ function deriveState(status: NetworkStatus | null, browserOnline: boolean, now: 
   if (!browserOnline) return 'offline'
   if (!status) return 'online'
   if (status.suspended) return 'offline'
+
+  // dhtReady alone is NOT connectivity — it only means a bootstrap node answered us.
+  switch (status.reachability?.verdict) {
+    case 'blocked': return 'offline'
+    case 'at-risk': return 'connecting'
+    case 'healthy': return 'online'
+  }
+
   if (status.dhtReady) return 'online'
   const sinceBoot = status.bootedAt > 0 ? now - status.bootedAt : 0
   if (sinceBoot < BOOT_GRACE_MS) return 'online'
@@ -43,6 +53,10 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
   const [browserOnline, setBrowserOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
   )
+  // Chromium's net.online, read in main. Only ever used to declare offline: Electron
+  // documents `false` as a strong negative and `true` as inconclusive.
+  const [netOnline, setNetOnline] = useState<boolean>(true)
+  const osOnline = browserOnline && netOnline
   const [stableState, setStableState] = useState<ConnectivityState>('online')
   const recheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -76,15 +90,32 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
   }, [])
 
   useEffect(() => {
+    window.bridge.getNetOnline().then(setNetOnline).catch(() => {})
+    return window.bridge.onNetOnlineChange(setNetOnline)
+  }, [])
+
+  // NetworkInformation fires on transitions Chromium notices that never cross the
+  // online/offline boundary — a good moment to re-probe instead of waiting out the
+  // worker's interval. `type` is not exposed on desktop, so this is a trigger, not a signal.
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: EventTarget }).connection
+    if (!connection) return
+    const onChange = () => { request('network:check-liveness').catch(() => {}) }
+    connection.addEventListener('change', onChange)
+    return () => connection.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
     if (recheckTimerRef.current) {
       clearTimeout(recheckTimerRef.current)
       recheckTimerRef.current = null
     }
 
     const now = Date.now()
-    setStableState(deriveState(status, browserOnline, now))
+    setStableState(deriveState(status, osOnline, now))
 
-    if (!status || status.suspended || status.dhtReady || !browserOnline) return
+    if (!status || status.suspended || status.dhtReady || !osOnline) return
+    if (status.reachability && status.reachability.verdict !== 'unknown') return
     if (status.bootedAt <= 0) return
 
     const sinceBoot = now - status.bootedAt
@@ -97,9 +128,9 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
 
     recheckTimerRef.current = setTimeout(() => {
       recheckTimerRef.current = null
-      setStableState(deriveState(status, browserOnline, Date.now()))
+      setStableState(deriveState(status, osOnline, Date.now()))
     }, nextBoundary + 100)
-  }, [status, browserOnline])
+  }, [status, osOnline])
 
   useEffect(() => {
     return () => {
@@ -110,15 +141,28 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
     }
   }, [])
 
+  useEffect(() => {
+    request('network:online-hint', { online: osOnline }).catch(() => {})
+    request('network:check-liveness').catch(() => {})
+  }, [osOnline])
+
   const reconnect = useCallback(async () => {
     try {
       await request('network:reconnect')
     } catch {}
   }, [])
 
+  const probeCanary = useCallback(async (opts?: { force?: boolean }) => {
+    try {
+      return await request('network:probe-canary', { force: !!opts?.force }) as CanaryResult
+    } catch {
+      return null
+    }
+  }, [])
+
   const value = useMemo<ConnectionStatusContextValue>(
-    () => ({ state: stableState, status, reconnect }),
-    [stableState, status, reconnect],
+    () => ({ state: stableState, status, reachability: status?.reachability ?? null, reconnect, probeCanary }),
+    [stableState, status, reconnect, probeCanary],
   )
 
   return (
