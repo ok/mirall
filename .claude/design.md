@@ -60,15 +60,16 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 | `primary` / `accent` | `#33253b` | Twilight plum. Headings, primary buttons, key text. (`accent` == `primary` in light mode.) |
 | `on-primary` | `#ffffff` | Text/icon on primary |
 | `secondary` | `#904d00` | Burnt amber — focus rings, links, secondary emphasis |
-| `secondary-container` | `#fd9c42` | Signature orange (the "Mirall dot", progress fill) |
+| `secondary-container` | `#fd9c42` | Signature orange (the "Mirall dot") |
 | `on-secondary-container` | `#6b3800` | |
 | `tertiary` | `#541116` | Deep rose — sparing high-emotion accents |
 | `surface` | `#fbf9f5` | App background (warm cream) |
 | `surface-container-lowest` | `#ffffff` | **File cards at rest (light)**; space cards; folder cards at rest (dark) — see folder/file note |
 | `surface-container-low` | `#f5f3ef` | Section/setting cards; **folder cards at rest (light)**; file cards at rest (dark) |
 | `surface-container` | `#efeeea` | |
-| `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, progress track, icon tiles |
+| `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles |
 | `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); avatar fallback, "remote" badge |
+| `progress-track` | `#d0cec9` | Progress-bar tracks and the peer-dropdown divider — see the note below |
 | `on-surface` | `#1b1c1a` | Primary body text (near-black; **never** `#000`) |
 | `on-surface-variant` | `#4a454b` | Muted/secondary text |
 | `outline` | `#7c757c` | Badge border, dropzone idle border |
@@ -96,8 +97,8 @@ cream `#fce8d2`, sitting on a cool slate surface ramp. The dark surface tiers
 (authoritative in `tailwind.css` — easy to get subtly wrong when hand-building a
 mockup): `surface` `#282c34`, `surface-container-lowest` `#21252b`,
 `surface-container-low` `#2e3239`, `surface-container` `#2e323a`,
-`surface-container-high` `#5c6068`, `surface-container-highest` `#393f4a`. **The
-ramp is not monotonic by name in dark** — `surface-container-high` (`#5c6068`) is
+`surface-container-high` `#5c6068`, `surface-container-highest` `#393f4a`,
+`progress-track` `#4a5160`. **The ramp is not monotonic by name in dark** — `surface-container-high` (`#5c6068`) is
 markedly *lighter* than `-highest` (`#393f4a`); this is why secondary buttons use
 `dark:bg-surface-container-highest` deliberately (and `dark:hover:bg-surface-container-high`,
 a step *lighter* on hover). The `icon-tile` pair (`#fec78a` / `#0a4742`) is **not
@@ -115,6 +116,18 @@ that never collides with the `surface-container-high` icon tile. Spaces (`SpaceC
 `surface-container-lowest` (the prominent card on the spaces home, not part of the folder/file
 pair). The folder-tree disclosure chevron uses `text-on-surface-variant` (not `outline`, which
 fails the contrast floor on these surfaces in dark).
+
+**`progress-track` sits outside the ramp on purpose.** A progress bar is painted inside a row
+that lifts to `surface-container-highest` on hover, inside the `PeerDownloadIndicator` toggle
+that lifts to `surface-container-high`, and inside modal panels on `surface-container-lowest`.
+Any ramp token the track borrows therefore matches one of its own hosts in some state and the
+bar's total length vanishes — which is what shipped twice: first as `surface-container-high`
+(lost under the toggle hover), then as `surface-container-highest` (lost under the row hover).
+`progress-track` (`#d0cec9` / `#4a5160`) clears every host surface by at least 1.2:1 while
+keeping the `on-info` fill above 3:1 against the track. The same reasoning applies to the
+`PeerDownloadDropdown` divider, which uses `divide-progress-track` because dark
+`outline-variant` is *also* `#393f4a`. Pinned by `test/unit/progress-bar-contrast.test.js`;
+never re-point a track at a `surface-container-*` token.
 
 Theme is chosen via `theme.ts` (`light` | `dark` | `system`); `theme.ts` only
 **applies** the theme — toggling the `.dark` class and setting
@@ -383,14 +396,16 @@ and `available`/`owner-offline`/`unavailable`). Roles carry meaning by label, no
 The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by pills.
 
 ### Progress bar — `primitives/ProgressBar.tsx`
-`h-1.5 bg-surface-container-high rounded-full` track, `bg-secondary-container`
-fill, `transition-all motion-reduce:transition-none`, `role="progressbar"`
-(no `aria-live` — frequent updates would spam screen readers).
+`h-1.5 bg-progress-track rounded-full` track, `bg-on-info` fill, `transition-all
+motion-reduce:transition-none`, `role="progressbar"` (no `aria-live` — frequent
+updates would spam screen readers). All five bars — this primitive,
+`DownloadProgressLane`, `PeerDownloadIndicator`, `PeerDownloadRow`, and the
+`LeaveSpaceModal` bar — share that track/fill pair.
 
 The transfer-row variant — `widgets/DownloadProgressLane.tsx` — adds a meta line
 (speed · ETA, ETA alone, or downloaded-so-far) and an **indeterminate** mode used
 while the ETA is still warming up (no stable rate yet). Indeterminate renders a
-40%-wide `bg-secondary-container` segment that sweeps the track
+40%-wide `on-info` segment that sweeps the track
 (`.progress-indeterminate`, keyframe below) and, per the ARIA progressbar contract,
 **drops `aria-valuenow`** while carrying the state in `aria-valuetext` (the
 "Estimating…" string). Determinate mode keeps `aria-valuenow` + the width fill.

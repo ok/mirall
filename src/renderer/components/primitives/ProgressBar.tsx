@@ -25,7 +25,7 @@ export default function ProgressBar({ value, label, meta }: ProgressBarProps) {
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-1.5 bg-surface-container-highest rounded-full overflow-hidden"
+        className="h-1.5 bg-progress-track rounded-full overflow-hidden"
       >
         <div
           className="h-full bg-on-info rounded-full transition-all motion-reduce:transition-none"

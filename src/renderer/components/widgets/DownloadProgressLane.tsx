@@ -42,7 +42,7 @@ export default function DownloadProgressLane({ value, label, speed, eta, bytes, 
         aria-valuemax={100}
         aria-valuenow={indeterminate ? undefined : pct}
         aria-valuetext={indeterminate ? etaTok : valueText}
-        className="relative h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden"
+        className="relative h-1.5 w-full bg-progress-track rounded-full overflow-hidden"
       >
         {indeterminate ? (
           <div className="progress-indeterminate" />

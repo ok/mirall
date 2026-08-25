@@ -104,7 +104,7 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuetext={valueText}
-            className="flex-grow block h-1.5 bg-surface-container-highest rounded-full overflow-hidden"
+            className="flex-grow block h-1.5 bg-progress-track rounded-full overflow-hidden"
           >
             <span
               className={`block h-full rounded-full transition-all motion-reduce:transition-none ${allPaused ? 'bg-on-info/40' : 'bg-on-info'}`}

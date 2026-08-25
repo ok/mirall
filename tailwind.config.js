@@ -47,6 +47,7 @@ module.exports = {
         'surface-container-lowest': 'var(--color-surface-container-lowest)',
         'surface-variant': 'var(--color-surface-variant)',
         'surface-tint': 'var(--color-surface-tint)',
+        'progress-track': 'var(--color-progress-track)',
         'on-surface': 'var(--color-on-surface)',
         'on-surface-variant': 'var(--color-on-surface-variant)',
         'on-background': 'var(--color-on-background)',

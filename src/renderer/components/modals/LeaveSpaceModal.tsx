@@ -124,7 +124,7 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
                 aria-valuenow={percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="relative h-2 bg-surface-container-highest rounded-full overflow-hidden"
+                className="relative h-2 bg-progress-track rounded-full overflow-hidden"
               >
                 {showStripe && <div className="absolute inset-0 leave-progress-stripe" />}
                 <div
