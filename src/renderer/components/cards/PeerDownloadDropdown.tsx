@@ -36,7 +36,7 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members }: Pee
       tabIndex={0}
       className="mt-1 ml-16 mr-3 mb-1 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
     >
-      <ul className="flex flex-col divide-y divide-outline-variant">
+      <ul className="flex flex-col divide-y divide-progress-track">
         {rows.map((r) => (
           <PeerDownloadRow key={r.peerKey} member={r.member} bytes={r.bytes} total={r.total} avgSpeed={r.avgSpeed} paused={r.paused} />
         ))}

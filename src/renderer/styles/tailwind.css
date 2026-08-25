@@ -45,6 +45,12 @@
   --color-surface-container-lowest: #ffffff;
   --color-surface-variant: #e4e2de;
   --color-surface-tint: #695871;
+  /* Neutral groove for progress-bar tracks and the peer-dropdown divider. Deliberately
+     outside the surface-container ramp: a bar sits inside a row that lifts to
+     `surface-container-highest` on hover and inside a toggle that lifts to
+     `surface-container-high`, so any ramp token it borrows goes invisible in one of
+     those states. Pinned by test/unit/progress-bar-contrast.test.js (FIX-6). */
+  --color-progress-track: #d0cec9;
   --color-on-surface: #1b1c1a;
   --color-on-surface-variant: #4a454b;
   --color-on-background: #1b1c1a;
@@ -110,6 +116,7 @@
   --color-surface-container-lowest: #21252b;
   --color-surface-variant: #333842;
   --color-surface-tint: #3a4250;
+  --color-progress-track: #4a5160;
   --color-on-surface: #fefaf3;
   --color-on-surface-variant: #ebe2d2;
   --color-on-background: #fefaf3;

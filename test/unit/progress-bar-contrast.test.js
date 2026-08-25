@@ -38,13 +38,15 @@ const BARS = [
   'src/renderer/components/modals/LeaveSpaceModal.tsx',
 ]
 
-test('REGRESSION (FIX-1): on-info fill clears 3:1 vs track AND hover pill, both themes', (t) => {
+test('REGRESSION (FIX-1): on-info fill clears 3:1 vs track AND both hover lifts, both themes', (t) => {
   for (const theme of [':root', '.dark']) {
     const k = tokensFor(theme)
-    const cTrack = contrast(k['color-on-info'], k['color-surface-container-highest'])
-    const cHover = contrast(k['color-on-info'], k['color-surface-container-high'])
+    const cTrack = contrast(k['color-on-info'], k['color-progress-track'])
+    const cPill = contrast(k['color-on-info'], k['color-surface-container-high'])
+    const cRow = contrast(k['color-on-info'], k['color-surface-container-highest'])
     t.ok(cTrack >= 3.0, `${theme}: on-info vs track = ${cTrack.toFixed(2)}:1`)
-    t.ok(cHover >= 3.0, `${theme}: on-info vs hover pill = ${cHover.toFixed(2)}:1`)
+    t.ok(cPill >= 3.0, `${theme}: on-info vs hover pill = ${cPill.toFixed(2)}:1`)
+    t.ok(cRow >= 3.0, `${theme}: on-info vs row hover lift = ${cRow.toFixed(2)}:1`)
   }
 })
 
@@ -80,4 +82,46 @@ test('FIX-5: indeterminate sweep and leave stripe use --color-on-info', (t) => {
   const stripe = classBlock('leave-progress-stripe')
   t.ok(stripe.includes('var(--color-on-info)'), 'leave stripe is on-info')
   t.absent(stripe.includes('--color-primary'), 'leave stripe no longer primary')
+})
+
+// Every surface a progress bar can rest on. Bars live inside file/folder rows that lift to
+// `surface-container-highest` on hover, inside the peer-download toggle that lifts to
+// `surface-container-high`, and inside modal panels (`surface-container-lowest`). A track
+// painted in any of those tokens goes invisible the moment its host adopts the same one.
+const HOST_SURFACES = [
+  'color-surface-container-lowest',
+  'color-surface-container-low',
+  'color-surface-container',
+  'color-surface-container-high',
+  'color-surface-container-highest',
+]
+
+// 1.2:1 is the floor the resting file card already sits at, so it is the weakest
+// separation the design is known to accept — not a WCAG number.
+const TRACK_MIN = 1.2
+
+test('REGRESSION (FIX-6): track token clears every host surface, both themes', (t) => {
+  for (const theme of [':root', '.dark']) {
+    const k = tokensFor(theme)
+    t.ok(k['color-progress-track'], `${theme}: --color-progress-track is defined`)
+    if (!k['color-progress-track']) continue
+    for (const s of HOST_SURFACES) {
+      const c = contrast(k['color-progress-track'], k[s])
+      t.ok(c >= TRACK_MIN, `${theme}: track vs ${s} = ${c.toFixed(2)}:1`)
+    }
+  }
+})
+
+test('REGRESSION (FIX-6): every bar paints its track with the dedicated token', (t) => {
+  for (const f of BARS) {
+    const src = read(f)
+    t.ok(src.includes('bg-progress-track'), `${f}: track uses bg-progress-track`)
+    t.absent(/bg-surface-container-\w+ rounded-full overflow-hidden/.test(src), `${f}: no surface token left on a track`)
+  }
+})
+
+test('REGRESSION (FIX-7): peer-dropdown divider survives the card hover lift', (t) => {
+  const src = read('src/renderer/components/cards/PeerDownloadDropdown.tsx')
+  t.absent(src.includes('divide-outline-variant'), 'divider is not outline-variant (== the dark hover lift)')
+  t.ok(src.includes('divide-progress-track'), 'divider uses the hover-proof neutral token')
 })

@@ -49,7 +49,7 @@ export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuetext={valueText}
-          className="block h-1.5 bg-surface-container-highest rounded-full overflow-hidden"
+          className="block h-1.5 bg-progress-track rounded-full overflow-hidden"
         >
           <span
             className={`block h-full rounded-full transition-all motion-reduce:transition-none ${active ? 'bg-on-info' : 'bg-on-info/40'}`}
