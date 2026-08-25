@@ -2,13 +2,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isRelayFeatureEnabled } from '../config-client.js'
+import { reachableState, formatDuration } from '../connectivity.js'
+import DiagnosticsCard from '../components/settings/DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
-import NetworkStatusIndicator from '../components/widgets/NetworkStatusIndicator.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
-import type { NetworkStatus, ConnectivityState } from '../types.js'
+import type { NetworkStatus, Reachability } from '../types.js'
 
 interface Props {
   onBack: () => void
@@ -157,38 +158,44 @@ function BootstrapList({ items, emptyLabel, countLabel }: BootstrapListProps) {
 }
 
 interface VerdictBannerProps {
-  state: ConnectivityState
+  reachability: Reachability | null
   status: NetworkStatus | null
   reconnecting: boolean
   reconnectThrottled: boolean
   onReconnect: () => void
 }
 
-function VerdictBanner({ state, status, reconnecting, reconnectThrottled, onReconnect }: VerdictBannerProps) {
+function verdictLamp(verdict: string | undefined): string {
+  if (verdict === 'blocked') return 'bg-error ring-error/25'
+  if (verdict === 'at-risk') return 'bg-secondary-container ring-secondary-container/30'
+  if (verdict === 'healthy') return 'bg-online ring-online/25'
+  return 'bg-outline ring-outline/20'
+}
+
+function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled, onReconnect }: VerdictBannerProps) {
   const { t } = useTranslation()
+  const verdict = reachability?.verdict ?? 'unknown'
   const peerCount = status?.peerCount ?? 0
-  const headline = state === 'online'
-    ? t('networkStatus.verdict.healthyTitle')
-    : state === 'connecting'
-      ? t('networkStatus.verdict.connectingTitle')
-      : t('networkStatus.verdict.offlineTitle')
-  const subline = state === 'online'
+  const cause = reachability?.cause ?? 'generic'
+
+  const headline = t(`networkStatus.verdict.${verdict}Title`)
+  // "Nobody else is online right now" attributes the missing peers to the other side, so
+  // it may only ever appear when we can actually reach the network.
+  const subline = verdict === 'healthy'
     ? peerCount > 0
       ? t('networkStatus.verdict.healthyBodyPeers', { count: peerCount })
       : t('networkStatus.verdict.healthyBodyIdle')
-    : state === 'connecting'
-      ? t('networkStatus.verdict.connectingBody')
-      : t('networkStatus.verdict.offlineBody')
+    : t(`connectionProblem.body.${cause}`, { defaultValue: t(`networkStatus.verdict.${verdict}Body`) })
 
   return (
     <section>
       <div className="bg-surface-container-low rounded-xl p-6 flex items-center gap-5">
-        <NetworkStatusIndicator state={state} size="lg" />
+        <span aria-hidden="true" className={`w-4 h-4 rounded-full shrink-0 ring-4 ${verdictLamp(verdict)}`} />
         <div role="status" aria-live="polite" className="flex-1 min-w-0">
           <p className="text-2xl font-headline font-bold text-accent">{headline}</p>
           <p className="text-sm text-on-surface-variant mt-1">{subline}</p>
         </div>
-        {state !== 'online' && (
+        {verdict !== 'healthy' && (
           <button
             type="button"
             onClick={onReconnect}
@@ -204,28 +211,62 @@ function VerdictBanner({ state, status, reconnecting, reconnectThrottled, onReco
   )
 }
 
-function buildEssentialSuggestions(status: NetworkStatus | null, state: ConnectivityState, browserOnline: boolean, t: (key: string) => string): string[] {
+// nat.firewalled initialises to true and reads true for nearly every home user, and
+// nat.randomized is the same predicate as publicPort === 0 — so neither earns a line of
+// its own. What is left is one statement per real finding.
+function buildSuggestions(status: NetworkStatus | null, browserOnline: boolean, t: (key: string) => string): string[] {
   const lines: string[] = []
-  if (state === 'offline' && !browserOnline) lines.push(t('networkStatus.advice.osOffline'))
-  if (status && state !== 'offline' && status.dhtReady && status.address.publicHost === null) {
-    lines.push(t('networkStatus.advice.noPublicAddr'))
+  if (!status) return lines
+  if (!browserOnline) {
+    lines.push(t('networkStatus.advice.osOffline'))
+    return lines
   }
-  if (status && status.nat.ephemeral === true && status.peerCount === 0 && state === 'connecting') {
-    lines.push(t('networkStatus.advice.stillBootstrapping'))
+  const reachable = reachableState(status)
+  if (reachable === 'noAddress') lines.push(t('networkStatus.advice.noPublicAddr'))
+  if (reachable === 'changingPorts') {
+    lines.push(t('networkStatus.advice.symmetricNat'))
+    lines.push(t('networkStatus.advice.symmetricNatFix'))
   }
-  if (status && state !== 'offline' && status.routing.tableSize > 0 && status.routing.tableSize < 5 && status.peerCount === 0) {
-    lines.push(t('networkStatus.advice.smallRoutingTable'))
+  if (status.dhtHealth?.degraded) lines.push(t('networkStatus.advice.udpDegraded'))
+  if (status.reachability?.verdict === 'unknown' && status.dhtReady) {
+    lines.push(t('networkStatus.advice.stillSettling'))
   }
   return lines
 }
 
-function buildAdvancedSuggestions(status: NetworkStatus | null, t: (key: string) => string): string[] {
-  const lines: string[] = []
-  if (!status) return lines
-  if (status.nat.firewalled === true) lines.push(t('networkStatus.advice.firewalled'))
-  if (status.nat.randomized === true) lines.push(t('networkStatus.advice.randomizedNat'))
-  if (status.dhtReady && status.address.publicPort === 0) lines.push(t('networkStatus.advice.symmetricNat'))
-  return lines
+interface SummaryProps {
+  status: NetworkStatus | null
+  now: number
+}
+
+function ConnectionSummary({ status, now }: SummaryProps) {
+  const { t } = useTranslation()
+  if (!status) return null
+  const verdict = status.reachability?.verdict ?? 'unknown'
+  const canary = status.canary?.state ?? 'unavailable'
+  const canaryWhen = status.canary?.at ? formatRelativeTime(status.canary.at, now) : ''
+
+  return (
+    <Section title={t('networkStatus.summary.title')}>
+      <Field label={t('networkStatus.summary.connection')} value={t(`networkStatus.summary.connectionValue.${verdict}`)} />
+      <Field label={t('networkStatus.summary.reachable')} value={t(`networkStatus.summary.reachableValue.${reachableState(status)}`)} />
+      <Field
+        label={t('networkStatus.summary.connectionTest')}
+        value={`${t(`networkStatus.summary.testValue.${canary}`)}${canaryWhen ? ` · ${canaryWhen}` : ''}`}
+      />
+      <Field
+        label={t('networkStatus.summary.people')}
+        value={t('networkStatus.summary.peopleValue', {
+          found: status.peerReach?.discovered ?? 0,
+          connected: status.peerReach?.connected ?? 0,
+        })}
+      />
+      <Field
+        label={t('networkStatus.summary.runningFor')}
+        value={status.bootedAt > 0 ? formatDuration(now - status.bootedAt) : DASH}
+      />
+    </Section>
+  )
 }
 
 function SuggestionsList({ lines }: { lines: string[] }) {
@@ -246,9 +287,77 @@ function SuggestionsList({ lines }: { lines: string[] }) {
   )
 }
 
+interface AdvancedDetailsProps {
+  status: NetworkStatus | null
+  relayVisible: boolean
+  now: number
+}
+
+function AdvancedDetails({ status, relayVisible, now }: AdvancedDetailsProps) {
+  const { t } = useTranslation()
+  if (!status) return null
+  const portPreserved = status.address.publicPort > 0
+    && status.address.publicPort === status.address.localPort
+  const portPreservationLabel = portPreserved
+    ? t('networkStatus.portPreservedYes')
+    : status.dhtReady ? t('networkStatus.portPreservedNo') : DASH
+
+  return (
+    <>
+              <Section title={t('networkStatus.connection')}>
+                <Field label={t('networkStatus.peerCount')}     value={formatNumber(status.peerCount)} />
+                <Field label={t('networkStatus.topicsJoined')}  value={formatNumber(status.topics)} />
+                <Field label={t('networkStatus.lastConnected')} value={formatRelativeTime(status.lastConnectionAt, now)} />
+              </Section>
+
+              <Section title={t('networkStatus.address')}>
+                <MaskedField label={t('networkStatus.publicHost')} value={status.address.publicHost} />
+                <Field label={t('networkStatus.publicPort')} value={status.address.publicPort ? String(status.address.publicPort) : DASH} mono />
+                <Field label={t('networkStatus.localPort')}  value={status.address.localPort ? String(status.address.localPort) : DASH} mono />
+                <Field
+                  label={t('networkStatus.portPreserved')}
+                  value={portPreservationLabel}
+                  positive={portPreserved}
+                />
+                <MaskedField label={t('networkStatus.publicKey')} value={status.identity.publicKey} visibleSuffix={6} />
+              </Section>
+
+              <Section title={t('networkStatus.nat')}>
+                <Field label={t('networkStatus.firewalled')} value={formatBool(status.nat.firewalled, t)} />
+                <Field label={t('networkStatus.randomized')} value={formatBool(status.nat.randomized, t)} />
+                <Field label={t('networkStatus.ephemeral')}  value={formatBool(status.nat.ephemeral, t)} />
+              </Section>
+
+              {relayVisible && (
+                <Section title={t('networkStatus.relaying')}>
+                  <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
+                  <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
+                  <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
+                </Section>
+              )}
+
+              <Section title={t('networkStatus.dht')}>
+                <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status.routing.tableSize)} />
+                <Field label={t('networkStatus.dhtVersion')}        value={status.versions.dht} mono />
+                <BootstrapList
+                  items={status.routing.bootstrap}
+                  emptyLabel={DASH}
+                  countLabel={(n) => t('networkStatus.bootstrapEntries', { count: n })}
+                />
+              </Section>
+
+              <Section title={t('networkStatus.canary')}>
+                <Field label={t('networkStatus.canaryState')} value={t(`networkStatus.summary.testValue.${status.canary.state}`)} />
+                <Field label={t('networkStatus.canaryRecords')} value={formatNumber(status.canary.stage1?.announceRecords)} />
+                <Field label={t('networkStatus.canaryChecked')} value={formatRelativeTime(status.canary.at || null, now)} />
+              </Section>
+    </>
+  )
+}
+
 export default function NetworkStatusScreen({ onBack }: Props) {
   const { t } = useTranslation()
-  const { state, status, reconnect } = useConnectionStatus()
+  const { status, reachability, reconnect } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
@@ -269,13 +378,7 @@ export default function NetworkStatusScreen({ onBack }: Props) {
     }
   }
 
-  const essentialSuggestions = buildEssentialSuggestions(status, state, browserOnline, t)
-  const advancedSuggestions = buildAdvancedSuggestions(status, t)
-  const portPreserved = !!status && status.address.publicPort > 0
-    && status.address.publicPort === status.address.localPort
-  const portPreservationLabel = portPreserved
-    ? t('networkStatus.portPreservedYes')
-    : status && status.dhtReady ? t('networkStatus.portPreservedNo') : DASH
+  const suggestions = buildSuggestions(status, browserOnline, t)
 
   return (
     <div
@@ -291,14 +394,18 @@ export default function NetworkStatusScreen({ onBack }: Props) {
 
         <div className="space-y-8">
           <VerdictBanner
-            state={state}
+            reachability={reachability}
             status={status}
             reconnecting={reconnecting}
             reconnectThrottled={reconnectThrottled}
             onReconnect={handleReconnect}
           />
 
-          <SuggestionsList lines={essentialSuggestions} />
+          <SuggestionsList lines={suggestions} />
+
+          <ConnectionSummary status={status} now={now} />
+
+          <DiagnosticsCard />
 
           <section>
             <button
@@ -313,55 +420,10 @@ export default function NetworkStatusScreen({ onBack }: Props) {
             </button>
           </section>
 
-          {advancedOpen && (
-            <>
-              <Section title={t('networkStatus.connection')}>
-                <Field label={t('networkStatus.peerCount')}     value={formatNumber(status?.peerCount)} />
-                <Field label={t('networkStatus.topicsJoined')}  value={formatNumber(status?.topics)} />
-                <Field label={t('networkStatus.lastConnected')} value={formatRelativeTime(status?.lastConnectionAt ?? null, now)} />
-              </Section>
-
-              <Section title={t('networkStatus.address')}>
-                <MaskedField label={t('networkStatus.publicHost')} value={status?.address.publicHost ?? null} />
-                <Field label={t('networkStatus.publicPort')} value={status?.address.publicPort ? String(status.address.publicPort) : DASH} mono />
-                <Field label={t('networkStatus.localPort')}  value={status?.address.localPort ? String(status.address.localPort) : DASH} mono />
-                <Field
-                  label={t('networkStatus.portPreserved')}
-                  value={portPreservationLabel}
-                  positive={portPreserved}
-                />
-                <MaskedField label={t('networkStatus.publicKey')} value={status?.identity.publicKey ?? null} visibleSuffix={6} />
-              </Section>
-
-              <Section title={t('networkStatus.nat')}>
-                <Field label={t('networkStatus.firewalled')} value={formatBool(status?.nat.firewalled ?? null, t)} />
-                <Field label={t('networkStatus.randomized')} value={formatBool(status?.nat.randomized ?? null, t)} />
-                <Field label={t('networkStatus.ephemeral')}  value={formatBool(status?.nat.ephemeral ?? null, t)} />
-              </Section>
-
-              {relayVisible && (
-                <Section title={t('networkStatus.relaying')}>
-                  <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status?.stats.relaying.successes)} />
-                  <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status?.stats.relaying.attempts)} />
-                  <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status?.stats.relaying.aborts)} />
-                </Section>
-              )}
-
-              <Section title={t('networkStatus.dht')}>
-                <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status?.routing.tableSize)} />
-                <Field label={t('networkStatus.dhtVersion')}        value={status?.versions.dht ?? DASH} mono />
-                <BootstrapList
-                  items={status?.routing.bootstrap ?? []}
-                  emptyLabel={DASH}
-                  countLabel={(n) => t('networkStatus.bootstrapEntries', { count: n })}
-                />
-              </Section>
-
-              <SuggestionsList lines={advancedSuggestions} />
-            </>
-          )}
+          {advancedOpen && <AdvancedDetails status={status} relayVisible={relayVisible} now={now} />}
         </div>
       </div>
+
     </div>
   )
 }

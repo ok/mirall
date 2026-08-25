@@ -76,6 +76,7 @@ export function useAppNavigation(): AppNavigation {
       case 'network-settings':
       case 'general-settings': setCurrentScreen('settings'); break
       case 'network-status': setCurrentScreen('account'); break
+      case 'connection-problem': setCurrentScreen('spaces'); break
       // The viewer hangs off Account and the config off Settings, so each backs out to its own
       // parent; a cross-link between them is a lateral jump, not a step in a history stack.
       case 'activity-log': setCurrentScreen('account'); break

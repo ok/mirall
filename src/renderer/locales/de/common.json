@@ -623,7 +623,25 @@
     "offlineToast": "Netzwerkverbindung verloren. Mirall ist pausiert.",
     "connectingToast": "Neuer Verbindungsversuch…",
     "restoredToast": "Wieder online",
-    "showDetails": "Details anzeigen"
+    "showDetails": "Details anzeigen",
+    "whatCanIDo": "Was tun?",
+    "blockedToast": {
+      "generic": "Dein Netzwerk blockiert Verbindungen zu anderen Teilnehmern. Einladungen und Freigaben kommen nicht an.",
+      "peers-unreachable": "Wir finden andere Teilnehmer, können sie aber nicht erreichen. Einladungen und Freigaben kommen nicht an.",
+      "os-offline": "Dieses Gerät ist mit keinem Netzwerk verbunden.",
+      "vpn-only-route": "Mirall erreicht das Netzwerk nicht. Dein VPN scheint der einzige Weg nach außen zu sein."
+    },
+    "atRiskToast": {
+      "generic": "Verbindungen zu vielen Teilnehmern werden in diesem Netzwerk fehlschlagen.",
+      "symmetric-nat": "Verbindungen zu vielen Teilnehmern werden fehlschlagen. Mobilfunk-Router und Tethering sind die übliche Ursache."
+    },
+    "fix": {
+      "vpn": "VPN ausschalten und erneut prüfen.",
+      "mobile": "Statt Mobilfunk-Router oder Handy-Tethering einen DSL- oder Kabelanschluss nutzen. Im Mobilfunknetz lässt sich das nicht am Router einstellen.",
+      "otherNetwork": "In einem anderen WLAN testen — Firmen- und Gastnetze filtern diesen Verkehr häufig.",
+      "turnOnNetwork": "Schalte dein WLAN wieder ein oder schließe ein Netzwerkkabel an."
+    },
+    "limited": "Eingeschränkt"
   },
   "networkSettings": {
     "title": "Netzwerk",
@@ -688,7 +706,14 @@
       "connectingTitle": "Verbinde mit dem Mirall-Netzwerk…",
       "connectingBody": "Das dauert länger als üblich. Firewall, VPN oder Internetanbieter prüfen.",
       "offlineTitle": "Du bist offline",
-      "offlineBody": "Mirall ist pausiert, bis deine Verbindung zurückkehrt."
+      "offlineBody": "Mirall ist pausiert, bis deine Verbindung zurückkehrt.",
+      "unknownTitle": "Verbindung wird geprüft…",
+      "unknownBody": "Wir ermitteln, wie sich dieses Netzwerk verhält.",
+      "at-riskTitle": "Eingeschränkte Verbindung",
+      "at-riskBody": "Verbindungen zu vielen Teilnehmern werden in diesem Netzwerk fehlschlagen.",
+      "blockedTitle": "Mirall erreicht keine anderen Teilnehmer",
+      "blockedBody": "Solange das so bleibt, kommen Einladungen und Freigaben nicht an.",
+      "body": {}
     },
     "advancedToggle": "Erweiterte Details anzeigen",
     "advancedHint": "Adresse, NAT, DHT, Zähler",
@@ -732,15 +757,50 @@
       "osOffline": "Dein Betriebssystem meldet keine Internetverbindung. WLAN oder Ethernet prüfen.",
       "firewalled": "Dein Router scheint eingehende UDP-Pakete zu blockieren. Peers erreichen dich nur über Holepunching.",
       "randomizedNat": "Dein Netzwerk vergibt zufällige ausgehende Ports. Direkte Verbindungen können fehlschlagen.",
-      "symmetricNat": "Symmetrisches NAT erkannt — Verbindungen laufen über Holepunched-Pfade.",
+      "symmetricNat": "Deine Verbindung nutzt wechselnde Ports. Verbindungen zu vielen Teilnehmern werden fehlschlagen — Mobilfunk-Router und Tethering sind die übliche Ursache.",
       "noPublicAddr": "Öffentliche IP konnte nicht ermittelt werden. Prüfe deine Internetverbindung.",
       "smallRoutingTable": "Bisher wenige DHT-Peers bekannt. Bootstrap läuft möglicherweise noch.",
-      "stillBootstrapping": "Tritt noch dem DHT bei — bitte einen Moment Geduld."
+      "stillBootstrapping": "Tritt noch dem DHT bei — bitte einen Moment Geduld.",
+      "symmetricNatFix": "Im Mobilfunknetz lässt sich das nicht am Router einstellen. Ein DSL- oder Kabelanschluss funktioniert.",
+      "udpDegraded": "Dein Netzwerk verwirft laufend Datenverkehr zum Mirall-Netzwerk. Übertragungen können stocken.",
+      "stillSettling": "Wir ermitteln noch, wie sich dieses Netzwerk verhält — einen Moment bitte."
     },
     "relaying": "Weiterleitung",
     "relayedActive": "Weitergeleitete Verbindungen",
     "relayedAttempts": "Weiterleitungsversuche",
-    "relayedAborts": "Fehlgeschlagene Weiterleitungen"
+    "relayedAborts": "Fehlgeschlagene Weiterleitungen",
+    "summary": {
+      "title": "Verbindungsübersicht",
+      "connection": "Verbindung",
+      "connectionValue": {
+        "healthy": "Funktioniert",
+        "at-risk": "Eingeschränkt",
+        "blocked": "Blockiert",
+        "unknown": "Wird geprüft…"
+      },
+      "reachable": "Von außen erreichbar",
+      "reachableValue": {
+        "yes": "Ja",
+        "changingPorts": "Nein — dein Netzwerk nutzt wechselnde Ports",
+        "noAddress": "Nein — deine Erreichbarkeit lässt sich nicht ermitteln",
+        "unknown": "Wird geprüft…"
+      },
+      "connectionTest": "Verbindungstest",
+      "testValue": {
+        "reachable": "Bestanden",
+        "unreachable": "Fehlgeschlagen",
+        "seeder-down": "Testserver nicht verfügbar",
+        "unavailable": "Nicht ausgeführt",
+        "pending": "Läuft…"
+      },
+      "people": "Teilnehmer",
+      "peopleValue": "{{found}} gefunden · {{connected}} verbunden",
+      "runningFor": "Läuft seit"
+    },
+    "canary": "Verbindungstest",
+    "canaryState": "Ergebnis",
+    "canaryRecords": "Gefundene Testserver",
+    "canaryChecked": "Zuletzt geprüft"
   },
   "a11y": {
     "skipToContent": "Zum Inhalt springen",
@@ -759,7 +819,8 @@
       "network": "Netzwerkstatus",
       "activityLog": "Aktivitätsprotokoll",
       "activityLogSettings": "Einstellungen für das Aktivitätsprotokoll",
-      "networkSettings": "Netzwerkeinstellungen"
+      "networkSettings": "Netzwerkeinstellungen",
+      "connectionProblem": "Verbindungsproblem"
     }
   },
   "avatar": {
@@ -907,5 +968,74 @@
     "deleteConfirmBody": "Alle aufgezeichneten Ereignisse werden von diesem Gerät entfernt. Kann nicht rückgängig gemacht werden.",
     "deleteDone_one": "{{count}} Ereignis gelöscht.",
     "deleteDone_other": "{{count}} Ereignisse gelöscht."
+  },
+  "connectionProblem": {
+    "title": "Verbindungsproblem",
+    "subtitle": {
+      "blocked": "Mirall erreicht aus diesem Netzwerk keine anderen Teilnehmer.",
+      "atRisk": "Mirall erreicht aus diesem Netzwerk nur einen Teil der anderen Teilnehmer.",
+      "offline": "Dieses Gerät ist mit keinem Netzwerk verbunden.",
+      "vpnOnly": "Dein VPN scheint der einzige Weg nach außen zu sein."
+    },
+    "verdict": {
+      "blocked": "Dein Netzwerk blockiert Mirall",
+      "atRisk": "Eingeschränkte Verbindung",
+      "offline": "Du bist offline",
+      "vpnOnly": "Netzwerk nicht erreichbar"
+    },
+    "body": {
+      "generic": "Wir finden andere Teilnehmer im Mirall-Netzwerk, können aber keine Verbindung zu ihnen aufbauen.",
+      "symmetric-nat": "Deine Verbindung nutzt bei jedem Zugriff einen anderen Port. Zu manchen Teilnehmern klappt die Verbindung, zu vielen anderen nicht. Mobilfunk-Router und Handy-Tethering sind die übliche Ursache.",
+      "no-public-address": "Wir konnten nicht ermitteln, wie du für den Rest des Netzwerks erreichbar bist. Andere Teilnehmer haben damit keinen Weg zu dir.",
+      "peers-unreachable": "Wir finden andere Teilnehmer im Mirall-Netzwerk, können aber keine Verbindung zu ihnen aufbauen. Solange das so bleibt, kommen deine Einladungen nicht an und beigetretene Räume gleichen sich nicht ab.",
+      "dht-unreachable": "Mirall erreicht das Netzwerk von hier aus überhaupt nicht.",
+      "udp-degraded": "Dein Netzwerk verwirft laufend Datenverkehr, deshalb können Übertragungen stocken.",
+      "os-offline": "Dieses Gerät ist mit keinem Netzwerk verbunden.",
+      "vpn-only-route": "Jede Route auf diesem Gerät läuft über ein VPN, und darüber antwortet nichts. Wenn das VPN selbst keine Verbindung mehr hat, kommt auch Mirall nicht hinaus."
+    },
+    "fixHeading": "Das hilft — in dieser Reihenfolge",
+    "checkAgain": "Erneut prüfen",
+    "checking": "Wird geprüft…",
+    "networkDetails": "Netzwerkdetails",
+    "checkedJustNow": "Gerade geprüft",
+    "checkedMinutes_one": "Vor {{count}} Minute geprüft",
+    "checkedMinutes_other": "Vor {{count}} Minuten geprüft",
+    "checkedNever": "Noch nicht geprüft",
+    "stillWorks": {
+      "blocked": "Du kannst trotzdem Räume anlegen — sie bleiben auf diesem Gerät und gleichen sich ab, sobald die Verbindung steht.",
+      "atRisk": "Mit einem Teil der Teilnehmer funktioniert das Teilen weiterhin.",
+      "offline": "Räume, die du jetzt anlegst, gleichen sich ab, sobald du wieder verbunden bist.",
+      "vpnOnly": "Räume, die du jetzt anlegst, gleichen sich ab, sobald die Verbindung steht."
+    },
+    "continueToSpaces": "Weiter zu den Räumen",
+    "recoveredTitle": "Verbindung wiederhergestellt",
+    "recoveredSubtitle": "Mirall erreicht wieder andere Teilnehmer.",
+    "recoveredVerdict": "Deine Verbindung funktioniert",
+    "recoveredBody": "Was Mirall blockiert hat, ist behoben. Du kannst einen Raum erstellen oder einem beitreten.",
+    "heading": {
+      "blocked": "Verbindungsproblem",
+      "atRisk": "Verbindungsproblem",
+      "offline": "Keine Netzwerkverbindung",
+      "vpnOnly": "Mirall erreicht das Netzwerk nicht"
+    }
+  },
+  "diagnostics": {
+    "title": "Diagnose",
+    "intro": "Wenn wir dich nach Details fragen, speichere diese Datei und schicke sie uns. Sie beschreibt das Verhalten deines Netzwerks — nicht, was du teilst oder mit wem.",
+    "redactLabel": "Identifizierende Angaben entfernen",
+    "redactDescription": "IP-Adresse, Schlüssel und Raumnamen werden gekürzt oder weggelassen. Empfohlen — das reicht uns, um Verbindungsprobleme zu erkennen.",
+    "logsLabel": "Ausführliche Protokolle einschließen",
+    "logsDescription": "Schaltet die ausführliche Protokollierung ein und bittet dich, das Problem vor dem Speichern zu wiederholen.",
+    "save": "Diagnose speichern",
+    "preview": "Inhalt ansehen",
+    "previewTitle": "Das steht in der Datei",
+    "previewIntro": "Identifizierende Angaben entfernt. Genau das wird gespeichert.",
+    "previewRegion": "Inhalt der Diagnosedatei",
+    "previewTruncated": "(gekürzt — die gespeicherte Datei enthält alles)",
+    "saveFile": "Datei speichern",
+    "approxSize": "ca. {{size}}",
+    "saved": "Diagnosedatei gespeichert.",
+    "verboseOn": "Ausführliche Protokollierung ist aktiv. Wiederhole das Problem und speichere dann die Datei.",
+    "previewIntroRaw": "Identifizierende Angaben sind ENTHALTEN. Genau das wird gespeichert."
   }
 }

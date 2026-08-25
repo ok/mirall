@@ -40,6 +40,10 @@ test('REGRESSION (FIX-AXE-1): production bundle (__DEV__=false) strips axe-core'
   const out = await bundle(false)
   t.absent(out.includes('@axe-core'), 'no @axe-core module reference in prod bundle')
   t.absent(out.includes('color-contrast'), 'no axe-core rule ids in prod bundle')
+  // A backstop for the two string checks above, not a size budget: axe-core adds ~616KB,
+  // so any inclusion blows past this by a wide margin. Headroom is thin (~5KB) because the
+  // five statically-bundled locales are ~27% of the bundle, which makes this line the
+  // effective budget for new UI copy — lazy-loading them is the real fix.
   t.ok(out.length < 1_000_000, `prod bundle is small without axe-core (${out.length} bytes)`)
 })
 

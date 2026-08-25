@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('bridge', {
   getChangelog: () => ipcRenderer.invoke('app:getChangelog'),
   getIdentityProtection: () => ipcRenderer.invoke('app:identityProtection'),
   setVerbose: (on) => ipcRenderer.invoke('app:setVerbose', on),
+  getDiagnosticLogs: (opts) => ipcRenderer.invoke('diagnostics:logs', opts),
+  getNetOnline: () => ipcRenderer.invoke('net:online'),
+  onNetOnlineChange: (listener) => {
+    const wrap = (_evt, online) => listener(online)
+    ipcRenderer.on('net:online', wrap)
+    return () => ipcRenderer.removeListener('net:online', wrap)
+  },
+
   onMainLog: (listener) => {
     const wrap = (_evt, payload) => listener(payload)
     ipcRenderer.on('main:log', wrap)

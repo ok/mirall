@@ -23,7 +23,7 @@ import CommandPalette from './keyboard/CommandPalette.js'
 import ShortcutsHint from './keyboard/ShortcutsHint.js'
 import type { Command } from './keyboard/registry.js'
 import { HOME_ACCELERATOR } from './keyboard/known-commands.js'
-import type { Space } from './types.js'
+import type { Profile, Space } from './types.js'
 import type { DeepLinkPayload } from './global.js'
 import { decodeInvite } from './invite-envelope.js'
 import { request, subscribe } from './ipc.js'
@@ -49,6 +49,7 @@ const SCREEN_TITLE_KEYS: Record<string, string> = {
   'general-settings': 'a11y.screens.general',
   'network-settings': 'a11y.screens.networkSettings',
   'network-status': 'a11y.screens.network',
+  'connection-problem': 'a11y.screens.connectionProblem',
   'activity-log': 'a11y.screens.activityLog',
   'activity-log-settings': 'a11y.screens.activityLogSettings',
 }
@@ -141,7 +142,7 @@ export default function App() {
   return (
     <ToastProvider>
     <ConnectionStatusProvider>
-    <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} />
+    <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} onShowHelp={() => nav.setCurrentScreen('connection-problem')} />
     <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
     <WorkerToastBridge />
     <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>

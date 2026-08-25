@@ -15,6 +15,7 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import fs from 'bare-fs'
+import os from 'bare-os'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import {
   getProfileKey, getProfile, getLocalPublicKeyHex, openProfileBee, readPeerApproval, hasOwnApproval,
@@ -25,9 +26,11 @@ import {
   recordJoinRequest, listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
   pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, ownLooseCatalogPublish, persistLeftTombstone,
 } from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled } from '../core/runtime-config.js'
+import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
+import crypto from 'hypercore-crypto'
+import idEncoding from 'hypercore-id-encoding'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
@@ -47,6 +50,7 @@ import { markLeft, isLeft, openMemberView, closeMemberView, rosterDeficits, reco
 import { createPresence, presenceFrameKind } from '../state/presence.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { createLogger } from '../core/logger.js'
+import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT_SETTLE_MS, LIVENESS_FAILURES_FOR_OFFLINE } from '../core/reachability.js'
 
 const log = createLogger('swarm')
 
@@ -113,7 +117,14 @@ const escalationsSpent = new Map()      // spaceId → discovery.refreshes spent
 let testDrop = null                     // test-only inbound identity-frame drop window
 
 let dhtReady = false
+let readyAt = 0
 let announced = false
+let hostChangeCount = 0
+let lastKnownHost = null
+let currentReachability = { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null }
+let verdictHistory = []
+let lastCanaryResult = { state: CANARY.UNAVAILABLE, at: 0 }
+let browserOnlineHint = true
 let lastConnectionAt = null
 let lastEmittedStatus = null
 let statusEmitTimer = null
@@ -180,16 +191,25 @@ export function initSwarm(_ipc) {
   const onDhtReady = () => {
     if (dhtReady) return
     dhtReady = true
+    readyAt = Date.now()
     scheduleStatusEmit()
+    scheduleFirstCanaryProbe()
+    startLivenessLoop()
+    startInterfaceWatch()
   }
   swarm.dht.on('ready', onDhtReady)
   swarm.dht.fullyBootstrapped().then(onDhtReady, () => {})
   swarm.dht.on('persistent', scheduleStatusEmit)
   swarm.dht.on('network-change', scheduleStatusEmit)
   swarm.dht.on('wake-up', scheduleStatusEmit)
-  swarm.dht.on('nat-update', scheduleStatusEmit)
+  swarm.dht.on('nat-update', (host) => {
+    if (typeof host === 'string' && lastKnownHost !== null && host !== lastKnownHost) hostChangeCount++
+    if (typeof host === 'string') lastKnownHost = host
+    scheduleStatusEmit()
+  })
 
   swarm.on('connection', (socket, peerInfo) => {
+    livenessFailures = 0
     applyNetImpairment(socket) // TEST-ONLY: no-op unless runtime-config.netImpair is set
     lastConnectionAt = Date.now()
     scheduleStatusEmit()
@@ -1801,6 +1821,11 @@ export function sendMembershipDeny(profileKeyHex, topicHex) {
 export async function destroySwarm() {
   if (!swarm) return
   log.info('destroying swarm...')
+  if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
+  if (firstProbeTimer) { clearTimeout(firstProbeTimer); firstProbeTimer = null }
+  if (livenessTimer) { clearInterval(livenessTimer); livenessTimer = null }
+  if (interfaceTimer) { clearInterval(interfaceTimer); interfaceTimer = null }
+  if (livenessRetryTimer) { clearTimeout(livenessRetryTimer); livenessRetryTimer = null }
   if (statusEmitTimer) {
     clearTimeout(statusEmitTimer)
     statusEmitTimer = null
@@ -1822,9 +1847,21 @@ export async function destroySwarm() {
   testDrop = null
   presence.clearAll()
   dhtReady = false
+  readyAt = 0
   announced = false
   lastConnectionAt = null
   lastEmittedStatus = null
+  hostChangeCount = 0
+  lastKnownHost = null
+  currentReachability = { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null }
+  verdictHistory = []
+  lastCanaryResult = { state: CANARY.UNAVAILABLE, at: 0 }
+  lastCanaryAt = 0
+  livenessFailures = 0
+  livenessCheckedAt = 0
+  interfaceKind = 'physical'
+  canaryInFlight = null
+  browserOnlineHint = true
   localBindings.clear()
   boundSignerKeys.clear()
   spaceTopics.clear()
@@ -1868,6 +1905,59 @@ function safeRoutingTableSize() {
     const arr = swarm?.dht?.toArray?.({ limit: 50 })
     return Array.isArray(arr) ? arr.length : 0
   } catch { return 0 }
+}
+
+// The gap between peers we DISCOVERED on our topics and peers we actually connected to
+// is the strongest connectivity signal available: the DHT told us where they are and we
+// could not open a socket to any of them.
+function snapshotPeerReach() {
+  const peers = swarm?.peers
+  if (!peers) return { discovered: 0, connected: 0, exhausted: 0 }
+  let exhausted = 0
+  for (const info of peers.values()) {
+    // attempts > 3 is where hyperswarm's _shouldRequeue gives up and the peer leaves the
+    // retry queue until a fresh lookup rediscovers it.
+    if (!info.proven && info.attempts > 3) exhausted++
+  }
+  return { discovered: peers.size, connected: swarm.connections?.size || 0, exhausted }
+}
+
+const PEER_SAMPLE_CAP = 32
+
+// PeerInfo.topics carries an upstream "remove on next major" marker, so never assume it.
+function topicHexOf(info) {
+  const topic = Array.isArray(info?.topics) ? info.topics[0] : null
+  if (!topic) return null
+  try { return b4a.toString(topic, 'hex') } catch { return null }
+}
+
+function snapshotPeerSamples() {
+  const peers = swarm?.peers
+  if (!peers) return []
+  const out = []
+  for (const [key, info] of peers) {
+    if (out.length >= PEER_SAMPLE_CAP) break
+    out.push({
+      publicKey: key,
+      topic: topicHexOf(info),
+      attempts: info.attempts || 0,
+      proven: !!info.proven,
+    })
+  }
+  return out
+}
+
+function snapshotDhtHealth() {
+  const health = swarm?.dht?.health
+  if (!health) return { online: true, degraded: false, cold: true, idle: true, timeoutsRate: 0 }
+  const s = health.stats || {}
+  return {
+    online: s.online !== false,
+    degraded: !!s.degraded,
+    cold: !!s.cold,
+    idle: !!s.idle,
+    timeoutsRate: typeof s.timeoutsRate === 'number' ? s.timeoutsRate : 0,
+  }
 }
 
 function snapshotStats() {
@@ -1917,6 +2007,11 @@ function offlineStatusSnapshot() {
       bannedPeers: 0,
       relaying: { selected: 0, attempts: 0, successes: 0, aborts: 0 },
     },
+    peerReach: { discovered: 0, connected: 0, exhausted: 0 },
+    dhtHealth: { online: false, degraded: false, cold: true, idle: true, timeoutsRate: 0 },
+    canary: { state: CANARY.UNAVAILABLE, at: 0 },
+    liveness: { failures: 0, checkedAt: 0, interfaceKind: 'physical' },
+    reachability: { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null },
     versions: { dht: DHT_VERSION },
   }
 }
@@ -1985,8 +2080,307 @@ export async function testRelayReachable(publicKey) {
   return result
 }
 
+const VERDICT_HISTORY_CAP = 200
+
+function recordVerdictTransition(next) {
+  const prev = verdictHistory[verdictHistory.length - 1]
+  if (prev && prev.verdict === next.verdict && prev.cause === next.cause) return
+  verdictHistory.push({ at: Date.now(), verdict: next.verdict, cause: next.cause, confidence: next.confidence })
+  if (verdictHistory.length > VERDICT_HISTORY_CAP) verdictHistory.shift()
+}
+
+function recomputeReachability() {
+  const dht = swarm?.dht || {}
+  const stats = snapshotStats()
+  const now = Date.now()
+  const raw = classify({
+    now,
+    bootedAt,
+    readyAt,
+    dhtReady,
+    suspended: !!swarm?.suspended || !!swarm?.destroyed,
+    browserOnline: browserOnlineHint,
+    hasInterface: interfaceKind !== 'none',
+    interfaceKind,
+    address: {
+      publicHost: typeof dht.host === 'string' ? dht.host : null,
+      publicPort: typeof dht.port === 'number' ? dht.port : 0,
+    },
+    routing: { tableSize: safeRoutingTableSize() },
+    dhtHealth: snapshotDhtHealth(),
+    peerReach: snapshotPeerReach(),
+    dials: { attempted: stats.connects.client.attempted, opened: stats.connects.client.opened },
+    canary: lastCanaryResult,
+    liveness: { failures: livenessFailures, checkedAt: livenessCheckedAt },
+  })
+  currentReachability = stabilise(raw, currentReachability, now)
+  recordVerdictTransition(currentReachability)
+  return currentReachability
+}
+
+export function setBrowserOnlineHint(online) {
+  const next = online !== false
+  if (next === browserOnlineHint) return
+  browserOnlineHint = next
+  scheduleStatusEmit()
+}
+
+export function getVerdictHistory() {
+  return verdictHistory.slice()
+}
+
+export function getDiagnosticCounters() {
+  return {
+    readyAt,
+    bootedAt,
+    hostChangeCount,
+    localPortStable: safeAddress().port > 0,
+  }
+}
+
+export function getPeerSamples() {
+  return snapshotPeerSamples()
+}
+
+const CANARY_TIMEOUT_MS = 10000
+const CANARY_MIN_INTERVAL_MS = 15 * 60 * 1000
+const CANARY_MAX_DIALS = 3
+
+let canaryInFlight = null
+let lastCanaryAt = 0
+
+function parseUpgradeKey(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  const bare = raw.replace(/^pear:\/\//, '').split('/')[0].trim()
+  if (!bare) return null
+  try {
+    const key = idEncoding.decode(bare)
+    return key.byteLength === 32 ? key : null
+  } catch { return null }
+}
+
+function dialOnce(dht, peer) {
+  return new Promise((resolve) => {
+    let socket = null
+    let settled = false
+    const finish = (ok) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (socket) { try { socket.destroy() } catch {} }
+      resolve(ok)
+    }
+    const timer = setTimeout(() => finish(false), CANARY_TIMEOUT_MS)
+    timer.unref?.()
+    try {
+      socket = dht.connect(peer.publicKey, { relayAddresses: peer.relayAddresses })
+      socket.on('open', () => finish(true))
+      socket.on('error', () => finish(false))
+      socket.on('close', () => finish(false))
+    } catch (err) {
+      log.debug('canary dial threw:', err.message)
+      finish(false)
+    }
+  })
+}
+
+// Two stages, because a single probe cannot distinguish "your network is broken" from
+// "our seeder is down". Stage 1 asks the DHT whether the seeder is announcing at all; if
+// it is not, we report seeder-down and the reducer leaves the user's verdict untouched.
+async function runCanaryProbe(upgradeKey) {
+  const driveKey = parseUpgradeKey(upgradeKey)
+  if (!driveKey) return { state: CANARY.UNAVAILABLE, reason: 'no-key' }
+  const dht = swarm?.dht
+  if (!dht || !dhtReady) return { state: CANARY.UNAVAILABLE, reason: 'no-dht' }
+
+  const topic = crypto.discoveryKey(driveKey)
+  const found = []
+  const stream = dht.lookup(topic)
+  const stage1Started = Date.now()
+  const stage1Timer = setTimeout(() => { try { stream.destroy() } catch {} }, CANARY_TIMEOUT_MS)
+  stage1Timer.unref?.()
+  try {
+    for await (const reply of stream) {
+      for (const peer of reply.peers || []) {
+        if (found.length >= CANARY_MAX_DIALS) break
+        found.push(peer)
+      }
+      if (found.length >= CANARY_MAX_DIALS) break
+    }
+  } catch (err) {
+    log.debug('canary lookup failed:', err.message)
+  } finally {
+    clearTimeout(stage1Timer)
+    try { stream.destroy() } catch {}
+  }
+  const stage1 = { announceRecords: found.length, ms: Date.now() - stage1Started }
+
+  if (found.length === 0) return { state: CANARY.SEEDER_DOWN, stage1 }
+
+  const stage2Started = Date.now()
+  let dials = 0
+  for (const peer of found) {
+    dials++
+    if (await dialOnce(dht, peer)) {
+      return { state: CANARY.REACHABLE, stage1, stage2: { dials, opened: 1, ms: Date.now() - stage2Started } }
+    }
+  }
+  return { state: CANARY.UNREACHABLE, stage1, stage2: { dials, opened: 0, ms: Date.now() - stage2Started } }
+}
+
+// Tier 2 needs joined topics to produce evidence, so a user with no spaces has only the
+// NAT shape — a prediction. One automatic probe turns it into a measurement. Deliberately
+// not on a timer: this fires once per swarm, and every other probe is user-initiated.
+let firstProbeTimer = null
+
+// Only runs while nothing else can produce evidence — with peers connected, their presence
+// IS the liveness signal, and a periodic ping from every idle client would be pointless
+// DHT traffic. Targets our own routing table (public infrastructure built for exactly
+// this), never the seeder.
+// A local syscall, not a network round-trip: if the machine has no non-internal address
+// there is definitively no network, and we can say so instantly instead of waiting for
+// probes to time out — and say the *right* thing, rather than blaming a VPN or a router.
+const INTERFACE_POLL_MS = 3000
+
+let interfaceKind = 'physical'
+let interfaceTimer = null
+
+function readInterfaceKind() {
+  try {
+    return routableAddressKind(os.networkInterfaces())
+  } catch {
+    // Never invent an outage from a failed read.
+    return 'physical'
+  }
+}
+
+function startInterfaceWatch() {
+  if (interfaceTimer) return
+  interfaceKind = readInterfaceKind()
+  interfaceTimer = setInterval(() => {
+    const next = readInterfaceKind()
+    if (next === interfaceKind) return
+    // A route reappearing is a fresh start for the probe, not a continuation.
+    if (interfaceKind === 'none' && next !== 'none') livenessFailures = 0
+    interfaceKind = next
+    scheduleStatusEmit()
+  }, INTERFACE_POLL_MS)
+  interfaceTimer.unref?.()
+}
+
+const LIVENESS_INTERVAL_MS = 15000
+const LIVENESS_RETRY_MS = 2000
+const LIVENESS_TIMEOUT_MS = 5000
+
+let livenessTimer = null
+let livenessFailures = 0
+let livenessCheckedAt = 0
+
+// Routing-table entries only: they are real IPs seen over the wire. The bootstrap list is
+// hostnames, and dht.ping() rejects those instantly as "not a valid IP address" — which
+// would be counted as a failure and declare a healthy network dead.
+function livenessTarget() {
+  const dht = swarm?.dht
+  if (!dht) return null
+  try {
+    const nodes = dht.toArray({ limit: 8 })
+    if (nodes && nodes.length) return nodes[Math.floor(nodes.length / 2)]
+  } catch {}
+  return null
+}
+
+async function checkLiveness() {
+  const dht = swarm?.dht
+  if (!dht || !dhtReady || swarm.suspended || swarm.destroyed) return
+  if (swarm.connections?.size > 0) { livenessFailures = 0; return }
+
+  const target = livenessTarget()
+  if (!target) return
+
+  let timer = null
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), LIVENESS_TIMEOUT_MS)
+    timer.unref?.()
+  })
+  let alive = false
+  try {
+    alive = await Promise.race([dht.ping(target).then(() => true, () => false), timeout])
+  } catch { alive = false }
+  clearTimeout(timer)
+
+  const before = livenessFailures
+  livenessFailures = alive ? 0 : Math.min(livenessFailures + 1, LIVENESS_FAILURES_FOR_OFFLINE)
+  livenessCheckedAt = Date.now()
+  if (before !== livenessFailures) scheduleStatusEmit()
+
+  // Confirm a first failure promptly rather than after another full interval.
+  if (!alive && livenessFailures < LIVENESS_FAILURES_FOR_OFFLINE) scheduleLivenessRetry()
+}
+
+let livenessRetryTimer = null
+
+function scheduleLivenessRetry() {
+  if (livenessRetryTimer) return
+  livenessRetryTimer = setTimeout(() => {
+    livenessRetryTimer = null
+    checkLiveness().catch((err) => log.debug('liveness retry failed:', err.message))
+  }, LIVENESS_RETRY_MS)
+  livenessRetryTimer.unref?.()
+}
+
+// Lets a network transition the OS *did* notice trigger an immediate re-check instead of
+// waiting out the interval.
+export async function checkLivenessNow() {
+  await checkLiveness()
+  return { failures: livenessFailures, checkedAt: livenessCheckedAt }
+}
+
+function startLivenessLoop() {
+  if (livenessTimer) return
+  livenessTimer = setInterval(() => {
+    checkLiveness().catch((err) => log.debug('liveness check failed:', err.message))
+  }, LIVENESS_INTERVAL_MS)
+  livenessTimer.unref?.()
+}
+
+function scheduleFirstCanaryProbe() {
+  if (firstProbeTimer || spaceTopics.size > 0) return
+  firstProbeTimer = setTimeout(() => {
+    firstProbeTimer = null
+    if (spaceTopics.size > 0) return
+    probeCanary(getUpgradeKey()).catch((err) => log.debug('first canary probe failed:', err.message))
+  }, NAT_SETTLE_MS)
+  firstProbeTimer.unref?.()
+}
+
+export async function probeCanary(upgradeKey, { force = false } = {}) {
+  const now = Date.now()
+  if (!force) {
+    if (now - lastCanaryAt < CANARY_MIN_INTERVAL_MS) return lastCanaryResult
+    if (canaryInFlight) return canaryInFlight
+  }
+
+  canaryInFlight = runCanaryProbe(upgradeKey)
+    .then((result) => {
+      lastCanaryResult = { ...result, at: Date.now() }
+      lastCanaryAt = Date.now()
+      scheduleStatusEmit()
+      return lastCanaryResult
+    })
+    .catch((err) => {
+      log.debug('canary probe failed:', err.message)
+      lastCanaryResult = { state: CANARY.UNAVAILABLE, at: Date.now() }
+      return lastCanaryResult
+    })
+    .finally(() => { canaryInFlight = null })
+
+  return canaryInFlight
+}
+
 export function getSwarmStatus() {
   if (!swarm) return offlineStatusSnapshot()
+
+  const reachability = recomputeReachability()
 
   const peerCount = swarm.connections?.size || 0
   const connecting = swarm.connecting || 0
@@ -2030,6 +2424,11 @@ export function getSwarmStatus() {
     topics: spaceTopics.size,
     contentPlane: getContentPlaneStatus(),
     stats: snapshotStats(),
+    peerReach: snapshotPeerReach(),
+    dhtHealth: snapshotDhtHealth(),
+    canary: lastCanaryResult,
+    liveness: { failures: livenessFailures, checkedAt: livenessCheckedAt, interfaceKind },
+    reachability,
     versions: { dht: DHT_VERSION },
   }
 }
@@ -2069,6 +2468,19 @@ const STATUS_FIELDS = [
   (s) => s.stats.relaying.attempts,
   (s) => s.stats.relaying.successes,
   (s) => s.stats.relaying.aborts,
+  (s) => s.peerReach.discovered,
+  (s) => s.peerReach.connected,
+  (s) => s.peerReach.exhausted,
+  (s) => s.dhtHealth.online,
+  (s) => s.dhtHealth.degraded,
+  (s) => s.dhtHealth.timeoutsRate,
+  (s) => s.canary.state,
+  (s) => s.canary.at,
+  (s) => s.liveness.failures,
+  (s) => s.liveness.interfaceKind,
+  (s) => s.reachability.verdict,
+  (s) => s.reachability.cause,
+  (s) => s.reachability.confidence,
 ]
 
 export function statusEqual(a, b) {
@@ -2077,12 +2489,26 @@ export function statusEqual(a, b) {
   return STATUS_FIELDS.every((field) => field(a) === field(b))
 }
 
+// A blocked user generates LESS swarm activity, not more, so a pending escalation would
+// otherwise sit unemitted until something unrelated happened. One-shot and armed only
+// from the emit path — never from getSwarmStatus, which is a read and must not start
+// timers that outlive destroySwarm.
+let dwellTimer = null
+
+function armDwellRecheck(pending) {
+  if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
+  if (!pending) return
+  dwellTimer = setTimeout(() => { dwellTimer = null; scheduleStatusEmit() }, BLOCKED_DWELL_MS / 2)
+  dwellTimer.unref?.()
+}
+
 function scheduleStatusEmit() {
   if (statusEmitTimer) return
   statusEmitTimer = setTimeout(() => {
     statusEmitTimer = null
     if (!ipcRef) return
     const next = getSwarmStatus()
+    armDwellRecheck(next.reachability?.pending)
     if (statusEqual(next, lastEmittedStatus)) return
     lastEmittedStatus = next
     try {

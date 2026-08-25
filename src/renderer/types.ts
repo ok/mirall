@@ -273,7 +273,7 @@ export interface UpdateInfo {
   version: { fork: number; length: number; semver: string | null }
 }
 
-export type ConnectivityState = 'online' | 'connecting' | 'offline'
+export type ConnectivityState = 'online' | 'limited' | 'connecting' | 'offline'
 
 export interface NetworkStatusStats {
   updates: number
@@ -282,7 +282,72 @@ export interface NetworkStatusStats {
     server: { opened: number; closed: number; attempted: number }
   }
   bannedPeers: number
-  relaying: { attempts: number; successes: number; aborts: number }
+  relaying: { selected: number; attempts: number; successes: number; aborts: number }
+}
+
+export type ReachabilityVerdict = 'healthy' | 'at-risk' | 'blocked' | 'unknown'
+
+export type ReachabilityCause =
+  | 'os-offline'
+  | 'dht-unreachable'
+  | 'no-public-address'
+  | 'symmetric-nat'
+  | 'udp-degraded'
+  | 'peers-unreachable'
+  | 'vpn-only-route'
+
+export type CanaryState = 'unavailable' | 'pending' | 'seeder-down' | 'reachable' | 'unreachable'
+
+export interface ReachabilityEvidence {
+  peersDiscovered: number
+  peersConnected: number
+  peersExhausted: number
+  dialsAttempted: number
+  dialsOpened: number
+  publicPort: number
+  canary: CanaryState
+}
+
+export interface Reachability {
+  verdict: ReachabilityVerdict
+  cause: ReachabilityCause | null
+  confidence: 'measured' | 'predicted'
+  evidence: ReachabilityEvidence | null
+  since: number
+}
+
+export interface PeerReach {
+  discovered: number
+  connected: number
+  exhausted: number
+}
+
+export interface DhtHealth {
+  online: boolean
+  degraded: boolean
+  cold: boolean
+  idle: boolean
+  timeoutsRate: number
+}
+
+export interface CanaryResult {
+  state: CanaryState
+  at: number
+  stage1?: { announceRecords: number; ms: number }
+  stage2?: { dials: number; opened: number; ms: number }
+}
+
+export interface Liveness {
+  failures: number
+  checkedAt: number
+  interfaceKind: 'none' | 'tunnel-only' | 'physical'
+}
+
+export interface DiagnosticLogEntry {
+  at: number
+  source: string
+  level: string
+  text: string
 }
 
 export interface NetworkStatus {
@@ -314,6 +379,11 @@ export interface NetworkStatus {
   }
   topics: number
   stats: NetworkStatusStats
+  peerReach: PeerReach
+  dhtHealth: DhtHealth
+  canary: CanaryResult
+  liveness: Liveness
+  reachability: Reachability
   versions: {
     dht: string
   }
