@@ -69,7 +69,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "globals": "^17.11.0",
-    "hyperdht": "^6.32.0",
+    "hyperdht": "~6.32.0",
     "i18next": "^26.4.0",
     "knip": "^6.32.2",
     "marked": "^18.0.10",
@@ -108,5 +108,8 @@
     "sodium-native": "^5.1.0",
     "sodium-universal": "^5.0.1",
     "which-runtime": "^1.4.0"
+  },
+  "overrides": {
+    "hyperdht": "~6.32.0"
   }
 }
