@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
-import { makeReport } from '../assert.mjs'
+import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // Folder card click target: the card became fully clickable via a full-bleed nav
@@ -29,7 +29,16 @@ export default async function s70 ({ runDir, bootstrap }) {
     await r.ok('the action menu is reachable above the nav overlay', async () => {
       await A.click({ name: 'More', last: true })
       await A.waitText('Delete Folder', 8000)
+    })
+    // REGRESSION (FIX-MENU-1): the popup never took focus — no FocusScope, and useMenu
+    // got no autoFocus — so focus stayed on the trigger. react-aria binds Escape to the
+    // portalled overlay's own onKeyDown, which only fires for a keydown raised inside it,
+    // so Escape never closed the menu. Still open and `isDismissable`, it then swallowed
+    // the next outside click as its dismiss, which is what made the folder card below
+    // look dead one step later. Assert the dismissal here, where the fault actually is.
+    await r.ok('REGRESSION (FIX-MENU-1): Escape dismisses the action menu', async () => {
       await A.press('escape')
+      await waitFor(async () => !(await A.hasText('Delete Folder')), 5000, 'the action menu to close')
     })
     await r.ok('clicking the folder card navigates into it', async () => {
       await A.openFolder('Photos')
