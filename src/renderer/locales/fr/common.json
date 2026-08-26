@@ -52,6 +52,8 @@
     "join": "Rejoindre un espace",
     "emptyNoSpaces": "Aucun espace pour le moment",
     "emptyNoSpacesHint": "Créez-en un ou rejoignez-en un avec un code d'invitation.",
+    "emptyDocsTitle": "Nouveau sur Mirall ?",
+    "emptyDocsBody": "Un espace est un groupe privé. Vos fichiers restent sur votre appareil et vont directement aux personnes que vous invitez — sans serveur intermédiaire.",
     "emptyNoFavorites": "Aucun favori pour le moment",
     "emptyNoFavoritesHint": "Ouvrez un espace et choisissez « Ajouter aux favoris » dans le menu pour l'épingler ici.",
     "memberCount_one": "{{count}} membre",
@@ -85,6 +87,8 @@
     "emptyFiles": "Aucun fichier partagé pour le moment. Déposez des fichiers dans la barre latérale pour commencer.",
     "emptyShareTitle": "Rien n'est encore partagé",
     "emptyShareSubtitle": "Glissez des fichiers ou des dossiers dans la zone à droite pour commencer à partager dans cet espace.",
+    "emptyShareDocsTitle": "Ce qui se passe quand vous partagez",
+    "emptyShareDocsBody": "Les membres téléchargent les fichiers directement depuis votre appareil : vous devez donc être en ligne, Mirall ouvert, pendant qu'ils le font. Les fichiers partagés restent là où ils sont sur le disque — si vous en déplacez ou supprimez un, il n'est plus disponible.",
     "members": "Membres",
     "emptyMembers": "Aucun membre connecté pour le moment. Partagez le code d'invitation pour commencer.",
     "membersAndMore": "+{{count}} de plus",
@@ -106,6 +110,8 @@
     "selectNamed": "Sélectionner {{name}}",
     "waitingApproval": "En attente d'accès à {{name}}…",
     "waitingApprovalHint": "Un membre de cet espace doit vous approuver. Vous pouvez laisser cette fenêtre ouverte : vous serez admis automatiquement dès que quelqu'un sera en ligne.",
+    "waitingDocsTitle": "Pourquoi cette attente ?",
+    "waitingDocsBody": "Une invitation contient l'adresse de l'espace, jamais sa clé. C'est un appareil déjà membre qui la transmet : un membre doit donc être en ligne et joignable avant que vous puissiez entrer. L'approbation automatique supprime la décision, pas la transmission.",
     "encryptedBadge": "Chiffré",
     "unencryptedBadge": "Non chiffré"
   },
@@ -426,6 +432,18 @@
     "releaseFolder": "Relâchez pour partager « {{name}} »",
     "releaseFolderUnnamed": "Relâchez pour partager ce dossier",
     "button": "Sélectionner des fichiers"
+  },
+  "docs": {
+    "opensInBrowser": "Ouvre mirall.app dans votre navigateur",
+    "englishNote": "La documentation est en anglais.",
+    "sendFirstFiles": "Envoyer vos premiers fichiers",
+    "createSpace": "Créer un espace",
+    "joinSpace": "Rejoindre un espace avec une invitation",
+    "membershipApproval": "Comment fonctionnent l'adhésion et l'approbation",
+    "stuckJoin": "Débloquer une adhésion qui reste en attente",
+    "availability": "Quand les membres peuvent télécharger",
+    "shareFiles": "Partager des fichiers individuels",
+    "shareFolder": "Partager un dossier entier"
   },
   "updateBanner": {
     "available": "Mise à jour disponible (v{{version}})",

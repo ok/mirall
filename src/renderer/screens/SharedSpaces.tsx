@@ -7,6 +7,7 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
+import DocsCard from '../components/widgets/DocsCard.js'
 
 interface YourSpacesProps {
   onSelectSpace: (spaceId: string) => void
@@ -72,9 +73,20 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
         className={`flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin${hasOverflow ? ' pr-4' : ''}`}
       >
         {filteredSpaces.length === 0 && filter === 'all' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center py-12 text-center">
             <h2 className="text-2xl font-headline font-bold text-accent mb-3">{t('spaces.emptyNoSpaces')}</h2>
             <p className="text-on-surface-variant max-w-md leading-relaxed">{t('spaces.emptyNoSpacesHint')}</p>
+            <DocsCard
+              icon="school"
+              title={t('spaces.emptyDocsTitle')}
+              body={t('spaces.emptyDocsBody')}
+              className="w-full max-w-md mt-8"
+              links={[
+                { target: { page: 'tutorials', anchor: 'send-your-first-files' }, label: t('docs.sendFirstFiles') },
+                { target: { page: 'guides', anchor: 'create-a-space' }, label: t('docs.createSpace') },
+                { target: { page: 'guides', anchor: 'join-a-space' }, label: t('docs.joinSpace') },
+              ]}
+            />
           </div>
         )}
         {filteredSpaces.length === 0 && filter === 'favorites' && (
