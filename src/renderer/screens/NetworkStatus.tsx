@@ -6,6 +6,7 @@ import { reachableState, formatDuration } from '../connectivity.js'
 import DiagnosticsCard from '../components/settings/DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
+import Button from '../components/primitives/Button.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
@@ -13,6 +14,7 @@ import type { NetworkStatus, Reachability } from '../types.js'
 
 interface Props {
   onBack: () => void
+  onShowHistory: () => void
 }
 
 const DASH = '—'
@@ -237,9 +239,10 @@ function buildSuggestions(status: NetworkStatus | null, browserOnline: boolean, 
 interface SummaryProps {
   status: NetworkStatus | null
   now: number
+  onShowHistory: () => void
 }
 
-function ConnectionSummary({ status, now }: SummaryProps) {
+function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
   const { t } = useTranslation()
   if (!status) return null
   const verdict = status.reachability?.verdict ?? 'unknown'
@@ -265,6 +268,9 @@ function ConnectionSummary({ status, now }: SummaryProps) {
         label={t('networkStatus.summary.runningFor')}
         value={status.bootedAt > 0 ? formatDuration(now - status.bootedAt) : DASH}
       />
+      <div className="pt-3">
+        <Button variant="secondary" onClick={onShowHistory}>{t('networkStatus.connectionHistory')}</Button>
+      </div>
     </Section>
   )
 }
@@ -355,7 +361,7 @@ function AdvancedDetails({ status, relayVisible, now }: AdvancedDetailsProps) {
   )
 }
 
-export default function NetworkStatusScreen({ onBack }: Props) {
+export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
   const { t } = useTranslation()
   const { status, reachability, reconnect } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -403,7 +409,7 @@ export default function NetworkStatusScreen({ onBack }: Props) {
 
           <SuggestionsList lines={suggestions} />
 
-          <ConnectionSummary status={status} now={now} />
+          <ConnectionSummary status={status} now={now} onShowHistory={onShowHistory} />
 
           <DiagnosticsCard />
 

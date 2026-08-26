@@ -115,4 +115,4 @@ export function useAuditFacets(refreshKey: number) {
   return { spaces, actors }
 }
 
-export const AUDIT_CATEGORIES: AuditCategory[] = ['members', 'files', 'folders', 'security']
+export const AUDIT_CATEGORIES: AuditCategory[] = ['members', 'files', 'folders', 'security', 'network']

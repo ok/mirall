@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useAuditLog, useAuditFacets, hasActiveFilters, EMPTY_FILTERS, AUDIT_CATEGORIES } from '../hooks/useAuditLog.js'
-import { actorInitials, avatarKind, denialReasonKey, groupByDay, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence } from '../auditRow.js'
+import { actorInitials, avatarKind, denialReasonKey, groupByDay, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence, systemIcon, emptyStateFor } from '../auditRow.js'
 import { AUDIT_KINDS } from '../auditKinds.js'
 import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
@@ -12,6 +12,7 @@ import PageHeader from '../components/layout/PageHeader.js'
 interface ActivityLogProps {
   onBack: () => void
   onOpenSettings: () => void
+  initialFilters?: Partial<AuditFilters>
 }
 
 const ACTION_BUTTON = 'shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
@@ -43,7 +44,10 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
   // The reason trails the row's own context (space, totals): "DENIED" says something was refused,
   // this says what a reader should do about it — nothing, if we simply had no verified identity yet.
   const reasonKey = denialReasonKey(entry)
-  const meta = [...metaParts(entry), ...(reasonKey ? [t(reasonKey)] : [])].join(' · ')
+  const meta = [
+    ...metaParts(entry).map((part) => (part.key ? t(part.key, part.values) : part.text)),
+    ...(reasonKey ? [t(reasonKey)] : []),
+  ].join(' · ')
   const avatar = avatarKind(entry)
   const badgeClasses = badge?.tone === 'error'
     ? 'bg-error-container text-on-error-container'
@@ -55,7 +59,7 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
         aria-hidden="true"
         className="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0"
       >
-        {avatar === 'system' ? <Icon name="history" size={16} /> : avatar === 'self' ? t('activityLog.actorSelf') : actorInitials(entry)}
+        {avatar === 'system' ? <Icon name={systemIcon(entry)} size={16} /> : avatar === 'self' ? t('activityLog.actorSelf') : actorInitials(entry)}
       </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -101,10 +105,12 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   )
 }
 
-export default function ActivityLog({ onBack, onOpenSettings }: ActivityLogProps) {
+export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: ActivityLogProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  const [filters, setFilters] = useState<AuditFilters>(EMPTY_FILTERS)
+  // Lazy initialiser: a preset seeds the FIRST render only, so a re-render never clobbers a filter
+  // the user has since changed. Clear all resets to EMPTY_FILTERS, not to the preset.
+  const [filters, setFilters] = useState<AuditFilters>(() => ({ ...EMPTY_FILTERS, ...initialFilters }))
   const { spaces, actors } = useAuditFacets(0)
 
   // A term typed in the viewer's own language is matched against the TRANSLATED kind labels and
@@ -119,6 +125,7 @@ export default function ActivityLog({ onBack, onOpenSettings }: ActivityLogProps
   const { entries, loading, loadingMore, error, hasMore, loadMore } = useAuditLog(filters, kinds)
   const groups = useMemo(() => groupByDay(entries), [entries])
   const active = hasActiveFilters(filters)
+  const empty = emptyStateFor(filters, active)
 
   const toggleCategory = useCallback((category: AuditCategory) => {
     setFilters((prev) => ({
@@ -195,7 +202,7 @@ export default function ActivityLog({ onBack, onOpenSettings }: ActivityLogProps
                 />
               </div>
 
-              <div className="flex bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-full w-fit">
+              <div className="flex flex-wrap gap-1 bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-3xl w-fit">
                 <button
                   type="button"
                   aria-pressed={filters.categories.length === 0}
@@ -265,10 +272,10 @@ export default function ActivityLog({ onBack, onOpenSettings }: ActivityLogProps
             {!loading && entries.length === 0 ? (
               <div className="bg-surface-container-low rounded-xl p-10 text-center">
                 <div className="w-12 h-12 rounded-full bg-surface-container-high mx-auto flex items-center justify-center text-on-surface-variant mb-4">
-                  <Icon name={active ? 'search' : 'history'} size={22} />
+                  <Icon name={empty.icon} size={22} />
                 </div>
-                <p className="font-semibold text-accent mb-1">{t(active ? 'activityLog.emptyFilteredTitle' : 'activityLog.emptyTitle')}</p>
-                <p className="text-sm text-on-surface-variant mb-5">{t(active ? 'activityLog.emptyFilteredDesc' : 'activityLog.emptyDesc')}</p>
+                <p className="font-semibold text-accent mb-1">{t(`activityLog.${empty.key}Title`)}</p>
+                <p className="text-sm text-on-surface-variant mb-5">{t(`activityLog.${empty.key}Desc`)}</p>
                 {active && (
                   <button type="button" onClick={clearAll} className={ACTION_BUTTON}>
                     {t('activityLog.clearFilters')}

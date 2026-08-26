@@ -42,6 +42,7 @@ import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from './decoration-key.js'
 import { record } from '../audit/audit-log.js'
 import { observePeerProfile } from '../audit/peer-watch.js'
+import { observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft, resetNetworkWatch } from '../audit/network-watch.js'
 import { sealSck } from './sck-seal.js'
 import { sanitizeAvatar } from '../identity-limits.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
@@ -73,10 +74,30 @@ const PRESENCE_HEARTBEAT_MS = 5000
 const presence = createPresence({
   ttl: PRESENCE_TTL_MS,
   onExpire: (peerKey, spaceId) => {
+    auditPeerLost(peerKey, spaceId)
     membersPoke.poke(spaceId)
     ipcRef?.emit('event:files-updated', { spaceId })
   },
 })
+
+// The episode is opened SYNCHRONOUSLY, because peerSeen and peerLeft are synchronous: awaiting the
+// space name first would let a reconnect or a leave overtake the loss and open an episode for a peer
+// that is already back. The name is snapshotted rather than joined at render time (a row outlives
+// the space record), so it lands as a patch once the store read returns — well inside the floor.
+function auditPeerLost(peerKey, spaceId, displayName = null) {
+  const memberName = displayName || connectedPeers.get(peerKey)?.displayName || null
+  peerLost(peerKey, spaceId, { memberName, spaceName: null })
+  getSpace(spaceId).then((space) => {
+    peerLostMeta(peerKey, spaceId, {
+      memberName: memberName || peerName(space, peerKey),
+      spaceName: space?.name ?? null,
+    })
+  }).catch((err) => log.debug('peer presence name lookup skipped:', err.message))
+}
+
+function peerName(space, peerKey) {
+  return (space?.members || []).find((m) => m.publicKey === peerKey)?.displayName || null
+}
 let presenceTimer = null
 
 let swarm
@@ -527,6 +548,7 @@ function trackPeerConnection(socket, spaceId, msg) {
   // heartbeat. Refreshed by presence frames; cleared on disconnect. The flip return value is
   // ignored here: the handshake path emits members-updated unconditionally after the persist.
   presence.mark(peerKey, spaceId)
+  peerSeen(peerKey, spaceId)
   return isNewToSpace
 }
 
@@ -753,6 +775,7 @@ function handleDisconnect(socket) {
 
     for (const [spaceId] of peer.spaces) {
       log.info('peer left:', peer.displayName, 'from space', spaceId)
+      auditPeerLost(peerKey, spaceId, peer.displayName)
       ipcRef.emit('event:member-left', { spaceId, publicKey: peerKey })
       ipcRef.emit('event:files-updated', { spaceId })
     }
@@ -856,6 +879,7 @@ async function handleLeaveFrame(socket, peerInfo, msg) {
   log.info('peer left space (leave frame):', profileKey.slice(0, 12) + '...', '→', spaceId)
 
   presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
+  peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
 
   const peer = connectedPeers.get(profileKey)
   if (peer) {
@@ -1657,6 +1681,7 @@ function handlePresenceFrame(socket, msg) {
   if (presence.mark(profileKey, spaceId)) {
     // Same-socket lease restore: the peer went silent past the TTL and is back without
     // a re-handshake — the arrival mirror of the onExpire departure emit.
+    peerSeen(profileKey, spaceId)
     membersPoke.poke(spaceId)
     ipcRef?.emit('event:files-updated', { spaceId })
   }
@@ -1830,6 +1855,7 @@ export async function destroySwarm() {
     clearTimeout(statusEmitTimer)
     statusEmitTimer = null
   }
+  resetNetworkWatch()
   if (presenceTimer) {
     clearInterval(presenceTimer)
     presenceTimer = null
@@ -2515,6 +2541,28 @@ function scheduleStatusEmit() {
       ipcRef.emit('event:network-status', next)
     } catch (err) {
       log.warn('status emit failed:', err.message)
+    }
+    // AFTER the emit, and in its own guard: auditing must never fail into the operation it
+    // describes, and a throw here would otherwise leave the UI without a status update. It rides
+    // the EMIT path rather than getSwarmStatus because that is a read and must not start timers
+    // (see armDwellRecheck above); the tracker owns its own hold-down timer, so a stable-blocked
+    // idle app still gets its row.
+    try {
+      observeReachability({
+        verdict: next.reachability.verdict,
+        cause: next.reachability.cause,
+        since: next.reachability.since,
+        evidence: {
+          confidence: next.reachability.confidence,
+          peersDiscovered: next.peerReach.discovered,
+          peersExhausted: next.peerReach.exhausted,
+          peersConnected: next.peerReach.connected,
+          publicPort: next.address.publicPort,
+          interfaceKind: next.liveness.interfaceKind,
+        },
+      })
+    } catch (err) {
+      log.warn('connectivity audit skipped:', err.message)
     }
   }, STATUS_EMIT_DEBOUNCE_MS)
 }

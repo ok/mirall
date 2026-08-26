@@ -11,6 +11,7 @@ interface Props {
   onBack?: () => void
   onContinue: () => void
   onShowDetails: () => void
+  onShowHistory: () => void
 }
 
 function relativeCheck(at: number, now: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -20,7 +21,7 @@ function relativeCheck(at: number, now: number, t: (key: string, opts?: Record<s
   return t('connectionProblem.checkedMinutes', { count: minutes })
 }
 
-export default function ConnectionProblem({ onBack, onContinue, onShowDetails }: Props) {
+export default function ConnectionProblem({ onBack, onContinue, onShowDetails, onShowHistory }: Props) {
   const { t } = useTranslation()
   const { status, reachability, probeCanary } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -131,6 +132,9 @@ export default function ConnectionProblem({ onBack, onContinue, onShowDetails }:
             </Button>
             <Button variant="secondary" onClick={onShowDetails}>
               {t('connectionProblem.networkDetails')}
+            </Button>
+            <Button variant="secondary" onClick={onShowHistory}>
+              {t('connectionProblem.connectionHistory')}
             </Button>
             <span className="text-xs text-on-surface-variant ml-auto">
               {relativeCheck(status?.canary?.at ?? 0, Date.now(), t)}

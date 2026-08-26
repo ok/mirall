@@ -3,6 +3,7 @@
 //
 // Every field it reads is snapshotted in the record itself — nothing here joins against live
 // state, because a row routinely outlives the space, share or peer it describes.
+import { formatDuration } from './connectivity.js'
 
 // Which participant a row is "about". `actorLabelKey` distinguishes the three cases the copy
 // has to handle: you did it, a named peer did it, or the app did it on its own.
@@ -39,10 +40,29 @@ export function actorInitials(entry) {
 // point a badge on most rows is chrome rather than signal — and the sentence already names a peer
 // as the actor, so "REPORTED" restated what the row said. The tier stays on the record for the
 // export and the backend console, it just does not decorate the list.
+//
+// A connectivity row keeps outcome 'ok' — the vocabulary answers "did the described ACT succeed",
+// and a network state is not an act, so 'error' would render FAILED and read as a failed transfer.
+// Severity is keyed on the kind instead, reusing the SHIPPED connectivity strings so the log, the
+// status dot and the toast say the same word. Peer rows get none: a member closing a laptop is
+// routine, and by the rule above a badge on a routine row is chrome.
+const KIND_BADGE = {
+  'network.offline': { labelKey: 'connectivity.offline', tone: 'error' },
+  'network.blocked': { labelKey: 'connectivity.offline', tone: 'error' },
+  'network.at_risk': { labelKey: 'connectivity.limited', tone: 'passive' },
+}
+
 export function rowBadge(entry) {
   if (entry.outcome === 'denied') return { labelKey: 'activityLog.badgeDenied', tone: 'error' }
   if (entry.outcome === 'error') return { labelKey: 'activityLog.badgeFailed', tone: 'error' }
-  return null
+  return KIND_BADGE[entry.kind] || null
+}
+
+// `history` is the log's own mark; a device connectivity row gets the app's Network glyph instead,
+// so the device family reads as one family. Peer rows are not system rows — they keep the person's
+// initials, which is the correct read.
+export function systemIcon(entry) {
+  return entry.category === 'network' ? 'hub' : 'history'
 }
 
 export function isSystemRow(entry) {
@@ -142,23 +162,54 @@ export function formatCount(n) {
   return Number.isFinite(n) ? n.toLocaleString() : null
 }
 
-// The muted second line: space name first (it is the row's strongest context), then whatever
-// detail the kind carries. Returns already-joined display text plus the parts, so a caller can
-// re-order without re-deriving.
+// Closed set, like DENIAL_REASONS: a cause written by a newer version renders nothing rather than a
+// raw key.
+const NETWORK_CAUSES = new Set([
+  'os-offline', 'dht-unreachable', 'no-public-address', 'symmetric-nat',
+  'udp-degraded', 'peers-unreachable', 'vpn-only-route',
+])
+
+// The hold-down means a degraded row lands about a minute after the transition. Below this the gap
+// is not worth a clause; above it, naming the real start keeps the row honest without backdating
+// `ts`, which the prune path's clock hysteresis relies on.
+const START_GAP_MS = 30000
+
+function formatClock(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+// The muted second line: space name first (it is the row's strongest context), then whatever detail
+// the kind carries. Returns STRUCTURED parts — `{ key, values }` for anything that needs
+// translating, `{ text }` for a value that is already a proper noun or a formatted number. It used
+// to return finished strings, which is how a hard-coded English ' files' shipped to five locales.
 export function metaParts(entry) {
   const parts = []
-  if (entry.space?.name) parts.push(entry.space.name)
+  if (entry.space?.name) parts.push({ text: entry.space.name })
   const subject = entry.subject || {}
   if (Number.isFinite(subject.fileCount)) {
     const files = formatCount(subject.fileCount)
-    if (files !== null) parts.push(files + ' files')
+    if (files !== null) {
+      parts.push({ key: 'activityLog.metaFiles', values: { count: subject.fileCount, formatted: files } })
+    }
   }
   if (Number.isFinite(subject.bytes)) {
     const size = formatBytes(subject.bytes)
-    if (size) parts.push(size)
+    if (size) parts.push({ text: size })
   }
-  if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push(subject.mountPath)
-  if (typeof subject.to === 'string' && subject.to) parts.push(subject.to)
+  if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
+  if (typeof subject.to === 'string' && subject.to) parts.push({ text: subject.to })
+
+  if (entry.category === 'network') {
+    if (typeof entry.code === 'string' && NETWORK_CAUSES.has(entry.code)) {
+      parts.push({ key: 'activityLog.cause.' + entry.code })
+    }
+    if (Number.isFinite(subject.durationMs)) {
+      parts.push({ key: 'activityLog.wasOfflineFor', values: { duration: formatDuration(subject.durationMs) } })
+    }
+    if (Number.isFinite(subject.sinceTs) && entry.ts - subject.sinceTs >= START_GAP_MS) {
+      parts.push({ key: 'activityLog.startedAt', values: { time: formatClock(subject.sinceTs) } })
+    }
+  }
   return parts
 }
 
@@ -186,4 +237,24 @@ export function groupByDay(entries, now = Date.now()) {
     current.entries.push(entry)
   }
   return groups
+}
+
+// Which empty state the viewer should show, and the glyph for it. Lives here rather than inline in
+// the screen so the branching is unit-testable and does not push an already-over-budget component
+// further past the complexity guardrail.
+//
+// An empty NETWORK log is good news, not a failed search — but only when nothing else narrows the
+// view: with a date range applied, "the whole time it has been running" is false the moment an
+// outage exists outside the window.
+export function emptyStateFor(filters, active) {
+  if (!active) return { key: 'empty', icon: 'history' }
+  const networkOnly = filters.categories.length === 1
+    && filters.categories[0] === 'network'
+    && !filters.search.trim()
+    && !filters.spaceId
+    && !filters.actorKey
+    && filters.sinceDays === null
+  return networkOnly
+    ? { key: 'emptyNetwork', icon: 'hub' }
+    : { key: 'emptyFiltered', icon: 'search' }
 }

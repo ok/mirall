@@ -34,6 +34,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
         <ConnectionProblem
           onContinue={gate.dismiss}
           onShowDetails={() => nav.setCurrentScreen('network-status')}
+          onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
         />
       ) : (
         <SharedSpaces
@@ -48,6 +49,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onBack={() => nav.setCurrentScreen('spaces')}
           onContinue={() => nav.setCurrentScreen('spaces')}
           onShowDetails={() => nav.setCurrentScreen('network-status')}
+          onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
         />
       )
     case 'space-view':
@@ -98,7 +100,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onSave={onSaveProfile}
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
-          onOpenActivityLog={nav.openActivityLog}
+          onOpenActivityLog={() => nav.openActivityLog()}
           onFeedback={onOpenFeedback}
         />
       )
@@ -113,19 +115,25 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
     case 'network-settings':
       return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-status':
-      return <NetworkStatus onBack={() => nav.setCurrentScreen('account')} />
+      return (
+        <NetworkStatus
+          onBack={() => nav.setCurrentScreen('account')}
+          onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
+        />
+      )
     case 'activity-log':
       return (
         <ActivityLog
-          onBack={() => nav.setCurrentScreen('account')}
+          onBack={nav.goBack}
           onOpenSettings={nav.openActivityLogSettings}
+          initialFilters={nav.activityLogPreset ?? undefined}
         />
       )
     case 'activity-log-settings':
       return (
         <ActivityLogSettings
           onBack={() => nav.setCurrentScreen('settings')}
-          onOpenLog={nav.openActivityLog}
+          onOpenLog={() => nav.openActivityLog()}
         />
       )
     default:

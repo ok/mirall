@@ -129,6 +129,10 @@ const DEFAULTED = {
   // protective bounds above these fail OPEN — see getBandwidthLimits.
   downloadKBps: 0,
   uploadKBps: 0,
+  // TEST-ONLY: how long a peer must be unreachable before the audit log records the absence.
+  // 0 = use peer-episodes.js's own default, which is what production always runs. Flow tests
+  // shrink it because five minutes of wall-clock is not a test.
+  peerPresenceDwellMs: 0,
 }
 
 function buildConfig(next) {
@@ -181,6 +185,10 @@ function coerceKBps(next, fallback) {
 
 export function getRuntimeConfig() {
   return config
+}
+
+export function getPeerPresenceDwellMs() {
+  return config.peerPresenceDwellMs
 }
 
 export function isMembershipApprovalEnabled() {

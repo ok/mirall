@@ -10,6 +10,10 @@
 //                                  order, which makes a reverse range scan both the
 //                                  newest-first listing and the pagination cursor.
 //   by-space/<spaceId>/<seq>    -> seq. Serves the space filter without a full scan.
+//   by-device/<seq>             -> seq. The same index for the rows that have NO space (device
+//                                  connectivity). An outage is why the file never arrived, so it
+//                                  belongs in a space's timeline — but attributing it TO the space
+//                                  would be wrong, hence a second index rather than a fan-out.
 //   seen/<beeKeyHex>            -> the version of a peer's bee we have already turned into rows.
 //                                  Working state, not a record: audit:purge deliberately leaves
 //                                  it, because resetting it would replay every peer's whole
@@ -33,9 +37,11 @@ const AUDIT_BEE_NAME = 'audit-log'
 const SEQ_WIDTH = 16
 const EVT = 'evt/'
 const BY_SPACE = 'by-space/'
+const BY_DEVICE = 'by-device/'
 const CONFIG_KEY = 'config'
 const SEEN = 'seen/'
 const PSTATE = 'pstate/'
+const NSTATE = 'nstate'
 const HIGH = '￿'
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
@@ -48,6 +54,7 @@ const RATE_MAX_PER_WINDOW = 120
 const pad = (seq) => String(seq).padStart(SEQ_WIDTH, '0')
 const evtKey = (seq) => EVT + pad(seq)
 const spaceKey = (spaceId, seq) => BY_SPACE + spaceId + '/' + pad(seq)
+const deviceKey = (seq) => BY_DEVICE + pad(seq)
 
 let bee = null
 let nextSeq = 0
@@ -163,6 +170,7 @@ async function append(kind, fields) {
   const batch = bee.batch()
   await batch.put(evtKey(seq), rec)
   if (rec.space?.id) await batch.put(spaceKey(rec.space.id, seq), seq)
+  else await batch.put(deviceKey(seq), seq)
   await batch.flush()
 }
 
@@ -184,17 +192,45 @@ function matches(rec, { kindSet, catSet, actorKey, needle, since, until }) {
   return true
 }
 
-// Newest-first walk. The space filter rides the by-space index; everything else walks the
-// primary range. `cursor` is the highest seq to consider (exclusive upper bound is cursor + 1).
+async function* fromIndex(prefix, upper) {
+  const range = { gte: prefix, lt: upper == null ? prefix + HIGH : prefix + upper }
+  for await (const entry of bee.createReadStream(range, { reverse: true })) {
+    const node = await bee.get(EVT + pad(entry.value))
+    if (node?.value) yield node.value
+  }
+}
+
+async function* mergeDesc(a, b) {
+  try {
+    let ta = await a.next()
+    let tb = await b.next()
+    while (!ta.done || !tb.done) {
+      if (tb.done || (!ta.done && ta.value.seq > tb.value.seq)) {
+        yield ta.value
+        ta = await a.next()
+      } else {
+        yield tb.value
+        tb = await b.next()
+      }
+    }
+  } finally {
+    // `yield*` forwards return() to this generator, but a and b are pulled by hand, so they would
+    // stay suspended with their read streams undestroyed. queryAudit breaks out on every full page,
+    // which is the normal path — without this, each one leaks two streams.
+    await a.return?.()
+    await b.return?.()
+  }
+}
+
+// Newest-first walk. The space filter rides the by-space index MERGED with the device index —
+// a connectivity outage is why nothing arrived, so it belongs in the space's story even though it
+// is not attributable to the space. Merging two ordered streams keeps the index property; the
+// alternative under a space filter is a full primary-range scan, which is what the index exists to
+// avoid. `cursor` is the highest seq to consider (exclusive upper bound is cursor + 1).
 async function* walk(spaceId, cursor) {
   const upper = cursor == null ? null : pad(cursor + 1)
   if (spaceId) {
-    const prefix = BY_SPACE + spaceId + '/'
-    const range = { gte: prefix, lt: upper == null ? prefix + HIGH : prefix + upper }
-    for await (const entry of bee.createReadStream(range, { reverse: true })) {
-      const node = await bee.get(EVT + pad(entry.value))
-      if (node?.value) yield node.value
-    }
+    yield* mergeDesc(fromIndex(BY_SPACE + spaceId + '/', upper), fromIndex(BY_DEVICE, upper))
     return
   }
   const range = { gte: EVT, lt: upper == null ? EVT + HIGH : EVT + upper }
@@ -338,6 +374,22 @@ export async function setPeerSubjectState(key, state) {
   else await bee.put(PSTATE + key, state)
 }
 
+// The last DEVICE connectivity state we RECORDED. Durable for the same reason pstate/ is: without
+// it, relaunching on the same bad network writes the same row on every launch, and an in-memory
+// guard cannot survive the restart that causes it.
+export async function getNetworkState() {
+  if (!bee) return null
+  const node = await bee.get(NSTATE)
+  return node?.value && typeof node.value === 'object' ? node.value : null
+}
+
+export async function setNetworkState(state) {
+  if (!bee) return
+  // Healthy is the absence of an episode, so drop the key rather than store a tombstone.
+  if (!state) await bee.del(NSTATE)
+  else await bee.put(NSTATE, state)
+}
+
 export function getAuditConfig() {
   return { ...config }
 }
@@ -410,6 +462,7 @@ export async function pruneAudit({ now = Date.now() } = {}) {
     const batch = bee.batch()
     await batch.del(entry.key)
     if (rec?.space?.id) await batch.del(spaceKey(rec.space.id, rec.seq))
+    else if (rec) await batch.del(deviceKey(rec.seq))
     await batch.flush()
     removed += 1
   }
@@ -434,8 +487,10 @@ export async function pruneAudit({ now = Date.now() } = {}) {
 //   seen/   — the peer-bee watermarks. Dropping them makes first contact re-read every peer's
 //             whole history and replay it as if it had just happened (see the header), turning
 //             "delete my activity" into "flood it with a decade of theirs".
-// `pstate/` is deliberately NOT written back: it mirrors observed peer state, so it is log
-// content, and keeping it would suppress the next standing-state row for every subject.
+// `pstate/` and `nstate` are deliberately NOT written back: both mirror observed state, so they are
+// log content, and keeping them would suppress the next standing-state row. The cost is one row
+// after a purge if the network is still degraded, which is right — the log was emptied, and the
+// standing fact is worth restating.
 export async function purgeAudit() {
   if (!bee) return { purged: 0 }
   await flushAudit()

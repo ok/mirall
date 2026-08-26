@@ -402,6 +402,12 @@ export class Instance {
     await this.waitText('Network status', 8000)
   }
 
+  async openActivityLog() {
+    await this.openAccount()
+    await this.click({ role: 'button', name: 'Activity Log' })
+    await this.waitText('A record of what happened', 8000)
+  }
+
   async openJoinModal() {
     await this.click({ role: 'button', name: 'Join Space' })
     await this.waitText('Join a Space', 8000)

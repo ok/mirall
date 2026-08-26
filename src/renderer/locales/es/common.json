@@ -800,7 +800,8 @@
     "canary": "Prueba de conexión",
     "canaryState": "Resultado",
     "canaryRecords": "Servidores de prueba encontrados",
-    "canaryChecked": "Última comprobación"
+    "canaryChecked": "Última comprobación",
+    "connectionHistory": "Historial de conexión"
   },
   "a11y": {
     "skipToContent": "Saltar al contenido",
@@ -828,7 +829,7 @@
   },
   "activityLog": {
     "title": "Registro de actividad",
-    "intro": "Un registro de lo que ha ocurrido en tus espacios, guardado en este dispositivo.",
+    "intro": "Un registro de lo que ha pasado en tus espacios y en la conexión de este dispositivo, guardado en este dispositivo.",
     "searchLabel": "Buscar en la actividad",
     "searchPlaceholder": "Buscar personas, archivos y carpetas…",
     "spaceFilterValue": "Espacio: {{value}}",
@@ -843,7 +844,8 @@
       "members": "Miembros",
       "files": "Archivos",
       "folders": "Carpetas",
-      "security": "Seguridad"
+      "security": "Seguridad",
+      "network": "Red"
     },
     "events": "Eventos",
     "showingCount_one": "{{count}} evento",
@@ -902,7 +904,13 @@
       "peer.share_created": "{{actor}} compartió la carpeta {{target}}",
       "peer.share_deleted": "{{actor}} eliminó la carpeta {{target}}",
       "mirror.peer_mirrored": "{{actor}} replicó tu carpeta {{target}}",
-      "mirror.peer_unmirrored": "{{actor}} dejó de replicar tu carpeta {{target}}"
+      "mirror.peer_unmirrored": "{{actor}} dejó de replicar tu carpeta {{target}}",
+      "network.offline": "Este dispositivo se quedó sin conexión",
+      "network.blocked": "Mirall no pudo conectar con otras personas",
+      "network.at_risk": "Las conexiones con muchas personas fallarán en esta red",
+      "network.restored": "Conexión restablecida",
+      "network.peer_lost": "{{actor}} se desconectó",
+      "network.peer_back": "{{actor}} está de nuevo en línea"
     },
     "kindLabel": {
       "space.created": "espacio creado",
@@ -937,7 +945,28 @@
       "peer.share_created": "carpeta compartida por un miembro",
       "peer.share_deleted": "carpeta eliminada por un miembro",
       "mirror.peer_mirrored": "tu carpeta replicada",
-      "mirror.peer_unmirrored": "réplica de tu carpeta detenida"
+      "mirror.peer_unmirrored": "réplica de tu carpeta detenida",
+      "network.offline": "sin conexión",
+      "network.blocked": "conexión bloqueada",
+      "network.at_risk": "conexión en riesgo",
+      "network.restored": "conexión restablecida",
+      "network.peer_lost": "miembro desconectado",
+      "network.peer_back": "miembro de nuevo en línea"
+    },
+    "metaFiles_one": "{{formatted}} archivo",
+    "metaFiles_other": "{{formatted}} archivos",
+    "startedAt": "desde las {{time}}",
+    "wasOfflineFor": "Sin conexión durante {{duration}}",
+    "emptyNetworkTitle": "No se han registrado problemas de conexión",
+    "emptyNetworkDesc": "Mirall ha podido conectarse a la red durante todo el tiempo que ha estado en marcha.",
+    "cause": {
+      "os-offline": "Este dispositivo no tiene red",
+      "dht-unreachable": "No se pudo conectar con la red",
+      "no-public-address": "Sin dirección pública",
+      "symmetric-nat": "Tu router cambia de puertos",
+      "udp-degraded": "Conexión poco fiable",
+      "peers-unreachable": "Se encontraron personas, pero no se pudo conectar con ninguna",
+      "vpn-only-route": "Tu VPN es la única salida"
     }
   },
   "activityLogSettings": {
@@ -948,7 +977,7 @@
     "openLogSummary_other": "{{count}} eventos registrados",
     "recording": "Registro",
     "recordActivity": "Registrar actividad",
-    "recordActivityDesc": "Guarda un registro local de lo que ocurre en tus espacios. Nunca sale de este dispositivo.",
+    "recordActivityDesc": "Mantén un registro local de lo que ocurre en tus espacios, incluido cuándo este dispositivo pierde la conexión. Nunca sale de este dispositivo.",
     "retention": "Conservar eventos durante",
     "retentionDesc": "Los eventos más antiguos se eliminan automáticamente.",
     "retentionDays_one": "{{count}} día",
@@ -956,7 +985,7 @@
     "survivesLeave": "Los eventos se conservan incluso para espacios que has abandonado, hasta que caduquen.",
     "export": "Exportar",
     "exportTitle": "Exportar como JSON",
-    "exportDesc": "Guardar todos los eventos registrados en un archivo.",
+    "exportDesc": "Guarda todos los eventos registrados en un archivo. Incluye cuándo este dispositivo estuvo sin conexión.",
     "exportAction": "Exportar…",
     "exportDone_one": "{{count}} evento exportado.",
     "exportDone_other": "{{count}} eventos exportados.",
@@ -1017,7 +1046,8 @@
       "atRisk": "Problema de conexión",
       "offline": "Sin conexión de red",
       "vpnOnly": "Mirall no puede alcanzar la red"
-    }
+    },
+    "connectionHistory": "Historial de conexión"
   },
   "diagnostics": {
     "title": "Diagnóstico",

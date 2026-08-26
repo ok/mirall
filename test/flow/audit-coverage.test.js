@@ -68,6 +68,12 @@ const UNTRIGGERABLE = {
   'security.integrity_failure': 'needs bytes that fail their hash',
   'security.creator_divergence': 'needs a forked member-set root',
   'audit.suppressed': 'needs a burst past the rate guard — integration-tested',
+  'network.offline': 'needs the machine to lose its network — unit-tested in network-episodes.test.js',
+  'network.blocked': 'needs a network that blocks peer connections',
+  'network.at_risk': 'needs a symmetric NAT',
+  'network.restored': 'closes one of the above',
+  'network.peer_lost': 'driven in audit-network-presence.test.js, which shrinks the presence dwell',
+  'network.peer_back': 'driven in audit-network-presence.test.js',
 }
 
 async function rows (peer) {

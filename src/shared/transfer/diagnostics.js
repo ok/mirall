@@ -2,6 +2,35 @@ import { shortId, makeAliaser } from '../core/diagnostics-redact.js'
 
 export const DIAGNOSTICS_SCHEMA = 1
 
+const VERDICT_OF = {
+  'network.offline': 'blocked',
+  'network.blocked': 'blocked',
+  'network.at_risk': 'at-risk',
+  'network.restored': 'healthy',
+}
+
+// The kinds verdictHistoryFromAudit understands, exported so the query that feeds it filters on the
+// same list. Querying the whole `network` CATEGORY instead would let peer-presence rows fill the
+// page limit and crowd the device history out of a support bundle entirely.
+export const VERDICT_KINDS = Object.keys(VERDICT_OF)
+
+// PRIVACY: only the device family is mapped, and only its timing and counters. Those rows carry
+// space: null and actor {type:'system'}, so nothing here can leak a space name, a peer name or a
+// path. The peer family DOES carry names and is excluded by the lookup returning undefined.
+export function verdictHistoryFromAudit(entries = []) {
+  return entries
+    .filter((entry) => VERDICT_OF[entry.kind])
+    .map((entry) => ({
+      at: entry.ts,
+      verdict: VERDICT_OF[entry.kind],
+      cause: entry.code || null,
+      confidence: entry.subject?.confidence ?? null,
+      since: entry.subject?.sinceTs ?? null,
+      durationMs: entry.subject?.durationMs ?? null,
+    }))
+    .reverse()
+}
+
 // Shapes, not identities. Everything a connectivity diagnosis needs — did host consensus
 // form, is the port 0, did it change, how many dials opened — is answerable without the
 // actual IP, the real keys, or space names.

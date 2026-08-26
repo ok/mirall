@@ -40,15 +40,19 @@ test('REGRESSION (FIX-AXE-1): production bundle (__DEV__=false) strips axe-core'
   const out = await bundle(false)
   t.absent(out.includes('@axe-core'), 'no @axe-core module reference in prod bundle')
   t.absent(out.includes('color-contrast'), 'no axe-core rule ids in prod bundle')
-  // A backstop for the two string checks above, not a size budget: axe-core adds ~616KB,
-  // so any inclusion blows past this by a wide margin. Headroom is thin (~5KB) because the
-  // five statically-bundled locales are ~27% of the bundle, which makes this line the
-  // effective budget for new UI copy — lazy-loading them is the real fix.
-  t.ok(out.length < 1_000_000, `prod bundle is small without axe-core (${out.length} bytes)`)
+  // A backstop for the two string checks above, not a size budget: axe-core adds ~616KB, so any
+  // inclusion lands near the dev bundle's ~1.6MB and blows past this by a wide margin. The number
+  // was 1_000_000 with ~200 bytes of headroom, which quietly made it the budget for UI copy — the
+  // five statically-bundled locales are ~27% of the bundle, so a feature adding a few dozen strings
+  // in five languages failed a test about axe-core. Raised to keep the axe margin while letting
+  // copy grow. Lazy-loading the non-active locales is still the real fix for the 27%.
+  t.ok(out.length < 1_100_000, `prod bundle is small without axe-core (${out.length} bytes)`)
 })
 
 test('FIX-AXE-1 control: dev bundle (__DEV__=true) still ships axe-core', async (t) => {
   const out = await bundle(true)
   t.ok(out.includes('color-contrast'), 'axe-core present in dev bundle')
   t.ok(out.length > 1_200_000, `dev bundle is large with axe-core (${out.length} bytes)`)
+  // The prod threshold above is only meaningful while it sits well below an axe-carrying bundle.
+  t.ok(out.length - 1_100_000 > 400_000, 'the prod backstop still has a wide margin below axe-core')
 })
