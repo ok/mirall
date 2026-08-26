@@ -842,11 +842,12 @@
     "canary": "Connection test",
     "canaryState": "Result",
     "canaryRecords": "Test servers found",
-    "canaryChecked": "Last checked"
+    "canaryChecked": "Last checked",
+    "connectionHistory": "Connection history"
   },
   "activityLog": {
     "title": "Activity Log",
-    "intro": "A record of what happened in your spaces, kept on this device.",
+    "intro": "A record of what happened in your spaces and on this device's connection, kept on this device.",
     "searchLabel": "Search activity",
     "searchPlaceholder": "Search people, files and folders…",
     "spaceFilterValue": "Space: {{value}}",
@@ -861,7 +862,8 @@
       "members": "Members",
       "files": "Files",
       "folders": "Folders",
-      "security": "Security"
+      "security": "Security",
+      "network": "Network"
     },
     "events": "Events",
     "showingCount_one": "Showing {{count}} event",
@@ -920,7 +922,13 @@
       "peer.share_created": "{{actor}} shared the folder {{target}}",
       "peer.share_deleted": "{{actor}} deleted the folder {{target}}",
       "mirror.peer_mirrored": "{{actor}} mirrored your folder {{target}}",
-      "mirror.peer_unmirrored": "{{actor}} stopped mirroring your folder {{target}}"
+      "mirror.peer_unmirrored": "{{actor}} stopped mirroring your folder {{target}}",
+      "network.offline": "This device went offline",
+      "network.blocked": "Mirall couldn't reach other people",
+      "network.at_risk": "Connections to many people will fail on this network",
+      "network.restored": "Connection restored",
+      "network.peer_lost": "{{actor}} went offline",
+      "network.peer_back": "{{actor}} is back online"
     },
     "kindLabel": {
       "space.created": "space created",
@@ -955,7 +963,28 @@
       "peer.share_created": "folder shared by member",
       "peer.share_deleted": "folder deleted by member",
       "mirror.peer_mirrored": "your folder mirrored",
-      "mirror.peer_unmirrored": "your folder unmirrored"
+      "mirror.peer_unmirrored": "your folder unmirrored",
+      "network.offline": "went offline",
+      "network.blocked": "connection blocked",
+      "network.at_risk": "connection at risk",
+      "network.restored": "connection restored",
+      "network.peer_lost": "member went offline",
+      "network.peer_back": "member back online"
+    },
+    "metaFiles_one": "{{formatted}} file",
+    "metaFiles_other": "{{formatted}} files",
+    "startedAt": "started {{time}}",
+    "wasOfflineFor": "Offline for {{duration}}",
+    "emptyNetworkTitle": "No connection problems recorded",
+    "emptyNetworkDesc": "Mirall has been able to reach the network the whole time it has been running.",
+    "cause": {
+      "os-offline": "No network on this device",
+      "dht-unreachable": "Couldn't reach the network",
+      "no-public-address": "No public address",
+      "symmetric-nat": "Your router changes ports",
+      "udp-degraded": "Unreliable connection",
+      "peers-unreachable": "Found people, couldn't connect to any",
+      "vpn-only-route": "Your VPN is the only route out"
     }
   },
   "activityLogSettings": {
@@ -966,7 +995,7 @@
     "openLogSummary_other": "{{count}} events recorded",
     "recording": "Recording",
     "recordActivity": "Record activity",
-    "recordActivityDesc": "Keep a local record of what happens in your spaces. Never leaves this device.",
+    "recordActivityDesc": "Keep a local record of what happens in your spaces, including when this device loses its connection. Never leaves this device.",
     "retention": "Keep events for",
     "retentionDesc": "Older events are deleted automatically.",
     "retentionDays_one": "{{count}} day",
@@ -974,7 +1003,7 @@
     "survivesLeave": "Events are kept even for spaces you have left, until they age out.",
     "export": "Export",
     "exportTitle": "Export as JSON",
-    "exportDesc": "Save every recorded event to a file.",
+    "exportDesc": "Save every recorded event to a file. It includes when this device was offline.",
     "exportAction": "Export…",
     "exportDone_one": "Exported {{count}} event.",
     "exportDone_other": "Exported {{count}} events.",
@@ -1035,7 +1064,8 @@
       "atRisk": "Connection problem",
       "offline": "No network connection",
       "vpnOnly": "Mirall can't reach the network"
-    }
+    },
+    "connectionHistory": "Connection history"
   },
   "diagnostics": {
     "title": "Diagnostics",

@@ -41,3 +41,29 @@ test('the security category is what remains of the old app bucket', (t) => {
     'security.serve_denied',
   ])
 })
+
+test('the network category is exactly the connectivity vocabulary', (t) => {
+  const network = Object.entries(KINDS).filter(([, m]) => m.category === CATEGORY.NETWORK).map(([k]) => k)
+  t.alike(network.sort(), [
+    'network.at_risk',
+    'network.blocked',
+    'network.offline',
+    'network.peer_back',
+    'network.peer_lost',
+    'network.restored',
+  ])
+})
+
+test('the device family is first-party and the peer family is handshake-attributed', (t) => {
+  for (const kind of ['network.offline', 'network.blocked', 'network.at_risk', 'network.restored']) {
+    t.is(tierOf(kind), 'A', kind + ' is measured on this device')
+  }
+  for (const kind of ['network.peer_lost', 'network.peer_back']) {
+    t.is(tierOf(kind), 'B', kind + ' rides the handshake identity binding')
+  }
+})
+
+test('a settling verdict and a canary result are deliberately not kinds', (t) => {
+  t.absent(isKnownKind('network.unknown'), 'one contentless row per app launch')
+  t.absent(isKnownKind('network.canary_failed'), 'our seeder being down must never become the user\'s verdict')
+})

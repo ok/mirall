@@ -38,4 +38,10 @@ export const AUDIT_KINDS: string[] = [
   'security.integrity_failure',
   'security.creator_divergence',
   'audit.suppressed',
+  'network.offline',
+  'network.blocked',
+  'network.at_risk',
+  'network.restored',
+  'network.peer_lost',
+  'network.peer_back',
 ]

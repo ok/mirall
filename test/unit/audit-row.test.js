@@ -2,7 +2,7 @@ import test from 'brittle'
 import {
   actorInitials, actorLabel, avatarKind, dayKey, denialReasonKey, formatBytes, formatCount,
   groupByDay, isSystemRow, metaParts, rowBadge, sentenceKey, sentenceValues,
-  splitSentence, sentinelValues, FIELD_SENTINEL, SENTENCE_FIELDS,
+  splitSentence, sentinelValues, systemIcon, emptyStateFor, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/auditRow.js'
 
 const row = (over = {}) => ({
@@ -119,14 +119,24 @@ test('meta line leads with the space and folds in the aggregate totals', (t) => 
     kind: 'share.mounted',
     subject: { fileCount: 5180, bytes: 13314398617 },
   }))
-  t.is(parts[0], 'Design Team', 'the space is the strongest context, so it comes first')
-  t.ok(parts.some((p) => p.includes('files')), 'the aggregate file count is shown as one figure')
-  t.ok(parts.some((p) => p.includes('GB')))
+  t.is(parts[0].text, 'Design Team', 'the space is the strongest context, so it comes first')
+  t.ok(parts.some((p) => p.key === 'activityLog.metaFiles'), 'the aggregate file count is shown as one figure')
+  t.ok(parts.some((p) => p.text && p.text.includes('GB')))
+})
+
+// metaParts used to push `formatCount(n) + ' files'`, so a German reader saw "1.284 files".
+test("REGRESSION (FIX-META-I18N: the meta line's file count is translatable)", (t) => {
+  const parts = metaParts(row({ kind: 'share.mounted', subject: { fileCount: 1284 } }))
+  const files = parts.find((p) => p.key === 'activityLog.metaFiles')
+  t.ok(files, 'the count is a key, not a finished English string')
+  t.is(files.values.count, 1284, 'count drives the plural')
+  t.is(files.values.formatted, (1284).toLocaleString(), 'and the formatted number is interpolated')
+  for (const part of parts) t.ok(part.key || typeof part.text === 'string', 'every part is resolvable')
 })
 
 test('meta line omits absent detail rather than printing empties', (t) => {
   t.alike(metaParts(row({ space: null, subject: null })), [])
-  t.alike(metaParts(row({ subject: { bytes: null, fileCount: null } })), ['Design Team'])
+  t.alike(metaParts(row({ subject: { bytes: null, fileCount: null } })), [{ text: 'Design Team' }])
 })
 
 test('day bucketing keys today, yesterday and older dates', (t) => {
@@ -196,4 +206,99 @@ test('sentinelValues wraps every field the sentences can use', (t) => {
   for (const field of SENTENCE_FIELDS) {
     t.is(v[field], FIELD_SENTINEL + field + FIELD_SENTINEL, field + ' is wrapped')
   }
+})
+
+const netRow = (over = {}) => row({
+  kind: 'network.blocked',
+  category: 'network',
+  tier: 'A',
+  actor: { type: 'system', key: null, name: null },
+  space: null,
+  target: null,
+  code: 'peers-unreachable',
+  subject: { sinceTs: Date.now() - 90000 },
+  ...over,
+})
+
+// outcome:'error' would render FAILED, which on a network row reads as a failed transfer.
+test('a connectivity row is badged by KIND, because its outcome is not a failed action', (t) => {
+  t.is(rowBadge(netRow({ kind: 'network.offline' })).labelKey, 'connectivity.offline')
+  t.is(rowBadge(netRow({ kind: 'network.blocked' })).tone, 'error')
+  t.is(rowBadge(netRow({ kind: 'network.at_risk' })).labelKey, 'connectivity.limited')
+  t.is(rowBadge(netRow({ kind: 'network.at_risk' })).tone, 'passive', 'at-risk is not the red token')
+  t.is(rowBadge(netRow({ kind: 'network.restored' })), null, 'recovery is not exceptional')
+  t.is(rowBadge(netRow({ kind: 'network.peer_lost' })), null, 'a member closing a laptop is routine')
+})
+
+test('the device family gets the Network glyph; a peer row keeps the person', (t) => {
+  t.is(systemIcon(netRow()), 'hub')
+  t.is(systemIcon(row()), 'history', 'ordinary system rows are unchanged')
+  t.is(avatarKind(netRow()), 'system')
+  t.is(
+    avatarKind(netRow({ kind: 'network.peer_lost', actor: { type: 'peer', key: 'aa', name: 'Anna Keller' } })),
+    'peer',
+    'the row is about a person, so it shows one',
+  )
+})
+
+test('a connectivity row names its cause, its start and its duration', (t) => {
+  const ts = Date.now()
+  const parts = metaParts(netRow({ ts, subject: { sinceTs: ts - 90000 } }))
+  t.ok(parts.some((p) => p.key === 'activityLog.cause.peers-unreachable'))
+  t.ok(parts.some((p) => p.key === 'activityLog.startedAt'), 'the hold-down gap is named, not hidden')
+
+  // Production shape: the hold-down puts `ts` ~60s after the recovery, so a `sinceTs` here would
+  // always trip the start clause and date the outage to the moment it was fixed.
+  const restored = metaParts(netRow({
+    kind: 'network.restored',
+    code: 'os-offline',
+    ts,
+    subject: { durationMs: 732000, recoveredTs: ts - 60000, fromKind: 'network.offline' },
+  }))
+  t.ok(restored.some((p) => p.key === 'activityLog.wasOfflineFor'))
+  t.absent(
+    restored.some((p) => p.key === 'activityLog.startedAt'),
+    'the duration tells the story; a "started" time here would name the recovery',
+  )
+})
+
+test('an unknown cause and an unknown duration degrade to nothing', (t) => {
+  const parts = metaParts(netRow({ code: 'quantum-tunnel', subject: { durationMs: null, sinceTs: null } }))
+  t.absent(
+    parts.some((p) => p.key && p.key.startsWith('activityLog.cause.')),
+    'a cause from a newer version renders nothing, not a raw key',
+  )
+  t.absent(parts.some((p) => p.key === 'activityLog.wasOfflineFor'), 'a null duration is omitted, not invented')
+})
+
+test('a peer connectivity row still leads with its space', (t) => {
+  const parts = metaParts(netRow({
+    kind: 'network.peer_back',
+    code: null,
+    space: { id: 'sp1', name: 'Design Team' },
+    subject: { durationMs: 2460000 },
+  }))
+  t.is(parts[0].text, 'Design Team')
+  t.ok(parts.some((p) => p.key === 'activityLog.wasOfflineFor'))
+})
+
+const filters = (over = {}) => ({
+  spaceId: null, categories: [], actorKey: null, search: '', sinceDays: null, ...over,
+})
+
+test('an empty NETWORK log reads as good news, not as a failed search', (t) => {
+  t.alike(emptyStateFor(filters(), false), { key: 'empty', icon: 'history' }, 'nothing recorded yet')
+  t.alike(emptyStateFor(filters({ search: 'anna' }), true), { key: 'emptyFiltered', icon: 'search' })
+  t.alike(emptyStateFor(filters({ categories: ['network'] }), true), { key: 'emptyNetwork', icon: 'hub' })
+})
+
+// "Able to reach the network the whole time it has been running" is false the moment an outage
+// exists outside the window, so any other filter must disqualify the reassuring copy.
+test('the reassuring copy needs every other filter clear', (t) => {
+  for (const narrowing of [{ sinceDays: 7 }, { spaceId: 'sp1' }, { actorKey: 'aa' }, { search: 'x' }]) {
+    const state = emptyStateFor(filters({ categories: ['network'], ...narrowing }), true)
+    t.is(state.key, 'emptyFiltered', JSON.stringify(narrowing) + ' must not claim a clean history')
+  }
+  t.is(emptyStateFor(filters({ categories: ['network', 'files'] }), true).key, 'emptyFiltered',
+    'and a second category is not a network-only view')
 })

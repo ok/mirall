@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, getUpgradeKey, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig } from '../shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, getUpgradeKey, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig, getPeerPresenceDwellMs } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -70,11 +70,12 @@ import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storag
 import { sendFeedback } from '../shared/telemetry/feedback.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { deriveChannel } from '../shared/core/channel.js'
-import { buildDiagnostics } from '../shared/transfer/diagnostics.js'
+import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
 import {
   initAuditLog, record, setAuditIdentity, queryAudit, auditSpaces, auditActors, auditStats,
   getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
 } from '../shared/audit/audit-log.js'
+import { initNetworkWatch } from '../shared/audit/network-watch.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId, ensureSharesCap } from '../shared/shares/shares.js'
 import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
@@ -189,6 +190,10 @@ await initPendingTransfers()
 // happen. A failure here must not abort boot — an unavailable audit log degrades to no rows.
 try {
   await initAuditLog({ installId: await getInstallId(bootstrap.storage) })
+  // The emit is what makes an OPEN Activity Log refresh while an outage is happening. Nothing else
+  // in the app hints Scope.audit(), so without it the one class of event a user actually watches
+  // for lands in a list that does not move.
+  initNetworkWatch({ emit: () => ipc.emit('event:audit-updated', {}), peerDwellMs: getPeerPresenceDwellMs() })
 } catch (err) {
   log.warn('audit log unavailable — events will not be recorded:', err.message)
 }
@@ -2309,11 +2314,31 @@ ipc.handle('network:online-hint', async (msg) => {
 
 ipc.handle('network:check-liveness', async () => await checkLivenessNow())
 
+const DIAGNOSTIC_HISTORY_LIMIT = 50
+
+// The in-memory ring dies with the process, so a bundle collected after a restart — precisely the
+// bundle a user sends after "it was broken this morning" — carried no history at all. The two are
+// MERGED rather than one replacing the other: the durable rows are hold-down-deduped, so they drop
+// this session's sub-60s flaps and settling states, which is exactly the detail a bundle collected
+// during a live problem needs.
+async function durableVerdictHistory () {
+  const ring = getVerdictHistory()
+  try {
+    const { entries } = await queryAudit({ kinds: VERDICT_KINDS, limit: DIAGNOSTIC_HISTORY_LIMIT })
+    const durable = verdictHistoryFromAudit(entries)
+    if (!durable.length) return ring
+    const newest = durable[durable.length - 1].at
+    return [...durable, ...ring.filter((entry) => entry.at > newest)]
+  } catch {
+    return ring
+  }
+}
+
 ipc.handle('diagnostics:export', async (msg) => {
   const cfg = getRuntimeConfig()
   return buildDiagnostics({
     status: getSwarmStatus(),
-    history: getVerdictHistory(),
+    history: await durableVerdictHistory(),
     env: {
       appVersion: cfg.appVersion || (cfg.dev ? 'dev' : 'unknown'),
       channel: deriveChannel(cfg),

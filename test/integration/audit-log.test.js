@@ -8,6 +8,7 @@ import {
   initAuditLog, record, flushAudit, queryAudit, auditSpaces, auditActors,
   auditStats, getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
   getPeerSubjectState, setPeerSubjectState, getSeenVersion, setSeenVersion,
+  getNetworkState, setNetworkState,
 } from '../../src/shared/audit/audit-log.js'
 
 let seq = 0
@@ -454,4 +455,120 @@ test('record() reports whether the row was admitted', async (t) => {
   await setAuditConfig({ enabled: false })
   t.is(record('member.joined', { actor: { type: 'self' }, space: { id: 'sp1', name: 'S' } }), false,
     'a disabled log admits nothing — callers must not mirror it as recorded')
+})
+
+function device (kind, code, subject = {}) {
+  record(kind, { actor: { type: 'system', key: null, name: null }, code, subject })
+}
+
+test('the standing network state round-trips and clears rather than tombstoning', async (t) => {
+  await boot(t)
+  t.is(await getNetworkState(), null, 'nothing recorded yet')
+
+  await setNetworkState({ kind: 'network.blocked', cause: 'peers-unreachable', since: 1000, session: 'run-0' })
+  t.is((await getNetworkState()).cause, 'peers-unreachable')
+
+  await setNetworkState(null)
+  t.is(await getNetworkState(), null, 'healthy drops the key')
+})
+
+test('a purge clears the standing network state — it is log content, like pstate', async (t) => {
+  await boot(t)
+  await setNetworkState({ kind: 'network.offline', cause: 'os-offline', since: 1000, session: 'run-0' })
+  await setPeerSubjectState('share|peer|sp1|s1', 'on')
+  await setSeenVersion('bee-1', 42)
+
+  await purgeAudit()
+
+  t.is(await getNetworkState(), null)
+  t.is(await getPeerSubjectState('share|peer|sp1|s1'), null)
+  t.is(await getSeenVersion('bee-1'), 42, 'the watermark IS written back — losing it replays every peer history')
+})
+
+test('a device-scoped row is still in a space timeline', async (t) => {
+  await boot(t)
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  device('network.blocked', 'peers-unreachable', { sinceTs: 1 })
+  member('member.left', 'sp1', 'Design Team', 'Anna')
+  await flushAudit()
+
+  const { entries } = await queryAudit({ spaceId: 'sp1' })
+  t.is(entries.length, 3, 'the outage is why nothing arrived — it belongs in this space story')
+  t.alike(
+    entries.map((e) => e.kind),
+    ['member.left', 'network.blocked', 'member.joined'],
+    'merged in seq order, not appended',
+  )
+  t.is(entries[1].space, null, 'without being attributed to the space')
+})
+
+test('a device row appears once per space filter, never duplicated', async (t) => {
+  await boot(t)
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  member('member.joined', 'sp2', 'Ops', 'Bob')
+  device('network.offline', 'os-offline', { sinceTs: 1 })
+  await flushAudit()
+
+  for (const spaceId of ['sp1', 'sp2']) {
+    const { entries } = await queryAudit({ spaceId })
+    t.is(entries.filter((e) => e.kind === 'network.offline').length, 1, spaceId + ' sees it exactly once')
+  }
+})
+
+test('the space-filtered merge paginates without dropping or repeating a row', async (t) => {
+  await boot(t)
+  for (let i = 0; i < 12; i++) {
+    if (i % 2 === 0) member('member.joined', 'sp1', 'Design Team', 'P' + i)
+    else device('network.at_risk', 'symmetric-nat', { sinceTs: i })
+  }
+  await flushAudit()
+
+  const seen = []
+  let cursor = null
+  do {
+    const page = await queryAudit({ spaceId: 'sp1', cursor, limit: 5 })
+    seen.push(...page.entries)
+    cursor = page.nextCursor
+  } while (cursor !== null)
+
+  t.is(seen.length, 12, 'every row surfaced across pages')
+  t.is(new Set(seen.map((e) => e.seq)).size, 12, 'and none twice')
+  t.alike(seen.map((e) => e.seq), [...seen.map((e) => e.seq)].sort((a, b) => b - a), 'still newest-first')
+})
+
+test('the category filter reaches the network family', async (t) => {
+  await boot(t)
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  device('network.at_risk', 'symmetric-nat', { sinceTs: 1 })
+  await flushAudit()
+
+  const { entries } = await queryAudit({ categories: ['network'] })
+  t.is(entries.length, 1)
+  t.is(entries[0].category, 'network')
+  t.is(entries[0].tier, 'A')
+})
+
+test('a device row never pollutes the person filter', async (t) => {
+  await boot(t)
+  device('network.blocked', 'dht-unreachable', { sinceTs: 1 })
+  await flushAudit()
+  t.is((await auditActors()).length, 0, 'a system actor has no key, so it is not a filterable person')
+})
+
+// A dangling by-device entry resolves to null forever and silently shortens every space-filtered
+// page, so the prune has to drop the index with the row.
+test('pruning removes the device index with the row', async (t) => {
+  await boot(t)
+  for (let i = 0; i < 6; i++) device('network.blocked', 'dht-unreachable', { sinceTs: i })
+  await flushAudit()
+
+  await setAuditConfig({ maxEntries: 2 })
+  await pruneAudit()
+
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  await flushAudit()
+
+  const { entries } = await queryAudit({ spaceId: 'sp1' })
+  t.ok(entries.every((e) => e && e.kind), 'no hole where a pruned device row used to be')
+  t.is(entries.filter((e) => e.kind === 'network.blocked').length, 2, 'only the surviving rows remain')
 })

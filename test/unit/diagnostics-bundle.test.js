@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { buildDiagnostics, DIAGNOSTICS_SCHEMA } from '../../src/shared/transfer/diagnostics.js'
+import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS, DIAGNOSTICS_SCHEMA } from '../../src/shared/transfer/diagnostics.js'
 
 const PUBLIC_HOST = '203.0.113.7'
 const PUBLIC_KEY = 'a'.repeat(64)
@@ -132,4 +132,46 @@ test('an empty swarm produces a well-formed bundle', (t) => {
   const bundle = buildDiagnostics(ctx, true)
   t.alike(bundle.peers.samples, [])
   t.alike(bundle.spaces.topics, [])
+})
+
+// The in-memory ring dies with the process, so a bundle collected after a restart — the one a user
+// actually sends — carried no history at all.
+test('the verdict history survives a restart by coming from the log', (t) => {
+  const history = verdictHistoryFromAudit([
+    { kind: 'network.restored', ts: 3000, code: 'os-offline', subject: { durationMs: 600000, sinceTs: 3000, peersConnected: 2 } },
+    { kind: 'network.blocked', ts: 2000, code: 'peers-unreachable', subject: { sinceTs: 1900, confidence: 'measured' } },
+  ])
+  t.alike(history.map((h) => h.verdict), ['blocked', 'healthy'], 'oldest first, matching the ring')
+  t.is(history[0].cause, 'peers-unreachable')
+  t.is(history[0].confidence, 'measured')
+  t.is(history[1].durationMs, 600000)
+})
+
+test('PRIVACY: peer-family rows never reach the bundle', (t) => {
+  const history = verdictHistoryFromAudit([{
+    kind: 'network.peer_lost',
+    ts: 1000,
+    code: null,
+    actor: { type: 'peer', key: 'deadbeef', name: 'Anna Keller' },
+    space: { id: 'sp1', name: 'Design Team' },
+    subject: { sinceTs: 900 },
+  }])
+  t.is(history.length, 0, 'they carry names; the device family does not')
+  t.absent(JSON.stringify(history).includes('Anna'))
+  t.absent(JSON.stringify(history).includes('Design Team'))
+})
+
+test('a row from an unknown kind is dropped rather than mapped to a bogus verdict', (t) => {
+  t.is(verdictHistoryFromAudit([{ kind: 'member.joined', ts: 1, subject: {} }]).length, 0)
+  t.is(verdictHistoryFromAudit().length, 0)
+})
+
+// Querying the whole `network` category would let peer-presence rows fill the page limit and crowd
+// the device history out of the bundle, so the query filters on exactly what the mapper reads.
+test('the query filter and the mapper cannot drift apart', (t) => {
+  t.alike(VERDICT_KINDS.slice().sort(), ['network.at_risk', 'network.blocked', 'network.offline', 'network.restored'])
+  for (const kind of VERDICT_KINDS) {
+    t.is(verdictHistoryFromAudit([{ kind, ts: 1, code: null, subject: {} }]).length, 1, kind + ' maps')
+  }
+  t.is(verdictHistoryFromAudit([{ kind: 'network.peer_lost', ts: 1, subject: {} }]).length, 0, 'and the peer family does not')
 })

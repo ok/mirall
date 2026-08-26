@@ -389,7 +389,7 @@ export interface NetworkStatus {
   }
 }
 
-export type AuditCategory = 'members' | 'files' | 'folders' | 'security'
+export type AuditCategory = 'members' | 'files' | 'folders' | 'security' | 'network'
 export type AuditTier = 'A' | 'B' | 'C'
 export type AuditOutcome = 'ok' | 'denied' | 'error'
 

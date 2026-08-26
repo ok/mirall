@@ -9,7 +9,13 @@
 // There is no tier D: what a peer does with bytes after receipt, and transfers between two
 // other members, are unobservable here (overlay transfers are point-to-point — only the holder
 // sees them).
-export const CATEGORY = { MEMBERS: 'members', FILES: 'files', FOLDERS: 'folders', SECURITY: 'security' }
+export const CATEGORY = {
+  MEMBERS: 'members',
+  FILES: 'files',
+  FOLDERS: 'folders',
+  SECURITY: 'security',
+  NETWORK: 'network',
+}
 
 export const KINDS = {
   'space.created': { category: CATEGORY.MEMBERS, tier: 'A' },
@@ -51,6 +57,22 @@ export const KINDS = {
   'security.integrity_failure': { category: CATEGORY.SECURITY, tier: 'A' },
   'security.creator_divergence': { category: CATEGORY.SECURITY, tier: 'B' },
   'audit.suppressed': { category: CATEGORY.SECURITY, tier: 'A' },
+  // The log's negative space. Every kind above records something that HAPPENED, and the questions a
+  // reader brings are usually about what didn't — a file that never arrived, a member who never
+  // appeared. Those produce no rows at all, so silence reads as "the other side did nothing". These
+  // are the one record that turns it into "nothing could happen, and here is the window", which is
+  // why they clear the bar the app-housekeeping kinds below do not.
+  //
+  // Tier A: measured on this device, by this install.
+  'network.offline': { category: CATEGORY.NETWORK, tier: 'A' },
+  'network.blocked': { category: CATEGORY.NETWORK, tier: 'A' },
+  'network.at_risk': { category: CATEGORY.NETWORK, tier: 'A' },
+  'network.restored': { category: CATEGORY.NETWORK, tier: 'A' },
+  // Tier B: the socket is Noise-authenticated and the identity bound through the handshake. NOT a
+  // membership change — member.left covers leaving — and written only while OUR OWN connectivity is
+  // healthy, because a blocked device makes every peer look gone.
+  'network.peer_lost': { category: CATEGORY.NETWORK, tier: 'B' },
+  'network.peer_back': { category: CATEGORY.NETWORK, tier: 'B' },
 }
 
 // Also absent, because nothing can currently produce them: `invite.revoked` (the only revoke
@@ -58,6 +80,12 @@ export const KINDS = {
 // is removed through owned-folder:delete, already covered by share.deleted). A kind that can
 // never fire is worse than a missing one: it still appears in the search labels and the i18n
 // catalogue.
+//
+// Also absent: `network.unknown` — an unknown verdict means boot, suspend, or a consensus still
+// forming, so it would put one contentless row in the log per app launch. And no canary kind:
+// reachability.js's governing rule is that a canary failure is indistinguishable from OUR seeder
+// being down, so it may confirm a verdict but never create one — a row would blame the user for
+// our outage.
 //
 // Deliberately absent: app.updated, app.worker_crashed, storage.cleanup,
 // settings.download_folder, feedback.sent — app housekeeping, not "which user did what in a
