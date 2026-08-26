@@ -32,6 +32,10 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 
 **Never blanket-replace `console.log/warn/error` in a brittle test** — the runner emits its own TAP through them, so a blanket stub both miscounts (inflated by exactly the number of prior asserts) and swallows the failure diagnostic. Capture by discriminating on the code-under-test's own prefix/tag; forward everything else to the saved real console.
 
+## UI copy
+
+**An empty state answers the user's live question, not the product's best feature.** A differentiator nobody expected to be otherwise ("sharing never makes a second copy") reads as a boast and spends the one paragraph people actually read; the tell is copy that leads with what the product *doesn't* do. Lead instead with the constraint that contradicts what users bring from elsewhere — files are served from your device, so you must be online — and keep the differentiator only in its consequential form ("move or delete the original and it's gone"). Re-point the deep link at the doc that matches the reframed body, and drop the now-unlinked anchor from the union so the twin test stays honest.
+
 ## Renderer ↔ worker wiring
 
 **A new worker→renderer field must be added to the hook's EXPLICIT field-map.** Renderer hooks project field-by-field (not `{...e}`), so an optional field added only to the shared type + JSX type-checks and is silently dropped before the component. Trace the full path and patch every re-map: worker row object → IPC → hook's `ServerEntry` interface → hook's `.map()` projection → shared type → component. Grep the hook for the field after wiring (and confirm event-rebuild paths use `{...f}` spread). Invisible to typecheck/lint/backend tests; only test:fe catches it.
@@ -169,6 +173,8 @@ retained bytes.
 **Piping a test run into `tail` throws away its exit code, and its failures.** `npm test 2>&1 | tail -8` reports the exit status of `tail` (always 0), and an 8-line window shows a crash's stack trace while hiding the summary — so a suite that aborted reads as "exit code 0" with nothing obviously wrong. It also truncates the TAP `not ok` lines that say WHAT failed. Redirect to a file and check `$?` (`npm test > /tmp/run.log 2>&1; echo $?`), then grep the file for `^not ok`. A green claim built on a piped tail is not evidence.
 
 ## Release / build
+
+**A backstop assertion sized against the current value becomes a gate on unrelated work.** `bundle-axe-stripped.test.js` guards a ~616KB axe-core regression but sat ~200 bytes above the real prod bundle, so a `marked` patch bump (+782 bytes) and one card's worth of new copy (16 keys × 5 locales) each tripped it independently. Size a backstop between the two outcomes it must distinguish — prod ~1.00MB vs dev ~1.62MB, so 1.25MB — not just above today's number. Five statically bundled locales are ~24% of `main.js`, so this line keeps drifting toward a copy budget; lazy-loading them is the real fix.
 
 **Prerelease channels (beta/dev/staging) use single-drive `pear stage` + `pear release`** (`upgrade-keys.json` entry is a STRING). `pear provision` rejects prerelease SemVers, but the OTA updater compares by SemVer precedence, so prerelease builds must carry monotonically increasing `-beta.<run>` versions. Only prod (clean `X.Y.Z`, bumped per release) uses the `{stage, provision}` object. `pear touch` the seed drive ON the seed VM or `pear stage` fails `SESSION_NOT_WRITABLE`.
 
