@@ -12,6 +12,9 @@ const allHandlers = {
   invite: noop,
   navBack: noop,
   navHome: noop,
+  openProfile: noop,
+  openActivityLog: noop,
+  openSpace: noop,
   openPalette: noop,
   showShortcuts: noop,
   whatsNew: noop,
@@ -125,6 +128,44 @@ test('View submenu has zoom roles', (t) => {
   t.ok(findInSubmenu(view, 'togglefullscreen'), 'togglefullscreen role present')
   t.ok(findInSubmenu(view, 'Back'), 'Back item present')
   t.ok(findInSubmenu(view, 'Home'), 'Home item present')
+})
+
+test('View submenu exposes Profile and Activity Log with their chords', (t) => {
+  for (const platform of ['darwin', 'win32', 'linux']) {
+    const view = find(buildAppMenuTemplate({ ...baseOpts, platform }), 'View').submenu
+    const profile = findInSubmenu(view, 'Profile')
+    const activity = findInSubmenu(view, 'Activity Log')
+    t.ok(profile, `${platform}: Profile item present`)
+    t.ok(activity, `${platform}: Activity Log item present`)
+    t.is(profile.accelerator, 'CmdOrCtrl+Shift+P', `${platform}: Profile bound to mod+shift+P`)
+    t.is(activity.accelerator, 'CmdOrCtrl+Shift+L', `${platform}: Activity Log bound to mod+shift+L`)
+  }
+})
+
+test('the Activity Log Find chord stays out of the native menu', (t) => {
+  // mod+F is scoped to the Activity Log, so a menu accelerator would claim it
+  // app-wide and fire the command on screens that have nothing to search.
+  const json = JSON.stringify(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin' }))
+  t.absent(json.includes('CmdOrCtrl+F'), 'no global Find accelerator')
+})
+
+test('Go to Space lists the spaces it is given and binds them to mod+1..9', (t) => {
+  const spaces = Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, name: `Space ${i}` }))
+  const view = find(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin', spaces }), 'View').submenu
+  const go = findInSubmenu(view, 'Go to Space')
+  t.ok(go, 'Go to Space submenu present')
+  t.is(go.submenu.length, 9, 'only the first nine spaces get a chord')
+  t.is(go.submenu[0].label, 'Space 0', 'first item is the first space')
+  t.is(go.submenu[0].accelerator, 'CmdOrCtrl+1', 'first space bound to mod+1')
+  t.is(go.submenu[8].accelerator, 'CmdOrCtrl+9', 'ninth space bound to mod+9')
+})
+
+test('Go to Space is omitted with no spaces and escapes Windows mnemonics', (t) => {
+  const empty = find(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin' }), 'View').submenu
+  t.absent(findInSubmenu(empty, 'Go to Space'), 'no empty submenu when there are no spaces')
+
+  const view = find(buildAppMenuTemplate({ ...baseOpts, platform: 'win32', spaces: [{ id: 'a', name: 'R&D' }] }), 'View').submenu
+  t.is(findInSubmenu(view, 'Go to Space').submenu[0].label, 'R&&D', 'a lone & is escaped so it renders')
 })
 
 test('inSpace: false → Add Files / Add Folder / Invite disabled', (t) => {

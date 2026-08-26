@@ -2,7 +2,7 @@
 // (inSpace gates the space-scoped items) so it is testable without Electron.
 // Menu items don't act directly: their handlers dispatch keyboard-command ids
 // that main forwards to the renderer (see sendKeyboardCommand in main.js).
-function buildAppMenuTemplate({ platform, isDev, inSpace, appName, handlers }) {
+function buildAppMenuTemplate({ platform, isDev, inSpace, spaces = [], appName, handlers }) {
   const isMac = platform === 'darwin'
   const template = []
 
@@ -52,6 +52,25 @@ function buildAppMenuTemplate({ platform, isDev, inSpace, appName, handlers }) {
   const viewSubmenu = [
     { label: 'Back', accelerator: 'CmdOrCtrl+Left', click: handlers.navBack },
     { label: 'Home', accelerator: isMac ? 'Cmd+Shift+H' : 'Ctrl+H', click: handlers.navHome },
+    { label: 'Profile', accelerator: 'CmdOrCtrl+Shift+P', click: handlers.openProfile },
+    { label: 'Activity Log', accelerator: 'CmdOrCtrl+Shift+L', click: handlers.openActivityLog },
+  ]
+  // macOS hands ⌘1-9 to Chromium's own tab accelerators before the webContents sees
+  // them — neither the renderer's keydown listener nor before-input-event ever fires
+  // (measured). A menu key equivalent is matched earlier, so the native menu is the
+  // only place this chord can live. It doubles as the discoverable form of it.
+  if (spaces.length > 0) {
+    viewSubmenu.push({
+      label: 'Go to Space',
+      submenu: spaces.slice(0, 9).map((space, i) => ({
+        // Windows menus read a lone '&' as a mnemonic marker; '&&' renders one.
+        label: String(space.name ?? '').replace(/&/g, '&&'),
+        accelerator: `CmdOrCtrl+${i + 1}`,
+        click: () => handlers.openSpace(space.id),
+      })),
+    })
+  }
+  viewSubmenu.push(
     { type: 'separator' },
     { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: handlers.openPalette },
     { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: handlers.showShortcuts },
@@ -63,7 +82,7 @@ function buildAppMenuTemplate({ platform, isDev, inSpace, appName, handlers }) {
     { role: 'togglefullscreen' },
     { type: 'separator' },
     { role: 'toggleDevTools' },
-  ]
+  )
   if (isDev) {
     viewSubmenu.push(
       { role: 'reload' },

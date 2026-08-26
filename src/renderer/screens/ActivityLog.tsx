@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useAuditLog, useAuditFacets, hasActiveFilters, EMPTY_FILTERS, AUDIT_CATEGORIES } from '../hooks/useAuditLog.js'
@@ -8,6 +8,7 @@ import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
 
 interface ActivityLogProps {
   onBack: () => void
@@ -111,6 +112,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
   // Lazy initialiser: a preset seeds the FIRST render only, so a re-render never clobbers a filter
   // the user has since changed. Clear all resets to EMPTY_FILTERS, not to the preset.
   const [filters, setFilters] = useState<AuditFilters>(() => ({ ...EMPTY_FILTERS, ...initialFilters }))
+  const searchRef = useRef<HTMLInputElement>(null)
   const { spaces, actors } = useAuditFacets(0)
 
   // A term typed in the viewer's own language is matched against the TRANSLATED kind labels and
@@ -138,6 +140,20 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
 
   const clearAll = useCallback(() => setFilters(EMPTY_FILTERS), [])
 
+  useRegisterCommand(
+    {
+      id: 'search.focus',
+      labelKey: 'shortcuts.focusSearch',
+      group: 'actions',
+      when: (ctx) => ctx.currentScreen === 'activity-log',
+      run: () => {
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      },
+    },
+    [],
+  )
+
   const spaceName = filters.spaceId ? (spaces.find((s) => s.id === filters.spaceId)?.name ?? filters.spaceId) : null
   const actorName = filters.actorKey ? (actors.find((a) => a.key === filters.actorKey)?.name ?? filters.actorKey) : null
   const rangeLabel = filters.sinceDays === null
@@ -160,6 +176,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                   <Icon name="search" size={18} />
                 </span>
                 <input
+                  ref={searchRef}
                   type="search"
                   aria-label={t('activityLog.searchLabel')}
                   placeholder={t('activityLog.searchPlaceholder')}

@@ -3,7 +3,7 @@ import { Instance } from '../instance.mjs'
 import { makeReport } from '../assert.mjs'
 
 // Profile page (was Account): the groups render, each row reaches its destination, the identity row
-// stays out of the interactive tree, and the About command lands here now that the screen is gone.
+// stays out of the interactive tree, and the Profile command lands here now that About's screen is gone.
 export default async function s108 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -47,15 +47,15 @@ export default async function s108 ({ runDir, bootstrap }) {
       }
     })
 
-    await r.ok('the About command lands on the Profile page', async () => {
+    await r.ok('the Profile command lands on the Profile page', async () => {
       await A.back()
       await A.press('cmd+k')
       await new Promise((res) => setTimeout(res, 600))
-      await A.type({ role: 'combobox' }, 'about')
+      await A.type({ role: 'combobox' }, 'profile')
       await A.press('return')
       await A.waitText('Your profile, this device', 8000)
       await A.waitText('App', 8000)
-      await A.shot('s108-about-command', runDir)
+      await A.shot('s108-profile-command', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }

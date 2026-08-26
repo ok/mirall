@@ -122,7 +122,7 @@ const PREFS_DEFAULTS = {
 
 let prefs = { ...PREFS_DEFAULTS }
 
-let menuCtx = { inSpace: false }
+let menuCtx = { inSpace: false, spaces: [] }
 
 process.on('unhandledRejection', (reason) => {
   console.error('unhandledRejection:', reason && (reason.stack || reason.message || reason))
@@ -807,8 +807,11 @@ ipcMain.on('app:isDev', (evt) => { evt.returnValue = isDev })
 
 ipcMain.handle('menu:context-changed', (_evt, ctx) => {
   const inSpace = !!(ctx && ctx.inSpace)
-  if (inSpace === menuCtx.inSpace) return
-  menuCtx = { inSpace }
+  const spaces = Array.isArray(ctx && ctx.spaces) ? ctx.spaces : []
+  const sameSpaces = spaces.length === menuCtx.spaces.length &&
+    spaces.every((s, i) => s.id === menuCtx.spaces[i].id && s.name === menuCtx.spaces[i].name)
+  if (inSpace === menuCtx.inSpace && sameSpaces) return
+  menuCtx = { inSpace, spaces }
   refreshAppMenu()
 })
 ipcMain.on('app:getLocale', (evt) => { evt.returnValue = app.getLocale() })
@@ -1166,9 +1169,13 @@ function buildAppMenu() {
     platform: process.platform,
     isDev,
     inSpace: menuCtx.inSpace,
+    spaces: menuCtx.spaces,
     appName,
     handlers: {
-      openAbout: send('about.open'),
+      openAbout: send('profile.open'),
+      openProfile: send('profile.open'),
+      openActivityLog: send('activity.open'),
+      openSpace: (spaceId) => sendKeyboardCommand(`space.open.${spaceId}`),
       openSettings: send('settings.open'),
       newSpace: send('space.new'),
       joinSpace: send('space.join'),
@@ -1181,9 +1188,7 @@ function buildAppMenu() {
       showShortcuts: send('shortcuts.show'),
       whatsNew: send('help.whatsNew'),
       sendFeedback: send('help.feedback'),
-      openDocs: () => {
-        shell.openExternal('https://mirall.app/docs').catch((err) => console.error('openExternal failed:', err))
-      },
+      openDocs: send('help.docs'),
     },
   })
   return Menu.buildFromTemplate(template)

@@ -21,8 +21,11 @@ import WorkerToastBridge from './components/widgets/WorkerToastBridge.js'
 import DownloadFolderToastBridge from './components/widgets/DownloadFolderToastBridge.js'
 import CommandPalette from './keyboard/CommandPalette.js'
 import ShortcutsHint from './keyboard/ShortcutsHint.js'
-import type { Command } from './keyboard/registry.js'
-import { HOME_ACCELERATOR } from './keyboard/known-commands.js'
+import { isInSpace, type Command, type CommandContext } from './keyboard/registry.js'
+import { spaceDigitAccelerator } from './keyboard/known-commands.js'
+import { dispatchSpaceAction, type SpaceAction } from './space-actions.js'
+import { docsUrl } from './docs-links.js'
+import type { AppNavigation } from './hooks/useAppNavigation.js'
 import type { Profile, Space } from './types.js'
 import type { DeepLinkPayload } from './global.js'
 import { decodeInvite } from './invite-envelope.js'
@@ -58,7 +61,7 @@ export default function App() {
   const { t } = useTranslation()
   const { profile, needsSetup, loading, saveProfile } = useProfile()
   const { update, dismissed, dismiss } = useUpdates()
-  const { spaces, loading: spacesLoading, createSpace, joinSpace } = useSpaces()
+  const { spaces, loading: spacesLoading, createSpace, joinSpace, toggleFavorite } = useSpaces()
   const nav = useAppNavigation()
 
   const [showFeedback, setShowFeedback] = useState(false)
@@ -87,6 +90,7 @@ export default function App() {
   }, [])
 
   const showCreateModal = useCallback(() => setShowCreate(true), [])
+  const openFeedbackModal = useCallback(() => setShowFeedback(true), [])
   const showJoinModal = useCallback(() => setShowJoin(true), [])
 
   // Suppress back navigation at the root and while a top-level modal is open
@@ -126,10 +130,15 @@ export default function App() {
     setRouteAnnounce(key ? t(key) : '')
   }, [nav.currentScreen, t])
 
+  // The space list rides along because the native menu owns the ⌘1-9 chords: macOS
+  // resolves a menu key equivalent before Chromium's own digit accelerators, which
+  // otherwise swallow them before the webContents ever sees the key.
   useEffect(() => {
-    window.bridge.menuContextChanged({ inSpace: nav.currentScreen === 'space-view' })
-      .catch((err) => console.error('menuContextChanged failed:', err))
-  }, [nav.currentScreen])
+    window.bridge.menuContextChanged({
+      inSpace: nav.currentScreen === 'space-view' || nav.currentScreen === 'folder-view',
+      spaces: spaces.slice(0, 9).map((s) => ({ id: s.spaceId, name: s.name })),
+    }).catch((err) => console.error('menuContextChanged failed:', err))
+  }, [nav.currentScreen, spaces])
 
   if (loading) return (
     <main className="min-h-screen bg-surface flex items-center justify-center">
@@ -147,18 +156,15 @@ export default function App() {
     <WorkerToastBridge />
     <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>
       <AppCommands
+        nav={nav}
         spaces={spaces}
-        openSettings={nav.openSettings}
-        openProfile={nav.openAccount}
+        canGoBack={canGoBack}
         openWhatsNew={openWhatsNew}
-        openFeedback={() => setShowFeedback(true)}
-        navigateToSpace={nav.navigateToSpace}
+        openFeedback={openFeedbackModal}
         onShowCreate={showCreateModal}
         onShowJoin={showJoinModal}
-        goBack={nav.goBack}
-        canGoBack={canGoBack}
-        goHome={nav.goHome}
       />
+      <SpaceCommands nav={nav} spaces={spaces} toggleFavorite={toggleFavorite} />
       <DeepLinkRouter
         spaces={spaces}
         linkQueue={linkQueue}
@@ -225,47 +231,53 @@ export default function App() {
 }
 
 interface AppCommandsProps {
+  nav: AppNavigation
   spaces: Space[]
-  openSettings: () => void
-  openProfile: () => void
+  canGoBack: boolean
   openWhatsNew: () => void
   openFeedback: () => void
-  navigateToSpace: (spaceId: string) => void
   onShowCreate: () => void
   onShowJoin: () => void
-  goBack: () => void
-  canGoBack: boolean
-  goHome: () => void
 }
 
+interface SpaceCommandsProps {
+  nav: AppNavigation
+  spaces: Space[]
+  toggleFavorite: (spaceId: string) => Promise<void>
+}
+
+const SCREEN_COMMANDS: ReadonlyArray<{ id: string; labelKey: string; screen: string }> = [
+  { id: 'activity.openSettings',  labelKey: 'shortcuts.openActivityLogSettings',  screen: 'activity-log-settings' },
+  { id: 'network.status',         labelKey: 'shortcuts.openNetworkStatus',        screen: 'network-status' },
+  { id: 'settings.appearance',    labelKey: 'shortcuts.openAppearanceSettings',   screen: 'appearance-settings' },
+  { id: 'settings.notifications', labelKey: 'shortcuts.openNotificationSettings', screen: 'notification-settings' },
+  { id: 'settings.general',       labelKey: 'shortcuts.openGeneralSettings',      screen: 'general-settings' },
+  { id: 'settings.network',       labelKey: 'shortcuts.openNetworkSettings',      screen: 'network-settings' },
+]
+
 function AppCommands({
+  nav,
   spaces,
-  openSettings,
-  openProfile,
+  canGoBack,
   openWhatsNew,
   openFeedback,
-  navigateToSpace,
   onShowCreate,
   onShowJoin,
-  goBack,
-  canGoBack,
-  goHome,
 }: AppCommandsProps) {
   const { openPalette, openCheatsheet, registerCommand, runCommand } = useKeyboard()
 
+  const navRef = useRef(nav)
+  navRef.current = nav
   const canGoBackRef = useRef(canGoBack)
   canGoBackRef.current = canGoBack
-  const goBackRef = useRef(goBack)
-  goBackRef.current = goBack
 
   useRegisterCommand(
     {
       id: 'nav.back',
       labelKey: 'shortcuts.back',
       group: 'navigation',
-      accelerator: 'mod+arrowleft',
       when: () => canGoBackRef.current,
-      run: () => goBackRef.current(),
+      run: () => navRef.current.goBack(),
     },
     [],
   )
@@ -274,9 +286,8 @@ function AppCommands({
       id: 'nav.home',
       labelKey: 'shortcuts.home',
       group: 'navigation',
-      accelerator: HOME_ACCELERATOR,
-      when: (ctx) => ctx.currentScreen !== 'spaces',
-      run: goHome,
+      when: (c) => c.currentScreen !== 'spaces',
+      run: () => navRef.current.goHome(),
     },
     [],
   )
@@ -295,29 +306,35 @@ function AppCommands({
   }, [runCommand])
 
   useRegisterCommand(
-    { id: 'palette.open', labelKey: 'shortcuts.openPalette', group: 'system', accelerator: 'mod+k', run: () => openPalette() },
+    { id: 'palette.open', labelKey: 'shortcuts.openPalette', group: 'system', hiddenInPalette: true, run: () => openPalette() },
     [],
   )
   useRegisterCommand(
-    { id: 'shortcuts.show', labelKey: 'shortcuts.showShortcuts', group: 'system', accelerator: 'mod+/', run: () => openCheatsheet() },
+    { id: 'shortcuts.show', labelKey: 'shortcuts.showShortcuts', group: 'system', run: () => openCheatsheet() },
     [],
   )
   useRegisterCommand(
-    { id: 'settings.open', labelKey: 'shortcuts.openSettings', group: 'navigation', accelerator: 'mod+,', run: openSettings },
+    { id: 'settings.open', labelKey: 'shortcuts.openSettings', group: 'navigation', run: () => navRef.current.openSettings() },
     [],
   )
   useRegisterCommand(
-    { id: 'space.new', labelKey: 'shortcuts.newSpace', group: 'actions', accelerator: 'mod+n', run: onShowCreate },
+    { id: 'profile.open', labelKey: 'shortcuts.openProfile', group: 'navigation', run: () => navRef.current.openAccount() },
     [],
   )
   useRegisterCommand(
-    { id: 'space.join', labelKey: 'shortcuts.joinSpace', group: 'actions', accelerator: 'mod+j', run: onShowJoin },
+    { id: 'activity.open', labelKey: 'shortcuts.openActivityLog', group: 'navigation', run: () => navRef.current.openActivityLog() },
     [],
   )
   useRegisterCommand(
-    // The native "About Mirall" menu item dispatches this id too; the version now lives in the
-    // profile screen's App group, so that is where both land.
-    { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: openProfile },
+    { id: 'settings.storage', labelKey: 'shortcuts.openStorageSettings', group: 'navigation', run: () => navRef.current.openStorageSettings('settings') },
+    [],
+  )
+  useRegisterCommand(
+    { id: 'space.new', labelKey: 'shortcuts.newSpace', group: 'actions', run: onShowCreate },
+    [],
+  )
+  useRegisterCommand(
+    { id: 'space.join', labelKey: 'shortcuts.joinSpace', group: 'actions', run: onShowJoin },
     [],
   )
   useRegisterCommand(
@@ -328,24 +345,142 @@ function AppCommands({
     { id: 'help.feedback', labelKey: 'shortcuts.sendFeedback', group: 'system', run: openFeedback },
     [],
   )
+  useRegisterCommand(
+    { id: 'help.docs', labelKey: 'shortcuts.openDocs', group: 'system', run: () => { window.open(docsUrl({ page: 'hub' }), '_blank', 'noopener') } },
+    [],
+  )
 
   useEffect(() => {
+    const unregs = SCREEN_COMMANDS.map(({ id, labelKey, screen }) =>
+      registerCommand({
+        id,
+        labelKey,
+        group: 'navigation',
+        run: () => navRef.current.setCurrentScreen(screen),
+      }),
+    )
+    return () => { unregs.forEach((fn) => fn()) }
+  }, [registerCommand])
+
+  // Every space is reachable by name in the palette. The first nine also carry their
+  // ⌘1-9 chord, but only as a label: the binding itself lives in the native Go-to-Space
+  // menu, because Chromium claims the digit chords before the renderer can see them.
+  useEffect(() => {
     const unregs: Array<() => void> = []
-    const max = Math.min(10, spaces.length)
-    for (let i = 0; i < max; i++) {
-      const space = spaces[i]
-      if (!space) continue
+    spaces.forEach((space, i) => {
       const cmd: Command = {
         id: `space.open.${space.spaceId}`,
         labelKey: 'shortcuts.openSpace',
         labelParams: { name: space.name },
         group: 'navigation',
-        run: () => navigateToSpace(space.spaceId),
+        accelerator: spaceDigitAccelerator(i),
+        run: () => navRef.current.navigateToSpace(space.spaceId),
       }
       unregs.push(registerCommand(cmd))
-    }
+    })
     return () => { unregs.forEach((fn) => fn()) }
-  }, [spaces, navigateToSpace, registerCommand])
+  }, [spaces, registerCommand])
+
+  return null
+}
+
+// Scoped to the space the user is in. Kept apart from AppCommands so each stays readable
+// and the space-only lifecycle (pending joins, favourite state) lives in one place.
+function SpaceCommands({ nav, spaces, toggleFavorite }: SpaceCommandsProps) {
+  const { ctx } = useKeyboard()
+  const navRef = useRef(nav)
+  navRef.current = nav
+
+  const currentSpace = spaces.find((s) => s.spaceId === ctx.selectedSpaceId)
+  const isPendingSpace = currentSpace?.status === 'pending'
+  const isFavorite = currentSpace?.favorite === true
+
+  // A pending join is not a membership yet, so the member-only actions stay hidden until it lands.
+  const inJoinedSpace = useCallback(
+    (c: CommandContext) => isInSpace(c) && !isPendingSpace,
+    [isPendingSpace],
+  )
+
+  const runSpaceAction = useCallback((c: CommandContext, action: SpaceAction) => {
+    if (c.currentScreen === 'space-view') {
+      dispatchSpaceAction(action)
+      return
+    }
+    navRef.current.setSelectedShare(null)
+    navRef.current.setCurrentScreen('space-view')
+    window.setTimeout(() => dispatchSpaceAction(action), 0)
+  }, [])
+
+  useRegisterCommand(
+    {
+      id: 'space.addFiles',
+      labelKey: 'shortcuts.addFiles',
+      group: 'space',
+      when: inJoinedSpace,
+      run: (c) => runSpaceAction(c, 'add-files'),
+    },
+    [inJoinedSpace],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.addFolder',
+      labelKey: 'shortcuts.addFolder',
+      group: 'space',
+      when: inJoinedSpace,
+      run: (c) => runSpaceAction(c, 'add-folder'),
+    },
+    [inJoinedSpace],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.invite',
+      labelKey: 'shortcuts.invite',
+      group: 'space',
+      when: inJoinedSpace,
+      run: (c) => runSpaceAction(c, 'invite'),
+    },
+    [inJoinedSpace],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.edit',
+      labelKey: 'shortcuts.editSpace',
+      group: 'space',
+      when: inJoinedSpace,
+      run: (c) => runSpaceAction(c, 'edit'),
+    },
+    [inJoinedSpace],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.leave',
+      labelKey: 'shortcuts.leaveSpace',
+      group: 'space',
+      when: isInSpace,
+      run: (c) => runSpaceAction(c, 'leave'),
+    },
+    [],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.favorite',
+      labelKey: isFavorite ? 'shortcuts.removeFavorite' : 'shortcuts.addFavorite',
+      group: 'space',
+      when: inJoinedSpace,
+      run: (c) => { if (c.selectedSpaceId) void toggleFavorite(c.selectedSpaceId) },
+    },
+    [isFavorite, inJoinedSpace],
+  )
+  useRegisterCommand(
+    {
+      id: 'space.manageStorage',
+      labelKey: 'shortcuts.manageStorage',
+      group: 'space',
+      when: inJoinedSpace,
+      run: () => navRef.current.openStorageSettings('space-view'),
+    },
+    [inJoinedSpace],
+  )
 
   return null
 }

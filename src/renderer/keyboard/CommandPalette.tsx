@@ -35,7 +35,7 @@ export default function CommandPalette() {
   const ranked = useMemo<Command[]>(() => {
     const q = query.trim().toLowerCase()
     return commands
-      .filter((c) => c.group !== 'system')
+      .filter((c) => !c.hiddenInPalette)
       .map((c) => ({ c, score: rank(t(c.labelKey, c.labelParams).toLowerCase(), q) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)
