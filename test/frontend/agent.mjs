@@ -23,7 +23,7 @@ const BIN = 'agent-desktop'
 // ok:true with data.complete=false. instance.snap() turns that into this code so a
 // partial tree retries (and ultimately fails loudly) instead of being asserted
 // against as if it were the whole window.
-const RETRYABLE = new Set(['STALE_REF', 'WINDOW_NOT_FOUND', 'ACTION_FAILED', 'ELEMENT_NOT_FOUND', 'SNAPSHOT_INCOMPLETE', 'ACTION_NOT_SUPPORTED'])
+export const RETRYABLE = new Set(['STALE_REF', 'WINDOW_NOT_FOUND', 'ACTION_FAILED', 'ELEMENT_NOT_FOUND', 'SNAPSHOT_INCOMPLETE', 'ACTION_NOT_SUPPORTED'])
 
 // agent-desktop's activation chain (the AXPress → AXOpen → physical-fallback
 // ladder a ref action walks) gives up after AGENT_DESKTOP_CHAIN_TIMEOUT_MS,

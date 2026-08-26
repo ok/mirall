@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { rmSync, openSync, closeSync } from 'node:fs'
 import path from 'node:path'
-import { ad, withRetry } from './agent.mjs'
+import { ad, withRetry, RETRYABLE } from './agent.mjs'
 import { findNode, allText, flatten } from './tree.mjs'
 import { tile } from './layout.mjs'
 import { workDir } from './paths.mjs'
@@ -182,12 +182,16 @@ export class Instance {
       return await take()
     } catch (e) {
       // agent-desktop reassigns a window's AX id when the renderer repaints/
-      // reloads, so a cached windowId can go stale mid-scenario (WINDOW_NOT_FOUND)
-      // even though the OS window is still there under the same pid. Re-resolve by
-      // pid and retry once; a genuine crash (pid gone) still fails as it should.
-      if (e.code !== 'WINDOW_NOT_FOUND' || !this.pid) throw e
+      // reloads, so a cached windowId can go stale mid-scenario even though the OS
+      // window is still there under the same pid. It surfaces two ways: the old id
+      // is gone (WINDOW_NOT_FOUND), or it still resolves to a husk that answers no
+      // AX query (ACTION_NOT_SUPPORTED) — which polling can never clear, because the
+      // live tree now hangs off a different id. Re-resolve by pid and retry once. A
+      // genuine crash (pid gone) still fails, and so does an id that is merely not
+      // ready yet, which the caller's own wait rides out.
+      if ((e.code !== 'WINDOW_NOT_FOUND' && e.code !== 'ACTION_NOT_SUPPORTED') || !this.pid) throw e
       const match = (await mirallWindows()).find((w) => w.pid === this.pid)
-      if (!match) throw e
+      if (!match || match.id === this.windowId) throw e
       this.windowId = match.id
       return take()
     }
@@ -312,10 +316,28 @@ export class Instance {
     const needle = substr.toLowerCase()
     const deadline = Date.now() + timeout
     let last = ''
+    let transient = null
     while (Date.now() < deadline) {
-      last = allText(await this.snap())
+      // A transient AX condition is "not yet", not a failure: Chromium re-attaches the
+      // tree after a repaint, and a screen change is exactly when a wait starts. Polling
+      // through it is what every other caller gets from withRetry; without it a wait
+      // placed right after a navigation throws instead of waiting.
+      try {
+        last = allText(await this.snap())
+        transient = null
+      } catch (e) {
+        if (!RETRYABLE.has(e.code)) throw e
+        transient = e
+        await new Promise((r) => setTimeout(r, POLL_MS))
+        continue
+      }
       if (last.toLowerCase().includes(needle)) return true
       await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    if (transient) {
+      throw new Error(
+        `${this.name}: text "${substr}" not seen in ${timeout}ms (window ${this.windowId}); AX stayed unavailable: ${transient.message}`,
+      )
     }
     throw new Error(
       `${this.name}: text "${substr}" not seen in ${timeout}ms (window ${this.windowId}); shows: ${last.replace(/\s+/g, ' ').slice(0, 280)}`,
