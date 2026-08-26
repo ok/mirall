@@ -389,7 +389,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
   return (
     <div
       ref={ref}
-      className={`h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}
+      className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}
     >
       <div className="pt-8 px-8 max-w-2xl mx-auto">
         <PageHeader

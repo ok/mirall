@@ -52,6 +52,8 @@
     "join": "Raum beitreten",
     "emptyNoSpaces": "Noch keine Räume",
     "emptyNoSpacesHint": "Erstelle einen oder tritt mit Code bei.",
+    "emptyDocsTitle": "Neu bei Mirall?",
+    "emptyDocsBody": "Ein Raum ist eine private Gruppe. Deine Dateien bleiben auf deinem Gerät und gehen direkt an die Leute, die du einlädst — ohne Server dazwischen.",
     "emptyNoFavorites": "Noch keine Favoriten",
     "emptyNoFavoritesHint": "Öffne einen Raum und wähle „Zu Favoriten hinzufügen“ im Menü, um ihn hier festzuhalten.",
     "memberCount_one": "{{count}} Mitglied",
@@ -85,6 +87,8 @@
     "emptyFiles": "Noch keine Dateien geteilt. Lege Dateien in der Seitenleiste ab.",
     "emptyShareTitle": "Noch nichts geteilt",
     "emptyShareSubtitle": "Zieh Dateien oder Ordner in den Bereich rechts, um sie in diesem Raum zu teilen.",
+    "emptyShareDocsTitle": "Was beim Teilen passiert",
+    "emptyShareDocsBody": "Mitglieder laden Dateien direkt von deinem Gerät — dafür musst du online sein und Mirall laufen haben. Geteilte Dateien bleiben da liegen, wo sie sind: Verschiebst oder löschst du eine, ist sie nicht mehr verfügbar.",
     "members": "Mitglieder",
     "emptyMembers": "Noch keine Mitglieder verbunden. Teile den Einladungscode.",
     "membersAndMore": "+{{count}} weitere",
@@ -106,6 +110,8 @@
     "selectNamed": "{{name}} auswählen",
     "waitingApproval": "Warten auf Freigabe für {{name}} …",
     "waitingApprovalHint": "Ein Mitglied dieses Space muss dich freigeben. Du kannst dieses Fenster offen lassen — sobald jemand online ist, wirst du automatisch hinzugefügt.",
+    "waitingDocsTitle": "Warum warte ich?",
+    "waitingDocsBody": "Eine Einladung enthält die Adresse des Raums, nie den Schlüssel dazu. Den übergibt jemand, der schon drin ist — deshalb muss ein Mitglied online und erreichbar sein, bevor du hineinkommst. Automatische Freigabe nimmt die Entscheidung ab, nicht die Übergabe.",
     "encryptedBadge": "Verschlüsselt",
     "unencryptedBadge": "Unverschlüsselt"
   },
@@ -426,6 +432,18 @@
     "releaseFolder": "Loslassen, um „{{name}}“ zu teilen",
     "releaseFolderUnnamed": "Loslassen, um diesen Ordner zu teilen",
     "button": "Dateien wählen"
+  },
+  "docs": {
+    "opensInBrowser": "Öffnet mirall.app in deinem Browser",
+    "englishNote": "Die Dokumentation ist auf Englisch.",
+    "sendFirstFiles": "Die ersten Dateien senden",
+    "createSpace": "Einen Raum erstellen",
+    "joinSpace": "Mit einer Einladung beitreten",
+    "membershipApproval": "Wie Mitgliedschaft und Freigabe funktionieren",
+    "stuckJoin": "Wenn ein Beitritt hängen bleibt",
+    "availability": "Wann Mitglieder von dir herunterladen können",
+    "shareFiles": "Einzelne Dateien teilen",
+    "shareFolder": "Einen ganzen Ordner teilen"
   },
   "updateBanner": {
     "available": "Update verfügbar (v{{version}})",

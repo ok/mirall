@@ -8,7 +8,7 @@ import { flatten } from '../tree.mjs'
 // empty state reads as good news rather than a failed search, and the preset survives the jump from
 // Network status — which is also the only thing that catches openActivityLog being wired straight
 // to an onClick, where React's MouseEvent would be spread into the filters.
-export default async function s114 ({ runDir, bootstrap }) {
+export default async function s115 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
@@ -35,7 +35,7 @@ export default async function s114 ({ runDir, bootstrap }) {
         throw new Error('the generic filtered-empty copy is wrong here — nothing matching is the outcome you want')
       }
       await A.waitText('No connection problems recorded', 8000)
-      await A.shot('s114-network-empty', runDir)
+      await A.shot('s115-network-empty', runDir)
     })
 
     await r.ok('Clear all restores the unfiltered list', async () => {
@@ -53,7 +53,7 @@ export default async function s114 ({ runDir, bootstrap }) {
       await A.openNetworkStatus()
       await A.click({ name: 'Connection history' })
       await A.waitText('No connection problems recorded', 8000)
-      await A.shot('s114-crosslink', runDir)
+      await A.shot('s115-crosslink', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }

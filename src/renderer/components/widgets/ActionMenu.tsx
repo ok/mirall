@@ -2,11 +2,11 @@
 // tracks the trigger's position on scroll/resize, with keyboard and dismiss handling.
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useMenuTrigger, useMenu, useMenuItem, useFocusRing, useButton, useOverlay, DismissButton } from 'react-aria'
+import { useMenuTrigger, useMenu, useMenuItem, useFocusRing, useButton, useOverlay, DismissButton, FocusScope } from 'react-aria'
 import { useMenuTriggerState } from '@react-stately/menu'
 import { useTreeState, type TreeState } from '@react-stately/tree'
 import { Item } from '@react-stately/collections'
-import type { Node, Key, CollectionElement } from '@react-types/shared'
+import type { Node, Key, CollectionElement, FocusStrategy } from '@react-types/shared'
 import Icon, { type IconName } from '../primitives/Icon.js'
 
 export interface ActionMenuItemConfig {
@@ -87,28 +87,38 @@ function MenuItemRow({ node, state, config, showSeparator }: {
 
 interface MenuPosition { top: number; right: number; maxWidth: number }
 
-function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, triggerRef }: {
+// Measured from the already-mounted trigger. This runs synchronously for the initial
+// state, not only from the layout effect, so the popup renders its <ul> on the very
+// first render. react-aria's autoFocus effect fires once and then self-disables (as
+// soon as the collection is non-empty), so a first render that bailed out to `null`
+// burned it while menuRef was still empty — focus stayed on the trigger, and Escape,
+// which react-aria binds to the overlay's own onKeyDown, never reached a handler.
+function measurePosition(trigger: HTMLButtonElement | null): MenuPosition | null {
+  if (!trigger) return null
+  const rect = trigger.getBoundingClientRect()
+  const gap = 8
+  const edgeMargin = 16
+  const right = Math.max(edgeMargin, window.innerWidth - rect.right)
+  const maxWidth = window.innerWidth - right - edgeMargin
+  return { top: rect.bottom + gap, right, maxWidth }
+}
+
+function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, triggerRef, autoFocus }: {
   items: ActionMenuItemConfig[]
   onAction: (key: Key) => void
   onClose: () => void
   menuProps: ReturnType<typeof useMenuTrigger>['menuProps']
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  autoFocus: FocusStrategy | boolean
 }) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLUListElement>(null)
-  const [position, setPosition] = useState<MenuPosition | null>(null)
+  const [position, setPosition] = useState<MenuPosition | null>(() => measurePosition(triggerRef.current))
 
   useLayoutEffect(() => {
     const trigger = triggerRef.current
     if (!trigger) return
-    const computePosition = () => {
-      const rect = trigger.getBoundingClientRect()
-      const gap = 8
-      const edgeMargin = 16
-      const right = Math.max(edgeMargin, window.innerWidth - rect.right)
-      const maxWidth = window.innerWidth - right - edgeMargin
-      setPosition({ top: rect.bottom + gap, right, maxWidth })
-    }
+    const computePosition = () => setPosition(measurePosition(trigger))
     computePosition()
     window.addEventListener('resize', computePosition)
     window.addEventListener('scroll', computePosition, true)
@@ -135,8 +145,12 @@ function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, tri
     disabledKeys,
   })
 
+  // `autoFocus` is what puts focus *inside* the portalled overlay. react-aria binds the
+  // Escape shortcut to the overlay's own onKeyDown, so it only fires for a keydown raised
+  // within that subtree — with focus left on the trigger the menu could never be dismissed
+  // by keyboard, and arrow-key navigation never started either.
   const { menuProps } = useMenu(
-    { ...externalMenuProps, onAction },
+    { ...externalMenuProps, onAction, autoFocus },
     treeState,
     menuRef
   )
@@ -144,37 +158,41 @@ function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, tri
   if (typeof document === 'undefined') return null
   if (!position) return null
 
+  // `contain` keeps Tab inside the open menu instead of walking the page behind it;
+  // `restoreFocus` hands focus back to the trigger when the popup unmounts.
   return createPortal(
-    <div
-      {...overlayProps}
-      ref={overlayRef}
-      style={{ position: 'fixed', top: position.top, right: position.right, maxWidth: position.maxWidth, zIndex: 60 }}
-    >
-      <DismissButton onDismiss={onClose} />
-      <ul
-        {...menuProps}
-        ref={menuRef}
-        className="min-w-[10rem] bg-surface-container-lowest rounded-xl shadow-[0_8px_18px_-4px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_18px_-4px_rgba(0,0,0,0.6)] overflow-hidden outline-none py-1"
+    <FocusScope contain restoreFocus>
+      <div
+        {...overlayProps}
+        ref={overlayRef}
+        style={{ position: 'fixed', top: position.top, right: position.right, maxWidth: position.maxWidth, zIndex: 60 }}
       >
-        {[...treeState.collection].map((node, index) => {
-          const config = items.find(i => i.id === node.key)
-          if (!config) return null
+        <DismissButton onDismiss={onClose} />
+        <ul
+          {...menuProps}
+          ref={menuRef}
+          className="min-w-[10rem] bg-surface-container-lowest rounded-xl shadow-[0_8px_18px_-4px_rgba(0,0,0,0.4)] dark:shadow-[0_8px_18px_-4px_rgba(0,0,0,0.6)] overflow-hidden outline-none py-1"
+        >
+          {[...treeState.collection].map((node, index) => {
+            const config = items.find(i => i.id === node.key)
+            if (!config) return null
 
-          const showSeparator = config.variant === 'danger' && index > 0
+            const showSeparator = config.variant === 'danger' && index > 0
 
-          return (
-            <MenuItemRow
-              key={String(node.key)}
-              node={node}
-              state={treeState}
-              config={config}
-              showSeparator={showSeparator}
-            />
-          )
-        })}
-      </ul>
-      <DismissButton onDismiss={onClose} />
-    </div>,
+            return (
+              <MenuItemRow
+                key={String(node.key)}
+                node={node}
+                state={treeState}
+                config={config}
+                showSeparator={showSeparator}
+              />
+            )
+          })}
+        </ul>
+        <DismissButton onDismiss={onClose} />
+      </div>
+    </FocusScope>,
     document.body,
   )
 }
@@ -228,7 +246,16 @@ export default function ActionMenu({ label, icon, items, triggerVariant, ariaLab
       </button>
 
       {state.isOpen && (
-        <MenuPopup items={items} onAction={handleAction} onClose={() => state.close()} menuProps={menuProps} triggerRef={triggerRef} />
+        <MenuPopup
+          items={items}
+          onAction={handleAction}
+          onClose={() => state.close()}
+          menuProps={menuProps}
+          triggerRef={triggerRef}
+          // Set only when opened by keyboard (ArrowDown -> 'first'); a mouse open leaves it
+          // null, so fall back to `true` — focus has to enter the popup however it opened.
+          autoFocus={state.focusStrategy ?? true}
+        />
       )}
     </div>
   )

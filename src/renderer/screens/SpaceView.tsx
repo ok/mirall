@@ -36,6 +36,7 @@ import Icon from '../components/primitives/Icon.js'
 import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
 import Avatar from '../components/primitives/Avatar.js'
+import DocsCard from '../components/widgets/DocsCard.js'
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
 
 interface SpaceViewProps {
@@ -334,7 +335,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       )}
 
       {space?.status === 'pending' ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center pb-8" role="status" aria-live="polite">
+        <div className="flex-1 flex flex-col items-center justify-center text-center pb-8">
           {(() => {
             const inviters = members.filter((m) => m.publicKey !== profile?.publicKey)
             return inviters.length > 0 ? (
@@ -345,10 +346,24 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
               </div>
             ) : null
           })()}
-          <h2 className="text-2xl font-headline font-bold text-accent mb-3">
-            {t('space.waitingApproval', { name: space?.name || t('space.fallbackName') })}
-          </h2>
-          <p className="text-on-surface-variant max-w-md leading-relaxed">{t('space.waitingApprovalHint')}</p>
+          {/* The live region covers only the two strings that change; the card below is
+              static and would be re-announced on every render from inside it. */}
+          <div role="status" aria-live="polite" className="flex flex-col items-center">
+            <h2 className="text-2xl font-headline font-bold text-accent mb-3">
+              {t('space.waitingApproval', { name: space?.name || t('space.fallbackName') })}
+            </h2>
+            <p className="text-on-surface-variant max-w-md leading-relaxed">{t('space.waitingApprovalHint')}</p>
+          </div>
+          <DocsCard
+            icon="lock"
+            title={t('space.waitingDocsTitle')}
+            body={t('space.waitingDocsBody')}
+            className="w-full max-w-lg mt-8"
+            links={[
+              { target: { page: 'explanation', anchor: 'membership-approval' }, label: t('docs.membershipApproval') },
+              { target: { page: 'guides', anchor: 'fix-a-stuck-join' }, label: t('docs.stuckJoin') },
+            ]}
+          />
         </div>
       ) : (
       <div
@@ -386,6 +401,17 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                 <p className="text-on-surface-variant max-w-md leading-relaxed">
                   {t('space.emptyShareSubtitle')}
                 </p>
+                <DocsCard
+                  icon="menu_book"
+                  title={t('space.emptyShareDocsTitle')}
+                  body={t('space.emptyShareDocsBody')}
+                  className="w-full max-w-md mt-8"
+                  links={[
+                    { target: { page: 'explanation', anchor: 'spaces-members-availability' }, label: t('docs.availability') },
+                    { target: { page: 'guides', anchor: 'share-files' }, label: t('docs.shareFiles') },
+                    { target: { page: 'guides', anchor: 'share-a-folder' }, label: t('docs.shareFolder') },
+                  ]}
+                />
               </div>
             </div>
           ) : (
