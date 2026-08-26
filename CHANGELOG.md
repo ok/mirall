@@ -11,37 +11,53 @@ changes do not appear here.
 
 
 ## v1.9.0
-### 2026-08-24
+### 2026-08-26
 
-This release brings Mirall's new brand: a refined logo and a redrawn app
-icon. The website and GitHub now carry the same brand.
+Beside several enhancements and fixes, this release brings Mirall's new brand: 
+a refined logo and a redrawn app icon.
 
 #### Added
 
+- **Mirall now tells you when your network is the problem.** It used to
+  call a connection healthy on any network that let it out, so a machine
+  nobody could reach still looked fine. It now judges whether people can
+  actually reach you, says so when they can't, and offers a page with
+  what to try. Network status can also save a diagnostics file with
+  identifying details left out.
+- **The Activity Log records connection problems.** A new Network filter
+  keeps when this device went offline, when Mirall couldn't reach anyone,
+  and when members dropped out or came back — so the log explains a quiet
+  stretch instead of falling silent through it.
 - **The cards beside a space remember how you left them.** Fold Space
   Storage away, or switch the member list between the avatar row and the
-  full list, and each space keeps its own arrangement — leaving the space
-  and coming back restores it. The arrangement lasts until you quit Mirall.
+  full list, and each space keeps its own arrangement until you quit
+  Mirall.
+- **Every screen can be reached from the keyboard.** Profile and the
+  Activity Log have shortcuts of their own; Network status, the Settings
+  pages, What's new and Send feedback are in the command palette
+  (⌘K / Ctrl-K).
+- **The empty screens explain how Mirall works.** The spaces list, an
+  empty space, and the wait for approval each carry a card that says what
+  happens next and links to the documentation.
 
 #### Fixed
 
-- **Downloads no longer stall when someone limits their upload speed.** A
-  transfer from a peer with an upload cap could stop with the file shown as
-  paused, and clicking Resume only moved it a little further each time. A
-  capped peer now says it is still there while it waits its turn to send, and a
-  download that does get interrupted retries on its own for as long as it keeps
-  making progress.
-- **A download that can't reach its folder now says so.** If the download
-  folder had been deleted, renamed, or sat on a drive that was ejected, the
-  transfer failed with a generic "Transfer failed" or a misleading
-  "Permission denied" — and a deleted folder was quietly recreated
-  mid-download. Mirall now checks the folder first, names it as the problem
-  on the file and in a notice that offers to change it, and stops retrying a
-  download that has nowhere to land.
-- **Clearing the Activity Log frees the disk space it was using.** Clearing
-  the log emptied it from view but left every entry on disk, so the store
-  came out larger than before. It is now cleared properly and the space
-  comes back, with your retention setting carried across.
+- **Downloads survive a peer's upload cap.** A transfer from a limited
+  peer could stop with the file shown as paused, and Resume moved it only
+  a little further. A capped peer now says it is still there, and
+  interrupted downloads retry on their own.
+- **A download says when its folder is gone.** A deleted, renamed, or
+  ejected download folder produced a generic "Transfer failed", and a
+  deleted folder was quietly recreated mid-download. Mirall now names the
+  folder as the problem, offers to change it, and stops retrying.
+- **Clearing the Activity Log frees its disk space.** Clearing emptied
+  the log from view but left every entry on disk, so the store came out
+  larger than before. It is now cleared properly and the space comes
+  back, with your retention setting kept.
+- **Speed limits are shared out fairly.** With a bandwidth cap set, a
+  transfer that started while nothing else was running could take more
+  than its share and stall a transfer running alongside it. Both now draw
+  from the cap evenly.
 
 ## v1.8.0
 ### 2026-08-18
