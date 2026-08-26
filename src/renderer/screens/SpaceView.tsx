@@ -37,7 +37,7 @@ import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
 import Avatar from '../components/primitives/Avatar.js'
 import DocsCard from '../components/widgets/DocsCard.js'
-import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
+import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -153,51 +153,18 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     return () => window.removeEventListener('mirall:open-mirror-modal', handle)
   }, [spaceId])
 
-  useRegisterCommand(
-    {
-      id: 'space.addFiles',
-      labelKey: 'shortcuts.addFiles',
-      group: 'space',
-      accelerator: 'mod+u',
-      when: (ctx) => ctx.currentScreen === 'space-view',
-      run: () => fileInputRef.current?.click(),
-    },
-    [],
-  )
-  useRegisterCommand(
-    {
-      id: 'space.addFolder',
-      labelKey: 'shortcuts.addFolder',
-      group: 'space',
-      accelerator: 'mod+shift+u',
-      when: (ctx) => ctx.currentScreen === 'space-view',
-      run: () => handleShareFolderRequest(''),
-    },
-    [],
-  )
-  useRegisterCommand(
-    {
-      id: 'space.invite',
-      labelKey: 'shortcuts.invite',
-      group: 'space',
-      when: (ctx) => ctx.currentScreen === 'space-view',
-      run: () => {
-        if (space?.status === 'pending') return
-        setShowInviteModal(true)
-      },
-    },
-    [],
-  )
-  useRegisterCommand(
-    {
-      id: 'space.leave',
-      labelKey: 'shortcuts.leaveSpace',
-      group: 'space',
-      when: (ctx) => ctx.currentScreen === 'space-view',
-      run: () => setShowLeaveModal(true),
-    },
-    [],
-  )
+  useEffect(() => {
+    function handle(event: Event) {
+      const action = (event as CustomEvent<SpaceAction>).detail
+      if (action === 'add-files') fileInputRef.current?.click()
+      else if (action === 'add-folder') void handleShareFolderRequest('')
+      else if (action === 'invite') { if (!isPending) setShowInviteModal(true) }
+      else if (action === 'leave') setShowLeaveModal(true)
+      else if (action === 'edit') { if (!isPending) setShowEditModal(true) }
+    }
+    window.addEventListener(SPACE_ACTION_EVENT, handle)
+    return () => window.removeEventListener(SPACE_ACTION_EVENT, handle)
+  }, [isPending])
 
   function handleInvite() {
     if (isPending) return

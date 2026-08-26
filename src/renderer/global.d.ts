@@ -71,6 +71,7 @@ export interface TrayLabels {
 
 export interface MenuContext {
   inSpace: boolean
+  spaces: Array<{ id: string; name: string }>
 }
 
 export interface FirstHideNoticePayload {

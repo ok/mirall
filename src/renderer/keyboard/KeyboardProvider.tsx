@@ -13,6 +13,7 @@ import {
 import type { Command, CommandContext } from './registry.js'
 import { GLOBAL_HOTKEYS } from './registry.js'
 import { createCommandContext, matchAccelerator, shouldIgnore } from './accelerator.js'
+import { acceleratorFor } from './known-commands.js'
 import { CLOSE_MODALS_EVENT } from '../components/primitives/Modal.js'
 
 interface KeyboardApi {
@@ -164,7 +165,7 @@ export function useRegisterCommand(cmd: Command, deps: DependencyList): void {
       labelKey: cmd.labelKey,
       labelParams: cmd.labelParams,
       group: cmd.group,
-      accelerator: cmd.accelerator,
+      accelerator: cmd.accelerator ?? acceleratorFor(cmd.id),
       when: cmd.when ? (ctx) => (cmdRef.current.when ? cmdRef.current.when(ctx) : true) : undefined,
       run: (ctx) => cmdRef.current.run(ctx),
     }

@@ -62,6 +62,12 @@ export default function ShortcutsHint() {
                         </td>
                         <td className="py-1.5 text-right font-mono text-sm text-on-surface-variant whitespace-nowrap pl-8">
                           <AcceleratorLabel spec={c.accelerator} />
+                          {c.acceleratorRangeEnd && (
+                            <>
+                              <span aria-hidden="true" className="mx-0.5">–</span>
+                              <AcceleratorLabel spec={c.acceleratorRangeEnd} />
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
