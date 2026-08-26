@@ -76,6 +76,8 @@
     "join": "Join Space",
     "emptyNoSpaces": "No spaces yet",
     "emptyNoSpacesHint": "Create one or join with an invite code.",
+    "emptyDocsTitle": "New to Mirall?",
+    "emptyDocsBody": "A space is a private group. Files stay on your device and move straight to the people you invite — there's no server in between.",
     "emptyNoFavorites": "No favorites yet",
     "emptyNoFavoritesHint": "Open a space and choose Add to Favorites from the menu to pin it here.",
     "memberCount_one": "{{count}} member",
@@ -109,6 +111,8 @@
     "emptyFiles": "No files shared yet. Drop files in the sidebar to get started.",
     "emptyShareTitle": "Nothing shared yet",
     "emptyShareSubtitle": "Drag files or folders into the share area on the right to start sharing with this space.",
+    "emptyShareDocsTitle": "What happens when you share",
+    "emptyShareDocsBody": "Members download files straight from your device, so you'll need to be online and running Mirall while they do. Shared files stay where they are on disk — move or delete one and it's no longer available.",
     "members": "Members",
     "emptyMembers": "No members connected yet. Share the invite code to get started.",
     "membersAndMore": "+{{count}} more",
@@ -130,6 +134,8 @@
     "selectNamed": "Select {{name}}",
     "waitingApproval": "Waiting to be let into {{name}}…",
     "waitingApprovalHint": "A member of this space needs to approve you. You can leave this open — you'll be let in automatically as soon as someone's online.",
+    "waitingDocsTitle": "Why am I waiting?",
+    "waitingDocsBody": "An invite carries the address of the space, never the key to it. Someone already inside hands that over — so a member has to be online and reachable before you can be let in. Auto-approve removes the decision, not the hand-over.",
     "encryptedBadge": "Encrypted",
     "unencryptedBadge": "Unencrypted"
   },
@@ -450,6 +456,18 @@
     "releaseFolder": "Release to share “{{name}}”",
     "releaseFolderUnnamed": "Release to share this folder",
     "button": "Select Files"
+  },
+  "docs": {
+    "opensInBrowser": "Opens mirall.app in your browser",
+    "englishNote": "The documentation is in English.",
+    "sendFirstFiles": "Send your first files",
+    "createSpace": "Create a space",
+    "joinSpace": "Join a space with an invite",
+    "membershipApproval": "How membership and approval work",
+    "stuckJoin": "Fix a join that gets stuck",
+    "availability": "When members can download from you",
+    "shareFiles": "Share individual files",
+    "shareFolder": "Share a whole folder"
   },
   "updateBanner": {
     "available": "App update available (v{{version}})",

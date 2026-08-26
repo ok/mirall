@@ -52,6 +52,8 @@
     "join": "Entra in uno spazio",
     "emptyNoSpaces": "Nessuno spazio per ora",
     "emptyNoSpacesHint": "Creane uno o entra con un codice di invito.",
+    "emptyDocsTitle": "Nuovo su Mirall?",
+    "emptyDocsBody": "Uno spazio è un gruppo privato. I file restano sul tuo dispositivo e vanno direttamente alle persone che inviti, senza alcun server di mezzo.",
     "emptyNoFavorites": "Nessun preferito per ora",
     "emptyNoFavoritesHint": "Apri uno spazio e scegli «Aggiungi ai preferiti» dal menu per fissarlo qui.",
     "memberCount_one": "{{count}} membro",
@@ -85,6 +87,8 @@
     "emptyFiles": "Nessun file condiviso per ora. Trascina i file nella barra laterale per iniziare.",
     "emptyShareTitle": "Niente di condiviso ancora",
     "emptyShareSubtitle": "Trascina file o cartelle nell'area a destra per iniziare a condividerli in questo spazio.",
+    "emptyShareDocsTitle": "Cosa succede quando condividi",
+    "emptyShareDocsBody": "I membri scaricano i file direttamente dal tuo dispositivo, quindi devi essere online con Mirall aperto mentre lo fanno. I file condivisi restano dove sono sul disco: se ne sposti o elimini uno, non è più disponibile.",
     "members": "Membri",
     "emptyMembers": "Nessun membro connesso per ora. Condividi il codice di invito per iniziare.",
     "membersAndMore": "+{{count}} altri",
@@ -106,6 +110,8 @@
     "selectNamed": "Seleziona {{name}}",
     "waitingApproval": "In attesa di accesso a {{name}}…",
     "waitingApprovalHint": "Un membro di questo spazio deve approvarti. Puoi lasciare questa finestra aperta: verrai ammesso automaticamente non appena qualcuno sarà online.",
+    "waitingDocsTitle": "Perché sto aspettando?",
+    "waitingDocsBody": "Un invito contiene l'indirizzo dello spazio, mai la sua chiave. A consegnarla è un dispositivo già membro: perciò un membro deve essere online e raggiungibile prima che tu possa entrare. L'approvazione automatica elimina la decisione, non la consegna.",
     "encryptedBadge": "Crittografato",
     "unencryptedBadge": "Non crittografato"
   },
@@ -426,6 +432,18 @@
     "releaseFolder": "Rilascia per condividere «{{name}}»",
     "releaseFolderUnnamed": "Rilascia per condividere questa cartella",
     "button": "Seleziona file"
+  },
+  "docs": {
+    "opensInBrowser": "Apre mirall.app nel tuo browser",
+    "englishNote": "La documentazione è in inglese.",
+    "sendFirstFiles": "Inviare i primi file",
+    "createSpace": "Creare uno spazio",
+    "joinSpace": "Entrare in uno spazio con un invito",
+    "membershipApproval": "Come funzionano appartenenza e approvazione",
+    "stuckJoin": "Risolvere un ingresso bloccato",
+    "availability": "Quando i membri possono scaricare",
+    "shareFiles": "Condividere singoli file",
+    "shareFolder": "Condividere un'intera cartella"
   },
   "updateBanner": {
     "available": "Aggiornamento disponibile (v{{version}})",
