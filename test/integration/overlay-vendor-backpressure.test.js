@@ -347,3 +347,116 @@ test('REGRESSION (FIX-BW9): revoking a serve grant mid-park stops the keep-alive
   limiter.destroy()
   await p
 })
+
+// --- the drain wait (FIX-BW10) ----------------------------------------------
+// A flat deadline cannot tell a slow flush from a wedged one: one 4 MiB tier-3 chunk is 33.6s of
+// wire time at 1 Mbit/s, so any budget short enough to catch a wedge abandons a healthy slow
+// send — the same mistake the receiver's watchdog made, measuring an outcome (has it drained?)
+// instead of liveness (is it moving?). The wait now re-arms while the peer's transport is still
+// putting bytes out.
+
+// A peer that never drains, whose TX counter is whatever `tx()` says.
+function transmittingPeer (tx) {
+  const sent = []
+  const ls = { drain: [], close: [] }
+  const stream = {
+    rawStream: { get bytesTransmitted () { return tx() } },
+    on (ev, fn) { (ls[ev] ||= []).push(fn) },
+    removeListener (ev, fn) { ls[ev] = (ls[ev] || []).filter((f) => f !== fn) },
+    emit (ev, ...a) { for (const fn of [...(ls[ev] || [])]) fn(...a) },
+  }
+  const peer = {
+    mux: { stream },
+    channel: { closed: false, drained: false },
+    authorizedServe: new Map(),
+    msgs: { chunkData: { send (m) { sent.push(m); return false } } },
+  }
+  return { peer, sent, close () { peer.channel.closed = true; stream.emit('close') } }
+}
+
+test('REGRESSION (FIX-BW10): a serve loop keeps waiting while bytes are still leaving', async (t) => {
+  let tx = 0
+  const ticker = setInterval(() => { tx += 64 * KB }, 20)   // a slow flush, still moving
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    drainNoProgress: 100,
+  })
+  const { peer, sent, close } = transmittingPeer(() => tx)
+  let settled = false
+  const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] }).then(() => { settled = true })
+
+  await new Promise((r) => setTimeout(r, 600))             // six no-progress windows
+  t.is(settled, false, 'still parked — the flush is slow, not wedged')
+  t.is(sent.length, 1, 'and it has not piled more onto the backpressured stream')
+
+  clearInterval(ticker)
+  close()
+  await p
+  t.pass('the loop unwinds once the channel goes')
+})
+
+test('REGRESSION (FIX-BW10): a serve loop abandons a stream that stops transmitting', async (t) => {
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    drainNoProgress: 100,
+  })
+  const { peer, sent } = transmittingPeer(() => 4096)      // frozen: nothing is going out
+  const startedAt = Date.now()
+
+  await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
+  const took = Date.now() - startedAt
+
+  t.is(sent.length, 1, 'one chunk went out, then it parked')
+  t.ok(took >= 100, 'it waited a no-progress window')
+  t.ok(took < 2000, `then gave up rather than hanging (${took}ms)`)
+})
+
+test('FIX-BW10: with no TX counter the wait falls back to a flat flush budget', async (t) => {
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+    filePaths: new Map([['content:abc', '/disk/abc']]),
+    drainTimeout: 120,
+    drainNoProgress: 10,   // would fire far sooner if it were used
+  })
+  const { peer, sent } = backpressuredPeer()               // a stream with no rawStream at all
+  const startedAt = Date.now()
+
+  await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
+  const took = Date.now() - startedAt
+
+  t.is(sent.length, 1, 'parked after the first chunk')
+  t.ok(took >= 120, `waited the flat budget, not the no-progress window (${took}ms)`)
+})
+
+// A frame-granular counter is blind for the whole time one large frame is in flight — measured:
+// over the 2s a 4 MiB frame spent on a shaped wire, rawStream.bytesReceived advanced in all ten
+// samples while rawBytesRead stayed at zero until the last packet landed. That is the case the
+// downloader's watchdog has to see through, so the packet counter is preferred.
+test('FIX-BW10: the transport probe prefers the packet counter, then the socket, then frames', (t) => {
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
+  const withRaw = (rawStream) => ({ mux: { stream: { rawStream, rawBytesRead: 7 } } })
+
+  t.is(proto._peerRxBytes(withRaw({ bytesReceived: 42, bytesRead: 9 })), 42, 'udx packet counter wins')
+  t.is(proto._peerRxBytes(withRaw({ bytesRead: 9 })), 9, 'then a TCP socket counter')
+  t.is(proto._peerRxBytes(withRaw(null)), 7, 'then the per-frame counter')
+  t.is(proto._peerRxBytes({ mux: { stream: {} } }), null, 'nothing measurable reads as null, not 0')
+  t.is(proto._peerRxBytes(undefined), null, 'and a missing peer is not a throw')
+})
+
+// Both halves can be green in isolation while the fix is inert in production, because nothing
+// else connects them: fetchContent is the only place a scheduler is built.
+test('FIX-BW10: fetchContent wires the transport probe into the scheduler', async (t) => {
+  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
+  const peer = {
+    mux: { stream: { rawStream: { bytesReceived: 1234 } } },
+    msgs: { contentRequest: { send () {} } },
+  }
+  const fetch = proto.fetchContent('abc', [peer], { destPath: '/disk/abc' })
+  fetch.catch(() => {})
+  const sched = proto._schedulers.get('content:abc')
+
+  t.ok(sched, 'the fetch created a scheduler')
+  t.is(sched._rx(peer), 1234, "and it reads that peer's transport counter")
+
+  sched.cancel()
+  await t.exception(fetch, /cancelled/)
+})

@@ -427,10 +427,61 @@ re-diffable against upstream. Categories:
     receiver gates) and `test/integration/overlay-vendor-backpressure.test.js` (the serve loop
     actually emitting them).
 
-    **Still open (related, different bug):** `DRAIN_TIMEOUT_MS` is 60s — twice the downloader's
-    window — so a serve loop parked on BACKPRESSURE is silent past it with no cap set at all. A
-    keep-alive cannot help there: the frame would queue behind the backpressured data it is
-    waiting on.
+    **Transport liveness (FIX-BW10).** The same abort is reachable with no cap at all, on a path a
+    keep-alive cannot reach. A serve loop parked on BACKPRESSURE puts nothing on the wire, and a
+    single tier-3 chunk (4 MB) simply takes 33.6s to flush on a 1 Mbit/s wire — past the
+    downloader's window with nothing stuck anywhere. A keep-alive answers neither: on a
+    backpressured stream the frame queues behind the very data it is waiting on, and in the second
+    case there is nothing to announce. The mismatch is that the watchdog is asked "is this peer
+    dead?" but measures "has a chunk completed?" — the two diverge whenever ONE chunk outlives the
+    window.
+
+    The fix reads the downloader's own unforgeable signal: **bytes arriving from that peer**.
+    `_onIdleExpiry` asks `_transportAlive()` before failing, and `protocol-v2` injects `peerBytes`
+    (`_peerRxBytes`) reading `peer.mux.stream.rawStream.bytesReceived` — udx's native PER-PACKET
+    counter — falling back to a TCP socket's `bytesRead` and then to secret-stream's
+    `rawBytesRead`. The fallback order is load-bearing, not defensive: `rawBytesRead` advances per
+    decrypted FRAME (`@hyperswarm/secret-stream` `_incoming()`), and a 4 MB chunk is ONE frame, so
+    a frame-granular counter is frozen for exactly the window that has to be seen through.
+    Measured on a shaped link: over the 2s a 4 MB frame spent in flight the packet counter
+    advanced in all ten samples while `rawBytesRead` stayed at zero until the last packet landed.
+
+    Four gates, each load-bearing, each proven by ablation in `bandwidth-fairness.test.js`:
+
+    - **Only a peer holding chunks of ours may extend** — `_peerInflight > 0`, nothing wider. A
+      peer merely in `_requested` is deliberately excluded: it may never answer at all (a peer
+      that lacks the file and one whose serve gate denied us both return silently, §16), so its
+      unrelated traffic on the shared mux would otherwise hand any connected peer an unbounded
+      hold. Fast-failing that wait is what `_requested` exists for.
+    - **The delivery floor is a RATE** — `MIN_LIVENESS_BYTES` per idle window, measured from a
+      baseline (`_rxProbe`) re-taken only at expiry, so a window that ran long needs
+      proportionally more. An idle connection is not silent: hyperdht's `connectionKeepAlive`
+      (5 s) puts a 20-byte frame on the wire, measured at 360 B per 30 s window, so the 64 KiB
+      floor sits ~180x above the noise and ~3x below the slowest delivery it protects.
+    - **Reach is bounded** by `KEEPALIVE_MAX_SILENCE_MS` since the last VERIFIED progress,
+      unchanged and shared with the keep-alive.
+    - **The bytes must plausibly be OURS** — `ABANDON_FACTOR x owedBytes + ABANDON_SLACK_BYTES`
+      since the debt anchor (`_rxAtOwe`, re-taken whenever the debt restarts), because every early
+      return in `_onChunkNeed` (unreadable file, revoked grant, abandoned drain) leaves a holder
+      looking exactly as busy as one mid-chunk. A peer with no anchor cannot be budgeted and
+      therefore cannot extend.
+
+    Without the floor a wedged-but-TCP-alive peer is never caught, which is FIX-BW4 again; without
+    the budget a dropped batch holds the fetch to the 30-minute bound. The budget can only ever
+    DECLINE an extension, so no path here fails later than the bound that already existed. Unlike
+    FIX-BW9 this needs nothing from the holder — no frame, no version — so it also covers every
+    peer already in the field.
+
+    **The drain wait is progress-based, not a shorter deadline (FIX-BW10).** The obvious pairing
+    for the above is to drop `DRAIN_TIMEOUT_MS` under the downloader's window, and it is wrong
+    twice over: with the watchdog now extending on liveness the downloader no longer gives up at
+    30s, so the ordering argument evaporates — and any budget short enough to catch a wedge is
+    shorter than a legitimate flush (33.6s for one tier-3 chunk at 1 Mbit/s), so it would abandon
+    batch tails on exactly the links this fix exists for, silently, with no re-request path on the
+    receiver. `_waitForDrain` instead re-arms while `rawStream.bytesTransmitted` advances and
+    abandons after `DRAIN_NO_PROGRESS_MS` (20s) with nothing leaving — the same
+    liveness-not-outcome measure as the receive side. Where no TX counter exists the flat
+    `DRAIN_TIMEOUT_MS` (60s, unchanged) stands, since slow and wedged are then indistinguishable.
 
     **Refund on abandonment.** `_assign` charges a chunk to the download limiter when it hands
     it to a peer, but the charge is for work that may never happen: `removePeer` returns the

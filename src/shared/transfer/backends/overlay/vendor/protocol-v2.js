@@ -48,9 +48,17 @@ const MAX_TREE_RESPONSE_BYTES = 256 * 1024 * 1024
 const CONTROL_PAUSED = 0
 const CONTROL_STOPPED = 1
 
-// [mirall] §HOL — abandon a serve loop whose stream neither drains nor closes within
-// this window (a wedged-but-TCP-alive peer); the receiver re-requests, so it self-heals.
+// [mirall] §HOL — abandon a serve loop whose stream neither drains nor closes within this window
+// (a wedged-but-TCP-alive peer); the receiver re-requests, so it self-heals. Used only when the
+// transport cannot report send progress, since then slow and wedged are indistinguishable and the
+// window has to cover a whole flush: one 4 MiB tier-3 chunk is 33.6 s at 1 Mbit/s.
 const DRAIN_TIMEOUT_MS = 60000
+// [mirall] FIX-BW10 — with a per-packet TX counter the wait does not need to guess a flush budget
+// at all: it abandons only after this long with NO bytes leaving for that peer, and re-arms while
+// they are. A flat budget short enough to be useful against a wedged peer is necessarily shorter
+// than a legitimate large flush on a slow uplink, which is the same mistake the receiver's
+// watchdog made — measuring an outcome (has it drained?) instead of liveness (is it moving?).
+const DRAIN_NO_PROGRESS_MS = 20000
 
 // [mirall] FIX-BW9 — how often a serve loop parked on our own upload cap tells the
 // downloader it is still there (message 14). Must stay comfortably under the downloader's
@@ -121,6 +129,9 @@ export class OverlayProtocolV2 {
     this._serveAuthorizer = opts.serveAuthorizer || null
     // [mirall] FIX-BW9 — keep-alive cadence while a serve loop is parked on the upload cap.
     this._keepAliveInterval = opts.keepAliveInterval || KEEPALIVE_INTERVAL_MS
+    // [mirall] FIX-BW10 — injectable so a test can exercise the real wait without a 20 s deadline.
+    this._drainTimeout = opts.drainTimeout ?? DRAIN_TIMEOUT_MS
+    this._drainNoProgress = opts.drainNoProgress ?? DRAIN_NO_PROGRESS_MS
     this._localProfileKey = opts.localProfileKey || null
   }
 
@@ -167,7 +178,10 @@ export class OverlayProtocolV2 {
       // [mirall] Download cap. Its OWN stream on the shared bucket: the limiter shares the
       // cap fairly between streams, and a scheduler that raced the bucket directly would
       // starve every transfer that is waiting its turn.
-      limiter: this._downloadLimiter ? this._downloadLimiter.stream() : null
+      limiter: this._downloadLimiter ? this._downloadLimiter.stream() : null,
+      // [mirall] FIX-BW10 — transport liveness, so a chunk that outlives the idle window on a slow
+      // or congested link is not mistaken for a dead peer.
+      peerBytes: (peer) => this._peerRxBytes(peer)
     })
     this._schedulers.set(p, sched)
     // [mirall] shared promise so joiners (above) can await the same completion —
@@ -737,6 +751,36 @@ export class OverlayProtocolV2 {
     if (sched) sched.notePeerAlive(peer, msg.index)
   }
 
+  // [mirall] FIX-BW10 — cumulative bytes received from this peer's transport, for the downloader's
+  // watchdog. Order matters: udx's `bytesReceived` counts PACKETS, so it advances while one large
+  // frame is still arriving, whereas `rawBytesRead` counts decrypted FRAMES and a 4 MiB tier-3
+  // chunk is a single frame — blind for exactly the wait this has to see through. Null when
+  // nothing is measurable, which the scheduler reads as "cannot answer".
+  _peerRxBytes (peer) {
+    const stream = peer?.mux?.stream
+    if (!stream) return null
+    const raw = stream.rawStream
+    if (raw) {
+      const packets = raw.bytesReceived
+      if (Number.isFinite(packets)) return packets
+      const socket = raw.bytesRead
+      if (Number.isFinite(socket)) return socket
+    }
+    const frames = stream.rawBytesRead
+    return Number.isFinite(frames) ? frames : null
+  }
+
+  // [mirall] FIX-BW10 — bytes this peer's transport has put on the wire, the send-side twin of
+  // _peerRxBytes and the same reason for the ordering: udx counts PACKETS, so it advances during a
+  // single large frame's flush, which is exactly the wait being measured. Null when nothing is
+  // measurable, and the drain wait then falls back to a flat budget.
+  _peerTxBytes (peer) {
+    const raw = peer?.mux?.stream?.rawStream
+    if (!raw) return null
+    if (Number.isFinite(raw.bytesTransmitted)) return raw.bytesTransmitted
+    return Number.isFinite(raw.bytesWritten) ? raw.bytesWritten : null
+  }
+
   async _onChunkNeed (peer, msg) {
     // [mirall] serve bytes ONLY for a synthetic path THIS peer was
     // authorized for via a gated _onContentRequest. Blocks a peer pulling bytes
@@ -816,7 +860,20 @@ export class OverlayProtocolV2 {
       }
       const onDrain = () => done(!channel.closed)
       const onClose = () => done(false)
-      timer = setTimeout(() => done(false), DRAIN_TIMEOUT_MS)
+      // [mirall] FIX-BW10 — re-arm while bytes are still leaving for this peer. A flush that is
+      // merely slow keeps advancing the TX counter; a wedged one does not, and is abandoned a
+      // no-progress window later. Without a counter there is nothing to measure, so the flat
+      // flush budget stands.
+      let tx = this._peerTxBytes(peer)
+      const tick = () => {
+        const now = tx === null ? null : this._peerTxBytes(peer)
+        if (now === null || now <= tx) return done(false)
+        tx = now
+        // Not unref'd: this timer IS what resolves the wait, so letting the loop exit under it
+        // would strand the serve loop.
+        timer = setTimeout(tick, this._drainNoProgress)
+      }
+      timer = setTimeout(tick, tx === null ? this._drainTimeout : this._drainNoProgress)
       stream.on('drain', onDrain)
       stream.on('close', onClose)
     })

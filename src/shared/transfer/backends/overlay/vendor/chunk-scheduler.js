@@ -51,6 +51,26 @@ const DEFAULT_IDLE_TIMEOUT = 30000
 // stalls a single fetch for 30 minutes costs one download slot — strictly less than the
 // unbounded hold a trickle of one chunk per 29 s already buys it.
 const KEEPALIVE_MAX_SILENCE_MS = 1800000
+// [mirall] FIX-BW10 — smallest inbound byte delta from ONE peer, within one idle window, that
+// counts as delivery. Sized against the noise floor, not against a transfer: an idle connection
+// is not silent (an empty keep-alive every 5 s plus UDX ACKs — measured at 360 B per 30 s
+// window), so a floor is what keeps a wedged-but-connected peer catchable. 64 KiB is ~180x that
+// floor and still ~3x under the slowest delivery this protects, a 4 MiB tier-3 chunk on a
+// 56 kbit/s link (~210 KB per window).
+const MIN_LIVENESS_BYTES = 64 * 1024
+// [mirall] FIX-BW10 — how much a peer may deliver WITHOUT delivering any chunk it owes us before
+// we stop believing the chunks are coming. Bytes prove the peer is alive, not that our batch is
+// still being served: every early return in the holder's serve loop (file unreadable, grant
+// revoked, drain abandoned) leaves it as busy as one mid-chunk. Budgeting against what it owes
+// plus one protomux send-batch of unrelated traffic lets a chunk queued behind a replication
+// burst through, and catches a dropped batch in proportion to that peer's own traffic instead of
+// at KEEPALIVE_MAX_SILENCE_MS.
+const ABANDON_FACTOR = 2
+const ABANDON_SLACK_BYTES = 8 * 1024 * 1024
+// [mirall] FIX-BW10 — `??` alone would accept 0, a negative or a NaN, and every one of those
+// fails OPEN through the gates below (a floor of NaN is never exceeded, a negative budget is
+// always exceeded), so an option that is not a usable number falls back to the default.
+const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? value : fallback)
 // [mirall] Local write-error codes that may recover on retry (vs ENOSPC/EACCES/…
 // which are fatal): a transient one keeps the chunk retryable instead of failing
 // the whole multi-source fetch.
@@ -125,6 +145,14 @@ export class ChunkScheduler {
     // _assign is excluded for the same reason: re-arming the watchdog is not progress.
     this._lastProgressAt = Date.now()
     this._keepAliveMaxSilence = opts.keepAliveMaxSilence || KEEPALIVE_MAX_SILENCE_MS
+    // [mirall] FIX-BW10 — (peer) => cumulative bytes received from that peer's TRANSPORT, injected
+    // by the protocol. Absent, every gate that reads it is skipped and the watchdog behaves as it
+    // did without this.
+    this._peerBytes = opts.peerBytes || null
+    this._minLivenessBytes = positive(opts.minLivenessBytes, MIN_LIVENESS_BYTES)
+    this._abandonSlack = positive(opts.abandonSlackBytes, ABANDON_SLACK_BYTES)
+    this._rxProbe = new Map()      // peer → { bytes, at } the delivery floor is measured from
+    this._rxAtOwe = new Map()      // peer → transport bytes when its current debt began
     this._armIdleTimer()
   }
 
@@ -160,10 +188,104 @@ export class ChunkScheduler {
     // dead end with no callback coming, and the watchdog is then the only thing that can end
     // the fetch instead of leaking the download slot forever.
     if (this._inflight.size === 0 && this._requested.size === 0 && this._pacing) return
-    this._timer = setTimeout(
-      () => this._fail(new Error('multi-source fetch stalled (no progress for ' + this._idleTimeout + 'ms)')),
-      this._idleTimeout,
-    )
+    this._timer = setTimeout(() => this._onIdleExpiry(), this._idleTimeout)
+  }
+
+  // [mirall] FIX-BW10 — the watchdog is asked "is this peer dead?" but its only evidence was "has
+  // a chunk completed?", and those diverge whenever ONE chunk outlives the window: a 4 MiB tier-3
+  // chunk needs 33.6 s at 1 Mbit/s, and one queued behind other traffic on the same Noise stream
+  // takes longer still. Ask the transport before failing — a peer that has gone away delivers
+  // nothing, so a wedged-but-TCP-alive peer is still caught by construction.
+  _onIdleExpiry () {
+    if (this._done) return
+    if (this._transportAlive()) return this._armIdleTimer()
+    this._fail(new Error('multi-source fetch stalled (no progress for ' + this._idleTimeout + 'ms)'))
+  }
+
+  // [mirall] FIX-BW10 — only a peer holding chunks of OURS may extend the watchdog. A peer we
+  // merely sent a content request to is deliberately excluded: it may never answer at all (a
+  // holder that lacks the file, or one whose serve gate denied us, both return silently), so
+  // letting its unrelated traffic on the shared mux re-arm us would hand any connected peer an
+  // unbounded hold — FIX-BW4 through the gate meant to preserve it. Fast-failing that wait is
+  // exactly what `_requested` exists for.
+  _transportAlive () {
+    if (!this._peerBytes) return false
+    // Same bound a keep-alive gets, for the same reason: an extension that renews itself forever
+    // is a watchdog that never fires. _lastProgressAt moves only on VERIFIED progress.
+    if (Date.now() - this._lastProgressAt > this._keepAliveMaxSilence) return false
+    let alive = false
+    for (const [peer, n] of this._peerInflight) {
+      if (n <= 0) continue
+      if (this._delivering(peer)) alive = true
+      this._anchor(peer)   // re-baseline for the next window, granted or not
+    }
+    return alive
+  }
+
+  // [mirall] FIX-BW10 — is this peer putting bytes on the wire for us? Two questions, both
+  // answerable only from a baseline we took ourselves, so an unmeasured peer never extends
+  // anything.
+  _delivering (peer) {
+    const probe = this._rxProbe.get(peer)
+    const atOwe = this._rxAtOwe.get(peer)
+    if (probe === undefined || atOwe === undefined) return false
+    const now = this._rx(peer)
+    if (now === null || now < probe.bytes) return false
+    // A RATE, not a count: the floor is _minLivenessBytes per idle window, so a window that ran
+    // long (chunks kept arriving, the timer kept being re-armed) needs proportionally more.
+    // Below it is protocol chatter — an idle Noise stream still carries a keep-alive every 5 s.
+    const elapsed = Math.max(1, Date.now() - probe.at)
+    if ((now - probe.bytes) * this._idleTimeout < this._minLivenessBytes * elapsed) return false
+    // Alive — but are the bytes ours? See ABANDON_FACTOR.
+    return now - atOwe <= this._owedBytes(peer) * ABANDON_FACTOR + this._abandonSlack
+  }
+
+  // [mirall] Bytes this peer could legitimately be sending us right now.
+  _owedBytes (peer) {
+    let total = 0
+    for (const [index, p] of this._inflight) {
+      if (p !== peer) continue
+      const len = this._chunks?.[index]?.length
+      if (len > 0) total += len
+    }
+    return total
+  }
+
+  // [mirall] One transport read, defended: the counter is a getter over native memory and can
+  // throw on a destroyed stream, and an embedder may return anything. Infinity would poison every
+  // comparison below into a NaN that reads as "alive", so only a finite count is an answer.
+  _rx (peer) {
+    if (!this._peerBytes) return null
+    let n
+    try { n = this._peerBytes(peer) } catch { return null }
+    return Number.isFinite(n) && n >= 0 ? n : null
+  }
+
+  // [mirall] FIX-BW10 — (re)take this peer's baselines. The probe is the per-window one the
+  // delivery floor is measured from; the debt anchor is where the abandon budget counts from and
+  // moves only when the debt itself restarts (a fresh batch, or a chunk just paid). A read we
+  // cannot take clears both, since a stale baseline would measure the wrong span.
+  _anchor (peer, debt = false) {
+    if (!this._peerBytes) return
+    const n = this._rx(peer)
+    if (n === null) {
+      this._rxProbe.delete(peer)
+      if (debt) this._rxAtOwe.delete(peer)
+      return
+    }
+    this._rxProbe.set(peer, { bytes: n, at: Date.now() })
+    if (debt) this._rxAtOwe.set(peer, n)
+  }
+
+  // [mirall] FIX-BW10 — a peer that just paid starts a fresh debt. While it still owes chunks the
+  // anchor must MOVE rather than clear: at the end of a file every remaining chunk is already in
+  // flight, so no later assign hands out a batch that would re-seed it, and an unanchored peer is
+  // one that cannot be budgeted.
+  _restartDebt (peer) {
+    if (!this._peerBytes) return
+    if ((this._peerInflight.get(peer) || 0) > 0) return this._anchor(peer, true)
+    this._rxAtOwe.delete(peer)
+    this._rxProbe.delete(peer)
   }
 
   _reportEnd (ok, reason) {
@@ -337,6 +459,7 @@ export class ChunkScheduler {
     }
     this._needed.delete(index)
     this._lastProgressAt = Date.now()   // [mirall] FIX-BW9 — bounds how far a keep-alive can reach
+    this._restartDebt(peer)             // [mirall] FIX-BW10 — it paid; measure the next debt from here
     this._received.set(peer, (this._received.get(peer) || 0) + 1)
     this._receivedBytes += (data ? data.length : 0)   // [mirall]
     this._armIdleTimer()   // [mirall] accepted bytes — reset the no-progress watchdog
@@ -410,6 +533,11 @@ export class ChunkScheduler {
 
   removePeer (peer) {
     const wasRequested = this._requested.delete(peer)
+    // [mirall] FIX-BW10 — above the early return: a peer that died before answering still has
+    // baselines, and the Maps are keyed by the peer OBJECT, so leaving one behind pins its whole
+    // mux/stream graph for the life of the fetch.
+    this._rxProbe.delete(peer)
+    this._rxAtOwe.delete(peer)
     if (!this._peers.has(peer)) {
       // [mirall] It died before its chunk list arrived. If it was the last holder we were waiting
       // on, the fetch is already doomed — fail now rather than idling for the full timeout.
@@ -516,7 +644,11 @@ export class ChunkScheduler {
       // served either.
     }
     for (const [peer, indices] of batches) {
-      if (indices.length) this._sendNeed(peer, indices)
+      if (!indices.length) continue
+      this._sendNeed(peer, indices)
+      // [mirall] FIX-BW10 — a peer's debt (and the window its delivery is measured over) starts
+      // at the moment we ask.
+      if (!this._rxAtOwe.has(peer)) this._anchor(peer, true)
     }
     // [mirall] Register the retry BEFORE re-evaluating the watchdog: whether the limiter
     // accepted it is what separates "paced" (do not time it) from "stuck" (must time it).

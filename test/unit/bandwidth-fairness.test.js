@@ -477,3 +477,255 @@ test('FIX-BW9: keep-alives are bounded — a holder that never sends bytes is st
   // no-op notePeerAlive (failing at the 200ms window) would report the same number and pass.
   t.ok(failedAfter > scaled(500), `but only after the bound was spent, not inside the window (${failedAfter}ms)`)
 })
+
+// --- transport liveness (FIX-BW10) ------------------------------------------
+// The watchdog is asked "is this peer dead?" but measures "has a chunk completed?". Those
+// diverge whenever ONE chunk legitimately outlives the window — a 4 MiB tier-3 chunk needs
+// 33.6s at 1 Mbit/s, and a chunk queued behind other traffic on the same Noise stream takes
+// longer still — so a healthy holder on a slow or congested link was failed as a stall. These
+// drive the scheduler with the transport byte counter protocol-v2 injects in production
+// (peer.mux.stream.rawStream.bytesReceived, measured: 360 B per 30s window on an IDLE
+// connection, and advancing throughout the 2s a 4 MiB frame spends on the wire while the
+// frame-granular counter stays at zero).
+
+// A transport counter that ticks `bytes` every `everyMs`. Returns the reader the scheduler gets
+// and a stop(), so a finished test leaves no interval behind.
+function rxTicker (bytes, everyMs) {
+  let rx = 0
+  const timer = setInterval(() => { rx += bytes }, everyMs)
+  timer.unref?.()
+  return { read: () => rx, stop: () => clearInterval(timer) }
+}
+
+test('REGRESSION (FIX-BW10): a chunk that outlives the idle window is not failed while bytes arrive', async (t) => {
+  const WINDOW = scaled(400)
+  const rx = rxTicker(8 * KB, 20)          // ~400 KB/s of real inbound bytes
+  const peer = { id: 'slow' }
+  let failed = null
+  const sched = new ChunkScheduler({
+    path: 'content:slow',
+    destPath: '/tmp/slow',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 1,
+    peerBytes: rx.read,
+    // one chunk, delivered at 3x the window: the case that must survive
+    sendNeed: (_p, indices) => setTimeout(() => {
+      if (!sched.done) sched.onChunkData(peer, indices[0], { length: CHUNK })
+    }, WINDOW * 3),
+  })
+  sched.promise().catch((err) => { failed = err })
+  await sched.onChunkHashes(peer, chunkList(4, CHUNK))
+
+  await wait(WINDOW * 2)
+  t.is(failed, null, 'still alive after twice the idle window, because the peer is delivering')
+  await wait(WINDOW * 2)
+  t.is(failed, null, 'and the late chunk was accepted instead of the fetch being stall-failed')
+  t.is(sched._received.get(peer), 1, 'the chunk really did land')
+
+  rx.stop()
+  sched.cancel()
+})
+
+// REGRESSION (FIX-BW4, re-asserted): a peer that wedges while still TCP-alive sends no FIN, so
+// removePeer never runs and the watchdog is the only thing that can end the fetch. A liveness
+// probe must not blind it — a wedged peer moves no bytes.
+test('REGRESSION (FIX-BW10): a silent peer is still failed inside the window with the probe wired', async (t) => {
+  const WINDOW = scaled(400)
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:wedged',
+    destPath: '/tmp/wedged',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 8,
+    peerBytes: () => 0,                    // connected, but not one byte since
+    sendNeed: () => {},
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  await sched.onChunkHashes({ id: 'wedged' }, chunkList(200, CHUNK))
+
+  await wait(WINDOW * 4)
+  t.ok(failedAfter !== null, `the stall was detected (after ${failedAfter}ms)`)
+  t.ok(failedAfter < WINDOW * 3, 'and promptly — the probe did not defer it')
+})
+
+// An idle Noise stream still carries an empty keep-alive every 5s (hyperdht connectionKeepAlive)
+// plus UDX ACKs. If that chatter could clear the floor, every wedged-but-connected peer would
+// hold its fetch open to the 30-minute bound — FIX-BW4 through the gate meant to prevent it.
+test('REGRESSION (FIX-BW10): protocol chatter below the floor does not extend the fetch', async (t) => {
+  const WINDOW = scaled(400)
+  const rx = rxTicker(20, 50)              // keep-alive-sized dribble, nothing more
+  let failed = false
+  const sched = new ChunkScheduler({
+    path: 'content:chatty',
+    destPath: '/tmp/chatty',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 8,
+    peerBytes: rx.read,
+    sendNeed: () => {},
+  })
+  sched.promise().catch(() => { failed = true })
+  await sched.onChunkHashes({ id: 'chatty' }, chunkList(50, CHUNK))
+
+  await wait(WINDOW * 3)
+  rx.stop()
+  t.ok(failed, 'a peer that only chatters is still a silent peer')
+})
+
+// The extension is scoped to a peer that owes us something, exactly as notePeerAlive is. Setup:
+// as many chunks as the cap, so the first holder takes them all and the second is left owing
+// nothing while its transport counter runs hot.
+test('FIX-BW10: bytes from a peer that owes us nothing do not extend the fetch', async (t) => {
+  const WINDOW = scaled(400)
+  const A = { id: 'A' }
+  const B = { id: 'B' }
+  const rxB = rxTicker(1024 * KB, 20)
+  let failed = false
+  const sched = new ChunkScheduler({
+    path: 'content:scope',
+    destPath: '/tmp/scope',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 4,
+    peerBytes: (peer) => (peer === B ? rxB.read() : 0),
+    sendNeed: () => {},
+  })
+  sched.promise().catch(() => { failed = true })
+  await sched.onChunkHashes(A, chunkList(4, CHUNK))   // A takes all four (the cap), then goes silent
+  await sched.onChunkHashes(B, chunkList(4, CHUNK))   // B answers, is assigned nothing, floods bytes
+  t.is(sched._peerInflight.get(B), 0, 'B owes nothing (precondition)')
+
+  await wait(WINDOW * 3)
+  rxB.stop()
+  t.ok(failed, 'the fetch failed on A being silent, despite B being loud')
+})
+
+// Bytes prove the peer is alive, not that OUR batch is still being served. Every early return in
+// the holder's serve loop — unreadable file, revoked grant, abandoned drain — leaves it as busy
+// as ever with our chunks never coming. The abandon budget catches that in proportion to how
+// fast that peer is working, instead of holding the fetch to the 30-minute bound.
+test('REGRESSION (FIX-BW10): a peer that delivers everything except our chunks is still failed', async (t) => {
+  const WINDOW = scaled(400)
+  const OWED = 4 * CHUNK                                  // cap 4, so this is what it owes us
+  const rx = rxTicker(256 * KB, Math.round(WINDOW / 8))   // 8 ticks = 2 MB per window
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:busy',
+    destPath: '/tmp/busy',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 4,
+    peerBytes: rx.read,
+    // Budget = OWED * 2 + slack = 3 MB, i.e. 12 ticks: over one window's worth of traffic, under
+    // two, so the fix must extend once and then give up.
+    abandonSlackBytes: 3 * 1024 * KB - OWED * 2,
+    sendNeed: () => {},                                   // asked, never served — the dropped batch
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  await sched.onChunkHashes({ id: 'busy-elsewhere' }, chunkList(20, CHUNK))
+
+  await wait(WINDOW * 8)
+  rx.stop()
+  t.ok(failedAfter !== null, `the dropped batch was caught (after ${failedAfter}ms)`)
+  t.ok(failedAfter > WINDOW * 1.5, 'after extending at least once — the peer was demonstrably alive')
+  t.ok(failedAfter < WINDOW * 6, 'and in proportion to its traffic, not at the 30-minute bound')
+})
+
+// The bound is the last line of defence: an extension that can renew itself forever is a
+// watchdog that never fires. _lastProgressAt advances only on VERIFIED progress, which no
+// remote peer can drive.
+test('FIX-BW10: transport liveness cannot outlive the verified-progress bound', async (t) => {
+  const WINDOW = scaled(300)
+  const BOUND = scaled(1200)
+  const rx = rxTicker(64 * KB, Math.round(WINDOW / 8))
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:forever',
+    destPath: '/tmp/forever',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 8,
+    peerBytes: rx.read,
+    abandonSlackBytes: Number.MAX_SAFE_INTEGER,   // budget disabled: isolate the bound
+    keepAliveMaxSilence: BOUND,
+    sendNeed: () => {},
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  await sched.onChunkHashes({ id: 'forever' }, chunkList(200, CHUNK))
+
+  await wait(BOUND * 2)
+  rx.stop()
+  t.ok(failedAfter !== null, 'the bound fired')
+  t.ok(failedAfter >= BOUND, 'not before the bound')
+  t.ok(failedAfter < BOUND + WINDOW * 2, 'and within one window of it')
+})
+
+// The budget is measured from a debt clock, and an accepted chunk restarts it. Clearing it
+// outright left a hole at the tail of a file: every remaining chunk is already in flight, so
+// _assign sends no new batch, nothing re-seeds the clock, and the extension goes unbudgeted.
+test('REGRESSION (FIX-BW10): the abandon budget survives an accepted chunk with nothing left to ask for', async (t) => {
+  const WINDOW = scaled(400)
+  const OWED = 7 * CHUNK                                  // what is left in flight after one lands
+  const rx = rxTicker(256 * KB, Math.round(WINDOW / 8))
+  const peer = { id: 'tail' }
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:tail',
+    destPath: '/tmp/tail',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 8,
+    peerBytes: rx.read,
+    abandonSlackBytes: 4 * 1024 * KB - OWED * 2,
+    // exactly cap chunks, delivered once and then never again: the whole file is in flight, so
+    // no later assign has anything to hand out
+    sendNeed: (_p, indices) => setTimeout(() => {
+      if (!sched.done) sched.onChunkData(peer, indices[0], { length: CHUNK })
+    }, 10),
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  await sched.onChunkHashes(peer, chunkList(8, CHUNK))
+
+  await wait(WINDOW * 8)
+  rx.stop()
+  t.is(sched._received.get(peer), 1, 'one chunk landed, then the holder went quiet on the rest')
+  t.ok(failedAfter !== null, `the remaining batch was still budgeted (failed after ${failedAfter}ms)`)
+  t.ok(failedAfter < WINDOW * 6, 'and not held to the 30-minute bound')
+})
+
+// The extension is scoped to peers holding OUR chunks. A peer we only sent a content request to
+// may never answer at all — a holder that lacks the file and one whose serve gate denied us both
+// return silently — so its unrelated traffic on the shared mux must not re-arm anything, or every
+// connected peer becomes an unbounded hold. Fast-failing that wait is what `_requested` is for.
+test('REGRESSION (FIX-BW10): an unanswered content request cannot extend the fetch', async (t) => {
+  const WINDOW = scaled(400)
+  const holder = { id: 'holder' }
+  const asked = { id: 'asked-but-silent' }
+  const rx = rxTicker(1024 * KB, 20)                      // the non-holder is busy with other work
+  const startedAt = Date.now()
+  let failedAfter = null
+  const sched = new ChunkScheduler({
+    path: 'content:asked',
+    destPath: '/tmp/asked',
+    transfer: fakeTransfer,
+    timeout: WINDOW,
+    cap: 4,
+    peerBytes: (peer) => (peer === asked ? rx.read() : 0),
+    sendNeed: () => {},
+  })
+  sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
+  sched.noteRequested(asked)                              // fanned out to it; it never answers
+  await sched.onChunkHashes(holder, chunkList(20, CHUNK)) // the real holder answers, then wedges
+  t.ok(sched._requested.has(asked), 'the unanswered peer is still outstanding (precondition)')
+
+  await wait(WINDOW * 3)
+  rx.stop()
+  t.ok(failedAfter !== null, `the wedged holder was caught (after ${failedAfter}ms)`)
+  t.ok(failedAfter < WINDOW * 3, 'inside the window, not held to the 30-minute bound')
+})
