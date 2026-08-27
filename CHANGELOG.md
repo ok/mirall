@@ -11,7 +11,7 @@ changes do not appear here.
 
 
 ## v1.9.0
-### 2026-08-26
+### 2026-08-27
 
 Beside several enhancements and fixes, this release brings Mirall's new brand: 
 a refined logo and a redrawn app icon.
