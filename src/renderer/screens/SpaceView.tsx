@@ -38,6 +38,7 @@ import Button from '../components/primitives/Button.js'
 import Avatar from '../components/primitives/Avatar.js'
 import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
+import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -68,7 +69,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const { spaces, createInvite, leaveSpace, updateSpace, toggleFavorite, approveMember, denyMember } = useSpaces()
   const space = spaces.find(s => s.spaceId === spaceId)
   const isPending = space?.status === 'pending'
-  const { shares } = useShares(spaceId, profile?.publicKey ?? null)
+  const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
   const toast = useToast()
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showApproval, setShowApproval] = useState(false)
@@ -95,6 +96,15 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     }
     const picked = await window.bridge.browseShareFolder()
     if (picked) setFolderPathForShare(picked)
+  }
+
+  // Both list sources feed one pane; see spaceContentState.js for why emptiness needs both.
+  const pane = {
+    filesLoading: loading,
+    sharesLoading,
+    filesError: error,
+    fileCount: files.length,
+    shareCount: shares.length,
   }
 
   const markBusy = (pk: string) => setBusy((prev) => new Set(prev).add(pk))
@@ -341,7 +351,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           ref={filesRef}
           className={`overflow-y-auto scrollbar-thin min-h-0 pb-4 space-y-8${filesOverflow ? ' pr-4' : ''}`}
         >
-          {!loading && !error && shares.length === 0 && files.length === 0 ? (
+          {showSpaceEmptyState(pane) ? (
             <div className="flex flex-col min-h-[24rem] mt-12">
               <div className="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
                 <Icon name="draft" size={45} className="text-secondary" />
@@ -423,7 +433,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                 </div>
               )}
 
-              {loading ? (
+              {showSpaceLoading(pane) ? (
                 <LoadingFiles label={t('space.loadingFiles')} />
               ) : error && files.length === 0 ? (
                 <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">

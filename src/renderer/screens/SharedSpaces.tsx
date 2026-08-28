@@ -17,7 +17,7 @@ interface YourSpacesProps {
 
 export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: YourSpacesProps) {
   const { t } = useTranslation()
-  const { spaces } = useSpaces()
+  const { spaces, loading } = useSpaces()
   const [filter, setFilter] = useState<'all' | 'favorites'>('all')
   const { ref: listRef, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -72,7 +72,9 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
         role={filteredSpaces.length > 0 ? 'list' : undefined}
         className={`flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin${hasOverflow ? ' pr-4' : ''}`}
       >
-        {filteredSpaces.length === 0 && filter === 'all' && (
+        {/* Gated on `loading`: an unsettled list has no spaces YET, which is not the same
+            fact as an account with none — see spaceContentState.js. */}
+        {!loading && filteredSpaces.length === 0 && filter === 'all' && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <h2 className="text-2xl font-headline font-bold text-accent mb-3">{t('spaces.emptyNoSpaces')}</h2>
             <p className="text-on-surface-variant max-w-md leading-relaxed">{t('spaces.emptyNoSpacesHint')}</p>
@@ -89,7 +91,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             />
           </div>
         )}
-        {filteredSpaces.length === 0 && filter === 'favorites' && (
+        {!loading && filteredSpaces.length === 0 && filter === 'favorites' && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h2 className="text-2xl font-headline font-bold text-accent mb-3">{t('spaces.emptyNoFavorites')}</h2>
             <p className="text-on-surface-variant max-w-md leading-relaxed">{t('spaces.emptyNoFavoritesHint')}</p>
