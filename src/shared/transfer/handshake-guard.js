@@ -103,21 +103,35 @@ export function checkInboundSender (peerInfo, msg, { enforceBinding }) {
 }
 
 // Per-socket token bucket keyed on the connection's Noise key (unspoofable, vs the
-// spoofable msg.profileKey). burst tokens, +1 token / refillMs; take() reports ban:true
-// after abuseThreshold *consecutive* drops so a sustained flood self-evicts while a
-// transient over-burst (a multi-space peer's reconnect storm) recovers on the next grant.
-export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date.now }) {
+// spoofable msg.profileKey). `burst` is a number or a getter re-read on every take, passed the
+// count of distinct scopes this socket has presented (see trackScopes). The bucket keeps the
+// debt (frames used, decaying at +1 / refillMs) rather than the tokens left, so a cap that
+// grows admits the frames its growth allows at once, and a cap that shrinks tightens at once.
+// take() reports ban:true after abuseThreshold consecutive drops — the drop counter resets on
+// any grant and decays at the refill rate, so a sustained flood self-evicts while a peer that
+// backs off, or one whose honest burst simply outran the window, never accumulates a ban.
+//
+// trackScopes records the distinct scope strings a socket presents (the caller passes one per
+// take) so the cap can follow what THIS peer has actually proven rather than a global figure.
+// The caller must only pass scopes it has already validated against its own set, which is what
+// bounds the per-socket memory.
+export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date.now, trackScopes = false }) {
+  const capOf = typeof burst === 'function' ? burst : () => burst
   const buckets = new Map()
   return {
-    take (noiseKeyHex) {
-      if (!burst) return { ok: true, ban: false }
+    take (noiseKeyHex, scope = null) {
       const t = now()
       let b = buckets.get(noiseKeyHex)
-      if (!b) buckets.set(noiseKeyHex, b = { tokens: burst, last: t, drops: 0 })
-      b.tokens = Math.min(burst, b.tokens + (t - b.last) / refillMs)
+      if (!b) buckets.set(noiseKeyHex, b = { used: 0, last: t, drops: 0, scopes: trackScopes ? new Set() : null })
+      if (b.scopes && typeof scope === 'string') b.scopes.add(scope)
+      const cap = capOf(b.scopes ? b.scopes.size : 0)
+      if (!cap) return { ok: true, ban: false }
+      const decayed = (t - b.last) / refillMs
+      b.used = Math.max(0, b.used - decayed)
+      b.drops = Math.max(0, b.drops - decayed)
       b.last = t
-      if (b.tokens < 1) { b.drops += 1; return { ok: false, ban: b.drops >= abuseThreshold } }
-      b.tokens -= 1
+      if (b.used + 1 > cap) { b.drops += 1; return { ok: false, ban: b.drops >= abuseThreshold } }
+      b.used += 1
       b.drops = 0
       return { ok: true, ban: false }
     },
@@ -131,15 +145,24 @@ export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date
 // frames for topics we DON'T have (dropped cheaply, before any signature verify) can never
 // starve the one frame for a topic we DO have. Lane pick is the caller's topic match; each
 // lane bans on its own consecutive-drop threshold — a flood is a flood whichever lane it
-// lands in.
-export function createDualRateLimiter ({ matched, unmatched, now = Date.now }) {
+// lands in. The matched lane's honest burst is one frame per space the two peers SHARE, our
+// reciprocal, and one re-send inside a refill window — so its cap is
+// burst + burstPerTopic x (the distinct topics THIS socket has matched), re-read per take and
+// never counted past the topics we actually hold. Scaling by the shared count rather than by
+// our own total is what keeps a peer that matched a single topic at a small cap no matter how
+// many spaces we are in. burst 0 still switches the lane off.
+export function createDualRateLimiter ({ matched, unmatched, now = Date.now, topics = () => 0 }) {
+  const perTopic = matched.burstPerTopic || 0
+  const matchedBurst = (matchedTopics) => (matched.burst ? matched.burst + perTopic * Math.min(matchedTopics, topics()) : 0)
   const lanes = {
-    matched: createRateLimiter({ ...matched, now }),
+    matched: createRateLimiter({ ...matched, burst: matchedBurst, now, trackScopes: true }),
     unmatched: createRateLimiter({ ...unmatched, now }),
   }
   return {
-    take (noiseKeyHex, isMatched) {
-      return lanes[isMatched ? 'matched' : 'unmatched'].take(noiseKeyHex)
+    // `topic` is charged only on the matched lane, and the caller has already resolved it
+    // against our own topics — so the per-socket scope set can never exceed our space count.
+    take (noiseKeyHex, isMatched, topic = null) {
+      return isMatched ? lanes.matched.take(noiseKeyHex, topic) : lanes.unmatched.take(noiseKeyHex)
     },
     forget (noiseKeyHex) {
       lanes.matched.forget(noiseKeyHex)
