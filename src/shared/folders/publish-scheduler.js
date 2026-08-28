@@ -85,6 +85,13 @@ function describeShare(queues, running, tallies, spaceId, shareId, order, concur
   }
 }
 
+async function waitForSpaceToSettle(running, spaceId, settleMs) {
+  const deadline = Date.now() + settleMs
+  while ([...running].some((it) => it.spaceId === spaceId) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25))
+  }
+}
+
 export function createPublishScheduler({
   execute,
   concurrency: rawConcurrency = () => 2,
@@ -229,13 +236,18 @@ export function createPublishScheduler({
       for (const key of [...drainWaiters.keys()]) {
         if (key.startsWith(spaceId + '\0')) { tallies.cancel(key); releaseWaiters(key) }
       }
-      const deadline = Date.now() + settleMs
-      while ([...running].some((it) => it.spaceId === spaceId) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 25))
-      }
+      await waitForSpaceToSettle(running, spaceId, settleMs)
+      return n
+    },
+    // One path's item, no pass semantics: a loose file's cancel. A queued item leaves; a running
+    // one is signalled and settles CANCELLED when its executor returns.
+    cancelPath(spaceId, shareId, relPath) {
+      const n = queues.get(spaceId)?.cancel((it) => it.shareId === shareId && it.relPath === relPath) ?? 0
+      if (n) settleDrain(spaceId, shareId)
       return n
     },
     isPending(spaceId, shareId, relPath) { return !!queues.get(spaceId)?.isPending(shareId, relPath) },
+    pendingRelPaths(spaceId, shareId) { return queues.get(spaceId)?.pendingRelPaths(shareId) ?? [] },
     isSpaceIdle(spaceId) { const q = queues.get(spaceId); return !q || isIdle(q) },
     statusFor(spaceId, shareId) { return describeShare(queues, running, tallies, spaceId, shareId, order(), concurrency()) },
     stop() { stopped = true; clear() },

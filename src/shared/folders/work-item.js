@@ -41,6 +41,7 @@ export function settleDeferred(d, value) {
 export function createItem(spec, seq) {
   return {
     key: itemKey(spec.shareId, spec.relPath),
+    kind: spec.kind || 'folder',
     spaceId: spec.spaceId,
     shareId: spec.shareId,
     relPath: spec.relPath,

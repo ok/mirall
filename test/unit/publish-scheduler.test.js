@@ -419,3 +419,38 @@ test('REGRESSION (FIX-SCHED-IDLE-ORDER): the space goes idle before the share is
   await sleep(5)
   t.alike(order, ['idle', 'drained'])
 })
+
+// A loose file's cancel: one path, no pass semantics. A queued item leaves at once; a running one
+// is signalled and settles CANCELLED when its executor returns.
+test('cancelPath drops a queued item and signals a running one', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  const running = s.enqueue(spec('A', 'slow'))
+  const waiting = s.enqueue(spec('A', 'later'))
+  await sleep(5)
+  t.is(s.cancelPath('A', 'sh', 'later'), 1)
+  t.is((await waiting.settled).outcome, 'cancelled')
+  t.absent(s.isPending('A', 'sh', 'later'))
+  t.is(s.cancelPath('A', 'sh', 'slow'), 1)
+  const item = [...s._running][0]
+  t.ok(item.signal.aborted, 'the running hash is told to stop')
+  t.ok(s.isPending('A', 'sh', 'slow'), 'and keeps its place until the executor returns')
+  t.is((await running.settled).outcome, 'cancelled')
+  await g.release('A/slow')
+  await sleep(5)
+  t.absent(s.isPending('A', 'sh', 'slow'))
+  t.is(s.cancelPath('A', 'sh', 'slow'), 0, 'nothing live → nothing cancelled')
+})
+
+test('pendingRelPaths lists queued and running paths for a share', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  s.enqueue(spec('A', 'one'))
+  s.enqueue(spec('A', 'two'))
+  s.enqueue(spec('A', 'other', { shareId: 'else' }))
+  await sleep(5)
+  t.alike(s.pendingRelPaths('A', 'sh').sort(), ['one', 'two'])
+  t.alike(s.pendingRelPaths('A', 'else'), ['other'])
+  t.alike(s.pendingRelPaths('B', 'sh'), [])
+  await g.releaseAll()
+})

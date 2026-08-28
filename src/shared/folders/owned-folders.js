@@ -1,7 +1,8 @@
 // Owner side of folder sharing: keeps a mounted disk folder (an "owned folder") published into
 // its share's catalog. Every producer — mount, relocate, boot, the watcher, the catch-up and the
-// periodic reconcile — computes a diff and enqueues work items; one bounded scheduler executes
-// them per space. A missing mount root always pauses publishing instead of tombstoning the catalog.
+// periodic reconcile — computes a diff and enqueues work items on the shared publish service; the
+// folder channel registered here resolves, publishes and retires them. A missing mount root always
+// pauses publishing instead of tombstoning the catalog.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
@@ -9,11 +10,10 @@ import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './m
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { createLogger } from '../core/logger.js'
 import { createCoalescingRunner } from '../core/coalescing-runner.js'
-import { getPublishConcurrency, getPublishOrder, getMaxFilesPerShare } from '../core/runtime-config.js'
-import { isUnsupportedShare } from '../transfer/content-backends.js'
+import { getMaxFilesPerShare } from '../core/runtime-config.js'
+import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/share-catalog.js'
-import { createCatalogBatch } from '../shares/catalog-writer.js'
-import { overlayHashFile, ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile, ensureServable } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { walkDisk } from './walk-disk.js'
@@ -21,10 +21,13 @@ import { exceedsShareFileLimit } from './share-limits.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
-import { createPublishScheduler } from './publish-scheduler.js'
-import { createPublishRunner, mountRootAvailable } from './publish-runner.js'
+import { mountRootAvailable } from './publish-runner.js'
+import {
+  publishScheduler as scheduler, registerPublishChannel, initPublishService, settleCatalog,
+  stopPublishingForSpace, stopAllPublishing, _resetPublishService,
+} from './publish-service.js'
 
-export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
+export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable, stopPublishingForSpace, stopAllPublishing }
 
 const log = createLogger('owned-folders')
 
@@ -43,37 +46,6 @@ const CATCHUP_BACKOFF_MAX_MS = 60000
 const SCAN_SETTLE_MS = 2000
 
 const shareCache = new Map()
-// Bulk publishes write through one catalog batch per space (few atomic heads for the consumer).
-// A batch being closed stays tracked in `settling` until its last flush lands, so a diff or a
-// resolving scan never reads the catalog ahead of writes it depends on.
-const batches = new Map()
-const settling = new Map()
-
-function catalogFor(spaceId) {
-  let batch = batches.get(spaceId)
-  if (!batch) batches.set(spaceId, (batch = createCatalogBatch(spaceId)))
-  return batch
-}
-
-// Resolves once the batch's last flush has landed. With no batch open it still joins a close in
-// progress, so an awaited "flush before X" holds whichever state the space is in.
-function closeBatch(spaceId) {
-  const batch = batches.get(spaceId)
-  if (!batch) return settling.get(spaceId) ?? Promise.resolve()
-  batches.delete(spaceId)
-  const prev = settling.get(spaceId) ?? Promise.resolve()
-  const closed = prev.then(() => batch.close()).catch((err) => log.warn('catalog batch close failed:', err.message))
-  settling.set(spaceId, closed)
-  closed.then(() => { if (settling.get(spaceId) === closed) settling.delete(spaceId) })
-  return closed
-}
-
-// Lands everything the space's catalog holds: the open batch's buffer and any flush in flight,
-// then a close in progress (the flush may itself have been what the close was waiting on).
-async function settleCatalog(spaceId) {
-  await batches.get(spaceId)?.flush()
-  await settling.get(spaceId)
-}
 
 async function loadShareForMount(mount) {
   const { readOwnShares } = await import('../shares/shares.js')
@@ -100,20 +72,32 @@ const progress = makeKeyedCoalescer((spaceId, shareId) => {
   ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...scheduler.statusFor(spaceId, shareId) })
 }, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
 
-const scheduler = createPublishScheduler({
-  execute: createPublishRunner({ loadShare, catalogFor, settleCatalog }),
-  concurrency: getPublishConcurrency,
-  order: getPublishOrder,
-  log,
+registerPublishChannel('folder', {
+  async resolve(item) {
+    const mount = await getOwnedMount(item.spaceId, item.shareId)
+    if (!mount) return { skip: 'skipped-unmounted' }
+    // A missing root is ambiguous (unplugged, offline) and never a delete. When a root vanishes
+    // chokidar emits one unlink per file, and every one of them lands here.
+    if (!mountRootAvailable(mount.mountPath)) return { skip: 'skipped-root-gone' }
+    const share = await loadShare(item.spaceId, item.shareId)
+    if (!share || isUnsupportedShare(share)) return { skip: 'skipped' }
+    // A relPath that escapes the mount is catalog poison, not a file: no path, so a retire reclaims it.
+    let absPath = null
+    try { absPath = pathFromMount(mount.mountPath, item.relPath) } catch {}
+    return { share, absPath }
+  },
+  async publish(item, { share, absPath }, opts) {
+    return { changed: await getContentBackend(share).publishAdd(item.spaceId, share, item.relPath, absPath, opts) }
+  },
+  retire(item, { share }, { catalog }) {
+    return getContentBackend(share).publishDelete(item.spaceId, share, item.relPath, { catalog })
+  },
   onProgress: (spaceId, shareId) => progress.poke(spaceId, shareId),
-  // The scheduler fires onSpaceIdle (the batch close) before this, so the refresh below waits for
-  // the closing flush and the renderer never re-lists ahead of the pass's last writes.
-  onShareDrained: (spaceId, shareId) => {
+  onDrained: (spaceId, shareId) => {
     progress.flush(spaceId, shareId)
     settleCatalog(spaceId).then(() => ipcRef?.emit('event:share-files-updated', { spaceId, shareId }))
   },
   onSpaceIdle: (spaceId) => {
-    closeBatch(spaceId)
     for (const key of [...shareCache.keys()]) if (key.startsWith(spaceId + '\0')) shareCache.delete(key)
   },
 })
@@ -121,7 +105,7 @@ const scheduler = createPublishScheduler({
 export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
   ipcRef = _ipc
   settleScanRef = settleScan
-  setPendingPublishProbe((spaceId, shareId, relPath) => scheduler.isPending(spaceId, shareId, relPath))
+  initPublishService()
 }
 
 // Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
@@ -388,24 +372,12 @@ export function stopOwnedFolder(spaceId, shareId) {
   scheduler.cancelShare(spaceId, shareId)
 }
 
-export async function stopPublishingForSpace(spaceId) {
-  await scheduler.cancelSpace(spaceId)
-  await closeBatch(spaceId)
-}
-
-export function stopAllPublishing() {
-  scheduler.stop()
-}
-
-export function _resetOwnedFolders() {
+export async function _resetOwnedFolders() {
   for (const timer of reconcileTimers.values()) clearTimeout(timer)
   reconcileTimers.clear()
-  scheduler._reset()
+  await _resetPublishService()
   progress.reset()
   shareCache.clear()
-  for (const batch of batches.values()) batch.close().catch(() => {})
-  batches.clear()
-  settling.clear()
 }
 
 export { walkDisk }

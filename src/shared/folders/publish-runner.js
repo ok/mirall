@@ -1,12 +1,10 @@
-// Turns a work item into catalog + overlay effects. Every item re-derives its precondition from
-// CURRENT state at execution time, never from the facts it was enqueued with: an item can sit in
-// the lane for minutes, and in that time the mount may have been relocated or its root unplugged.
+// Turns a work item into catalog + overlay effects through the channel registered for its kind.
+// Every item re-derives its precondition from CURRENT state at execution time, never from the
+// facts it was enqueued with: an item can sit in the lane for minutes, and in that time the
+// mount may have been relocated, its root unplugged, or a loose source unshared.
 import fs from 'bare-fs'
 import { OP, PRIORITY } from './work-item.js'
-import { getOwnedMount } from './mount-store.js'
 import { fileExactlyPresent } from './disk-presence.js'
-import { pathFromMount } from '../transfer/path-guard.js'
-import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 
 export function mountRootAvailable(mountPath) {
   try {
@@ -16,21 +14,20 @@ export function mountRootAvailable(mountPath) {
   }
 }
 
-// `catalogFor(spaceId)` is the space's catalog batch (created on demand); `settleCatalog(spaceId)`
-// lands everything it holds, including a flush already in flight.
-export function createPublishRunner({ loadShare, catalogFor, settleCatalog }) {
+// channel: {
+//   direct?        — always write the catalog direct (never through the space batch)
+//   resolve(item)  → { share, absPath } | { skip: outcome }
+//   publish(item, ctx, { catalog, signal, deep }) → { changed }
+//   retire(item, ctx, { catalog })
+//   onPublishFailed?(item, ctx, err), afterPublish?(item, ctx, result)
+//   onProgress?(spaceId, shareId), onDrained?(spaceId, shareId, tally), onSpaceIdle?(spaceId)
+// }
+export function createPublishRunner({ channels, catalogFor, settleCatalog }) {
   return async function execute(item) {
-    const mount = await getOwnedMount(item.spaceId, item.shareId)
-    if (!mount) return { outcome: 'skipped-unmounted' }
-    // A missing root is ambiguous (unplugged, offline) and never a delete. When a root vanishes
-    // chokidar emits one unlink per file, and every one of them lands here.
-    if (!mountRootAvailable(mount.mountPath)) return { outcome: 'skipped-root-gone' }
-    const share = await loadShare(item.spaceId, item.shareId)
-    if (!share || isUnsupportedShare(share)) return { outcome: 'skipped' }
-    const backend = getContentBackend(share)
-
-    let absPath = null
-    try { absPath = pathFromMount(mount.mountPath, item.relPath) } catch {}
+    const channel = channels[item.kind || 'folder']
+    if (!channel) return { outcome: 'failed' }
+    const ctx = await channel.resolve(item)
+    if (ctx.skip) return { outcome: ctx.skip }
 
     // Bulk items write through the space's catalog batch (few atomic heads for the consumer). An
     // interactive item goes direct so a dropped-in file is visible within milliseconds — after
@@ -38,23 +35,26 @@ export function createPublishRunner({ loadShare, catalogFor, settleCatalog }) {
     // same path can never land after the direct write and undo it.
     const interactive = item.priority === PRIORITY.INTERACTIVE
     if (interactive) await settleCatalog(item.spaceId)
-    const catalog = interactive ? undefined : catalogFor(item.spaceId)
+    const catalog = interactive || channel.direct ? undefined : catalogFor(item.spaceId)
 
     if (item.op === OP.RETIRE) {
       // Absence from a stale observation is a candidate; only a file that is really gone — under
-      // exactly this name — is a delete. A tombstone replicates to every peer. A relPath that
-      // escapes the mount is catalog poison, not a file — reclaim it.
-      if (absPath && fileExactlyPresent(absPath)) return { outcome: 'skipped-still-present' }
-      await backend.publishDelete(item.spaceId, share, item.relPath, { catalog })
+      // exactly this name — is a delete. A tombstone replicates to every peer. A key with no path
+      // behind it (poison, or a loose entry whose source link is gone) is reclaimed.
+      if (ctx.absPath && fileExactlyPresent(ctx.absPath)) return { outcome: 'skipped-still-present' }
+      await channel.retire(item, ctx, { catalog })
       return { outcome: 'retired' }
     }
-    if (!absPath) return { outcome: 'failed' }
+    if (!ctx.absPath) return { outcome: 'failed' }
 
-    const changed = await backend.publishAdd(item.spaceId, share, item.relPath, absPath, {
-      signal: item.signal,
-      deep: item.deep,
-      catalog,
-    })
-    return { outcome: changed ? 'published' : 'unchanged' }
+    let result
+    try {
+      result = await channel.publish(item, ctx, { catalog, signal: item.signal, deep: item.deep })
+    } catch (err) {
+      await channel.onPublishFailed?.(item, ctx, err)
+      throw err
+    }
+    await channel.afterPublish?.(item, ctx, result)
+    return { outcome: result?.changed ? 'published' : 'unchanged' }
   }
 }

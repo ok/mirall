@@ -52,7 +52,7 @@ async function bootPeer (t, { displayName, masterSecret }) {
   initForeignFolders(fake.ipc)
 
   t.teardown(async () => {
-    try { _resetOwnedFolders() } catch {}
+    try { await _resetOwnedFolders() } catch {}
     try { await getStore().close() } catch {}
     try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}
     try { fs.rmSync(downloads, { recursive: true, force: true }) } catch {}

@@ -183,6 +183,11 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     settle,
     cancel,
     isPending(shareId, relPath) { return byKey.has(itemKey(shareId, relPath)) },
+    pendingRelPaths(shareId) {
+      const out = []
+      for (const item of byKey.values()) if (item.shareId === shareId) out.push(item.relPath)
+      return out
+    },
     pendingForShare(shareId) {
       const b = perShare.get(shareId)
       return b ? b.queued + b.running : 0
