@@ -195,7 +195,9 @@ Defined today: `caps/membership-manifest`, `caps/leave-observations`, `caps/fold
 
 | Key | Value |
 |---|---|
-| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder? }` |
+| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder?, driveLoadError? }` |
+
+`driveLoadError: { message, at }` is stamped when the space's drive could not be opened at boot and cleared on the next successful load (§4.6).
 
 `id` = first 16 hex chars of the topic. `icon` = Material Symbols name. `topic` = 32-byte Hyperswarm discovery topic (hex). `members` = `[{ publicKey, driveKey, displayName, avatar? }]`.
 
@@ -219,6 +221,8 @@ per-space override (from `space/<id>.downloadFolder`) → the global root → th
 ### 3.4 Pending-transfers bee (`pending-transfers`) — local only
 
 `<spaceId>:<filePath>` → `{ total, inPlace, ownerKey, finalPath, shareId, relPath, bytesTransferred, updatedAt, errorCode?, erroredAt? }`
+
+Writes to one row are serialized per key (`createKeyedLock`), so the progress ticker cannot overtake a status write — a tick issued after an error verdict can no longer read the row before the verdict and put it back without one.
 
 `finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.mirall.part` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
 
@@ -372,6 +376,10 @@ Owned by `src/shared/folders/mount-store.js`. Records which local paths back a s
 
 Each folder/loose share has a replicated **catalog** (`shares/share-catalog.js`) that the overlay backend advertises into and consumers list from: per-file path, size, mtime, content hash — keyed by the share's `catalogKey` and encrypted with the space's SCK, so only members can read it.
 
+#### Write discipline for status-bearing rows
+
+A write that encodes **status or intent** — a transfer's `errorCode`, a claim, a pending row, a leave marker — may fail loudly, never silently. Await it, log at `warn` with the key and the code, and then do one of three things, saying which in a comment: fail the caller (the user asked for something durable that did not happen), let the level-triggered scan finish the intent (the durable state already implies it), or hold the verdict in memory for the process (the write is the only thing suppressing a re-drive). A bare `.catch(() => {})` is reserved for teardown races, safe reads, observability writes, and display-only values, and carries a comment naming the race. `log.debug` does not count as surfacing: the default level is `warn`.
+
 The local-only bees (§3.2–3.4, §3.6) are encrypted at rest with an M-derived key. The **profile bee stays plaintext** because peers must read it. §16.
 
 ### Why per-user drives (no Autobase)
@@ -443,13 +451,14 @@ Recovery is **level-triggered** — reconnects and catalog changes re-drive the 
 | Fetch stalls while the owner stays online | Retried by the engine itself with exponential backoff (FIX-BW9). A code-less fetch failure is either a vanished holder or one throttled past our watchdog, and neither fires a reconnect or an append — so pre-fix the row simply parked. The retry gives up after `STALL_RETRY_DRY_LIMIT` attempts that bank **no new bytes**, which is what separates a wedged holder (parks, as before) from a slow one (keeps going). While a retry is pending the paused event still fires, flagged `retrying` — on the folder channel that emit IS the terminal decoration frame, so withholding it strands a progress bar; the flag only suppresses the loose channel's OS notification |
 | Owner reconnects | The overlay reconnect hook fires `resumeLooseForOwner` / `resumeOverlayForOwner`, re-driving every pending row for that owner (skipping active, manually-paused, and checksum-failed rows) |
 | Owner republishes (catalog append) | The per-owner catalog watch re-drives pending rows; an in-flight fetch of a superseded hash is cancelled and re-fetched (`event:transfer-superseded`) |
-| Integrity failure (`EHASHMISMATCH`) | `TRANSFER_CHECKSUM` — **terminal**, never auto-resumed (the same holder would fail identically). Only an explicit user retry re-attempts (§14) |
+| Integrity failure (`EHASHMISMATCH`) | `TRANSFER_CHECKSUM` — **terminal**, never auto-resumed (the same holder would fail identically). Only an explicit user retry re-attempts (§14). The verdict is written to the row; if that write fails the engine holds it in memory for the process and logs at `warn`, so the row is still not re-driven until a restart |
+| Download completed, row outlives the claim | The next reconcile sees the file claimed on disk and clears the row; nothing is re-fetched |
 | Any other engine error | `DOWNLOAD_FAILED` on the row → `error` status until the user retries |
 | Worker shutdown | Nothing is marked; durable rows (§3.4) reconstruct resume state next boot/reconnect |
 
 ### 4.6 Startup reconnection
 
-Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives (drop any that fail) → orphan-core cleanup if any load failed → join all topics. Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
+Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record → orphan-core cleanup if any load failed → join all topics. Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
 
 ### 4.7 Presence & liveness
 
