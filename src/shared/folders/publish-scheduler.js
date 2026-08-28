@@ -5,7 +5,7 @@
 // hash holds its slot — so interactive items (a watcher event: the user just did this) get an
 // EXPRESS lane on top of the bulk slots: one may always start, even while every bulk slot is
 // held by a multi-minute hash, and an eligible interactive head is always picked before bulk.
-import { PRIORITY } from './work-item.js'
+import { PRIORITY, promiseOf } from './work-item.js'
 import { createPublishQueue } from './publish-queue.js'
 
 const EXPRESS_LANES = 1
@@ -68,6 +68,50 @@ function createTallies() {
   }
 }
 
+// "The lane reached state X": resolved from run()'s finally — the moment an executor returns —
+// or by the bound. An event the scheduler observes anyway, so nobody polls for it.
+function createWaiters() {
+  const list = []
+  return {
+    add(pred, settleMs) {
+      if (pred()) return Promise.resolve()
+      return new Promise((resolve) => {
+        const w = { pred, fire: null }
+        const timer = setTimeout(() => { list.splice(list.indexOf(w), 1); resolve() }, settleMs)
+        timer.unref?.()
+        w.fire = () => { clearTimeout(timer); resolve() }
+        list.push(w)
+      })
+    },
+    settle() {
+      for (const w of list.splice(0)) { if (w.pred()) w.fire(); else list.push(w) }
+    },
+  }
+}
+
+// Callers of whenDrained parked on a (space, share) until its pass settles.
+function createDrainWaiters() {
+  const waiting = new Map()
+  return {
+    wait(key) {
+      return new Promise((resolve) => {
+        const list = waiting.get(key) || []
+        list.push(resolve)
+        waiting.set(key, list)
+      })
+    },
+    has: (key) => waiting.has(key),
+    keys: () => [...waiting.keys()],
+    release(key, value) {
+      const list = waiting.get(key)
+      if (!list) return
+      waiting.delete(key)
+      for (const resolve of list) resolve(value)
+    },
+    clear: () => waiting.clear(),
+  }
+}
+
 function describeShare(queues, running, tallies, spaceId, shareId, order, concurrency) {
   const q = queues.get(spaceId)
   const t = tallies.get(tallyKey(spaceId, shareId))
@@ -98,7 +142,8 @@ export function createPublishScheduler({
   const queues = new Map()
   const running = new Set()
   const tallies = createTallies()
-  const drainWaiters = new Map()
+  const waiters = createWaiters()
+  const drainWaiters = createDrainWaiters()
   // Shares cancelled while an item of theirs was still executing: the drain hook still fires when
   // that item settles, so the cancelled index's revert is flushed and announced like a finished one.
   const cancelling = new Set()
@@ -145,6 +190,7 @@ export function createPublishScheduler({
       } finally {
         running.delete(item)
         queues.get(item.spaceId)?.settle(item, settlement)
+        waiters.settle()
         onProgress?.(item.spaceId, item.shareId)
         settleDrain(item.spaceId, item.shareId)
         pump()
@@ -163,11 +209,7 @@ export function createPublishScheduler({
   // Hands the pass's tally to the callers waiting on it, if any; otherwise it stays for the
   // whenDrained that has not asked yet.
   function releaseWaiters(key) {
-    const waiters = drainWaiters.get(key)
-    if (!waiters) return
-    drainWaiters.delete(key)
-    const t = tallies.take(key)
-    for (const resolve of waiters) resolve(t)
+    if (drainWaiters.has(key)) drainWaiters.release(key, tallies.take(key))
   }
 
   // After an item settled. Order matters: the space's batch closes (onSpaceIdle) BEFORE the share
@@ -205,17 +247,13 @@ export function createPublishScheduler({
       const key = tallyKey(spaceId, shareId)
       const q = queues.get(spaceId)
       if (!q || q.pendingForShare(shareId) === 0) return Promise.resolve(tallies.take(key))
-      return new Promise((resolve) => {
-        const list = drainWaiters.get(key) || []
-        list.push(resolve)
-        drainWaiters.set(key, list)
-      })
+      return drainWaiters.wait(key)
     },
     // Releases the pass NOW (its callers see `cancelled`), while a running item keeps its slot
     // and its place in the queue until the executor honours the abort.
     cancelShare(spaceId, shareId) {
       const q = queues.get(spaceId)
-      const n = q?.cancel((it) => it.shareId === shareId) ?? 0
+      const n = q?.cancel((it) => it.shareId === shareId).length ?? 0
       const key = tallyKey(spaceId, shareId)
       if (q && q.pendingForShare(shareId) > 0) cancelling.add(key)
       tallies.cancel(key)
@@ -223,22 +261,32 @@ export function createPublishScheduler({
       if (!q || isIdle(q)) onSpaceIdle?.(spaceId)
       return n
     },
+    // One path's item, no pass semantics. `exited` resolves once its executor has returned (at
+    // once for an item that never ran) — what a caller that must write after the tail waits for.
+    cancelPath(spaceId, shareId, relPath) {
+      const items = queues.get(spaceId)?.cancel((it) => it.shareId === shareId && it.relPath === relPath) ?? []
+      if (items.length) settleDrain(spaceId, shareId)
+      return { cancelled: items.length, exited: Promise.all(items.map((it) => promiseOf(it.exit))) }
+    },
     async cancelSpace(spaceId, { settleMs = 5000 } = {}) {
-      const n = queues.get(spaceId)?.cancel(() => true) ?? 0
+      const n = queues.get(spaceId)?.cancel(() => true).length ?? 0
       queues.delete(spaceId)
       for (const key of [...drainWaiters.keys()]) {
         if (key.startsWith(spaceId + '\0')) { tallies.cancel(key); releaseWaiters(key) }
       }
-      const deadline = Date.now() + settleMs
-      while ([...running].some((it) => it.spaceId === spaceId) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 25))
-      }
+      await waiters.add(() => heldBy(running, spaceId) === 0, settleMs)
       return n
     },
     isPending(spaceId, shareId, relPath) { return !!queues.get(spaceId)?.isPending(shareId, relPath) },
+    pendingRelPaths(spaceId, shareId) { return queues.get(spaceId)?.pendingRelPaths(shareId) ?? [] },
     isSpaceIdle(spaceId) { const q = queues.get(spaceId); return !q || isIdle(q) },
     statusFor(spaceId, shareId) { return describeShare(queues, running, tallies, spaceId, shareId, order(), concurrency()) },
-    stop() { stopped = true; clear() },
+    // Resolves once every executor has returned (or after the bound); nothing starts after it.
+    stop({ settleMs = 0 } = {}) {
+      stopped = true
+      clear()
+      return waiters.add(() => running.size === 0, settleMs)
+    },
     _reset() {
       stopped = false
       clear()

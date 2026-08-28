@@ -5,7 +5,7 @@
 // popped entry whose gen no longer matches is skipped. An entry carries its OWN copy of the sort
 // keys: the comparator must never read the mutable item, or a fold that raises a queued item's
 // priority leaves its stale entry comparing equal to the new one and the heap order breaks.
-import { STATE, PRIORITY, itemKey, factsOf, createItem, comparatorFor, deferred, promiseOf, settleDeferred } from './work-item.js'
+import { OP, STATE, PRIORITY, itemKey, factsOf, createItem, comparatorFor, deferred, promiseOf, settleDeferred } from './work-item.js'
 
 function createHeap(cmp) {
   const a = []
@@ -44,9 +44,9 @@ function createHeap(cmp) {
 
 const sameFacts = (a, b) => a.op === b.op && a.size === b.size && a.mtime === b.mtime && a.deep === b.deep
 
-// `settled` is read lazily off the run's shared deferred (see work-item.js).
-function ticket(status, d) {
-  return { status, get settled() { return promiseOf(d) } }
+// `settled` and `exited` are read lazily off the run's shared deferreds (see work-item.js).
+function ticket(status, run, exit) {
+  return { status, get settled() { return promiseOf(run) }, get exited() { return promiseOf(exit) } }
 }
 
 export function createPublishQueue({ order = 'fifo' } = {}) {
@@ -77,7 +77,7 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       byKey.set(key, item)
       admit(item)
       push(item)
-      return ticket('queued', item.run)
+      return ticket('queued', item.run, item.exit)
     }
     const priority = Math.max(cur.priority, spec.priority ?? PRIORITY.BULK)
     const facts = factsOf(spec)
@@ -86,10 +86,10 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       // Identical facts (a catch-up diff re-finding a file mid-hash) join the run in flight; only
       // a change the running pass cannot have seen forces exactly one rerun. A cancelled run is
       // never joined — it is not going to finish the work.
-      if (!cur.cancelled && sameFacts(cur.next || cur, facts)) return ticket('deduped', cur.dirty ? cur.rerun : cur.run)
+      if (!cur.cancelled && sameFacts(cur.next || cur, facts)) return ticket('deduped', cur.dirty ? cur.rerun : cur.run, cur.exit)
       cur.dirty = true
       cur.next = facts
-      return ticket('superseded', cur.rerun)
+      return ticket('superseded', cur.rerun, cur.exit)
     }
     // A queued item takes the newest facts, except `deep`, which is sticky: it is the only pass
     // that settles a size-matching file by hash instead of re-advertising it.
@@ -98,7 +98,7 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     admit(cur)
     cur.gen += 1
     push(cur)
-    return ticket('deduped', cur.run)
+    return ticket('deduped', cur.run, cur.exit)
   }
 
   function peek() {
@@ -124,56 +124,71 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     }
   }
 
+  // The executor returned: `exit` settles here in every case, so a caller that must write after
+  // its tail (a direct unshare of the same path) has an event to wait on rather than a timer.
   function settle(item, settlement) {
     if (item.state !== STATE.RUNNING) return item.state
     running -= 1
     bucket(item.shareId).running -= 1
     const run = item.run
+    const exit = item.exit
     if (item.dirty) {
-      // The rerun is a fresh run: its own abort signal, never the cancelled one.
+      // The rerun is a fresh run: its own abort signal, its own exit, never the cancelled one.
       Object.assign(item, item.next || {}, { state: STATE.QUEUED, dirty: false, next: null, cancelled: false, signal: { aborted: false } })
       item.run = item.rerun
       item.rerun = deferred()
+      item.exit = deferred()
       item.gen += 1
       admit(item)
       push(item)
       settleDeferred(run, settlement)
+      settleDeferred(exit, settlement)
       return 'requeued'
     }
     item.state = item.cancelled ? STATE.CANCELLED : settlement.outcome === 'failed' ? STATE.FAILED : STATE.DONE
     byKey.delete(item.key)
     settleDeferred(run, settlement)
     settleDeferred(item.rerun, settlement)
+    settleDeferred(exit, settlement)
     return item.state
   }
 
-  // A queued item leaves at once. A RUNNING item is only signalled: it stays the path's one live
-  // item — still counted as running, still pending for the sweep's probe — until its executor
-  // returns, so a request arriving meanwhile supersedes it into one rerun instead of starting a
-  // second executor whose tail the first one's revert would then overwrite.
+  // A queued item leaves at once (it never ran, so it has exited too). A RUNNING item is only
+  // signalled: it stays the path's one live item — still counted as running, still pending for
+  // the sweep's probe — until its executor returns, so a request arriving meanwhile supersedes it
+  // into one rerun instead of starting a second executor whose tail the first one's revert would
+  // then overwrite. Returns the items it cancelled.
   function cancel(pred) {
-    let n = 0
+    const out = []
     for (const item of [...byKey.values()]) {
       if (!pred(item)) continue
       item.signal.aborted = true
-      item.dirty = false
-      item.next = null
+      // A cancel discards a queued publish rerun — but never a queued RETIRE: that is disk state
+      // (the file is gone), not work the user asked to stop, so it still runs after the abort.
+      const keepRetire = item.next?.op === OP.RETIRE
+      if (!keepRetire) {
+        item.dirty = false
+        item.next = null
+      }
       const cancelled = { outcome: 'cancelled' }
       if (item.state === STATE.QUEUED) {
         release(item)
         item.state = STATE.CANCELLED
         byKey.delete(item.key)
+        settleDeferred(item.exit, cancelled)
       } else {
         item.cancelled = true
       }
       settleDeferred(item.run, cancelled)
-      settleDeferred(item.rerun, cancelled)
-      // A request arriving after the cancel supersedes into a real rerun; it must not inherit
-      // the settlement just handed to the callers the cancel released.
-      item.rerun = deferred()
-      n += 1
+      if (!keepRetire) {
+        // A request arriving after the cancel supersedes into a real rerun; it must not inherit
+        // the settlement just handed to the callers the cancel released.
+        settleDeferred(item.rerun, cancelled)
+        item.rerun = deferred()
+      }
+      out.push(item)
     }
-    return n
+    return out
   }
 
   return {
@@ -183,6 +198,11 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     settle,
     cancel,
     isPending(shareId, relPath) { return byKey.has(itemKey(shareId, relPath)) },
+    pendingRelPaths(shareId) {
+      const out = []
+      for (const item of byKey.values()) if (item.shareId === shareId) out.push(item.relPath)
+      return out
+    },
     pendingForShare(shareId) {
       const b = perShare.get(shareId)
       return b ? b.queued + b.running : 0

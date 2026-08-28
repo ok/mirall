@@ -194,15 +194,19 @@ test('REGRESSION (FIX-F2: cancel removes a restart-orphaned half-publish with no
 })
 
 test('FIX-F2: cancel of a completed row is a no-op (null-hash guard)', async (t) => {
-  const ctx = await setup(t)
+  let updates = 0
+  const ctx = await setup(t, (type) => { if (type === 'event:files-updated') updates += 1 })
   const abs = path.join(ctx.tmpDir('src'), 'k.txt')
   fs.writeFileSync(abs, 'done')
   await looseShareFile(ctx.spaceId, abs)
   t.ok((await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'k.txt'))?.contentHash, 'published')
+  updates = 0
 
   await looseCancelPublish(ctx.spaceId, '/k.txt')
 
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'k.txt'), 'a completed share is not unshared by a stale cancel')
+  // A listener that cancels on every refresh (the re-publish test above) would otherwise loop.
+  t.is(updates, 0, 'a no-op cancel announces nothing')
 })
 
 test('REGRESSION (FIX-F4: boot resume of a null-hash entry emits a live progress bar)', async (t) => {

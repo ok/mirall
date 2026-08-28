@@ -231,3 +231,45 @@ test('bytesForShare tracks the share\'s own queued bytes', (t) => {
   t.is(q.bytesForShare('sh'), 0)
   t.is(q.bytesForShare('other'), 50)
 })
+
+// `exit` is the executor-returned event: settled at once for an item cancelled while queued,
+// and only when the executor comes back for a running one — a cancel releases `run` early.
+test('exit settles when the executor returns, at once for a never-started item', async (t) => {
+  const q = createPublishQueue()
+  const queuedTicket = q.enqueue(pub('a.bin'))
+  const runningTicket = q.enqueue(pub('b.bin'))
+  const b = q.take()
+  t.is(b.relPath, 'a.bin')
+  const running = q.take()
+  t.is(running.relPath, 'b.bin')
+  q.settle(b, done)
+  const items = q.cancel((i) => i.relPath === 'b.bin')
+  t.is(items.length, 1)
+  t.is((await runningTicket.settled).outcome, 'cancelled', 'run is released at cancel time')
+  let exited = false
+  runningTicket.exited.then(() => { exited = true })
+  await Promise.resolve()
+  t.absent(exited, 'exit waits for the executor')
+  q.settle(running, { outcome: 'cancelled' })
+  await runningTicket.exited
+  t.ok(exited)
+  await queuedTicket.exited
+})
+
+// A deleted file's retire folded onto a running re-publish must survive the user cancelling
+// that publish: the retire is disk state, not work the user asked to stop.
+test('a cancel keeps a folded RETIRE rerun and drops a folded publish rerun', (t) => {
+  const q = createPublishQueue()
+  q.enqueue(pub('doc.txt'))
+  const item = q.take()
+  q.enqueue(pub('doc.txt', { op: OP.RETIRE }))
+  q.cancel((i) => i.relPath === 'doc.txt')
+  t.is(q.settle(item, { outcome: 'cancelled' }), 'requeued', 'the retire still runs')
+  t.is(q.take().op, OP.RETIRE)
+
+  q.enqueue(pub('other.txt'))
+  const other = q.take()
+  q.enqueue(pub('other.txt', { size: 7 }))
+  q.cancel((i) => i.relPath === 'other.txt')
+  t.is(q.settle(other, { outcome: 'cancelled' }), STATE.CANCELLED, 'a publish rerun is discarded')
+})
