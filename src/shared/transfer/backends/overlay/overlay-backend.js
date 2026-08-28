@@ -6,9 +6,8 @@
 // with the space content key) → SERVE (register path+hash so the membership-
 // gated protocol can stream chunks to holders' requests) → FETCH (a consumer
 // pulls by content hash from any online holder, verified chunk-by-chunk).
-// Also here: the sender-side "who is downloading" serve ledger, the owner-side
-// scan/presence-sweep reconcile, index compaction, and boot rehydrate of the
-// in-memory serve maps.
+// Also here: the owner-side presence sweep, index compaction, and boot
+// rehydrate of the in-memory serve maps.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createStreamingHasher } from './vendor/chunker.js'

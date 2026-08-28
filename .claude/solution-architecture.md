@@ -143,7 +143,7 @@ Bootstrap:
 2. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`.
 3. `setRuntimeConfig(bootstrap)`, `createLogger('worklet')`.
 4. `initStore` → `initSpaceKeys` → `initProfile` → `initSpaces` → `initDownloads` → `initPendingTransfers` → `loadDrives` (on any drive-load failure, `cleanupOrphanedData()`) → `ensureMembershipManifestCap` → `ensureSharesCap` → `initMounts`.
-5. `initOwnedFolders(ipc)` / `initForeignFolders(ipc)`, then `initBackends(ipc)` + `initLooseOverlay(ipc)`, and finally `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets**. `initForeignFolders` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
+5. `initOwnedFolders(ipc)` / `initForeignFolders(ipc)`, then `initServeLedger(ipc)`, `initBackends(ipc)` + `initLooseOverlay(ipc)`, and finally `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets**. `initForeignFolders` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
 6. Join every existing space's Hyperswarm topic.
 7. **Resume folder shares from persisted mounts.** Owned mount: if `mountPath` is gone, emit `event:owned-folder-mount-status: 'mount-point-gone'`; else start a chokidar watcher, run a catch-up `periodicReconcile`, schedule the recurring reconcile. Enabled foreign mount: `startForeignLoop(mount)` + `initialMaterializeScan`.
 8. Start the **mount-probe loop** (60 s) — re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop.

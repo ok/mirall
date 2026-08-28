@@ -1,7 +1,10 @@
 // Sender-side download indicator: who is currently pulling a file we own, and how far they have
-// got. Fed by the overlay serve path (start, per-chunk bytes, end, control, resume baseline) and
-// read by the renderer over worker IPC. It aggregates signals the backend emits and owns nothing
-// the backend needs, so it lives beside the backend rather than inside it.
+// got. Fed by the overlay serve path (protocol-v2 _onContentRequest/_onChunkNeed: start, per-chunk
+// bytes, end, control, resume baseline), aggregated per file and read by the renderer over worker
+// IPC in two tiers: a cheap always-on summary (peer set + aggregate bytes, drives the collapsed
+// avatar stack) and a per-peer detail stream emitted only for files whose row is expanded
+// (detailSubs), so no per-peer progress is pushed that nobody is looking at. It owns nothing the
+// backend needs, so it lives beside the backend rather than inside it.
 import { serveIndex } from './backends/overlay/overlay-serve-index.js'
 import { record } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from '../audit/audit-sessions.js'
@@ -16,13 +19,6 @@ let ipcRef = null
 export function initServeLedger(ipc) { ipcRef = ipc }
 export function _resetServeLedger() { ipcRef = null; resetServeLedger() }
 
-
-// Who is currently pulling a file WE own, and how far they've got. The overlay
-// serve path (protocol-v2 _onContentRequest/_onChunkNeed) feeds three signals —
-// start, per-chunk bytes, end — which we aggregate per file. Two emission tiers:
-// a cheap always-on summary (peer set + aggregate bytes, drives the collapsed
-// avatar stack), and a per-peer detail stream emitted ONLY for files whose row
-// is expanded (detailSubs), so we never push per-peer progress nobody is looking at.
 const LEDGER_SEP = String.fromCharCode(0)
 const SUMMARY_THROTTLE_MS = 750
 const DETAIL_THROTTLE_MS = 250
