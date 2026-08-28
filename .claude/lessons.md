@@ -28,6 +28,8 @@ Compact, actionable rules distilled from real debugging — gotchas, root causes
 
 ## Testing tactics
 
+**A regression test whose fixture no longer reaches the guarded path passes vacuously.** When a data path moves (profile-bee share prefixes to per-owner catalog keys), the old fixture is filtered out before the code under test runs — the tell is a timing assertion that is green on both sides of a revert. Assert the fixture was ADMITTED (a side effect of the read, a call count, a deficit marker) before asserting the bound.
+
 Testing/a11y **discipline** — the layers, the change-type→coverage matrix, the a11y bar, and frontend scenario authoring (file-sizing, offline-edge, async-probe waits, split-text `sr-only`, timeout-vs-absent) — lives in `testing.md`. Dep-bump baseline-diffing lives in `dependency-updates.md`. Only debugging tactics that aren't reference material stay here:
 
 **Never blanket-replace `console.log/warn/error` in a brittle test** — the runner emits its own TAP through them, so a blanket stub both miscounts (inflated by exactly the number of prior asserts) and swallows the failure diagnostic. Capture by discriminating on the code-under-test's own prefix/tag; forward everything else to the saved real console.
