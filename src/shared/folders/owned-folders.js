@@ -13,13 +13,13 @@ import { getPublishConcurrency, getPublishOrder, getMaxFilesPerShare } from '../
 import { isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/share-catalog.js'
 import { createCatalogBatch } from '../shares/catalog-writer.js'
-import { overlayHashFile, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile, ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { walkDisk } from './walk-disk.js'
 import { exceedsShareFileLimit } from './share-limits.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
-import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey } from './path-keys.js'
+import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
 import { createPublishScheduler } from './publish-scheduler.js'
 import { createPublishRunner, mountRootAvailable } from './publish-runner.js'
@@ -35,6 +35,9 @@ let settleScanRef = null
 
 const reconcileTimers = new Map()
 const POST_EVENT_RECONCILE_MS = 2000
+// A catch-up that deferred a still-settling file re-arms itself with this backoff, so a file
+// written for minutes on end (a log) costs a stat walk every minute, not every two seconds.
+const CATCHUP_BACKOFF_MAX_MS = 60000
 // Longer than chokidar's awaitWriteFinish stabilityThreshold, so a catch-up diff that runs
 // mid-copy leaves the file to the watcher instead of reading it and reverting.
 const SCAN_SETTLE_MS = 2000
@@ -52,9 +55,11 @@ function catalogFor(spaceId) {
   return batch
 }
 
+// Resolves once the batch's last flush has landed. With no batch open it still joins a close in
+// progress, so an awaited "flush before X" holds whichever state the space is in.
 function closeBatch(spaceId) {
   const batch = batches.get(spaceId)
-  if (!batch) return Promise.resolve()
+  if (!batch) return settling.get(spaceId) ?? Promise.resolve()
   batches.delete(spaceId)
   const prev = settling.get(spaceId) ?? Promise.resolve()
   const closed = prev.then(() => batch.close()).catch((err) => log.warn('catalog batch close failed:', err.message))
@@ -63,9 +68,11 @@ function closeBatch(spaceId) {
   return closed
 }
 
+// Lands everything the space's catalog holds: the open batch's buffer and any flush in flight,
+// then a close in progress (the flush may itself have been what the close was waiting on).
 async function settleCatalog(spaceId) {
-  await settling.get(spaceId)
   await batches.get(spaceId)?.flush()
+  await settling.get(spaceId)
 }
 
 async function loadShareForMount(mount) {
@@ -94,11 +101,13 @@ const progress = makeKeyedCoalescer((spaceId, shareId) => {
 }, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
 
 const scheduler = createPublishScheduler({
-  execute: createPublishRunner({ loadShare, catalogFor }),
+  execute: createPublishRunner({ loadShare, catalogFor, settleCatalog }),
   concurrency: getPublishConcurrency,
   order: getPublishOrder,
   log,
   onProgress: (spaceId, shareId) => progress.poke(spaceId, shareId),
+  // The scheduler fires onSpaceIdle (the batch close) before this, so the refresh below waits for
+  // the closing flush and the renderer never re-lists ahead of the pass's last writes.
   onShareDrained: (spaceId, shareId) => {
     progress.flush(spaceId, shareId)
     settleCatalog(spaceId).then(() => ipcRef?.emit('event:share-files-updated', { spaceId, shareId }))
@@ -117,15 +126,25 @@ export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
 
 // Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
 // fsevents coalescing). After watcher activity settles, one catch-up diff publishes stragglers.
-function scheduleCatchupReconcile(mount) {
-  const key = mount.spaceId + ':' + mount.shareId
+// A pass that deferred a still-settling file re-arms itself (with backoff): the deferred file's
+// own add may be the one that was dropped, and nothing else would publish it before the periodic
+// pass. The mount is re-read for the re-arm, so a share deleted or relocated meanwhile is not
+// chased with a stale path.
+function scheduleCatchupReconcile(mount, delayMs = POST_EVENT_RECONCILE_MS) {
+  const { spaceId, shareId } = mount
+  const key = spaceId + ':' + shareId
   clearTimeout(reconcileTimers.get(key))
   const timer = setTimeout(() => {
     reconcileTimers.delete(key)
-    const scan = periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, { deferFresh: true })
-    if (settleScanRef) settleScanRef(scan, mount.spaceId, mount.shareId)
+    const scan = periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, { deferFresh: true })
+    scan.then(async (r) => {
+      if (!(r?.deferred > 0) || r.cancelled) return
+      const current = await getOwnedMount(spaceId, shareId)
+      if (current && !reconcileTimers.has(key)) scheduleCatchupReconcile(current, Math.min(delayMs * 2, CATCHUP_BACKOFF_MAX_MS))
+    }).catch(() => {})
+    if (settleScanRef) settleScanRef(scan, spaceId, shareId)
     else scan.catch((err) => log.debug('catch-up reconcile failed:', err.message))
-  }, POST_EVENT_RECONCILE_MS)
+  }, delayMs)
   timer.unref?.()
   reconcileTimers.set(key, timer)
 }
@@ -172,7 +191,7 @@ export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
     mtime = st.mtimeMs
   } catch {}
   const { settled } = scheduler.enqueue({
-    spaceId, shareId, relPath: driveRel, absPath,
+    spaceId, shareId, relPath: driveRel,
     op: action === 'unlink' ? OP.RETIRE : OP.PUBLISH,
     size, mtime, priority: PRIORITY.INTERACTIVE,
   })
@@ -203,14 +222,14 @@ async function reconcileShare(spaceId, shareId, mountPath, ignore, { deep = fals
 // ones everywhere) and enqueues regardless; the publish then settles equality by hash. A catch-up
 // pass leaves a fresh, never-published file to the watcher's awaitWriteFinish instead of reading
 // it mid-copy; `age >= 0` keeps a future mtime (clock skew) from deferring it forever.
-function needsPublish(prev, info, deep, deferFresh) {
-  if (deep) return true
-  if (prev && prev.size === info.size && prev.mtime === info.mtime && prev.contentHash) return false
+function publishVerdict(prev, info, deep, deferFresh) {
+  if (deep) return 'publish'
+  if (prev && prev.size === info.size && prev.mtime === info.mtime && prev.contentHash) return 'unchanged'
   if (deferFresh && !prev) {
     const age = Date.now() - info.mtime
-    if (age >= 0 && age < SCAN_SETTLE_MS) return false
+    if (age >= 0 && age < SCAN_SETTLE_MS) return 'defer'
   }
-  return true
+  return 'publish'
 }
 
 async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, deferFresh }) {
@@ -240,33 +259,51 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 
   scheduler.beginShare(spaceId, shareId, onDisk.size)
   const specs = []
+  const unchanged = []
+  let deferred = 0
   for (const [relPath, info] of onDisk) {
-    if (!needsPublish(known.get(relPath), info, deep, deferFresh)) continue
-    specs.push({
-      spaceId, shareId, relPath, absPath: pathFromMount(mountPath, relPath),
-      op: OP.PUBLISH, size: info.size, mtime: info.mtime, deep, priority: PRIORITY.BULK,
-    })
+    // A name no catalog key can carry (a '\' in a POSIX file name) is skipped, never a reason to
+    // abort the whole diff.
+    if (relKeyEscapes(relPath)) { log.warn('skipping file whose name cannot be a share key:', relPath); continue }
+    const prev = known.get(relPath)
+    const verdict = publishVerdict(prev, info, deep, deferFresh)
+    if (verdict === 'defer') { deferred += 1; continue }
+    if (verdict === 'unchanged') { unchanged.push([relPath, prev, info]); continue }
+    specs.push({ spaceId, shareId, relPath, op: OP.PUBLISH, size: info.size, mtime: info.mtime, deep, priority: PRIORITY.BULK })
   }
+  // A catalog key with no file behind it is a retire candidate whatever its shape: an escaping
+  // key is poison an older release wrote, and the executor reclaims it without ever resolving
+  // a disk path for it.
   for (const [relPath, entry] of known) {
     if (onDisk.has(relPath) || unreadable.has(relPath)) continue
-    specs.push({
-      spaceId, shareId, relPath, absPath: pathFromMount(mountPath, relPath),
-      op: OP.RETIRE, size: entry.size || 0, priority: PRIORITY.BULK,
-    })
+    specs.push({ spaceId, shareId, relPath, op: OP.RETIRE, size: entry.size || 0, priority: PRIORITY.BULK })
   }
   scheduler.enqueueMany(specs)
+  // A file the diff will not touch still gets the publish path's serve-map check: the catalog
+  // advertising a hash the serve gate does not hold (a transient registerFile failure) must heal
+  // on the next pass, not the next restart.
+  for (const [relPath, prev, info] of unchanged) {
+    try { await ensureServable(spaceId, shareId, relPath, pathFromMount(mountPath, relPath), prev.contentHash, info.size) } catch (err) {
+      log.debug('ensure servable failed:', relPath, '-', err.message)
+    }
+  }
   await touchOwnedMountScan(spaceId, shareId)
-  return { enqueued: specs.length, totalOnDisk: onDisk.size }
+  return { enqueued: specs.length, deferred, totalOnDisk: onDisk.size }
 }
 
-// Resolves after this pass's items have settled with { uploaded, deleted, totalOnDisk }, or with
-// { skipped } when the diff could not run.
+// Resolves after this pass's items have settled with { uploaded, deleted, failed, totalOnDisk,
+// deferred } — plus `cancelled: true` when the pass was cancelled before they did (its counts are
+// then partial and its status must not be recorded) — or with { skipped } when the diff could not run.
 export async function initialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   const r = await reconcileShare(spaceId, shareId, mountPath, ignore, opts)
   if (r.skipped) return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 }
   const t = await scheduler.whenDrained(spaceId, shareId)
   await settleCatalog(spaceId)
-  return { uploaded: t?.uploaded ?? 0, deleted: t?.deleted ?? 0, failed: t?.failed ?? 0, totalOnDisk: r.totalOnDisk }
+  return {
+    uploaded: t?.uploaded ?? 0, deleted: t?.deleted ?? 0, failed: t?.failed ?? 0,
+    totalOnDisk: r.totalOnDisk, deferred: r.deferred ?? 0,
+    ...(t?.cancelled ? { cancelled: true } : {}),
+  }
 }
 
 export const periodicReconcile = initialPublishScan

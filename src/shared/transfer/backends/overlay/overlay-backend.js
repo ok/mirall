@@ -33,6 +33,7 @@ import {
 import { record } from '../../../audit/audit-log.js'
 import { createSessionStore, sessionKey } from '../../../audit/audit-sessions.js'
 import { getOwnedMount } from '../../../folders/mount-store.js'
+import { fileExactlyPresent } from '../../../folders/disk-presence.js'
 import { readOwnShares, readPeerShareEntry } from '../../../shares/shares.js'
 import { listSpaces, getSpace, clearAndPurgeCore } from '../../../spaces/space.js'
 import { getStore } from '../../../core/store.js'
@@ -547,12 +548,23 @@ function resetServeLedger() {
 // Hashing: stream the file through the wire-compatible blake2b (size REQUIRED,
 // or the digest is a plain blake2b that won't match registerFile / the consumer
 // verify). No bytes enter any core — this is overlay's only sender-side cost.
-// onProgress(len) receives the incremental byte count of each read chunk.
-async function hashOnDisk(absPath, size, onProgress) {
+// onProgress(len) receives the incremental byte count of each read chunk. `signal` is polled
+// per chunk like the serve-prep hasher's: a cancelled publish must not hold its slot for the
+// rest of a multi-gigabyte read. Rejects with ECANCELLED, the same code prepareForServe uses.
+async function hashOnDisk(absPath, size, onProgress, signal) {
   const h = createStreamingHasher({ size })
   await new Promise((resolve, reject) => {
     const rs = fs.createReadStream(absPath)
-    rs.on('data', (c) => { h.update(c); onProgress?.(c.length) })
+    rs.on('data', (c) => {
+      if (signal?.aborted) {
+        const err = new Error('hash aborted')
+        err.code = 'ECANCELLED'
+        rs.destroy(err)
+        return
+      }
+      h.update(c)
+      onProgress?.(c.length)
+    })
     rs.on('end', resolve)
     rs.on('error', reject)
   })
@@ -563,8 +575,8 @@ async function hashOnDisk(absPath, size, onProgress) {
 // mirror MUST use this — NOT a plain blake2b — to compare an on-disk copy against
 // a catalog `contentHash`, or the comparison never matches (overlay hashes are
 // leaf/size-prefixed). statSync for the size.
-export async function overlayHashFile(absPath, onProgress) {
-  return hashOnDisk(absPath, fs.statSync(absPath).size, onProgress)
+export async function overlayHashFile(absPath, onProgress, signal) {
+  return hashOnDisk(absPath, fs.statSync(absPath).size, onProgress, signal)
 }
 
 // ── make a local file servable by its content hash + indexed for the serve gate.
@@ -582,6 +594,14 @@ export async function makeServable(spaceId, shareId, relPath, absPath, contentHa
   serveIndex.add(contentHash, spaceId, shareId, relPath)
 }
 
+// The reconcile's self-heal for a file it will NOT re-publish (size+mtime+hash unchanged): a
+// transient registerFile failure, or anything else that left the catalog advertising a hash the
+// serve gate does not hold, is repaired on the next pass. Free when the reference is present.
+export async function ensureServable(spaceId, shareId, relPath, absPath, contentHash, size) {
+  if (serveIndex.hasRef(contentHash, spaceId, shareId, relPath)) return
+  await makeServable(spaceId, shareId, relPath, absPath, contentHash, size)
+}
+
 // Shared publish core (folder + loose), no IPC emit. Advertise FIRST with
 // contentHash:null so the entry is visible to members the instant it is added
 // (consumer status `preparing`), then hash and backfill (catalog update
@@ -591,15 +611,17 @@ export async function makeServable(spaceId, shareId, relPath, absPath, contentHa
 // { changed, contentHash } — contentHash null only when the source is gone / not a file.
 const directCatalog = { advertise: catalogAdvertise, setMaterializedHash, tombstone: catalogTombstone, get: getOwnEntry }
 
-export async function publishContent(spaceId, shareId, relPath, absPath, { onAdvertised, onProgress, signal, catalog = directCatalog } = {}) {
+export async function publishContent(spaceId, shareId, relPath, absPath, { onAdvertised, onProgress, signal, catalog = directCatalog, force = false } = {}) {
   let st
   try { st = fs.statSync(absPath) } catch { return { changed: false, contentHash: null } }
   if (!st.isFile()) return { changed: false, contentHash: null }
 
   // Read through the catalog this publish writes through: a bulk batch can hold a materialized
   // hash for up to its flush window, and reading the bee instead would re-hash that file.
+  // `force` is the deep pass having already proven the content changed under an unchanged
+  // size+mtime — the one case this fast path is blind to.
   const prev = await catalog.get(spaceId, shareId, relPath)
-  if (prev && prev.size === st.size && prev.mtime === st.mtimeMs && prev.contentHash) {
+  if (!force && prev && prev.size === st.size && prev.mtime === st.mtimeMs && prev.contentHash) {
     // Unchanged + already hashed — only ensure it is servable (e.g. after a
     // restart dropped the in-memory serve maps). No catalog write.
     await makeServable(spaceId, shareId, relPath, absPath, prev.contentHash, st.size)
@@ -658,10 +680,16 @@ async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = d
 async function publishOne(spaceId, share, relPath, absPath, { catalog = directCatalog, signal, deep = false } = {}) {
   let ticker = null
   try {
-    if (deep && await skipIfUnchangedDeep(spaceId, share, relPath, absPath, catalog)) return false
+    let force = false
+    if (deep) {
+      const verdict = await deepVerdict(spaceId, share, relPath, absPath, catalog, signal)
+      if (verdict === 'unchanged') return false
+      force = verdict === 'changed'
+    }
     const { changed } = await publishContent(spaceId, share.id, relPath, absPath, {
       catalog,
       signal,
+      force,
       // Refresh the owner's view NOW (the `preparing` row) + start the hashing-progress
       // ticker — the same instant the consumer's peer-catalog append surfaces it.
       onAdvertised: (size) => {
@@ -724,11 +752,19 @@ export async function evictIfUnreferenced(contentHash, spaceId, shareId, relPath
   try { await getOverlay()?.evictContent(contentHash) } catch (err) { log.warn('evictContent failed:', err.message) }
 }
 
-export async function overlayPublishDelete(spaceId, share, relPath) {
-  const prev = await getOwnEntry(spaceId, share.id, relPath)
-  await catalogTombstone(spaceId, share.id, relPath)
-  await evictIfUnreferenced(prev?.contentHash, spaceId, share.id, relPath)
-  ipcRef?.emit('event:share-files-updated', { spaceId, shareId: share.id })
+// A bulk retire writes through the space's catalog batch like a bulk publish (one head for a
+// thousand deletions, not a thousand). The serve reference is dropped only once the tombstone
+// has LANDED — a peer must never see a file still advertised but no longer servable — and for a
+// batched write that wait is off the executor's critical path: the item settles at once, the
+// eviction follows the flush.
+export async function overlayPublishDelete(spaceId, share, relPath, { catalog = directCatalog } = {}) {
+  const prev = await catalog.get(spaceId, share.id, relPath)
+  const staged = await catalog.tombstone(spaceId, share.id, relPath)
+  const evict = () => evictIfUnreferenced(prev?.contentHash, spaceId, share.id, relPath)
+  if (staged?.landed) void staged.landed.then(evict)
+  else await evict()
+  if (catalog === directCatalog) sharesRefresh.flush(spaceId, share.id)
+  else sharesRefresh.touch(spaceId, share.id)
 }
 
 // Reclaim the overlay index: rebuild it without chunk maps for content no longer
@@ -770,24 +806,31 @@ export async function compactOverlayIndex() {
   }
 }
 
-// Deep-scan (relocate) helper: identical content at a new path must not churn. Same size +
-// same content hash → re-point serving at the new path, refresh a drifted mtime, and return
-// true to skip the re-publish; otherwise false.
-async function skipIfUnchanged(spaceId, share, relPath, abs, info, prev, catalog) {
-  if (!prev?.contentHash || prev.size !== info.size) return false
+// Deep-scan (relocate, the Nth periodic pass) verdict for one file, by content hash:
+//   'unchanged' — same size + same hash: serving is re-pointed at the path, a drifted mtime is
+//                 refreshed without re-advertising (no mirror churn), and the publish is skipped;
+//   'changed'   — same size, different hash: an in-place rewrite. The publish MUST run even when
+//                 the mtime is unchanged too (the fast path would call that "already published");
+//   'unknown'   — nothing to compare against (no hash yet, size differs, unreadable): the
+//                 ordinary size+mtime publish decides.
+async function compareDeep(spaceId, share, relPath, abs, info, prev, catalog, signal) {
+  if (!prev?.contentHash || prev.size !== info.size) return 'unknown'
   let diskHash
-  try { diskHash = await overlayHashFile(abs) } catch { return false }
-  if (diskHash !== prev.contentHash) return false
+  try { diskHash = await overlayHashFile(abs, undefined, signal) } catch (err) {
+    if (err?.code === 'ECANCELLED') throw err
+    return 'unknown'
+  }
+  if (diskHash !== prev.contentHash) return 'changed'
   await makeServable(spaceId, share.id, relPath, abs, prev.contentHash, info.size)
   if (prev.mtime !== info.mtime) await catalog.advertise(spaceId, share.id, relPath, { size: info.size, mtime: info.mtime, contentHash: prev.contentHash })
-  return true
+  return 'unchanged'
 }
 
-async function skipIfUnchangedDeep(spaceId, share, relPath, abs, catalog) {
+async function deepVerdict(spaceId, share, relPath, abs, catalog, signal) {
   let st
-  try { st = fs.statSync(abs) } catch { return false }
+  try { st = fs.statSync(abs) } catch { return 'unknown' }
   const prev = await catalog.get(spaceId, share.id, relPath)
-  return await skipIfUnchanged(spaceId, share, relPath, abs, { size: st.size, mtime: st.mtimeMs }, prev, catalog)
+  return await compareDeep(spaceId, share, relPath, abs, { size: st.size, mtime: st.mtimeMs }, prev, catalog, signal)
 }
 
 export async function overlayListOwn(spaceId, shareId, limit = Infinity) {
@@ -1041,8 +1084,10 @@ export async function overlaySweepPresence() {
     for await (const entry of listOwnShare(spaceId, shareId)) {
       const key = presenceGoneKey(spaceId, shareId, entry.relPath)
       if (pendingPublishProbe?.(spaceId, shareId, entry.relPath)) { presenceGone.delete(key); continue }
+      // Exact-name presence, like the retire executor: a following stat would keep a case-only
+      // rename's old key alive forever on a case-folding volume.
       let exists = false
-      try { exists = fs.statSync(pathFromMount(mountPath, entry.relPath)).isFile() } catch {}
+      try { exists = fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch {}
       if (exists) { presenceGone.delete(key); continue }
       if (!presenceGone.has(key)) { presenceGone.add(key); continue } // arm; reclaim only on a 2nd consecutive miss
       presenceGone.delete(key)

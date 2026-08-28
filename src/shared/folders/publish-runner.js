@@ -4,6 +4,7 @@
 import fs from 'bare-fs'
 import { OP, PRIORITY } from './work-item.js'
 import { getOwnedMount } from './mount-store.js'
+import { fileExactlyPresent } from './disk-presence.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 
@@ -15,15 +16,9 @@ export function mountRootAvailable(mountPath) {
   }
 }
 
-function stillOnDisk(absPath) {
-  try {
-    return fs.statSync(absPath).isFile()
-  } catch {
-    return false
-  }
-}
-
-export function createPublishRunner({ loadShare, catalogFor }) {
+// `catalogFor(spaceId)` is the space's catalog batch (created on demand); `settleCatalog(spaceId)`
+// lands everything it holds, including a flush already in flight.
+export function createPublishRunner({ loadShare, catalogFor, settleCatalog }) {
   return async function execute(item) {
     const mount = await getOwnedMount(item.spaceId, item.shareId)
     if (!mount) return { outcome: 'skipped-unmounted' }
@@ -37,19 +32,24 @@ export function createPublishRunner({ loadShare, catalogFor }) {
     let absPath = null
     try { absPath = pathFromMount(mount.mountPath, item.relPath) } catch {}
 
+    // Bulk items write through the space's catalog batch (few atomic heads for the consumer). An
+    // interactive item goes direct so a dropped-in file is visible within milliseconds — after
+    // landing whatever the batch still holds for the space, so a staged put or tombstone for the
+    // same path can never land after the direct write and undo it.
+    const interactive = item.priority === PRIORITY.INTERACTIVE
+    if (interactive) await settleCatalog(item.spaceId)
+    const catalog = interactive ? undefined : catalogFor(item.spaceId)
+
     if (item.op === OP.RETIRE) {
-      // Absence from a stale observation is a candidate; only a file that is really gone is a
-      // delete. A tombstone replicates to every peer. A relPath that escapes the mount is catalog
-      // poison, not a file — reclaim it.
-      if (absPath && stillOnDisk(absPath)) return { outcome: 'skipped-still-present' }
-      await backend.publishDelete(item.spaceId, share, item.relPath)
+      // Absence from a stale observation is a candidate; only a file that is really gone — under
+      // exactly this name — is a delete. A tombstone replicates to every peer. A relPath that
+      // escapes the mount is catalog poison, not a file — reclaim it.
+      if (absPath && fileExactlyPresent(absPath)) return { outcome: 'skipped-still-present' }
+      await backend.publishDelete(item.spaceId, share, item.relPath, { catalog })
       return { outcome: 'retired' }
     }
     if (!absPath) return { outcome: 'failed' }
 
-    // Bulk items write through the space's catalog batch (few atomic heads for the consumer); an
-    // interactive item goes direct so a dropped-in file is visible within milliseconds.
-    const catalog = item.priority === PRIORITY.INTERACTIVE ? undefined : catalogFor(item.spaceId)
     const changed = await backend.publishAdd(item.spaceId, share, item.relPath, absPath, {
       signal: item.signal,
       deep: item.deep,

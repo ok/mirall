@@ -46,8 +46,11 @@ test('a file added mid-index reaches a peer and never disappears from its listin
   t.absent(lostLate, 'and was never tombstoned out from under it')
   t.is(peak, 4, 'converges to the full file count')
 
-  const status = await A.request('owned-folder:index-status', { spaceId, shareId: share.id })
-  t.is(status.queued + status.running, 0, 'the owner reports an idle index')
+  // The peer's listing includes 'preparing' rows (advertised, hash not yet materialized), so it
+  // can reach 4 names while the last hash is still running — wait for the owner to go idle.
+  const idle = await A.until('owned-folder:index-status', { spaceId, shareId: share.id },
+    (s) => s && s.queued + s.running === 0, { ms: 120000 })
+  t.ok(idle, 'the owner reports an idle index')
 })
 
 // REQUIREMENT (per-space queue): a large index in one space must not stall another space's work.
