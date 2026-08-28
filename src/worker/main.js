@@ -55,7 +55,8 @@ import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
 import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload, claimedPathFor } from '../shared/transfer/files.js'
 import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
-import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { initServeLedger, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
@@ -350,6 +351,7 @@ try { await flagUnverifiedJoinedCreators() } catch (err) {
 // accepting connections, so no inbound connection lands without the overlay
 // channel attached, the content/membership handlers set, or the overlay instance
 // created (a connection in that window would silently never get an overlay channel).
+initServeLedger(ipc)
 await initBackends(ipc) // overlay instance + IPC ref when the flag is on
 initLooseOverlay(ipc)
 if (isInPlaceFilesEnabled()) rehydrateLooseFiles().catch((err) => log.debug('loose rehydrate failed:', err.message))

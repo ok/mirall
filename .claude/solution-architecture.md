@@ -967,7 +967,8 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `transfer/files.js` | File listing (state resolver over the loose catalog), reveal, downloaded-file verification + history, owned-source map |
 | `transfer/loose-overlay.js` | In-place loose files served over the overlay instance |
 | `transfer/content-backends.js` | The seam: `getContentBackend(share)` → overlay, else `UNSUPPORTED`. Locked by `content-backend-conformance.test.js`. §7.7 |
-| `transfer/backends/overlay/` | `overlay-backend.js` (the 8-method contract, serve/fetch, sender-side download indicator), `overlay-instance.js` (`HyperOverlayV2` lifecycle + channel attach), `overlay-download.js` (shared consumer engine), `overlay-authorize.js` (the three serve gates, §16), `vendor/` (vendored `hyper-overlay` v2 subset + `PROVENANCE.md`) |
+| `transfer/backends/overlay/` | `overlay-backend.js` (the 7-method content contract: one file's hash, catalog entry, serve registration, fetch), `overlay-instance.js` (`HyperOverlayV2` lifecycle + channel attach; feeds the serve ledger), `overlay-download.js` (shared consumer engine), `overlay-authorize.js` (the three serve gates, §16), `vendor/` (vendored `hyper-overlay` v2 subset + `PROVENANCE.md`) |
+| `transfer/serve-ledger.js` | Sender-side download indicator: who is pulling a file we own and how far — summary tier (always on) + per-peer detail tier (only while a row is subscribed), idle/paused sweeps, audit `serve.completed` sessions. Fed by `overlay-instance.js`, read via `serving:*` IPC. Not a backend concern; `initServeLedger(ipc)` in the worker. |
 | `transfer/download-dest.js` | `resolveDest` — collision-free Downloads naming |
 | `transfer/partial-sweep.js` | `cleanupOrphanedPartials` — boot sweep of unreferenced partials |
 | `transfer/transfer-status.js` | `pausedStatusFor` — derives a row's paused sub-status |
