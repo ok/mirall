@@ -9,7 +9,7 @@ import Hyperdrive from 'hyperdrive'
 import { createLogger } from '../core/logger.js'
 import { getStore, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../core/store.js'
 import { listSpaces, getDrive, purgeCoreDk } from '../spaces/space.js'
-import { getProfileBee, openProfileBee } from '../spaces/profile.js'
+import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { ownCatalog, readCatalogKey } from '../shares/share-catalog.js'
 import { compactStore } from '../transfer/swarm.js'
 import { withReadTimeout } from '../core/with-timeout.js'
@@ -60,18 +60,22 @@ async function addLocalDriveCores(set, drive) {
 // Local read only: a current member's published catalog keys come from their
 // already-replicated profile bee. No core.update (that waits on the swarm and is
 // what made the scan exceed the IPC deadline) and no waiting block reads.
-async function localPeerCatalogKeys(profileKeyHex, spaceId) {
+function localPeerCatalogKeys(profileKeyHex, spaceId) {
+  // The accumulator IS the fallback: a peer bee is by definition partially replicated, so a
+  // mid-stream BLOCK_NOT_AVAILABLE (the reason this read uses `wait: false`) is expected — and
+  // the keys collected before it must still reach the wanted set. Returning an empty list there
+  // would let the reclaim treat a live catalog as an orphan and purge it.
   const keys = []
-  try {
-    const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-    await bee.ready()
+  // sync:false keeps this a purely local read (no head pull), as before; withPeerBee adds the
+  // close the bare open never had.
+  return withPeerBee(profileKeyHex, async (bee) => {
     const prefix = SHARE_PREFIX + spaceId + '/'
     for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' }, { wait: false })) {
       const ck = readCatalogKey(entry.value).keyHex
       if (ck && HEX64.test(ck)) keys.push(ck)
     }
-  } catch { /* unreadable locally → catalog re-replicates on next browse if purged */ }
-  return keys
+    return keys
+  }, { sync: false, fallback: keys })
 }
 
 // Built entirely from local/deterministic sources — no open-by-key, no swarm
