@@ -91,6 +91,7 @@ import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
   previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
   mountRootAvailable, countFolderFiles,
+  getIndexStatus, cancelIndex, stopPublishingForSpace, stopAllPublishing,
 } from '../shared/folders/owned-folders.js'
 import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
 import {
@@ -146,6 +147,7 @@ async function safeShutdown(reason) {
   // short flush window so the departure datagram leaves UDX before destroySwarm drops the socket.
   try { broadcastDeparture() } catch {}
   try { abortInFlightPublishes() } catch {}
+  try { stopAllPublishing() } catch {}
   try { await new Promise((resolve) => { const to = setTimeout(resolve, 150); to.unref?.() }) } catch {}
   try { closeAllMemberViews() } catch {}
   try { await teardownBackends() } catch {}
@@ -842,6 +844,8 @@ async function handleOwnedMountGone(spaceId, shareId) {
   // mount config are left untouched — a missing root is ambiguous, never a delete.
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
   cancelPeriodicReconcile(spaceId, shareId)
+  // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
+  stopOwnedFolder(spaceId, shareId)
   await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
 }
 
@@ -1442,6 +1446,14 @@ ipc.handle('owned-folder:get', async (msg) => {
   return await getOwnedMount(msg.spaceId, msg.shareId)
 })
 
+ipc.handle('owned-folder:index-status', async (msg) => {
+  return getIndexStatus(msg.spaceId, msg.shareId)
+})
+
+ipc.handle('owned-folder:cancel-index', async (msg) => {
+  return { cancelled: cancelIndex(msg.spaceId, msg.shareId) }
+})
+
 // Re-point an owned folder at a new on-disk location after the original source
 // was moved, renamed, or disconnected. The hash-based reconcile recognizes
 // unchanged content at the new path and uploads nothing, so mirror peers see
@@ -1454,6 +1466,9 @@ ipc.handle('owned-folder:relocate', async (msg) => {
 
   // Tear down anything still bound to the old (likely missing) path first.
   cancelPeriodicReconcile(msg.spaceId, msg.shareId)
+  // Queued items carry paths under the old root; the executor re-resolves the mount, but they
+  // must not burn slots either.
+  stopOwnedFolder(msg.spaceId, msg.shareId)
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
   const previousMountPath = mount.mountPath
@@ -1996,6 +2011,9 @@ ipc.handle('space:leave', async (msg) => {
           ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: m.shareId } })
           await deleteOwnedMount(msg.spaceId, m.shareId)
         }
+        // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
+        // that write must land before the purge below closes the catalog core.
+        await stopPublishingForSpace(msg.spaceId)
         // Retire our share advertisements (deletedAt), like the unshare path. Without this our
         // profile bee keeps advertising share/<S>/<id>, so on a rejoin a co-member reads it back
         // and a folder they mirrored re-surfaces before any re-approval. The per-space drive is
