@@ -138,3 +138,97 @@ test('get() reads through staged and in-flight ops (read-your-writes)', async (t
   await flushing
   t.is(bee.store.get(fileKey('sh', 'b')).contentHash, 'h2', 'and it lands')
 })
+
+
+// Like fakeBee, but a batch's puts land only on flush() — a real Hyperbee batch is atomic, and
+// the read-your-writes tests below are about the window in which a flush has NOT landed.
+function txBee(initial = {}) {
+  const store = new Map(Object.entries(initial))
+  return {
+    store,
+    get: async (k) => (store.has(k) ? { value: store.get(k) } : null),
+    batch() {
+      const pending = new Map()
+      return {
+        async get(k) { return pending.has(k) ? { value: pending.get(k) } : store.has(k) ? { value: store.get(k) } : null },
+        async put(k, v) { pending.set(k, v) },
+        async flush() { for (const [k, v] of pending) store.set(k, v) },
+        async close() {},
+      }
+    },
+  }
+}
+
+// REGRESSION (FIX-CATALOG-GET-SHADOW: get() read `buffer.get(key) ?? inflight.get(key)`, so a
+// buffered setHash shadowed the in-flight put for the same key and fell through to a bee that did
+// not hold the put yet → null for an advertised, hashed entry; a rerun reading that null
+// re-advertised and re-hashed the whole file.)
+test('REGRESSION (FIX-CATALOG-GET-SHADOW): a staged setHash over an in-flight put reads as the full entry', async (t) => {
+  const bee = txBee()
+  let release
+  const origBatch = bee.batch.bind(bee)
+  bee.batch = () => { const b = origBatch(); const f = b.flush; b.flush = async () => { await new Promise((r) => { release = r }); return f() }; return b }
+  const w = createCatalogBatch('sp', { flushMs: 999999, maxOps: 1000, resolveBee: () => bee })
+
+  await w.advertise('sp', 'sh', 'a', { size: 1, mtime: 1 })
+  const flushing = w.flush()
+  await new Promise((r) => setTimeout(r, 0))
+  await w.setMaterializedHash('sp', 'sh', 'a', 'hA')
+  t.alike(await w.get('sp', 'sh', 'a'), { relPath: 'a', size: 1, mtime: 1, contentHash: 'hA' }, 'put (in flight) + setHash (staged)')
+  bee.batch = origBatch
+  release()
+  await flushing
+  await w.close()
+  t.alike(bee.store.get(fileKey('sh', 'a')), { size: 1, mtime: 1, contentHash: 'hA' })
+})
+
+// REGRESSION (FIX-CATALOG-GET-QUEUED: ops handed to a flush queued behind a running one sat in
+// neither the buffer nor `inflight` until their turn came — invisible to get().)
+test('REGRESSION (FIX-CATALOG-GET-QUEUED): ops in a flush queued behind another are still visible', async (t) => {
+  const bee = txBee()
+  let release
+  const origBatch = bee.batch.bind(bee)
+  bee.batch = () => { const b = origBatch(); const f = b.flush; b.flush = async () => { await new Promise((r) => { release = r }); return f() }; return b }
+  const w = createCatalogBatch('sp', { flushMs: 999999, maxOps: 1000, resolveBee: () => bee })
+
+  await w.advertise('sp', 'sh', 'a', { size: 1, mtime: 1 })
+  const first = w.flush()
+  await new Promise((r) => setTimeout(r, 0))
+  await w.advertise('sp', 'sh', 'b', { size: 2, mtime: 2 })
+  const second = w.flush()
+  t.alike(await w.get('sp', 'sh', 'b'), { relPath: 'b', size: 2, mtime: 2, contentHash: null }, 'queued behind the running flush')
+  await w.tombstone('sp', 'sh', 'b')
+  t.is(await w.get('sp', 'sh', 'b'), null, 'a staged tombstone over the queued put')
+  bee.batch = origBatch
+  release()
+  await first
+  await second
+  await w.close()
+  t.ok(bee.store.get(fileKey('sh', 'b')).deletedAt, 'and it all lands in order')
+})
+
+test('get() layers a bee-resident entry under a queued setHash and a later put', async (t) => {
+  const bee = fakeBee({ [fileKey('sh', 'a')]: { size: 1, mtime: 1, contentHash: null } })
+  bee.get = async (k) => (bee.store.has(k) ? { value: bee.store.get(k) } : null)
+  const w = createCatalogBatch('sp', { flushMs: 999999, maxOps: 1000, resolveBee: () => bee })
+  await w.setMaterializedHash('sp', 'sh', 'a', 'h1')
+  t.is((await w.get('sp', 'sh', 'a')).contentHash, 'h1')
+  await w.advertise('sp', 'sh', 'a', { size: 9, mtime: 9 })
+  t.alike(await w.get('sp', 'sh', 'a'), { relPath: 'a', size: 9, mtime: 9, contentHash: null }, 'a re-advertise replaces the staged hash')
+  await w.close()
+})
+
+test('a staged write resolves to a promise for the flush that lands it', async (t) => {
+  const bee = fakeBee({ [fileKey('sh', 'a')]: { size: 1, mtime: 1, contentHash: 'h' } })
+  const clk = fakeClock()
+  const w = createCatalogBatch('sp', { flushMs: 2500, maxOps: 1000, schedule: clk.schedule, clear: clk.clear, resolveBee: () => bee })
+  const { landed } = await w.tombstone('sp', 'sh', 'a')
+  let done = false
+  landed.then(() => { done = true })
+  await new Promise((r) => setTimeout(r, 0))
+  t.absent(done, 'not before the flush')
+  clk.advance(2500)
+  await landed
+  t.ok(bee.store.get(fileKey('sh', 'a')).deletedAt, 'landed means landed')
+  await w.close()
+})
