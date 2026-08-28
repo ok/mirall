@@ -19,6 +19,9 @@ export function createCatalogBatch(spaceId, {
   resolveBee = () => ownCatalog(spaceId),
 } = {}) {
   let buffer = new Map()
+  // Ops handed to a flush that has not landed yet. Read-your-writes (get) consults it, so a
+  // publish never re-hashes a file whose materialized hash is mid-flush.
+  let inflight = new Map()
   let timer = null
   let flushing = Promise.resolve()
   let closed = false
@@ -52,6 +55,7 @@ export function createCatalogBatch(spaceId, {
     // the void-flush paths, and abort the whole scan. Log and continue; dropped ops self-heal
     // on the next full scan.
     flushing = flushing.then(async () => {
+      inflight = pending
       const bee = await resolveBee()
       const batch = bee.batch()
       try {
@@ -71,6 +75,8 @@ export function createCatalogBatch(spaceId, {
       } catch (err) {
         try { await batch.close?.() } catch {}
         log.warn('catalog batch flush dropped ' + pending.size + ' op(s):', err.message)
+      } finally {
+        if (inflight === pending) inflight = new Map()
       }
     })
     return flushing
@@ -85,6 +91,18 @@ export function createCatalogBatch(spaceId, {
     },
     async tombstone(_spaceId, shareId, relPath) {
       stage(fileKey(shareId, relPath), { kind: 'tombstone' })
+    },
+    // What a reader of THIS batch sees for a path: staged and in-flight ops over the bee.
+    async get(_spaceId, shareId, relPath) {
+      const key = fileKey(shareId, relPath)
+      const op = buffer.get(key) ?? inflight.get(key)
+      if (op?.kind === 'tombstone') return null
+      if (op?.kind === 'put') return { relPath, size: op.value.size, mtime: op.value.mtime, contentHash: op.value.contentHash ?? null }
+      const bee = await resolveBee()
+      const node = await bee.get(key)
+      if (!node?.value || node.value.deletedAt) return null
+      const base = { relPath, size: node.value.size, mtime: node.value.mtime, contentHash: node.value.contentHash ?? null }
+      return op?.kind === 'setHash' ? { ...base, contentHash: op.contentHash } : base
     },
     flush,
     async close() { closed = true; await flush() },

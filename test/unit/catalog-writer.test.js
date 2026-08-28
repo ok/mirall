@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
+import { fileKey } from '../../src/shared/shares/share-catalog.js'
 
 function fakeBee(initial = {}) {
   const store = new Map(Object.entries(initial))
@@ -105,4 +106,35 @@ test('REGRESSION (FIX-133): a flush error is best-effort — the chain self-heal
   await w.advertise('sp', 'sh', 'b', { size: 2, mtime: 2 })
   await w.close() // would reject if the chain were poisoned
   t.alike(bee.store.get('file/sh/b'), { size: 2, mtime: 2, contentHash: null }, 'ops staged after the error still commit')
+})
+
+// A publish that writes through a batch must read through it too: a bulk item's materialized hash
+// can sit staged (or mid-flush) for up to the flush window, and a reader that consults only the
+// bee re-hashes a file whose hash is already in hand.
+test('get() reads through staged and in-flight ops (read-your-writes)', async (t) => {
+  const bee = fakeBee({ [fileKey('sh', 'b')]: { size: 2, mtime: 2, contentHash: null } })
+  bee.get = async (k) => (bee.store.has(k) ? { value: bee.store.get(k) } : null)
+  const clk = fakeClock()
+  const w = createCatalogBatch('sp', { flushMs: 2500, maxOps: 1000, schedule: clk.schedule, clear: clk.clear, resolveBee: () => bee })
+
+  t.is(await w.get('sp', 'sh', 'a'), null, 'nothing anywhere')
+  await w.advertise('sp', 'sh', 'a', { size: 1, mtime: 1 })
+  t.alike(await w.get('sp', 'sh', 'a'), { relPath: 'a', size: 1, mtime: 1, contentHash: null }, 'a staged advertise is visible before any flush')
+  await w.setMaterializedHash('sp', 'sh', 'a', 'h1')
+  t.is((await w.get('sp', 'sh', 'a')).contentHash, 'h1', 'a staged hash is visible')
+  await w.setMaterializedHash('sp', 'sh', 'b', 'h2')
+  t.is((await w.get('sp', 'sh', 'b')).contentHash, 'h2', 'a staged hash overlays a bee-resident entry')
+  await w.tombstone('sp', 'sh', 'a')
+  t.is(await w.get('sp', 'sh', 'a'), null, 'a staged tombstone hides the entry')
+
+  // Mid-flush: the ops have left the buffer but not yet landed in the bee.
+  let release
+  const origBatch = bee.batch.bind(bee)
+  bee.batch = () => { const b = origBatch(); const f = b.flush; b.flush = async () => { await new Promise((r) => { release = r }); return f() }; return b }
+  const flushing = w.flush()
+  await new Promise((r) => setTimeout(r, 0))
+  t.is((await w.get('sp', 'sh', 'b')).contentHash, 'h2', 'an in-flight hash is still visible')
+  release()
+  await flushing
+  t.is(bee.store.get(fileKey('sh', 'b')).contentHash, 'h2', 'and it lands')
 })

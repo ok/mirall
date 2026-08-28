@@ -5,7 +5,8 @@ import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent, initialPublishScan, periodicReconcile, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
 import { saveOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlaySweepPresence } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlaySweepPresence, overlayPublishAdd } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -245,6 +246,27 @@ test('REGRESSION (FIX-133): a watcher add is visible before the next batch flush
   fs.writeFileSync(abs, 'n'.repeat(4096))
   await onFsEvent(spaceId, share.id, 'add', 'now.bin', abs)
   t.ok((await listRelPaths(share, spaceId)).includes('now.bin'), 'visible the moment the event settles')
+})
+
+// REGRESSION (READ-YOUR-WRITES): a bulk publish stages its catalog writes in the space batch. A
+// second request for the same path arriving before the batch flushes — a catch-up diff whose
+// catalog read predates the item's settle — must see those staged writes, or it re-hashes a file
+// whose hash is already in hand (25 reads for 24 files on a slow CI runner).
+test('REGRESSION (READ-YOUR-WRITES): a publish sees its own unflushed catalog writes', { timeout: 60000 }, async (t) => {
+  const { spaceId, share, mountPath } = await setupOwnedShare(t)
+  t.teardown(() => stopOwnedFolder(spaceId, share.id))
+  const cfg = getRuntimeConfig()
+  setRuntimeConfig({ ...cfg, catalogFlushMs: 60000, catalogFlushMaxOps: 1000 })
+  t.teardown(() => setRuntimeConfig(cfg))
+  const abs = path.join(mountPath, 'once.bin')
+  fs.writeFileSync(abs, 'o'.repeat(4096))
+  const probe = slowHash(t, 10)
+  const batch = createCatalogBatch(spaceId)
+  await overlayPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
+  await overlayPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
+  t.is(probe.counts()['once.bin'], 1, 'the second publish fast-paths on the staged hash')
+  await batch.close()
+  t.ok((await listRelPaths(share, spaceId)).includes('once.bin'))
 })
 
 test('ordering is honored end to end', { timeout: 90000 }, async (t) => {

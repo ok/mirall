@@ -589,14 +589,16 @@ export async function makeServable(spaceId, shareId, relPath, absPath, contentHa
 // after the advertise, before the slow hash, so a caller can refresh its UI at
 // advertise-time; onProgress(len) gets the incremental hashed-byte count. Returns
 // { changed, contentHash } — contentHash null only when the source is gone / not a file.
-const directCatalog = { advertise: catalogAdvertise, setMaterializedHash, tombstone: catalogTombstone }
+const directCatalog = { advertise: catalogAdvertise, setMaterializedHash, tombstone: catalogTombstone, get: getOwnEntry }
 
 export async function publishContent(spaceId, shareId, relPath, absPath, { onAdvertised, onProgress, signal, catalog = directCatalog } = {}) {
   let st
   try { st = fs.statSync(absPath) } catch { return { changed: false, contentHash: null } }
   if (!st.isFile()) return { changed: false, contentHash: null }
 
-  const prev = await getOwnEntry(spaceId, shareId, relPath)
+  // Read through the catalog this publish writes through: a bulk batch can hold a materialized
+  // hash for up to its flush window, and reading the bee instead would re-hash that file.
+  const prev = await catalog.get(spaceId, shareId, relPath)
   if (prev && prev.size === st.size && prev.mtime === st.mtimeMs && prev.contentHash) {
     // Unchanged + already hashed — only ensure it is servable (e.g. after a
     // restart dropped the in-memory serve maps). No catalog write.
@@ -784,7 +786,7 @@ async function skipIfUnchanged(spaceId, share, relPath, abs, info, prev, catalog
 async function skipIfUnchangedDeep(spaceId, share, relPath, abs, catalog) {
   let st
   try { st = fs.statSync(abs) } catch { return false }
-  const prev = await getOwnEntry(spaceId, share.id, relPath)
+  const prev = await catalog.get(spaceId, share.id, relPath)
   return await skipIfUnchanged(spaceId, share, relPath, abs, { size: st.size, mtime: st.mtimeMs }, prev, catalog)
 }
 
