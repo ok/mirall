@@ -91,6 +91,7 @@ import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
   previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
   mountRootAvailable, countFolderFiles,
+  getIndexStatus, cancelIndex, stopPublishingForSpace, stopAllPublishing,
 } from '../shared/folders/owned-folders.js'
 import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
 import {
@@ -146,6 +147,7 @@ async function safeShutdown(reason) {
   // short flush window so the departure datagram leaves UDX before destroySwarm drops the socket.
   try { broadcastDeparture() } catch {}
   try { abortInFlightPublishes() } catch {}
+  try { stopAllPublishing() } catch {}
   try { await new Promise((resolve) => { const to = setTimeout(resolve, 150); to.unref?.() }) } catch {}
   try { closeAllMemberViews() } catch {}
   try { await teardownBackends() } catch {}
@@ -842,16 +844,22 @@ async function handleOwnedMountGone(spaceId, shareId) {
   // mount config are left untouched — a missing root is ambiguous, never a delete.
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
   cancelPeriodicReconcile(spaceId, shareId)
+  // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
+  stopOwnedFolder(spaceId, shareId)
   await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
 }
 
 // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
 // with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
 // — so treating any resolution as 'active' would durably record a healthy scan that never ran.
-// Returns the settled result (null on failure) so callers can gate their scan-completed emit.
+// A pass that was CANCELLED (delete, relocate, leave, cancel-index) records nothing: whoever
+// cancelled it owns the status from here, and a late 'active' would race a delete's mount
+// removal back into a zombie record. Returns the settled result (null on failure) so callers can
+// gate their scan-completed emit.
 async function settleScanStatus(promise, spaceId, shareId) {
   try {
     const result = await promise
+    if (result?.cancelled) return result
     if (result?.skipped === 'mount-point-gone') await handleOwnedMountGone(spaceId, shareId)
     else if (result?.skipped) await setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
     else await setOwnedStatus(spaceId, shareId, 'active')
@@ -1423,6 +1431,9 @@ ipc.handle('owned-folder:mount', async (msg) => {
 
   settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
     .then(async (result) => {
+      // Cancelled mid-index: whoever cancelled (delete, relocate, leave, cancel-index) owns the
+      // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.
+      if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
       // One row for the deliberate act, carrying the totals from the initial scan. The recurring
       // reconcile deliberately records nothing — it is machine churn, not a user action.
@@ -1442,6 +1453,22 @@ ipc.handle('owned-folder:get', async (msg) => {
   return await getOwnedMount(msg.spaceId, msg.shareId)
 })
 
+ipc.handle('owned-folder:index-status', async (msg) => {
+  return getIndexStatus(msg.spaceId, msg.shareId)
+})
+
+// Stops the current index; the share stays mounted and watched. The cancelled pass would have
+// recorded 'active' and armed the periodic reconcile on completion — do both here instead.
+ipc.handle('owned-folder:cancel-index', async (msg) => {
+  const cancelled = cancelIndex(msg.spaceId, msg.shareId)
+  const mount = await getOwnedMount(msg.spaceId, msg.shareId)
+  if (mount) {
+    await setOwnedStatus(msg.spaceId, msg.shareId, 'active')
+    schedulePeriodicReconcile(msg.spaceId, msg.shareId, mount.mountPath, mount.ignore)
+  }
+  return { cancelled }
+})
+
 // Re-point an owned folder at a new on-disk location after the original source
 // was moved, renamed, or disconnected. The hash-based reconcile recognizes
 // unchanged content at the new path and uploads nothing, so mirror peers see
@@ -1454,6 +1481,9 @@ ipc.handle('owned-folder:relocate', async (msg) => {
 
   // Tear down anything still bound to the old (likely missing) path first.
   cancelPeriodicReconcile(msg.spaceId, msg.shareId)
+  // Queued items carry paths under the old root; the executor re-resolves the mount, but they
+  // must not burn slots either.
+  stopOwnedFolder(msg.spaceId, msg.shareId)
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
   const previousMountPath = mount.mountPath
@@ -1472,6 +1502,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
   settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
     .then((result) => {
+      if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
       schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
     })
@@ -1996,6 +2027,9 @@ ipc.handle('space:leave', async (msg) => {
           ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: m.shareId } })
           await deleteOwnedMount(msg.spaceId, m.shareId)
         }
+        // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
+        // that write must land before the purge below closes the catalog core.
+        await stopPublishingForSpace(msg.spaceId)
         // Retire our share advertisements (deletedAt), like the unshare path. Without this our
         // profile bee keeps advertising share/<S>/<id>, so on a rejoin a co-member reads it back
         // and a folder they mirrored re-surfaces before any re-approval. The per-space drive is

@@ -11,7 +11,6 @@ export const overlayBackend = {
   mode: 'overlay',
   publishAdd: A.overlayPublishAdd,
   publishDelete: A.overlayPublishDelete,
-  scan: A.overlayScan,
   listOwn: A.overlayListOwn,
   listPeerWithMeta: A.overlayListPeerWithMeta,
   requestDownload: A.overlayRequestDownload,

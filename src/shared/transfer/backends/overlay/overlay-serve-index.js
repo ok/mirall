@@ -67,6 +67,12 @@ export const serveIndex = {
     return hashToRefs.has(contentHash)
   },
 
+  // Whether THIS (space, share, path) still holds a reference on the hash — the reconcile's
+  // cheap "already servable?" check before it re-registers an unchanged file.
+  hasRef(contentHash, spaceId, shareId, relPath) {
+    return hashToRefs.get(contentHash)?.has(refKey(spaceId, shareId, relPath)) === true
+  },
+
   _reset() {
     hashToRefs.clear()
   },
