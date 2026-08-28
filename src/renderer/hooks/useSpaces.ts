@@ -5,31 +5,42 @@ import { scopeMatches, type Scope as ScopeType } from '../scope.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
 import { pruneSpaceCardState } from './useSpaceCardState.js'
+import { pruneShareCache } from './useShares.js'
 import type { Space } from '../types.js'
 
-export function useSpaces() {
-  const [spaces, setSpaces] = useState<Space[]>([])
-  const [loading, setLoading] = useState(true)
+// Last-known list, shared by every hook instance and kept across mounts. The home screen
+// unmounts on every trip into a space, so without this each return starts from zero spaces
+// while spaces:list resolves — long enough to paint the "no spaces yet" hero over an account
+// that has spaces.
+let spacesCache: Space[] | null = null
 
-  async function refresh() {
-    const data = await request('spaces:list') as Space[]
+export function useSpaces() {
+  const [spaces, setSpaces] = useState<Space[]>(() => spacesCache ?? [])
+  const [loading, setLoading] = useState(() => spacesCache === null)
+
+  function adopt(data: Space[]) {
+    spacesCache = data
     setSpaces(data)
     pruneRosterCache(data.map((s) => s.spaceId))
     pruneMirrorCache(data.map((s) => s.spaceId))
     pruneSpaceCardState(data.map((s) => s.spaceId))
-    setLoading(false)
+    pruneShareCache(data.map((s) => s.spaceId))
+  }
+
+  async function refresh() {
+    // A rejection must still settle `loading`, or the empty-state gate below it waits forever
+    // and the screen stays blank instead of saying there is nothing here.
+    try {
+      adopt(await request('spaces:list') as Space[])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     refresh()
     const unsub1 = subscribe('event:state', (msg) => {
-      if (msg.spaces) {
-        const data = msg.spaces as Space[]
-        setSpaces(data)
-        pruneRosterCache(data.map((s) => s.spaceId))
-        pruneMirrorCache(data.map((s) => s.spaceId))
-        pruneSpaceCardState(data.map((s) => s.spaceId))
-      }
+      if (msg.spaces) adopt(msg.spaces as Space[])
     })
     // This list spans every space, so it is a wildcard view on the members/join-requests axes:
     // any hint of those kinds re-derives it (member joins/leaves/avatars land as post-persist
