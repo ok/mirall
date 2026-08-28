@@ -24,6 +24,9 @@ import { makeProgressTicker } from './progress-ticker.js'
 import { nextFreeName } from '../folders/path-keys.js'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
+import { publishScheduler, registerPublishChannel, whenPathIdle } from '../folders/publish-service.js'
+import { OP, PRIORITY } from '../folders/work-item.js'
+import { fileExactlyPresent } from '../folders/disk-presence.js'
 import { createLogger } from '../core/logger.js'
 import { supersedeDecision, republishDecision } from './supersede-decision.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
@@ -65,22 +68,24 @@ function disarmWatch (spaceId, absPath) {
   ipcRef?.emit('main-request', { command: 'loose-file:unwatch', args: { spaceId, absPath } })
 }
 
-// Serialize every per-space mutation (publish, unshare, sweep) so a share and a
-// concurrent unshare can't interleave and the cap + name checks stay atomic.
+// Serializes the admission step (name + cap) and the direct unshare per space. The hash itself
+// runs on the publish service's lane — one bounded lane and one ordering policy for every file
+// the user shares, loose or folder — never under this lock.
 const withSpaceLock = createKeyedLock()
 
-// Pick the relPath for a new/changed share under the lock: an already-tracked
-// source keeps its name with NO catalog scan (the hot change-event path); a new
-// source does ONE catalog pass yielding both the count (cap) and the taken names
-// (suffix-on-collision). Returns { relPath, isNew }.
+const LOOSE_SHARE = { id: LOOSE_SHARE_ID, contentMode: 'overlay' }
+
+// Pick the relPath for a new/changed share under the lock: an already-tracked source keeps its
+// name with NO catalog scan (the hot change-event path); a new source does ONE catalog pass
+// yielding the taken names (suffix-on-collision) and the count for the cap — including names
+// queued but not yet advertised, or two quick adds could both pass the cap.
 async function resolveLooseName (spaceId, absPath, fileName) {
   const tracked = looseSourceFor(absPath, spaceId)
   if (tracked) return tracked
 
   const base = fileName || path.basename(absPath)
-  const takenNames = new Set()
-  let count = 0
-  for await (const e of listOwnShare(spaceId, LOOSE_SHARE_ID)) { takenNames.add(e.relPath); count++ }
+  const takenNames = new Set(publishScheduler.pendingRelPaths(spaceId, LOOSE_SHARE_ID))
+  for await (const e of listOwnShare(spaceId, LOOSE_SHARE_ID)) takenNames.add(e.relPath)
 
   let relPath = base
   let isNew = true
@@ -90,25 +95,69 @@ async function resolveLooseName (spaceId, absPath, fileName) {
     else relPath = nextFreeName(base, (c) => takenNames.has(c))
   }
   // Cap applies only to genuinely new entries; an update at the cap is allowed.
-  if (isNew && count >= MAX_LOOSE_FILES_PER_SPACE) {
+  if (isNew && takenNames.size >= MAX_LOOSE_FILES_PER_SPACE) {
     throw new AppError(ErrorCodes.LOOSE_FILE_LIMIT, `Limit of ${MAX_LOOSE_FILES_PER_SPACE} shared files per space reached`)
   }
   return relPath
 }
 
-export function looseShareFile (spaceId, absPath, fileName) {
-  return withSpaceLock(spaceId, () => doLooseShareFile(spaceId, absPath, fileName))
+// Resolves once the file is published (or its publish was cancelled), like the inline hash it
+// replaces, so files:add still returns when the file is really shared.
+export async function looseShareFile (spaceId, absPath, fileName) {
+  const ticket = await withSpaceLock(spaceId, async () => {
+    const relPath = await resolveLooseName(spaceId, absPath, fileName)
+    // Durable BEFORE the hash: a quit mid-hash finds the source at boot and resumes instead of
+    // stranding a permanent "Adding"; it is also what the executor resolves the path from.
+    await markOwnedSource(spaceId, drivePathOf(relPath), absPath)
+    trackSource(absPath, spaceId, relPath)
+    // Enqueued under the lock, so the next admission already sees this name pending.
+    return startLoosePublish(spaceId, relPath, absPath, PRIORITY.INTERACTIVE)
+  })
+  return await settledWithTail(spaceId, ticket.relPath, await ticket.settled, absPath)
 }
 
-// (spaceId|relPath) -> { aborted } signal for an in-flight publish (the long hash).
-const activePublishes = new Map()
-const publishKey = (spaceId, relPath) => spaceId + '|' + relPath
+function startLoosePublish (spaceId, relPath, absPath, priority) {
+  let size = 0
+  let mtime = 0
+  try {
+    const st = fs.statSync(absPath)
+    size = st.size
+    mtime = st.mtimeMs
+  } catch {}
+  const { settled } = publishScheduler.enqueue({ kind: 'loose', spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.PUBLISH, size, mtime, priority })
+  return { relPath, settled }
+}
+
+async function enqueueLoosePublish (spaceId, relPath, priority) {
+  const src = await getOwnedSourcePath(spaceId, drivePathOf(relPath))
+  const ticket = startLoosePublish(spaceId, relPath, src, priority)
+  return await settledWithTail(spaceId, relPath, await ticket.settled, src)
+}
+
+async function enqueueLooseRetire (spaceId, relPath, priority) {
+  const { settled } = publishScheduler.enqueue({ kind: 'loose', spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.RETIRE, priority })
+  return await settledWithTail(spaceId, relPath, await settled)
+}
+
+// A cancel releases the caller at once while the executor still has to honour the abort and
+// revert; the caller (files:add, a watcher event, the sweep) resolves only once that tail has
+// landed, as the inline publish it replaces did. A cancel is not a failure (the user stopped
+// it); a real error propagates.
+async function settledWithTail (spaceId, relPath, outcome, absPath = null) {
+  if (outcome.outcome === 'cancelled') {
+    await whenPathIdle(spaceId, LOOSE_SHARE_ID, relPath)
+    // An item cancelled while still queued ran no executor and so no failure hook: drop the
+    // admission-time link and tracking if nothing was ever advertised for the path.
+    await clearOwnedSourceIfUnshared(spaceId, relPath, absPath)
+  }
+  if (outcome.outcome === 'failed' && outcome.error) throw outcome.error
+  return outcome
+}
 
 export async function looseCancelPublish (spaceId, drivePath) {
   const relPath = rel(drivePath)
-  const sig = activePublishes.get(publishKey(spaceId, relPath))
-  if (sig) { sig.aborted = true; return }
-  // No live task — the publish was orphaned by a restart before any boot resume re-registered it.
+  if (publishScheduler.cancelPath(spaceId, LOOSE_SHARE_ID, relPath)) return
+  // No live item — the publish was orphaned by a restart before any boot resume re-registered it.
   // Removing the half-advertised entry makes the cancel control mean something instead of no-opping.
   // Re-read the entry UNDER the lock and bail if it is no longer a null-hash placeholder: a boot
   // resume that completed while this cancel waited for the lock must not have its finished, already
@@ -122,82 +171,69 @@ export async function looseCancelPublish (spaceId, drivePath) {
   ipcRef?.emit('event:files-updated', { spaceId })
 }
 
-function isPublishActive (spaceId, relPath) {
-  return activePublishes.has(publishKey(spaceId, relPath))
-}
-
-async function doLooseShareFile (spaceId, absPath, fileName) {
-  const relPath = await resolveLooseName(spaceId, absPath, fileName)
-  await runLoosePublish(spaceId, relPath, absPath)
-}
-
-// The publish body shared by a fresh share, a change re-publish and a boot resume: register a
-// cancellable signal, advertise + drive a live progress ticker, record the advertise-time source,
-// and clean up a reverted/aborted publish. Lock-free — the caller holds the space lock.
-async function runLoosePublish (spaceId, relPath, absPath) {
-  const key = publishKey(spaceId, relPath)
-  const signal = { aborted: false }
-  activePublishes.set(key, signal)
-  let ticker = null
-  try {
-    const { changed, contentHash } = await publishContent(spaceId, LOOSE_SHARE_ID, relPath, absPath, {
-      signal,
-      onAdvertised: async (size) => {
-        ticker = makeProgressTicker(size, ({ bytes, total, speed, eta }) => {
-          deco(spaceId, drivePathOf(relPath), { phase: 'publishing', bytes, total, speed, eta })
-          broadcastSharePrepare(spaceId, { shareId: LOOSE_SHARE_ID, relPath, bytes, total, eta })
-        })
-        // Persist the source link BEFORE the (minutes-long) hash, so a quit mid-hash is
-        // recoverable: boot rehydration finds the source and re-hashes the null-hash entry
-        // instead of stranding it as a permanent "Adding". Persist before the emit so a
-        // consumer refreshing on it already sees the link.
-        try { await markOwnedSource(spaceId, drivePathOf(relPath), absPath) } catch (err) {
-          log.debug('advertise-time source record failed:', err.message)
-        }
-        ipcRef?.emit('event:files-updated', { spaceId })
-      },
-      onProgress: (len) => ticker?.push(len),
-    })
+registerPublishChannel('loose', {
+  direct: true,
+  async resolve (item) {
+    return { share: LOOSE_SHARE, absPath: await getOwnedSourcePath(item.spaceId, drivePathOf(item.relPath)) }
+  },
+  async publish (item, { absPath }, { signal }) {
+    const { spaceId, relPath } = item
+    let ticker = null
+    try {
+      const { changed, contentHash } = await publishContent(spaceId, LOOSE_SHARE_ID, relPath, absPath, {
+        signal,
+        onAdvertised: async (size) => {
+          ticker = makeProgressTicker(size, ({ bytes, total, speed, eta }) => {
+            deco(spaceId, drivePathOf(relPath), { phase: 'publishing', bytes, total, speed, eta })
+            broadcastSharePrepare(spaceId, { shareId: LOOSE_SHARE_ID, relPath, bytes, total, eta })
+          })
+          ipcRef?.emit('event:files-updated', { spaceId })
+        },
+        onProgress: (len) => ticker?.push(len),
+      })
+      return { changed, contentHash }
+    } finally {
+      // Only clear a bar we actually raised: a fast-pathed healthy entry never created a ticker.
+      if (ticker) deco(spaceId, drivePathOf(relPath), { done: true })
+    }
+  },
+  async afterPublish (item, { absPath }, { changed, contentHash }) {
+    const { spaceId, relPath } = item
     if (!contentHash) {
-      // The source vanished mid-publish (deleted/moved during the hash). publishContent
-      // already reverted its half-advertised entry, so treat it as a benign abort —
-      // the file is simply not shared — rather than a worker-crashing throw.
-      await clearOwnedSourceIfUnshared(spaceId, relPath)
+      // The source vanished mid-publish. publishContent already reverted its half-advertised
+      // entry, so this is a benign abort — the file is simply not shared.
+      await clearOwnedSourceIfUnshared(spaceId, relPath, absPath)
       log.debug('loose publish aborted — source vanished mid-hash:', absPath)
       ipcRef?.emit('event:files-updated', { spaceId })
       return
     }
-
     trackSource(absPath, spaceId, relPath)
     armWatch(spaceId, absPath)
-    // Only refresh when the catalog actually changed (a fresh/changed publish). An unchanged
-    // healthy entry re-registered at boot advertised nothing new, so emitting would be one
-    // needless refresh per loose file across the whole store.
+    // An unchanged healthy entry re-registered at boot advertised nothing new.
     if (changed) ipcRef?.emit('event:files-updated', { spaceId })
-  } catch (err) {
-    // publishContent undoes its own half-advertised contentHash:null placeholder on any
-    // failure (shared with the folder path) — and leaves a successfully-published entry
-    // alone — so here we only drop a now-dangling source link and refresh the view. A
-    // cancel is not a failure (the user stopped it) — swallow it; any real error propagates.
-    await clearOwnedSourceIfUnshared(spaceId, relPath)
-    ipcRef?.emit('event:files-updated', { spaceId })
-    if (signal.aborted || err?.code === 'ECANCELLED') return
-    throw err
-  } finally {
-    activePublishes.delete(key)
-    // Only clear a bar we actually raised: a fast-pathed healthy entry never created a ticker,
-    // so a terminal 'done' would be a spurious decoration for a key that showed nothing.
-    if (ticker) deco(spaceId, drivePathOf(relPath), { done: true })
-  }
-}
+  },
+  // publishContent undoes its own half-advertised placeholder on any failure or cancel — and
+  // leaves a successfully-published prior version alone — so only a now-dangling source link
+  // is dropped here.
+  async onPublishFailed (item, { absPath }) {
+    await clearOwnedSourceIfUnshared(item.spaceId, item.relPath, absPath)
+    ipcRef?.emit('event:files-updated', { spaceId: item.spaceId })
+  },
+  async retire (item, { absPath }) {
+    const prev = await getOwnEntry(item.spaceId, LOOSE_SHARE_ID, item.relPath)
+    await unshareEntry(item.spaceId, item.relPath, prev?.contentHash || null, absPath)
+    ipcRef?.emit('event:files-updated', { spaceId: item.spaceId })
+  },
+})
 
-// After a failed/aborted publish the catalog entry either reverted to its prior version
-// (the advertise-time source link still backs it — keep it) or was tombstoned (a first
-// publish — drop the link so no source dangles for an unshared file).
-async function clearOwnedSourceIfUnshared (spaceId, relPath) {
+// After a failed/aborted publish the catalog entry either reverted to its prior version (the
+// source link still backs it — keep it) or was tombstoned (a first publish — drop the link and
+// the tracking so no source dangles for an unshared file).
+async function clearOwnedSourceIfUnshared (spaceId, relPath, absPath = null) {
   try {
     if (!(await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath))) {
       await clearOwnedSource(spaceId, drivePathOf(relPath))
+      if (absPath) untrackSource(absPath, spaceId)
     }
   } catch (err) {
     log.debug('post-failure source cleanup skipped:', err.message)
@@ -211,9 +247,13 @@ async function unshareEntry (spaceId, relPath, contentHash, src) {
   if (src) { untrackSource(src, spaceId); disarmWatch(spaceId, src) }
 }
 
+// A user action with a synchronous contract: the entry is gone when this resolves. Any publish
+// in flight for the path is cancelled first and allowed to revert, so its tail cannot land after
+// the tombstone and resurrect the entry.
 export async function looseUnshareFile (spaceId, drivePath) {
+  const relPath = rel(drivePath)
+  if (publishScheduler.cancelPath(spaceId, LOOSE_SHARE_ID, relPath)) await whenPathIdle(spaceId, LOOSE_SHARE_ID, relPath)
   await withSpaceLock(spaceId, async () => {
-    const relPath = rel(drivePath)
     const prev = await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath)
     const src = await getOwnedSourcePath(spaceId, drivePath)
     await unshareEntry(spaceId, relPath, prev?.contentHash || null, src)
@@ -231,18 +271,16 @@ export async function looseHasOwn (spaceId, drivePath) {
   return !!(await getOwnEntry(spaceId, LOOSE_SHARE_ID, rel(drivePath)))
 }
 
-// Watcher dispatch (one event per (space, path) the file is shared in). Resolves
-// the file's assigned name from the reverse map so a change re-publishes under the
-// same name and an unlink tombstones the right entry; an untracked path is ignored.
+// Watcher dispatch (one event per (space, path) the file is shared in). Resolves the file's
+// assigned name from the reverse map so a change re-publishes under the same name and an unlink
+// retires the right entry; an untracked path is ignored. The retire executor re-confirms the
+// file is really gone under exactly this name (an atomic save fires an unlink for a path that
+// is immediately back).
 export async function handleLooseFsEvent ({ spaceId, absPath, action }) {
   const relPath = looseSourceFor(absPath, spaceId)
   if (!relPath) return
-  if (action === 'unlink') {
-    if (fs.existsSync(absPath)) return // atomic-save: path reappeared before we acted
-    await looseUnshareFile(spaceId, drivePathOf(relPath))
-    return
-  }
-  await looseShareFile(spaceId, absPath, relPath)
+  if (action === 'unlink') return await enqueueLooseRetire(spaceId, relPath, PRIORITY.INTERACTIVE)
+  return await enqueueLoosePublish(spaceId, relPath, PRIORITY.INTERACTIVE)
 }
 
 export async function looseListPeer (spaceId, member, timeoutMs, space) {
@@ -433,84 +471,68 @@ export function resumeLooseForOwner (ownerKey, spaceId) { return looseEngine.res
 // offline) and re-arm its watch.
 export async function rehydrateLooseFiles () {
   for (const space of await listSpaces()) {
-    // Per-space isolation: opening the catalog can throw (a pending joiner holds no SCK — space
-    // content key — for a v2 space, so it can't open even its own SCK-encrypted catalog), and the
-    // generator throws when first pulled, OUTSIDE the per-file guard. Isolate it so one such space
-    // doesn't abort rehydration for every other space.
     try {
-      for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) await rehydrateLooseEntry(space.spaceId, e)
+      const pending = []
+      for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) pending.push(rehydrateLooseEntry(space.spaceId, e))
+      await Promise.all(pending)
     } catch (err) {
       log.debug('skip loose rehydrate for space', space.spaceId, '-', err.message)
     }
   }
 }
 
-// Per-file isolation (parity with overlayScan + the Hyperdrive path): one file whose publish
-// re-throws a non-vanish error must not abort re-registration of the later loose files in its space.
-// Decisions re-read the catalog under the space lock so a concurrent cancel is neither lost nor
-// resurrected — a tombstoned entry is skipped, a resumable one registers a cancellable signal.
+// Per-file isolation (parity with the folder boot pass): one entry whose publish fails must not
+// abort re-registration of the later loose files in its space. A never-hashed entry with no
+// recorded source is an unrecoverable half-publish (an install predating the advertise-time
+// link, or a crash inside the advertise-then-link window): revert it so it stops showing
+// "Adding" forever. A finished entry that merely lost its source is left as-is — it still
+// displays as an owned file. Everything else resumes on the shared lane: silent for a healthy
+// entry (publishContent fast-paths before the advertise), a live bar for a null-hash one.
 async function rehydrateLooseEntry (spaceId, e) {
   try {
-    await withSpaceLock(spaceId, async () => {
-      const entry = await getOwnEntry(spaceId, LOOSE_SHARE_ID, e.relPath)
-      if (!entry) return
-      const src = await getOwnedSourcePath(spaceId, drivePathOf(e.relPath))
-      if (!src) {
-        // A never-hashed entry with no recorded source is an unrecoverable half-publish (an install
-        // predating the advertise-time link, or a crash inside the advertise-then-link window):
-        // revert it so it stops showing "Adding" forever instead of abandoning it. A finished entry
-        // that merely lost its source is left as-is — it still displays as an owned file.
-        if (!entry.contentHash) {
-          await unshareEntry(spaceId, e.relPath, null, null)
-          ipcRef?.emit('event:files-updated', { spaceId })
-        }
-        return
+    const src = await getOwnedSourcePath(spaceId, drivePathOf(e.relPath))
+    if (!src) {
+      if (!e.contentHash) {
+        await withSpaceLock(spaceId, () => unshareEntry(spaceId, e.relPath, null, null))
+        ipcRef?.emit('event:files-updated', { spaceId })
       }
-      // Resume through the same visible, cancellable body a user share takes: silent for a healthy
-      // entry (publishContent fast-paths before the advertise), a live bar for a null-hash/changed one.
-      await runLoosePublish(spaceId, e.relPath, src)
-    })
+      return
+    }
+    trackSource(src, spaceId, e.relPath)
+    await enqueueLoosePublish(spaceId, e.relPath, PRIORITY.BULK)
   } catch (err) {
     log.warn('skip loose file during rehydrate:', e.relPath, '-', err.message)
   }
 }
 
-// Backstop: tombstone loose entries whose source vanished without a watcher
-// unlink. Confirm-gone-twice (a path must be missing on two consecutive sweeps)
-// so an atomic-save window doesn't transiently unshare a still-present file.
+// Backstop: retire loose entries whose source vanished without a watcher unlink. Proposes by
+// exact name on two consecutive sweeps (an atomic-save window must not transiently unshare a
+// still-present file) and confirms the same way at execution, on the shared lane. Never touches
+// an entry whose publish is queued or running: disk presence decides only for settled entries.
 const sweepGone = new Set()
 const goneKey = (spaceId, relPath) => spaceId + '\0' + relPath
 
 export async function sweepLoosePresence () {
   for (const space of await listSpaces()) {
-    let changed = false
+    const retires = []
     try {
-    for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) {
-      const key = goneKey(space.spaceId, e.relPath)
-      // A publish in flight records its source at advertise-time (before the multi-minute hash),
-      // so the sweep can now SEE it — but statSync on a flaky/network source can throw
-      // transiently, and two such ticks would tombstone a healthy file the instant its publish
-      // finishes. Never sweep an entry whose publish is still active; disk-presence decides only
-      // for settled entries.
-      if (isPublishActive(space.spaceId, e.relPath)) { sweepGone.delete(key); continue }
-      const src = await getOwnedSourcePath(space.spaceId, drivePathOf(e.relPath))
-      // No recorded source → either a crash inside the tiny advertise→link window or a
-      // stranded entry from an install that predates the advertise-time link (those are
-      // reverted by the boot rehydrate, not the sweep). The sweep only reclaims a RECORDED
-      // source that disappeared from disk — never an entry it cannot attribute.
-      if (!src) { sweepGone.delete(key); continue }
-      let exists = false
-      try { exists = fs.statSync(src).isFile() } catch {}
-      if (exists) { sweepGone.delete(key); continue }
-      if (!sweepGone.has(key)) { sweepGone.add(key); continue }
-      sweepGone.delete(key)
-      await withSpaceLock(space.spaceId, () => unshareEntry(space.spaceId, e.relPath, e.contentHash, src))
-      changed = true
-    }
+      for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) {
+        const key = goneKey(space.spaceId, e.relPath)
+        if (publishScheduler.isPending(space.spaceId, LOOSE_SHARE_ID, e.relPath)) { sweepGone.delete(key); continue }
+        // No recorded source → a crash inside the tiny advertise→link window or a stranded entry
+        // from an older install (reverted by the boot rehydrate, not the sweep). The sweep only
+        // reclaims a RECORDED source that disappeared from disk.
+        const src = await getOwnedSourcePath(space.spaceId, drivePathOf(e.relPath))
+        if (!src) { sweepGone.delete(key); continue }
+        if (fileExactlyPresent(src)) { sweepGone.delete(key); continue }
+        if (!sweepGone.has(key)) { sweepGone.add(key); continue }
+        sweepGone.delete(key)
+        retires.push(enqueueLooseRetire(space.spaceId, e.relPath, PRIORITY.BULK))
+      }
     } catch (err) {
       log.debug('skip loose presence sweep for space', space.spaceId, '-', err.message)
     }
-    if (changed) ipcRef?.emit('event:files-updated', { spaceId: space.spaceId })
+    await Promise.all(retires)
   }
 }
 
@@ -519,5 +541,4 @@ export function _resetLooseOverlay () {
   looseSources.clear()
   sweepGone.clear()
   looseEngine._registry.clear()
-  activePublishes.clear()
 }
