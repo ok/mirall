@@ -5,6 +5,10 @@ const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
 const DEFAULT_CAPTURE_MEMBER_RECORD_MS = 5000
 const DEFAULT_LIST_FILES_CAP = 5000
 const DEFAULT_MAX_FILES_PER_SHARE = 5000
+// Kept in lockstep with PUBLISH_ORDERS in folders/work-item.js (a unit test asserts parity);
+// core/ must not import from folders/.
+export const PUBLISH_ORDERS = ['fifo', 'smallest-first', 'largest-first']
+const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
 // Single source of truth for every runtime-config field. Both the live default state and each
 // setRuntimeConfig(next) call derive from these tables, so every default is declared exactly once.
@@ -55,6 +59,10 @@ const DEFAULTED = {
   maxFilesPerShare: DEFAULT_MAX_FILES_PER_SHARE,
   captureMemberRecordMs: DEFAULT_CAPTURE_MEMBER_RECORD_MS,
   deepReconcileEvery: 4,
+  // Owner-side publish slots across all spaces. Hashing is synchronous CPU on the worker thread;
+  // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. The scheduler
+  // clamps to >= 1.
+  publishConcurrency: 2,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
   // before charging), so the burst covers the spaces two peers actually share.
   handshakeBurst: 8,
@@ -135,6 +143,10 @@ const DEFAULTED = {
   peerPresenceDwellMs: 0,
 }
 
+function coercePublishOrder(next) {
+  return PUBLISH_ORDERS.includes(next?.publishOrder) ? next.publishOrder : DEFAULT_PUBLISH_ORDER
+}
+
 function buildConfig(next) {
   const out = {}
   for (const k of NULLABLE) out[k] = next?.[k] || null
@@ -157,6 +169,7 @@ function buildConfig(next) {
   // and setRelayThrough refuses to install a relay function without it.
   out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
   out.relays = Array.isArray(next?.relays) ? next.relays : []
+  out.publishOrder = coercePublishOrder(next)
   return out
 }
 
@@ -239,6 +252,17 @@ export function getOverlayServeLimit() {
 
 export function getDeepReconcileEvery() {
   return config.deepReconcileEvery
+}
+
+export function getPublishConcurrency() {
+  const n = config.publishConcurrency
+  if (n === Infinity) return Infinity
+  if (typeof n === 'number' && Number.isFinite(n) && n >= 1) return Math.floor(n)
+  return DEFAULTED.publishConcurrency
+}
+
+export function getPublishOrder() {
+  return config.publishOrder
 }
 
 // A protective bound must fail SAFE: an explicit 0/Infinity disables the cap (returns Infinity
