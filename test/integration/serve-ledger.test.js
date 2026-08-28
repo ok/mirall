@@ -2,10 +2,10 @@ import test from 'brittle'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import {
-  initContentBackendOverlay, _resetContentBackendOverlay, _sweepServeLedgerNow,
+  initServeLedger, _resetServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, getServeDetail, unsubscribeServeDetail, listServeSummaries,
-} from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+} from '../../src/shared/transfer/serve-ledger.js'
 
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
@@ -21,9 +21,9 @@ const details = (fake) => fake.emitted('event:awareness').filter((e) => e.payloa
 function setup (t) {
   const fake = createFakeIpc()
   serveIndex._reset()
-  initContentBackendOverlay(fake.ipc)
+  initServeLedger(fake.ipc)
   serveIndex.add(HASH, SID, '__loose__', 'big.bin')
-  t.teardown(() => { _resetContentBackendOverlay(); serveIndex._reset() })
+  t.teardown(() => { _resetServeLedger(); serveIndex._reset() })
   return fake
 }
 

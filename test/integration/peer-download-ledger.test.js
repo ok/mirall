@@ -1,8 +1,8 @@
 import test from 'brittle'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import {
-  initContentBackendOverlay,
-  _resetContentBackendOverlay,
+  initServeLedger,
+  _resetServeLedger,
   onServeStart,
   onChunkServed,
   onServeEnd,
@@ -11,7 +11,7 @@ import {
   onServeBaseline,
   subscribeServeDetail,
   unsubscribeServeDetail,
-} from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+} from '../../src/shared/transfer/serve-ledger.js'
 
 // The sender-side download ledger: who is pulling our files and how far, with the
 // two-tier emission contract — a cheap always-on summary, and a per-peer detail
@@ -19,8 +19,8 @@ import {
 function harness (t) {
   serveIndex._reset()
   const events = []
-  initContentBackendOverlay({ emit: (type, payload) => events.push({ type, payload }) })
-  t.teardown(() => { _resetContentBackendOverlay(); serveIndex._reset() })
+  initServeLedger({ emit: (type, payload) => events.push({ type, payload }) })
+  t.teardown(() => { _resetServeLedger(); serveIndex._reset() })
   const unwrap = (e) => { const p = { ...e.payload }; delete p.channel; return p }
   const summaries = () => events.filter((e) => e.type === 'event:awareness' && e.payload.channel === 'serving').map(unwrap)
   const details = () => events.filter((e) => e.type === 'event:awareness' && e.payload.channel === 'serving-detail').map(unwrap)
