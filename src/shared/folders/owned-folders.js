@@ -3,7 +3,6 @@
 // periodic reconcile — computes a diff and enqueues work items on the shared publish service; the
 // folder channel registered here resolves, publishes and retires them. A missing mount root always
 // pauses publishing instead of tombstoning the catalog.
-import fs from 'bare-fs'
 import path from 'bare-path'
 import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
 import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './mount-store.js'
@@ -13,7 +12,7 @@ import { createCoalescingRunner } from '../core/coalescing-runner.js'
 import { getMaxFilesPerShare } from '../core/runtime-config.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/share-catalog.js'
-import { overlayHashFile, ensureServable } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile, ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { walkDisk } from './walk-disk.js'
@@ -22,12 +21,10 @@ import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
-import {
-  publishScheduler as scheduler, registerPublishChannel, initPublishService, settleCatalog,
-  stopPublishingForSpace, stopAllPublishing, _resetPublishService,
-} from './publish-service.js'
+import { statFacts } from './disk-presence.js'
+import { publishScheduler as scheduler, registerPublishChannel, settleCatalog, _resetPublishService } from './publish-service.js'
 
-export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable, stopPublishingForSpace, stopAllPublishing }
+export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
 
 const log = createLogger('owned-folders')
 
@@ -105,7 +102,9 @@ registerPublishChannel('folder', {
 export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
   ipcRef = _ipc
   settleScanRef = settleScan
-  initPublishService()
+  // The presence sweep must never reclaim a path whose publish is queued or running. Installed
+  // here rather than by the service, which must not import the backend (import cycle).
+  setPendingPublishProbe((spaceId, shareId, relPath) => scheduler.isPending(spaceId, shareId, relPath))
 }
 
 // Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
@@ -167,13 +166,7 @@ export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
     return
   }
 
-  let size = 0
-  let mtime = 0
-  try {
-    const st = fs.statSync(absPath)
-    size = st.size
-    mtime = st.mtimeMs
-  } catch {}
+  const { size, mtime } = statFacts(absPath)
   const { settled } = scheduler.enqueue({
     spaceId, shareId, relPath: driveRel,
     op: action === 'unlink' ? OP.RETIRE : OP.PUBLISH,

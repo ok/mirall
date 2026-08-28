@@ -22,3 +22,24 @@ export function fileExactlyPresent(absPath) {
   for (const entry of entries) if (entry.name === name) return entry.isFile()
   return false
 }
+
+// Presence as the app will OPEN the path — a following stat. For a file whose identity is its
+// recorded absolute path (a loose share), a case-only rename on a folding volume or a symlinked
+// source keeps it readable, so it stays shared.
+export function fileStatPresent(absPath) {
+  try {
+    return fs.statSync(absPath).isFile()
+  } catch {
+    return false
+  }
+}
+
+// The enqueue-time facts of a path: size feeds the ordering, size+mtime the fold/supersede test.
+export function statFacts(absPath) {
+  try {
+    const st = fs.statSync(absPath)
+    return { size: st.size, mtime: st.mtimeMs }
+  } catch {
+    return { size: 0, mtime: 0 }
+  }
+}

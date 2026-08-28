@@ -92,8 +92,9 @@ import {
   initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
   previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
   mountRootAvailable, countFolderFiles,
-  getIndexStatus, cancelIndex, stopPublishingForSpace, stopAllPublishing,
+  getIndexStatus, cancelIndex,
 } from '../shared/folders/owned-folders.js'
+import { stopPublishingForSpace, stopAllPublishing } from '../shared/folders/publish-service.js'
 import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
 import {
   initForeignFolders, initialMaterializeScan, previewMaterializeScan,

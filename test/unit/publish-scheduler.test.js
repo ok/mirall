@@ -428,18 +428,41 @@ test('cancelPath drops a queued item and signals a running one', async (t) => {
   const running = s.enqueue(spec('A', 'slow'))
   const waiting = s.enqueue(spec('A', 'later'))
   await sleep(5)
-  t.is(s.cancelPath('A', 'sh', 'later'), 1)
+  const queuedCancel = s.cancelPath('A', 'sh', 'later')
+  t.is(queuedCancel.cancelled, 1)
   t.is((await waiting.settled).outcome, 'cancelled')
-  t.absent(s.isPending('A', 'sh', 'later'))
-  t.is(s.cancelPath('A', 'sh', 'slow'), 1)
+  await queuedCancel.exited
+  t.absent(s.isPending('A', 'sh', 'later'), 'a queued item never ran, so it has exited at once')
+  const runningCancel = s.cancelPath('A', 'sh', 'slow')
+  t.is(runningCancel.cancelled, 1)
   const item = [...s._running][0]
   t.ok(item.signal.aborted, 'the running hash is told to stop')
   t.ok(s.isPending('A', 'sh', 'slow'), 'and keeps its place until the executor returns')
-  t.is((await running.settled).outcome, 'cancelled')
+  t.is((await running.settled).outcome, 'cancelled', 'the caller is released at once')
+  let exited = false
+  runningCancel.exited.then(() => { exited = true })
+  await sleep(10)
+  t.absent(exited, 'exited waits for the executor')
   await g.release('A/slow')
-  await sleep(5)
+  await runningCancel.exited
   t.absent(s.isPending('A', 'sh', 'slow'))
-  t.is(s.cancelPath('A', 'sh', 'slow'), 0, 'nothing live → nothing cancelled')
+  t.is(s.cancelPath('A', 'sh', 'slow').cancelled, 0, 'nothing live → nothing cancelled')
+})
+
+test('stop() resolves once every executor has returned', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  s.enqueue(spec('A', 'slow'))
+  s.enqueue(spec('A', 'never'))
+  await sleep(5)
+  let stopped = false
+  const p = s.stop({ settleMs: 5000 }).then(() => { stopped = true })
+  await sleep(20)
+  t.absent(stopped, 'waits on the running item')
+  await g.release('A/slow')
+  await p
+  t.ok(stopped)
+  t.absent(g.started.includes('A/never'), 'nothing starts after stop')
 })
 
 test('pendingRelPaths lists queued and running paths for a share', async (t) => {

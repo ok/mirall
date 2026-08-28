@@ -2,19 +2,22 @@
 // batch, and the channel registry the runner dispatches on. Producers — owned folders, loose
 // files — only enqueue here; each registers the channel that resolves, publishes and retires
 // its own kind of item, so one lane and one ordering policy cover every file the user shares.
+//
+// Imports nothing from the transfer layer beyond the loose share id: the loose producer imports
+// this module and registers its channel at load time, so a path from here back to it would put
+// `channels` in its temporal dead zone for whichever module happens to be imported first.
 import { createLogger } from '../core/logger.js'
 import { getPublishConcurrency, getPublishOrder } from '../core/runtime-config.js'
 import { createCatalogBatch } from '../shares/catalog-writer.js'
-import { setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
 import { LOOSE_SHARE_ID } from '../transfer/transfer-id.js'
 import { createPublishScheduler } from './publish-scheduler.js'
 import { createPublishRunner } from './publish-runner.js'
 
 const log = createLogger('publish-service')
 
+// A channel is a pure function of the share id: the loose pseudo-share, else a folder share.
 const channels = {}
-export const kindOfShare = (shareId) => (shareId === LOOSE_SHARE_ID ? 'loose' : 'folder')
-const channelFor = (shareId) => channels[kindOfShare(shareId)]
+export const channelFor = (shareId) => channels[shareId === LOOSE_SHARE_ID ? 'loose' : 'folder']
 
 export function registerPublishChannel(kind, channel) {
   channels[kind] = channel
@@ -53,7 +56,7 @@ export async function settleCatalog(spaceId) {
 }
 
 export const publishScheduler = createPublishScheduler({
-  execute: createPublishRunner({ channels, catalogFor, settleCatalog }),
+  execute: createPublishRunner({ channelFor, catalogFor, settleCatalog }),
   concurrency: getPublishConcurrency,
   order: getPublishOrder,
   log,
@@ -67,20 +70,6 @@ export const publishScheduler = createPublishScheduler({
   },
 })
 
-// A cancelled RUNNING item keeps its place until its executor honours the abort (a hash polls the
-// signal per chunk). Callers that must write after that tail — a direct unshare of the same path
-// — wait here, bounded.
-export async function whenPathIdle(spaceId, shareId, relPath, { settleMs = 5000 } = {}) {
-  const deadline = Date.now() + settleMs
-  while (publishScheduler.isPending(spaceId, shareId, relPath) && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 25))
-  }
-}
-
-export function initPublishService() {
-  setPendingPublishProbe((spaceId, shareId, relPath) => publishScheduler.isPending(spaceId, shareId, relPath))
-}
-
 export async function stopPublishingForSpace(spaceId) {
   await publishScheduler.cancelSpace(spaceId)
   await closeBatch(spaceId)
@@ -90,14 +79,10 @@ export function stopAllPublishing() {
   publishScheduler.stop()
 }
 
-// Cancels everything, then waits (bounded) for the executors still running to honour the abort:
+// Cancels everything and waits (bounded) for the executors still running to honour the abort:
 // a test's store closes right after this, and a tail still writing would land on a closed core.
 export async function _resetPublishService() {
-  publishScheduler.stop()
-  const deadline = Date.now() + 5000
-  while (publishScheduler._running.size > 0 && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 25))
-  }
+  await publishScheduler.stop({ settleMs: 5000 })
   publishScheduler._reset()
   for (const batch of batches.values()) batch.close().catch(() => {})
   batches.clear()

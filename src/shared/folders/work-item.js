@@ -41,7 +41,6 @@ export function settleDeferred(d, value) {
 export function createItem(spec, seq) {
   return {
     key: itemKey(spec.shareId, spec.relPath),
-    kind: spec.kind || 'folder',
     spaceId: spec.spaceId,
     shareId: spec.shareId,
     relPath: spec.relPath,
@@ -55,9 +54,13 @@ export function createItem(spec, seq) {
     // Set by cancel() on a RUNNING item: the executor is still on it, and however it returns the
     // item settles as CANCELLED (unless a fresh request has since marked it dirty for a rerun).
     cancelled: false,
-    // `run` settles with this run; `rerun` with the one a supersede has queued behind it.
+    // `run` settles with this run; `rerun` with the one a supersede has queued behind it; `exit`
+    // once this run's executor has RETURNED (or at once for an item cancelled while queued) — a
+    // cancel releases `run` immediately, so `exit` is what a caller that must write after the
+    // executor's tail waits for.
     run: deferred(),
     rerun: deferred(),
+    exit: deferred(),
     signal: { aborted: false },
   }
 }
