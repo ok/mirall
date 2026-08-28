@@ -104,17 +104,6 @@ test('a re-enqueue may only raise priority, never lower it', (t) => {
   t.is(q.take().priority, PRIORITY.INTERACTIVE)
 })
 
-test('setOrder re-sorts the live items and drops stale heap entries', (t) => {
-  const q = createPublishQueue({ order: 'fifo' })
-  q.enqueue(pub('mid', { size: 50 }))
-  q.enqueue(pub('big', { size: 900 }))
-  q.enqueue(pub('small', { size: 5 }))
-  q.enqueue(pub('big', { size: 900 }))
-  q.setOrder('smallest-first')
-  t.alike([q.take().relPath, q.take().relPath, q.take().relPath], ['small', 'mid', 'big'])
-  t.is(q.take(), null, 'the stale generation did not survive the rebuild')
-})
-
 test('pendingForShare and isPending track both queued and running', (t) => {
   const q = createPublishQueue()
   q.enqueue(pub('a.bin'))
@@ -136,4 +125,109 @@ test('bytes accounting survives a fold and a take', (t) => {
   t.is(q.stats().queuedBytes, 250, 'the fold adjusts, it does not double-count')
   q.take()
   t.is(q.stats().queuedBytes, 0)
+})
+
+// REGRESSION (FIX-QUEUE-FOLD: a fold mutated the queued item's sort keys and pushed a second heap
+// entry while the stale one was still in the heap. The comparator read the item, so the two
+// entries compared equal and sift-up stopped early — the heap invariant broke and peek() handed
+// the scheduler a BULK head while an INTERACTIVE item sat below it.)
+test('REGRESSION (FIX-QUEUE-FOLD): raising a queued item to interactive moves it to the head', (t) => {
+  const q = createPublishQueue()
+  for (const n of ['a', 'b', 'c', 'd']) q.enqueue(pub(n))
+  t.is(q.enqueue(pub('b', { priority: PRIORITY.INTERACTIVE })).status, 'deduped')
+  t.is(q.peek().relPath, 'b', 'peek sees the interactive item')
+  t.alike([q.take(), q.take(), q.take(), q.take()].map((i) => i.relPath), ['b', 'a', 'c', 'd'])
+  t.is(q.take(), null)
+})
+
+test('a size change on a queued item re-sorts under smallest-first', (t) => {
+  const q = createPublishQueue({ order: 'smallest-first' })
+  q.enqueue(pub('x', { size: 10 }))
+  q.enqueue(pub('y', { size: 20 }))
+  q.enqueue(pub('z', { size: 30 }))
+  q.enqueue(pub('z', { size: 1 }))
+  t.alike([q.take(), q.take(), q.take()].map((i) => i.relPath), ['z', 'x', 'y'])
+})
+
+// REGRESSION (FIX-QUEUE-DEEP: a fold copied every fact, so a non-deep catch-up spec arriving for
+// a queued deep item (relocate) turned it into a plain publish — a full re-advertise with a null
+// hash instead of the hash-compare skip relocate exists for.)
+test('REGRESSION (FIX-QUEUE-DEEP): deep is sticky across a fold', (t) => {
+  const q = createPublishQueue()
+  q.enqueue(pub('a.bin', { deep: true }))
+  q.enqueue(pub('a.bin', { deep: false, mtime: 7 }))
+  const item = q.take()
+  t.ok(item.deep, 'still deep')
+  t.is(item.mtime, 7, 'other facts are the newest')
+})
+
+// REGRESSION (FIX-QUEUE-CANCEL-RUNNING: cancel() dropped a RUNNING item from byKey at once while
+// its executor was still on the file, so a re-enqueue in that window created a second live item
+// for the path — two executors, and the stale one's revert landing on the new one's advertise.)
+test('REGRESSION (FIX-QUEUE-CANCEL-RUNNING): a cancelled running item stays the path\'s one live item until it settles', async (t) => {
+  const q = createPublishQueue()
+  const first = q.enqueue(pub('a.bin'))
+  const item = q.take()
+  q.cancel(() => true)
+  t.is((await first.settled).outcome, 'cancelled', 'the caller is released at once')
+  t.ok(item.signal.aborted)
+  t.is(q.stats().running, 1, 'still running until the executor returns')
+  t.ok(q.isPending('sh', 'a.bin'), 'still pending — the sweep must not reclaim it')
+
+  const again = q.enqueue(pub('a.bin', { mtime: 9 }))
+  t.is(again.status, 'superseded', 'a fresh request reruns, it does not start a second executor')
+  t.is(q.take(), null, 'nothing runnable while the cancelled run is still out')
+
+  t.is(q.settle(item, { outcome: 'cancelled' }), 'requeued')
+  const rerun = q.take()
+  t.is(rerun, item, 'the same item, one live per path')
+  t.is(rerun.mtime, 9)
+  t.absent(rerun.signal.aborted, 'the rerun has its own signal')
+  t.absent(rerun.cancelled)
+  const doneRerun = { outcome: 'done', result: { outcome: 'published' } }
+  t.is(q.settle(rerun, doneRerun), STATE.DONE)
+  t.alike(await again.settled, doneRerun)
+  t.is(q.stats().queued + q.stats().running, 0)
+})
+
+test('a cancelled running item with no later request settles as cancelled and leaves', (t) => {
+  const q = createPublishQueue()
+  q.enqueue(pub('a.bin'))
+  const item = q.take()
+  q.cancel(() => true)
+  t.is(q.settle(item, { outcome: 'done', result: { outcome: 'published' } }), STATE.CANCELLED, 'however the executor returned')
+  t.absent(q.isPending('sh', 'a.bin'))
+  t.is(q.stats().running, 0)
+})
+
+test('identical facts never join a cancelled run', (t) => {
+  const q = createPublishQueue()
+  q.enqueue(pub('a.bin'))
+  q.take()
+  q.cancel(() => true)
+  t.is(q.enqueue(pub('a.bin')).status, 'superseded')
+})
+
+test('settled is shared per run: no waiter per call, and a late read still sees the value', async (t) => {
+  const q = createPublishQueue()
+  const a = q.enqueue(pub('a.bin'))
+  const b = q.enqueue(pub('a.bin'))
+  const item = q.take()
+  t.is(q.settle(item, done), STATE.DONE)
+  t.alike(await a.settled, done, 'read after the settlement')
+  t.alike(await b.settled, done)
+  t.is(await a.settled, await b.settled, 'one promise per run')
+})
+
+test('bytesForShare tracks the share\'s own queued bytes', (t) => {
+  const q = createPublishQueue()
+  q.enqueue(pub('a.bin', { size: 100 }))
+  q.enqueue({ ...pub('b.bin', { size: 50 }), shareId: 'other' })
+  t.is(q.bytesForShare('sh'), 100)
+  t.is(q.bytesForShare('other'), 50)
+  q.enqueue(pub('a.bin', { size: 300 }))
+  t.is(q.bytesForShare('sh'), 300, 'a fold adjusts')
+  t.is(q.take().relPath, 'a.bin')
+  t.is(q.bytesForShare('sh'), 0)
+  t.is(q.bytesForShare('other'), 50)
 })

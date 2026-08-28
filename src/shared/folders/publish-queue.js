@@ -2,8 +2,10 @@
 // most one live item per path. A second request for a path folds into the queued item, or marks
 // a running one dirty for exactly one rerun — it can never start a second read of the file.
 // Re-sorted and cancelled entries are dropped lazily: each push records the item's gen, and a
-// popped entry whose gen no longer matches is skipped.
-import { STATE, PRIORITY, itemKey, factsOf, createItem, comparatorFor } from './work-item.js'
+// popped entry whose gen no longer matches is skipped. An entry carries its OWN copy of the sort
+// keys: the comparator must never read the mutable item, or a fold that raises a queued item's
+// priority leaves its stale entry comparing equal to the new one and the heap order breaks.
+import { STATE, PRIORITY, itemKey, factsOf, createItem, comparatorFor, deferred, promiseOf, settleDeferred } from './work-item.js'
 
 function createHeap(cmp) {
   const a = []
@@ -37,17 +39,19 @@ function createHeap(cmp) {
       return top
     },
     peek() { return a.length ? a[0] : null },
-    drain() { const out = a.slice(); a.length = 0; return out },
   }
 }
 
-const resolveAll = (list, value) => { for (const resolve of list.splice(0)) resolve(value) }
-const waitOn = (list) => new Promise((resolve) => list.push(resolve))
 const sameFacts = (a, b) => a.op === b.op && a.size === b.size && a.mtime === b.mtime && a.deep === b.deep
 
+// `settled` is read lazily off the run's shared deferred (see work-item.js).
+function ticket(status, d) {
+  return { status, get settled() { return promiseOf(d) } }
+}
+
 export function createPublishQueue({ order = 'fifo' } = {}) {
-  let cmp = comparatorFor(order)
-  let heap = createHeap((x, y) => cmp(x.item, y.item))
+  const cmp = comparatorFor(order)
+  const heap = createHeap(cmp)
   const byKey = new Map()
   const perShare = new Map()
   let seq = 0
@@ -57,13 +61,13 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
 
   const bucket = (shareId) => {
     let b = perShare.get(shareId)
-    if (!b) perShare.set(shareId, (b = { queued: 0, running: 0 }))
+    if (!b) perShare.set(shareId, (b = { queued: 0, running: 0, queuedBytes: 0 }))
     return b
   }
   const live = (entry) => byKey.get(entry.item.key) === entry.item && entry.item.state === STATE.QUEUED && entry.gen === entry.item.gen
-  const push = (item) => heap.push({ item, gen: item.gen })
-  const admit = (item) => { queued += 1; queuedBytes += item.size; bucket(item.shareId).queued += 1 }
-  const release = (item) => { queued -= 1; queuedBytes -= item.size; bucket(item.shareId).queued -= 1 }
+  const push = (item) => heap.push({ item, gen: item.gen, priority: item.priority, op: item.op, size: item.size, seq: item.seq })
+  const admit = (item) => { queued += 1; queuedBytes += item.size; const b = bucket(item.shareId); b.queued += 1; b.queuedBytes += item.size }
+  const release = (item) => { queued -= 1; queuedBytes -= item.size; const b = bucket(item.shareId); b.queued -= 1; b.queuedBytes -= item.size }
 
   function enqueue(spec) {
     const key = itemKey(spec.shareId, spec.relPath)
@@ -73,25 +77,28 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       byKey.set(key, item)
       admit(item)
       push(item)
-      return { status: 'queued', settled: waitOn(item.waiters) }
+      return ticket('queued', item.run)
     }
     const priority = Math.max(cur.priority, spec.priority ?? PRIORITY.BULK)
     const facts = factsOf(spec)
     if (cur.state === STATE.RUNNING) {
       cur.priority = priority
       // Identical facts (a catch-up diff re-finding a file mid-hash) join the run in flight; only
-      // a change the running pass cannot have seen forces exactly one rerun.
-      if (sameFacts(cur.next || cur, facts)) return { status: 'deduped', settled: waitOn(cur.dirty ? cur.nextWaiters : cur.waiters) }
+      // a change the running pass cannot have seen forces exactly one rerun. A cancelled run is
+      // never joined — it is not going to finish the work.
+      if (!cur.cancelled && sameFacts(cur.next || cur, facts)) return ticket('deduped', cur.dirty ? cur.rerun : cur.run)
       cur.dirty = true
       cur.next = facts
-      return { status: 'superseded', settled: waitOn(cur.nextWaiters) }
+      return ticket('superseded', cur.rerun)
     }
-    queuedBytes += facts.size - cur.size
-    Object.assign(cur, facts)
-    cur.priority = priority
+    // A queued item takes the newest facts, except `deep`, which is sticky: it is the only pass
+    // that settles a size-matching file by hash instead of re-advertising it.
+    release(cur)
+    Object.assign(cur, facts, { deep: cur.deep || facts.deep, priority })
+    admit(cur)
     cur.gen += 1
     push(cur)
-    return { status: 'deduped', settled: waitOn(cur.waiters) }
+    return ticket('deduped', cur.run)
   }
 
   function peek() {
@@ -121,45 +128,52 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     if (item.state !== STATE.RUNNING) return item.state
     running -= 1
     bucket(item.shareId).running -= 1
-    const waiters = item.waiters.splice(0)
-    if (item.dirty && settlement.outcome !== 'cancelled') {
-      Object.assign(item, item.next || {}, { state: STATE.QUEUED, dirty: false, next: null })
-      item.waiters = item.nextWaiters.splice(0)
+    const run = item.run
+    if (item.dirty) {
+      // The rerun is a fresh run: its own abort signal, never the cancelled one.
+      Object.assign(item, item.next || {}, { state: STATE.QUEUED, dirty: false, next: null, cancelled: false, signal: { aborted: false } })
+      item.run = item.rerun
+      item.rerun = deferred()
       item.gen += 1
       admit(item)
       push(item)
-      resolveAll(waiters, settlement)
+      settleDeferred(run, settlement)
       return 'requeued'
     }
-    item.state = settlement.outcome === 'failed' ? STATE.FAILED : settlement.outcome === 'cancelled' ? STATE.CANCELLED : STATE.DONE
+    item.state = item.cancelled ? STATE.CANCELLED : settlement.outcome === 'failed' ? STATE.FAILED : STATE.DONE
     byKey.delete(item.key)
-    resolveAll(waiters, settlement)
-    resolveAll(item.nextWaiters, settlement)
+    settleDeferred(run, settlement)
+    settleDeferred(item.rerun, settlement)
     return item.state
   }
 
+  // A queued item leaves at once. A RUNNING item is only signalled: it stays the path's one live
+  // item — still counted as running, still pending for the sweep's probe — until its executor
+  // returns, so a request arriving meanwhile supersedes it into one rerun instead of starting a
+  // second executor whose tail the first one's revert would then overwrite.
   function cancel(pred) {
     let n = 0
     for (const item of [...byKey.values()]) {
       if (!pred(item)) continue
       item.signal.aborted = true
-      if (item.state === STATE.QUEUED) release(item)
-      else { running -= 1; bucket(item.shareId).running -= 1 }
-      item.state = STATE.CANCELLED
       item.dirty = false
-      byKey.delete(item.key)
-      resolveAll(item.waiters, { outcome: 'cancelled' })
-      resolveAll(item.nextWaiters, { outcome: 'cancelled' })
+      item.next = null
+      const cancelled = { outcome: 'cancelled' }
+      if (item.state === STATE.QUEUED) {
+        release(item)
+        item.state = STATE.CANCELLED
+        byKey.delete(item.key)
+      } else {
+        item.cancelled = true
+      }
+      settleDeferred(item.run, cancelled)
+      settleDeferred(item.rerun, cancelled)
+      // A request arriving after the cancel supersedes into a real rerun; it must not inherit
+      // the settlement just handed to the callers the cancel released.
+      item.rerun = deferred()
       n += 1
     }
     return n
-  }
-
-  function setOrder(next) {
-    cmp = comparatorFor(next)
-    const kept = heap.drain().filter(live).map((e) => e.item)
-    heap = createHeap((x, y) => cmp(x.item, y.item))
-    for (const item of kept) push(item)
   }
 
   return {
@@ -168,12 +182,12 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
     take,
     settle,
     cancel,
-    setOrder,
     isPending(shareId, relPath) { return byKey.has(itemKey(shareId, relPath)) },
     pendingForShare(shareId) {
       const b = perShare.get(shareId)
       return b ? b.queued + b.running : 0
     },
+    bytesForShare(shareId) { return perShare.get(shareId)?.queuedBytes ?? 0 },
     stats() { return { queued, running, queuedBytes } },
   }
 }

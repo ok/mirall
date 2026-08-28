@@ -1,10 +1,14 @@
-// One runner over N per-space queues. Slots are handed out round-robin across spaces with
-// queued work, with two reservations: while more than one space has work no space may hold
-// every slot, so a space that just enqueued finds a slot immediately instead of waiting out
-// another space's multi-gigabyte file; and while an interactive item is eligible a bulk item may
-// not take the last slot. Scheduling is non-preemptive — a running hash holds its slot.
+// One runner over N per-space queues. Bulk slots (`concurrency`) are handed out round-robin
+// across spaces with queued work, with one reservation: while more than one space has work no
+// space may hold every bulk slot, so a space that just enqueued finds a slot immediately instead
+// of waiting out another space's multi-gigabyte file. Scheduling is non-preemptive — a running
+// hash holds its slot — so interactive items (a watcher event: the user just did this) get an
+// EXPRESS lane on top of the bulk slots: one may always start, even while every bulk slot is
+// held by a multi-minute hash, and an eligible interactive head is always picked before bulk.
 import { PRIORITY } from './work-item.js'
 import { createPublishQueue } from './publish-queue.js'
+
+const EXPRESS_LANES = 1
 
 const tallyKey = (spaceId, shareId) => spaceId + '\0' + shareId
 const isIdle = (q) => { const s = q.stats(); return s.queued + s.running === 0 }
@@ -19,21 +23,49 @@ function heldBy(running, spaceId) {
 // two picks does not reset the rotation to the front.
 function selectNext(queues, running, concurrency, lastServed) {
   const order = [...queues.keys()]
-  const withWork = order.filter((s) => queues.get(s).peek())
-  if (!withWork.length) return null
-  const cap = withWork.length > 1 ? Math.max(1, concurrency - 1) : concurrency
-  const eligible = new Set(withWork.filter((s) => heldBy(running, s) < cap))
-  if (!eligible.size) return null
-  const reserve = [...eligible].some((s) => queues.get(s).peek().priority === PRIORITY.INTERACTIVE)
+  if (!order.some((s) => queues.get(s).peek())) return null
   const start = order.indexOf(lastServed) + 1
-  for (let i = 0; i < order.length; i++) {
-    const spaceId = order[(start + i) % order.length]
-    if (!eligible.has(spaceId)) continue
-    const head = queues.get(spaceId).peek()
-    if (head.priority === PRIORITY.BULK && reserve && running.size >= concurrency - 1) continue
+  const rotate = function* () { for (let i = 0; i < order.length; i++) yield order[(start + i) % order.length] }
+
+  if (running.size < concurrency + EXPRESS_LANES) {
+    for (const spaceId of rotate()) {
+      const head = queues.get(spaceId).peek()
+      if (head?.priority === PRIORITY.INTERACTIVE) return { spaceId, item: queues.get(spaceId).take() }
+    }
+  }
+  if (running.size >= concurrency) return null
+  const withWork = order.filter((s) => queues.get(s).peek())
+  const cap = withWork.length > 1 ? Math.max(1, concurrency - 1) : concurrency
+  for (const spaceId of rotate()) {
+    if (!queues.get(spaceId).peek() || heldBy(running, spaceId) >= cap) continue
     return { spaceId, item: queues.get(spaceId).take() }
   }
   return null
+}
+
+// One pass's counts per (space, share). A tally lives from the pass's beginShare until its
+// whenDrained collects it — never shorter, or a pass whose items all settled before it asked
+// (retires take microseconds) would read zeros. A catch-up beginning mid-drain merges; a pass
+// beginning after a cancelled one starts fresh.
+function createTallies() {
+  const tallies = new Map()
+  return {
+    get: (key) => tallies.get(key) || null,
+    begin(key, totalOnDisk) {
+      const cur = tallies.get(key)
+      if (cur && !cur.cancelled) cur.totalOnDisk = totalOnDisk
+      else tallies.set(key, { uploaded: 0, deleted: 0, failed: 0, totalOnDisk })
+    },
+    take(key) { const t = tallies.get(key) || null; tallies.delete(key); return t },
+    // Marks the pass cancelled; whoever collects it sees the marker.
+    cancel(key) {
+      const t = tallies.get(key) || { uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0 }
+      t.cancelled = true
+      tallies.set(key, t)
+      return t
+    },
+    clear: () => tallies.clear(),
+  }
 }
 
 function describeShare(queues, running, tallies, spaceId, shareId, order, concurrency) {
@@ -46,7 +78,8 @@ function describeShare(queues, running, tallies, spaceId, shareId, order, concur
     running: active,
     done: (t?.uploaded ?? 0) + (t?.deleted ?? 0),
     failed: t?.failed ?? 0,
-    bytesQueued: q?.stats().queuedBytes ?? 0,
+    totalOnDisk: t?.totalOnDisk ?? null,
+    bytesQueued: q?.bytesForShare(shareId) ?? 0,
     order,
     concurrency,
   }
@@ -64,8 +97,11 @@ export function createPublishScheduler({
   const concurrency = () => Math.max(1, rawConcurrency())
   const queues = new Map()
   const running = new Set()
-  const tallies = new Map()
+  const tallies = createTallies()
   const drainWaiters = new Map()
+  // Shares cancelled while an item of theirs was still executing: the drain hook still fires when
+  // that item settles, so the cancelled index's revert is flushed and announced like a finished one.
+  const cancelling = new Set()
   let lastServed = null
   let pumping = false
   let stopped = false
@@ -80,7 +116,7 @@ export function createPublishScheduler({
     if (pumping || stopped) return
     pumping = true
     try {
-      while (running.size < concurrency()) {
+      while (running.size < concurrency() + EXPRESS_LANES) {
         const next = selectNext(queues, running, concurrency(), lastServed)
         if (!next) break
         lastServed = next.spaceId
@@ -98,7 +134,8 @@ export function createPublishScheduler({
       try {
         const result = await execute(item)
         settlement = { outcome: result?.outcome === 'failed' ? 'failed' : 'done', result }
-        tally(item, result)
+        // A cancelled item that ran to completion anyway counts for nobody: its pass is gone.
+        if (!item.signal.aborted) tally(item, result)
       } catch (err) {
         settlement = { outcome: item.signal.aborted ? 'cancelled' : 'failed', error: err }
         if (!item.signal.aborted) {
@@ -123,17 +160,27 @@ export function createPublishScheduler({
     else if (result?.outcome === 'failed') t.failed += 1
   }
 
+  // Hands the pass's tally to the callers waiting on it, if any; otherwise it stays for the
+  // whenDrained that has not asked yet.
+  function releaseWaiters(key) {
+    const waiters = drainWaiters.get(key)
+    if (!waiters) return
+    drainWaiters.delete(key)
+    const t = tallies.take(key)
+    for (const resolve of waiters) resolve(t)
+  }
+
+  // After an item settled. Order matters: the space's batch closes (onSpaceIdle) BEFORE the share
+  // is reported drained, so the drained hook can await the close; and the drained hook runs
+  // BEFORE the tally is collected, so the terminal progress it flushes still carries the counts.
   function settleDrain(spaceId, shareId) {
     const q = queues.get(spaceId)
     if (q && q.pendingForShare(shareId) > 0) return
-    const key = tallyKey(spaceId, shareId)
-    const t = tallies.get(key) || null
-    tallies.delete(key)
-    const waiters = drainWaiters.get(key)
-    drainWaiters.delete(key)
-    if (t) onShareDrained?.(spaceId, shareId, t)
-    if (waiters) for (const resolve of waiters) resolve(t)
     if (!q || isIdle(q)) onSpaceIdle?.(spaceId)
+    const key = tallyKey(spaceId, shareId)
+    const t = tallies.get(key)
+    if (t || cancelling.delete(key)) onShareDrained?.(spaceId, shareId, t)
+    releaseWaiters(key)
   }
 
   function clear() {
@@ -144,12 +191,7 @@ export function createPublishScheduler({
   return {
     // Merges: the catch-up diff fires during a mount's drain, and a reset here would hand the
     // mount's whenDrained zeros.
-    beginShare(spaceId, shareId, totalOnDisk) {
-      const key = tallyKey(spaceId, shareId)
-      const cur = tallies.get(key)
-      if (cur) cur.totalOnDisk = totalOnDisk
-      else tallies.set(key, { uploaded: 0, deleted: 0, failed: 0, totalOnDisk })
-    },
+    beginShare(spaceId, shareId, totalOnDisk) { tallies.begin(tallyKey(spaceId, shareId), totalOnDisk) },
     enqueue(spec) {
       const r = queueFor(spec.spaceId).enqueue(spec)
       pump()
@@ -162,38 +204,40 @@ export function createPublishScheduler({
     whenDrained(spaceId, shareId) {
       const key = tallyKey(spaceId, shareId)
       const q = queues.get(spaceId)
-      if (!q || q.pendingForShare(shareId) === 0) {
-        const t = tallies.get(key) || null
-        tallies.delete(key)
-        return Promise.resolve(t)
-      }
+      if (!q || q.pendingForShare(shareId) === 0) return Promise.resolve(tallies.take(key))
       return new Promise((resolve) => {
         const list = drainWaiters.get(key) || []
         list.push(resolve)
         drainWaiters.set(key, list)
       })
     },
+    // Releases the pass NOW (its callers see `cancelled`), while a running item keeps its slot
+    // and its place in the queue until the executor honours the abort.
     cancelShare(spaceId, shareId) {
-      const n = queues.get(spaceId)?.cancel((it) => it.shareId === shareId) ?? 0
-      settleDrain(spaceId, shareId)
+      const q = queues.get(spaceId)
+      const n = q?.cancel((it) => it.shareId === shareId) ?? 0
+      const key = tallyKey(spaceId, shareId)
+      if (q && q.pendingForShare(shareId) > 0) cancelling.add(key)
+      tallies.cancel(key)
+      releaseWaiters(key)
+      if (!q || isIdle(q)) onSpaceIdle?.(spaceId)
       return n
     },
     async cancelSpace(spaceId, { settleMs = 5000 } = {}) {
       const n = queues.get(spaceId)?.cancel(() => true) ?? 0
       queues.delete(spaceId)
+      for (const key of [...drainWaiters.keys()]) {
+        if (key.startsWith(spaceId + '\0')) { tallies.cancel(key); releaseWaiters(key) }
+      }
       const deadline = Date.now() + settleMs
       while ([...running].some((it) => it.spaceId === spaceId) && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 25))
-      }
-      for (const key of [...drainWaiters.keys()]) {
-        if (key.startsWith(spaceId + '\0')) settleDrain(spaceId, key.slice(spaceId.length + 1))
       }
       return n
     },
     isPending(spaceId, shareId, relPath) { return !!queues.get(spaceId)?.isPending(shareId, relPath) },
     isSpaceIdle(spaceId) { const q = queues.get(spaceId); return !q || isIdle(q) },
     statusFor(spaceId, shareId) { return describeShare(queues, running, tallies, spaceId, shareId, order(), concurrency()) },
-    setOrder(next) { for (const q of queues.values()) q.setOrder(next) },
     stop() { stopped = true; clear() },
     _reset() {
       stopped = false
@@ -201,6 +245,7 @@ export function createPublishScheduler({
       running.clear()
       tallies.clear()
       drainWaiters.clear()
+      cancelling.clear()
       lastServed = null
     },
     _running: running,

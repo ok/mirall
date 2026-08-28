@@ -852,10 +852,14 @@ async function handleOwnedMountGone(spaceId, shareId) {
 // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
 // with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
 // — so treating any resolution as 'active' would durably record a healthy scan that never ran.
-// Returns the settled result (null on failure) so callers can gate their scan-completed emit.
+// A pass that was CANCELLED (delete, relocate, leave, cancel-index) records nothing: whoever
+// cancelled it owns the status from here, and a late 'active' would race a delete's mount
+// removal back into a zombie record. Returns the settled result (null on failure) so callers can
+// gate their scan-completed emit.
 async function settleScanStatus(promise, spaceId, shareId) {
   try {
     const result = await promise
+    if (result?.cancelled) return result
     if (result?.skipped === 'mount-point-gone') await handleOwnedMountGone(spaceId, shareId)
     else if (result?.skipped) await setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
     else await setOwnedStatus(spaceId, shareId, 'active')
@@ -1427,6 +1431,9 @@ ipc.handle('owned-folder:mount', async (msg) => {
 
   settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
     .then(async (result) => {
+      // Cancelled mid-index: whoever cancelled (delete, relocate, leave, cancel-index) owns the
+      // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.
+      if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
       // One row for the deliberate act, carrying the totals from the initial scan. The recurring
       // reconcile deliberately records nothing — it is machine churn, not a user action.
@@ -1450,8 +1457,16 @@ ipc.handle('owned-folder:index-status', async (msg) => {
   return getIndexStatus(msg.spaceId, msg.shareId)
 })
 
+// Stops the current index; the share stays mounted and watched. The cancelled pass would have
+// recorded 'active' and armed the periodic reconcile on completion — do both here instead.
 ipc.handle('owned-folder:cancel-index', async (msg) => {
-  return { cancelled: cancelIndex(msg.spaceId, msg.shareId) }
+  const cancelled = cancelIndex(msg.spaceId, msg.shareId)
+  const mount = await getOwnedMount(msg.spaceId, msg.shareId)
+  if (mount) {
+    await setOwnedStatus(msg.spaceId, msg.shareId, 'active')
+    schedulePeriodicReconcile(msg.spaceId, msg.shareId, mount.mountPath, mount.ignore)
+  }
+  return { cancelled }
 })
 
 // Re-point an owned folder at a new on-disk location after the original source
@@ -1487,6 +1502,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
   settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
     .then((result) => {
+      if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
       schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
     })
