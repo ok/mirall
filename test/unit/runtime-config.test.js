@@ -1,7 +1,6 @@
 import {
   setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
-  getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow,
-} from '../../src/shared/core/runtime-config.js'
+  getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
 import { AVATAR_MAX_BYTES } from '../../src/shared/identity-limits.js'
@@ -191,5 +190,21 @@ test('setBandwidthLimits updates live and leaves the rest of the config alone', 
 
   setBandwidthLimits({ downloadKBps: 'nonsense' })
   t.is(getBandwidthLimits().download, 2048 * 1024, 'an invalid value keeps the previous cap')
+  setRuntimeConfig({})
+})
+
+test('serveChunkMapCacheBytes: 32 MiB default, 0 disables, Infinity unbounds, garbage falls back', (t) => {
+  setRuntimeConfig({})
+  t.is(getServeChunkMapCacheBytes(), 32 * 1024 * 1024)
+  setRuntimeConfig({ serveChunkMapCacheBytes: 0 })
+  t.is(getServeChunkMapCacheBytes(), 0, '0 = no cache (the rollback gate)')
+  setRuntimeConfig({ serveChunkMapCacheBytes: Infinity })
+  t.is(getServeChunkMapCacheBytes(), Infinity)
+  setRuntimeConfig({ serveChunkMapCacheBytes: 4096 })
+  t.is(getServeChunkMapCacheBytes(), 4096)
+  for (const bad of [-1, NaN, 'big', null]) {
+    setRuntimeConfig({ serveChunkMapCacheBytes: bad })
+    t.is(getServeChunkMapCacheBytes(), 32 * 1024 * 1024, `falls back on ${String(bad)}`)
+  }
   setRuntimeConfig({})
 })

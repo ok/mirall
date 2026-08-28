@@ -15,6 +15,11 @@ function fakeTransfer (chunkMap, bytes) {
   return {
     _fileIndex: { getChunkMap: async () => chunkMap, getChunkMapByHash: async () => chunkMap },
     readChunk: (_p, off, len) => bytes.subarray(off, off + len),
+    // The serve loop reads through a per-session fd now; a fake descriptor is enough here
+    // because readChunkAt resolves from the same buffer.
+    openChunkSource: async () => 1,
+    closeChunkSource: () => {},
+    readChunkAt: async (_fd, off, len) => bytes.subarray(off, off + len),
     startReceive () { return { received: new Set() } },
     writeChunk () { return { ok: true } },
     finalize () { return { ok: true } },
@@ -109,9 +114,10 @@ test('FIX-1: per-chunk serve telemetry still fires before the backpressure wait'
   t.alike(served, [0, 1, 2], 'onChunkServe fired once per chunk despite the parking')
 })
 
-test('_onChunkNeed skips a chunk whose readChunk returns null and serves the rest', async (t) => {
+test('_onChunkNeed skips a chunk whose read returns null and serves the rest', async (t) => {
   const transfer = fakeTransfer(map3(), Buffer.alloc(12, 7))
-  transfer.readChunk = (_p, off) => (off === 4 ? null : Buffer.alloc(4, 7)) // index 1 unreadable
+  // The serve loop reads through readChunkAt on the session fd.
+  transfer.readChunkAt = async (_fd, off) => (off === 4 ? null : Buffer.alloc(4, 7)) // index 1 unreadable
   const proto = new OverlayProtocolV2({}, transfer, {
     filePaths: new Map([['content:abc', '/disk/abc']]),
   })
