@@ -75,7 +75,7 @@ test('a big index in one space does not stall a second space', { timeout: scaled
   t.ok(heavyStatus.queued + heavyStatus.running > 0, 'the heavy space is still indexing (' + JSON.stringify(heavyStatus) + ')')
 
   const seen = await B.until('share:list-files', { spaceId: s2, ownerKey: aKey, shareId: light.id },
-    (f) => f?.entries?.some((e) => e.relPath === 'note.txt'), { ms: scaled(120000) })
+    (f) => f?.entries?.some((e) => e.relPath === 'note.txt'), { ms: 120000 })
   t.ok(seen, 'the small file in space 2 publishes')
   // The bound is one file, not one folder: space 2 takes a slot as soon as it has work.
   t.ok(Date.now() - started < scaled(120000), 'and did not wait out the heavy space (took ' + (Date.now() - started) + 'ms)')
