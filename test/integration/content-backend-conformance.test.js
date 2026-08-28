@@ -10,7 +10,7 @@ import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 // flag, so a timed-out drain was indistinguishable from a real deletion (FIX-359). Every consumer
 // reads through listPeerWithMeta, which carries it.
 const CONTRACT = [
-  'publishAdd', 'publishDelete', 'scan',
+  'publishAdd', 'publishDelete',
   'listOwn', 'listPeerWithMeta',
   'requestDownload', 'ensureRemote', 'releaseRemote',
 ]

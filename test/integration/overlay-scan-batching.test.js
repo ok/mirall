@@ -6,6 +6,7 @@ import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { ownCatalog, listOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -49,7 +50,7 @@ function fillFiles (dir, n) {
 async function scanAppends (share) {
   const bee = await ownCatalog(share.spaceId)
   const before = bee.core.length
-  const res = await overlayBackend.scan(share.spaceId, share.share, share.mountPath, [])
+  const res = await initialPublishScan(share.spaceId, share.share.id, share.mountPath, [])
   return { res, appends: bee.core.length - before }
 }
 

@@ -7,7 +7,7 @@ import { initStore, getStore, setMasterSecret } from '../../src/shared/core/stor
 import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
 import { initSpaces } from '../../src/shared/spaces/space.js'
 import { initMounts } from '../../src/shared/folders/mount-store.js'
-import { initOwnedFolders } from '../../src/shared/folders/owned-folders.js'
+import { initOwnedFolders, _resetOwnedFolders } from '../../src/shared/folders/owned-folders.js'
 import { initForeignFolders } from '../../src/shared/folders/foreign-folders.js'
 import { createFakeIpc } from './fake-ipc.js'
 
@@ -52,6 +52,7 @@ async function bootPeer (t, { displayName, masterSecret }) {
   initForeignFolders(fake.ipc)
 
   t.teardown(async () => {
+    try { _resetOwnedFolders() } catch {}
     try { await getStore().close() } catch {}
     try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}
     try { fs.rmSync(downloads, { recursive: true, force: true }) } catch {}

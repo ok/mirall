@@ -6,6 +6,7 @@ import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -175,12 +176,12 @@ test('listOwn returns advertised entries with their hashes', async (t) => {
 
 test('scan advertises all on-disk files and tombstones removed ones', async (t) => {
   const ctx = await setup(t, { files: { 'a.txt': 'one', 'b.txt': 'two' } })
-  const r1 = await overlayBackend.scan(ctx.spaceId, ctx.share, ctx.mountPath, [])
+  const r1 = await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.is(r1.uploaded, 2, 'both files advertised')
   t.is(r1.totalOnDisk, 2)
 
   fs.unlinkSync(path.join(ctx.mountPath, 'a.txt'))
-  const r2 = await overlayBackend.scan(ctx.spaceId, ctx.share, ctx.mountPath, [])
+  const r2 = await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.is(r2.deleted, 1, 'tombstoned the removed file')
   const { entries: own } = await overlayBackend.listOwn(ctx.spaceId, ctx.share.id)
   t.is(own.length, 1)
@@ -189,7 +190,7 @@ test('scan advertises all on-disk files and tombstones removed ones', async (t) 
 
 test('REGRESSION (FIX-2: scan isolation): one erroring file does not abort the scan or skip tombstones', async (t) => {
   const ctx = await setup(t, { files: { 'a.txt': 'one', 'b.txt': 'two', 'gone.txt': 'three' } })
-  const r1 = await overlayBackend.scan(ctx.spaceId, ctx.share, ctx.mountPath, [])
+  const r1 = await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.is(r1.uploaded, 3, 'all three advertised on the first pass')
 
   // Remove one file (must be tombstoned) AND make one still-present file throw during
@@ -206,7 +207,7 @@ test('REGRESSION (FIX-2: scan isolation): one erroring file does not abort the s
   }
   t.teardown(() => { overlay.prepareForServe = realPrepare })
 
-  const r2 = await overlayBackend.scan(ctx.spaceId, ctx.share, ctx.mountPath, [])
+  const r2 = await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.is(r2.deleted, 1, 'tombstone pass still ran despite the mid-loop throw')
 
   const { entries: own } = await overlayBackend.listOwn(ctx.spaceId, ctx.share.id)
