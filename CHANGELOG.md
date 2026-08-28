@@ -10,6 +10,50 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## v1.9.1
+### 2026-08-28
+
+Folder and single-file sharing now go through one publish queue, so a
+large index stays out of everyone's way and the file you just added is
+always first in line.
+
+#### Added
+
+- **Adding files never waits behind a big index.** Each space has its own
+  queue with a bounded number of files hashing at once: a large folder
+  in one space no longer stalls a small one in another, files are hashed
+  smallest-first so members see something early, and a file you drop
+  into a shared folder — or share on its own — starts at once even while
+  an index is running. A folder is read once per file, not once per
+  event.
+
+#### Fixed
+
+- **A file added while its folder was still indexing stays shared.** It
+  used to be published on the spot and then removed by the index that had
+  started before it, so members saw it appear and vanish until the next
+  six-hourly pass.
+- **A copied-in file the watcher missed is shared within seconds.** macOS
+  can drop the event for a burst of new files; Mirall now re-checks with a
+  short backoff instead of leaving the file for the six-hourly pass.
+- **Renaming a file only by case keeps one entry, not two.** On macOS and
+  Windows the old name stayed shared beside the new one indefinitely.
+- **A rewrite that kept a file's size and date is picked up.** The daily
+  deep check noticed the change and then skipped the publish.
+- **Files deleted while Mirall was closed are removed in one step.** The
+  next start used to send members one update per deleted file.
+- **Removing or moving a folder during its index leaves nothing behind.**
+  A cancelled index no longer records itself as finished, and the folder
+  it was cancelled for is not re-armed.
+- **Cancelling a single file that is still "Adding" works on the first
+  click.** Adding it again while the cancel unwinds shares it, and
+  unsharing it during a long hash waits for the hash instead of racing
+  it.
+- **Switching spaces no longer flashes "nothing shared yet".** A space
+  holding only folder shares looked empty for a moment while its lists
+  loaded; they are now kept across visits.
+
+
 ## v1.9.0
 ### 2026-08-27
 
