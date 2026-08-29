@@ -116,7 +116,7 @@ let overlayReconnectHook = null         // notified when an overlay-content owne
 let membershipControlHandler = null     // membership:* frames (join request / grant / deny) routed to the worker
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
 let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
-const profileBeeAppendListeners = new Map()  // profileKey hex → listener fn
+const profileBeeAppendListeners = new Map()  // profileKey hex → { bee, listener } — the ONE held bee per peer
 const socketMsgHandlers = new Map()     // socket → Protomux msgHandler (for sending handshakes to existing connections)
 const pendingRequesters = new Map()     // profileKey → socket (a pending joiner has no drive/handshake yet, so track its socket to grant later)
 // Every identity frame a peer sends carries its bound ed25519 signer key; remember it per
@@ -696,11 +696,16 @@ export function isBlockUnavailable(err) {
   return err?.code === 'BLOCK_NOT_AVAILABLE' || /not available|avatar sync timeout/i.test(err?.message || '')
 }
 
-async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
-  const peerProfileBee = openProfileBee(b4a.from(msg.profileKey, 'hex'))
-  await peerProfileBee.ready()
-
-  if (!profileBeeAppendListeners.has(peerKey)) {
+// The long-lived holder: ONE bee per peer for the process lifetime, carrying the append listener
+// that drives admission re-evaluation, the share-list refresh and the audit observer. Every other
+// touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee), so
+// this is the only session we keep — previously every avatar fetch opened another one and never
+// closed it.
+function ensurePeerProfileWatch(peerKey, profileKeyHex) {
+  const held = profileBeeAppendListeners.get(peerKey)
+  if (held) return held
+  const peerProfileBee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
+  {
     const listener = () => {
       // The append may be a new approved/<space>/<joiner> record — re-evaluate any
       // join request we hold for a peer this member may have just approved. (The fold's
@@ -720,11 +725,28 @@ async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
       observePeerProfile(peerKey, peerProfileBee)
     }
     peerProfileBee.core.on('append', listener)
-    profileBeeAppendListeners.set(peerKey, listener)
+    profileBeeAppendListeners.set(peerKey, { bee: peerProfileBee, listener })
     // Baseline now, not on the first append — otherwise the first share a peer creates after we
     // meet them is swallowed as "history".
-    observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true })
+    // Drop the entry if the bee never opens: caching a broken holder would make every later
+    // avatar fetch for this peer hit the fast path and fail again for the process lifetime,
+    // where the old per-fetch open self-healed on the next handshake.
+    peerProfileBee.ready().then(
+      () => observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true }),
+      (err) => {
+        log.warn('peer profile bee failed to open — dropping the watch so the next handshake retries:', err.message)
+        if (profileBeeAppendListeners.get(peerKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(peerKey)
+        try { peerProfileBee.core.off('append', listener) } catch {}
+        peerProfileBee.close().catch(() => {})
+      },
+    )
   }
+  return profileBeeAppendListeners.get(peerKey)
+}
+
+async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
+  const { bee: peerProfileBee } = ensurePeerProfileWatch(peerKey, msg.profileKey)
+  await peerProfileBee.ready()
 
   for (let attempt = 0; attempt < AVATAR_FETCH_ATTEMPTS; attempt++) {
     try {
@@ -1899,6 +1921,12 @@ export async function destroySwarm() {
   connectedPeers.clear()
   socketToPeers.clear()
   leaveAcks.clear()
+  // Close the one held bee per peer, not just the map: each carries a live session and an
+  // append listener.
+  for (const held of profileBeeAppendListeners.values()) {
+    try { held.bee.core.off('append', held.listener) } catch {}
+    held.bee.close().catch(() => {})
+  }
   profileBeeAppendListeners.clear()
   socketMsgHandlers.clear()
   pendingRequesters.clear()

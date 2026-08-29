@@ -68,9 +68,13 @@ export function getIdentitySigner() {
   return { secretKey: kp.secretKey, publicKey: kp.publicKey, namespace }
 }
 
-export function openProfileBee(publicKeyBuffer) {
+// `timeoutMs` is a SESSION-level hypercore timeout: every block read under this session (and the
+// snapshot sessions hyperbee opens per get) settles with REQUEST_TIMEOUT instead of waiting for a
+// block that may never arrive — so an abandoned read cannot pin the core through a hung batch.
+// 0 keeps hypercore's default (wait forever), which the long-lived holders want.
+export function openProfileBee(publicKeyBuffer, { timeoutMs = 0 } = {}) {
   const store = getStore()
-  const core = store.get(publicKeyBuffer)
+  const core = timeoutMs ? store.get({ key: publicKeyBuffer, timeout: timeoutMs }) : store.get(publicKeyBuffer)
   return new Hyperbee(core, {
     keyEncoding: 'utf-8',
     valueEncoding: 'json',
@@ -123,14 +127,14 @@ export async function readPeerMembership(profileKeyHex, spaceId) {
   }
 }
 
-async function loadPeerMembership(profileKeyHex, spaceId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-  if (!cap?.value) return null
-  const entry = await bee.get('member/' + spaceId)
-  return entry ? !!entry.value?.active : false
+function loadPeerMembership(profileKeyHex, spaceId) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+
+    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
+    if (!cap?.value) return null
+    const entry = await bee.get('member/' + spaceId)
+    return entry ? !!entry.value?.active : false
+  })
 }
 
 // Authored approval record in our own profile bee: the approver vouches that
@@ -185,14 +189,14 @@ export async function readPeerApproval(approverProfileKeyHex, spaceId, joinerKey
   }
 }
 
-async function loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex) {
-  const bee = openProfileBee(b4a.from(approverProfileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-  if (!cap?.value) return null
-  const entry = await bee.get('approved/' + spaceId + '/' + joinerKeyHex)
-  return !!entry
+function loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex) {
+  return withPeerBee(approverProfileKeyHex, async (bee) => {
+
+    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
+    if (!cap?.value) return null
+    const entry = await bee.get('approved/' + spaceId + '/' + joinerKeyHex)
+    return !!entry
+  })
 }
 
 // Per-link invite record authored in our own (replicated) profile bee, so any member can resolve a
@@ -230,14 +234,14 @@ export async function readPeerInvite(profileKeyHex, spaceId, inviteId) {
   }
 }
 
-async function loadPeerInvite(profileKeyHex, spaceId, inviteId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-  if (!cap?.value) return { resolved: true, value: null }
-  const entry = await bee.get('invite/' + spaceId + '/' + inviteId)
-  return { resolved: true, value: entry?.value || null }
+function loadPeerInvite(profileKeyHex, spaceId, inviteId) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+
+    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
+    if (!cap?.value) return { resolved: true, value: null }
+    const entry = await bee.get('invite/' + spaceId + '/' + inviteId)
+    return { resolved: true, value: entry?.value || null }
+  })
 }
 
 // Local-only read at the highest CONTIGUOUS snapshot we hold of the peer's bee: a
@@ -340,25 +344,25 @@ export async function readPeerDenials(profileKeyHex, spaceId) {
 
 // Stream one prefix of a peer's replicated bee (the `lt` bound mirrors the approvals stream:
 // '0' (0x30) is the byte after '/' (0x2f)). Cap-gated + bounded like the other peer reads.
-async function loadPeerEntries(profileKeyHex, prefix) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-  if (!cap?.value) return []
-  const limit = getResourceCaps().requestsPerMember
-  const out = []
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix.slice(0, -1) + '0' }, limit ? { limit } : undefined)) {
-    const joiner = entry.key.slice(prefix.length)
-    const v = entry.value || {}
-    out.push({
-      joiner,
-      displayName: clampDisplayName(v.displayName || 'Unknown'),
-      avatar: sanitizeAvatar(v.avatar || null, getResourceCaps().avatarMaxBytes),
-      ts: v.ts || 0,
-    })
-  }
-  return out
+function loadPeerEntries(profileKeyHex, prefix) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+
+    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
+    if (!cap?.value) return []
+    const limit = getResourceCaps().requestsPerMember
+    const out = []
+    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix.slice(0, -1) + '0' }, limit ? { limit } : undefined)) {
+      const joiner = entry.key.slice(prefix.length)
+      const v = entry.value || {}
+      out.push({
+        joiner,
+        displayName: clampDisplayName(v.displayName || 'Unknown'),
+        avatar: sanitizeAvatar(v.avatar || null, getResourceCaps().avatarMaxBytes),
+        ts: v.ts || 0,
+      })
+    }
+    return out
+  }, { fallback: [] })
 }
 
 // One peer's full membership record for a space, the unit the OR-Set fold consumes:
@@ -378,26 +382,26 @@ export async function readMembershipRecord(profileKeyHex, spaceId) {
   }
 }
 
-async function loadMembershipRecord(profileKeyHex, spaceId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-  if (!cap?.value) return null
-  const memberEntry = await bee.get('member/' + spaceId)
-  const active = memberEntry ? !!memberEntry.value?.active : false
-  const memberTs = memberEntry ? (memberEntry.value?.ts || 0) : 0
-  const memberSeq = typeof memberEntry?.seq === 'number' ? memberEntry.seq : null
-  const prefix = 'approved/' + spaceId + '/'
-  const limit = getResourceCaps().approvalsPerMember
-  const approvals = []
-  const approvalSeqs = new Map()
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: 'approved/' + spaceId + '0' }, limit ? { limit } : undefined)) {
-    const joiner = entry.key.slice(prefix.length)
-    approvals.push(joiner)
-    if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)
-  }
-  return { active, approvals, memberTs, memberSeq, approvalSeqs }
+function loadMembershipRecord(profileKeyHex, spaceId) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+
+    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
+    if (!cap?.value) return null
+    const memberEntry = await bee.get('member/' + spaceId)
+    const active = memberEntry ? !!memberEntry.value?.active : false
+    const memberTs = memberEntry ? (memberEntry.value?.ts || 0) : 0
+    const memberSeq = typeof memberEntry?.seq === 'number' ? memberEntry.seq : null
+    const prefix = 'approved/' + spaceId + '/'
+    const limit = getResourceCaps().approvalsPerMember
+    const approvals = []
+    const approvalSeqs = new Map()
+    for await (const entry of bee.createReadStream({ gte: prefix, lt: 'approved/' + spaceId + '0' }, limit ? { limit } : undefined)) {
+      const joiner = entry.key.slice(prefix.length)
+      approvals.push(joiner)
+      if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)
+    }
+    return { active, approvals, memberTs, memberSeq, approvalSeqs }
+  })
 }
 
 // Durably pull a joiner's OWN profile core into our store while the joiner is still connected —
@@ -430,6 +434,38 @@ export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs
 // coming) can't hang the caller on update({ wait: true }).
 async function boundedUpdate(core, ms) {
   await withReadTimeout(core.update({ wait: true }).catch(() => {}), ms, undefined)
+}
+
+// One bounded read of a peer's profile bee: open, pull the head, run `fn`, close — whatever fn
+// does. Closing releases only THIS session; the core stays open for every other holder (a member
+// view's follow, the avatar listener), and once the last session goes corestore reclaims it on
+// its idle GC, which also takes it off every replication stream. A close while update() is in
+// flight cancels that request (REQUEST_CANCELLED), which the callers already map to the
+// fallback. Mirrors the capture paths, which always closed. One budget covers the head sync and
+// the read together, so a caller's deadline is charged once rather than once per phase.
+export async function withPeerBee(profileKeyHex, fn, {
+  timeoutMs = peerReadTimeoutMs(),
+  fallback = null,
+  sync = true,
+} = {}) {
+  const deadline = Date.now() + timeoutMs
+  let bee = null
+  try {
+    // Inside the try: a malformed key or a store closing during shutdown must degrade to the
+    // fallback like any other unreadable peer, not reject into a caller that has no catch
+    // (buildWantedKeys awaits this bare, and one throw would abort the whole leftover scan).
+    bee = openProfileBee(b4a.from(profileKeyHex, 'hex'), { timeoutMs })
+    await bee.ready()
+    if (sync) await boundedUpdate(bee.core, Math.max(0, deadline - Date.now()))
+    return await withReadTimeout(fn(bee), Math.max(0, deadline - Date.now()), fallback)
+  } catch (err) {
+    // Say it: without this the callers' own catch/log lines are unreachable, and a real bug in
+    // `fn` (a bad key encoding, a decode failure) is indistinguishable from "peer offline".
+    log.debug('peer bee read failed for', profileKeyHex.slice(0, 16) + '...', '-', err.message)
+    return fallback
+  } finally {
+    if (bee) await bee.close().catch(() => {})
+  }
 }
 
 // Copy a peer's profile bee to a CONTIGUOUS local prefix using EXPLICIT block gets, so
@@ -540,21 +576,21 @@ export async function readProfileRecord(profileKeyHex, spaceId = null) {
   }
 }
 
-async function loadProfileRecord(profileKeyHex, spaceId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const displayName = await bee.get('displayName')
-  const avatar = await bee.get('avatar')
-  const driveKey = spaceId ? await bee.get('drive/' + spaceId) : null
-  const looseCatalogKey = spaceId ? await bee.get('loosecat/' + spaceId) : null
-  const looseCatalogKeyEnc = spaceId ? await bee.get('loosecatEnc/' + spaceId) : null
-  if (!displayName && !avatar && !driveKey && !looseCatalogKey && !looseCatalogKeyEnc) return null
-  return {
-    displayName: displayName?.value ? clampDisplayName(displayName.value) : null,
-    avatar: sanitizeAvatar(avatar?.value || null, getResourceCaps().avatarMaxBytes),
-    driveKey: driveKey?.value || null,
-    looseCatalogKey: looseCatalogKey?.value || null,
-    looseCatalogKeyEnc: looseCatalogKeyEnc?.value || null,
-  }
+function loadProfileRecord(profileKeyHex, spaceId) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+
+    const displayName = await bee.get('displayName')
+    const avatar = await bee.get('avatar')
+    const driveKey = spaceId ? await bee.get('drive/' + spaceId) : null
+    const looseCatalogKey = spaceId ? await bee.get('loosecat/' + spaceId) : null
+    const looseCatalogKeyEnc = spaceId ? await bee.get('loosecatEnc/' + spaceId) : null
+    if (!displayName && !avatar && !driveKey && !looseCatalogKey && !looseCatalogKeyEnc) return null
+    return {
+      displayName: displayName?.value ? clampDisplayName(displayName.value) : null,
+      avatar: sanitizeAvatar(avatar?.value || null, getResourceCaps().avatarMaxBytes),
+      driveKey: driveKey?.value || null,
+      looseCatalogKey: looseCatalogKey?.value || null,
+      looseCatalogKeyEnc: looseCatalogKeyEnc?.value || null,
+    }
+  })
 }
