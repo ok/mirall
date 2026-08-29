@@ -3,11 +3,17 @@
 // starts, updated with byte progress and error codes, and cleared on completion — surviving
 // rows are what drive resume after a restart and the paused/error states the UI derives.
 import { createLocalBee } from '../core/store.js'
+import { createKeyedLock } from '../core/keyed-lock.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('pending-transfers')
 
 let bee
+// Every write to one row goes through here in call order. A progress tick issued after an
+// error write (chunks still landing after a mismatch) would otherwise read the row before the
+// verdict and put it back without one.
+const exclusive = createKeyedLock()
+const rowKey = (spaceId, filePath) => spaceId + ':' + filePath
 
 export async function initPendingTransfers() {
   bee = createLocalBee('pending-transfers')
@@ -15,19 +21,28 @@ export async function initPendingTransfers() {
   log.info('pending transfers initialized')
 }
 
-export async function recordPending(spaceId, filePath, info) {
-  await bee.put(spaceId + ':' + filePath, { ...info, updatedAt: Date.now() })
+// The live bee, for tests that need a write to fail. Not for production callers.
+export function _pendingBeeForTests() {
+  return bee
 }
 
-export async function updatePendingProgress(spaceId, filePath, bytes) {
-  const key = spaceId + ':' + filePath
-  const cur = await bee.get(key)
-  if (!cur) return
-  await bee.put(key, { ...cur.value, bytesTransferred: bytes, updatedAt: Date.now() })
+export function recordPending(spaceId, filePath, info) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, () => bee.put(key, { ...info, updatedAt: Date.now() }))
 }
 
-export async function clearPending(spaceId, filePath) {
-  await bee.del(spaceId + ':' + filePath)
+export function updatePendingProgress(spaceId, filePath, bytes) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, async () => {
+    const cur = await bee.get(key)
+    if (!cur) return
+    await bee.put(key, { ...cur.value, bytesTransferred: bytes, updatedAt: Date.now() })
+  })
+}
+
+export function clearPending(spaceId, filePath) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, () => bee.del(key))
 }
 
 export async function getPendingFor(spaceId, filePath) {
@@ -35,25 +50,29 @@ export async function getPendingFor(spaceId, filePath) {
   return entry?.value || null
 }
 
-export async function recordPendingError(spaceId, filePath, errorCode) {
-  const key = spaceId + ':' + filePath
-  const cur = await bee.get(key)
-  if (!cur) return
-  await bee.put(key, {
-    ...cur.value,
-    errorCode,
-    erroredAt: Date.now(),
+export function recordPendingError(spaceId, filePath, errorCode) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, async () => {
+    const cur = await bee.get(key)
+    if (!cur) return
+    await bee.put(key, {
+      ...cur.value,
+      errorCode,
+      erroredAt: Date.now(),
+    })
   })
 }
 
-export async function clearPendingError(spaceId, filePath) {
-  const key = spaceId + ':' + filePath
-  const cur = await bee.get(key)
-  if (!cur?.value?.errorCode) return
-  const next = { ...cur.value }
-  delete next.errorCode
-  delete next.erroredAt
-  await bee.put(key, next)
+export function clearPendingError(spaceId, filePath) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, async () => {
+    const cur = await bee.get(key)
+    if (!cur?.value?.errorCode) return
+    const next = { ...cur.value }
+    delete next.errorCode
+    delete next.erroredAt
+    await bee.put(key, next)
+  })
 }
 
 export async function listPending() {
@@ -93,10 +112,13 @@ export async function listPendingOwnerKeys() {
   return owners
 }
 
+// Leave-time purge. The deletes run through the SAME per-key chain as every single-row write,
+// so a recordPending/updatePendingProgress already queued for one of these rows cannot land
+// after the purge and resurrect a row for a space the user just left.
 export async function clearPendingForSpace(spaceId) {
-  const batch = bee.batch()
+  const keys = []
   for await (const entry of bee.createReadStream({ gte: spaceId + ':', lt: spaceId + ';' })) {
-    await batch.del(entry.key)
+    keys.push(entry.key)
   }
-  await batch.flush()
+  await Promise.all(keys.map((key) => exclusive(key, () => bee.del(key))))
 }

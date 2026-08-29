@@ -89,6 +89,10 @@ export class HyperOverlayV2 extends ReadyResource {
     // [mirall] content-plane transfer caps, injected by the app layer.
     this._uploadLimiter = opts.uploadLimiter || null
     this._downloadLimiter = opts.downloadLimiter || null
+    // [mirall] decoded chunk-map cache, injected by the app layer like the limiters.
+    this._chunkMapCache = opts.chunkMapCache || null
+    // [mirall] serve-fd idle window, threaded to the protocol (tests shrink it).
+    this._serveFdIdleMs = opts.serveFdIdleMs
 
     // Shared maps the protocol reads: overlayPath → diskPath (for serving an
     // offered/known path), contentHash → diskPath (fast path for content
@@ -128,7 +132,7 @@ export class HyperOverlayV2 extends ReadyResource {
     if (this._protocol) return Promise.resolve()
     if (this._stackPromise) return this._stackPromise
     this._stackPromise = (async () => {
-      const index = new FileIndex(this._corestore, { encryptionKey: this._indexEncryptionKey })
+      const index = new FileIndex(this._corestore, { encryptionKey: this._indexEncryptionKey, chunkMapCache: this._chunkMapCache })
       await index.ready()
       const sync = new SyncEngine(index, this._corestore, { encryptionKey: this._indexEncryptionKey })
       await sync.ready()
@@ -151,7 +155,8 @@ export class HyperOverlayV2 extends ReadyResource {
         onServeControl: this._onServeControl,
         onServeProgress: this._onServeProgress,
         uploadLimiter: this._uploadLimiter,
-        downloadLimiter: this._downloadLimiter
+        downloadLimiter: this._downloadLimiter,
+        serveFdIdleMs: this._serveFdIdleMs
       })
       try { fs.mkdirSync(this._destDir, { recursive: true }) } catch {}
       if (this._journalDir) { try { fs.mkdirSync(this._journalDir, { recursive: true }) } catch {} }

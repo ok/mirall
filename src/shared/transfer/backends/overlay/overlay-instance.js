@@ -18,8 +18,9 @@ import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
 import { senderAuthorizedOnSocket, isApprovedMember } from '../../swarm.js'
 import { contentSenderAuthorizedOnSocket } from '../../content-swarm.js'
 import { createRateLimiter } from '../../handshake-guard.js'
-import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits } from '../../../core/runtime-config.js'
+import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits, getServeChunkMapCacheBytes } from '../../../core/runtime-config.js'
 import { createBandwidthLimiter } from '../../bandwidth-limiter.js'
+import { createChunkMapCache } from '../../chunk-map-cache.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay')
@@ -141,6 +142,9 @@ export async function initOverlay() {
     onServeProgress: ({ from, path, have }) => ledgerServeBaseline({ from, contentHash: contentHashOf(path), have }),
     uploadLimiter,
     downloadLimiter,
+    // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
+    // index on close, so nothing to tear down here. 0 disables it (runtime-config).
+    chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),
     // The remote's overlay protocol version, announced in the channel handshake. Below the
     // minimum the protocol closes that channel only: the socket, its sibling control channel
     // (mirall/handshake, or mirall/content-hello when the separate content plane is on) and

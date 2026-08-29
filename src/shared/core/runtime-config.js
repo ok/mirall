@@ -64,8 +64,15 @@ const DEFAULTED = {
   // clamps to >= 1.
   publishConcurrency: 2,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
-  // before charging), so the burst covers the spaces two peers actually share.
+  // before charging). An honest connection sends one frame per shared space, we reciprocate
+  // each, and a name change or ledger re-send can add a third inside one refill window — so
+  // the lane's burst is handshakeBurst + handshakeBurstPerTopic x the topics THIS peer joined
+  // (createDualRateLimiter reads the count per take). Refill and the consecutive-drop ban are
+  // unchanged: a flood is anything past that cap at 1 frame/s. A fixed burst of 8 banned a
+  // peer sharing 24+ spaces on every reconnect. burstPerTopic 0 restores the fixed burst;
+  // handshakeBurst 0 still switches the lane off.
   handshakeBurst: 8,
+  handshakeBurstPerTopic: 3,
   handshakeRefillMs: 1000,
   handshakeAbuseThreshold: 24,
   // Frames naming a topic we did not join: dropped before any signature verify, so the lane
@@ -111,6 +118,12 @@ const DEFAULTED = {
   // (a unit test asserts they match). 0 disables it.
   maxAvatarBytes: 256 * 1024,
   deriveDebounceMs: 150,
+  // Serve-side cache of DECODED chunk maps, in bytes (~160 B per chunk entry). A chunk-need
+  // used to re-read and JSON-decode the file's whole map from the file-index bee, about once
+  // per chunk served. 32 MiB holds ~200k entries: twenty concurrent 10 GiB tier-3 serves or
+  // two 100 GiB ones; a single larger map is still admitted (the cache keeps its newest
+  // entry). 0 disables the cache — the no-build rollback; Infinity unbounds it.
+  serveChunkMapCacheBytes: 32 * 1024 * 1024,
   // Foreign-mirror materialize poll cadence. Tests shrink it to assert orphan-mount teardown
   // (owner left → unmount) promptly; production uses the 30s default.
   foreignPollIntervalMs: 30_000,
@@ -254,6 +267,13 @@ export function getDeepReconcileEvery() {
   return config.deepReconcileEvery
 }
 
+// A budget that is multiplied by a live count must be finite and non-negative: Infinity yields
+// NaN against a zero count (which reads as "lane disabled" and fails OPEN), a negative yields a
+// cap no frame can meet (fails closed on honest peers). Anything else falls back to the default.
+function finiteAtLeast(value, min, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback
+}
+
 export function getPublishConcurrency() {
   const n = config.publishConcurrency
   if (n === Infinity) return Infinity
@@ -295,6 +315,16 @@ export function getBandwidthLimits() {
   return { download: toBytesPerSecond(c.downloadKBps), upload: toBytesPerSecond(c.uploadKBps) }
 }
 
+// The fail-safe contract of getListFilesCap with 0 read the other way round: this bounds
+// worker memory, so 0 means "no cache" (never "no bound"), Infinity means unbounded, and a
+// corrupt value falls back to the default rather than to either extreme.
+export function getServeChunkMapCacheBytes() {
+  const n = config.serveChunkMapCacheBytes
+  if (n === 0 || n === Infinity) return n
+  if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
+  return DEFAULTED.serveChunkMapCacheBytes
+}
+
 function toBytesPerSecond(kbps) {
   if (typeof kbps !== 'number' || !Number.isFinite(kbps) || kbps <= 0) return 0
   return kbps * 1024
@@ -307,7 +337,10 @@ export function getCaptureMemberRecordMs() {
 export function getHandshakeRateLimit() {
   const c = config
   return {
-    matched: { burst: c.handshakeBurst, refillMs: c.handshakeRefillMs, abuseThreshold: c.handshakeAbuseThreshold },
+    // burstPerTopic multiplies a per-socket count, so it is clamped to a finite non-negative
+    // number: Infinity would make the product NaN for a peer with no matched topic yet and
+    // silently switch the lane OFF, and a negative would drop every honest frame.
+    matched: { burst: c.handshakeBurst, burstPerTopic: finiteAtLeast(c.handshakeBurstPerTopic, 0, DEFAULTED.handshakeBurstPerTopic), refillMs: c.handshakeRefillMs, abuseThreshold: c.handshakeAbuseThreshold },
     unmatched: { burst: c.handshakeUnmatchedBurst, refillMs: c.handshakeUnmatchedRefillMs, abuseThreshold: c.handshakeUnmatchedAbuseThreshold },
   }
 }
