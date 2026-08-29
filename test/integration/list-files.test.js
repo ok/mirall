@@ -12,6 +12,8 @@ import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
 
 // listFiles is the source of truth for the space's loose-file list and each
 // file's status. The single-peer-observable guarantees: own files show as
@@ -73,12 +75,28 @@ test('distinct loose files are each listed', async (t) => {
   t.alike(paths, ['/a.txt', '/b.txt'], 'both distinct files listed')
 })
 
-// REGRESSION (FIX-127: files:list froze ~8s per un-replicated member). readSharePrefixes read
-// each member's profile bee SERIALLY under the 8s peerReadTimeoutMs, so a peer that handshook
-// with members whose share records hadn't replicated saw files:list block N × 8s with an empty
-// file view (the Windows-joins-last symptom). The reads now run in PARALLEL under the short
-// interactiveReadTimeoutMs, so local files surface immediately and the list self-heals via
-// event:files-updated once a peer's bee lands.
+// A member whose loose catalog we replicated once (length known) but whose blocks are gone and
+// whom nobody serves — an owner that went offline before we read its rows. createBee gives a
+// writable core; clearing its blocks reproduces "length known, data missing", and the member
+// carries the catalog key, so collectLooseInPlace admits it and the read really happens.
+async function ghostCatalogMember (i) {
+  const ghost = createBee('ghost-catalog-' + i)
+  await ghost.ready()
+  await ghost.put('file/' + LOOSE_SHARE_ID + '/g' + i + '.bin', { size: 10, mtime: 1, contentHash: 'g'.repeat(63) + i })
+  const key = b4a.toString(ghost.core.key, 'hex')
+  const len = ghost.core.length
+  await ghost.close()
+  const core = getStore().get(b4a.from(key, 'hex'))
+  await core.ready()
+  await core.clear(0, len)
+  return { publicKey: 'ghost' + i + 'pub', driveKey: null, displayName: 'G' + i, looseCatalogKey: key }
+}
+
+// REGRESSION (FIX-127: files:list froze ~8s per un-replicated member) — the members are read
+// under the short interactiveReadTimeoutMs, in PARALLEL, so local files surface immediately and
+// the list self-heals via event:files-updated once a peer's catalog lands. The fixture carries a
+// looseCatalogKey because collectLooseInPlace filters members without one BEFORE any read: a
+// keyless ghost is never read, which made the original version of this test vacuous.
 test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short interactive budget, in parallel', { timeout: 15000 }, async (t) => {
   const ctx = await setup(t)
   // The short interactive budget governs the list; peerReadTimeoutMs pinned high so a revert to
@@ -90,29 +108,46 @@ test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short
   fs.writeFileSync(src, 'mine')
   await addFile(ctx.spaceId, src, 'mine.txt', 4, null)
 
-  // Three ghost members: profile bees that advertise a share but never replicate it (length known,
-  // blocks cleared, no serving peer), so each prefix read parks until the budget fires.
   const ghosts = []
-  for (let i = 0; i < 3; i++) {
-    const ghost = createBee('ghost-' + i)
-    await ghost.ready()
-    await ghost.put('caps/folder-shares', true)
-    await ghost.put('share/' + ctx.spaceId + '/s' + i, { id: 's' + i, name: 'G' + i, owner: 'ghost', createdAt: Date.now() })
-    const key = b4a.toString(ghost.core.key, 'hex')
-    const len = ghost.core.length
-    await ghost.close()
-    const core = getStore().get(b4a.from(key, 'hex'))
-    await core.ready()
-    await core.clear(0, len)
-    ghosts.push({ publicKey: key, driveKey: null, displayName: 'G' + i })
-  }
+  for (let i = 0; i < 3; i++) ghosts.push(await ghostCatalogMember(i))
 
   const t0 = Date.now()
   const files = await listFiles(ctx.spaceId, ghosts)
   const dt = Date.now() - t0
 
+  t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'the ghosts were actually read (and stalled) — not filtered out')
   // Parallel under the 500ms budget ≈ 500ms; serial would be 3 × 500 = 1500ms; the peer budget
   // (if it leaked back in) would be 30s. < 1200ms proves BOTH: the short budget AND parallel reads.
   t.ok(dt < 1200, 'bounded + parallel (' + dt + 'ms), not serial 3× or the 30s peer budget')
   t.ok(files.some((f) => f.path === '/mine.txt'), 'own file surfaces immediately despite stalled peers')
+})
+
+// REGRESSION (FIX-LIST-DEADLINE: files:list awaited each member's catalog SERIALLY, so every
+// unreachable member added a full interactive budget — six offline owners were six budgets, and
+// at the production 1.5 s budget ten of them crossed the renderer's 30 s IPC timeout. The reads
+// now fan out at once, like share:list, so the listing costs ≈ one budget however many members
+// are unreachable; the rows we can read still surface and the space is flagged for the
+// convergence re-poke.)
+test('REGRESSION (FIX-LIST-DEADLINE): six unreachable members cost one budget, not six', { timeout: 20000 }, async (t) => {
+  const ctx = await setup(t)
+  const BUDGET = 300
+  setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: 30000, interactiveReadTimeoutMs: BUDGET })
+
+  const src = path.join(ctx.tmpDir('src'), 'mine.txt')
+  fs.writeFileSync(src, 'mine')
+  await addFile(ctx.spaceId, src, 'mine.txt', 4, null)
+
+  const ghosts = []
+  for (let i = 0; i < 6; i++) ghosts.push(await ghostCatalogMember(10 + i))
+
+  const t0 = Date.now()
+  const files = await listFiles(ctx.spaceId, ghosts)
+  const dt = Date.now() - t0
+
+  t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'every ghost was read and stalled')
+  // Serial: 6 × 300 = 1800 ms. Parallel: ≈ 300 ms. The bound leaves room for a slow CI box while
+  // staying far below two budgets, so a revert to serial (or a second budget per peer) fails.
+  t.ok(dt < 2 * BUDGET, 'six stalled members cost about one budget (' + dt + 'ms)')
+  t.ok(files.some((f) => f.path === '/mine.txt'), 'own file listed despite six stalled peers')
+  t.is(files.filter((f) => f.path.startsWith('/g')).length, 0, 'no rows for catalogs whose blocks never arrived')
 })
