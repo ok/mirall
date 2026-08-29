@@ -10,7 +10,7 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import {
-  initLooseOverlay, _resetLooseOverlay, looseShareFile, looseCancelPublish,
+  initLooseOverlay, looseShareFile, looseCancelPublish,
   rehydrateLooseFiles, sweepLoosePresence, LOOSE_SHARE_ID,
 } from '../../src/shared/transfer/loose-overlay.js'
 
@@ -23,7 +23,7 @@ async function setup (t, onEmit) {
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
-  serveIndex._reset()
+  serveIndex.reset()
   await initOverlay()
   initLooseOverlay({
     ...ctx.fake.ipc,
@@ -31,8 +31,7 @@ async function setup (t, onEmit) {
   })
   const space = await createSpace('Aurora')
   t.teardown(async () => {
-    _resetLooseOverlay()
-    serveIndex._reset()
+    serveIndex.reset()
     await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })

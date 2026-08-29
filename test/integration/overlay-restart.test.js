@@ -11,7 +11,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import {
-  initContentBackendOverlay, _resetContentBackendOverlay, rehydrateOwnedFiles,
+  initContentBackendOverlay, rehydrateOwnedFiles,
 } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
 // init() backgrounds rehydrate (non-blocking boot, C9); drive it deterministically.
@@ -38,9 +38,9 @@ test('rehydrate restores servability after a restart', async (t) => {
   fs.writeFileSync(abs, 'persist me across a restart')
 
   initContentBackendOverlay(ctx.fake.ipc)
-  serveIndex._reset()
+  serveIndex.reset()
   await initAndRehydrate()
-  t.teardown(async () => { _resetContentBackendOverlay(); serveIndex._reset(); await teardownOverlay() })
+  t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })
 
   await overlayBackend.publishAdd(space.spaceId, share, 'persist.txt', abs)
   const hash = (await getOwnEntry(space.spaceId, share.id, 'persist.txt')).contentHash
@@ -48,7 +48,7 @@ test('rehydrate restores servability after a restart', async (t) => {
 
   // Simulate a worker restart: close the overlay + drop the in-memory serve maps.
   await teardownOverlay()
-  serveIndex._reset()
+  serveIndex.reset()
   t.absent(serveIndex.has(hash), 'serve maps empty after restart (not persisted)')
 
   // Reboot: init re-creates the instance and rehydrates from the catalog + disk.
@@ -79,16 +79,16 @@ test('rehydrate skips entries whose source file is gone', async (t) => {
   fs.writeFileSync(abs, 'temporary')
 
   initContentBackendOverlay(ctx.fake.ipc)
-  serveIndex._reset()
+  serveIndex.reset()
   await initAndRehydrate()
-  t.teardown(async () => { _resetContentBackendOverlay(); serveIndex._reset(); await teardownOverlay() })
+  t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })
 
   await overlayBackend.publishAdd(space.spaceId, share, 'gone.txt', abs)
   const hash = (await getOwnEntry(space.spaceId, share.id, 'gone.txt')).contentHash
 
   // Restart, but the source file vanished while the worker was down.
   await teardownOverlay()
-  serveIndex._reset()
+  serveIndex.reset()
   fs.unlinkSync(abs)
 
   await initAndRehydrate() // must not throw on the missing source

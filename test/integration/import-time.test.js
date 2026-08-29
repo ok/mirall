@@ -32,12 +32,16 @@ test('REGRESSION (LIFECYCLE-1d): importing every src/shared module creates zero 
 // The TDZ escape (lessons.md: a factory invoked during a circular import must not read its own
 // module's consts). Each SCC member is imported FIRST in a fresh process — the order a single
 // test process cannot reproduce is exactly the order that bit.
+// The cycle is now {files, loose-overlay}: constructing the download engines in the overlay
+// backend's _open cut the last edge into overlay-download.js, so it and overlay-backend.js are
+// no longer in any cycle. The rest stay listed — importing them first must keep working.
 const SCC = [
   'transfer/loose-overlay.js',
   'transfer/files.js',
   'transfer/backends/overlay/overlay-download.js',
   'transfer/backends/overlay/overlay-instance.js',
   'transfer/backends/overlay/overlay-backend.js',
+  'transfer/backends/overlay/overlay-runtime.js',
   'folders/publish-service.js',
   'folders/owned-folders.js',
 ]

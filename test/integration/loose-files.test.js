@@ -14,7 +14,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import {
-  initLooseOverlay, _resetLooseOverlay, sweepLoosePresence, LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE,
+  initLooseOverlay, sweepLoosePresence, LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE,
 } from '../../src/shared/transfer/loose-overlay.js'
 
 // Exercise the files.js integration (addFile/listFiles/removeFile) with the
@@ -25,13 +25,12 @@ async function setup (t) {
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
-  serveIndex._reset()
+  serveIndex.reset()
   await initOverlay()
   initLooseOverlay(ctx.fake.ipc)
   const space = await createSpace('Aurora')
   t.teardown(async () => {
-    _resetLooseOverlay()
-    serveIndex._reset()
+    serveIndex.reset()
     await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })

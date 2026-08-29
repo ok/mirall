@@ -3,7 +3,7 @@
 // every entry into fresh, M-encrypted cores under 'mirall-overlay-e1', then clears + purges the
 // plaintext cores (including their by-name aliases) so no cleartext metadata is left at rest and
 // no dangling alias can wedge a later reopen. Gated by a marker in the app-migrations bee +
-// hasMasterSecret; must run before initBackends opens the overlay. A purge failure propagates so
+// hasMasterSecret; must run before the overlay backend opens the index. A purge failure propagates so
 // the marker stays unwritten and the pass retries — leaving the plaintext cores marked-done-but-
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'

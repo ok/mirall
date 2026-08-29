@@ -12,7 +12,7 @@ import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/over
 import { initDownloads, markDownloaded, markVerified, isVerifiedDownload, listFiles, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import {
-  initLooseOverlay, _resetLooseOverlay, looseShareFile, looseUnshareFile, looseListOwn, looseCancel, looseCancelPublish,
+  initLooseOverlay, looseShareFile, looseUnshareFile, looseListOwn, looseCancel, looseCancelPublish,
   handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence,
   LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE, looseSources,
 } from '../../src/shared/transfer/loose-overlay.js'
@@ -26,13 +26,12 @@ async function setup (t) {
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
-  serveIndex._reset()
+  serveIndex.reset()
   looseSources.clear()
   await initOverlay()
   initLooseOverlay(ctx.fake.ipc)
   t.teardown(async () => {
-    _resetLooseOverlay()
-    serveIndex._reset()
+    serveIndex.reset()
     await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
@@ -146,7 +145,7 @@ test('R5: rehydrate re-registers own loose files from the catalog after a restar
 
   // Simulate a worker restart: fresh overlay instance + cleared in-memory maps.
   await teardownOverlay()
-  serveIndex._reset()
+  serveIndex.reset()
   looseSources.clear()
   await initOverlay()
   t.absent(serveIndex.has(hash), 'precondition: serve maps cleared')
@@ -170,7 +169,7 @@ test('REGRESSION (FIX-1b: rehydrate isolation): one file that throws does not ab
   // Simulate a restart, then make a.txt's re-registration throw (a non-vanish IO/perms-class
   // error). Pre-fix the throw escapes the rehydrate loop and b.txt is never re-registered.
   await teardownOverlay()
-  serveIndex._reset()
+  serveIndex.reset()
   looseSources.clear()
   await initOverlay()
   const overlay = getOverlay()

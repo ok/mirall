@@ -268,5 +268,6 @@ export async function teardownOverlay() {
     }
     uploadLimiter = null
     downloadLimiter = null
+    deniedRecently.clear()
   }
 }

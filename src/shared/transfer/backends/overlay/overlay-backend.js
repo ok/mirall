@@ -12,7 +12,6 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { createStreamingHasher } from './vendor/chunker.js'
 import { getOverlay } from './overlay-instance.js'
-import { createOverlayDownloadEngine } from './overlay-download.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeSharesRefresh } from './overlay-refresh.js'
 import {
@@ -120,12 +119,8 @@ const sharesRefresh = makeSharesRefresh(
   (spaceId, shareId) => ipcRef?.emit('event:share-files-updated', { spaceId, shareId }),
 )
 export function initContentBackendOverlay(ipc) { ipcRef = ipc }
-export function _resetContentBackendOverlay() { ipcRef = null; sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
+export function resetContentBackendState() { ipcRef = null; sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
 export function abortInFlightPublishes() { publishesAborting = true }
-// The abort is a shutdown latch with no natural end — nothing clears it once set. A second boot
-// in the same process would inherit it and abort every publish it ever starts, so the boot root
-// clears it up front, exactly as it re-arms the publish scheduler.
-export function clearPublishAbort() { publishesAborting = false }
 export function setSharePrepareBroadcast(fn) { peerPrepareBroadcast = fn }
 // Installed by owned-folders: (spaceId, shareId, relPath) → true while a publish for that path is
 // queued or running, so the presence sweep never reclaims a file whose publish has not started.
@@ -454,7 +449,7 @@ function ensurePeerCatalogWatch(spaceId, share, keyHex, sck) {
     reconcileActiveOverlayTransfers(spaceId, share).catch((err) => log.debug('overlay source-change reconcile failed:', err.message))
     // One reconcile pass over our inactive pending rows: tear down downloads for a source the owner
     // tombstoned OR re-published (so a re-add does NOT auto-resume), and re-drive interrupted ones.
-    folderEngine.reconcileOnAppend(share.owner, spaceId).catch((err) => log.debug('overlay catalog-append reconcile failed:', err.message))
+    engine().reconcileOnAppend(share.owner, spaceId).catch((err) => log.debug('overlay catalog-append reconcile failed:', err.message))
   }, sck)
 }
 
@@ -477,7 +472,7 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
   const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return
   const prefix = '/' + share.name + '/'
-  for (const [transferId, slot] of folderEngine.activeSlots()) {
+  for (const [transferId, slot] of engine().activeSlots()) {
     if (slot.spaceId !== spaceId || slot.ownerPublicKey !== share.owner || !slot.pendingKey.startsWith(prefix)) continue
     const relPath = slot.pendingKey.slice(prefix.length)
     const inflightHash = slot.contentHash
@@ -485,13 +480,13 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
     const decision = republishDecision(inflightHash, state, slot.sourceSeq)
     // Tombstoned, or re-added with identical content → terminate; don't silently continue the
     // old partial. A genuine content change falls through to the supersede below.
-    if (decision === 'drop') { await folderEngine.dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue }
+    if (decision === 'drop') { await engine().dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue }
     // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
     // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
     // restarts it on the new content via runReconcile.
-    if (decision === 'pending') { folderEngine.releaseForRepublish(transferId); continue }
+    if (decision === 'pending') { engine().releaseForRepublish(transferId); continue }
     if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
-    folderEngine.supersede(transferId, {
+    engine().supersede(transferId, {
       spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
       transferId,
       contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
@@ -517,7 +512,16 @@ async function peerEntry(spaceId, share, relPath) {
 // the worker-derived status, so a lingering entry after a missed `done` stays invisible.
 const shareDeco = (job, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId: job.spaceId, key: shareDecoKey(job.shareId, job.relPath), ...p })
 
-const folderEngine = createOverlayDownloadEngine({
+let folderEngine = null
+
+export function setFolderEngine(next) { folderEngine = next }
+
+function engine() {
+  if (!folderEngine) throw new Error('overlay backend: not started')
+  return folderEngine
+}
+
+export const folderChannel = {
   diagLabel: 'overlay download',
   inPlace: false,
   ownsPendingRow: (row) => row.overlayShare === true,
@@ -577,7 +581,7 @@ const folderEngine = createOverlayDownloadEngine({
   },
   emitRemovedByOwner: (spaceId, pendingKey, row, transferId) =>
     ipcRef?.emit('event:transfer-removed', { spaceId, transferId, path: pendingKey, fileName: path.basename(row?.relPath || pendingKey) }),
-})
+}
 
 // Consumer single-file download: fetch by contentHash straight from a holder and
 // write to the downloads folder. No second copy stored (reSeed:false). When the
@@ -585,7 +589,7 @@ const folderEngine = createOverlayDownloadEngine({
 export async function overlayRequestDownload(spaceId, share, relPath) {
   // Doubles as the manual resume, so retire any pause marker before the guards below can return
   // early — a marker left set suppresses every later auto-resume for this row.
-  folderEngine.clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
+  engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay()) return { queued: true }
   const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return { queued: true }
@@ -594,7 +598,7 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   const drivePath = '/' + share.name + '/' + relPath
   const prev = await getPendingFor(spaceId, drivePath)
   const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
-  return folderEngine.start({
+  return engine().start({
     spaceId, pendingKey: drivePath, path: drivePath, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
@@ -603,23 +607,23 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   })
 }
 
-export const overlayPause = (transferId) => folderEngine.pause(transferId)
-export const overlayCancel = (transferId) => folderEngine.cancel(transferId)
-export const overlayCancelByKey = (spaceId, drivePath, transferId) => folderEngine.cancelByKey(spaceId, drivePath, transferId)
+export const overlayPause = (transferId) => engine().pause(transferId)
+export const overlayCancel = (transferId) => engine().cancel(transferId)
+export const overlayCancelByKey = (spaceId, drivePath, transferId) => engine().cancelByKey(spaceId, drivePath, transferId)
 // Cancel + discard every in-flight overlay-folder download for a space (leave teardown):
 // the engine keeps fetching a started transfer even after its pending row is cleared, so
 // without this the partial is orphaned and a late completion re-writes purged meta rows.
 export async function overlayCancelSpace (spaceId) {
   const ids = []
-  for (const [transferId, slot] of folderEngine.activeSlots()) {
+  for (const [transferId, slot] of engine().activeSlots()) {
     if (slot.spaceId === spaceId) ids.push(transferId)
   }
   // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
   // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
-  await Promise.all(ids.map((id) => folderEngine.cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
+  await Promise.all(ids.map((id) => engine().cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
 }
-export const resumeOverlayForOwner = (ownerKey, spaceId) => folderEngine.resumeForOwner(ownerKey, spaceId)
-export const overlayHasTransfer = (transferId) => folderEngine.has(transferId)
+export const resumeOverlayForOwner = (ownerKey, spaceId) => engine().resumeForOwner(ownerKey, spaceId)
+export const overlayHasTransfer = (transferId) => engine().has(transferId)
 
 // Foreign-mirror variant: confirm the file is advertised + hashed and return its
 // contentHash. The overlay mirror read-to-mount (a fetchFile to the mount path)

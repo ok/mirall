@@ -24,7 +24,7 @@ import { DEFAULT_IGNORE, shouldIgnore } from '../../src/shared/folders/path-keys
 import { initDownloads, addFile, removeFile } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { initLooseOverlay, _resetLooseOverlay, looseHasOwn, looseSources } from '../../src/shared/transfer/loose-overlay.js'
+import { initLooseOverlay, looseHasOwn, looseSources } from '../../src/shared/transfer/loose-overlay.js'
 
 // C1 — legacy owned folder shares (pre-overlay: contentMode undefined / 'eager') resolve to
 // UNSUPPORTED after this build, so the owner's folder lists empty and stops publishing. The
@@ -128,12 +128,11 @@ test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFil
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
-  serveIndex._reset()
+  serveIndex.reset()
   looseSources.clear()
   await initOverlay()
   initLooseOverlay(ctx.fake.ipc)
-  t.teardown(async () => {
-    _resetLooseOverlay(); serveIndex._reset(); await teardownOverlay()
+  t.teardown(async () => { serveIndex.reset(); await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
 

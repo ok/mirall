@@ -7,7 +7,6 @@
 // suite exercises this contract.
 
 import { overlayBackend } from './backends/overlay/index.js'
-import { initContentBackendOverlay } from './backends/overlay/overlay-backend.js'
 import { isOverlayEnabled } from '../core/runtime-config.js'
 
 // A share this build can't serve: an `overlay` share met by a flag-off /
@@ -32,19 +31,6 @@ export function isUnsupportedShare(share) {
 
 // Backends with lifecycle hooks (init/attach/teardown). Overlay is the only one.
 const LIFECYCLE = [overlayBackend]
-
-// Called once at worker boot. Sets each backend's IPC ref and runs its init.
-export async function initBackends(ipc) {
-  if (!isOverlayEnabled()) return
-  initContentBackendOverlay(ipc) // overlay: IPC ref
-  for (const b of LIFECYCLE) await b.init?.()
-}
-
-// Called per swarm connection (synchronous) so overlay can bind its channel.
-export function fanoutAttach(mux, socket) {
-  if (!isOverlayEnabled()) return
-  for (const b of LIFECYCLE) b.attach?.(mux, socket)
-}
 
 export async function teardownBackends() {
   for (const b of LIFECYCLE) await b.teardown?.()

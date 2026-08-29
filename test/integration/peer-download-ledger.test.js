@@ -16,11 +16,11 @@ import {
 // two-tier emission contract — a cheap always-on summary, and a per-peer detail
 // stream that fires ONLY while a row is subscribed (the dropdown is open).
 async function harness (t) {
-  serveIndex._reset()
+  serveIndex.reset()
   const events = []
   const ledger = new ServeLedger('serve-ledger', { ipc: { emit: (type, payload) => events.push({ type, payload }) } })
   // Registered before the await: brittle refuses a teardown added after the test has ended.
-  t.teardown(async () => { await ledger.close(); serveIndex._reset() })
+  t.teardown(async () => { await ledger.close(); serveIndex.reset() })
   await ledger.ready()
   const unwrap = (e) => { const p = { ...e.payload }; delete p.channel; return p }
   const summaries = () => events.filter((e) => e.type === 'event:awareness' && e.payload.channel === 'serving').map(unwrap)

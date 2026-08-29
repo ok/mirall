@@ -20,10 +20,10 @@ const details = (fake) => fake.emitted('event:awareness').filter((e) => e.payloa
 // drive it directly (no store, no network).
 async function setup (t) {
   const fake = createFakeIpc()
-  serveIndex._reset()
+  serveIndex.reset()
   const ledger = new ServeLedger('serve-ledger', { ipc: fake.ipc })
   // Registered before the await: brittle refuses a teardown added after the test has ended.
-  t.teardown(async () => { await ledger.close(); serveIndex._reset() })
+  t.teardown(async () => { await ledger.close(); serveIndex.reset() })
   await ledger.ready()
   serveIndex.add(HASH, SID, '__loose__', 'big.bin')
   return fake

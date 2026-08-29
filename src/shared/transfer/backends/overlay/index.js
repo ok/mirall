@@ -17,7 +17,8 @@ export const overlayBackend = {
   ensureRemote: A.overlayEnsureRemote,
   releaseRemote: A.overlayReleaseRemote,
 
-  // lifecycle (fanned out by content-backends.js initBackends/fanoutAttach/teardownBackends)
+  // lifecycle: the OverlayBackend subsystem drives init/attach directly; teardown is still
+  // fanned out by content-backends.js
   async init() {
     await initOverlay()
     // re-registering owned files walks every owned file and chunk-maps
