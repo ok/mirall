@@ -483,7 +483,9 @@ export async function looseCancelSpace (spaceId) {
   for (const [transferId, slot] of looseEngine.activeSlots()) {
     if (slot.spaceId === spaceId) ids.push(transferId)
   }
-  await Promise.all(ids.map((id) => looseEngine.cancel(id)))
+  // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
+  // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
+  await Promise.all(ids.map((id) => looseEngine.cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
 }
 export function resumeLooseForOwner (ownerKey, spaceId) { return looseEngine.resumeForOwner(ownerKey, spaceId) }
 
