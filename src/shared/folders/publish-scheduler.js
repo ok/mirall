@@ -287,15 +287,6 @@ export function createPublishScheduler({
       clear()
       return waiters.add(() => running.size === 0, settleMs)
     },
-    _reset() {
-      stopped = false
-      clear()
-      running.clear()
-      tallies.clear()
-      drainWaiters.clear()
-      cancelling.clear()
-      lastServed = null
-    },
     _running: running,
   }
 }
