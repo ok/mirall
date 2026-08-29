@@ -119,6 +119,16 @@ export class HyperOverlayV2 extends ReadyResource {
   // idempotent builder (used by register/fetch, and as a safety net).
   async _open () { await this._ensure() }
 
+  // [mirall] Destroy the protocol without the index or the sync feed, so the host can fire the
+  // peer teardown (and its serve-end callbacks) while the sockets are still up and keep serving
+  // from the index afterwards. Idempotent; _close below is a no-op for the protocol once run.
+  closeProtocol () {
+    if (this._protocol) {
+      this._protocol.destroy()
+      this._protocol = null
+    }
+  }
+
   async _close () {
     // Only tear down what was actually built.
     if (this._protocol) this._protocol.destroy()
