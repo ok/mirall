@@ -72,6 +72,18 @@ export async function saveForeignMount(mount) {
   await bee.put(foreignKey(mount.spaceId, mount.shareId), mount)
 }
 
+// Patch a foreign mount's sync bookkeeping through a fresh read-merge, never a whole-object
+// write-back: the object a materialize pass holds was loaded before a possibly hours-long pass,
+// so writing it back would clobber a pause / status / enabled flag persisted meanwhile — or
+// resurrect a record unmount already deleted. No-op (false) when the record is gone.
+export async function patchForeignMount(spaceId, shareId, patch) {
+  const key = foreignKey(spaceId, shareId)
+  const entry = await bee.get(key)
+  if (!entry?.value) return false
+  await bee.put(key, { ...entry.value, ...patch })
+  return true
+}
+
 export async function getForeignMount(spaceId, shareId) {
   const entry = await bee.get(foreignKey(spaceId, shareId))
   return entry?.value ?? null
