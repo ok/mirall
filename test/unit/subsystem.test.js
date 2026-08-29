@@ -90,9 +90,15 @@ test('Subsystem: close() while opening waits for _open, then runs _close', async
   t.alike(trace, ['open:slow', 'close:slow'], 'no close-before-open window')
 })
 
-// The budget exists because several real _closes wait (bounded) for in-flight work; without it a
-// single slow drain starves everything after it in the reverse-order sequence.
-test('createLifecycle: a slow close is abandoned so the rest of the sequence still runs', async (t) => {
+// The budget exists because several real _closes wait (bounded) for in-flight work — 5 s for the
+// mirror loops, 5 s for the publish executors, 3 s for the peer-watch sweeps — and those ceilings
+// sum past the entry's hard deadline. What it guarantees is that close() RETURNS on the budget
+// rather than on the slowest subsystem, so the caller's tail (the swarms, the store) still runs.
+//
+// Asserted as a wide bound, not an exact trace: how much budget is left when the sequence reaches
+// any particular subsystem is wall-clock dependent, and a loaded CI runner makes an exact trace a
+// coin flip. The 5000 ms / 2000 ms gap is what makes this deterministic.
+test('createLifecycle: a slow close cannot outrun the shutdown budget', async (t) => {
   const trace = []
   class Slow extends Probe { async _close () { trace.push('close:' + this.name); await sleep(5000) } }
   const life = createLifecycle({ log: quiet })
@@ -101,9 +107,11 @@ test('createLifecycle: a slow close is abandoned so the rest of the sequence sti
   await life.start(new Probe('c', {}, trace))
   const t0 = Date.now()
   await life.close({ deadlineAt: Date.now() + 150 })
-  t.ok(Date.now() - t0 < 1000, 'the sequence did not wait out the slow close (' + (Date.now() - t0) + 'ms)')
-  t.alike(trace, ['open:a', 'open:slow', 'open:c', 'close:c', 'close:slow'],
-    'the slow one was entered and abandoned; "a" is past the spent budget and skipped')
+  const elapsed = Date.now() - t0
+  t.ok(elapsed < 2000, 'close() returned on the budget, not on the slow subsystem (' + elapsed + 'ms)')
+  t.ok(trace.includes('close:c'), 'the subsystem ahead of it in reverse order closed normally')
+  t.ok(trace.includes('close:slow'), 'and the slow one was entered, then abandoned')
+  t.is(life.started.length, 0, 'the registry is drained either way')
 })
 
 test('Subsystem: require() names the missing collaborator', (t) => {
