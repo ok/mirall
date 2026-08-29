@@ -8,7 +8,7 @@ import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
 import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias } from '../spaces/space.js'
-import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
+import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
 import { getRuntimeConfig } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
@@ -244,6 +244,15 @@ export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null
 // catches up on its own. Mirrors shares.js::collectPeerShares. Bounded so an
 // offline owner (head never arrives) doesn't hang the listing.
 const HEAD_TIMED_OUT = Symbol('head-timed-out')
+// Runaway guard for a drain whose budget went to the head sync. With `wait:false` the walk does
+// not wait on a peer, but a read that yields nothing still ends on this timer, so it is also
+// what a stalled owner costs on top of the budget — keep it well under one. A 5k-row catalog
+// walks in tens of milliseconds, so this is ~10x margin; a slower machine that does hit the
+// timer truncates the read, which is reported complete:false and stalled, so the renderer keeps
+// its previous list for that owner and the convergence re-poke tries again. It is also the
+// floor for a drain left with a sliver of budget, so the call can exceed `timeoutMs` by at most
+// this much.
+const LOCAL_DRAIN_MS = 250
 async function syncPeerHead(bee, timeoutMs = peerReadTimeoutMs()) {
   await bee.ready()
   const res = await withReadTimeout(bee.core.update({ wait: true }), timeoutMs, HEAD_TIMED_OUT)
@@ -258,14 +267,29 @@ async function syncPeerHead(bee, timeoutMs = peerReadTimeoutMs()) {
 // budget AND the core to hold blocks (the per-(owner,space) catalog is shared across shares + the
 // loose channel, so length>0 alone is only a global proxy); a not-yet-replicated, mid-tree-timed-out,
 // or owner-unreachable read is flagged incomplete so the renderer keeps its last good list.
+// Bounded by ONE `timeoutMs` covering head sync and drain together (a spent budget degrades the
+// drain to a local-only read), so an unreachable owner costs the caller one budget, not two.
 export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, limit = Infinity, timeoutMs = peerReadTimeoutMs(), onEach = null } = {}) {
   const bee = openPeerCatalog(catalogKeyHex, sck)
   if (!bee) return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 }
+  // ONE NETWORK budget per peer: the head sync and the drain share this deadline, so an owner
+  // whose head never arrives costs `timeoutMs` once — not once here and once more inside the
+  // drain. The drain's own timer is floored at LOCAL_DRAIN_MS, so the call can exceed the
+  // deadline by that much; past the deadline the walk is disk-only and cannot park on a peer.
+  // The flip side is that a head sync which eats most of the budget leaves the drain less time
+  // than it used to have, so a very large peer share over a slow link reports complete:false
+  // more readily — the renderer keeps its last list, which is the intended degradation.
+  const deadlineAt = Date.now() + timeoutMs
   let headSynced = false
   try { headSynced = await syncPeerHead(bee, timeoutMs) } catch { return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 } }
   const prefix = sharePrefixKey(shareId)
-  const stream = bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })
-  const { entries, complete, total, totalBytes } = await drainWithTimeout(stream, prefix, timeoutMs, limit, onEach)
+  const left = remainingMs(deadlineAt)
+  // Budget spent on the head: read only what is already on disk. hyperbee forwards `wait` to
+  // core.get, so a missing block throws instead of parking for a peer — rows we replicated
+  // before still surface (an offline owner keeps its `unavailable` rows), and the drain can
+  // never park for a second budget.
+  const stream = bee.createReadStream({ gte: prefix, lt: prefix + '\xff', wait: left > 0 })
+  const { entries, complete, total, totalBytes } = await drainWithTimeout(stream, prefix, Math.max(left, LOCAL_DRAIN_MS), limit, onEach)
   // `complete` also requires blocks (length>0) so the renderer keeps its last list over an
   // empty read; `stalled` is the narrower "the read could not finish" signal (head-sync
   // failed or the traversal timed out) — a legitimately-empty catalog is fully read, NOT

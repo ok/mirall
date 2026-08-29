@@ -24,6 +24,7 @@ const WEIGHTS = {
   'resume-transfer.test.js': 16,
   'readd-different-content.test.js': 16,
   'leave-no-rejoin-request.test.js': 14,
+  'handshake-burst-cliff.test.js': 12,
 }
 const DEFAULT_WEIGHT = 5
 const weightOf = (f) => WEIGHTS[f] ?? DEFAULT_WEIGHT

@@ -9,6 +9,7 @@ import { readCatalogKey } from '../shares/share-catalog.js'
 import { createLocalBee } from '../core/store.js'
 import { isOwnerOnline } from './swarm.js'
 import { listPendingForSpace } from './pending-transfers.js'
+import { markListIncomplete } from './list-deficits.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { isEphemeralSourcePath } from '../folders/temp-paths.js'
@@ -293,16 +294,32 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
   const peerMembers = (members || []).filter((m) => m?.publicKey && m.publicKey !== localPublicKey && readCatalogKey(m).keyHex)
   if (peerMembers.length === 0) return out
   const pending = new Map((await listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
-  // Interactive fan-out (files:list): bound each peer catalog read to the short interactive budget
-  // so one offline/unreachable loose peer can't freeze the list — it self-heals on the next
-  // event:files-updated once that peer's catalog replicates (mirrors share-registry's share:list).
-  // Resolve the space record ONCE and thread it into looseListPeer so its per-member SCK lookup
-  // doesn't re-read the record M times per files:list (refetched on every event:files-updated).
+  // Interactive fan-out (files:list): every member's catalog is read AT ONCE, each under the
+  // short interactive budget, so the list costs one budget in total — not one per unreachable
+  // member (the same shape as share-registry's share:list). A member whose read fails
+  // contributes no rows instead of failing the listing; it self-heals on the next
+  // event:files-updated once that peer's catalog replicates. Resolve the space record ONCE and
+  // thread it into looseListPeer so its per-member SCK lookup doesn't re-read the record M
+  // times per files:list (refetched on every event:files-updated).
   const budget = interactiveReadTimeoutMs()
   const space = await getSpace(spaceId)
-  for (const member of peerMembers) {
+  const peerEntries = await Promise.all(peerMembers.map(async (member) => {
+    try {
+      return await looseListPeer(spaceId, member, budget, space)
+    } catch (err) {
+      // Flag the space the way a stalled read does: without this the convergence tick has no
+      // reason to re-poke, so a member whose read threw would stay missing from the listing
+      // until some unrelated files-updated arrived.
+      markListIncomplete(spaceId)
+      log.warn('loose catalog read failed for', member.publicKey.slice(0, 16) + '...', '-', err.message)
+      return []
+    }
+  }))
+  // Row mapping stays sequential in member order: claim verification has side effects
+  // (stale-claim pruning) and dedupeByHash breaks ties by candidate order.
+  for (const [i, member] of peerMembers.entries()) {
     const ownerOnline = isOwnerOnline(member.publicKey)
-    for (const e of await looseListPeer(spaceId, member, budget, space)) {
+    for (const e of peerEntries[i]) {
       const drivePath = '/' + e.relPath
       if (!e.contentHash) {
         // Owner advertised before hashing finished → 'preparing' while reachable, else 'unavailable'

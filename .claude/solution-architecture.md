@@ -234,7 +234,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 
 **The drive carries no file bytes.** Its `driveKey` is the member's per-space identity: the handshake binding signs `noise||driveKey` (§16) and members are matched by it. `listFiles` reads the local drive solely for that key; `files:add` only checks it exists.
 
-**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `share-catalog.js`) with bounded read timeouts so one offline peer can't stall a listing. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
+**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `share-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
 
 #### Canonical file-state model
 
@@ -416,6 +416,8 @@ Every identity-asserting frame carries a signature binding sender → socket Noi
 
 **Handshake:** one per local space per connection. `channel.onopen` iterates every joined topic (`sendHandshakeMessages`).
 
+**Identity-frame rate limit.** `admitIdentityFrame` charges a per-socket dual-lane token bucket (`handshake-guard.js`) keyed on the Noise key: frames for a topic we joined ride the *matched* lane, everything else the generous *unmatched* lane, so a multi-space peer's foreign-topic frames can't starve the one that matters. The matched lane's burst is `handshakeBurst + handshakeBurstPerTopic x the distinct topics THAT SOCKET has matched` (8 + 3 per shared space, re-read per take and never counted past the topics we hold), because an honest reconnect legitimately sends one frame per shared space plus our reciprocal — a fixed burst banned any pair sharing 24+ spaces, while scaling by our own space count instead would hand a peer that matched one topic an allowance that grows with every space we join. Refill is 1/s; the drop counter decays at the same rate, and 24 consecutive drops on either lane evict the Noise key (`bannedNoiseKeys` -> the swarm firewall) for the process lifetime.
+
 **Leave frame:** broadcast by `space:leave` to every connected socket *before* local teardown (§6). `handleLeaveFrame` verifies the claimed `profileKey` is already authenticated on this socket via `socketToPeers` — **spoof guard**; without it any connected peer could kick a third party out of others' member lists — then prunes the leaver from persisted `members`, evicts from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`), and emits `event:member-left`.
 
 **On receipt (`handleHandshake`):**
@@ -433,7 +435,7 @@ When a new space is joined while connections already exist, Hyperswarm reuses th
 
 ### 4.3 Peer catalog caching
 
-Peer file metadata lives in replicated catalogs, not drives (§3.5). A peer catalog bee opens lazily on first read (`openPeerCatalog`, keyed by catalog key, decrypted with the space SCK) and caches in `peerCatalogs`; reads are bounded by an interactive timeout so an offline peer can't stall a listing. Catalog appends fire per-owner watches (`watchPeerCatalog`) that nudge foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
+Peer file metadata lives in replicated catalogs, not drives (§3.5). A peer catalog bee opens lazily on first read (`openPeerCatalog`, keyed by catalog key, decrypted with the space SCK) and caches in `peerCatalogs`; reads fan out in parallel and are bounded by ONE interactive timeout per peer covering head sync and drain, so an offline peer can't stall a listing. A peer whose head sync spends the whole budget still has its drain run, with `wait: false` — only blocks already on disk are read, so previously replicated rows keep surfacing instead of the read parking for a second budget. Catalog appends fire per-owner watches (`watchPeerCatalog`) that nudge foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
 
 ### 4.4 Disconnect & multi-socket handling
 
@@ -795,7 +797,7 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 |---|---|---|
 | `useProfile` | `profile:get`, `profile:set` | `event:profile-needed` |
 | `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `event:state`, `event:reconcile` (members/join-requests), `event:membership-granted`/`-denied`/`-creator-divergence` |
-| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `event:reconcile` (files + members); publish/prepare progress from `useDecorations` |
+| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `event:reconcile` (files + members), refreshes coalesced (750 ms leading+trailing); publish/prepare progress from `useDecorations` |
 | `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `event:reconcile` (members + join-requests) |
 | `useSpaceMembers(spaceId)` | `space:members` (module-cached full roster for card facepiles) | `event:reconcile` (members) |
 | `useUpdates` | — (passive: staged update + `dismiss`) | `bridge.onPearEvent('updated')` via `updates.ts` |
@@ -1164,7 +1166,7 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 
 ### Resource bounds
 
-`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, and the serve-gate rate limiter.
+`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. A budget that is multiplied by a live count is clamped finite and non-negative where it is read, so a hand-edited `Infinity` cannot silently disable the lane it is meant to bound.
 
 ---
 
