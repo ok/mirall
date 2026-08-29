@@ -9,10 +9,12 @@ import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
 import { deriveKeyPair, deriveDriveKeyPair, deriveContentKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
+import { Subsystem } from './subsystem.js'
 
 const log = createLogger('store')
 
 let store
+let epoch = 0
 let storagePath
 let masterSecret = null
 let metadataKey = null
@@ -22,7 +24,14 @@ export function initStore(path) {
   if (!path) throw new Error('initStore: storage path is required')
   storagePath = path
   store = new Corestore(path)
+  epoch += 1
   return store
+}
+
+// Bumped whenever a new Corestore is opened. A module that caches a bee compares this rather than
+// the store itself, so re-initialising is idempotent within one store but re-opens across a swap.
+export function storeEpoch() {
+  return epoch
 }
 
 // When set, identity cores open from an explicit keyPair derived from M instead of
@@ -155,6 +164,52 @@ export function createDrive(name, { encryptionKey = null } = {}) {
   // for writable drives; a harmless no-op listener if blobs never open.
   drive.on('blobs', (blobs) => rememberCoreName(blobs.core, name + ':blobs'))
   return drive
+}
+
+// Every session still open on the store, named where we opened it. What this returns as the store
+// closes is the list of handles nobody owned.
+export function openSessionNames() {
+  if (!store) return []
+  const out = []
+  try {
+    for (const session of store.sessions) {
+      let dk = null
+      try { dk = b4a.toString(session.discoveryKey, 'hex') } catch {}
+      out.push({ dk, name: (dk && nameByDk.get(dk)) || '(opened by key)' })
+    }
+  } catch { /* best effort */ }
+  return out
+}
+
+export class Store extends Subsystem {
+  constructor(name, deps) {
+    super(name, deps)
+    this.require('path')
+    this.leakedSessions = []
+  }
+
+  async _open() {
+    initStore(this.deps.path)
+    // Readied here so a bad storage path fails at boot under this subsystem's name, rather than
+    // inside whichever bee happens to open first.
+    await store.ready()
+  }
+
+  async _close() {
+    if (!store) return
+    this.leakedSessions = openSessionNames()
+    if (this.leakedSessions.length) {
+      this.log.warn(`closing with ${this.leakedSessions.length} session(s) still open:`,
+        this.leakedSessions.map((s) => s.name).join(', '))
+    }
+    const closing = store
+    store = undefined
+    // storagePath is deliberately kept: nine call sites read it and two path.dirname() the result,
+    // which throws on undefined. It holds nothing open, and initStore() overwrites it.
+    nameByDk.clear()
+    setMasterSecret(null)
+    await closing.close()
+  }
 }
 
 // Classify a replication/read error as an on-disk merkle-tree inconsistency — the
