@@ -4,7 +4,7 @@
 // Also the bounded readers of PEERS' profile bees: every remote read is deadline-capped
 // so an offline or not-yet-replicated peer degrades to null/empty instead of hanging.
 import Hyperbee from 'hyperbee'
-import { createBee, getStore } from '../core/store.js'
+import { createBee, getStore, storeEpoch } from '../core/store.js'
 import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '../core/with-timeout.js'
 import { mapLimit } from '../core/concurrency.js'
 import { getResourceCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
@@ -12,14 +12,18 @@ import { clampDisplayName, sanitizeAvatar } from '../identity-limits.js'
 import { voucheesToAdopt } from './member-set.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('membership')
 
 const CAP_MEMBERSHIP_MANIFEST = 'caps/membership-manifest'
 
 let profileBee
+let profileStore = -1
 
 export async function initProfile() {
+  if (profileBee && profileStore === storeEpoch() && !profileBee.core.closed) return
+  profileStore = storeEpoch()
   profileBee = createBee('profile')
   await profileBee.ready()
 }
@@ -42,6 +46,16 @@ export async function setProfile({ displayName, avatar }) {
     await profileBee.put('avatar', sanitizeAvatar(avatar, getResourceCaps().avatarMaxBytes))
   }
   await profileBee.put('publicKey', b4a.toString(profileBee.core.key, 'hex'))
+}
+
+export class ProfileBee extends Subsystem {
+  async _open() { await initProfile() }
+
+  async _close() {
+    const bee = profileBee
+    profileBee = undefined
+    await bee?.close()
+  }
 }
 
 export function getProfileKey() {

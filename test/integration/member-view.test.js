@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeerWithIdentity, freshDurableWithIdentity } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, clearOwnMembership, readMembershipRecord,
@@ -57,8 +57,9 @@ function replicate (a, b, t) {
   t.teardown(() => { try { s1.destroy() } catch {}; try { s2.destroy() } catch {} })
 }
 
+// The durable tier only: boot() publishes the manifest cap this test asserts is absent.
 test('readMembershipRecord returns { active, approvals }, cap-gated', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshDurableWithIdentity(t)
   const me = getLocalPublicKeyHex()
   const S = 'space-read'
 

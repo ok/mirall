@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshPeer, freshPeerWithIdentity } from '../helpers/store.js'
+import { freshDurable, freshDurableWithIdentity } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace, joinSpace } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -19,8 +19,9 @@ async function coreInStore (dkHex) {
   return false
 }
 
+// The durable tier only: boot() runs migrateCatalogsToEncrypted, and these tests drive it.
 async function v2Peer (t) {
-  const ctx = await freshPeerWithIdentity(t)
+  const ctx = await freshDurableWithIdentity(t)
   setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true, overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx
 }
@@ -86,7 +87,7 @@ test('defers a v2 space with no SCK and does not mark the migration complete', a
 })
 
 test('leaves v1 spaces untouched', async (t) => {
-  await freshPeer(t)
+  await freshDurable(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   const space = await createSpace('Legacy')
   await publishShare(space.spaceId, {

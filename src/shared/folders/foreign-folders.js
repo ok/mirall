@@ -830,7 +830,7 @@ export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {
 // its next file; the bounded wait lets that bail land before the caller closes the cores the pass
 // reads. discardPartial stays false — a shutdown is a pause, not an unmount: the partial and its
 // journal are what let the next boot resume instead of refetching.
-export async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
+async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
   for (const { spaceId, shareId } of [...activeLoops.values()]) stopForeignLoop(spaceId, shareId)
   const inFlight = [...tickInFlight.values()]
   if (inFlight.length === 0) return

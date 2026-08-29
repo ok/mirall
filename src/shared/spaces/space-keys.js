@@ -5,6 +5,7 @@ import b4a from 'b4a'
 import { wrap, unwrap } from '../core/identity-envelope.js'
 import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
+import { Subsystem } from '../core/subsystem.js'
 
 // bare-fs/bare-path are loaded lazily: space.js (which imports this) is also pulled
 // into Node unit tests, where the Bare runtime globals don't exist. The fs paths only
@@ -60,4 +61,13 @@ async function persist() {
     ciphertext: b4a.toString(ciphertext, 'base64'),
   }
   await writeFileAtomic(await keysFile(), b4a.from(JSON.stringify(env)))
+}
+
+export class SpaceKeysVault extends Subsystem {
+  async _open() { await initSpaceKeys() }
+
+  async _close() {
+    for (const buf of map.values()) { try { b4a.fill(buf, 0) } catch {} }
+    map = new Map()
+  }
 }

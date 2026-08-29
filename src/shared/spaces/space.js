@@ -2,7 +2,7 @@
 // per-space drive management (create, load, purge of on-disk cores), serialized
 // member-roster mutation, durable leave tombstones, pending join requests, and
 // pinning of the creator root the membership fold trusts.
-import { createLocalBee, createDrive, getStore, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
+import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isMembershipApprovalEnabled, isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
@@ -13,6 +13,7 @@ import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import keysMod from 'hypercore-storage/lib/keys.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
 
 const log = createLogger('space')
@@ -112,9 +113,12 @@ export function parseInviteCode(code) {
 }
 
 let spacesBee
+let spacesStore = -1
 const drives = new Map()
 
 export async function initSpaces() {
+  if (spacesBee && spacesStore === storeEpoch() && !spacesBee.core.closed) return
+  spacesStore = storeEpoch()
   spacesBee = createLocalBee('spaces-meta')
   await spacesBee.ready()
 }
@@ -843,4 +847,31 @@ export async function flagUnverifiedJoinedCreators() {
   }
   if (flagged) log.info('flagged', flagged, 'joined space(s) creatorKey unverified')
   return flagged
+}
+
+export class SpacesBee extends Subsystem {
+  async _open() { await initSpaces() }
+
+  async _close() {
+    const bee = spacesBee
+    spacesBee = undefined
+    // This-session state: a live join request is a peer that handshook during THIS run. Left
+    // behind it re-surfaces as a pending approval after an in-process restart.
+    pendingRequests.clear()
+    derivedRequests.clear()
+    memberWriteChains.clear()
+    await bee?.close()
+  }
+}
+
+// Split from SpacesBee because the audit log, the serve ledger and the catalog cache all start
+// between the space record opening and the drives loading.
+export class SpaceDrives extends Subsystem {
+  async _open() { this.load = await loadDrives() }
+
+  async _close() {
+    const open = [...drives.values()]
+    drives.clear()
+    await Promise.allSettled(open.map((drive) => drive.close()))
+  }
 }

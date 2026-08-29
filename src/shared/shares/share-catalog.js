@@ -12,6 +12,7 @@ import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-ti
 import { getRuntimeConfig } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('share-catalog')
 
@@ -435,4 +436,29 @@ function drainWithTimeout(stream, prefix, timeoutMs, limit = Infinity, onEach = 
       }
     })()
   })
+}
+
+export class Catalogs extends Subsystem {
+  // A leftover handle is dead by definition — its store is gone — so it is dropped rather than
+  // refused: throwing here would turn a shutdown that ran out of budget into an app that will
+  // not start.
+  async _open() {
+    const stale = ownCatalogs.size + peerCatalogs.size
+    if (stale) {
+      this.log.warn(`dropping ${stale} catalog handle(s) left by a previous instance`)
+      await this._closeAll()
+    }
+  }
+
+  // The watchers hold the same bees peerCatalogs does, and their 'append' listeners sit on the
+  // core session, so closing the bee drops them too.
+  async _closeAll() {
+    const open = [...ownCatalogs.values(), ...peerCatalogs.values()]
+    ownCatalogs.clear()
+    peerCatalogs.clear()
+    peerCatalogWatchers.clear()
+    await Promise.allSettled(open.map((bee) => bee.close()))
+  }
+
+  async _close() { await this._closeAll() }
 }

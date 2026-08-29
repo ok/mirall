@@ -10,6 +10,7 @@ import { createLogger } from '../core/logger.js'
 import { getPublishConcurrency, getPublishOrder } from '../core/runtime-config.js'
 import { createCatalogBatch } from '../shares/catalog-writer.js'
 import { LOOSE_SHARE_ID } from '../transfer/transfer-id.js'
+import { Subsystem } from '../core/subsystem.js'
 import { createPublishScheduler } from './publish-scheduler.js'
 import { createPublishRunner } from './publish-runner.js'
 
@@ -55,51 +56,49 @@ export async function settleCatalog(spaceId) {
   await settling.get(spaceId)
 }
 
-export const publishScheduler = createPublishScheduler({
-  execute: createPublishRunner({ channelFor, catalogFor, settleCatalog }),
-  concurrency: getPublishConcurrency,
-  order: getPublishOrder,
-  log,
-  onProgress: (spaceId, shareId) => channelFor(shareId)?.onProgress?.(spaceId, shareId),
-  // The scheduler fires onSpaceIdle (the batch close) before this, so a channel's refresh can
-  // wait for the closing flush and the renderer never re-lists ahead of the pass's last writes.
-  onShareDrained: (spaceId, shareId, tally) => channelFor(shareId)?.onDrained?.(spaceId, shareId, tally),
-  onSpaceIdle: (spaceId) => {
-    closeBatch(spaceId)
-    for (const ch of Object.values(channels)) ch.onSpaceIdle?.(spaceId)
-  },
-})
+let current = null
+
+export class PublishService extends Subsystem {
+  async _open() {
+    this.scheduler = createPublishScheduler({
+      execute: createPublishRunner({ channelFor, catalogFor, settleCatalog }),
+      concurrency: getPublishConcurrency,
+      order: getPublishOrder,
+      log: this.log,
+      onProgress: (spaceId, shareId) => channelFor(shareId)?.onProgress?.(spaceId, shareId),
+      // The scheduler fires onSpaceIdle (the batch close) before this, so a channel's refresh can
+      // wait for the closing flush and the renderer never re-lists ahead of the pass's last writes.
+      onShareDrained: (spaceId, shareId, tally) => channelFor(shareId)?.onDrained?.(spaceId, shareId, tally),
+      onSpaceIdle: (spaceId) => {
+        closeBatch(spaceId)
+        for (const ch of Object.values(channels)) ch.onSpaceIdle?.(spaceId)
+      },
+    })
+    current = this
+  }
+
+  // Stops scheduling synchronously, so an in-flight hash unwinds during the shutdown's flush
+  // window rather than after it.
+  halt() { this.scheduler?.stop() }
+
+  async _close({ settleMs = 5000 } = {}) {
+    current = null
+    await this.scheduler.stop({ settleMs })
+    for (const batch of batches.values()) batch.close().catch(() => {})
+    batches.clear()
+    settling.clear()
+  }
+}
+
+// Throws rather than returning null: an enqueue against a scheduler that does not exist would
+// otherwise surface as a promise that never settles.
+export function getPublishScheduler() {
+  if (!current) throw new Error('publish service is not running')
+  return current.scheduler
+}
+
 
 export async function stopPublishingForSpace(spaceId) {
-  await publishScheduler.cancelSpace(spaceId)
+  await current?.scheduler.cancelSpace(spaceId)
   await closeBatch(spaceId)
-}
-
-export function stopAllPublishing() {
-  publishScheduler.stop()
-}
-
-// Cancels everything and waits (bounded) for the executors still running to honour the abort:
-// the store closes right after this, and a tail still writing would land on a closed core.
-export async function closePublishService({ settleMs = 5000 } = {}) {
-  await publishScheduler.stop({ settleMs })
-  for (const batch of batches.values()) batch.close().catch(() => {})
-  batches.clear()
-  settling.clear()
-}
-
-// The scheduler is constructed at module level, and stop() sets a `stopped` flag only _reset()
-// clears — so a second boot in the same process would inherit a dead lane: every publish would
-// queue and nothing would ever pump it, and onFsEvent's promise would never settle. The boot root
-// calls this before it wires the owned-folder subsystem. It goes away in Phase 2, when the
-// scheduler becomes a resource the root constructs fresh.
-export function armPublishService() {
-  publishScheduler._reset()
-}
-
-// The test seam: the stop plus the arm, for a helper that tears a peer down and boots another in
-// the same process. Retired in Phase 2 with the module-level scheduler.
-export async function _resetPublishService() {
-  await closePublishService()
-  armPublishService()
 }

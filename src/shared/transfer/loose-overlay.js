@@ -23,7 +23,7 @@ import { makeProgressTicker } from './progress-ticker.js'
 import { nextFreeName } from '../folders/path-keys.js'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
-import { publishScheduler, registerPublishChannel } from '../folders/publish-service.js'
+import { getPublishScheduler, registerPublishChannel } from '../folders/publish-service.js'
 import { OP, PRIORITY } from '../folders/work-item.js'
 import { fileStatPresent, statFacts } from '../folders/disk-presence.js'
 import { createLogger } from '../core/logger.js'
@@ -82,7 +82,7 @@ async function resolveLooseName (spaceId, absPath, fileName) {
   if (tracked) return tracked
 
   const base = fileName || path.basename(absPath)
-  const takenNames = new Set(publishScheduler.pendingRelPaths(spaceId, LOOSE_SHARE_ID))
+  const takenNames = new Set(getPublishScheduler().pendingRelPaths(spaceId, LOOSE_SHARE_ID))
   for await (const e of listOwnShare(spaceId, LOOSE_SHARE_ID)) takenNames.add(e.relPath)
 
   let relPath = base
@@ -117,7 +117,7 @@ async function admitLoosePublish (spaceId, relPath, absPath, priority) {
   await markOwnedSource(spaceId, drivePathOf(relPath), absPath)
   trackSource(absPath, spaceId, relPath)
   const { size, mtime } = statFacts(absPath)
-  return publishScheduler.enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.PUBLISH, size, mtime, priority })
+  return getPublishScheduler().enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.PUBLISH, size, mtime, priority })
 }
 
 async function enqueueLoosePublish (spaceId, relPath, absPath, priority) {
@@ -126,7 +126,7 @@ async function enqueueLoosePublish (spaceId, relPath, absPath, priority) {
 }
 
 async function enqueueLooseRetire (spaceId, relPath, priority) {
-  const ticket = publishScheduler.enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.RETIRE, priority })
+  const ticket = getPublishScheduler().enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.RETIRE, priority })
   return await settledWithTail(spaceId, relPath, ticket, null)
 }
 
@@ -138,7 +138,7 @@ async function settledWithTail (spaceId, relPath, ticket, absPath) {
   const outcome = await ticket.settled
   if (outcome.outcome === 'cancelled') {
     await ticket.exited
-    await withSpaceLock(spaceId, () => clearOwnedSourceIfUnshared(spaceId, relPath, absPath, { unless: publishScheduler.isPending(spaceId, LOOSE_SHARE_ID, relPath) }))
+    await withSpaceLock(spaceId, () => clearOwnedSourceIfUnshared(spaceId, relPath, absPath, { unless: getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, relPath) }))
   }
   if (outcome.outcome === 'failed' && outcome.error) throw outcome.error
   if (outcome.result?.outcome === 'unlinked') {
@@ -150,7 +150,7 @@ async function settledWithTail (spaceId, relPath, ticket, absPath) {
 
 export async function looseCancelPublish (spaceId, drivePath) {
   const relPath = rel(drivePath)
-  const { cancelled, exited } = publishScheduler.cancelPath(spaceId, LOOSE_SHARE_ID, relPath)
+  const { cancelled, exited } = getPublishScheduler().cancelPath(spaceId, LOOSE_SHARE_ID, relPath)
   if (cancelled) await exited
   // Whatever the cancel caught — a running hash that has now reverted, an item that was still
   // queued (no executor, so no revert), or nothing (a half-publish orphaned by a restart) — a
@@ -272,10 +272,10 @@ export async function looseUnshareFile (spaceId, drivePath) {
     if (src) { untrackSource(src, spaceId); disarmWatch(spaceId, src) }
     return src
   })
-  const { cancelled, exited } = publishScheduler.cancelPath(spaceId, LOOSE_SHARE_ID, relPath)
+  const { cancelled, exited } = getPublishScheduler().cancelPath(spaceId, LOOSE_SHARE_ID, relPath)
   if (cancelled) await exited
   await withSpaceLock(spaceId, async () => {
-    if (publishScheduler.isPending(spaceId, LOOSE_SHARE_ID, relPath)) return
+    if (getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, relPath)) return
     const prev = await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath)
     await unshareEntry(spaceId, relPath, prev?.contentHash || null, src)
   })
@@ -551,7 +551,7 @@ export async function sweepLoosePresence () {
     try {
       for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) {
         const key = goneKey(space.spaceId, e.relPath)
-        if (publishScheduler.isPending(space.spaceId, LOOSE_SHARE_ID, e.relPath)) { sweepGone.delete(key); continue }
+        if (getPublishScheduler().isPending(space.spaceId, LOOSE_SHARE_ID, e.relPath)) { sweepGone.delete(key); continue }
         // No recorded source → a crash inside the tiny advertise→link window or a stranded entry
         // from an older install (reverted by the boot rehydrate, not the sweep). The sweep only
         // reclaims a RECORDED source that disappeared from disk.

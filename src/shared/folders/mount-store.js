@@ -1,8 +1,9 @@
 // Persistence for mount records in the local `mounts-meta` bee: which disk path
 // backs which share (a "mount"), on both the owned and the foreign/mirror side,
 // plus per-mount sync state (enabled, status, syncedPaths, renamedPaths).
-import { createLocalBee } from '../core/store.js'
+import { createLocalBee, storeEpoch } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('mount-store')
 
@@ -10,8 +11,11 @@ const OWNED_PREFIX = 'owned-folder-mount/'
 const FOREIGN_PREFIX = 'foreign-folder-mount/'
 
 let bee
+let beeStore = -1
 
 export async function initMounts() {
+  if (bee && beeStore === storeEpoch() && !bee.core.closed) return
+  beeStore = storeEpoch()
   bee = createLocalBee('mounts-meta')
   await bee.ready()
   log.info('mounts metadata initialized')
@@ -117,4 +121,14 @@ export async function findOwnedMountByShareId(shareId) {
 export async function findForeignMountByShareId(shareId) {
   const all = await listForeignMounts()
   return all.find((m) => m.shareId === shareId) ?? null
+}
+
+export class MountsBee extends Subsystem {
+  async _open() { await initMounts() }
+
+  async _close() {
+    const b = bee
+    bee = undefined
+    await b?.close()
+  }
 }

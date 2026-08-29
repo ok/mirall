@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, freshDurable } from '../helpers/store.js'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { createSpace, getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { getStore } from '../../src/shared/core/store.js'
@@ -152,7 +152,7 @@ test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFil
 // never clears/surfaces them (storage:info reports contentBytes:0, reclaim UI removed), so on
 // upgrade the bytes strand on disk. A one-shot flag-guarded migration must reclaim them.
 test('REGRESSION (C7): boot migration reclaims a stranded legacy peer-drive cache (idempotently)', async (t) => {
-  await freshPeer(t)
+  await freshDurable(t)   // boot() runs this very migration; the test drives it itself
   const space = await createSpace('Cached')
   const sck = getSpaceContentKey(space.spaceId, await getSpace(space.spaceId))
 

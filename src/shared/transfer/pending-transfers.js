@@ -2,13 +2,15 @@
 // `pending-transfers` bee, keyed `<spaceId>:<filePath>`. A row is written when a download
 // starts, updated with byte progress and error codes, and cleared on completion — surviving
 // rows are what drive resume after a restart and the paused/error states the UI derives.
-import { createLocalBee } from '../core/store.js'
+import { createLocalBee, storeEpoch } from '../core/store.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('pending-transfers')
 
 let bee
+let beeStore = -1
 // Every write to one row goes through here in call order. A progress tick issued after an
 // error write (chunks still landing after a mismatch) would otherwise read the row before the
 // verdict and put it back without one.
@@ -16,6 +18,8 @@ const exclusive = createKeyedLock()
 const rowKey = (spaceId, filePath) => spaceId + ':' + filePath
 
 export async function initPendingTransfers() {
+  if (bee && beeStore === storeEpoch() && !bee.core.closed) return
+  beeStore = storeEpoch()
   bee = createLocalBee('pending-transfers')
   await bee.ready()
   log.info('pending transfers initialized')
@@ -121,4 +125,14 @@ export async function clearPendingForSpace(spaceId) {
     keys.push(entry.key)
   }
   await Promise.all(keys.map((key) => exclusive(key, () => bee.del(key))))
+}
+
+export class PendingTransfersBee extends Subsystem {
+  async _open() { await initPendingTransfers() }
+
+  async _close() {
+    const b = bee
+    bee = undefined
+    await b?.close()
+  }
 }

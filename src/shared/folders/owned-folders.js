@@ -23,7 +23,7 @@ import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IG
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
 import { statFacts } from './disk-presence.js'
-import { publishScheduler as scheduler, registerPublishChannel, settleCatalog, closePublishService, _resetPublishService } from './publish-service.js'
+import { registerPublishChannel, settleCatalog } from './publish-service.js'
 
 export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
 
@@ -33,6 +33,14 @@ let ipcRef = null
 // Injected by the worker: maps a scan outcome onto the mount's durable status and the live UI
 // event. Unset outside the worker (integration helpers).
 let settleScanRef = null
+
+// Set by OwnedFolders._open. The channel and the coalescer below are module-level (they arm
+// nothing at import), so they reach the running instance's scheduler through here.
+let scheduler = null
+function sched() {
+  if (!scheduler) throw new Error('owned-folders: not started')
+  return scheduler
+}
 
 const reconcileTimers = new Map()
 // Catch-up passes currently walking a mount, and the latch that stops new ones being armed. A
@@ -72,7 +80,10 @@ async function loadShare(spaceId, shareId) {
 }
 
 const progress = makeKeyedCoalescer((spaceId, shareId) => {
-  ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...scheduler.statusFor(spaceId, shareId) })
+  // Tolerant: the publish service drains its executors AFTER this subsystem closes, and each
+  // settling item pokes progress on the way out.
+  const status = scheduler?.statusFor(spaceId, shareId)
+  if (status) ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...status })
 }, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
 
 registerPublishChannel('folder', {
@@ -110,7 +121,7 @@ export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
   settleScanRef = settleScan
   // The presence sweep must never reclaim a path whose publish is queued or running. Installed
   // here rather than by the service, which must not import the backend (import cycle).
-  setPendingPublishProbe((spaceId, shareId, relPath) => scheduler.isPending(spaceId, shareId, relPath))
+  setPendingPublishProbe((spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false)
 }
 
 // Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
@@ -180,7 +191,7 @@ export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
   }
 
   const { size, mtime } = statFacts(absPath)
-  const { settled } = scheduler.enqueue({
+  const { settled } = sched().enqueue({
     spaceId, shareId, relPath: driveRel,
     op: action === 'unlink' ? OP.RETIRE : OP.PUBLISH,
     size, mtime, priority: PRIORITY.INTERACTIVE,
@@ -247,7 +258,7 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   const known = new Map()
   for await (const entry of listOwnShare(spaceId, shareId)) known.set(entry.relPath, entry)
 
-  scheduler.beginShare(spaceId, shareId, onDisk.size)
+  sched().beginShare(spaceId, shareId, onDisk.size)
   const specs = []
   const unchanged = []
   let deferred = 0
@@ -268,7 +279,7 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
     if (onDisk.has(relPath) || unreadable.has(relPath)) continue
     specs.push({ spaceId, shareId, relPath, op: OP.RETIRE, size: entry.size || 0, priority: PRIORITY.BULK })
   }
-  scheduler.enqueueMany(specs)
+  sched().enqueueMany(specs)
   // A file the diff will not touch still gets the publish path's serve-map check: the catalog
   // advertising a hash the serve gate does not hold (a transient registerFile failure) must heal
   // on the next pass, not the next restart.
@@ -287,7 +298,7 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 export async function initialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   const r = await reconcileShare(spaceId, shareId, mountPath, ignore, opts)
   if (r.skipped) return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 }
-  const t = await scheduler.whenDrained(spaceId, shareId)
+  const t = await sched().whenDrained(spaceId, shareId)
   await settleCatalog(spaceId)
   return {
     uploaded: t?.uploaded ?? 0, deleted: t?.deleted ?? 0, failed: t?.failed ?? 0,
@@ -363,11 +374,11 @@ export async function countFolderFiles(mountPath, ignore) {
 }
 
 export function getIndexStatus(spaceId, shareId) {
-  return scheduler.statusFor(spaceId, shareId)
+  return sched().statusFor(spaceId, shareId)
 }
 
 export function cancelIndex(spaceId, shareId) {
-  return scheduler.cancelShare(spaceId, shareId)
+  return sched().cancelShare(spaceId, shareId)
 }
 
 export function stopOwnedFolder(spaceId, shareId) {
@@ -375,19 +386,26 @@ export function stopOwnedFolder(spaceId, shareId) {
   clearTimeout(reconcileTimers.get(key))
   reconcileTimers.delete(key)
   clearShareGuards(shareId)
-  scheduler.cancelShare(spaceId, shareId)
+  // Tolerant on purpose: this is a cleanup path (leave, unmount, a test teardown) and can legally
+  // run after the lane has stopped. The enqueue paths above still fail loudly.
+  scheduler?.cancelShare(spaceId, shareId)
 }
 
 // Owns the owned-folder side as a set: the catch-up timers, the publish scheduler's in-flight
 // work and the caches. stopOwnedFolder stays the per-share stop; this is the bulk one shutdown
 // needs, and it waits for the publish executors rather than just cancelling them.
 export class OwnedFolders extends Subsystem {
-  constructor(name, deps) { super(name, deps); this.require('ipc') }
+  constructor(name, deps) { super(name, deps); this.require('ipc', 'publishService') }
 
-  async _open() { stopping = false; initOwnedFolders(this.deps.ipc, { settleScan: this.deps.settleScan ?? null }) }
+  async _open() {
+    scheduler = this.deps.publishService.scheduler
+    stopping = false
+    initOwnedFolders(this.deps.ipc, { settleScan: this.deps.settleScan ?? null })
+  }
 
   async _close() {
     stopping = true
+    setPendingPublishProbe(null)
     for (const timer of reconcileTimers.values()) clearTimeout(timer)
     reconcileTimers.clear()
     // Bounded, like every other drain: the pass itself bails at its next file, and waiting for
@@ -398,22 +416,11 @@ export class OwnedFolders extends Subsystem {
         new Promise((resolve) => { const t = setTimeout(resolve, 3000); t.unref?.() }),
       ])
     }
-    await closePublishService()
+    // The scheduler reference is left in place: PublishService closes after this subsystem and
+    // drains its executors, whose settling items still poke the callbacks above.
     progress.reset()
     shareCache.clear()
   }
-}
-
-// The test seam, kept until Phase 2 makes the helpers boot through the root. It differs from
-// OwnedFolders._close in one way: it also resets the module-level scheduler, because the same
-// process goes on to reuse it.
-export async function _resetOwnedFolders() {
-  stopping = false
-  for (const timer of reconcileTimers.values()) clearTimeout(timer)
-  reconcileTimers.clear()
-  await _resetPublishService()
-  progress.reset()
-  shareCache.clear()
 }
 
 export { walkDisk }

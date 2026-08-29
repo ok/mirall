@@ -12,12 +12,12 @@ import { getConnectedMemberMeta } from './swarm.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('serve-ledger')
 
 let ipcRef = null
-export function initServeLedger(ipc) { ipcRef = ipc }
-export function _resetServeLedger() { ipcRef = null; resetServeLedger() }
+let current = null
 
 const LEDGER_SEP = String.fromCharCode(0)
 const SUMMARY_THROTTLE_MS = 750
@@ -74,6 +74,11 @@ function forEachServeEntry(contentHash, from, fn) {
   }
 }
 
+// Every recordServeSession() still in flight. The write is a spaces-bee read followed by an
+// audit-bee write in a microtask nobody holds, so without this the shutdown can close either bee
+// between the two — which is why a transfer interrupted by quitting recorded nothing.
+const recording = new Set()
+
 // One audit row per file served, not one per chunk or per reconnect. `from` is the requester's
 // profile key, already Noise-authenticated by the serve gate — that is what makes the row
 // attributable rather than a claim.
@@ -90,7 +95,7 @@ function auditServeKey(contentHash, from) {
 function recordServeSession(session) {
   if (!session || session.bytes <= 0) return
   const meta = session.meta || {}
-  getSpace(meta.spaceId).then((space) => {
+  const pending = getSpace(meta.spaceId).then((space) => {
     const live = getConnectedMemberMeta(meta.spaceId, meta.from)
     const persisted = (space?.members || []).find((m) => m.publicKey === meta.from)
     record('serve.completed', {
@@ -100,6 +105,8 @@ function recordServeSession(session) {
       subject: { bytes: session.bytes, total: session.total || null, durationMs: session.durationMs, path: meta.path ?? null },
     })
   }).catch((err) => log.debug('serve audit failed:', err.message))
+  recording.add(pending)
+  pending.finally(() => recording.delete(pending))
 }
 
 export function onServeStart({ from, contentHash, total }) {
@@ -354,9 +361,8 @@ function emitDetailAuthoritative(key, now = Date.now()) {
 }
 
 function scheduleIdleSweep() {
-  if (idleTimer) return
-  idleTimer = setTimeout(runIdleSweep, IDLE_SWEEP_MS)
-  if (idleTimer && typeof idleTimer.unref === 'function') idleTimer.unref()
+  if (idleTimer || !current) return
+  idleTimer = current.timers.setTimeout(runIdleSweep, IDLE_SWEEP_MS)
 }
 
 // A peer that stops requesting bytes without completing (e.g. it found the rest
@@ -406,7 +412,7 @@ export function _sweepServeLedgerNow(now) { runIdleSweep(now) }
 
 function resetServeLedger() {
   serveSessions.clear()
-  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
+  if (idleTimer) { current?.timers.clear(idleTimer); idleTimer = null }
   downloads.clear()
   detailSubs.clear()
   lastSummaryAt.clear()
@@ -414,4 +420,31 @@ function resetServeLedger() {
   hashKeys.clear()
   pendingControls.clear()
   pendingBaselines.clear()
+}
+
+export class ServeLedger extends Subsystem {
+  constructor(name, deps) { super(name, deps); this.require('ipc') }
+
+  async _open() {
+    ipcRef = this.deps.ipc
+    current = this
+  }
+
+  // Runs after the overlay teardown, which is what emits the serve-end events in the first place.
+  // End the sessions still open (a peer that never closed cleanly served real bytes too), then
+  // drain the writes those produce while the spaces and audit bees are both still open — the
+  // start order in the boot root is what guarantees they are.
+  async _close({ settleMs = 2000 } = {}) {
+    for (const session of serveSessions.reap(Date.now(), 0)) recordServeSession(session)
+    if (recording.size) {
+      await Promise.race([
+        Promise.allSettled([...recording]),
+        new Promise((resolve) => { const t = setTimeout(resolve, settleMs); t.unref?.() }),
+      ])
+    }
+    resetServeLedger()
+    recording.clear()
+    ipcRef = null
+    current = null
+  }
 }

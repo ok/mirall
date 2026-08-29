@@ -4,9 +4,10 @@
 // copy wins), and reveal-in-file-manager. "On your device" is always re-verified against
 // the disk before it is reported — the bee rows are claims, the file is the truth.
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { getDrive, getSpace } from '../spaces/space.js'
 import { readCatalogKey } from '../shares/share-catalog.js'
-import { createLocalBee } from '../core/store.js'
+import { createLocalBee, storeEpoch } from '../core/store.js'
 import { isOwnerOnline } from './swarm.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { markListIncomplete } from './list-deficits.js'
@@ -29,8 +30,11 @@ import { unhashedStatusFor } from './transfer-status.js'
 const log = createLogger('files')
 
 let downloadsBee
+let downloadsStore = -1
 
 export async function initDownloads() {
+  if (downloadsBee && downloadsStore === storeEpoch() && !downloadsBee.core.closed) return
+  downloadsStore = storeEpoch()
   downloadsBee = createLocalBee('downloads-meta')
   await downloadsBee.ready()
   log.info('download history initialized')
@@ -451,3 +455,12 @@ export async function cleanupDownloadHistory(spaceId) {
   log.info('cleaned download history for space', spaceId)
 }
 
+export class DownloadsBee extends Subsystem {
+  async _open() { await initDownloads() }
+
+  async _close() {
+    const bee = downloadsBee
+    downloadsBee = undefined
+    await bee?.close()
+  }
+}
