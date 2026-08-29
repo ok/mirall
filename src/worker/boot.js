@@ -12,24 +12,24 @@
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { getPeerPresenceDwellMs, isOverlayEnabled, isInPlaceFilesEnabled, isSeparateContentPlaneEnabled, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
-import { initStore, getStore, setMasterSecret } from '../shared/core/store.js'
+import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../shared/core/unlock-providers.js'
 import { migrateLocalBeesToEncrypted } from '../shared/storage/metadata-migration.js'
-import { initSpaceKeys } from '../shared/spaces/space-keys.js'
-import { initProfile, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
+import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
+import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {
-  initSpaces, listSpaces, getSpace, loadDrives,
+  SpacesBee, SpaceDrives, listSpaces, getSpace,
   resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators,
   persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/space.js'
 import { openMemberViewsForKnownSpaces, closeAllMemberViews } from '../shared/spaces/member-registry.js'
-import { initDownloads, cleanupDownloadHistory } from '../shared/transfer/files.js'
-import { initPendingTransfers, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
+import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
+import { PendingTransfersBee, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
 import { initBackends, teardownBackends, fanoutAttach } from '../shared/transfer/content-backends.js'
 import { initLooseOverlay, rehydrateLooseFiles, resumeLooseForOwner } from '../shared/transfer/loose-overlay.js'
 import { resumeOverlayForOwner, setSharePrepareBroadcast, abortInFlightPublishes, clearPublishAbort } from '../shared/transfer/backends/overlay/overlay-backend.js'
-import { initServeLedger } from '../shared/transfer/serve-ledger.js'
+import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
@@ -47,14 +47,15 @@ import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
 import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
-import { initMounts, listForeignMounts } from '../shared/folders/mount-store.js'
+import { MountsBee, listForeignMounts } from '../shared/folders/mount-store.js'
 import { OwnedFolders } from '../shared/folders/owned-folders.js'
-import { stopAllPublishing, armPublishService } from '../shared/folders/publish-service.js'
+import { PublishService } from '../shared/folders/publish-service.js'
 import { ForeignMirrors } from '../shared/folders/foreign-folders.js'
 import { EchoGuardPurge } from '../shared/folders/echo-guard.js'
 import { cleanupOrphanedData } from '../shared/storage/storage.js'
 import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { AuditLog } from '../shared/audit/audit-runtime.js'
+import { Catalogs } from '../shared/shares/share-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-watch.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
@@ -67,6 +68,45 @@ function applyRelayConfig(log) {
   const res = setRelayThrough(relays, mode)
   if (res.applied > 0) log.info('relay configured:', res.applied, 'key(s), mode', mode)
   return res
+}
+
+// The tier that must outlive the network teardown: everything holding a Corestore session (closing
+// the store closes them all, so they have to be gone first) plus the recorder that tail writes
+// through. Exported so a test whose subject is what boot() does NEXT — a content migration, the
+// manifest caps — can start exactly this much and no more. It stays in this file because the
+// crash-backstop test pins the core-opening call sites to boot.js by source text.
+export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefined, onTier = null } = {}) {
+  const durable = createLifecycle({ log })
+  // Handed over before anything can throw: a failure part-way through this tier must still leave
+  // the caller something to close, or the store and every resource started so far leak.
+  onTier?.(durable)
+  const store = await durable.start(new Store('store', { path: bootstrap.storage }))
+  if (masterSecret !== undefined) setMasterSecret(masterSecret)
+  else if (bootstrap.identityKEK) {
+    const provider = osKeychainProvider(bootstrap.identityKEK)
+    setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
+  }
+  const didMigrateMetadata = await migrateLocalBeesToEncrypted()
+  await durable.start(new SpaceKeysVault('space-keys'))
+  await durable.start(new ProfileBee('profile'))
+  await durable.start(new SpacesBee('spaces'))
+  await durable.start(new DownloadsBee('downloads'))
+  await durable.start(new PendingTransfersBee('pending-transfers'))
+  await durable.start(new MountsBee('mounts-meta'))
+  const installId = await getInstallId(bootstrap.storage).catch((err) => {
+    log.warn('install id unavailable:', err.message)
+    return null
+  })
+  const auditLog = new AuditLog('audit', { ipc, installId, peerDwellMs: getPeerPresenceDwellMs() })
+  try { await durable.start(auditLog) } catch (err) {
+    log.warn('audit log unavailable — events will not be recorded:', err.message)
+  }
+  // After the audit log, so on the way out it flushes before that bee closes; before the drives,
+  // so the spaces bee its flush reads is still open too.
+  await durable.start(new ServeLedger('serve-ledger', { ipc }))
+  await durable.start(new Catalogs('catalogs'))
+  const drives = await durable.start(new SpaceDrives('drives'))
+  return { durable, store, auditLog, drives, didMigrateMetadata, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -82,10 +122,17 @@ function applyRelayConfig(log) {
  *                         single-peer test suite boots the data layer with no network.
  * @param deps.onPartialRoot  called with `{ close }` before anything starts, so a shutdown that
  *                         arrives mid-boot can still stop what has started.
+ * @param deps.masterSecret  overrides the identity unlock; undefined resolves M from
+ *                         bootstrap.identityKEK as production does.
  * @returns the root: the handles the entry's handlers need, plus close().
  */
-export async function boot(bootstrap, { ipc, log, membershipControl = null, publishDownloadRoots = () => {}, swarm = true, onPartialRoot = null } = {}) {
+export async function boot(bootstrap, {
+  ipc, log, membershipControl = null, publishDownloadRoots = () => {},
+  swarm = true, onPartialRoot = null, masterSecret = undefined,
+} = {}) {
   const life = createLifecycle({ log })
+  let durable = null
+  let publishService = null
 
   // The reverse of boot, defined BEFORE anything starts and handed to the caller at once. A
   // shutdown can arrive at any point during boot — the pipe closes when Electron main dies, and
@@ -97,18 +144,22 @@ export async function boot(bootstrap, { ipc, log, membershipControl = null, publ
   // entry's old safeShutdown: announce departure and abort hashing FIRST, then a short flush
   // window, so the departure datagram leaves UDX before any socket drops.
   //
-  // `budgetMs` bounds the subsystem drains alone. Several of them wait (bounded) for an in-flight
-  // pass to bail — 5 s for the mirror loops, 5 s for the publish executors, 3 s for the peer-watch
-  // sweeps — and those ceilings sum well past the entry's 4 s hard deadline. Without a budget a
-  // single slow drain means the swarms and the store are never closed at all, which is strictly
-  // worse than abandoning that drain.
-  async function close({ budgetMs = 1500 } = {}) {
+  // The budgets bound the subsystem drains. Several wait (bounded) for an in-flight pass to bail —
+  // 5 s for the mirror loops, 5 s for the publish executors, 3 s for the peer-watch sweeps — and
+  // those ceilings sum well past the entry's 4 s hard deadline. Without a budget a single slow
+  // drain means the swarms and the store are never closed at all, which is strictly worse than
+  // abandoning that drain.
+  // Each tier gets its own budget. One shared deadline let a busy runtime tier spend all of it and
+  // skip the durable tier outright — including the store's own close, which on the way out is what
+  // releases the RocksDB lock, and the ledger flush that records the shutdown's own audit rows.
+  async function close({ budgetMs = 1500, durableBudgetMs = 1500 } = {}) {
     if (swarm) { try { broadcastDeparture() } catch {} }
     try { abortInFlightPublishes() } catch {}
-    try { stopAllPublishing() } catch {}
-    try { await new Promise((resolve) => { const to = setTimeout(resolve, 150); to.unref?.() }) } catch {}
+    try { publishService?.halt() } catch {}
+    // Ref'd: this is the only await on the close path with no work behind it, and an unref'd
+    // timer here empties the loop for any in-process caller that holds no other handle.
+    try { await new Promise((resolve) => setTimeout(resolve, 150)) } catch {}
 
-    // sweeps → mounts → peer-watch → echo-guard → foreign-mirrors → owned-folders → audit
     await life.close({ deadlineAt: Date.now() + budgetMs })
 
     // Not yet resources: the member views, the content backends and both swarms keep the order
@@ -120,9 +171,9 @@ export async function boot(bootstrap, { ipc, log, membershipControl = null, publ
       try { await destroyContentSwarm() } catch {}
       try { await destroySwarm() } catch {}
     }
-    // Pulled forward from Phase 2: an in-process reboot needs the store released, and every core
-    // above is closed by now.
-    try { await getStore()?.close() } catch (err) { log.warn('store close failed:', err.message) }
+    // Last, and after the tail: the tail's overlay teardown is what emits the serve-completed
+    // rows this tier records, and closing the store closes every session anything still holds.
+    await durable?.close({ deadlineAt: Date.now() + durableBudgetMs })
   }
   onPartialRoot?.({ close })
 
@@ -141,39 +192,29 @@ export async function boot(bootstrap, { ipc, log, membershipControl = null, publ
 
     log.info('starting...')
 
-    const didMigrateMetadata = await openIdentityAndBees(bootstrap)
-    // Before loadDrives and the swarm, so the log is writable before anything worth recording can
-    // happen. NOTHING about the audit log may abort boot — an unavailable log degrades to no rows,
-    // and boot() rejecting here would leave every handler unregistered and the worker alive but
-    // deaf. That covers the id read too: getInstallId rethrows any error but ENOENT, so a damaged
-    // or unreadable install-id would otherwise take the whole worker down. A failed _open is closed
-    // by ReadyResource in the background, so the lifecycle never lists it and close() skips it.
-    const installId = await getInstallId(bootstrap.storage).catch((err) => {
-      log.warn('install id unavailable:', err.message)
-      return null
-    })
-    const auditLog = new AuditLog('audit', { ipc, installId, peerDwellMs: getPeerPresenceDwellMs() })
-    try { await life.start(auditLog) } catch (err) {
-      log.warn('audit log unavailable — events will not be recorded:', err.message)
+    const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
+    const { store, auditLog, drives, didMigrateMetadata } = tier
+    if (drives.load.hadFailure) {
+      try { await cleanupOrphanedData() } catch (err) {
+        log.warn('orphan cleanup after drive-load failure failed:', err.message)
+      }
     }
-
-    await loadDrivesAndCaps(log)
+    await ensureMembershipManifestCap()
+    await ensureSharesCap()
+    await ensureFolderMirrorsCap()
     const didMigrateOverlayIndex = await runContentMigrations(log)
 
-    await initMounts()
     // The mount runtime is CONSTRUCTED here and STARTED further down, where its resume loops used to
     // run. That split is what retires the entry's forward reference to a hoisted settleScanStatus:
     // the owned-folder subsystem needs the settle callback at wiring time, and the runtime that owns
     // it needs the mounts bee — construction is free of side effects, so both can be satisfied.
     const mounts = new MountsRuntime('mounts', { ipc })
-    // Two latches a previous root's close() set and nothing clears: the module-level publish
-    // scheduler stays stopped for good, and the publish-abort flag stays raised. Left alone, this
-    // boot's publishes would queue and never pump, or run and abort. Cleared before the lane's
-    // owner starts.
-    armPublishService()
+    // A shutdown latch nothing clears; retired with the overlay backend in Phase 3.
     clearPublishAbort()
+    publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,
+      publishService,
       settleScan: (promise, spaceId, shareId) => mounts.settleScanStatus(promise, spaceId, shareId),
     }))
     await life.start(new ForeignMirrors('foreign-mirrors', { ipc }))
@@ -230,47 +271,11 @@ export async function boot(bootstrap, { ipc, log, membershipControl = null, publ
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    return { close, mounts, auditLog, ownedFolders, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
+    return { close, store, mounts, auditLog, ownedFolders, publishService, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
   }
 }
 
 
-
-// Store, identity unlock and the local bees. Order is load-bearing: setMasterSecret must
-// land before the first createLocalBee, and the metadata migration before initSpaceKeys.
-// Returns whether it rewrote anything, which decides the post-boot compaction.
-async function openIdentityAndBees(bootstrap) {
-  initStore(bootstrap.storage)
-  // Unlock identity: resolve the master secret M from identity.enc — Electron main supplies
-  // only the KEK (key-encryption key), never M itself — and open identity cores from keypairs
-  // derived from M. Without a KEK (MIRALL_INSECURE_IDENTITY / headless tests) the worker
-  // falls back to plaintext seed derivation.
-  if (bootstrap.identityKEK) {
-    const provider = osKeychainProvider(bootstrap.identityKEK)
-    setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
-  }
-  const didMigrateMetadata = await migrateLocalBeesToEncrypted()
-  await initSpaceKeys()
-  await initProfile()
-  await initSpaces()
-  await initDownloads()
-  await initPendingTransfers()
-  return didMigrateMetadata
-}
-
-// Space drives, then the three manifest caps every writer checks.
-async function loadDrivesAndCaps(log) {
-  const driveLoad = await loadDrives()
-  if (driveLoad.hadFailure) {
-    try { await cleanupOrphanedData() } catch (err) {
-      log.warn('orphan cleanup after drive-load failure failed:', err.message)
-  }
-  }
-
-  await ensureMembershipManifestCap()
-  await ensureSharesCap()
-  await ensureFolderMirrorsCap()
-}
 
 // The one-time content migrations, all of which must land BEFORE the initial publish scans
 // and before initBackends opens the overlay index. Returns whether the overlay index moved.
@@ -359,7 +364,6 @@ async function wireSubsystemHooks({ ipc, log, membershipControl, useContentPlane
   // accepting connections, so no inbound connection lands without the overlay
   // channel attached, the content/membership handlers set, or the overlay instance
   // created (a connection in that window would silently never get an overlay channel).
-  initServeLedger(ipc)
   await initBackends(ipc) // overlay instance + IPC ref when the flag is on
   initLooseOverlay(ipc)
   if (isInPlaceFilesEnabled()) rehydrateLooseFiles().catch((err) => log.debug('loose rehydrate failed:', err.message))

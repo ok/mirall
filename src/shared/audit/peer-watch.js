@@ -30,7 +30,7 @@ export function resetPeerWatch() {
 // Stop accepting sweeps and let the ones in flight finish (bounded). A chain still READING a
 // peer bee when the store closes fails inside its own catch, but a chain still WRITING a
 // watermark would land on a closed audit bee — so the drain is what makes closing the bees safe.
-export async function closePeerWatch({ settleMs = 3000 } = {}) {
+async function closePeerWatch({ settleMs = 3000 } = {}) {
   closed = true
   const inFlight = [...sweeps.values()]
   sweeps.clear()
