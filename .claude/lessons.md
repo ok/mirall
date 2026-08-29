@@ -28,6 +28,10 @@ Compact, actionable rules distilled from real debugging — gotchas, root causes
 
 ## Testing tactics
 
+**`launchPeer` on a relaunch re-sends every handshake twice and doubles the announce backoff.** It calls `profile:set` after boot, which runs `broadcastProfileUpdate` on top of `onopen` and increments the announce ledger's `attempts`, so a relaunched peer's exchange is `2K + 8` frames and its first ledger retry is 20 s out, not 10. Account for it when a flow test's frame count or timing budget depends on the reconnect burst.
+
+**A regression test whose fixture no longer reaches the guarded path passes vacuously.** When a data path moves (profile-bee share prefixes to per-owner catalog keys), the old fixture is filtered out before the code under test runs — the tell is a timing assertion that is green on both sides of a revert. Assert the fixture was ADMITTED (a side effect of the read, a call count, a deficit marker) before asserting the bound.
+
 Testing/a11y **discipline** — the layers, the change-type→coverage matrix, the a11y bar, and frontend scenario authoring (file-sizing, offline-edge, async-probe waits, split-text `sr-only`, timeout-vs-absent) — lives in `testing.md`. Dep-bump baseline-diffing lives in `dependency-updates.md`. Only debugging tactics that aren't reference material stay here:
 
 **Never blanket-replace `console.log/warn/error` in a brittle test** — the runner emits its own TAP through them, so a blanket stub both miscounts (inflated by exactly the number of prior asserts) and swallows the failure diagnostic. Capture by discriminating on the code-under-test's own prefix/tag; forward everything else to the saved real console.
@@ -69,6 +73,8 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 **Don't paper a convergence gap with a global periodic poll.** It adds steady load to EVERY instance (competing for the scarce CPU the failing test is starved of), can hold resources open past shutdown (timers, `findingPeers()`), and masks the real cause. Fix the targeted stall instead (hold a complete servable copy; send the grant BEFORE any bounded capture). If you must add a loop, prove it doesn't regress the suite on the faithful harness AND tears down cleanly (worker-shutdown test); prefer event-driven (hook an existing reliable signal) over time-driven.
 
 ## Data-layer / hypercore gotchas
+
+**A `.catch(() => {})` on a write that encodes status is a future re-drive.** The tell is a row the UI shows as `error`/`cancelled`/`downloaded` that comes back to life after a restart or reconnect, with nothing in the log. Await the write; warn with the key and code; then either fail the caller, let the level-triggered scan finish the intent, or keep the verdict in memory for the process — and say which in a comment. Swallow only teardown races, safe reads, observability writes, and display-only values. `debug` is not surfacing: the default level is `warn`.
 
 **"What we own" and "what we owned before this pass" are two different sets.** Collapsing a mirror's ownership record and its collision check into one live Set makes a path claimed earlier in the same pass read as already-ours, so a pre-existing user file at that name is adopted instead of getting a sibling — the pre-fix code kept them apart by accident (it read the persisted array while building a separate list). Claim before the write lands (so a cancelled pass still owns what it wrote) but exclude the pass's own fresh claims from the "did we write this before?" question. Also: a regression test whose fixture round-trips through a bee cannot use a subclassed Array to count scans — JSON encoding hands the code a plain array, and the test passes either way.
 
@@ -169,6 +175,8 @@ retained bytes.
 **Before calling plaintext replicated state a "leak," classify each field.** (a) Needed BEFORE the gating key exists (identity used to negotiate membership) → necessarily public, working as intended; (b) a key/pointer whose target is encrypted → safe by the plaintext-key→encrypted-data invariant; (c) actual sensitive DATA not required pre-membership → the genuine residual (the only bug). Never propose "just encrypt the bee" without checking key granularity: one identity spanning N spaces with N distinct SCKs has no single key — the fix is a per-scope encrypted projection or relocating the data into the correctly-keyed store.
 
 ## Network / streams
+
+**A per-socket burst allowance must be sized by what an honest peer legitimately sends per round, not a constant.** When the legitimate burst grows with a count the receiver can observe (spaces shared), a fixed burst plus a consecutive-drop ban is a cliff at `burst + threshold` — here 24 shared spaces on a reconnect, since the peer's dropped reciprocals count toward the ban too. The tell is `evicting flooding peer` for a *known* peer on every reconnect, and spaces that stay empty for 10-60 s below that. Size the cap by what THIS socket has proven (distinct matched topics), not by your own total, or a peer that matches one topic inherits an allowance that grows with every space you join; keep the bucket as decaying debt so a growing cap admits at once, and decay the drop counter at the refill rate so a peer that paces itself can never accumulate a ban.
 
 **Never destroy a peer's socket to "heal" a wedged hypercore replication session.** That socket is the single Noise mux carrying every core, transfer, and control channel for that peer, so the "recovery" is itself the outage. A wedged session starves even explicit `core.get()` calls (it is per-core, not per-request) — recover by capturing what you need through an explicit get with a bounded timeout, falling back to `bee.checkout(core.contiguousLength)` when the peer is offline.
 

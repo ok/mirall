@@ -1,7 +1,8 @@
-// Owns a space's loose-file listing (stale-while-revalidate cache, latest-wins refresh) plus publish/prepare progress; re-derives on event:reconcile.
+// Owns a space's loose-file listing (stale-while-revalidate cache, latest-wins + coalesced refreshes) plus publish/prepare progress; re-derives on event:reconcile.
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request, subscribe, addFileToSpace } from '../ipc.js'
+import { makeCoalescer } from '../coalesce.js'
 import { useToast } from '../components/toast/useToast.js'
 import { errorCodeToI18nKey } from '../errorMessages.js'
 import { Scope, scopeMatches, type Scope as ScopeType } from '../scope.js'
@@ -63,7 +64,12 @@ export function useFiles(spaceId: string) {
       setLoading(true)
     }
     setError(null)
-    refresh()
+    // One leading + one trailing files:list per 750 ms window (the coalescer useShareFiles and
+    // useSpaceStorage run): a publish emits one files hint per catalog append and a handshake
+    // emits a members poke AND a files hint, neither of which should become concurrent full
+    // fan-outs. The first trigger fires immediately, so the initial load is not delayed.
+    const coalescer = makeCoalescer(() => { void refresh() }, { intervalMs: 750 })
+    coalescer.trigger()
     // Level-triggered: re-derive on the coalesced reconcile hint for this space (emitted 1:1 with
     // the files-updated poke). A lost hint self-corrects on the next one; the list is always
     // a projection of the worker's files:list, never a client-latched status.
@@ -71,9 +77,9 @@ export function useFiles(spaceId: string) {
       // A members change (a peer's catalog key committed post-handshake) can newly reveal that
       // peer's loose files, so re-derive on it too — the handshake's pre-persist files hint races
       // the member persist, but the post-persist members poke does not.
-      if (scopeMatches(msg.scope, Scope.files(spaceId)) || scopeMatches(msg.scope, Scope.members(spaceId))) refresh()
+      if (scopeMatches(msg.scope, Scope.files(spaceId)) || scopeMatches(msg.scope, Scope.members(spaceId))) coalescer.trigger()
     })
-    return () => { unsubFiles() }
+    return () => { coalescer.cancel(); unsubFiles() }
   }, [spaceId, refresh])
 
   async function addFiles(fileList: File[]) {

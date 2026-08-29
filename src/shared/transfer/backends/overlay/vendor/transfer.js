@@ -303,6 +303,36 @@ export class TransferManager {
     }
   }
 
+  // [mirall] serve-side chunk source. One fd per (peer, file) serve session, opened once by the
+  // protocol and read with positioned async reads, instead of readChunk's openSync + readSync
+  // per chunk (a 4 MiB tier-3 read blocked the worker loop each time). Routed through the
+  // tracked wrappers so openFdCount() sees these descriptors.
+  async openChunkSource (filePath) {
+    try { return await openTracked(filePath, 'r') } catch { return null }
+  }
+
+  closeChunkSource (fd) {
+    return closeTracked(fd)
+  }
+
+  // Resolves the chunk bytes, or null on a short read or any error (a closed fd included) —
+  // readChunk's contract, so the serve loop's skip/bail logic is unchanged. allocUnsafe is
+  // safe because a partially filled buffer is never returned.
+  async readChunkAt (fd, offset, length) {
+    const buf = Buffer.allocUnsafe(length)
+    let filled = 0
+    try {
+      while (filled < length) {
+        const n = await fs.read(fd, buf, filled, length - filled, offset + filled)
+        if (n <= 0) break
+        filled += n
+      }
+    } catch {
+      return null
+    }
+    return filled === length ? buf : null
+  }
+
   /**
    * Determine which chunks a peer needs (chunks they don't already have).
    *

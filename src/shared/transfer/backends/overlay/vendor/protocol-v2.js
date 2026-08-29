@@ -65,6 +65,17 @@ const DRAIN_NO_PROGRESS_MS = 20000
 // no-progress watchdog (chunk-scheduler's 30s DEFAULT_IDLE_TIMEOUT): waiting on a cap puts
 // nothing on the wire, so without this a capped-but-healthy holder reads as a wedged one.
 const KEEPALIVE_INTERVAL_MS = 5000
+// [mirall] a serve session's fd is closed after this long without a read for it. Bounds how
+// long a handle is held on the user's file after a peer finishes or stalls (on Windows a held
+// handle defers the file's deletion until it closes); a loop parked on the upload cap or on
+// backpressure past this simply re-opens on its next chunk.
+const SERVE_FD_IDLE_MS = 30000
+const SERVE_FD_SWEEP_MS = 15000
+// [mirall] a peer mirroring a large folder touches thousands of files inside one idle window, so
+// time alone does not bound the handle count. Past this many open sources for ONE peer the least
+// recently used idle handle is closed to make room; EMFILE would otherwise surface as chunks
+// silently skipped.
+const SERVE_FD_MAX_PER_PEER = 64
 
 export class OverlayProtocolV2 {
   constructor (syncEngine, transferManager, opts = {}) {
@@ -132,6 +143,13 @@ export class OverlayProtocolV2 {
     // [mirall] FIX-BW10 — injectable so a test can exercise the real wait without a 20 s deadline.
     this._drainTimeout = opts.drainTimeout ?? DRAIN_TIMEOUT_MS
     this._drainNoProgress = opts.drainNoProgress ?? DRAIN_NO_PROGRESS_MS
+    // [mirall] injectable so a test can see the idle close without a 30 s wait.
+    this._serveFdIdleMs = opts.serveFdIdleMs ?? SERVE_FD_IDLE_MS
+    // Unref'd: with nothing served there is nothing to sweep; destroy() clears it.
+    // Floored: serveFdIdleMs 0 ("close immediately") would otherwise arm a 0 ms interval and
+    // spin the loop for the protocol's lifetime.
+    this._serveFdSweep = setInterval(() => this._sweepServeFds(), Math.max(50, Math.min(SERVE_FD_SWEEP_MS, this._serveFdIdleMs)))
+    this._serveFdSweep.unref?.()
     this._localProfileKey = opts.localProfileKey || null
   }
 
@@ -263,6 +281,8 @@ export class OverlayProtocolV2 {
         // take() with 0 (so it returns instead of sending to a dead channel) and hands back
         // budget charged for bytes that will never go out.
         if (peer?.uploadStream) { try { peer.uploadStream.detach() } catch {} ; peer.uploadStream = null }
+        // [mirall] release every fd this peer's serve loops held.
+        if (peer) self._closeServeFds(peer)
         // Failover: let any active multi-source fetch reassign this peer's
         // inflight chunks to the remaining peers.
         if (peer) for (const sched of self._schedulers.values()) sched.removePeer(peer)
@@ -425,11 +445,91 @@ export class OverlayProtocolV2 {
   get peerCount () { return this._peers.size }
 
   destroy () {
+    clearInterval(this._serveFdSweep)
     for (const [, peer] of this._peers) {
       this._failPendingTrees(peer, new Error('protocol destroyed'))
+      this._closeServeFds(peer)
       peer.channel.close()
     }
     this._peers.clear()
+  }
+
+  // [mirall] read one chunk for a serve loop through this peer's fd for the file, opening it on
+  // first use. Keyed by disk path per PEER, not per grant: one file can be granted under more
+  // than one synthetic path, and an ungated embedder has no grants at all. The fd number is
+  // never carried across an await — it is read from the entry right before the read is issued,
+  // and every close deletes the entry BEFORE closing — so a reused descriptor number can never
+  // be mistaken for a live one. `busy` keeps the sweep off an entry whose fill loop is between
+  // reads.
+  async _readServeChunk (peer, diskPath, c) {
+    if (!peer._serveFds) peer._serveFds = new Map()
+    let src = peer._serveFds.get(diskPath)
+    if (!src) {
+      const fd = await this._transferManager.openChunkSource(diskPath)
+      if (fd === null || fd === undefined) return null
+      // Across that await the channel may have closed (onclose already swept the map, so an fd
+      // stored now would leak) or a sibling loop may have opened the same file first.
+      src = peer._serveFds.get(diskPath)
+      if (peer.channel?.closed || src) {
+        this._dropFd(fd)
+        if (!src) return null
+      } else {
+        src = { fd, lastAt: 0, busy: 0, pendingClose: false }
+        peer._serveFds.set(diskPath, src)
+        this._trimServeFds(peer)
+      }
+    }
+    src.lastAt = Date.now()
+    src.busy++
+    try {
+      return await this._transferManager.readChunkAt(src.fd, c.offset, c.length)
+    } finally {
+      src.busy--
+      // A close that arrived mid-read deferred to us: the descriptor is only safe to release
+      // once no read still holds it, or a concurrent open could reuse the number underneath
+      // readChunkAt's partial-read loop.
+      if (src.pendingClose && !src.busy) this._dropFd(src.fd)
+    }
+  }
+
+  // Keep one peer's open sources bounded. Only idle entries are eligible; a busy one is left for
+  // the next pass (its own read will release it if a close is pending).
+  _trimServeFds (peer) {
+    if (peer._serveFds.size <= SERVE_FD_MAX_PER_PEER) return
+    for (const [diskPath, src] of peer._serveFds) {
+      if (peer._serveFds.size <= SERVE_FD_MAX_PER_PEER) return
+      if (!src.busy) this._closeServeFd(peer, diskPath, src)
+    }
+  }
+
+  // Close is async and best-effort; Promise.resolve() tolerates an embedder whose transfer
+  // manager returns nothing.
+  _dropFd (fd) {
+    Promise.resolve(this._transferManager.closeChunkSource(fd)).catch(() => {})
+  }
+
+  // Removing the entry first is what stops a later read from finding a closed descriptor; the
+  // close itself waits for any read still in flight (readChunkAt carries src.fd across the awaits
+  // of its partial-read loop, so closing underneath it could hand those reads a reused number).
+  _closeServeFd (peer, diskPath, src) {
+    peer._serveFds.delete(diskPath)
+    if (src.busy) { src.pendingClose = true; return }
+    this._dropFd(src.fd)
+  }
+
+  _closeServeFds (peer) {
+    if (!peer._serveFds) return
+    for (const [diskPath, src] of peer._serveFds) this._closeServeFd(peer, diskPath, src)
+  }
+
+  _sweepServeFds () {
+    const now = Date.now()
+    for (const peer of this._peers.values()) {
+      if (!peer._serveFds) continue
+      for (const [diskPath, src] of peer._serveFds) {
+        if (!src.busy && now - src.lastAt > this._serveFdIdleMs) this._closeServeFd(peer, diskPath, src)
+      }
+    }
   }
 
   // ── Handlers ────────────────────────────────────────────────
@@ -800,8 +900,13 @@ export class OverlayProtocolV2 {
       const index = msg.indices[i]
       if (index >= chunkMap.length) continue
       const c = chunkMap[index]
-      const data = this._transferManager.readChunk(diskPath, c.offset, c.length)
+      // [mirall] async positioned read on the session fd. The wait is a revocation window like
+      // the limiter and drain waits below, so the grant is re-checked past it and BEFORE the cap
+      // is charged: a revoked chunk is never paid for.
+      const data = await this._readServeChunk(peer, diskPath, c)
+      if (peer.channel?.closed) return
       if (!data) continue
+      if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
       // [mirall] Upload cap, charged against THIS peer's own stream so concurrent serve
       // loops share the cap by bytes instead of racing (see bandwidth-limiter). take()
       // resolves with the bytes actually paid for; 0 means the wait was aborted — the
