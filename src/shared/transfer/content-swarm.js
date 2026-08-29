@@ -12,12 +12,13 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { getResourceCaps, getHandshakeRateLimit } from '../core/runtime-config.js'
+import { getResourceCaps, getHandshakeRateLimit, isOverlayEnabled, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
 import { getIdentitySigner, getProfileKey } from '../spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding, createRateLimiter } from './handshake-guard.js'
 import { applyNetImpairment } from './net-impair.js'
 import { createContentPeerSockets } from './content-peer-sockets.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('content-swarm')
 
@@ -39,8 +40,6 @@ let contentAttachHook = null
 let contentResumeHook = null
 let contentBinding = null
 
-export function setContentAttachHook(fn) { contentAttachHook = fn }
-export function setContentResumeHook(fn) { contentResumeHook = fn }
 
 // Null between worker boot and initContentSwarm, and again after destroyContentSwarm
 // has run during shutdown. Callers must tolerate both.
@@ -114,7 +113,7 @@ function onContentConnection(socket, peerInfo) {
   socket.on('close', () => contentPeerSockets.forget(socket))
 }
 
-export function initContentSwarm(sharedDht) {
+function initContentSwarm(sharedDht) {
   if (contentSwarm) return contentSwarm
   if (!sharedDht) { log.warn('no shared DHT — content plane not started'); return null }
   const caps = getResourceCaps()
@@ -184,7 +183,7 @@ export function getContentPlaneStatus() {
   }
 }
 
-export async function destroyContentSwarm() {
+async function destroyContentSwarm() {
   if (!contentSwarm) return
   // We SHARE the control swarm's DHT node; hyperswarm.destroy() would destroy that shared node
   // (via dht.destroy()) and tear the control plane down with us. So leave topics + close our
@@ -203,4 +202,24 @@ export async function destroyContentSwarm() {
   contentBinding = null
   contentSwarm = null
   log.info('destroyed')
+}
+
+export class ContentSwarm extends Subsystem {
+  constructor(name, deps) { super(name, deps); this.require('swarm', 'overlayBackend') }
+
+  async _open() {
+    if (!isOverlayEnabled() || !isSeparateContentPlaneEnabled()) return
+    contentAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
+    contentResumeHook = (ownerKey) => this.deps.overlayBackend.resumeForOwnerAllSpaces(ownerKey)
+    initContentSwarm(this.deps.swarm.dht)
+  }
+
+  async _close() {
+    // With the separate content plane on, the overlay channel rides THESE sockets — so the
+    // protocol has to come down before they do, or the serve-end frames never leave.
+    this.deps.overlayBackend.detach()
+    await destroyContentSwarm()
+    contentAttachHook = null
+    contentResumeHook = null
+  }
 }

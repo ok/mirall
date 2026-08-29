@@ -3,26 +3,38 @@ import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
 import { localTestnet } from '../helpers/testnet.js'
 import { setRuntimeConfig, setRelayConfig } from '../../src/shared/core/runtime-config.js'
-import { initSwarm, destroySwarm, setRelayThrough, testRelayReachable, getSwarmDht, getSwarmStatus } from '../../src/shared/transfer/swarm.js'
-import { initContentSwarm, destroyContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
+import { Swarm, setRelayThrough, testRelayReachable, getSwarmDht, getSwarmStatus } from '../../src/shared/transfer/swarm.js'
+import { ContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
 import { MAX_APPLIED_RELAYS } from '../../src/shared/transfer/relay.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
+
+// The relay tests exercise the swarm, not the overlay; the backend is a dep so it is stubbed.
+const stubOverlayBackend = {
+  attach () {},
+  detach: async () => {},
+  resumeForOwner () {},
+  resumeForOwnerAllSpaces () {},
+  revokeServesForSpace () {},
+}
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const KEY_B = idEncoding.encode(b4a.alloc(32, 12))
 
-// Mirrors worker/main.js: initSwarm, then initContentSwarm, then apply. The order is
+// Mirrors the boot root: Swarm, then ContentSwarm, then apply. The order is
 // the point — getContentSwarm() is null until the second call returns.
 async function bootSwarms (t, { relayEnabled = true, relayMode = 'off', relays = [] } = {}) {
   const bootstrap = await localTestnet(t)
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayEnabled, relayMode, relays })
   const ipc = createFakeIpc().ipc
-  initSwarm(ipc)
-  initContentSwarm(getSwarmDht())
+  const swarm = new Swarm('swarm', { ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [] })
+  const content = new ContentSwarm('content-swarm', { swarm, overlayBackend: stubOverlayBackend })
   t.teardown(async () => {
-    try { await destroyContentSwarm() } catch {}
-    try { await destroySwarm() } catch {}
+    try { await content.close() } catch {}
+    try { await swarm.close() } catch {}
   })
+  await swarm.ready()
+  await content.ready()
+  return { swarm, content }
 }
 
 test('a configured relay reaches BOTH swarms', async (t) => {
@@ -80,16 +92,18 @@ test('the applied relay set is capped even when the frame bypasses main', async 
 test('applying before the content swarm exists would miss the content plane', async (t) => {
   const bootstrap = await localTestnet(t)
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayEnabled: true, relayMode: 'always', relays: [] })
-  initSwarm(createFakeIpc().ipc)
+  const soloSwarm = new Swarm('swarm', { ipc: createFakeIpc().ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [] })
   t.teardown(async () => {
-    try { await destroyContentSwarm() } catch {}
-    try { await destroySwarm() } catch {}
+    try { await soloSwarm.close() } catch {}
   })
+  await soloSwarm.ready()
 
   t.is(getContentSwarm(), null, 'null between the two constructors — the window the boot order must clear')
   setRelayThrough([{ id: 'a', publicKey: KEY_A, enabled: true }], 'always')
 
-  initContentSwarm(getSwarmDht())
+  const lateContent = new ContentSwarm('content-swarm', { swarm: soloSwarm, overlayBackend: stubOverlayBackend })
+  t.teardown(async () => { try { await lateContent.close() } catch {} })
+  await lateContent.ready()
   t.not(typeof getContentSwarm().relayThrough, 'function', 'a swarm constructed after the call never got it')
 
   setRelayThrough([{ id: 'a', publicKey: KEY_A, enabled: true }], 'always')
@@ -122,8 +136,8 @@ test('with the feature flag off, a stale config cannot change transport behaviou
 })
 
 test('setRelayThrough survives the shutdown window', async (t) => {
-  await bootSwarms(t, { relayMode: 'auto' })
-  await destroyContentSwarm()
+  const { content } = await bootSwarms(t, { relayMode: 'auto' })
+  await content.close()
   t.is(getContentSwarm(), null)
   t.execution(() => setRelayThrough([{ id: 'a', publicKey: KEY_A, enabled: true }], 'auto'),
     'a late network:set-relays during teardown must not throw')

@@ -26,7 +26,7 @@ import {
   recordJoinRequest, listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
   pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, ownLooseCatalogPublish, persistLeftTombstone,
 } from '../spaces/space.js'
-import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled } from '../core/runtime-config.js'
+import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import crypto from 'hypercore-crypto'
@@ -51,6 +51,7 @@ import { markLeft, isLeft, openMemberView, closeMemberView, rosterDeficits, reco
 import { createPresence, presenceFrameKind } from '../state/presence.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT_SETTLE_MS, LIVENESS_FAILURES_FOR_OFFLINE } from '../core/reachability.js'
 
 const log = createLogger('swarm')
@@ -181,7 +182,8 @@ let corruptionDiagnosed = false
 
 // === Connection intake & frame dispatch ===
 
-export function initSwarm(_ipc) {
+function initSwarm(_ipc) {
+  if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
   // swarm stays off the public DHT; unset in production → default bootstrap.
@@ -212,7 +214,9 @@ export function initSwarm(_ipc) {
   swarm.on('update', scheduleStatusEmit)
 
   const onDhtReady = () => {
-    if (dhtReady) return
+    // fullyBootstrapped() can resolve after destroySwarm; without this the liveness and interface
+    // loops are re-armed on a swarm that no longer exists.
+    if (!swarm || dhtReady) return
     dhtReady = true
     readyAt = Date.now()
     scheduleStatusEmit()
@@ -1493,7 +1497,6 @@ let lastStallRescueAt = 0
 let stallRescueBackoffMs = STALL_RESCUE_MIN_MS
 let stallRescueInFlight = false
 
-export function setStalledOwnersHook(fn) { stalledOwnersHook = fn }
 
 export async function rescueStalledTransfers() {
   if (!swarm || !stalledOwnersHook || stallRescueInFlight) return false
@@ -1600,6 +1603,12 @@ export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact
 // blocks deleted in the shared RocksDB store; the bytes are not reclaimed from
 // disk until a compaction with blob GC runs. Both leave-space and
 // clear-peer-cache rely on this to actually shrink on-disk usage.
+const COMPACTION_SETTLE_MS = 250
+
+// Lets a test park the compaction tail so the bounded wait in destroySwarm is observable.
+export function compactStoreForTest(makeTail) {
+  compactionTail = makeTail()
+}
 let compactionTail = Promise.resolve()
 
 function chainCompaction(opts, label) {
@@ -1790,22 +1799,6 @@ export function isPeerConnectedByDriveKey(driveKeyHex) {
   return false
 }
 
-export function setOverlayReconnectHook(fn) {
-  overlayReconnectHook = fn
-}
-
-export function setRevokeServesForSpaceHook(fn) {
-  revokeServesForSpaceHook = fn
-}
-
-export function setMembershipControlHandler(fn) {
-  membershipControlHandler = fn
-}
-
-export function setConnectionAttachHook(fn) {
-  connectionAttachHook = fn
-}
-
 export function getSwarmDht() {
   return swarm?.dht || null
 }
@@ -1869,7 +1862,7 @@ export function sendMembershipDeny(profileKeyHex, topicHex) {
   }
 }
 
-export async function destroySwarm() {
+async function destroySwarm() {
   if (!swarm) return
   log.info('destroying swarm...')
   if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
@@ -1934,9 +1927,39 @@ export async function destroySwarm() {
   bannedNoiseKeys.clear()
   rateLimiter?.clear()
   rateLimiter = null
+  membersPoke.reset()
+  ipcRef = null
+  leavingSpaces.clear()
+  overlayReconnectHook = null
+  membershipControlHandler = null
+  connectionAttachHook = null
+  revokeServesForSpaceHook = null
+  stalledOwnersHook = null
+  onPendingLeaveApplied = null
+  onPendingCancelApplied = null
+  pendingLeaves.clear()
+  lastLeaveAckedKeys.clear()
+  pendingCancels.clear()
+  readmitInflight.clear()
+  lastReconnectAt = 0
+  bootedAt = 0
+  corruptionDiagnosed = false
+  lastStallRescueAt = 0
+  stallRescueBackoffMs = STALL_RESCUE_MIN_MS
+  stallRescueInFlight = false
+  relaySelections = 0
   try {
     await swarm.destroy()
   } catch {}
+  swarm = undefined
+  // A compaction reads cores the durable tier closes right after this. Bounded on its own: it
+  // runs under the runtime tier's shared budget, and a full-range compactRange the user just
+  // started would otherwise spend the whole budget and skip every subsystem after this one.
+  await Promise.race([
+    compactionTail.catch(() => {}),
+    new Promise((resolve) => { const t = setTimeout(resolve, COMPACTION_SETTLE_MS); t.unref?.() }),
+  ])
+  compactionTail = Promise.resolve()
   log.info('swarm destroyed')
 }
 
@@ -2617,4 +2640,34 @@ export async function reconnectAll() {
   try { await refreshContentDiscoveries() } catch {} // content plane (no-op unless active)
   scheduleStatusEmit()
   return { ok: true }
+}
+
+export class Swarm extends Subsystem {
+  constructor(name, deps) {
+    super(name, deps)
+    this.require('ipc', 'membershipControl', 'overlayBackend', 'stalledOwners')
+  }
+
+  async _open() {
+    membershipControlHandler = this.deps.membershipControl
+    stalledOwnersHook = this.deps.stalledOwners
+    // Exclusive with the content plane: when it is on, the overlay channel rides the content
+    // socket and the serve gate authorizes against that socket's hello. Binding here as well
+    // would land content requests on a socket the gate cannot authenticate.
+    if (!isSeparateContentPlaneEnabled()) {
+      connectionAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
+    }
+    overlayReconnectHook = (ownerKey, spaceId) => this.deps.overlayBackend.resumeForOwner(ownerKey, spaceId)
+    revokeServesForSpaceHook = (spaceId, profileKey) => this.deps.overlayBackend.revokeServesForSpace(spaceId, profileKey)
+    initSwarm(this.deps.ipc)
+  }
+
+  async _close() {
+    // Before the sockets drop: the overlay's peer teardown fires the serve-end callbacks whose
+    // audit rows the durable tier records, and those frames need a live connection.
+    this.deps.overlayBackend.detach()
+    await destroySwarm()
+  }
+
+  get dht() { return getSwarmDht() }
 }
