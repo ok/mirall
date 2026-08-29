@@ -2,7 +2,7 @@ import test from 'brittle'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import {
-  initServeLedger, _resetServeLedger, _sweepServeLedgerNow,
+  ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, getServeDetail, unsubscribeServeDetail, listServeSummaries,
 } from '../../src/shared/transfer/serve-ledger.js'
@@ -18,12 +18,14 @@ const details = (fake) => fake.emitted('event:awareness').filter((e) => e.payloa
 
 // The sender-side "who is downloading" ledger is in-memory and event-fed; these tests
 // drive it directly (no store, no network).
-function setup (t) {
+async function setup (t) {
   const fake = createFakeIpc()
   serveIndex._reset()
-  initServeLedger(fake.ipc)
+  const ledger = new ServeLedger('serve-ledger', { ipc: fake.ipc })
+  // Registered before the await: brittle refuses a teardown added after the test has ended.
+  t.teardown(async () => { await ledger.close(); serveIndex._reset() })
+  await ledger.ready()
   serveIndex.add(HASH, SID, '__loose__', 'big.bin')
-  t.teardown(() => { _resetServeLedger(); serveIndex._reset() })
   return fake
 }
 
@@ -31,8 +33,8 @@ function setup (t) {
 // live row, while a paused downloader emits exactly ONE summary frame — so the renderer's
 // soft-state TTL erased the paused indicator ~15s after the pause even though the worker
 // ledger keeps it for PAUSED_DROP_MS).
-test('REGRESSION (FIX-EDA-8): the ledger sweep re-announces a still-live paused peer', (t) => {
-  const fake = setup(t)
+test('REGRESSION (FIX-EDA-8): the ledger sweep re-announces a still-live paused peer', async (t) => {
+  const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   onServePaused({ from: PEER, contentHash: HASH })
   const before = summaries(fake).length
@@ -49,8 +51,8 @@ test('REGRESSION (FIX-EDA-8): the ledger sweep re-announces a still-live paused 
   t.is(last.path, PATH)
 })
 
-test('the sweep re-announces active rows too (missed-frame recovery for the renderer TTL)', (t) => {
-  const fake = setup(t)
+test('the sweep re-announces active rows too (missed-frame recovery for the renderer TTL)', async (t) => {
+  const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   const before = summaries(fake).length
 
@@ -64,8 +66,8 @@ test('the sweep re-announces active rows too (missed-frame recovery for the rend
 // The downloader→holder contract the mirror-unmount fix relies on: a STOPPED control drops a
 // previously-paused peer from the ledger at once (no waiting on the 5-min PAUSED_DROP_MS sweep),
 // emitting an authoritative empty summary.
-test('a STOPPED control drops a previously-paused peer from the ledger', (t) => {
-  const fake = setup(t)
+test('a STOPPED control drops a previously-paused peer from the ledger', async (t) => {
+  const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   onServePaused({ from: PEER, contentHash: HASH })
   t.is(listServeSummaries(SID).length, 1, 'precondition: one paused row present')
@@ -77,8 +79,8 @@ test('a STOPPED control drops a previously-paused peer from the ledger', (t) => 
   t.alike(last.peers, [], 'and emitted an authoritative empty summary')
 })
 
-test('getServeDetail reads the snapshot without touching the detailSubs refcount', (t) => {
-  const fake = setup(t)
+test('getServeDetail reads the snapshot without touching the detailSubs refcount', async (t) => {
+  const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
 
   const snap = subscribeServeDetail(SID, PATH)
@@ -102,8 +104,8 @@ test('getServeDetail reads the snapshot without touching the detailSubs refcount
 // renderer poll (serving:detail-get on an interval). With the poll removed, a departed peer whose
 // gone-frame was lost would linger in the expanded dropdown forever — the sweep must push the
 // authoritative detail snapshot for every subscribed file.)
-test('REGRESSION (FIX-EDA-19): the sweep pushes authoritative detail for a subscribed file', (t) => {
-  const fake = setup(t)
+test('REGRESSION (FIX-EDA-19): the sweep pushes authoritative detail for a subscribed file', async (t) => {
+  const fake = await setup(t)
   subscribeServeDetail(SID, PATH)
   t.teardown(() => unsubscribeServeDetail(SID, PATH))
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
@@ -119,8 +121,8 @@ test('REGRESSION (FIX-EDA-19): the sweep pushes authoritative detail for a subsc
   t.alike(last.peers.map((p) => p.peerKey), [PEER])
 })
 
-test('the sweep pushes an EMPTY authoritative snapshot for a subscribed file with no live peers', (t) => {
-  const fake = setup(t)
+test('the sweep pushes an EMPTY authoritative snapshot for a subscribed file with no live peers', async (t) => {
+  const fake = await setup(t)
   subscribeServeDetail(SID, PATH)
   t.teardown(() => unsubscribeServeDetail(SID, PATH))
 
@@ -131,16 +133,16 @@ test('the sweep pushes an EMPTY authoritative snapshot for a subscribed file wit
   t.alike(frames[frames.length - 1].payload.peers, [], 'and it is authoritatively empty')
 })
 
-test('the sweep pushes no detail for unsubscribed files', (t) => {
-  const fake = setup(t)
+test('the sweep pushes no detail for unsubscribed files', async (t) => {
+  const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   const before = details(fake).length
   _sweepServeLedgerNow()
   t.is(details(fake).length, before, 'summary-only for unsubscribed files')
 })
 
-test('two subscribers on one row survive a single unsubscribe (refcount over the keyed sub)', (t) => {
-  const fake = setup(t)
+test('two subscribers on one row survive a single unsubscribe (refcount over the keyed sub)', async (t) => {
+  const fake = await setup(t)
   subscribeServeDetail(SID, PATH)
   subscribeServeDetail(SID, PATH)
   unsubscribeServeDetail(SID, PATH)
@@ -155,8 +157,8 @@ test('two subscribers on one row survive a single unsubscribe (refcount over the
 // A renderer reload never sends the unsubscribe, so a leaked sub with no download entry must
 // not keep the sweep timer + frame stream alive forever — it goes dormant after the quiet
 // window (kept registered for a serve-start wake, see FIX-G2) and a fresh subscribe re-arms.
-test('a quiet leaked detail subscription goes dormant after the quiet window', (t) => {
-  const fake = setup(t)
+test('a quiet leaked detail subscription goes dormant after the quiet window', async (t) => {
+  const fake = await setup(t)
   subscribeServeDetail(SID, PATH)
   const t0 = 1_000_000
 
@@ -179,8 +181,8 @@ test('a quiet leaked detail subscription goes dormant after the quiet window', (
 // Eviction deleted a quiet sub outright, so a downloader arriving AFTER the quiet window
 // pushed summary frames but no detail — an open dropdown stayed empty until reopened.
 // Dormancy keeps the sub registered (no frames, no timer) and a new serve wakes it.
-test('REGRESSION (FIX-G2: a new serve wakes a dormant subscription instead of starving it)', (t) => {
-  const fake = setup(t)
+test('REGRESSION (FIX-G2: a new serve wakes a dormant subscription instead of starving it)', async (t) => {
+  const fake = await setup(t)
   subscribeServeDetail(SID, PATH)
   t.teardown(() => unsubscribeServeDetail(SID, PATH))
   const t0 = 1_000_000
@@ -202,8 +204,8 @@ test('REGRESSION (FIX-G2: a new serve wakes a dormant subscription instead of st
 
 // Navigating into a space while peers are already downloading showed a blank indicator
 // until the next 10s sweep re-announce; the hook now seeds from this snapshot on mount.
-test('REGRESSION (FIX-G1: serving:summary-list returns the live serve rows for a space)', (t) => {
-  setup(t)
+test('REGRESSION (FIX-G1: serving:summary-list returns the live serve rows for a space)', async (t) => {
+  await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   onServePaused({ from: PEER, contentHash: HASH })
 

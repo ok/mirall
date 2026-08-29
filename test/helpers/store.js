@@ -3,12 +3,11 @@ import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
-import { initStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
-import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
-import { initSpaces } from '../../src/shared/spaces/space.js'
-import { initMounts } from '../../src/shared/folders/mount-store.js'
-import { OwnedFolders, _resetOwnedFolders } from '../../src/shared/folders/owned-folders.js'
-import { ForeignMirrors } from '../../src/shared/folders/foreign-folders.js'
+import { setProfile } from '../../src/shared/spaces/profile.js'
+import { boot, bootDurable } from '../../src/worker/boot.js'
+import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { _resetContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { _resetLooseOverlay } from '../../src/shared/transfer/loose-overlay.js'
 import { createFakeIpc } from './fake-ipc.js'
 
 let seq = 0
@@ -19,56 +18,81 @@ function tmpDir (label) {
   return dir
 }
 
-// Spin up a clean single-peer backend against a fresh on-disk store + download
-// dir, with the shared modules initialised and a fake ipc. NOTE: src/shared
-// modules are process-global singletons — one peer per test process; the
-// integration files are loaded one-per-thread under `brittle-bare -j`.
+const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+
+// Production layout: the store sits at <peerDir>/app-storage, so identity.enc and space-keys.enc —
+// which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
+// tmpdir shared with every other peer of every other test.
+function peerDirs (t) {
+  const home = tmpDir('peer')
+  const storage = path.join(home, 'app-storage')
+  fs.mkdirSync(storage, { recursive: true })
+  const downloads = tmpDir('dl')
+  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
+  setRuntimeConfig(config)
+  setDownloadFolder(downloads)
+  t.teardown(() => {
+    for (const dir of [home, downloads]) {
+      try { fs.rmSync(dir, { recursive: true, force: true }) } catch {}
+    }
+  }, { order: 2 })
+  return { config, storage, downloads }
+}
+
+// Spin up a clean single-peer backend: the whole data layer, composed exactly as the worker
+// composes it, minus the network. NOTE: src/shared modules are process-global singletons — one
+// peer per test process; the integration files are loaded one-per-thread under `brittle-bare -j`.
 export async function freshPeer (t, { displayName = 'Tester' } = {}) {
   return bootPeer(t, { displayName, masterSecret: null })
 }
 
-// Same as freshPeer but on the explicit-keypair identity path (a random master
-// secret stands in for a resolved M), so the integration suite exercises the
-// derived-keypair createBee/createDrive that the os-keychain path produces.
+// Same as freshPeer but on the explicit-keypair identity path (a random master secret stands in
+// for a resolved M), so the suite exercises the derived-keypair createBee/createDrive that the
+// os-keychain path produces.
 export async function freshPeerWithIdentity (t, { displayName = 'Tester' } = {}) {
   return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
 }
 
 async function bootPeer (t, { displayName, masterSecret }) {
-  const storage = tmpDir('store')
-  const downloads = tmpDir('dl')
-  setRuntimeConfig({ storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads })
-  setDownloadFolder(downloads)
-
-  initStore(storage)
-  setMasterSecret(masterSecret)
-  await initProfile()
-  await setProfile({ displayName })          // gives the profile bee a stable identity
-  await initSpaces()
-  await initMounts()
-
+  const { config, storage, downloads } = peerDirs(t)
   const fake = createFakeIpc()
-  // The same two subsystems the worker's boot root starts, so a test drives the production
-  // wiring rather than a hand-rolled copy of it — and, on teardown, the production STOP: closing
-  // ForeignMirrors is what halts the mirror poll loops, which nothing here ever did.
-  const owned = new OwnedFolders('owned-folders', { ipc: fake.ipc })
-  const mirrors = new ForeignMirrors('foreign-mirrors', { ipc: fake.ipc })
-  await owned.ready()
-  await mirrors.ready()
-
+  const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret })
+  await setProfile({ displayName })
+  // order:1 — brittle sorts teardowns and runs the default order:0 ones first, so a test's own
+  // teardown still has a live data layer to work against. Closing the root first would leave every
+  // bee accessor pointing at nothing.
   t.teardown(async () => {
-    for (const subsystem of [mirrors, owned]) {
-      try { await subsystem.close() } catch {}
-    }
-    // _resetOwnedFolders additionally un-stops the module-level publish scheduler, which a
-    // second peer booted in the same process needs; OwnedFolders._close deliberately does not,
-    // because a closed resource is never reused. Retired in Phase 2, when the scheduler becomes
-    // a resource the boot root constructs.
-    try { await _resetOwnedFolders() } catch {}
-    try { await getStore().close() } catch {}
-    try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}
-    try { fs.rmSync(downloads, { recursive: true, force: true }) } catch {}
-  })
+    try { await root.close() } catch (err) { console.warn('[test] root.close failed:', err.message) }
+    // Started by boot() but not yet owned by it — the overlay modules Phase 3 converts.
+    try { _resetContentBackendOverlay() } catch {}
+    try { _resetLooseOverlay() } catch {}
+    try { serveIndex._reset() } catch {}
+  }, { order: 1 })
+  return { storage, downloads, fake, tmpDir, root }
+}
 
-  return { storage, downloads, fake, tmpDir }
+// The durable tier alone, for a test whose subject is what boot() does AFTER it — a content
+// migration, the manifest caps — which must not already have run.
+export async function freshDurableWithIdentity (t, opts = {}) {
+  return freshDurable(t, { ...opts, masterSecret: crypto.randomBytes(32) })
+}
+
+export async function freshDurable (t, { displayName = 'Tester', masterSecret = null, storage = null } = {}) {
+  let config
+  let dirs
+  if (storage) {
+    const downloads = tmpDir('dl')
+    t.teardown(() => { try { fs.rmSync(downloads, { recursive: true, force: true }) } catch {} }, { order: 2 })
+    config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
+    setRuntimeConfig(config)
+    setDownloadFolder(downloads)
+    dirs = { config, storage, downloads }
+  } else {
+    dirs = peerDirs(t)
+  }
+  const fake = createFakeIpc()
+  const tier = await bootDurable(dirs.config, { ipc: fake.ipc, log: quiet, masterSecret })
+  if (displayName) await setProfile({ displayName })
+  t.teardown(() => tier.close(), { order: 1 })
+  return { storage: dirs.storage, downloads: dirs.downloads, fake, tmpDir, tier }
 }

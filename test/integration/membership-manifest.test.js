@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, freshDurable } from '../helpers/store.js'
 import {
   markOwnMembership,
   clearOwnMembership,
@@ -16,8 +16,10 @@ import {
 // read as false instead of null, a peer could be pruned before it ever spoke.
 // Read against our own key here (single peer); cross-peer propagation is flow.
 
+// The durable tier only: boot()'s ensureMembershipManifestCap() publishes the very cap whose
+// absence this test is about.
 test('a never-published manifest reads as null (unknown), not false', async (t) => {
-  await freshPeer(t)
+  await freshDurable(t)
   const me = getLocalPublicKeyHex()
   t.is(await readPeerMembership(me, 'space-unknown'), null, 'no cap → unknown, never "left"')
 })

@@ -27,13 +27,6 @@ const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 
 const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
 
-// Every periodic timer the data layer arms is unref'd, and the boot root deliberately holds no
-// ref'd handle — in production the worker's IPC pipe is what keeps the loop alive. Under the test
-// runner there is no pipe, so a ref'd tick stands in for it.
-function keepLoopAlive (t) {
-  const beat = setInterval(() => {}, 1000)
-  t.teardown(() => clearInterval(beat))
-}
 const tmp = (label) => fs.mkdtempSync(path.join(os.tmpdir(), `mirall-lifecycle-${label}-`))
 
 async function ownedShare (ctx) {
@@ -66,19 +59,7 @@ test('REGRESSION (LIFECYCLE-1a): no data-layer interval is armed after the full 
   await saveForeignMount(mirror)
   await startForeignLoop(mirror)                                    // arms the 30 s poll
 
-  const { stopAllForeignLoops } = await import('../../src/shared/folders/foreign-folders.js')
-  const { _resetOwnedFolders } = await import('../../src/shared/folders/owned-folders.js')
-  const { closeAuditLog } = await import('../../src/shared/audit/audit-log.js')
-  const { closePeerWatch } = await import('../../src/shared/audit/peer-watch.js')
-  await stopAllForeignLoops()
-  await _resetOwnedFolders()
-  await closePeerWatch()
-  await closeAuditLog()
-  closeAllMemberViews()
-  await teardownBackends()
-  await destroyContentSwarm()
-  await destroySwarm()
-  await getStore().close()
+  await ctx.root.close()
 
   const armed = timers.intervals()
   t.is(armed.length, 0, 'no interval armed after shutdown\n' + timers.describe(armed))
@@ -88,7 +69,6 @@ test('REGRESSION (LIFECYCLE-1a): no data-layer interval is armed after the full 
 // work. Nothing here calls a _reset* seam. A leftover interval, a getter still pointing at a
 // closed instance, or a TDZ on re-import would fail the second boot or the operations after it.)
 test('REGRESSION (LIFECYCLE-1b): in-process restart against the same storage', async (t) => {
-  keepLoopAlive(t)
   t.teardown(() => timers.restore())   // the last test in the file — see the shim comment above
   const storage = tmp('store')
   const downloads = tmp('dl')
