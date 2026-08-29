@@ -31,12 +31,17 @@ import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { markVerified, isVerifiedUnchanged } from '../transfer/files.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError } from './walk-disk.js'
 
 const log = createLogger('foreign-folders')
 
 const activeLoops = new Map()
+// Every in-flight materialize pass — the poll tick AND the initial scan — keyed by loopKey, so
+// the bulk stop has something to await. Declared with activeLoops because initialMaterializeScan,
+// far above its old home, registers into it.
+const tickInFlight = new Map()
 const pendingTicks = new Map()
 let ipcRef = null
 
@@ -266,7 +271,20 @@ export async function applyChange(mount, change) {
   }
 }
 
+// The initial scan is launched unawaited at boot and on a fresh mount, and it walks the whole
+// catalog — so it is exactly the kind of in-flight pass stopAllForeignLoops has to wait for. It
+// honours cancelGen internally (bails between files, re-checks before the trailing persist), but
+// the bulk stop can only WAIT for what it can see, hence the same in-flight map the poll tick uses.
 export async function initialMaterializeScan(mount) {
+  const key = loopKey(mount.spaceId, mount.shareId)
+  const p = runInitialMaterializeScan(mount).finally(() => {
+    if (tickInFlight.get(key) === p) tickInFlight.delete(key)
+  })
+  tickInFlight.set(key, p)
+  return await p
+}
+
+async function runInitialMaterializeScan(mount) {
   const share = await loadShareForForeignMount(mount)
   if (share && hasContentBackend(share)) return await initialMaterializeScanCatalog(mount, share)
   // No usable content backend (unsupported / unreadable share) — skip the mirror
@@ -415,7 +433,6 @@ export async function startForeignLoop(mount) {
   activeLoops.set(key, { timer, spaceId: mount.spaceId, shareId: mount.shareId })
 }
 
-const tickInFlight = new Map()
 const tickDirty = new Set()
 // Bumped by stopForeignLoop (pause / unmount). A long initial scan or poll tick
 // over thousands of files captures the generation at its start and bails between
@@ -807,6 +824,28 @@ export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {
     clearTimeout(pending)
     pendingTicks.delete(key)
   }
+}
+
+// Stop every mirror loop. Each stop bumps the loop's generation so a pass mid-iteration bails at
+// its next file; the bounded wait lets that bail land before the caller closes the cores the pass
+// reads. discardPartial stays false — a shutdown is a pause, not an unmount: the partial and its
+// journal are what let the next boot resume instead of refetching.
+export async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
+  for (const { spaceId, shareId } of [...activeLoops.values()]) stopForeignLoop(spaceId, shareId)
+  const inFlight = [...tickInFlight.values()]
+  if (inFlight.length === 0) return
+  await Promise.race([
+    Promise.allSettled(inFlight),
+    new Promise((resolve) => { setTimeout(resolve, settleMs).unref?.() }),
+  ])
+}
+
+// Owns the mirror loops as a set: _open is the module's wiring, _close is the bulk stop the
+// per-mount stopForeignLoop never had a caller for.
+export class ForeignMirrors extends Subsystem {
+  constructor(name, deps) { super(name, deps); this.require('ipc') }
+  async _open() { initForeignFolders(this.deps.ipc) }
+  async _close() { await stopAllForeignLoops() }
 }
 
 export async function unmountForeignFolder(spaceId, shareId) {

@@ -133,24 +133,36 @@ It calls `window.bridge.startWorker('/src/worker/main.js')` once on mount; outgo
 
 `src/renderer/updates.ts` (singleton) subscribes to `bridge.onPearEvent('updated')` and exposes staged-update state to React (`UpdateBanner` + `useUpdates`). On `updated` it reads the staged version via `bridge.appVersion()`; dev builds simply reload the window. The banner is passive — the update applies in the background or at quit (§9). Dismiss only hides the banner; the About screen keeps showing the notice.
 
-### Worker (`src/worker/main.js`)
+### Worker (`src/worker/main.js` entry + `src/worker/boot.js` root)
 
 Bare process spawned by `pear.run('/src/worker/main.js')`. ESM (`src/worker/package.json` has `"type": "module"`). Registers IPC handlers with `src/shared/core/ipc.js`'s NDJSON router.
+
+The process is split in two. **`worker/main.js` is the entry**: the crash backstop, the IPC pipe and its close hooks, the bootstrap frame, the membership-control block, every `domain:verb` handler, the shutdown deadline and `Bare.exit`. **`worker/boot.js` is the composition root**: it constructs every subsystem with its collaborators passed in, starts them in a declared order, and returns a root whose `close()` closes them in the reverse of that order. `boot()` and `close()` never exit the process, which is what makes an in-process restart testable.
 
 Bootstrap:
 
 1. `createIPC(Bare.IPC)` — buffered NDJSON router on the stdio pipe.
-2. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`.
-3. `setRuntimeConfig(bootstrap)`, `createLogger('worklet')`.
-4. `initStore` → `initSpaceKeys` → `initProfile` → `initSpaces` → `initDownloads` → `initPendingTransfers` → `loadDrives` (on any drive-load failure, `cleanupOrphanedData()`) → `ensureMembershipManifestCap` → `ensureSharesCap` → `initMounts`.
-5. `initOwnedFolders(ipc)` / `initForeignFolders(ipc)`, then `initServeLedger(ipc)`, `initBackends(ipc)` + `initLooseOverlay(ipc)`, and finally `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets**. `initForeignFolders` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
-6. Join every existing space's Hyperswarm topic.
-7. **Resume folder shares from persisted mounts.** Owned mount: if `mountPath` is gone, emit `event:owned-folder-mount-status: 'mount-point-gone'`; else start a chokidar watcher, run a catch-up `periodicReconcile`, schedule the recurring reconcile. Enabled foreign mount: `startForeignLoop(mount)` + `initialMaterializeScan`.
-8. Start the **mount-probe loop** (60 s) — re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop.
-9. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
-10. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
+2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
+3. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
+4. `configureMemberRegistry({…})` — pure wiring, and a prerequisite of the member views the root opens.
+5. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which runs:
+   1. `initStore` → identity unlock → `migrateLocalBeesToEncrypted` → `initSpaceKeys` → `initProfile` → `initSpaces` → `initDownloads` → `initPendingTransfers`.
+   2. `AuditLog` (bee + connectivity watch) — started before `loadDrives`, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
+   3. `loadDrives` (on any drive-load failure, `cleanupOrphanedData()`) → the three manifest caps → the one-time content migrations → `initMounts`.
+   4. `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
+   5. Interrupted-leave resume, download-root hydration, the membership backfill.
+   6. `initServeLedger(ipc)`, `initBackends(ipc)`, `initLooseOverlay(ipc)`, every connection hook, then `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets** — `initContentSwarm(getSwarmDht())` and `applyRelayConfig()`.
+   7. Crash-leftover sweeps, member views, topic joins, pending-leave replay.
+   8. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune) last.
+6. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
+7. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
 
-Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()`, which tears down backends and swarm under a hard deadline, then `Bare.exit(0)`. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
+Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` → `root.close()` under a 4 s hard deadline, then `Bare.exit(0)`. `close()` announces departure and aborts in-flight hashing first (deliberately not in reverse order — the datagram has to leave UDX before any socket drops), waits a 150 ms flush window, then closes every started subsystem in reverse, then the member views, the backends, both swarms and the store. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
+
+**Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
+
+- **No module-level timers.** Arm periodic work in a `Subsystem._open` through `this.timers`, so it dies with the subsystem. Enforced by an eslint `no-restricted-syntax` selector on the data-layer block (`moduleLevelTimerRestrictions`), driven through eslint's own parser by `test/unit/module-level-timers.test.js`.
+- **No module-level construction that arms a resource, and none inside an import cycle.** The static rule cannot see a `const x = createFoo()` whose body arms a timer, nor a TDZ. `test/integration/import-time.test.js` covers both: importing every `src/shared` module behind a timer shim must create zero timers, and each member of the known import cycle must be importable *first* in a fresh Bare process.
 
 ---
 
@@ -933,7 +945,12 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/deeplink.js` | `parseDeepLink(url)` — validates `mirall://join/<code>`, decodes the envelope (dynamic import, since main is CJS) |
 | `src/main/owned-folder-watchers.js` | chokidar watchers for owned-folder shares (§2 step 12, §7) |
 | `src/main/loose-file-watchers.js` | chokidar host for in-place loose-file shares (§2 step 12) |
-| `src/worker/main.js` | Bare worker entry — wires `Bare.IPC` to `core/ipc.js`, runs the bootstrap, shuts down on parent disconnect |
+| `src/worker/main.js` | Bare worker entry — wires `Bare.IPC` to `core/ipc.js`, registers the handlers, shuts down on parent disconnect |
+| `src/worker/boot.js` | The composition root — constructs every subsystem with explicit deps, starts them in order, closes them in reverse |
+| `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, durable status, the periodic reconcile timers, the mount + download-root probe |
+| `src/worker/sweeps.js` | `Sweeps` — the presence, invite-expiry and audit-prune backstops |
+| `src/shared/core/subsystem.js` | `Subsystem extends ReadyResource` (owned timers, `require()`, `stopping`) + `createLifecycle()`, the ordered start/close registry |
+| `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 | `src/shared/` | Worker data layer (below); `invite-envelope.js` is also dynamically imported by main |
 | `src/renderer/` | Renderer source (TS + React → `assets/dist/`) |

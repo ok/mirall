@@ -6,6 +6,10 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
 const workerMain = src('worker/main.js')
+// The boot sequence and the mount runtime moved out of the entry into the composition root and
+// worker/mounts-runtime.js; the invariants below are unchanged, only the file that carries them.
+const boot = src('worker/boot.js')
+const mountsRuntime = src('worker/mounts-runtime.js')
 const swarm = src('shared/transfer/swarm.js')
 
 // These pin worker-orchestration fixes from the state-conveyance code review that can't be driven
@@ -24,16 +28,16 @@ test('REGRESSION (C2: the offline-deny re-send excludes a knock backed by a vali
 })
 
 test('REGRESSION (FIX-6/7/8: scan outcomes drive owned status; probe never blanket-writes active)', (t) => {
-  t.ok(/async function settleScanStatus/.test(workerMain), 'settleScanStatus helper exists')
-  t.ok(/result\?\.skipped === 'mount-point-gone'/.test(workerMain) && /else if \(result\?\.skipped\)/.test(workerMain),
+  t.ok(/async settleScanStatus\(/.test(mountsRuntime), 'the settleScanStatus method exists')
+  t.ok(/result\?\.skipped === 'mount-point-gone'/.test(mountsRuntime) && /else if \(result\?\.skipped\)/.test(mountsRuntime),
     'a skipped scan is not recorded as active')
   // The probe's owned branch must not assert a durable status purely from path presence.
-  t.absent(/setOwnedStatus\(mount\.spaceId, mount\.shareId, exists \? 'active'/.test(workerMain),
+  t.absent(/setOwnedStatus\(mount\.spaceId, mount\.shareId, exists \? 'active'/.test(mountsRuntime),
     'the probe no longer blanket-writes active/gone from path presence')
 })
 
 test('REGRESSION (FIX-16: boot drops a pending-leave marker whose space record still exists)', (t) => {
-  t.ok(/if \(!pl\.topic \|\| await getSpace\(pl\.spaceId\)\) \{ await clearPendingLeave/.test(workerMain),
+  t.ok(/if \(!pl\.topic \|\| await getSpace\(pl\.spaceId\)\) \{ await clearPendingLeave/.test(boot),
     'the boot replay skips + clears a marker for a still-live space')
 })
 
@@ -55,7 +59,7 @@ test('REGRESSION (FIX-19: the post-teardown topic rejoin re-checks the live mark
 })
 
 test('REGRESSION (FIX-21: an enabled foreign mirror missing at boot is durably paused)', (t) => {
-  t.ok(/if \(!mountRootAvailable\(mount\.mountPath\)\) \{\s*\n\s*await autoPauseForeignMountGone/.test(workerMain),
+  t.ok(/if \(!mountRootAvailable\(mount\.mountPath\)\) \{\s*\n\s*await autoPauseForeignMountGone/.test(mountsRuntime),
     'the foreign boot loop pauses a gone-at-boot enabled mirror')
 })
 

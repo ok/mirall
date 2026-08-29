@@ -122,6 +122,10 @@ const sharesRefresh = makeSharesRefresh(
 export function initContentBackendOverlay(ipc) { ipcRef = ipc }
 export function _resetContentBackendOverlay() { ipcRef = null; sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
 export function abortInFlightPublishes() { publishesAborting = true }
+// The abort is a shutdown latch with no natural end — nothing clears it once set. A second boot
+// in the same process would inherit it and abort every publish it ever starts, so the boot root
+// clears it up front, exactly as it re-arms the publish scheduler.
+export function clearPublishAbort() { publishesAborting = false }
 export function setSharePrepareBroadcast(fn) { peerPrepareBroadcast = fn }
 // Installed by owned-folders: (spaceId, shareId, relPath) → true while a publish for that path is
 // queued or running, so the presence sweep never reclaims a file whose publish has not started.

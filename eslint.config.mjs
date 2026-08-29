@@ -29,6 +29,19 @@ export const rendererStatusRestrictions = [
   { selector: "CallExpression[callee.name='subscribe'] ObjectExpression > Property[key.value='status']", message: statusMessage },
 ]
 
+// Lifecycle invariant: a timer armed at module level runs at import, so no close() can ever
+// reach it. Every periodic or deferred call belongs inside a Subsystem's _open, armed through
+// `this.timers`, so it dies with the subsystem. Exported so
+// test/unit/module-level-timers.test.js enforces the same grammar through eslint's parser.
+export const moduleLevelTimerRestrictions = [{
+  // `:not(:function *)` alone is the whole rule: it matches a set*() call that has no function
+  // ancestor, i.e. one that runs at import. Scoping it to top-level statement types instead would
+  // miss every nesting a module-level timer can hide in — a top-level `if`, `try`, bare block,
+  // labelled block, `for`/`while`, `switch` case, or a class static field or static block.
+  selector: "CallExpression[callee.name=/^set(Interval|Timeout)$/]:not(:function *)",
+  message: 'No module-level timers — arm it in a Subsystem _open so close() can clear it.',
+}]
+
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
   // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
@@ -62,7 +75,11 @@ export default [
       sourceType: 'module',
       globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
     },
-    rules: { ...unusedVars, ...complexityBudget },
+    rules: {
+      ...unusedVars,
+      ...complexityBudget,
+      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions],
+    },
   },
 
   // Electron main + preload — host process (CommonJS).

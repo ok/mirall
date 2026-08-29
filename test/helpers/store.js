@@ -7,8 +7,8 @@ import { initStore, getStore, setMasterSecret } from '../../src/shared/core/stor
 import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
 import { initSpaces } from '../../src/shared/spaces/space.js'
 import { initMounts } from '../../src/shared/folders/mount-store.js'
-import { initOwnedFolders, _resetOwnedFolders } from '../../src/shared/folders/owned-folders.js'
-import { initForeignFolders } from '../../src/shared/folders/foreign-folders.js'
+import { OwnedFolders, _resetOwnedFolders } from '../../src/shared/folders/owned-folders.js'
+import { ForeignMirrors } from '../../src/shared/folders/foreign-folders.js'
 import { createFakeIpc } from './fake-ipc.js'
 
 let seq = 0
@@ -48,10 +48,22 @@ async function bootPeer (t, { displayName, masterSecret }) {
   await initMounts()
 
   const fake = createFakeIpc()
-  initOwnedFolders(fake.ipc)
-  initForeignFolders(fake.ipc)
+  // The same two subsystems the worker's boot root starts, so a test drives the production
+  // wiring rather than a hand-rolled copy of it — and, on teardown, the production STOP: closing
+  // ForeignMirrors is what halts the mirror poll loops, which nothing here ever did.
+  const owned = new OwnedFolders('owned-folders', { ipc: fake.ipc })
+  const mirrors = new ForeignMirrors('foreign-mirrors', { ipc: fake.ipc })
+  await owned.ready()
+  await mirrors.ready()
 
   t.teardown(async () => {
+    for (const subsystem of [mirrors, owned]) {
+      try { await subsystem.close() } catch {}
+    }
+    // _resetOwnedFolders additionally un-stops the module-level publish scheduler, which a
+    // second peer booted in the same process needs; OwnedFolders._close deliberately does not,
+    // because a closed resource is never reused. Retired in Phase 2, when the scheduler becomes
+    // a resource the boot root constructs.
     try { await _resetOwnedFolders() } catch {}
     try { await getStore().close() } catch {}
     try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}

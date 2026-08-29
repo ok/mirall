@@ -1,105 +1,208 @@
-// Bare worker entrypoint — Mirall's data-layer process (see .claude/solution-architecture.md
-// for the process model and glossary). This file runs once, top to bottom, and the boot order is
-// load-bearing: crash backstop + pipe-close shutdown hooks → bootstrap config → identity
-// unlock (master secret M, via the KEK from Electron main) → Corestore + bees → one-time
-// migrations → swarm + subsystem wiring (every connection hook attaches before the swarm
-// accepts sockets) → resume of owned/foreign folder mounts → registration of the
-// renderer-facing IPC command handlers (named `domain:verb`, grouped by the `// === … ===`
-// section markers below) → ipc.start(), which replays frames queued during boot, then ready.
+// Bare worker ENTRY — Mirall's data-layer process (see .claude/solution-architecture.md for the
+// process model and glossary). This file runs once, top to bottom, and owns what only an entry
+// can: the crash backstop and the pipe-close shutdown hooks (both installed before the first
+// await), the bootstrap frame, the membership-control block, every renderer-facing IPC command
+// handler (named `domain:verb`, grouped by the `// === … ===` section markers below), the
+// shutdown deadline and Bare.exit.
+//
+// The data layer itself — Corestore, bees, migrations, folder subsystems, both swarms, the
+// resume passes and the periodic backstops — is constructed and started by the composition root
+// in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() is last, so
+// no frame is dispatched until every handler is registered.
 import os from 'bare-os'
 import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig, getUpgradeKey, setDownloadFolder, setBandwidthLimits, getDeepReconcileEvery, isHandshakeIdentityBindingEnabled, isOverlayEnabled, isInPlaceFilesEnabled, isSharePrepareProgressEnabled, isSeparateContentPlaneEnabled, getListFilesCap, isRelayEnabled, getRelayConfig, setRelayConfig, getPeerPresenceDwellMs } from '../shared/core/runtime-config.js'
-import { hydrateDownloadRoots, setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
+import {
+  setRuntimeConfig,
+  getRuntimeConfig,
+  getUpgradeKey,
+  setDownloadFolder,
+  setBandwidthLimits,
+  isHandshakeIdentityBindingEnabled,
+  isOverlayEnabled,
+  isInPlaceFilesEnabled,
+  getListFilesCap,
+  isRelayEnabled,
+  setRelayConfig,
+} from '../shared/core/runtime-config.js'
+import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
-import { initStore, getStore, setMasterSecret } from '../shared/core/store.js'
-import { migrateLocalBeesToEncrypted } from '../shared/storage/metadata-migration.js'
-import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
-import { osKeychainProvider } from '../shared/core/unlock-providers.js'
-import { getContentBackend, UNSUPPORTED, initBackends, teardownBackends, fanoutAttach, sweepBackends } from '../shared/transfer/content-backends.js'
+import { getContentBackend, UNSUPPORTED } from '../shared/transfer/content-backends.js'
 import {
-  initProfile, getProfile, setProfile,
-  ensureMembershipManifestCap,
-  markOwnMembership, clearOwnMembership, getLocalPublicKeyHex,
-  readProfileRecord, markRequest, markRequestDenied,
-  captureJoinerMembership, getIdentitySigner,
-  markInvite, sweepExpiredInvites,
+  getProfile,
+  setProfile,
+  markOwnMembership,
+  clearOwnMembership,
+  getLocalPublicKeyHex,
+  readProfileRecord,
+  markRequest,
+  markRequestDenied,
+  captureJoinerMembership,
+  getIdentitySigner,
+  markInvite,
 } from '../shared/spaces/profile.js'
 import {
-  initSpaces, createSpace, joinSpace, listSpaces,
-  getSpace, loadDrives, purgeSpace, purgeSpaceDrive, forgetSpaceRecord, updateSpace,
-  markSpaceLeavingDurable, resumeInterruptedLeave,
-  toggleFavorite, upsertMember,
-  getSpaceContentKey, recordJoinRequest, listJoinRequests, listPendingRequests, clearJoinRequest,
-  recordApproval, materializeOwnDrive,
-  backfillSelfCreatedCreatorKey, pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, flagUnverifiedJoinedCreators,
-  persistPendingLeave, clearPendingLeave, listPendingLeaves,
+  createSpace,
+  joinSpace,
+  listSpaces,
+  getSpace,
+  purgeSpace,
+  purgeSpaceDrive,
+  forgetSpaceRecord,
+  updateSpace,
+  markSpaceLeavingDurable,
+  toggleFavorite,
+  upsertMember,
+  getSpaceContentKey,
+  recordJoinRequest,
+  listJoinRequests,
+  listPendingRequests,
+  clearJoinRequest,
+  recordApproval,
+  materializeOwnDrive,
+  pinCreatorKey,
+  markCreatorDivergence,
+  clearCreatorDivergence,
+  persistPendingLeave,
+  clearPendingLeave,
 } from '../shared/spaces/space.js'
-import { initSpaceKeys } from '../shared/spaces/space-keys.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
-import { initSwarm, joinSpaceTopic, leaveSpaceTopic, cleanupSpaceDrives, compactStore, destroySwarm, broadcastDeparture, getConnectedPeers, isOwnerOnline, broadcastProfileUpdate, sendLeaveFrameToConnectedPeers, awaitLeaveAcks, getSwarmStatus, setRelayThrough, testRelayReachable, reconnectAll, probeCanary, setBrowserOnlineHint, checkLivenessNow, getVerdictHistory, getDiagnosticCounters, getPeerSamples, setMembershipControlHandler, setConnectionAttachHook, getSwarmDht, setOverlayReconnectHook, setRevokeServesForSpaceHook, setStalledOwnersHook, rescueStalledTransfers, sendMembershipGrant, sendMembershipDeny, broadcastMembershipCancel, reconcilePendingRequester, isApprovedMember, resolveInvite, markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving, getBoundSignerKey, broadcastSharePrepareProgress, configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic, hasPendingLeave, takeLeaveAckedKeys, configurePendingCancels, registerPendingCancel, joinPendingCancelTopic, leavePendingCancelTopic, hasPendingCancel, sendPendingCancelToConnected } from '../shared/transfer/swarm.js'
-import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
+import {
+  joinSpaceTopic,
+  leaveSpaceTopic,
+  cleanupSpaceDrives,
+  compactStore,
+  getConnectedPeers,
+  isOwnerOnline,
+  broadcastProfileUpdate,
+  sendLeaveFrameToConnectedPeers,
+  awaitLeaveAcks,
+  getSwarmStatus,
+  testRelayReachable,
+  reconnectAll,
+  probeCanary,
+  setBrowserOnlineHint,
+  checkLivenessNow,
+  getVerdictHistory,
+  getDiagnosticCounters,
+  getPeerSamples,
+  rescueStalledTransfers,
+  sendMembershipGrant,
+  sendMembershipDeny,
+  broadcastMembershipCancel,
+  isApprovedMember,
+  resolveInvite,
+  markSpaceLeaving,
+  unmarkSpaceLeaving,
+  isSpaceLeaving,
+  getBoundSignerKey,
+  registerPendingLeave,
+  unregisterPendingLeave,
+  joinPendingLeaveTopic,
+  leavePendingLeaveTopic,
+  hasPendingLeave,
+  takeLeaveAckedKeys,
+  registerPendingCancel,
+  joinPendingCancelTopic,
+  hasPendingCancel,
+  sendPendingCancelToConnected,
+} from '../shared/transfer/swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
 import { reconcileAssertedRoot } from '../shared/spaces/creator-root.js'
 import { getConnectedMemberMeta, readmitConnectedMembers } from '../shared/transfer/swarm.js'
 import {
-  configureMemberRegistry, openMemberView, closeMemberView, openMemberViewsForKnownSpaces, closeAllMemberViews, dropTombstone, isLeft,
-  isApprovedJoiner, isDeniedJoiner, setMembershipRevokedHook,
+  configureMemberRegistry,
+  openMemberView,
+  closeMemberView,
+  dropTombstone,
+  isLeft,
+  isApprovedJoiner,
+  isDeniedJoiner,
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
 import { ownCatalogPublish, purgeOwnCatalog, catalogKeyField } from '../shared/shares/share-catalog.js'
-import { initDownloads, listFiles, removeFile, revealFile, cleanupDownloadHistory, addFile, isDownloadedFile, getDownloadedPath, revealLocalPath, getVerifiedHash, isVerifiedDownload, claimedPathFor } from '../shared/transfer/files.js'
-import { initLooseOverlay, looseDownload, loosePause, looseCancel, looseCancelSpace, looseCancelTransfer, looseCancelPublish, resumeLooseForOwner, handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
-import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, resumeOverlayForOwner, overlayHasTransfer, setSharePrepareBroadcast, abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
-import { initServeLedger, subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../shared/transfer/serve-ledger.js'
-import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
-import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
-import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
+import {
+  listFiles,
+  removeFile,
+  revealFile,
+  cleanupDownloadHistory,
+  addFile,
+  isDownloadedFile,
+  getDownloadedPath,
+  revealLocalPath,
+  getVerifiedHash,
+  isVerifiedDownload,
+  claimedPathFor,
+} from '../shared/transfer/files.js'
+import {
+  looseDownload,
+  loosePause,
+  looseCancel,
+  looseCancelSpace,
+  looseCancelTransfer,
+  looseCancelPublish,
+  handleLooseFsEvent,
+} from '../shared/transfer/loose-overlay.js'
+import { overlayPause, overlayCancel, overlayCancelByKey, overlayCancelSpace, overlayHasTransfer } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../shared/transfer/serve-ledger.js'
+import { revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { pausedStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
-import { initPendingTransfers, clearPendingForSpace, listPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
+import { clearPendingForSpace, listPendingForSpace } from '../shared/transfer/pending-transfers.js'
 import { getStorageInfo, cleanupOrphanedData, getSpaceCacheBytes, freeSpace } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
-import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { deriveChannel } from '../shared/core/channel.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
 import {
-  initAuditLog, record, setAuditIdentity, queryAudit, auditSpaces, auditActors, auditStats,
-  getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
+  record,
+  setAuditIdentity,
+  queryAudit,
+  auditSpaces,
+  auditActors,
+  auditStats,
+  getAuditConfig,
+  setAuditConfig,
+  purgeAudit,
+  exportAudit,
 } from '../shared/audit/audit-log.js'
-import { initNetworkWatch } from '../shared/audit/network-watch.js'
-import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId, ensureSharesCap } from '../shared/shares/shares.js'
-import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
-import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
-import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
+import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../shared/shares/shares.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
-import { ensureFolderMirrorsCap, publishMirror, ensureMirror } from '../shared/folders/mirror-records.js'
+import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
+import { boot } from './boot.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
-import { initMounts, saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts, setOwnedMountStatus } from '../shared/folders/mount-store.js'
+import { saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import { relKeyEscapes } from '../shared/folders/path-keys.js'
 import {
-  initOwnedFolders, handleFsEventFromMain, onFsEvent, initialPublishScan,
-  previewInitialPublishScan, periodicReconcile, stopOwnedFolder, DEFAULT_IGNORE,
-  mountRootAvailable, countFolderFiles,
-  getIndexStatus, cancelIndex,
+  handleFsEventFromMain,
+  initialPublishScan,
+  previewInitialPublishScan,
+  stopOwnedFolder,
+  DEFAULT_IGNORE,
+  mountRootAvailable,
+  countFolderFiles,
+  getIndexStatus,
+  cancelIndex,
 } from '../shared/folders/owned-folders.js'
-import { stopPublishingForSpace, stopAllPublishing } from '../shared/folders/publish-service.js'
+import { stopPublishingForSpace } from '../shared/folders/publish-service.js'
 import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
 import {
-  initForeignFolders, initialMaterializeScan, previewMaterializeScan,
-  startForeignLoop, stopForeignLoop, setForeignEnabled, unmountForeignFolder,
-  foreignFetchActive, resumeAutoPausedForeignMount, autoPauseForeignMountGone,
+  initialMaterializeScan,
+  previewMaterializeScan,
+  startForeignLoop,
+  setForeignEnabled,
+  unmountForeignFolder,
+  foreignFetchActive,
 } from '../shared/folders/foreign-folders.js'
 import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
@@ -133,6 +236,7 @@ function dropSpaceDownloadRoot(spaceId) {
 // better than a silent abort.)
 installCrashBackstop(log)
 
+let root = null
 let shuttingDown = false
 async function safeShutdown(reason) {
   if (shuttingDown) return
@@ -144,17 +248,10 @@ async function safeShutdown(reason) {
   // reaps that case.)
   const deadline = setTimeout(() => { try { Bare.exit(0) } catch {} }, 4000)
   deadline.unref?.()
-  // Announce departure to connected peers FIRST (best-effort) and abort in-flight hashing so a
-  // quit-mid-index worker unwinds and teardown wins the parent's SIGTERM/SIGKILL race; then a
-  // short flush window so the departure datagram leaves UDX before destroySwarm drops the socket.
-  try { broadcastDeparture() } catch {}
-  try { abortInFlightPublishes() } catch {}
-  try { stopAllPublishing() } catch {}
-  try { await new Promise((resolve) => { const to = setTimeout(resolve, 150); to.unref?.() }) } catch {}
-  try { closeAllMemberViews() } catch {}
-  try { await teardownBackends() } catch {}
-  try { await destroyContentSwarm() } catch {}
-  try { await destroySwarm() } catch {}
+  // The whole stop sequence — the departure announce, the flush window, then every subsystem in
+  // the reverse of its start order — lives in the composition root. `root` is null until boot()
+  // returns, which is what lets the pipe-close hooks below fire at any point during startup.
+  try { await root?.close() } catch (err) { log.warn('shutdown: close failed:', err.message) }
   log.info('shutdown complete')
   Bare.exit(0)
 }
@@ -168,39 +265,10 @@ Bare.IPC.on('end', () => { safeShutdown('ipc-end') })
 Bare.IPC.on('close', () => { safeShutdown('ipc-close') })
 Bare.IPC.on('error', (err) => { safeShutdown('ipc-error: ' + (err && err.message ? err.message : err)) })
 
-// === Boot: config, identity unlock, store, migrations ===
+// === Bootstrap frame ===
 
 const bootstrap = await getBootstrapPromise()
 setRuntimeConfig(bootstrap)
-
-log.info('starting...')
-
-initStore(bootstrap.storage)
-// Unlock identity: resolve the master secret M from identity.enc — Electron main supplies
-// only the KEK (key-encryption key), never M itself — and open identity cores from keypairs
-// derived from M. Without a KEK (MIRALL_INSECURE_IDENTITY / headless tests) the worker
-// falls back to plaintext seed derivation.
-if (bootstrap.identityKEK) {
-  const provider = osKeychainProvider(bootstrap.identityKEK)
-  setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
-}
-const didMigrateMetadata = await migrateLocalBeesToEncrypted()
-await initSpaceKeys()
-await initProfile()
-await initSpaces()
-await initDownloads()
-await initPendingTransfers()
-// Before loadDrives and the swarm, so the log is writable before anything worth recording can
-// happen. A failure here must not abort boot — an unavailable audit log degrades to no rows.
-try {
-  await initAuditLog({ installId: await getInstallId(bootstrap.storage) })
-  // The emit is what makes an OPEN Activity Log refresh while an outage is happening. Nothing else
-  // in the app hints Scope.audit(), so without it the one class of event a user actually watches
-  // for lands in a list that does not move.
-  initNetworkWatch({ emit: () => ipc.emit('event:audit-updated', {}), peerDwellMs: getPeerPresenceDwellMs() })
-} catch (err) {
-  log.warn('audit log unavailable — events will not be recorded:', err.message)
-}
 
 // Audit rows must render with zero joins: a space record is deleted on leave and a peer's name
 // needs that peer reachable, so both are snapshotted into the row at write time. These helpers
@@ -248,176 +316,6 @@ async function shareNameOrNull(spaceId, ownerKey, shareId) {
   } catch {
     return null
   }
-}
-
-const driveLoad = await loadDrives()
-if (driveLoad.hadFailure) {
-  try { await cleanupOrphanedData() } catch (err) {
-    log.warn('orphan cleanup after drive-load failure failed:', err.message)
-  }
-}
-
-await ensureMembershipManifestCap()
-await ensureSharesCap()
-await ensureFolderMirrorsCap()
-// One-time migration: move owned folder shares recorded with a retired contentMode
-// (undefined / 'eager' / 'deferred') to overlay BEFORE the initial publish scans below, so
-// such a share re-advertises into the catalog instead of resolving to UNSUPPORTED (empty
-// listing, publishing stops).
-try { await migrateLegacyOwnedSharesToOverlay() } catch (err) {
-  log.warn('legacy content-mode migration failed:', err.message)
-}
-// One-time migration: encrypt existing plaintext v2 catalogs with the SCK (space content key —
-// holding it is what grants read access to a space) BEFORE the initial publish scans below, so
-// the re-advertise repopulates the new encrypted core and the old plaintext core is purged first.
-try { await migrateCatalogsToEncrypted() } catch (err) {
-  log.warn('catalog SCK-encrypt migration failed:', err.message)
-}
-// One-time migration: copy the overlay's plaintext local index into an M-encrypted core
-// generation and purge the plaintext one, BEFORE initBackends opens the overlay so it opens
-// the encrypted generation directly.
-let didMigrateOverlayIndex = false
-try { didMigrateOverlayIndex = (await migrateOverlayIndexToEncrypted())?.migrated === true } catch (err) {
-  log.warn('overlay-index at-rest migration failed:', err.message)
-}
-await initMounts()
-// settleScanStatus (hoisted, defined with the reconcile scheduling below) also settles the
-// trailing catch-up reconcile a watcher event schedules, so a source that disappears or returns
-// between probe ticks still updates the durable status and notifies the UI. Forward-referencing it
-// here is safe: the hook can only fire off a watcher event, and no frame is dispatched until
-// ipc.start() at the end of this module — well after the state it touches is initialised.
-initOwnedFolders(ipc, { settleScan: settleScanStatus })
-initForeignFolders(ipc)
-const knownSpaces = await listSpaces()
-// Finish any leave a prior process interrupted (durable `leaving` marker still present) BEFORE
-// the membership backfill — otherwise markOwnMembership below re-asserts active:true and silently
-// resurrects the space, undoing the user's leave (and diverging from co-members who already
-// revoked). Runs pre-swarm: the completion is purely durable-local; co-members converge on the
-// member del via replication, like any offline leave.
-for (const space of knownSpaces) {
-  if (!space.leaving) continue
-  // The interrupted teardown may have died BEFORE its leave frame reached anyone — arm the
-  // pending-leave replay (the live teardown's own machinery) so the departure still gets
-  // announced once a co-member connects. Armed before the resume deletes the record: the
-  // replay setup below skips markers whose record still exists, so a failed resume merely
-  // retires this marker until the next boot re-arms it. Solo spaces skip (nobody to tell).
-  if (space.topic && (space.members || []).length) {
-    try { await persistPendingLeave(space.spaceId, space.topic, Date.now()) } catch (err) {
-      log.warn('interrupted-leave replay arm failed:', space.spaceId, '-', err.message)
-    }
-  }
-  try {
-    await resumeInterruptedLeave(space.spaceId)
-    // The live teardown also purges these spaceId-keyed rows; nothing else ever reclaims them
-    // (the sweeps cover cores, not bee rows). Best-effort — the leave itself is already durable.
-    try {
-      await cleanupDownloadHistory(space.spaceId)
-      await clearPendingForSpace(space.spaceId)
-    } catch (err) {
-      log.warn('interrupted-leave transfer-row cleanup failed:', space.spaceId, '-', err.message)
-    }
-    log.info('completed interrupted leave at boot:', space.spaceId)
-  } catch (err) {
-    log.warn('resume interrupted leave failed:', space.spaceId, '-', err.message)
-  }
-}
-const activeSpaces = knownSpaces.filter((s) => !s.leaving)
-// Hydrated here, from the spaces that SURVIVED the interrupted-leave pass above, and off the
-// scan that pass already did. A space being left keeps no download root: hydrating it would
-// leak a dead space's folder into main's reveal allowlist and into mount validation for the
-// whole session (the resume path purges the record without going through space:leave's forget).
-// Safe this late — nothing between store init and here reads a download root, and ipc.start()
-// (which admits the first frame that could) is the last statement in this module.
-hydrateDownloadRoots(activeSpaces)
-publishDownloadRoots()
-for (const space of activeSpaces) {
-  try { await markOwnMembership(space.spaceId) } catch (err) {
-    log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
-  }
-}
-// One-time, idempotent backfill: stamp the member-set root (creatorKey) on self-created
-// spaces whose records predate the field. The OR-Set membership fold (conflict-free
-// add/remove roster) seeds its root of trust from it.
-try { await backfillSelfCreatedCreatorKey() } catch (err) {
-  log.warn('creatorKey backfill failed:', err.message)
-}
-// One-time migration: flag joined spaces whose creatorKey was TOFU-pinned (trust on first
-// use) from a bearer invite as unverified, so the handshake cross-check re-authenticates
-// the member-set root on the next connection.
-try { await flagUnverifiedJoinedCreators() } catch (err) {
-  log.warn('creatorKey migration failed:', err.message)
-}
-
-// wire backends + every connection handler/hook BEFORE the swarm starts
-// accepting connections, so no inbound connection lands without the overlay
-// channel attached, the content/membership handlers set, or the overlay instance
-// created (a connection in that window would silently never get an overlay channel).
-initServeLedger(ipc)
-await initBackends(ipc) // overlay instance + IPC ref when the flag is on
-initLooseOverlay(ipc)
-if (isInPlaceFilesEnabled()) rehydrateLooseFiles().catch((err) => log.debug('loose rehydrate failed:', err.message))
-const useContentPlane = isOverlayEnabled() && isSeparateContentPlaneEnabled()
-if (isOverlayEnabled()) {
-  // Auto-resume overlay downloads (loose + folder) when their owner (re)connects.
-  const autoResume = (ownerKey, spaceId) => {
-    if (isInPlaceFilesEnabled()) resumeLooseForOwner(ownerKey, spaceId).catch((err) => log.debug('loose auto-resume failed:', err.message))
-    resumeOverlayForOwner(ownerKey, spaceId).catch((err) => log.debug('overlay folder auto-resume failed:', err.message))
-  }
-  // BOTH planes drive the resume. The control handshake marks the owner's presence lease
-  // synchronously before firing this hook, so a resume it triggers can never observe the stale
-  // "owner offline" that start()'s gate reads — whereas a content-plane hello routinely lands
-  // while the control socket is still re-handshaking, and its resume is dropped. With only the
-  // content hook installed, out-of-phase flapping starves the download of every trigger it has.
-  setOverlayReconnectHook(autoResume)
-  if (useContentPlane) {
-    // The content plane authenticates per owner with no space, so fan the resume across our
-    // spaces — coalesced per owner so reconnect churn doesn't re-run listSpaces() each time.
-    // Still needed alongside the control hook: a content-only flap re-runs no handshake.
-    const resumePending = new Map()
-    setContentResumeHook((ownerKey) => {
-      if (resumePending.has(ownerKey)) return
-      const timer = setTimeout(() => {
-        resumePending.delete(ownerKey)
-        listSpaces()
-          .then((spaces) => { for (const s of spaces) if (!s.leaving) autoResume(ownerKey, s.spaceId) })
-          .catch((err) => log.debug('content-hello resume fan-out failed:', err.message))
-      }, 250)
-      timer.unref?.()
-      resumePending.set(ownerKey, timer)
-    })
-  }
-}
-setMembershipControlHandler(handleMembershipControl)
-if (useContentPlane) setContentAttachHook(fanoutAttach) // overlay binds its channel on content connections
-else setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
-// Lets the convergence tick see a download whose owner has dropped off either plane.
-setStalledOwnersHook(listPendingOwnerKeys)
-setSharePrepareBroadcast((spaceId, p) => { if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p) })
-// A peer left a space we are still in: stop serving THAT PEER the space's bytes. Scoped to the
-// leaver — a space-wide revoke here would also cut off every other member still legitimately
-// downloading from us. The epoch bump then re-checks the rest against the live membership gate.
-setRevokeServesForSpaceHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
-// The same revocation, learned through replication (the observed-leave fold) instead of a direct
-// frame. An epoch bump alone is inert here (the fold does not remove the member from the roster,
-// so the serve gate would re-approve), so ACTIVELY drop the leaver's grants for the space.
-setMembershipRevokedHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
-initSwarm(ipc)
-if (useContentPlane) initContentSwarm(getSwarmDht())
-// After BOTH constructors: getContentSwarm() is null until the line above runs, and a
-// relay installed on the control swarm alone leaves every file byte unrelayed.
-applyRelayConfig()
-
-function applyRelayConfig() {
-  const { mode, relays } = getRelayConfig()
-  const res = setRelayThrough(relays, mode)
-  if (res.applied > 0) log.info('relay configured:', res.applied, 'key(s), mode', mode)
-  return res
-}
-
-// Deferred past the core-opening init above so the one-time compaction (which
-// scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.
-if (didMigrateMetadata || didMigrateOverlayIndex) {
-  compactStore().catch((err) => log.warn('post-migration compaction failed:', err.message))
 }
 
 // === Membership control ===
@@ -757,341 +655,35 @@ async function discardPendingSpace(spaceId) {
   }
 }
 
-// === Startup resume: sweeps, folder mounts, periodic timers ===
 
-try {
-  // Sweep Downloads (loose/folder downloads) + every foreign mount dir (mirror fetches
-  // write partials at the file's nested location), reclaiming crash-orphaned partials
-  // while keeping any a paused/in-flight transfer can still resume from.
-  const foreignDirs = (await listForeignMounts()).map((m) => m.mountPath)
-  const sweep = await cleanupOrphanedPartials(listDownloadRoots(), foreignDirs)
-  if (sweep.swept || sweep.failed) {
-    log.info('partial sweep:', sweep.swept, 'reclaimed across', sweep.rootsScanned, 'roots,', sweep.failed, 'unreadable')
-  }
-} catch (err) {
-  log.warn('partial sweep failed:', err.message)
-}
+// === Boot: the composition root constructs and starts the data layer ===
+//
+// Everything from the Corestore to the swarm lives in src/worker/boot.js, which starts each
+// subsystem in a declared order and closes them in reverse. What stays here is what only an
+// entry can own: the pipe, the handlers, the deadline and Bare.exit.
 
-// One-shot: reclaim peer-download cache cores left behind by the retired eager content
-// backend (the overlay backend keeps no such cache, and storage:info does not surface them).
-// Fire-and-forget + flag-guarded so the compaction never blocks boot.
-reclaimLegacyPeerCaches().catch((err) => log.warn('legacy peer-cache reclaim failed:', err.message))
-
-try {
-  cleanupOrphanedJournals(getJournalDir())
-} catch (err) {
-  log.warn('journal sweep failed:', err.message)
-}
-
-// Open derived member views (which seed the durable leave-tombstones into memory) BEFORE joining
-// topics, so an inbound membership:request from a departed peer that reconnects can't be handled
-// with an unseeded tombstone set — which would misread `hadLeft`, take the reconnect re-grant
-// shortcut, and clear the durable tombstone before it was ever loaded. The fold self-heals as more
-// peer bees replicate after the topics join below.
-await openMemberViewsForKnownSpaces()
-
-for (const space of activeSpaces) {
-  await joinSpaceTopic(space.spaceId)
-}
-
-// Replay leaves that never reached a member (leave-while-alone): re-join each marker's
-// topic and let the swarm re-announce the leave frame on every new connection; the first
-// co-member ack clears the marker and drops the topic again.
-configurePendingLeaves(async (spaceId) => {
-  await clearPendingLeave(spaceId)
-  await leavePendingLeaveTopic(spaceId)
+// configureMemberRegistry above is pure wiring and must precede openMemberViewsForKnownSpaces,
+// which boot() runs. Everything else the root needs it constructs itself; handleMembershipControl
+// and publishDownloadRoots are passed in because they close over state that belongs to the entry.
+root = await boot(bootstrap, {
+  ipc,
+  log,
+  membershipControl: handleMembershipControl,
+  publishDownloadRoots,
+  // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
+  // during boot still announces departure and drops what came up. The full root replaces it on
+  // the line below; both carry the same close().
+  onPartialRoot: (partial) => { root = partial },
 })
-configurePendingCancels((spaceId) => leavePendingCancelTopic(spaceId))
-try {
-  for (const pl of await listPendingLeaves()) {
-    // The marker is persisted mid-teardown, BEFORE the space record is purged. If the worker
-    // died in that window the record survives (the leave was interrupted, the user still has the
-    // space) — drop the stale marker rather than replaying a leave for a live space, which would
-    // otherwise swarm.leave() its topic on the first ack and strand it deaf until restart.
-    if (!pl.topic || await getSpace(pl.spaceId)) { await clearPendingLeave(pl.spaceId); continue }
-    registerPendingLeave(pl.spaceId, pl.topic, pl.ts || Date.now())
-    joinPendingLeaveTopic(pl.spaceId, pl.topic)
-    log.info('replaying pending leave for space', pl.spaceId)
-  }
-} catch (err) {
-  log.warn('pending-leave replay setup failed:', err.message)
-}
-
-const periodicTimers = new Map()
-const reconcileCounters = new Map()
-const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
-
-// role:shareId → last-known existence of the mount path. Read during the startup
-// watcher restart (below) and maintained by the mount-point probe loop.
-const lastMountPointStatus = new Map()
-
-// Persist + announce an owned mount's status in one step. The durable field is what a
-// boot or refresh re-derives the badge from — a transient-only event vanishes on reload —
-// and the event stays as the live decoration.
-async function setOwnedStatus(spaceId, shareId, status, error) {
-  try { await setOwnedMountStatus(spaceId, shareId, status, error ?? null) } catch (err) {
-    log.debug('owned mount status persist failed:', shareId, '-', err.message)
-  }
-  ipc.emit('event:owned-folder-mount-status', { spaceId, shareId, status, ...(error ? { error } : {}) })
-}
-
-// Everything that must happen once an owned source folder is known to be missing, from whichever
-// signal noticed first: the mount-point probe, or a scan/reconcile that bailed on the absent root.
-// Recording the absence in `lastMountPointStatus` is what lets the probe read the RETURN as a
-// gone→present edge. Without it, a folder that vanished and came back inside a single 60s probe
-// window produced no transition at all — so no status event, and every derived-from-event UI
-// (the FolderView banner, the share card badge) stayed latched on "source missing" indefinitely.
-async function handleOwnedMountGone(spaceId, shareId) {
-  lastMountPointStatus.set('owned-folder:' + shareId, false)
-  // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
-  // mount config are left untouched — a missing root is ambiguous, never a delete.
-  ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
-  cancelPeriodicReconcile(spaceId, shareId)
-  // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
-  stopOwnedFolder(spaceId, shareId)
-  await setOwnedStatus(spaceId, shareId, 'mount-point-gone')
-}
-
-// Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
-// with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
-// — so treating any resolution as 'active' would durably record a healthy scan that never ran.
-// A pass that was CANCELLED (delete, relocate, leave, cancel-index) records nothing: whoever
-// cancelled it owns the status from here, and a late 'active' would race a delete's mount
-// removal back into a zombie record. Returns the settled result (null on failure) so callers can
-// gate their scan-completed emit.
-async function settleScanStatus(promise, spaceId, shareId) {
-  try {
-    const result = await promise
-    if (result?.cancelled) return result
-    if (result?.skipped === 'mount-point-gone') await handleOwnedMountGone(spaceId, shareId)
-    else if (result?.skipped) await setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
-    else await setOwnedStatus(spaceId, shareId, 'active')
-    return result
-  } catch (err) {
-    log.warn('owned reconcile failed for', shareId, '-', err.message)
-    await setOwnedStatus(spaceId, shareId, 'paused-error', err.message)
-    return null
-  }
-}
-
-function schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore) {
-  const key = spaceId + ':' + shareId
-  const existing = periodicTimers.get(key)
-  if (existing) clearInterval(existing)
-  const timer = setInterval(() => {
-    // Every Nth periodic pass runs deep (content-hash) to catch an in-place rewrite
-    // that kept identical size+mtime; the rest are the fast stat-only diff.
-    const n = (reconcileCounters.get(key) || 0) + 1
-    reconcileCounters.set(key, n)
-    const every = getDeepReconcileEvery()
-    const deep = every > 0 && n % every === 0
-    settleScanStatus(periodicReconcile(spaceId, shareId, mountPath, ignore, { deep }), spaceId, shareId)
-  }, RECONCILE_INTERVAL_MS)
-  timer.unref?.()
-  periodicTimers.set(key, timer)
-}
-
-function cancelPeriodicReconcile(spaceId, shareId) {
-  const key = spaceId + ':' + shareId
-  const timer = periodicTimers.get(key)
-  if (timer) {
-    clearInterval(timer)
-    periodicTimers.delete(key)
-  }
-}
-
-try {
-  const mounts = await listOwnedMounts()
-  for (const mount of mounts) {
-    // Don't point a watcher at a path that isn't there. The mount-point probe
-    // loop restarts the watcher + reconcile once the path comes back.
-    if (!mountRootAvailable(mount.mountPath)) {
-      log.warn('owned mount path missing at startup:', mount.mountPath)
-      lastMountPointStatus.set('owned-folder:' + mount.shareId, false)
-      await setOwnedStatus(mount.spaceId, mount.shareId, 'mount-point-gone')
-      continue
-    }
-    lastMountPointStatus.set('owned-folder:' + mount.shareId, true)
-    ipc.emit('main-request', {
-      command: 'owned-folder:start-watcher',
-      args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
-    })
-    settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
-    schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
-  }
-} catch (err) {
-  log.warn('owned-folder watcher restart failed:', err.message)
-}
-
-try {
-  const mounts = await listForeignMounts()
-  for (const mount of mounts) {
-    // Seed the probe baseline (parity with owned mounts above) so a later mount-point return
-    // registers as a gone→present transition and the probe can auto-resume mid-session.
-    lastMountPointStatus.set('foreign-folder:' + mount.shareId, mountRootAvailable(mount.mountPath))
-    // Backfill a participation record for a mount that predates this feature (or whose mount-time
-    // publish failed): only the fresh-mount handler publishes, and setMirrorState can't create one,
-    // so without this a restored mirror stays invisible to owners forever.
-    await ensureMirror(mount.spaceId, mount.shareId, { state: mount.enabled === false ? 'paused' : 'syncing' })
-      .catch((err) => log.debug('mirror record ensure at boot failed for', mount.shareId, '-', err.message))
-    if (!mount.enabled) {
-      // Auto-paused mirrors (mount-point-gone / enospc / perm) recover at boot if the
-      // local target is back and the fault cleared; a user pause ('paused') stays paused.
-      await resumeAutoPausedForeignMount(mount.spaceId, mount.shareId).catch((err) =>
-        log.debug('foreign auto-resume at boot deferred for', mount.shareId, '-', err.message))
-      continue
-    }
-    // Enabled but its local target is missing at boot — durably pause it now. The probe only
-    // pauses on a mid-session gone TRANSITION, so without this a gone-at-boot mirror would keep
-    // a stale durable 'active' all session (its poll loop even mkdir -p's the missing root).
-    if (!mountRootAvailable(mount.mountPath)) {
-      await autoPauseForeignMountGone(mount.spaceId, mount.shareId).catch((err) =>
-        log.debug('foreign gone-at-boot pause failed for', mount.shareId, '-', err.message))
-      continue
-    }
-    // Owner drive may not be replicated at boot — the polling loop tolerates this
-    // and retries every 30 s. We start the loop unconditionally and best-effort the
-    // initial scan; if it fails because the peer isn't online yet, the next tick
-    // picks up once the owner connects.
-    startForeignLoop(mount)
-    initialMaterializeScan(mount).catch((err) => {
-      log.debug('foreign mirror initial scan deferred for', mount.shareId, '-', err.message)
-    })
-  }
-} catch (err) {
-  log.warn('foreign-folder restart failed:', err.message)
-}
-
-const MOUNT_PROBE_INTERVAL_MS = 60_000
-
-async function probeMountPoints() {
-  const fsMod = await import('bare-fs')
-  const all = await listAllMounts()
-  for (const mount of all) {
-    const key = mount.role + ':' + mount.shareId
-    let exists = true
-    try { fsMod.default.statSync(mount.mountPath) } catch { exists = false }
-    const prev = lastMountPointStatus.get(key)
-    if (prev === exists) continue
-    const wasGone = prev === false
-    lastMountPointStatus.set(key, exists)
-
-    if (mount.role === 'owned-folder') {
-      if (!exists) {
-        // Source folder just disappeared — same teardown the watcher-driven path runs.
-        await handleOwnedMountGone(mount.spaceId, mount.shareId)
-      } else if (wasGone) {
-        // Source folder came back (USB replugged, network mount up, moved back). Resume: restart
-        // the watcher, run one catch-up reconcile whose OUTCOME sets the durable status (so a
-        // failing re-scan records paused-error, not a fabricated 'active'), and re-arm the timer.
-        ipc.emit('main-request', {
-          command: 'owned-folder:start-watcher',
-          args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
-        })
-        settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
-        schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
-      }
-      // A plain present tick (neither branch — e.g. the first probe of a freshly-added mount) must
-      // NOT assert durable 'active': status is owned by scan outcomes, and blanket-writing 'active'
-      // here would clobber a real paused-error the mount scan just recorded.
-    } else {
-      if (!exists) {
-        // The poll loop may be idle (no writes → no I/O error to classify), leaving a
-        // stale durable 'active' that a refresh/boot would resurrect — persist the pause.
-        await autoPauseForeignMountGone(mount.spaceId, mount.shareId).catch((err) =>
-          log.debug('foreign auto-pause on gone path failed for', mount.shareId, '-', err.message))
-      }
-      if (exists && wasGone) {
-        // Local target returned mid-session — resume an auto-paused mirror (owned-branch
-        // parity). No-ops for a user pause or a still-faulted mount.
-        await resumeAutoPausedForeignMount(mount.spaceId, mount.shareId).catch((err) =>
-          log.warn('foreign auto-resume after mount return failed for', mount.shareId, '-', err.message))
-      }
-      // Report the mount's real status (a user pause / still-faulted mount stays paused),
-      // not a fabricated 'active' derived from mere path presence.
-      const current = exists ? await getForeignMount(mount.spaceId, mount.shareId) : null
-      ipc.emit('event:foreign-folder-mount-status', {
-        spaceId: mount.spaceId,
-        shareId: mount.shareId,
-        status: current ? (current.status || 'active') : 'mount-point-gone',
-      })
-    }
-  }
-}
-
-// === Download-root availability ===
-//
-// The mount probe above covers owned/mirrored folders; download roots had no equivalent, which
-// is why a deleted or ejected download folder only ever surfaced as a failing transfer. Every
-// root counts, not just the global one — a per-space override can vanish on its own.
-//
-// Level-triggered probe, edge-triggered emit: re-broadcasting an unchanged set every minute
-// would churn the renderer for nothing, so the event fires only when the set actually changes.
-// The renderer gets its INITIAL state from downloads:roots-status instead of waiting up to a
-// full interval for the first transition.
-let unavailableRoots = []
-
-// The download-root twin of owned-folders' mountRootAvailable, deliberately kept separate: a
-// download root is not a mount, and borrowing the mount-named helper would imply it is.
-function rootAvailable(root) {
-  try { return fs.statSync(root).isDirectory() } catch { return false }
-}
-
-function readUnavailableRoots() {
-  return listDownloadRoots().filter((root) => !rootAvailable(root))
-}
-
-function sameRootSet(a, b) {
-  return a.length === b.length && a.every((root, i) => root === b[i])
-}
-
-function probeDownloadRoots() {
-  const next = readUnavailableRoots()
-  if (sameRootSet(next, unavailableRoots)) return
-  unavailableRoots = next
-  if (next.length > 0) log.warn('download folder unavailable:', next.join(', '))
-  else log.info('all download folders are available again')
-  ipc.emit('event:download-roots-status', { unavailable: next })
-}
+const { mounts, applyRelayConfig } = root
 
 // The renderer asks on mount and again whenever a transfer reports the folder gone, so the
 // banner can appear at once rather than on the next tick. Re-probing (rather than returning the
 // cached set) is what makes that second call worth making.
 ipc.handle('downloads:roots-status', async () => {
-  probeDownloadRoots()
-  return { unavailable: unavailableRoots }
+  mounts.probeDownloadRoots()
+  return { unavailable: mounts.unavailableRoots }
 })
-
-const mountProbeTimer = setInterval(() => {
-  probeMountPoints().catch((err) => log.debug('mount probe failed:', err.message))
-  try { probeDownloadRoots() } catch (err) { log.debug('download-root probe failed:', err.message) }
-}, MOUNT_PROBE_INTERVAL_MS)
-mountProbeTimer.unref?.()
-
-// Backstop for catalog-backed shares: tombstone catalog entries whose source
-// vanished (chokidar unlinks cover the live case; this catches missed events).
-const PRESENCE_SWEEP_INTERVAL_MS = 60_000
-const presenceSweepTimer = setInterval(() => {
-  // overlay shares get a missed-unlink backstop via the backend fan-out
-  // (no-ops when overlay is off / there are no overlay shares).
-  sweepBackends().catch((err) => log.debug('overlay presence sweep failed:', err.message))
-  if (isInPlaceFilesEnabled()) sweepLoosePresence().catch((err) => log.debug('loose presence sweep failed:', err.message))
-}, PRESENCE_SWEEP_INTERVAL_MS)
-presenceSweepTimer.unref?.()
-
-// Prune our own expired invite links (reusable-until-expiry records are never consumed). Best-effort:
-// enforcement is by timestamp regardless, so a missed run only defers cleanup.
-const INVITE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
-async function sweepAllExpiredInvites() {
-  for (const s of await listSpaces()) {
-    if (s.schemaVersion === 2) await sweepExpiredInvites(s.spaceId)
-  }
-}
-const inviteSweepTimer = setInterval(() => {
-  sweepAllExpiredInvites().catch((err) => log.debug('invite sweep failed:', err.message))
-}, INVITE_SWEEP_INTERVAL_MS)
-inviteSweepTimer.unref?.()
-sweepAllExpiredInvites().catch((err) => log.debug('invite sweep failed:', err.message))
 
 ipc.handle('shutdown', () => { safeShutdown('renderer-shutdown') })
 
@@ -1424,15 +1016,15 @@ ipc.handle('owned-folder:mount', async (msg) => {
   await saveOwnedMount(mount)
   // Seed the probe baseline so the first mount-point tick doesn't read this brand-new mount as a
   // gone→present transition (which would otherwise run against an unseeded key).
-  lastMountPointStatus.set('owned-folder:' + msg.shareId, mountRootAvailable(mountPath))
-  await setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
+  mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, mountRootAvailable(mountPath))
+  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
 
   ipc.emit('main-request', {
     command: 'owned-folder:start-watcher',
     args: { shareId: msg.shareId, mountPath, ignore },
   })
 
-  settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
+  mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
     .then(async (result) => {
       // Cancelled mid-index: whoever cancelled (delete, relocate, leave, cancel-index) owns the
       // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.
@@ -1446,7 +1038,7 @@ ipc.handle('owned-folder:mount', async (msg) => {
         target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
         subject: { fileCount: result?.totalOnDisk ?? null, uploaded: result?.uploaded ?? null, mountPath },
       })
-      schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, ignore)
+      mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, ignore)
     })
 
   return { mount, advisories }
@@ -1466,8 +1058,8 @@ ipc.handle('owned-folder:cancel-index', async (msg) => {
   const cancelled = cancelIndex(msg.spaceId, msg.shareId)
   const mount = await getOwnedMount(msg.spaceId, msg.shareId)
   if (mount) {
-    await setOwnedStatus(msg.spaceId, msg.shareId, 'active')
-    schedulePeriodicReconcile(msg.spaceId, msg.shareId, mount.mountPath, mount.ignore)
+    await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'active')
+    mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mount.mountPath, mount.ignore)
   }
   return { cancelled }
 })
@@ -1483,7 +1075,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
 
   // Tear down anything still bound to the old (likely missing) path first.
-  cancelPeriodicReconcile(msg.spaceId, msg.shareId)
+  mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   // Queued items carry paths under the old root; the executor re-resolves the mount, but they
   // must not burn slots either.
   stopOwnedFolder(msg.spaceId, msg.shareId)
@@ -1492,9 +1084,9 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   const previousMountPath = mount.mountPath
   mount.mountPath = mountPath
   await saveOwnedMount(mount)
-  lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
+  mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
-  await setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
+  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
   ipc.emit('main-request', {
     command: 'owned-folder:start-watcher',
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
@@ -1503,11 +1095,11 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // Relocate diffs by content hash (deep): the new path is typically a moved/copied
   // tree whose mtimes differ, but identical content must upload nothing so mirror
   // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
-  settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
+  mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
     .then((result) => {
       if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
-      schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
+      mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
     })
 
   record('share.relocated', {
@@ -1526,7 +1118,7 @@ ipc.handle('owned-folder:delete', async (msg) => {
     log.warn('delete requested for unknown share:', msg.shareId)
   }
 
-  cancelPeriodicReconcile(msg.spaceId, msg.shareId)
+  mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   stopOwnedFolder(msg.spaceId, msg.shareId)
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
@@ -1545,8 +1137,8 @@ ipc.handle('owned-folder:delete', async (msg) => {
 })
 
 ipc.handle('owned-folder:list-all', async () => {
-  const mounts = await listOwnedMounts()
-  return mounts.map((m) => ({ ...m, mountPointMissing: !mountRootAvailable(m.mountPath) }))
+  const all = await listOwnedMounts()
+  return all.map((m) => ({ ...m, mountPointMissing: !mountRootAvailable(m.mountPath) }))
 })
 
 ipc.handle('mounts:list-all', async () => {
@@ -2025,7 +1617,7 @@ ipc.handle('space:leave', async (msg) => {
       tracker.phase = 'folder-teardown'
       try {
         for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === msg.spaceId)) {
-          cancelPeriodicReconcile(msg.spaceId, m.shareId)
+          mounts.cancelPeriodicReconcile(msg.spaceId, m.shareId)
           stopOwnedFolder(msg.spaceId, m.shareId)
           ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: m.shareId } })
           await deleteOwnedMount(msg.spaceId, m.shareId)
@@ -2426,10 +2018,6 @@ ipc.handle('audit:export', async (msg) => ({
   exportedAt: Date.now(),
   entries: await exportAudit(msg || {}),
 }))
-
-const AUDIT_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
-pruneAudit().catch((err) => log.warn('audit prune failed:', err.message))
-setInterval(() => { pruneAudit().catch((err) => log.debug('audit prune failed:', err.message)) }, AUDIT_PRUNE_INTERVAL_MS)
 
 // === Go live: flush queued frames, announce ready ===
 

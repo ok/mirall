@@ -80,7 +80,8 @@ const settle = () => new Promise((r) => setTimeout(r, 400)) // past the 250ms re
 // presence gate it is checked against.
 test('REGRESSION (FIX-9: the control-plane resume hook is installed even when the content plane is on)', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+  // The hook wiring moved with the boot sequence into the composition root.
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'boot.js'), 'utf8')
 
   const controlAt = src.indexOf('setOverlayReconnectHook(autoResume)')
   const contentAt = src.indexOf('setContentResumeHook(')

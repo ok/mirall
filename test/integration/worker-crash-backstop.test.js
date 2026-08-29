@@ -63,16 +63,20 @@ test('REGRESSION (FIX-3 wiring): the worker installs the crash backstop at boot'
 // only further down (just before initSwarm) — Bare's default handler then aborted the worker
 // at boot ("the app won't start"). Installing it up front catches that rejection so boot
 // continues. Was RED before the fix (call site sat after initStore); ordering is asserted so
-// it can't silently drift back down.
+// it can't silently drift back down. With the boot sequence in the composition root the
+// invariant is literal: the backstop precedes the entry's FIRST await (the bootstrap frame), and
+// therefore boot(), which is where every core open now lives.
 test('REGRESSION (FIX: crash backstop is installed before the core-opening boot init)', (t) => {
   const backstopAt = workerMainSrc.indexOf('installCrashBackstop(log)')
-  const initStoreAt = workerMainSrc.indexOf('initStore(')
-  const initBackendsAt = workerMainSrc.indexOf('initBackends(')
-  const initSwarmAt = workerMainSrc.indexOf('initSwarm(')
-  t.ok(backstopAt > 0 && initStoreAt > 0 && initBackendsAt > 0 && initSwarmAt > 0, 'all boot markers present')
-  t.ok(backstopAt < initStoreAt, 'backstop is installed before initStore — i.e. before the first core open in boot')
-  t.ok(backstopAt < initBackendsAt, 'backstop is installed before initBackends (the overlay init that triggered the boot crash)')
-  t.ok(backstopAt < initSwarmAt, 'backstop is installed before initSwarm (replication attach can open peer cores by discovery key)')
+  const firstAwaitAt = workerMainSrc.indexOf('await getBootstrapPromise()')
+  const bootAt = workerMainSrc.indexOf('await boot(bootstrap')
+  t.ok(backstopAt > 0 && firstAwaitAt > 0 && bootAt > 0, 'all boot markers present')
+  t.ok(backstopAt < firstAwaitAt, 'backstop is installed before the entry\'s first await')
+  t.ok(backstopAt < bootAt, 'backstop is installed before boot() — i.e. before every core open')
+  const bootSrc = fs.readFileSync(path.join(srcRoot, 'worker', 'boot.js'), 'utf8')
+  for (const marker of ['initStore(', 'initBackends(', 'initSwarm(']) {
+    t.ok(bootSrc.includes(marker), marker + ' opens cores inside the root, after the backstop')
+  }
 })
 
 test('REGRESSION (FIX-1 wiring): the fire-and-forget handshake dispatch is .catch-guarded', (t) => {
