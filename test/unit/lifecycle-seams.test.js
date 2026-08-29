@@ -25,6 +25,9 @@ const RETIRED = [
   'closePublishService',
   'stopAllPublishing',
   'initServeLedger',
+  '_resetContentBackendOverlay',
+  '_resetLooseOverlay',
+  'clearPublishAbort',
 ]
 
 test('REGRESSION (LIFECYCLE-2d): the storage-layer reset seams are gone from src/', (t) => {
@@ -37,4 +40,6 @@ test('REGRESSION (LIFECYCLE-2d): the storage-layer reset seams are gone from src
   }
   const scheduler = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'publish-scheduler.js'), 'utf8')
   t.absent(scheduler.includes('_reset('), 'the scheduler has no reset — instances are constructed per boot')
+  const serveIndexSrc = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'backends', 'overlay', 'overlay-serve-index.js'), 'utf8')
+  t.absent(serveIndexSrc.includes('_reset'), 'the serve index reset is owned by the overlay backend, not a test seam')
 })
