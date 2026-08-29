@@ -22,6 +22,11 @@ const PROTOCOL = 'hyper-overlay/v2'
 const VERSION = 2
 const CAP_LOCAL_FILES = 0x01
 const CAP_ADAPTIVE_CHUNKS = 0x02
+// [mirall] lowest remote version a channel stays open for. 1 is the unannounced version
+// (messages-v2 UNANNOUNCED_HANDSHAKE), so nothing in the field is refused today; raise it in the
+// same change that drops a message slot or changes a codec, never before.
+const MIN_VERSION = 1
+export { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS }
 
 // [mirall] §4.12 — a file's chunk list, shipped in one frame, can exceed the
 // 16 MiB-1 Noise transport limit (@hyperswarm/secret-stream MAX_ATOMIC_WRITE):
@@ -151,6 +156,13 @@ export class OverlayProtocolV2 {
     this._serveFdSweep = setInterval(() => this._sweepServeFds(), Math.max(50, Math.min(SERVE_FD_SWEEP_MS, this._serveFdIdleMs)))
     this._serveFdSweep.unref?.()
     this._localProfileKey = opts.localProfileKey || null
+    // [mirall] channel handshake policy. onPeerOpen({ peer, version, capabilities }) fires once
+    // the remote's version + caps are known and accepted; onPeerRejected fires instead when the
+    // remote is below minVersion, just before its channel is closed. Both are informational:
+    // vendor/ has no logger.
+    this._minVersion = opts.minVersion ?? MIN_VERSION
+    this._peerOpenCb = opts.onPeerOpen || null
+    this._peerRejectedCb = opts.onPeerRejected || null
   }
 
   /**
@@ -270,9 +282,12 @@ export class OverlayProtocolV2 {
     const channel = mux.createChannel({
       protocol: PROTOCOL,
       id: this._overlayKey || null,
-      onopen () {
+      // [mirall] without this protomux never encodes what open() is handed below and calls
+      // onopen with nothing: the version and capability bits were never on the wire.
+      handshake: messages.handshake,
+      onopen (hs) {
         const peer = self._peers.get(mux)
-        if (peer) self._onOpen(peer)
+        if (peer) self._onOpen(peer, hs)
       },
       onclose () {
         const peer = self._peers.get(mux)
@@ -304,6 +319,11 @@ export class OverlayProtocolV2 {
 
     const peer = {
       mux, channel, remoteFeedKey: null, remoteSeq: 0, msgs: {},
+      // [mirall] the remote's announced protocol version + capability bits, from the channel
+      // handshake; null/0 until onopen. An unannounced (pre-handshake) peer reads 1/0.
+      remoteVersion: null, remoteCaps: 0,
+      // [mirall] set by the minVersion gate in _onOpen; see `recv` below.
+      rejected: false,
       pendingTrees: new Map(), // hash → { resolve, reject, timer, timeout, nonce, pages, pageBytes }
       // [mirall] synthetic serve-paths this peer was authorized for via a
       // GATED _onContentRequest, mapped to the requester profileKey (msg.from).
@@ -316,27 +336,35 @@ export class OverlayProtocolV2 {
       uploadStream: null
     }
 
-    peer.msgs.syncState = channel.addMessage({ encoding: messages.syncState, onmessage: (msg) => self._onSyncState(peer, msg) })
-    peer.msgs.fileOffer = channel.addMessage({ encoding: messages.fileOffer, onmessage: (msg) => self._onFileOffer(peer, msg) })
-    peer.msgs.fileRequest = channel.addMessage({ encoding: messages.fileRequest, onmessage: (msg) => self._onFileRequest(peer, msg) })
-    peer.msgs.chunkHashes = channel.addMessage({ encoding: messages.chunkHashes, onmessage: (msg) => self._onChunkHashes(peer, msg) })
-    peer.msgs.chunkNeed = channel.addMessage({ encoding: messages.chunkNeed, onmessage: (msg) => self._onChunkNeed(peer, msg) })
-    peer.msgs.chunkData = channel.addMessage({ encoding: messages.chunkData, onmessage: (msg) => self._onChunkData(peer, msg) })
-    peer.msgs.chunkCancel = channel.addMessage({ encoding: messages.chunkCancel, onmessage: (msg) => self._onChunkCancel(peer, msg) })
-    peer.msgs.transferComplete = channel.addMessage({ encoding: messages.transferComplete, onmessage: (msg) => self._onTransferComplete(peer, msg) })
-    peer.msgs.conflict = channel.addMessage({ encoding: messages.conflict, onmessage: (msg) => self._onConflictMsg(peer, msg) })
+    // [mirall] a peer refused by the minVersion gate must not be dispatched to. protomux calls
+    // onopen and THEN drains whatever the remote pipelined behind its open, against a record it
+    // captured before our close() detached the channel — so closing the channel does not by
+    // itself stop those frames. Unreachable in Mirall today (that drain only runs on the
+    // incoming-pairing branch, and nothing here calls mux.pair()), but it is precisely the
+    // bypass the gate exists to prevent, so the guard sits on the dispatch itself.
+    const recv = (fn) => (msg) => { if (!peer.rejected) fn(msg) }
+
+    peer.msgs.syncState = channel.addMessage({ encoding: messages.syncState, onmessage: recv((msg) => self._onSyncState(peer, msg)) })
+    peer.msgs.fileOffer = channel.addMessage({ encoding: messages.fileOffer, onmessage: recv((msg) => self._onFileOffer(peer, msg)) })
+    peer.msgs.fileRequest = channel.addMessage({ encoding: messages.fileRequest, onmessage: recv((msg) => self._onFileRequest(peer, msg)) })
+    peer.msgs.chunkHashes = channel.addMessage({ encoding: messages.chunkHashes, onmessage: recv((msg) => self._onChunkHashes(peer, msg)) })
+    peer.msgs.chunkNeed = channel.addMessage({ encoding: messages.chunkNeed, onmessage: recv((msg) => self._onChunkNeed(peer, msg)) })
+    peer.msgs.chunkData = channel.addMessage({ encoding: messages.chunkData, onmessage: recv((msg) => self._onChunkData(peer, msg)) })
+    peer.msgs.chunkCancel = channel.addMessage({ encoding: messages.chunkCancel, onmessage: recv((msg) => self._onChunkCancel(peer, msg)) })
+    peer.msgs.transferComplete = channel.addMessage({ encoding: messages.transferComplete, onmessage: recv((msg) => self._onTransferComplete(peer, msg)) })
+    peer.msgs.conflict = channel.addMessage({ encoding: messages.conflict, onmessage: recv((msg) => self._onConflictMsg(peer, msg)) })
 
     // 0.5a — tree messages (backward-compatible additions)
-    peer.msgs.treeRequest = channel.addMessage({ encoding: messages.treeRequest, onmessage: (msg) => self._onTreeRequest(peer, msg) })
-    peer.msgs.treeResponse = channel.addMessage({ encoding: messages.treeResponse, onmessage: (msg) => self._onTreeResponse(peer, msg) })
-    peer.msgs.contentRequest = channel.addMessage({ encoding: messages.contentRequest, onmessage: (msg) => self._onContentRequest(peer, msg) })
+    peer.msgs.treeRequest = channel.addMessage({ encoding: messages.treeRequest, onmessage: recv((msg) => self._onTreeRequest(peer, msg)) })
+    peer.msgs.treeResponse = channel.addMessage({ encoding: messages.treeResponse, onmessage: recv((msg) => self._onTreeResponse(peer, msg)) })
+    peer.msgs.contentRequest = channel.addMessage({ encoding: messages.contentRequest, onmessage: recv((msg) => self._onContentRequest(peer, msg)) })
     // Appended-last slots: ids 0-11 stay fixed for peers without 12/13/14, which just
     // never register these channels and ignore the frames. Anything new goes at the END —
     // protomux dispatches positionally, so an insertion shifts every later id and silently
     // mis-routes frames between versions.
-    peer.msgs.transferControl = channel.addMessage({ encoding: messages.transferControl, onmessage: (msg) => self._onTransferControl(peer, msg) })
-    peer.msgs.transferProgress = channel.addMessage({ encoding: messages.transferProgress, onmessage: (msg) => self._onTransferProgress(peer, msg) })
-    peer.msgs.keepAlive = channel.addMessage({ encoding: messages.keepAlive, onmessage: (msg) => self._onKeepAlive(peer, msg) })
+    peer.msgs.transferControl = channel.addMessage({ encoding: messages.transferControl, onmessage: recv((msg) => self._onTransferControl(peer, msg)) })
+    peer.msgs.transferProgress = channel.addMessage({ encoding: messages.transferProgress, onmessage: recv((msg) => self._onTransferProgress(peer, msg)) })
+    peer.msgs.keepAlive = channel.addMessage({ encoding: messages.keepAlive, onmessage: recv((msg) => self._onKeepAlive(peer, msg)) })
 
     this._peers.set(mux, peer)
     channel.open({ version: VERSION, capabilities: CAP_LOCAL_FILES | CAP_ADAPTIVE_CHUNKS })
@@ -534,7 +562,30 @@ export class OverlayProtocolV2 {
 
   // ── Handlers ────────────────────────────────────────────────
 
-  _onOpen (peer) {
+  _onOpen (peer, hs) {
+    // [mirall] record what the remote speaks. A peer whose open frame carried no handshake
+    // decodes to UNANNOUNCED_HANDSHAKE (v1, no caps), so a behaviour gated on
+    // `peer.remoteCaps & CAP_X` is off against it without a special case here.
+    const announced = hs || messages.UNANNOUNCED_HANDSHAKE
+    peer.remoteVersion = announced.version
+    peer.remoteCaps = announced.capabilities
+    if (announced.version < this._minVersion) {
+      // [mirall] both callbacks must be SYNCHRONOUS: the try/catch below only contains a throw,
+      // so an async callback's rejection would escape as an unhandled rejection. The app passes
+      // plain log calls.
+      if (this._peerRejectedCb) {
+        try { this._peerRejectedCb({ peer, version: announced.version, capabilities: announced.capabilities, minVersion: this._minVersion }) } catch {}
+      }
+      // Closes only THIS channel; the socket and its sibling control channel
+      // (mirall/handshake, or mirall/content-hello when the separate content plane is on) stay up,
+      // as does corestore replication on whichever socket carries it.
+      peer.rejected = true
+      peer.channel.close()
+      return
+    }
+    if (this._peerOpenCb) {
+      try { this._peerOpenCb({ peer, version: announced.version, capabilities: announced.capabilities }) } catch {}
+    }
     peer.msgs.syncState.send({
       feedKey: this._syncEngine.feedKey,
       localSeq: this._syncEngine.feed.length,

@@ -74,6 +74,12 @@ const uintArray = {
 
 // ── Handshake ─────────────────────────────────────────────────
 
+// [mirall] what a peer is taken to speak when its open frame carries no handshake bytes at all.
+// Every build before the handshake reached the wire ran this same v2 message set, so the version
+// is one below VERSION: raising the minimum to 2 retires exactly those builds and nothing else.
+// Capabilities are empty, so a cap-gated behaviour is off against them.
+export const UNANNOUNCED_HANDSHAKE = Object.freeze({ version: 1, capabilities: 0 })
+
 export const handshake = {
   preencode (state, m) {
     c.uint8.preencode(state, m.version)
@@ -84,10 +90,17 @@ export const handshake = {
     c.uint8.encode(state, m.capabilities)
   },
   decode (state) {
-    return {
-      version: c.uint8.decode(state),
-      capabilities: c.uint8.decode(state)
-    }
+    // [mirall] this decoder must NEVER throw. protomux hands any peer's open-frame remainder
+    // straight to it and destroys the whole mux — every channel on the socket, including
+    // mirall/handshake and corestore replication — if it does, which any swarm peer could then
+    // trigger with one short frame. So every field is bounds-checked and falls back to the
+    // unannounced default: an absent tail is a pre-handshake build (v1.8.0/v1.9.0), a truncated
+    // one is garbage, and both read as "announced nothing" rather than taking the socket down.
+    // Reading field-by-field also keeps the wire format append-only-extensible: a future peer
+    // that adds a third byte stays decodable by today's builds.
+    const version = state.start < state.end ? c.uint8.decode(state) : UNANNOUNCED_HANDSHAKE.version
+    const capabilities = state.start < state.end ? c.uint8.decode(state) : UNANNOUNCED_HANDSHAKE.capabilities
+    return { version, capabilities }
   }
 }
 

@@ -647,6 +647,8 @@ Every share — folder and loose — moves bytes through the **overlay** backend
 
 The dispatch seam is `getContentBackend(share)` (`transfer/content-backends.js`): the overlay backend for `contentMode === 'overlay'` (when the build's overlay flag is on), and the `UNSUPPORTED` sentinel for every other mode — absent, the retired `'eager'`/`'deferred'` modes, or an unknown future mode — which callers render as unavailable rather than routing to a removed path. `test/integration/content-backend-conformance.test.js` locks the contract.
 
+**Channel version negotiation.** The `hyper-overlay/v2` channel announces `{version, capabilities}` in its protomux channel handshake. A peer that sends no handshake bytes — every build before this shipped — is read as the *unannounced* version (1) with no capabilities, so a behaviour gated on a capability bit is simply off against it. The decoder is **total**: any channel on the socket dying takes the whole socket with it, and the channel id is the public protocol string, so a decoder that could throw would hand any swarm peer a one-frame socket kill. `MIN_VERSION` is 1 today, so no installed build is refused; when it is raised (in the same change that drops a message slot or changes a codec), a peer below it loses **only its content channel** — the socket, its sibling control channel (`mirall/handshake`, or `mirall/content-hello` when the separate content plane is on) and Corestore replication all stay up.
+
 The generic v2 serve/fetch engine is a vendored subset of the `hyper-overlay` project; `backends/overlay/vendor/PROVENANCE.md` documents what was vendored and every local modification. Mirall-specific policy (authorization, catalogs, lifecycle) lives **outside** `vendor/`.
 
 #### Bandwidth limiting
