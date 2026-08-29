@@ -64,8 +64,15 @@ const DEFAULTED = {
   // clamps to >= 1.
   publishConcurrency: 2,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
-  // before charging), so the burst covers the spaces two peers actually share.
+  // before charging). An honest connection sends one frame per shared space, we reciprocate
+  // each, and a name change or ledger re-send can add a third inside one refill window — so
+  // the lane's burst is handshakeBurst + handshakeBurstPerTopic x the topics THIS peer joined
+  // (createDualRateLimiter reads the count per take). Refill and the consecutive-drop ban are
+  // unchanged: a flood is anything past that cap at 1 frame/s. A fixed burst of 8 banned a
+  // peer sharing 24+ spaces on every reconnect. burstPerTopic 0 restores the fixed burst;
+  // handshakeBurst 0 still switches the lane off.
   handshakeBurst: 8,
+  handshakeBurstPerTopic: 3,
   handshakeRefillMs: 1000,
   handshakeAbuseThreshold: 24,
   // Frames naming a topic we did not join: dropped before any signature verify, so the lane
@@ -254,6 +261,13 @@ export function getDeepReconcileEvery() {
   return config.deepReconcileEvery
 }
 
+// A budget that is multiplied by a live count must be finite and non-negative: Infinity yields
+// NaN against a zero count (which reads as "lane disabled" and fails OPEN), a negative yields a
+// cap no frame can meet (fails closed on honest peers). Anything else falls back to the default.
+function finiteAtLeast(value, min, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback
+}
+
 export function getPublishConcurrency() {
   const n = config.publishConcurrency
   if (n === Infinity) return Infinity
@@ -307,7 +321,10 @@ export function getCaptureMemberRecordMs() {
 export function getHandshakeRateLimit() {
   const c = config
   return {
-    matched: { burst: c.handshakeBurst, refillMs: c.handshakeRefillMs, abuseThreshold: c.handshakeAbuseThreshold },
+    // burstPerTopic multiplies a per-socket count, so it is clamped to a finite non-negative
+    // number: Infinity would make the product NaN for a peer with no matched topic yet and
+    // silently switch the lane OFF, and a negative would drop every honest frame.
+    matched: { burst: c.handshakeBurst, burstPerTopic: finiteAtLeast(c.handshakeBurstPerTopic, 0, DEFAULTED.handshakeBurstPerTopic), refillMs: c.handshakeRefillMs, abuseThreshold: c.handshakeAbuseThreshold },
     unmatched: { burst: c.handshakeUnmatchedBurst, refillMs: c.handshakeUnmatchedRefillMs, abuseThreshold: c.handshakeUnmatchedAbuseThreshold },
   }
 }

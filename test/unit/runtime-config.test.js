@@ -93,6 +93,7 @@ test('DoS resource caps + rate limit default to the documented values', (t) => {
 
   const rl = getHandshakeRateLimit()
   t.is(rl.matched.burst, 8, 'matched-lane burst')
+  t.is(rl.matched.burstPerTopic, 3, 'matched-lane burst per joined topic')
   t.is(rl.matched.refillMs, 1000, 'matched-lane refill')
   t.is(rl.matched.abuseThreshold, 24, 'matched-lane abuse threshold')
   t.is(rl.unmatched.burst, 32, 'unmatched-lane burst')
