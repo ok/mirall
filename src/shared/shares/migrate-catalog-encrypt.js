@@ -24,6 +24,14 @@ const spaceFlag = (spaceId) => FLAG + '/' + spaceId
 // on later boots rather than silently left plaintext. v1 spaces are untouched.
 export async function migrateCatalogsToEncrypted () {
   const flagBee = createLocalBee('app-migrations')
+  try {
+    return await run(flagBee)
+  } finally {
+    try { await flagBee.close() } catch {}
+  }
+}
+
+async function run (flagBee) {
   await flagBee.ready()
   if ((await flagBee.get(FLAG))?.value?.completedAt) return { skipped: true }
 

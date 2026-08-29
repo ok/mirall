@@ -22,6 +22,14 @@ const MIGRATION_FLAG = 'legacy-peer-cache-clear-v2'
 // session is never closed (Hyperdrive._close would kill the root store).
 export async function reclaimLegacyPeerCaches () {
   const flagBee = createLocalBee('app-migrations')
+  try {
+    return await run(flagBee)
+  } finally {
+    try { await flagBee.close() } catch {}
+  }
+}
+
+async function run (flagBee) {
   await flagBee.ready()
   if ((await flagBee.get(MIGRATION_FLAG))?.value?.completedAt) return { skipped: true }
 
