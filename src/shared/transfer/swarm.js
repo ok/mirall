@@ -194,7 +194,9 @@ export function initSwarm(_ipc) {
     // firewall returns true to REJECT — drop reconnects from a Noise key we evicted for flooding.
     firewall: (remoteKey) => bannedNoiseKeys.has(b4a.toString(remoteKey, 'hex')),
   })
-  rateLimiter = createDualRateLimiter(getHandshakeRateLimit())
+  // The matched lane's cap follows the topics we joined (read per take, so joins and leaves
+  // need no re-plumbing) — see createDualRateLimiter.
+  rateLimiter = createDualRateLimiter({ ...getHandshakeRateLimit(), topics: () => spaceTopics.size })
   const dropWindow = getIdentityFrameDropWindow()
   testDrop = dropWindow.count > 0 ? { ...dropWindow, seen: 0 } : null
   bootedAt = Date.now()
@@ -330,7 +332,9 @@ function admitIdentityFrame(socket, peerInfo, remoteKey, msg) {
     HEX64.test(msg.spaceTopic) && !!resolveSpaceIdForTopic(msg.spaceTopic)
   const noiseHex = peerInfo?.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : null
   if (noiseHex && rateLimiter) {
-    const r = rateLimiter.take(noiseHex, matched)
+    // The topic is charged only when it matched one of ours, so the lane's cap grows with the
+    // spaces this peer has actually proven it shares — not with our own space count.
+    const r = rateLimiter.take(noiseHex, matched, matched ? msg.spaceTopic : null)
     if (!r.ok) {
       log.debug('rate-limited', msg.type, 'from', remoteKey + '...')
       if (r.ban) {

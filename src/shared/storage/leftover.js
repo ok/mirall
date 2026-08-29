@@ -105,11 +105,18 @@ export async function buildWantedKeys() {
     log.warn('wanted overlay cores failed:', err.message)
   }
 
+  let unopenedDrive = false
   for (const space of await listSpaces()) {
     const drive = getDrive(space.spaceId)
     if (drive) {
       await withReadTimeout(addLocalDriveCores(wanted, drive), INSPECT_MS, null)
         .catch((err) => log.warn('wanted own drive failed:', space.spaceId, err.message))
+    } else if (space.status !== 'pending' && !space.leaving) {
+      // A listed space whose drive is not loaded — a boot open that failed and is being
+      // retried next boot (driveLoadError). Its cores are reachable only through the drive
+      // handle, so they cannot be added to the wanted set here; mark the scan unsafe instead
+      // of letting a sweep reclaim a drive the space still expects to use.
+      unopenedDrive = true
     }
     try { await addBeeCore(wanted, await ownCatalog(space.spaceId)) } catch (err) {
       log.warn('wanted own catalog failed:', space.spaceId, err.message)
@@ -127,6 +134,9 @@ export async function buildWantedKeys() {
       }
     }
   }
+  // A drive we could not open is not in `wanted` and would scan as an orphan, so the caller is
+  // told to withhold the drive category rather than reclaim a space's own storage.
+  wanted.unopenedDrive = unopenedDrive
   return wanted
 }
 
@@ -233,8 +243,12 @@ export async function classifyLeftovers() {
   for (const r of inspected) {
     if (r.kind === 'profile') profiles.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
     else if (r.kind === 'catalog') catalogs.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
-    else if (r.kind === 'drive') orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
+    // A drive only counts as an orphan when every space's own drive is loaded. If one failed to
+    // open this boot, its cores look unwanted while the space is still listed and expects to
+    // retry — reclaiming them would destroy the space's storage.
+    else if (r.kind === 'drive' && !wanted.unopenedDrive) orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
   }
+  if (wanted.unopenedDrive) log.warn('a space drive did not load this session — leaving orphan drives out of the reclaim scan')
   const sum = (a) => a.reduce((n, r) => n + r.bytes, 0)
   return {
     profiles: { count: profiles.length, bytes: sum(profiles), keys: profiles },

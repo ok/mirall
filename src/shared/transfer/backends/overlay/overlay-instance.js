@@ -18,8 +18,9 @@ import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
 import { senderAuthorizedOnSocket, isApprovedMember } from '../../swarm.js'
 import { contentSenderAuthorizedOnSocket } from '../../content-swarm.js'
 import { createRateLimiter } from '../../handshake-guard.js'
-import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits } from '../../../core/runtime-config.js'
+import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits, getServeChunkMapCacheBytes } from '../../../core/runtime-config.js'
 import { createBandwidthLimiter } from '../../bandwidth-limiter.js'
+import { createChunkMapCache } from '../../chunk-map-cache.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay')
@@ -134,6 +135,9 @@ export async function initOverlay() {
     onServeProgress: ({ from, path, have }) => ledgerServeBaseline({ from, contentHash: contentHashOf(path), have }),
     uploadLimiter,
     downloadLimiter,
+    // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
+    // index on close, so nothing to tear down here. 0 disables it (runtime-config).
+    chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),
   })
   await overlay.ready() // builds protocol/index/sync cores; REQUIRED before attach
   log.info('instance ready')

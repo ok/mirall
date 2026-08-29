@@ -31,6 +31,11 @@ import ReadyResource from 'ready-resource'
 // [mirall] §4.11 entries per chunk-map page. ~116 B/entry worst-case JSON ⇒
 // ≤ ~3.8 MB/page, well under Hypercore's 15 MiB block limit.
 const CHUNKS_PER_PAGE = 32768
+// [mirall] resident-cost estimate charged to the injected chunk-map cache per decoded map: a
+// 64-char one-byte hash string, a three-field object, an array slot, and headroom for heap
+// numbers past 2 GiB offsets. Deliberately generous so the byte budget stays a bound.
+const CHUNK_ENTRY_BYTES = 160
+const CHUNK_MAP_BASE_BYTES = 64
 
 // The content hash an owner-side entry is addressed by (page suffix folded in), or
 // null for entries not keyed by a single content hash (real-path file:/chunkmap:,
@@ -58,6 +63,11 @@ export class FileIndex extends ReadyResource {
     this._meta = null
     this._version = 1
     this._opts = opts
+    // [mirall] host-injected cache of DECODED chunk maps, keyed by bee key. Absent -> every
+    // read decodes from the bee, as upstream. `_mutations` fences a decode that was in flight
+    // across a write of the same key so it can never cache the pre-write value.
+    this._chunkMapCache = opts.chunkMapCache || null
+    this._mutations = 0
   }
 
   // [mirall] Local index cores are encrypted at rest under an M-derived key
@@ -98,6 +108,7 @@ export class FileIndex extends ReadyResource {
   }
 
   async _close () {
+    if (this._chunkMapCache) this._chunkMapCache.clear()
     if (this._bee) await this._bee.close()
     if (this._meta) await this._meta.close()
   }
@@ -144,6 +155,10 @@ export class FileIndex extends ReadyResource {
     await this._meta.put('version', next)
     this._bee = dst
     this._version = next
+    // [mirall] the dropped hashes' maps must not survive in memory; the kept ones re-warm on
+    // first use.
+    this._mutations++
+    if (this._chunkMapCache) this._chunkMapCache.clear()
     return oldCore // left open; caller clears + purges it
   }
 
@@ -259,6 +274,18 @@ export class FileIndex extends ReadyResource {
   // in one Hyperbee batch so the whole map commits atomically. Stale pages from
   // a previously-larger map at the same key are deleted in the same batch.
   async _putPagedValue (baseKey, chunks) {
+    try { await this._writePagedValue(baseKey, chunks) } finally { this._invalidateChunkMap(baseKey) }
+  }
+
+  // [mirall] AFTER any write to a chunk-map key: move the fence so an in-flight decode will not
+  // cache what it read, then drop the cached value. After, not before: a decode that starts
+  // between an early bump and the write would otherwise cache the pre-write value.
+  _invalidateChunkMap (baseKey) {
+    this._mutations++
+    if (this._chunkMapCache) this._chunkMapCache.delete(baseKey)
+  }
+
+  async _writePagedValue (baseKey, chunks) {
     const prevPages = await this._pagedCount(baseKey)
 
     if (chunks.length <= CHUNKS_PER_PAGE) {
@@ -283,7 +310,22 @@ export class FileIndex extends ReadyResource {
     })
   }
 
+  // [mirall] consult the injected cache first; on a miss decode from the bee and cache the
+  // result unless a write to this key landed while the decode was in flight.
   async _getPagedValue (baseKey) {
+    const cache = this._chunkMapCache
+    const hit = cache ? cache.get(baseKey) : undefined
+    if (hit) return hit
+    const fence = this._mutations
+    const chunks = await this._decodePagedValue(baseKey)
+    if (chunks && cache && fence === this._mutations) {
+      cache.set(baseKey, chunks, CHUNK_MAP_BASE_BYTES + chunks.length * CHUNK_ENTRY_BYTES)
+    }
+    return chunks
+  }
+
+  // The pre-cache read, unchanged (was _getPagedValue).
+  async _decodePagedValue (baseKey) {
     const entry = await this._bee.get(baseKey)
     if (!entry) return null
     if (Array.isArray(entry.value)) return entry.value // inline / legacy
@@ -302,6 +344,10 @@ export class FileIndex extends ReadyResource {
   }
 
   async _delPagedValue (baseKey) {
+    try { await this._erasePagedValue(baseKey) } finally { this._invalidateChunkMap(baseKey) }
+  }
+
+  async _erasePagedValue (baseKey) {
     const prevPages = await this._pagedCount(baseKey)
     if (prevPages === 0) {
       await this._bee.del(baseKey)

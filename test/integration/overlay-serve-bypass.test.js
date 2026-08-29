@@ -39,8 +39,9 @@ test('S1: serve gate cannot be bypassed via fileRequest or direct chunkNeed', as
   // Spy the owner's serve primitive: readChunk is only called when it actually
   // streams bytes out.
   let served = 0
-  const realRead = pub._transfer.readChunk.bind(pub._transfer)
-  pub._transfer.readChunk = (...a) => { served++; return realRead(...a) }
+  // The serve loop now reads through a per-session fd, so the spy moves to readChunkAt.
+  const realRead = pub._transfer.readChunkAt.bind(pub._transfer)
+  pub._transfer.readChunkAt = (...a) => { served++; return realRead(...a) }
 
   // Attacker: connected, but never authorized (no MEMBER identity).
   const atk = new HyperOverlayV2(tmpStore('byp-atk'), { namespace: 'mirall-overlay', destDir: tmpDir('byp-atk-d') })
