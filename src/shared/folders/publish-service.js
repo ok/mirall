@@ -80,11 +80,26 @@ export function stopAllPublishing() {
 }
 
 // Cancels everything and waits (bounded) for the executors still running to honour the abort:
-// a test's store closes right after this, and a tail still writing would land on a closed core.
-export async function _resetPublishService() {
-  await publishScheduler.stop({ settleMs: 5000 })
-  publishScheduler._reset()
+// the store closes right after this, and a tail still writing would land on a closed core.
+export async function closePublishService({ settleMs = 5000 } = {}) {
+  await publishScheduler.stop({ settleMs })
   for (const batch of batches.values()) batch.close().catch(() => {})
   batches.clear()
   settling.clear()
+}
+
+// The scheduler is constructed at module level, and stop() sets a `stopped` flag only _reset()
+// clears — so a second boot in the same process would inherit a dead lane: every publish would
+// queue and nothing would ever pump it, and onFsEvent's promise would never settle. The boot root
+// calls this before it wires the owned-folder subsystem. It goes away in Phase 2, when the
+// scheduler becomes a resource the root constructs fresh.
+export function armPublishService() {
+  publishScheduler._reset()
+}
+
+// The test seam: the stop plus the arm, for a helper that tears a peer down and boots another in
+// the same process. Retired in Phase 2 with the module-level scheduler.
+export async function _resetPublishService() {
+  await closePublishService()
+  armPublishService()
 }

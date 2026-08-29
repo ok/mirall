@@ -8,6 +8,7 @@ import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
 import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './mount-store.js'
 import { AppError, ErrorCodes } from '../core/errors.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { createCoalescingRunner } from '../core/coalescing-runner.js'
 import { getMaxFilesPerShare } from '../core/runtime-config.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
@@ -22,7 +23,7 @@ import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IG
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
 import { statFacts } from './disk-presence.js'
-import { publishScheduler as scheduler, registerPublishChannel, settleCatalog, _resetPublishService } from './publish-service.js'
+import { publishScheduler as scheduler, registerPublishChannel, settleCatalog, closePublishService, _resetPublishService } from './publish-service.js'
 
 export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
 
@@ -34,6 +35,11 @@ let ipcRef = null
 let settleScanRef = null
 
 const reconcileTimers = new Map()
+// Catch-up passes currently walking a mount, and the latch that stops new ones being armed. A
+// catch-up re-arms ITSELF while files are still settling, so clearing the timers is not enough:
+// without the latch a pass that resolves during teardown schedules another one on a closed store.
+const catchupInFlight = new Set()
+let stopping = false
 const POST_EVENT_RECONCILE_MS = 2000
 // A catch-up that deferred a still-settling file re-arms itself with this backoff, so a file
 // written for minutes on end (a log) costs a stat walk every minute, not every two seconds.
@@ -114,14 +120,21 @@ export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
 // pass. The mount is re-read for the re-arm, so a share deleted or relocated meanwhile is not
 // chased with a stale path.
 function scheduleCatchupReconcile(mount, delayMs = POST_EVENT_RECONCILE_MS) {
+  if (stopping) return
   const { spaceId, shareId } = mount
   const key = spaceId + ':' + shareId
   clearTimeout(reconcileTimers.get(key))
   const timer = setTimeout(() => {
     reconcileTimers.delete(key)
+    if (stopping) return
     const scan = periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, { deferFresh: true })
+    // The pass is registered so the subsystem's close can WAIT for it: clearing the timer only
+    // stops the next one, and a scan still walking the mount when the store closes reports
+    // SESSION_CLOSED into a status write nobody asked for.
+    catchupInFlight.add(scan)
+    scan.finally(() => catchupInFlight.delete(scan)).catch(() => {})
     scan.then(async (r) => {
-      if (!(r?.deferred > 0) || r.cancelled) return
+      if (stopping || !(r?.deferred > 0) || r.cancelled) return
       const current = await getOwnedMount(spaceId, shareId)
       if (current && !reconcileTimers.has(key)) scheduleCatchupReconcile(current, Math.min(delayMs * 2, CATCHUP_BACKOFF_MAX_MS))
     }).catch(() => {})
@@ -365,7 +378,37 @@ export function stopOwnedFolder(spaceId, shareId) {
   scheduler.cancelShare(spaceId, shareId)
 }
 
+// Owns the owned-folder side as a set: the catch-up timers, the publish scheduler's in-flight
+// work and the caches. stopOwnedFolder stays the per-share stop; this is the bulk one shutdown
+// needs, and it waits for the publish executors rather than just cancelling them.
+export class OwnedFolders extends Subsystem {
+  constructor(name, deps) { super(name, deps); this.require('ipc') }
+
+  async _open() { stopping = false; initOwnedFolders(this.deps.ipc, { settleScan: this.deps.settleScan ?? null }) }
+
+  async _close() {
+    stopping = true
+    for (const timer of reconcileTimers.values()) clearTimeout(timer)
+    reconcileTimers.clear()
+    // Bounded, like every other drain: the pass itself bails at its next file, and waiting for
+    // that bail is what makes closing the cores it reads safe.
+    if (catchupInFlight.size) {
+      await Promise.race([
+        Promise.allSettled([...catchupInFlight]),
+        new Promise((resolve) => { const t = setTimeout(resolve, 3000); t.unref?.() }),
+      ])
+    }
+    await closePublishService()
+    progress.reset()
+    shareCache.clear()
+  }
+}
+
+// The test seam, kept until Phase 2 makes the helpers boot through the root. It differs from
+// OwnedFolders._close in one way: it also resets the module-level scheduler, because the same
+// process goes on to reuse it.
 export async function _resetOwnedFolders() {
+  stopping = false
   for (const timer of reconcileTimers.values()) clearTimeout(timer)
   reconcileTimers.clear()
   await _resetPublishService()

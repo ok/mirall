@@ -94,10 +94,12 @@ export function isAuditReady() {
 }
 
 export async function closeAuditLog() {
-  const pending = writeChain
-  bee = null
-  await pending.catch(() => {})
+  const closing = bee
+  bee = null                            // record() no-ops from here — isAuditReady() is false
+  await writeChain.catch(() => {})      // every row already admitted lands before the core closes
+  await closing?.close()
 }
+
 
 async function newestSeq() {
   for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true, limit: 1 })) {
@@ -143,8 +145,14 @@ function admit(kind) {
 export function record(kind, fields = {}) {
   if (!bee || !config.enabled) return false
   if (!admit(kind)) return false
+  // The handle is captured HERE, not read again inside append: record() returning true is a
+  // promise to the caller that the row is queued, and a close landing between this line and the
+  // chain's turn would otherwise silently drop it. Closing still stops NEW records — `bee` is
+  // nulled first, so the guard above rejects them — and the chain is drained before the core
+  // closes, so every row already admitted lands.
+  const target = bee
   writeChain = writeChain
-    .then(() => append(kind, fields))
+    .then(() => append(kind, fields, target))
     .catch((err) => log.warn('write failed:', kind, err.message))
   return true
 }
@@ -154,8 +162,8 @@ function withSelfIdentity(actor) {
   return { type: 'self', key: actor.key ?? selfIdentity.key, name: actor.name ?? selfIdentity.name }
 }
 
-async function append(kind, fields) {
-  if (!bee) return
+async function append(kind, fields, target = bee) {
+  if (!target || target.closed) return
   const now = Date.now()
   const seq = nextSeq++
   const rec = buildRecord({
@@ -167,7 +175,7 @@ async function append(kind, fields) {
     tzOffset: -new Date(now).getTimezoneOffset(),
     device,
   })
-  const batch = bee.batch()
+  const batch = target.batch()
   await batch.put(evtKey(seq), rec)
   if (rec.space?.id) await batch.put(spaceKey(rec.space.id, seq), seq)
   else await batch.put(deviceKey(seq), seq)
