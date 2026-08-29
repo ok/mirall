@@ -4,8 +4,7 @@
 // a durable, replicated fact that survives the owner being offline. Removal is a soft tombstone
 // (unmirroredAt) so a reader tells "stopped mirroring" apart from "not replicated yet". Peers' rows
 // are read cap-gated with bounded reads, so an offline member can't stall a caller.
-import b4a from 'b4a'
-import { getProfileBee, openProfileBee } from '../spaces/profile.js'
+import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
 
@@ -98,7 +97,7 @@ export function readOwnMirror(spaceId, shareId) {
 
 export async function readPeerMirrors(profileKeyHex, spaceId, timeoutMs = peerReadTimeoutMs()) {
   try {
-    return await withReadTimeout(collectPeerMirrors(profileKeyHex, spaceId), timeoutMs, null)
+    return await withReadTimeout(collectPeerMirrors(profileKeyHex, spaceId, timeoutMs), timeoutMs, null)
   } catch (err) {
     log.warn('readPeerMirrors failed for', profileKeyHex.slice(0, 16) + '...', '-', err.message)
     return null
@@ -109,35 +108,37 @@ export async function readPeerMirrors(profileKeyHex, spaceId, timeoutMs = peerRe
 // range scan when the caller only wants one share (the per-share widget path).
 export async function readPeerMirror(profileKeyHex, spaceId, shareId, timeoutMs = peerReadTimeoutMs()) {
   try {
-    return await withReadTimeout(collectPeerMirror(profileKeyHex, spaceId, shareId), timeoutMs, null)
+    return await withReadTimeout(collectPeerMirror(profileKeyHex, spaceId, shareId, timeoutMs), timeoutMs, null)
   } catch (err) {
     log.warn('readPeerMirror failed for', profileKeyHex.slice(0, 16) + '...', '-', err.message)
     return null
   }
 }
 
-async function openPeerBeeWithCap(profileKeyHex) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(MIRRORS_CAP)
-  return cap?.value ? bee : null
+// Cap-gated bounded read. The previous shape returned an OPEN bee to its two callers, neither of
+// which closed it — the clearest form of the per-read session leak. withPeerBee owns the open,
+// the head sync and the close.
+function withPeerMirrorBee(profileKeyHex, fn, opts) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+    const cap = await bee.get(MIRRORS_CAP)
+    return cap?.value ? fn(bee) : null
+  }, opts)
 }
 
-async function collectPeerMirrors(profileKeyHex, spaceId) {
-  const bee = await openPeerBeeWithCap(profileKeyHex)
-  if (!bee) return null
-  const prefix = MIRROR_PREFIX + spaceId + '/'
-  const out = []
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
-    if (!entry.value.unmirroredAt) out.push(entry.value)
-  }
-  return out
+function collectPeerMirrors(profileKeyHex, spaceId, timeoutMs) {
+  return withPeerMirrorBee(profileKeyHex, async (bee) => {
+    const prefix = MIRROR_PREFIX + spaceId + '/'
+    const out = []
+    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+      if (!entry.value.unmirroredAt) out.push(entry.value)
+    }
+    return out
+  }, { timeoutMs })
 }
 
-async function collectPeerMirror(profileKeyHex, spaceId, shareId) {
-  const bee = await openPeerBeeWithCap(profileKeyHex)
-  if (!bee) return null
-  const entry = await bee.get(keyFor(spaceId, shareId))
-  return entry?.value && !entry.value.unmirroredAt ? entry.value : null
+function collectPeerMirror(profileKeyHex, spaceId, shareId, timeoutMs) {
+  return withPeerMirrorBee(profileKeyHex, async (bee) => {
+    const entry = await bee.get(keyFor(spaceId, shareId))
+    return entry?.value && !entry.value.unmirroredAt ? entry.value : null
+  }, { timeoutMs })
 }

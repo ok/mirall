@@ -3,8 +3,7 @@
 // Own records are written to the local profile bee (under the `caps/folder-shares`
 // capability flag); peers' records are read from their replicated profile bees with
 // bounded reads, so an offline member can't stall a caller.
-import b4a from 'b4a'
-import { getProfileBee, openProfileBee } from '../spaces/profile.js'
+import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
 
@@ -51,25 +50,24 @@ export async function readPeerShares(profileKeyHex, spaceId, timeoutMs = peerRea
     // one unreachable member can't freeze the view — they self-heal via event:shares-updated once
     // the bee replicates. Mirror / foreign-folder callers keep the full peerReadTimeoutMs default,
     // where correctness needs the longer wait.
-    return await withReadTimeout(collectPeerShares(profileKeyHex, spaceId), timeoutMs, null)
+    return await withReadTimeout(collectPeerShares(profileKeyHex, spaceId, timeoutMs), timeoutMs, null)
   } catch (err) {
     log.warn('readPeerShares failed for', profileKeyHex.slice(0, 16) + '...', '-', err.message)
     return null
   }
 }
 
-async function collectPeerShares(profileKeyHex, spaceId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  await bee.core.update({ wait: true })
-  const cap = await bee.get(SHARES_CAP)
-  if (!cap?.value) return null
-  const prefix = SHARE_PREFIX + spaceId + '/'
-  const shares = []
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
-    if (!entry.value.deletedAt) shares.push(entry.value)
-  }
-  return shares
+function collectPeerShares(profileKeyHex, spaceId, timeoutMs) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+    const cap = await bee.get(SHARES_CAP)
+    if (!cap?.value) return null
+    const prefix = SHARE_PREFIX + spaceId + '/'
+    const shares = []
+    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+      if (!entry.value.deletedAt) shares.push(entry.value)
+    }
+    return shares
+  }, { timeoutMs })
 }
 
 // Raw single-share lookup on a peer's profile bee, INCLUDING tombstones —
@@ -88,15 +86,14 @@ export async function readPeerShareEntry(profileKeyHex, spaceId, shareId) {
   }
 }
 
-async function loadPeerShareEntry(profileKeyHex, spaceId, shareId) {
-  const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  await bee.ready()
-  // Pull the remote head before reading: a read-only bee opened by key starts at
-  // length 0, so a bare get would miss a tombstone the owner has already written
-  // (it'd read as "not replicated"). The outer withReadTimeout still bounds this.
-  await bee.core.update({ wait: true })
-  const entry = await bee.get(SHARE_PREFIX + spaceId + '/' + shareId)
-  return entry?.value ?? null
+// withPeerBee pulls the remote head before the read: a read-only bee opened by key starts at
+// length 0, so a bare get would miss a tombstone the owner has already written (it would read as
+// "not replicated"). It also closes the session, which a bare open never did.
+function loadPeerShareEntry(profileKeyHex, spaceId, shareId) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+    const entry = await bee.get(SHARE_PREFIX + spaceId + '/' + shareId)
+    return entry?.value ?? null
+  })
 }
 
 export function isValidShareName(name) {
