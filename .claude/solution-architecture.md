@@ -172,7 +172,7 @@ Every bee below uses **utf-8 keys, JSON values**.
 | `observed/<peerKey>/<spaceId>` | `{ ts }` | Witness observation, written when this peer observes another leave. A backup evidence source for receivers who were offline at leave-time. Gated by `caps/leave-observations` |
 | `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` | A folder share this user owns. Replicates via the profile bee — that's how peers discover shares. Deletion is a **tombstone** (row kept) so peers distinguish "owner removed it" from "never replicated". Gated by `caps/folder-shares`. §7 |
 
-Peers read each other's avatars and manifests by opening the remote profile bee by that key (`openProfileBee()`) — 10 s timeout for avatars, 1.5 s for the membership read.
+Peers read each other's avatars and manifests through `withPeerBee()`, which opens the remote profile bee by that key, pulls its head, runs the read and **closes the session** — one bounded read, one budget covering both phases, and a session-level timeout so an abandoned read cannot pin the core through a hung batch. Exactly one bee per peer is held open for the process: the holder carrying the `append` listener that drives admission re-evaluation, the share-list refresh and the audit observer. (Before this, every transient read opened a session that was never closed, so nothing was ever reclaimed and every leaked core stayed attached to every replication stream.) Reads are bounded by a 10 s budget for avatars and 1.5 s for the membership read.
 
 #### Capability flags
 
