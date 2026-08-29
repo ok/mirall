@@ -116,7 +116,6 @@ import { openSealedSck } from '../shared/transfer/sck-seal.js'
 import { reconcileAssertedRoot } from '../shared/spaces/creator-root.js'
 import { getConnectedMemberMeta, readmitConnectedMembers } from '../shared/transfer/swarm.js'
 import {
-  configureMemberRegistry,
   openMemberView,
   closeMemberView,
   dropTombstone,
@@ -335,7 +334,7 @@ const sharesPoke = makeKeyedCoalescer((spaceId) => {
 // contract: it only ever agrees-or-adds, and removes a member only once the replicated
 // evidence and the live connection state agree — a live handshake always outranks stale
 // records.)
-configureMemberRegistry({
+const memberRegistry = {
   metaFor: (spaceId, key) => getConnectedMemberMeta(spaceId, key),
   isConnected: (spaceId, key) => !!getConnectedMemberMeta(spaceId, key),
   profileFor: (spaceId, key) => readProfileRecord(key, spaceId),
@@ -358,7 +357,7 @@ configureMemberRegistry({
   // doesn't move the member set). Poke the share + file lists so a derived-only member's share
   // surfaces without waiting for an unrelated member-set change.
   emitSharesUpdated: (spaceId) => sharesPoke.poke(spaceId),
-})
+}
 
 async function handleMembershipControl(msg, ctx) {
   try {
@@ -662,14 +661,14 @@ async function discardPendingSpace(spaceId) {
 // subsystem in a declared order and closes them in reverse. What stays here is what only an
 // entry can own: the pipe, the handlers, the deadline and Bare.exit.
 
-// configureMemberRegistry above is pure wiring and must precede openMemberViewsForKnownSpaces,
-// which boot() runs. Everything else the root needs it constructs itself; handleMembershipControl
-// and publishDownloadRoots are passed in because they close over state that belongs to the entry.
+// The root constructs everything it needs; handleMembershipControl, publishDownloadRoots and the
+// member-registry collaborators are passed in because they close over state that belongs here.
 root = await boot(bootstrap, {
   ipc,
   log,
   membershipControl: handleMembershipControl,
   publishDownloadRoots,
+  memberRegistry,
   // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
   // during boot still announces departure and drops what came up. The full root replaces it on
   // the line below; both carry the same close().

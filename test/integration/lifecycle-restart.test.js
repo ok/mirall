@@ -10,7 +10,7 @@ import { trackTimers } from '../helpers/timers.js'
 // `t.teardown(restore)` puts the natives back before the next test runs, and every timer
 // assertion after that point reads a map nothing writes to any more — passing whatever leaked.
 const timers = trackTimers()
-const { freshPeer } = await import('../helpers/store.js')
+const { freshPeer, offlineMemberRegistry } = await import('../helpers/store.js')
 const { createSpace, listSpaces } = await import('../../src/shared/spaces/space.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
@@ -75,12 +75,12 @@ test('REGRESSION (LIFECYCLE-1b): in-process restart against the same storage', a
   t.teardown(() => { for (const d of [storage, downloads]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} } })
   const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
 
-  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false })
+  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
   const space = await createSpace('Aurora')
   await first.close()
   t.is(timers.intervals().length, 0, 'first close leaves nothing armed\n' + timers.describe(timers.intervals()))
 
-  const second = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false })
+  const second = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
   const spaces = await listSpaces()
   t.ok(spaces.some((s) => s.spaceId === space.spaceId), 'the space created before the restart is listed after it')
   const again = await createSpace('Borealis')
