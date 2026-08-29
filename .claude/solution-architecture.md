@@ -145,19 +145,22 @@ Bootstrap:
 2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
 3. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
 4. `configureMemberRegistry({…})` — pure wiring, and a prerequisite of the member views the root opens.
-5. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which runs:
-   1. `initStore` → identity unlock → `migrateLocalBeesToEncrypted` → `initSpaceKeys` → `initProfile` → `initSpaces` → `initDownloads` → `initPendingTransfers`.
-   2. `AuditLog` (bee + connectivity watch) — started before `loadDrives`, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
-   3. `loadDrives` (on any drive-load failure, `cleanupOrphanedData()`) → the three manifest caps → the one-time content migrations → `initMounts`.
-   4. `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
+5. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
+   1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee`.
+   2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
+   3. `ServeLedger`, immediately after `AuditLog` so that on the way out it flushes **before** that bee closes and while the spaces bee it reads is still open.
+   4. `Catalogs` (the own/peer catalog bee caches) → `SpaceDrives` (`loadDrives`; on failure, `cleanupOrphanedData()`) → the three manifest caps → the one-time content migrations.
+
+   The **runtime** tier is closed first:
+   5. `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `PublishService` (which constructs the publish scheduler, so a boot never inherits a stopped one), `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
    5. Interrupted-leave resume, download-root hydration, the membership backfill.
-   6. `initServeLedger(ipc)`, `initBackends(ipc)`, `initLooseOverlay(ipc)`, every connection hook, then `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets** — `initContentSwarm(getSwarmDht())` and `applyRelayConfig()`.
+   6. `initBackends(ipc)`, `initLooseOverlay(ipc)`, every connection hook, then `initSwarm(ipc)` — **every connection hook attaches before the swarm accepts sockets** — `initContentSwarm(getSwarmDht())` and `applyRelayConfig()`.
    7. Crash-leftover sweeps, member views, topic joins, pending-leave replay.
    8. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune) last.
 6. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
 7. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
 
-Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` → `root.close()` under a 4 s hard deadline, then `Bare.exit(0)`. `close()` announces departure and aborts in-flight hashing first (deliberately not in reverse order — the datagram has to leave UDX before any socket drops), waits a 150 ms flush window, then closes every started subsystem in reverse, then the member views, the backends, both swarms and the store. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
+Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` → `root.close()` under a 4 s hard deadline, then `Bare.exit(0)`. `close()` announces departure and halts publishing first (deliberately not in reverse order — the datagram has to leave UDX before any socket drops), waits a 150 ms flush window (**ref'd**: it is the one await on the path with no work behind it, and an unref'd timer there empties the loop for an in-process caller holding no other handle), then closes the runtime tier in reverse, then the member views, the backends and both swarms, and **last** the durable tier — whose `Store._close` warns, naming any Corestore session still open, because that list is precisely the handles nobody owned. Tearing the network down is itself what emits `serve.completed` rows, which is why the ledger and the audit bee are in the tier that closes after it. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
 
 **Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
 
@@ -168,7 +171,7 @@ Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` 
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `initStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`.
+All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `initStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
 
 Every bee below uses **utf-8 keys, JSON values**.
 
@@ -946,10 +949,11 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/owned-folder-watchers.js` | chokidar watchers for owned-folder shares (§2 step 12, §7) |
 | `src/main/loose-file-watchers.js` | chokidar host for in-place loose-file shares (§2 step 12) |
 | `src/worker/main.js` | Bare worker entry — wires `Bare.IPC` to `core/ipc.js`, registers the handlers, shuts down on parent disconnect |
-| `src/worker/boot.js` | The composition root — constructs every subsystem with explicit deps, starts them in order, closes them in reverse |
+| `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse |
 | `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, durable status, the periodic reconcile timers, the mount + download-root probe |
 | `src/worker/sweeps.js` | `Sweeps` — the presence, invite-expiry and audit-prune backstops |
 | `src/shared/core/subsystem.js` | `Subsystem extends ReadyResource` (owned timers, `require()`, `stopping`) + `createLifecycle()`, the ordered start/close registry |
+| `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` factories, and the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 | `src/shared/` | Worker data layer (below); `invite-envelope.js` is also dynamically imported by main |
