@@ -67,8 +67,15 @@ let downloadLimiter = null
 const peerSocket = new WeakMap()
 
 const CONTENT_PREFIX = 'content:'
+
 function contentHashOf(synthPath) {
   return synthPath && synthPath.startsWith(CONTENT_PREFIX) ? synthPath.slice(CONTENT_PREFIX.length) : synthPath
+}
+
+// Short remote Noise key for log lines; attachOverlay records the socket before onopen fires.
+function peerKeyLabel(peer) {
+  const key = peerSocket.get(peer)?.remotePublicKey
+  return key ? b4a.toString(key, 'hex').slice(0, 16) + '...' : 'unknown'
 }
 
 export function getOverlay() {
@@ -134,6 +141,21 @@ export async function initOverlay() {
     onServeProgress: ({ from, path, have }) => ledgerServeBaseline({ from, contentHash: contentHashOf(path), have }),
     uploadLimiter,
     downloadLimiter,
+    // The remote's overlay protocol version, announced in the channel handshake. Below the
+    // minimum the protocol closes that channel only: the socket, its sibling control channel
+    // (mirall/handshake, or mirall/content-hello when the separate content plane is on) and
+    // corestore replication all stay up.
+    //
+    // No minVersion is passed, so the protocol default (MIN_VERSION = 1, the unannounced
+    // version) applies and nothing in the field is refused. onPeerRejected is therefore
+    // unreachable in every shipping configuration — deliberately: the gate exists so that the
+    // release which first drops a message slot or changes a codec only has to raise the
+    // constant. Do not delete it as dead code; test/integration/overlay-channel-handshake.test.js
+    // drives it with an explicit minVersion.
+    onPeerOpen: ({ peer, version, capabilities }) =>
+      log.debug(`peer ${peerKeyLabel(peer)} overlay v${version} caps=0x${capabilities.toString(16)}`),
+    onPeerRejected: ({ peer, version, minVersion }) =>
+      log.warn(`peer ${peerKeyLabel(peer)} overlay v${version} is below the minimum v${minVersion} — content channel closed`),
   })
   await overlay.ready() // builds protocol/index/sync cores; REQUIRED before attach
   log.info('instance ready')

@@ -71,6 +71,10 @@ export class HyperOverlayV2 extends ReadyResource {
     // outbound content-requests so the remote's gate can authenticate the asker.
     this._serveAuthorizer = opts.serveAuthorizer || null
     this._localProfileKey = opts.localProfileKey || null
+    // [mirall] channel handshake policy, threaded to OverlayProtocolV2 unchanged.
+    this._minVersion = opts.minVersion
+    this._onPeerOpen = opts.onPeerOpen || null
+    this._onPeerRejected = opts.onPeerRejected || null
 
     // [mirall] At-rest key for the local index cores (file-index/index-meta/sync-feed).
     this._indexEncryptionKey = opts.indexEncryptionKey || null
@@ -136,6 +140,9 @@ export class HyperOverlayV2 extends ReadyResource {
         autoSync: false,
         serveAuthorizer: this._serveAuthorizer,   // [mirall] serve gate
         localProfileKey: this._localProfileKey,    // [mirall] outbound identity
+        minVersion: this._minVersion,              // [mirall] undefined -> protocol default
+        onPeerOpen: this._onPeerOpen,
+        onPeerRejected: this._onPeerRejected,
         onSynced: (info) => this._onSynced(info),
         onChunkProgress: (info) => this._onChunkProgress(info),
         onServeStart: this._onServeStart,
