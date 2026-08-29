@@ -161,6 +161,18 @@ export async function isDownloadedFile(spaceId, filePath, currentHash = null) {
   return await verifyOnDevice(spaceId, filePath, currentHash)
 }
 
+// Strict form for callers that DROP work when the answer is yes (the resume scan's
+// completed-row guard): the claim must name the same content hash we are being asked about.
+// verifyOnDevice compares hashes only when BOTH sides carry one, so a hashless claim — an older
+// record, or a loose intent row — would otherwise answer "downloaded" for content it has never
+// seen and the pending row would be discarded instead of fetched.
+export async function isDownloadedWithHash(spaceId, filePath, contentHash) {
+  if (!contentHash) return false
+  const node = await downloadsBee.get(spaceId + ':' + filePath)
+  if (node?.value?.hash !== contentHash) return false
+  return await verifyOnDevice(spaceId, filePath, contentHash)
+}
+
 // For a file you OWN (added/shared by you, never downloaded), remember where its
 // local source lives so "Open in folder" reveals the real file instead of
 // guessing <Downloads>/<basename>. Kept under a separate `src:` key namespace so
