@@ -2,7 +2,7 @@
 // per-space drive management (create, load, purge of on-disk cores), serialized
 // member-roster mutation, durable leave tombstones, pending join requests, and
 // pinning of the creator root the membership fold trusts.
-import { createLocalBee, createDrive, getStore, hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
+import { createLocalBee, createDrive, getStore, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isMembershipApprovalEnabled, isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
@@ -443,8 +443,12 @@ export async function persistLeftTombstone(spaceId, key, leaveTs) {
   await spacesBee.put(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key, { leaveTs: sanitizeLeaveTs(leaveTs) })
 }
 
+// Non-throwing by contract (the caller ignores the result). A del that fails leaves the durable
+// tombstone to re-seed the fold at the next boot, so it must not be silent.
 export async function clearLeftTombstone(spaceId, key) {
-  try { await spacesBee.del(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key) } catch {}
+  try { await spacesBee.del(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key) } catch (err) {
+    log.warn('could not clear a leave tombstone — the member stays suppressed after the next restart:', spaceId, key.slice(0, 12) + '...', '-', err.message)
+  }
 }
 
 export async function loadLeftTombstones(spaceId) {
@@ -467,8 +471,12 @@ export async function persistPendingLeave(spaceId, topic, ts) {
   await spacesBee.put(PENDING_LEAVE_PREFIX + spaceId, { topic, ts })
 }
 
+// Non-throwing by contract. A del that fails means the leave is re-announced at the next boot,
+// which is harmless but must not be invisible.
 export async function clearPendingLeave(spaceId) {
-  try { await spacesBee.del(PENDING_LEAVE_PREFIX + spaceId) } catch {}
+  try { await spacesBee.del(PENDING_LEAVE_PREFIX + spaceId) } catch (err) {
+    log.warn('could not clear the pending-leave marker — the leave is re-announced at the next boot:', spaceId, '-', err.message)
+  }
 }
 
 export async function listPendingLeaves() {
@@ -486,7 +494,11 @@ export async function listPendingLeaves() {
 async function clearAllLeftTombstones(spaceId) {
   const keys = []
   for await (const entry of spacesBee.createReadStream(leftRange(spaceId))) keys.push(entry.key)
-  for (const k of keys) { try { await spacesBee.del(k) } catch {} }
+  for (const k of keys) {
+    try { await spacesBee.del(k) } catch (err) {
+      log.warn('could not clear a leave tombstone during rejoin:', k, '-', err.message)
+    }
+  }
 }
 
 // Release a drive's core sessions ahead of purging its on-disk state. In identity
@@ -615,28 +627,63 @@ export function getDrive(spaceId) {
   return drives.get(spaceId)
 }
 
-export async function loadDrives() {
+// Open one space's drive. Split out so boot can inject a failing opener in tests.
+async function openSpaceDrive(space) {
+  const sck = getSpaceContentKey(space.spaceId, space)
+  const drive = createDrive(makeDriveName(space.spaceId, space.driveSuffix), { encryptionKey: sck })
+  await drive.ready()
+  return drive
+}
+
+export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
   const spaces = await listSpaces()
   let hadFailure = false
   for (const space of spaces) {
     // A leaving space's drive must not come back up either: loadDrives runs before the boot
     // completion pass, so the marker is the only thing keeping it down.
     if (space.status === 'pending' || space.leaving) continue
+    let drive
     try {
-      const sck = getSpaceContentKey(space.spaceId, space)
-      const drive = createDrive(makeDriveName(space.spaceId, space.driveSuffix), { encryptionKey: sck })
-      await drive.ready()
-      drives.set(space.spaceId, drive)
-      // Backfill the published drive key for spaces created before it was recorded (idempotent).
+      drive = await openDrive(space)
+    } catch (err) {
+      hadFailure = true
+      if (isStorageInconsistency(err)) {
+        // The core's own tree cannot back its length: no retry will open this drive. Drop the
+        // record; the leftover sweep can reclaim its cores.
+        log.error('drive storage inconsistent for', space.spaceId, '-', err.message, '- dropping space record')
+        try { await spacesBee.del('space/' + space.spaceId) } catch (delErr) {
+          log.warn('could not drop the space record:', space.spaceId, '-', delErr.message)
+        }
+      } else {
+        // Anything else may be transient (a lock still held by a dying instance, disk pressure,
+        // a half-written core). Keep the space, mark it, and let the next boot retry: deleting
+        // the record costs the user the space outright, which a transient fault must not do.
+        log.error('drive load failed for', space.spaceId, '-', err.message, '- keeping the space record for retry')
+        await mutateSpace(space.spaceId, (s) => ({ ...s, driveLoadError: { message: err.message, at: Date.now() } }))
+          .catch((mErr) => log.warn('could not mark the drive-load failure:', space.spaceId, '-', mErr.message))
+      }
+      continue
+    }
+    drives.set(space.spaceId, drive)
+    if (space.driveLoadError) {
+      await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.driveLoadError; return next })
+        .catch((mErr) => log.warn('could not clear the drive-load marker:', space.spaceId, '-', mErr.message))
+    }
+    // Idempotent backfills, re-run every boot. Not part of loading the drive: a profile or
+    // catalog write that fails must not cost the space its record.
+    try {
       if (space.schemaVersion === 2) await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
       await publishLooseCatalogKey(space.spaceId, space)
     } catch (err) {
-      hadFailure = true
-      log.error('drive load failed for', space.spaceId, '-', err.message, '- dropping space record')
-      try { await spacesBee.del('space/' + space.spaceId) } catch {}
+      log.warn('post-load backfill failed for', space.spaceId, '-', err.message)
     }
   }
   return { hadFailure }
+}
+
+// The live bee, for tests that need a write to fail. Not for production callers.
+export function _spacesBeeForTests() {
+  return spacesBee
 }
 
 // Pending join requests for v2 spaces, in-memory and per-space. A request is a peer

@@ -71,6 +71,10 @@ export class HyperOverlayV2 extends ReadyResource {
     // outbound content-requests so the remote's gate can authenticate the asker.
     this._serveAuthorizer = opts.serveAuthorizer || null
     this._localProfileKey = opts.localProfileKey || null
+    // [mirall] channel handshake policy, threaded to OverlayProtocolV2 unchanged.
+    this._minVersion = opts.minVersion
+    this._onPeerOpen = opts.onPeerOpen || null
+    this._onPeerRejected = opts.onPeerRejected || null
 
     // [mirall] At-rest key for the local index cores (file-index/index-meta/sync-feed).
     this._indexEncryptionKey = opts.indexEncryptionKey || null
@@ -85,6 +89,10 @@ export class HyperOverlayV2 extends ReadyResource {
     // [mirall] content-plane transfer caps, injected by the app layer.
     this._uploadLimiter = opts.uploadLimiter || null
     this._downloadLimiter = opts.downloadLimiter || null
+    // [mirall] decoded chunk-map cache, injected by the app layer like the limiters.
+    this._chunkMapCache = opts.chunkMapCache || null
+    // [mirall] serve-fd idle window, threaded to the protocol (tests shrink it).
+    this._serveFdIdleMs = opts.serveFdIdleMs
 
     // Shared maps the protocol reads: overlayPath → diskPath (for serving an
     // offered/known path), contentHash → diskPath (fast path for content
@@ -124,7 +132,7 @@ export class HyperOverlayV2 extends ReadyResource {
     if (this._protocol) return Promise.resolve()
     if (this._stackPromise) return this._stackPromise
     this._stackPromise = (async () => {
-      const index = new FileIndex(this._corestore, { encryptionKey: this._indexEncryptionKey })
+      const index = new FileIndex(this._corestore, { encryptionKey: this._indexEncryptionKey, chunkMapCache: this._chunkMapCache })
       await index.ready()
       const sync = new SyncEngine(index, this._corestore, { encryptionKey: this._indexEncryptionKey })
       await sync.ready()
@@ -136,6 +144,9 @@ export class HyperOverlayV2 extends ReadyResource {
         autoSync: false,
         serveAuthorizer: this._serveAuthorizer,   // [mirall] serve gate
         localProfileKey: this._localProfileKey,    // [mirall] outbound identity
+        minVersion: this._minVersion,              // [mirall] undefined -> protocol default
+        onPeerOpen: this._onPeerOpen,
+        onPeerRejected: this._onPeerRejected,
         onSynced: (info) => this._onSynced(info),
         onChunkProgress: (info) => this._onChunkProgress(info),
         onServeStart: this._onServeStart,
@@ -144,7 +155,8 @@ export class HyperOverlayV2 extends ReadyResource {
         onServeControl: this._onServeControl,
         onServeProgress: this._onServeProgress,
         uploadLimiter: this._uploadLimiter,
-        downloadLimiter: this._downloadLimiter
+        downloadLimiter: this._downloadLimiter,
+        serveFdIdleMs: this._serveFdIdleMs
       })
       try { fs.mkdirSync(this._destDir, { recursive: true }) } catch {}
       if (this._journalDir) { try { fs.mkdirSync(this._journalDir, { recursive: true }) } catch {} }

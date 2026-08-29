@@ -263,11 +263,18 @@ export async function publishContent(spaceId, shareId, relPath, absPath, { onAdv
 
 // Undo a half-advertised (contentHash:null) catalog entry after a failed publish:
 // re-advertise the prior version on a re-publish, or tombstone a first publish.
+// Non-throwing on purpose: the caller is about to rethrow the publish error, which this must not
+// replace. A revert that fails leaves the entry visible to members as 'preparing' until the next
+// scan or boot rehydrate re-hashes it, so the operator has to be told.
 async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = directCatalog) {
-  if (prev?.contentHash) {
-    await catalog.advertise(spaceId, shareId, relPath, { size: prev.size, mtime: prev.mtime, contentHash: prev.contentHash }).catch(() => {})
-  } else {
-    await catalog.tombstone(spaceId, shareId, relPath).catch(() => {})
+  try {
+    if (prev?.contentHash) {
+      await catalog.advertise(spaceId, shareId, relPath, { size: prev.size, mtime: prev.mtime, contentHash: prev.contentHash })
+    } else {
+      await catalog.tombstone(spaceId, shareId, relPath)
+    }
+  } catch (err) {
+    log.warn('could not revert a half-advertised entry — members see it as preparing until the next scan:', shareId, relPath, '-', err.message)
   }
 }
 
@@ -607,7 +614,9 @@ export async function overlayCancelSpace (spaceId) {
   for (const [transferId, slot] of folderEngine.activeSlots()) {
     if (slot.spaceId === spaceId) ids.push(transferId)
   }
-  await Promise.all(ids.map((id) => folderEngine.cancel(id)))
+  // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
+  // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
+  await Promise.all(ids.map((id) => folderEngine.cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
 }
 export const resumeOverlayForOwner = (ownerKey, spaceId) => folderEngine.resumeForOwner(ownerKey, spaceId)
 export const overlayHasTransfer = (transferId) => folderEngine.has(transferId)

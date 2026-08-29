@@ -17,7 +17,7 @@ import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import {
-  getForeignMount, saveForeignMount, deleteForeignMount, findForeignMountByShareId,
+  getForeignMount, saveForeignMount, deleteForeignMount, patchForeignMount, findForeignMountByShareId,
 } from './mount-store.js'
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { mountRootAvailable } from './owned-folders.js'
@@ -72,16 +72,20 @@ function safeMaterializePath (mountPath, relPath) {
 //  3) on-disk bytes already equal the share's hash -> natural (applyChange
 //  hash-skips it; this is what lets unmount->re-mount adopt the prior copy);
 //  4) a genuine pre-existing user file -> a free sibling, recorded in renamedPaths.
-async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf = overlayHashFile) {
+async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf = overlayHashFile, synced = syncedSetFor(mount), fresh = null) {
   const mapped = mount.renamedPaths?.[ownerKey]
   if (mapped) return mapped
 
   const naturalAbs = safeMaterializePath(mount.mountPath, ownerKey)
-  if (!fs.existsSync(naturalAbs) || (mount.syncedPaths || []).includes(ownerKey)) return ownerKey
+  if (!fs.existsSync(naturalAbs) || (synced.has(ownerKey) && !fresh?.has(ownerKey))) return ownerKey
 
-  // hashOf must match how ownerHash was computed: the overlay hasher for overlay
-  // shares — else the adopt-existing-copy check never matches and a collision
-  // sibling is minted.
+  // hashOf must match how ownerHash was computed: the overlay hasher for overlay shares — else
+  // the adopt-existing-copy check never matches and a collision sibling is minted.
+  //
+  // Deliberately NOT short-circuited by the verified-download record: that record proves some
+  // local path held this content, not that THIS natural path does. Consulting it here adopts a
+  // user's unrelated file at the natural name whenever the mirror had previously written the
+  // same content to a collision sibling — foreign-sync's rename case catches exactly that.
   if (ownerHash) {
     try { if (await hashOf(naturalAbs) === ownerHash) return ownerKey } catch {}
   }
@@ -98,6 +102,7 @@ async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf = overlay
   }
   const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
   ;(mount.renamedPaths ||= {})[ownerKey] = localRel
+  syncDirty.add(loopKey(mount.spaceId, mount.shareId))
   return localRel
 }
 
@@ -112,7 +117,9 @@ function localRelOf (mount, ownerKey) {
 function pruneRenamedPaths (mount, onDrive) {
   if (!mount.renamedPaths) return
   for (const ownerKey of Object.keys(mount.renamedPaths)) {
-    if (!onDrive.has(ownerKey)) delete mount.renamedPaths[ownerKey]
+    if (onDrive.has(ownerKey)) continue
+    delete mount.renamedPaths[ownerKey]
+    syncDirty.add(loopKey(mount.spaceId, mount.shareId))
   }
 }
 
@@ -199,7 +206,8 @@ const AUTO_PAUSE_STATUSES = new Set([STATUS_MOUNT_GONE, STATUS_ENOSPC, STATUS_IO
 async function pauseMount(mount, status, reason) {
   mount.enabled = false
   mount.status = status
-  await saveForeignMount(mount)
+  // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed.
+  await saveForeignMount({ ...mount, ...syncFields(mount) })
   // Symmetry with the user-pause path (setForeignEnabled(false)): stop the poll loop so an
   // auto-paused mount doesn't keep a live interval, its in-flight fetch is cancelled, and its
   // cancelGen is bumped — the last point lets an in-progress scan bail before it would
@@ -439,6 +447,55 @@ const activeOverlayFetches = new Map()
 // released — lets a later unmount tell the holder we stopped rather than leaving its "who is
 // downloading" row paused until the 5-min sweep. Mirrors overlay-download's pausedHashes.
 const pausedMirrorHashes = new Map()
+// One in-memory Set of synced owner keys per mount — the authoritative copy while the process
+// lives. mount.syncedPaths (the persisted array) is its boot-time seed and durable snapshot,
+// written back only when the Set changed. Membership is asked once per catalog entry per tick,
+// so it must be O(1): the array scan it replaces made a fully-synced tick quadratic. The Set
+// outlives pause/resume (a stopped pass has already written files it must keep owning) and is
+// dropped only on unmount, with the record.
+const syncedSets = new Map() // loopKey -> Set<ownerKey>
+const syncDirty = new Set()  // loopKeys whose Set / renamedPaths differ from the persisted record
+
+function syncedSetFor (mount) {
+  const key = loopKey(mount.spaceId, mount.shareId)
+  let set = syncedSets.get(key)
+  if (!set) {
+    set = new Set(mount.syncedPaths || [])
+    syncedSets.set(key, set)
+  }
+  return set
+}
+
+// `fresh` collects the keys this pass claimed. Ownership is recorded BEFORE the write lands (so a
+// cancelled pass still owns what it wrote), but the collision check must still see such a path as
+// NOT-yet-ours — otherwise a pre-existing user file at the natural name is adopted instead of
+// getting a sibling. The persisted record and the "did we write this before?" question are two
+// different things, and the pre-fix code kept them apart by reading the persisted array while
+// building a separate list.
+function recordSynced (key, set, ownerKey, fresh) {
+  if (set.has(ownerKey)) return
+  set.add(ownerKey)
+  fresh?.add(ownerKey)
+  syncDirty.add(key)
+}
+
+function forgetSynced (key, set, ownerKey) {
+  if (set.delete(ownerKey)) syncDirty.add(key)
+}
+
+function syncFields (mount) {
+  return { syncedPaths: [...syncedSetFor(mount)], renamedPaths: mount.renamedPaths || {} }
+}
+
+// Persist the sync bookkeeping once per pass, only when it changed, and never from a pass that
+// was cancelled: a pause persists the Set itself, and unmount deleted the record. The old code
+// wrote the whole record on EVERY tick of an owner-online mirror — about 36 B per path, so a
+// converged 5k-file mirror appended ~180 KB to the mounts bee every 30 s.
+async function persistSyncState (mount, key, gen) {
+  if (!syncDirty.has(key) || mirrorStopped(key, gen)) return
+  if (await patchForeignMount(mount.spaceId, mount.shareId, syncFields(mount))) syncDirty.delete(key)
+}
+
 function mirrorGen(key) { return cancelGen.get(key) || 0 }
 
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
@@ -522,7 +579,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.
-  const localRelPath = await resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf)
+  const localRelPath = await resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || syncedSetFor(mount), opts.fresh)
   const abs = safeMaterializePath(mount.mountPath, localRelPath)
   let onDisk = null
   try { onDisk = await fs.promises.stat(abs) } catch {}
@@ -608,15 +665,20 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
 async function initialMaterializeScanCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
+  // Resolved before the first await: a pass cancelled by an unmount must never recreate a
+  // re-mounted key's Set from its stale mount object.
+  const synced = syncedSetFor(mount)
+  const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, 'catalog-initial')
   let allPresent = true
-  const synced = []
   for (const entry of entries) {
     if (mirrorStopped(key, gen)) return { stopped: true }
-    synced.push(entry.relPath)
+    // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
+    // wrote, or the owner's later delete of that file is never applied.
+    recordSynced(key, synced, entry.relPath, fresh)
     try {
-      if (await materializeCatalogFile(mount, share, entry) === 'missing') allPresent = false
+      if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
     } catch (err) {
       allPresent = false
       log.debug('catalog initial materialize failed:', entry.relPath, '-', err.message)
@@ -627,10 +689,18 @@ async function initialMaterializeScanCatalog(mount, share) {
   // record — union instead, or a mirror that already holds 12 files forgets 8 of them on a
   // truncated re-scan (and with it the evidence a later deletion would be judged against). Only a
   // complete read is authoritative enough to replace the record, or to stamp the scan done.
-  mount.syncedPaths = complete ? synced : [...new Set([...(mount.syncedPaths || []), ...synced])]
-  if (complete) mount.initialScanCompletedAt = Date.now()
+  if (complete) {
+    const listed = new Set(entries.map((e) => e.relPath))
+    for (const ownerKey of [...synced]) if (!listed.has(ownerKey)) forgetSynced(key, synced, ownerKey)
+    mount.initialScanCompletedAt = Date.now()
+  }
   mount.status = 'active'
-  await saveForeignMount(mount)
+  await patchForeignMount(mount.spaceId, mount.shareId, {
+    ...syncFields(mount),
+    status: 'active',
+    ...(complete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
+  })
+  syncDirty.delete(key)
   emitStatus(mount.spaceId, mount.shareId, 'active')
   // Skip the terminal state on an empty or partial listing: at mount the owner's catalog may not
   // have replicated yet, and publishing 'synced' with zero (or truncated) entries would falsely
@@ -644,15 +714,17 @@ async function initialMaterializeScanCatalog(mount, share) {
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
+  const synced = syncedSetFor(mount)
+  const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, 'catalog-tick')
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
-  const renamedBefore = Object.keys(mount.renamedPaths || {}).length
   let allPresent = true
   for (const [, entry] of onDrive) {
     if (mirrorStopped(key, gen)) return
+    recordSynced(key, synced, entry.relPath, fresh)
     try {
-      if (await materializeCatalogFile(mount, share, entry) === 'missing') allPresent = false
+      if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
     } catch (err) {
       allPresent = false
       log.debug('catalog materialize failed:', entry.relPath, '-', err.message)
@@ -666,26 +738,22 @@ async function materializeOnceCatalog(mount, share) {
     driveCount: onDrive.size,
     listingComplete: complete,
   })
-  const synced = new Set(mount.syncedPaths || [])
   if (honorDeletions) {
-    for (const ownerKey of synced) {
+    for (const ownerKey of [...synced]) {
+      if (onDrive.has(ownerKey)) continue
       if (relKeyEscapes(ownerKey)) {
         log.warn('refusing to honor a stored sync path that escapes the mount folder — skipping deletion:', ownerKey)
+        forgetSynced(key, synced, ownerKey)
         continue
       }
-      if (!onDrive.has(ownerKey)) await applyChange(mount, { action: 'del', relPath: ownerKey, localRelPath: localRelOf(mount, ownerKey) })
+      await applyChange(mount, { action: 'del', relPath: ownerKey, localRelPath: localRelOf(mount, ownerKey) })
+      forgetSynced(key, synced, ownerKey)
     }
-    mount.syncedPaths = [...onDrive.keys()]
     pruneRenamedPaths(mount, onDrive)
-    await saveForeignMount(mount)
-  } else {
-    const before = synced.size
-    for (const ownerKey of onDrive.keys()) synced.add(ownerKey)
-    if (synced.size !== before || Object.keys(mount.renamedPaths || {}).length !== renamedBefore) {
-      mount.syncedPaths = [...synced]
-      await saveForeignMount(mount)
-    }
   }
+  // Once per pass and only when something changed — the old code wrote the whole record on every
+  // tick of an owner-online mirror, whether or not anything moved.
+  await persistSyncState(mount, key, gen)
   // Re-check the generation adjacent to the enqueue (no await between) so a pause/unmount that
   // landed during the deletion-reconcile await above can't be overwritten by this terminal write.
   if (!mirrorStopped(key, gen)) await settleMirrorSyncState(mount, allPresent)
@@ -786,6 +854,11 @@ export async function unmountForeignFolder(spaceId, shareId) {
   // source), so there is no per-share blob cache to reclaim on unmount — the
   // materialized files stay on disk, matching owner-delete behaviour.
   await deleteForeignMount(spaceId, shareId)
+  // The Set's lifetime is the record's: drop it with the record so a re-mount starts from the
+  // persisted array again rather than inheriting this mount's ownership.
+  const key = loopKey(spaceId, shareId)
+  syncedSets.delete(key)
+  syncDirty.delete(key)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, 'idle')
   ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
@@ -797,7 +870,7 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   const wasEnabled = mount.enabled !== false
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'
-  await saveForeignMount(mount)
+  await saveForeignMount({ ...mount, ...syncFields(mount) })
   if (enabled) {
     await startForeignLoop(mount)
     // Only a genuine resume (was paused) touches the record and re-evaluates now: set 'syncing',

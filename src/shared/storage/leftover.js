@@ -9,7 +9,7 @@ import Hyperdrive from 'hyperdrive'
 import { createLogger } from '../core/logger.js'
 import { getStore, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../core/store.js'
 import { listSpaces, getDrive, purgeCoreDk } from '../spaces/space.js'
-import { getProfileBee, openProfileBee } from '../spaces/profile.js'
+import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { ownCatalog, readCatalogKey } from '../shares/share-catalog.js'
 import { compactStore } from '../transfer/swarm.js'
 import { withReadTimeout } from '../core/with-timeout.js'
@@ -60,18 +60,22 @@ async function addLocalDriveCores(set, drive) {
 // Local read only: a current member's published catalog keys come from their
 // already-replicated profile bee. No core.update (that waits on the swarm and is
 // what made the scan exceed the IPC deadline) and no waiting block reads.
-async function localPeerCatalogKeys(profileKeyHex, spaceId) {
+function localPeerCatalogKeys(profileKeyHex, spaceId) {
+  // The accumulator IS the fallback: a peer bee is by definition partially replicated, so a
+  // mid-stream BLOCK_NOT_AVAILABLE (the reason this read uses `wait: false`) is expected — and
+  // the keys collected before it must still reach the wanted set. Returning an empty list there
+  // would let the reclaim treat a live catalog as an orphan and purge it.
   const keys = []
-  try {
-    const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-    await bee.ready()
+  // sync:false keeps this a purely local read (no head pull), as before; withPeerBee adds the
+  // close the bare open never had.
+  return withPeerBee(profileKeyHex, async (bee) => {
     const prefix = SHARE_PREFIX + spaceId + '/'
     for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' }, { wait: false })) {
       const ck = readCatalogKey(entry.value).keyHex
       if (ck && HEX64.test(ck)) keys.push(ck)
     }
-  } catch { /* unreadable locally → catalog re-replicates on next browse if purged */ }
-  return keys
+    return keys
+  }, { sync: false, fallback: keys })
 }
 
 // Built entirely from local/deterministic sources — no open-by-key, no swarm
@@ -101,11 +105,18 @@ export async function buildWantedKeys() {
     log.warn('wanted overlay cores failed:', err.message)
   }
 
+  let unopenedDrive = false
   for (const space of await listSpaces()) {
     const drive = getDrive(space.spaceId)
     if (drive) {
       await withReadTimeout(addLocalDriveCores(wanted, drive), INSPECT_MS, null)
         .catch((err) => log.warn('wanted own drive failed:', space.spaceId, err.message))
+    } else if (space.status !== 'pending' && !space.leaving) {
+      // A listed space whose drive is not loaded — a boot open that failed and is being
+      // retried next boot (driveLoadError). Its cores are reachable only through the drive
+      // handle, so they cannot be added to the wanted set here; mark the scan unsafe instead
+      // of letting a sweep reclaim a drive the space still expects to use.
+      unopenedDrive = true
     }
     try { await addBeeCore(wanted, await ownCatalog(space.spaceId)) } catch (err) {
       log.warn('wanted own catalog failed:', space.spaceId, err.message)
@@ -123,6 +134,9 @@ export async function buildWantedKeys() {
       }
     }
   }
+  // A drive we could not open is not in `wanted` and would scan as an orphan, so the caller is
+  // told to withhold the drive category rather than reclaim a space's own storage.
+  wanted.unopenedDrive = unopenedDrive
   return wanted
 }
 
@@ -229,8 +243,12 @@ export async function classifyLeftovers() {
   for (const r of inspected) {
     if (r.kind === 'profile') profiles.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
     else if (r.kind === 'catalog') catalogs.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
-    else if (r.kind === 'drive') orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
+    // A drive only counts as an orphan when every space's own drive is loaded. If one failed to
+    // open this boot, its cores look unwanted while the space is still listed and expects to
+    // retry — reclaiming them would destroy the space's storage.
+    else if (r.kind === 'drive' && !wanted.unopenedDrive) orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
   }
+  if (wanted.unopenedDrive) log.warn('a space drive did not load this session — leaving orphan drives out of the reclaim scan')
   const sum = (a) => a.reduce((n, r) => n + r.bytes, 0)
   return {
     profiles: { count: profiles.length, bytes: sum(profiles), keys: profiles },

@@ -22,6 +22,11 @@ const PROTOCOL = 'hyper-overlay/v2'
 const VERSION = 2
 const CAP_LOCAL_FILES = 0x01
 const CAP_ADAPTIVE_CHUNKS = 0x02
+// [mirall] lowest remote version a channel stays open for. 1 is the unannounced version
+// (messages-v2 UNANNOUNCED_HANDSHAKE), so nothing in the field is refused today; raise it in the
+// same change that drops a message slot or changes a codec, never before.
+const MIN_VERSION = 1
+export { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS }
 
 // [mirall] §4.12 — a file's chunk list, shipped in one frame, can exceed the
 // 16 MiB-1 Noise transport limit (@hyperswarm/secret-stream MAX_ATOMIC_WRITE):
@@ -65,6 +70,17 @@ const DRAIN_NO_PROGRESS_MS = 20000
 // no-progress watchdog (chunk-scheduler's 30s DEFAULT_IDLE_TIMEOUT): waiting on a cap puts
 // nothing on the wire, so without this a capped-but-healthy holder reads as a wedged one.
 const KEEPALIVE_INTERVAL_MS = 5000
+// [mirall] a serve session's fd is closed after this long without a read for it. Bounds how
+// long a handle is held on the user's file after a peer finishes or stalls (on Windows a held
+// handle defers the file's deletion until it closes); a loop parked on the upload cap or on
+// backpressure past this simply re-opens on its next chunk.
+const SERVE_FD_IDLE_MS = 30000
+const SERVE_FD_SWEEP_MS = 15000
+// [mirall] a peer mirroring a large folder touches thousands of files inside one idle window, so
+// time alone does not bound the handle count. Past this many open sources for ONE peer the least
+// recently used idle handle is closed to make room; EMFILE would otherwise surface as chunks
+// silently skipped.
+const SERVE_FD_MAX_PER_PEER = 64
 
 export class OverlayProtocolV2 {
   constructor (syncEngine, transferManager, opts = {}) {
@@ -132,7 +148,21 @@ export class OverlayProtocolV2 {
     // [mirall] FIX-BW10 — injectable so a test can exercise the real wait without a 20 s deadline.
     this._drainTimeout = opts.drainTimeout ?? DRAIN_TIMEOUT_MS
     this._drainNoProgress = opts.drainNoProgress ?? DRAIN_NO_PROGRESS_MS
+    // [mirall] injectable so a test can see the idle close without a 30 s wait.
+    this._serveFdIdleMs = opts.serveFdIdleMs ?? SERVE_FD_IDLE_MS
+    // Unref'd: with nothing served there is nothing to sweep; destroy() clears it.
+    // Floored: serveFdIdleMs 0 ("close immediately") would otherwise arm a 0 ms interval and
+    // spin the loop for the protocol's lifetime.
+    this._serveFdSweep = setInterval(() => this._sweepServeFds(), Math.max(50, Math.min(SERVE_FD_SWEEP_MS, this._serveFdIdleMs)))
+    this._serveFdSweep.unref?.()
     this._localProfileKey = opts.localProfileKey || null
+    // [mirall] channel handshake policy. onPeerOpen({ peer, version, capabilities }) fires once
+    // the remote's version + caps are known and accepted; onPeerRejected fires instead when the
+    // remote is below minVersion, just before its channel is closed. Both are informational:
+    // vendor/ has no logger.
+    this._minVersion = opts.minVersion ?? MIN_VERSION
+    this._peerOpenCb = opts.onPeerOpen || null
+    this._peerRejectedCb = opts.onPeerRejected || null
   }
 
   /**
@@ -252,9 +282,12 @@ export class OverlayProtocolV2 {
     const channel = mux.createChannel({
       protocol: PROTOCOL,
       id: this._overlayKey || null,
-      onopen () {
+      // [mirall] without this protomux never encodes what open() is handed below and calls
+      // onopen with nothing: the version and capability bits were never on the wire.
+      handshake: messages.handshake,
+      onopen (hs) {
         const peer = self._peers.get(mux)
-        if (peer) self._onOpen(peer)
+        if (peer) self._onOpen(peer, hs)
       },
       onclose () {
         const peer = self._peers.get(mux)
@@ -263,6 +296,8 @@ export class OverlayProtocolV2 {
         // take() with 0 (so it returns instead of sending to a dead channel) and hands back
         // budget charged for bytes that will never go out.
         if (peer?.uploadStream) { try { peer.uploadStream.detach() } catch {} ; peer.uploadStream = null }
+        // [mirall] release every fd this peer's serve loops held.
+        if (peer) self._closeServeFds(peer)
         // Failover: let any active multi-source fetch reassign this peer's
         // inflight chunks to the remaining peers.
         if (peer) for (const sched of self._schedulers.values()) sched.removePeer(peer)
@@ -284,6 +319,11 @@ export class OverlayProtocolV2 {
 
     const peer = {
       mux, channel, remoteFeedKey: null, remoteSeq: 0, msgs: {},
+      // [mirall] the remote's announced protocol version + capability bits, from the channel
+      // handshake; null/0 until onopen. An unannounced (pre-handshake) peer reads 1/0.
+      remoteVersion: null, remoteCaps: 0,
+      // [mirall] set by the minVersion gate in _onOpen; see `recv` below.
+      rejected: false,
       pendingTrees: new Map(), // hash → { resolve, reject, timer, timeout, nonce, pages, pageBytes }
       // [mirall] synthetic serve-paths this peer was authorized for via a
       // GATED _onContentRequest, mapped to the requester profileKey (msg.from).
@@ -296,27 +336,35 @@ export class OverlayProtocolV2 {
       uploadStream: null
     }
 
-    peer.msgs.syncState = channel.addMessage({ encoding: messages.syncState, onmessage: (msg) => self._onSyncState(peer, msg) })
-    peer.msgs.fileOffer = channel.addMessage({ encoding: messages.fileOffer, onmessage: (msg) => self._onFileOffer(peer, msg) })
-    peer.msgs.fileRequest = channel.addMessage({ encoding: messages.fileRequest, onmessage: (msg) => self._onFileRequest(peer, msg) })
-    peer.msgs.chunkHashes = channel.addMessage({ encoding: messages.chunkHashes, onmessage: (msg) => self._onChunkHashes(peer, msg) })
-    peer.msgs.chunkNeed = channel.addMessage({ encoding: messages.chunkNeed, onmessage: (msg) => self._onChunkNeed(peer, msg) })
-    peer.msgs.chunkData = channel.addMessage({ encoding: messages.chunkData, onmessage: (msg) => self._onChunkData(peer, msg) })
-    peer.msgs.chunkCancel = channel.addMessage({ encoding: messages.chunkCancel, onmessage: (msg) => self._onChunkCancel(peer, msg) })
-    peer.msgs.transferComplete = channel.addMessage({ encoding: messages.transferComplete, onmessage: (msg) => self._onTransferComplete(peer, msg) })
-    peer.msgs.conflict = channel.addMessage({ encoding: messages.conflict, onmessage: (msg) => self._onConflictMsg(peer, msg) })
+    // [mirall] a peer refused by the minVersion gate must not be dispatched to. protomux calls
+    // onopen and THEN drains whatever the remote pipelined behind its open, against a record it
+    // captured before our close() detached the channel — so closing the channel does not by
+    // itself stop those frames. Unreachable in Mirall today (that drain only runs on the
+    // incoming-pairing branch, and nothing here calls mux.pair()), but it is precisely the
+    // bypass the gate exists to prevent, so the guard sits on the dispatch itself.
+    const recv = (fn) => (msg) => { if (!peer.rejected) fn(msg) }
+
+    peer.msgs.syncState = channel.addMessage({ encoding: messages.syncState, onmessage: recv((msg) => self._onSyncState(peer, msg)) })
+    peer.msgs.fileOffer = channel.addMessage({ encoding: messages.fileOffer, onmessage: recv((msg) => self._onFileOffer(peer, msg)) })
+    peer.msgs.fileRequest = channel.addMessage({ encoding: messages.fileRequest, onmessage: recv((msg) => self._onFileRequest(peer, msg)) })
+    peer.msgs.chunkHashes = channel.addMessage({ encoding: messages.chunkHashes, onmessage: recv((msg) => self._onChunkHashes(peer, msg)) })
+    peer.msgs.chunkNeed = channel.addMessage({ encoding: messages.chunkNeed, onmessage: recv((msg) => self._onChunkNeed(peer, msg)) })
+    peer.msgs.chunkData = channel.addMessage({ encoding: messages.chunkData, onmessage: recv((msg) => self._onChunkData(peer, msg)) })
+    peer.msgs.chunkCancel = channel.addMessage({ encoding: messages.chunkCancel, onmessage: recv((msg) => self._onChunkCancel(peer, msg)) })
+    peer.msgs.transferComplete = channel.addMessage({ encoding: messages.transferComplete, onmessage: recv((msg) => self._onTransferComplete(peer, msg)) })
+    peer.msgs.conflict = channel.addMessage({ encoding: messages.conflict, onmessage: recv((msg) => self._onConflictMsg(peer, msg)) })
 
     // 0.5a — tree messages (backward-compatible additions)
-    peer.msgs.treeRequest = channel.addMessage({ encoding: messages.treeRequest, onmessage: (msg) => self._onTreeRequest(peer, msg) })
-    peer.msgs.treeResponse = channel.addMessage({ encoding: messages.treeResponse, onmessage: (msg) => self._onTreeResponse(peer, msg) })
-    peer.msgs.contentRequest = channel.addMessage({ encoding: messages.contentRequest, onmessage: (msg) => self._onContentRequest(peer, msg) })
+    peer.msgs.treeRequest = channel.addMessage({ encoding: messages.treeRequest, onmessage: recv((msg) => self._onTreeRequest(peer, msg)) })
+    peer.msgs.treeResponse = channel.addMessage({ encoding: messages.treeResponse, onmessage: recv((msg) => self._onTreeResponse(peer, msg)) })
+    peer.msgs.contentRequest = channel.addMessage({ encoding: messages.contentRequest, onmessage: recv((msg) => self._onContentRequest(peer, msg)) })
     // Appended-last slots: ids 0-11 stay fixed for peers without 12/13/14, which just
     // never register these channels and ignore the frames. Anything new goes at the END —
     // protomux dispatches positionally, so an insertion shifts every later id and silently
     // mis-routes frames between versions.
-    peer.msgs.transferControl = channel.addMessage({ encoding: messages.transferControl, onmessage: (msg) => self._onTransferControl(peer, msg) })
-    peer.msgs.transferProgress = channel.addMessage({ encoding: messages.transferProgress, onmessage: (msg) => self._onTransferProgress(peer, msg) })
-    peer.msgs.keepAlive = channel.addMessage({ encoding: messages.keepAlive, onmessage: (msg) => self._onKeepAlive(peer, msg) })
+    peer.msgs.transferControl = channel.addMessage({ encoding: messages.transferControl, onmessage: recv((msg) => self._onTransferControl(peer, msg)) })
+    peer.msgs.transferProgress = channel.addMessage({ encoding: messages.transferProgress, onmessage: recv((msg) => self._onTransferProgress(peer, msg)) })
+    peer.msgs.keepAlive = channel.addMessage({ encoding: messages.keepAlive, onmessage: recv((msg) => self._onKeepAlive(peer, msg)) })
 
     this._peers.set(mux, peer)
     channel.open({ version: VERSION, capabilities: CAP_LOCAL_FILES | CAP_ADAPTIVE_CHUNKS })
@@ -425,16 +473,119 @@ export class OverlayProtocolV2 {
   get peerCount () { return this._peers.size }
 
   destroy () {
+    clearInterval(this._serveFdSweep)
     for (const [, peer] of this._peers) {
       this._failPendingTrees(peer, new Error('protocol destroyed'))
+      this._closeServeFds(peer)
       peer.channel.close()
     }
     this._peers.clear()
   }
 
+  // [mirall] read one chunk for a serve loop through this peer's fd for the file, opening it on
+  // first use. Keyed by disk path per PEER, not per grant: one file can be granted under more
+  // than one synthetic path, and an ungated embedder has no grants at all. The fd number is
+  // never carried across an await — it is read from the entry right before the read is issued,
+  // and every close deletes the entry BEFORE closing — so a reused descriptor number can never
+  // be mistaken for a live one. `busy` keeps the sweep off an entry whose fill loop is between
+  // reads.
+  async _readServeChunk (peer, diskPath, c) {
+    if (!peer._serveFds) peer._serveFds = new Map()
+    let src = peer._serveFds.get(diskPath)
+    if (!src) {
+      const fd = await this._transferManager.openChunkSource(diskPath)
+      if (fd === null || fd === undefined) return null
+      // Across that await the channel may have closed (onclose already swept the map, so an fd
+      // stored now would leak) or a sibling loop may have opened the same file first.
+      src = peer._serveFds.get(diskPath)
+      if (peer.channel?.closed || src) {
+        this._dropFd(fd)
+        if (!src) return null
+      } else {
+        src = { fd, lastAt: 0, busy: 0, pendingClose: false }
+        peer._serveFds.set(diskPath, src)
+        this._trimServeFds(peer)
+      }
+    }
+    src.lastAt = Date.now()
+    src.busy++
+    try {
+      return await this._transferManager.readChunkAt(src.fd, c.offset, c.length)
+    } finally {
+      src.busy--
+      // A close that arrived mid-read deferred to us: the descriptor is only safe to release
+      // once no read still holds it, or a concurrent open could reuse the number underneath
+      // readChunkAt's partial-read loop.
+      if (src.pendingClose && !src.busy) this._dropFd(src.fd)
+    }
+  }
+
+  // Keep one peer's open sources bounded. Only idle entries are eligible; a busy one is left for
+  // the next pass (its own read will release it if a close is pending).
+  _trimServeFds (peer) {
+    if (peer._serveFds.size <= SERVE_FD_MAX_PER_PEER) return
+    for (const [diskPath, src] of peer._serveFds) {
+      if (peer._serveFds.size <= SERVE_FD_MAX_PER_PEER) return
+      if (!src.busy) this._closeServeFd(peer, diskPath, src)
+    }
+  }
+
+  // Close is async and best-effort; Promise.resolve() tolerates an embedder whose transfer
+  // manager returns nothing.
+  _dropFd (fd) {
+    Promise.resolve(this._transferManager.closeChunkSource(fd)).catch(() => {})
+  }
+
+  // Removing the entry first is what stops a later read from finding a closed descriptor; the
+  // close itself waits for any read still in flight (readChunkAt carries src.fd across the awaits
+  // of its partial-read loop, so closing underneath it could hand those reads a reused number).
+  _closeServeFd (peer, diskPath, src) {
+    peer._serveFds.delete(diskPath)
+    if (src.busy) { src.pendingClose = true; return }
+    this._dropFd(src.fd)
+  }
+
+  _closeServeFds (peer) {
+    if (!peer._serveFds) return
+    for (const [diskPath, src] of peer._serveFds) this._closeServeFd(peer, diskPath, src)
+  }
+
+  _sweepServeFds () {
+    const now = Date.now()
+    for (const peer of this._peers.values()) {
+      if (!peer._serveFds) continue
+      for (const [diskPath, src] of peer._serveFds) {
+        if (!src.busy && now - src.lastAt > this._serveFdIdleMs) this._closeServeFd(peer, diskPath, src)
+      }
+    }
+  }
+
   // ── Handlers ────────────────────────────────────────────────
 
-  _onOpen (peer) {
+  _onOpen (peer, hs) {
+    // [mirall] record what the remote speaks. A peer whose open frame carried no handshake
+    // decodes to UNANNOUNCED_HANDSHAKE (v1, no caps), so a behaviour gated on
+    // `peer.remoteCaps & CAP_X` is off against it without a special case here.
+    const announced = hs || messages.UNANNOUNCED_HANDSHAKE
+    peer.remoteVersion = announced.version
+    peer.remoteCaps = announced.capabilities
+    if (announced.version < this._minVersion) {
+      // [mirall] both callbacks must be SYNCHRONOUS: the try/catch below only contains a throw,
+      // so an async callback's rejection would escape as an unhandled rejection. The app passes
+      // plain log calls.
+      if (this._peerRejectedCb) {
+        try { this._peerRejectedCb({ peer, version: announced.version, capabilities: announced.capabilities, minVersion: this._minVersion }) } catch {}
+      }
+      // Closes only THIS channel; the socket and its sibling control channel
+      // (mirall/handshake, or mirall/content-hello when the separate content plane is on) stay up,
+      // as does corestore replication on whichever socket carries it.
+      peer.rejected = true
+      peer.channel.close()
+      return
+    }
+    if (this._peerOpenCb) {
+      try { this._peerOpenCb({ peer, version: announced.version, capabilities: announced.capabilities }) } catch {}
+    }
     peer.msgs.syncState.send({
       feedKey: this._syncEngine.feedKey,
       localSeq: this._syncEngine.feed.length,
@@ -800,8 +951,13 @@ export class OverlayProtocolV2 {
       const index = msg.indices[i]
       if (index >= chunkMap.length) continue
       const c = chunkMap[index]
-      const data = this._transferManager.readChunk(diskPath, c.offset, c.length)
+      // [mirall] async positioned read on the session fd. The wait is a revocation window like
+      // the limiter and drain waits below, so the grant is re-checked past it and BEFORE the cap
+      // is charged: a revoked chunk is never paid for.
+      const data = await this._readServeChunk(peer, diskPath, c)
+      if (peer.channel?.closed) return
       if (!data) continue
+      if (this._serveAuthorizer && !(await this._serveStillAuthorized(peer, msg.path))) return
       // [mirall] Upload cap, charged against THIS peer's own stream so concurrent serve
       // loops share the cap by bytes instead of racing (see bandwidth-limiter). take()
       // resolves with the bytes actually paid for; 0 means the wait was aborted — the

@@ -184,7 +184,7 @@ Every bee below uses **utf-8 keys, JSON values**.
 | `observed/<peerKey>/<spaceId>` | `{ ts }` | Witness observation, written when this peer observes another leave. A backup evidence source for receivers who were offline at leave-time. Gated by `caps/leave-observations` |
 | `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` | A folder share this user owns. Replicates via the profile bee — that's how peers discover shares. Deletion is a **tombstone** (row kept) so peers distinguish "owner removed it" from "never replicated". Gated by `caps/folder-shares`. §7 |
 
-Peers read each other's avatars and manifests by opening the remote profile bee by that key (`openProfileBee()`) — 10 s timeout for avatars, 1.5 s for the membership read.
+Peers read each other's avatars and manifests through `withPeerBee()`, which opens the remote profile bee by that key, pulls its head, runs the read and **closes the session** — one bounded read, one budget covering both phases, and a session-level timeout so an abandoned read cannot pin the core through a hung batch. Exactly one bee per peer is held open for the process: the holder carrying the `append` listener that drives admission re-evaluation, the share-list refresh and the audit observer. (Before this, every transient read opened a session that was never closed, so nothing was ever reclaimed and every leaked core stayed attached to every replication stream.) Reads are bounded by a 10 s budget for avatars and 1.5 s for the membership read.
 
 #### Capability flags
 
@@ -207,7 +207,9 @@ Defined today: `caps/membership-manifest`, `caps/leave-observations`, `caps/fold
 
 | Key | Value |
 |---|---|
-| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder? }` |
+| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder?, driveLoadError? }` |
+
+`driveLoadError: { message, at }` is stamped when the space's drive could not be opened at boot and cleared on the next successful load (§4.6).
 
 `id` = first 16 hex chars of the topic. `icon` = Material Symbols name. `topic` = 32-byte Hyperswarm discovery topic (hex). `members` = `[{ publicKey, driveKey, displayName, avatar? }]`.
 
@@ -232,6 +234,8 @@ per-space override (from `space/<id>.downloadFolder`) → the global root → th
 
 `<spaceId>:<filePath>` → `{ total, inPlace, ownerKey, finalPath, shareId, relPath, bytesTransferred, updatedAt, errorCode?, erroredAt? }`
 
+Writes to one row are serialized per key (`createKeyedLock`), so the progress ticker cannot overtake a status write — a tick issued after an error verdict can no longer read the row before the verdict and put it back without one.
+
 `finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.mirall.part` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
 
 Rows clear on completion (`clearPending`), cancel, `files:discard-partial`, and space leave.
@@ -242,7 +246,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 
 **The drive carries no file bytes.** Its `driveKey` is the member's per-space identity: the handshake binding signs `noise||driveKey` (§16) and members are matched by it. `listFiles` reads the local drive solely for that key; `files:add` only checks it exists.
 
-**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `share-catalog.js`) with bounded read timeouts so one offline peer can't stall a listing. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
+**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `share-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
 
 #### Canonical file-state model
 
@@ -384,6 +388,10 @@ Owned by `src/shared/folders/mount-store.js`. Records which local paths back a s
 
 Each folder/loose share has a replicated **catalog** (`shares/share-catalog.js`) that the overlay backend advertises into and consumers list from: per-file path, size, mtime, content hash — keyed by the share's `catalogKey` and encrypted with the space's SCK, so only members can read it.
 
+#### Write discipline for status-bearing rows
+
+A write that encodes **status or intent** — a transfer's `errorCode`, a claim, a pending row, a leave marker — may fail loudly, never silently. Await it, log at `warn` with the key and the code, and then do one of three things, saying which in a comment: fail the caller (the user asked for something durable that did not happen), let the level-triggered scan finish the intent (the durable state already implies it), or hold the verdict in memory for the process (the write is the only thing suppressing a re-drive). A bare `.catch(() => {})` is reserved for teardown races, safe reads, observability writes, and display-only values, and carries a comment naming the race. `log.debug` does not count as surfacing: the default level is `warn`.
+
 The local-only bees (§3.2–3.4, §3.6) are encrypted at rest with an M-derived key. The **profile bee stays plaintext** because peers must read it. §16.
 
 ### Why per-user drives (no Autobase)
@@ -420,6 +428,8 @@ Every identity-asserting frame carries a signature binding sender → socket Noi
 
 **Handshake:** one per local space per connection. `channel.onopen` iterates every joined topic (`sendHandshakeMessages`).
 
+**Identity-frame rate limit.** `admitIdentityFrame` charges a per-socket dual-lane token bucket (`handshake-guard.js`) keyed on the Noise key: frames for a topic we joined ride the *matched* lane, everything else the generous *unmatched* lane, so a multi-space peer's foreign-topic frames can't starve the one that matters. The matched lane's burst is `handshakeBurst + handshakeBurstPerTopic x the distinct topics THAT SOCKET has matched` (8 + 3 per shared space, re-read per take and never counted past the topics we hold), because an honest reconnect legitimately sends one frame per shared space plus our reciprocal — a fixed burst banned any pair sharing 24+ spaces, while scaling by our own space count instead would hand a peer that matched one topic an allowance that grows with every space we join. Refill is 1/s; the drop counter decays at the same rate, and 24 consecutive drops on either lane evict the Noise key (`bannedNoiseKeys` -> the swarm firewall) for the process lifetime.
+
 **Leave frame:** broadcast by `space:leave` to every connected socket *before* local teardown (§6). `handleLeaveFrame` verifies the claimed `profileKey` is already authenticated on this socket via `socketToPeers` — **spoof guard**; without it any connected peer could kick a third party out of others' member lists — then prunes the leaver from persisted `members`, evicts from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`), and emits `event:member-left`.
 
 **On receipt (`handleHandshake`):**
@@ -437,7 +447,7 @@ When a new space is joined while connections already exist, Hyperswarm reuses th
 
 ### 4.3 Peer catalog caching
 
-Peer file metadata lives in replicated catalogs, not drives (§3.5). A peer catalog bee opens lazily on first read (`openPeerCatalog`, keyed by catalog key, decrypted with the space SCK) and caches in `peerCatalogs`; reads are bounded by an interactive timeout so an offline peer can't stall a listing. Catalog appends fire per-owner watches (`watchPeerCatalog`) that nudge foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
+Peer file metadata lives in replicated catalogs, not drives (§3.5). A peer catalog bee opens lazily on first read (`openPeerCatalog`, keyed by catalog key, decrypted with the space SCK) and caches in `peerCatalogs`; reads fan out in parallel and are bounded by ONE interactive timeout per peer covering head sync and drain, so an offline peer can't stall a listing. A peer whose head sync spends the whole budget still has its drain run, with `wait: false` — only blocks already on disk are read, so previously replicated rows keep surfacing instead of the read parking for a second budget. Catalog appends fire per-owner watches (`watchPeerCatalog`) that nudge foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
 
 ### 4.4 Disconnect & multi-socket handling
 
@@ -455,13 +465,14 @@ Recovery is **level-triggered** — reconnects and catalog changes re-drive the 
 | Fetch stalls while the owner stays online | Retried by the engine itself with exponential backoff (FIX-BW9). A code-less fetch failure is either a vanished holder or one throttled past our watchdog, and neither fires a reconnect or an append — so pre-fix the row simply parked. The retry gives up after `STALL_RETRY_DRY_LIMIT` attempts that bank **no new bytes**, which is what separates a wedged holder (parks, as before) from a slow one (keeps going). While a retry is pending the paused event still fires, flagged `retrying` — on the folder channel that emit IS the terminal decoration frame, so withholding it strands a progress bar; the flag only suppresses the loose channel's OS notification |
 | Owner reconnects | The overlay reconnect hook fires `resumeLooseForOwner` / `resumeOverlayForOwner`, re-driving every pending row for that owner (skipping active, manually-paused, and checksum-failed rows) |
 | Owner republishes (catalog append) | The per-owner catalog watch re-drives pending rows; an in-flight fetch of a superseded hash is cancelled and re-fetched (`event:transfer-superseded`) |
-| Integrity failure (`EHASHMISMATCH`) | `TRANSFER_CHECKSUM` — **terminal**, never auto-resumed (the same holder would fail identically). Only an explicit user retry re-attempts (§14) |
+| Integrity failure (`EHASHMISMATCH`) | `TRANSFER_CHECKSUM` — **terminal**, never auto-resumed (the same holder would fail identically). Only an explicit user retry re-attempts (§14). The verdict is written to the row; if that write fails the engine holds it in memory for the process and logs at `warn`, so the row is still not re-driven until a restart |
+| Download completed, row outlives the claim | The next reconcile sees the file claimed on disk and clears the row; nothing is re-fetched |
 | Any other engine error | `DOWNLOAD_FAILED` on the row → `error` status until the user retries |
 | Worker shutdown | Nothing is marked; durable rows (§3.4) reconstruct resume state next boot/reconnect |
 
 ### 4.6 Startup reconnection
 
-Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives (drop any that fail) → orphan-core cleanup if any load failed → join all topics. Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
+Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record → orphan-core cleanup if any load failed → join all topics. Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
 
 ### 4.7 Presence & liveness
 
@@ -620,7 +631,7 @@ Module map: §11.
 
 1. **Mirror** (`foreign-folder:mount`). After `mount-validate` passes (foreign mounts additionally reject paths inside `~/Downloads`), save the mount (`enabled:true`) and start the materialize loop.
 2. **Initial materialize** (`initialMaterializeScan`). List the owner's share prefix, download everything to the mount path, recording each delivered path in `syncedPaths`. Pre-existing user files at the destination are left untouched.
-3. **Steady state.** `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). Each tick diffs the catalog and `applyChange`s: `put` fetches by content hash through the overlay into a `.mirall.part`, then renames; `del` unlinks a local file **only if** it is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
+3. **Steady state.** Membership of an already-mirrored path is an in-memory `Set` per mount (seeded from the persisted `syncedPaths` array, which keeps its shape — no migration), so a converged tick is linear in the file count rather than quadratic; a path is claimed *before* its bytes land, so a pass cancelled mid-file still owns what it wrote, while the collision check still treats a path claimed by the current pass as not-yet-ours so a pre-existing user file gets a sibling rather than being adopted. The record is written **once per pass and only when something changed**, through a read-merge patch that cannot clobber a concurrent pause or resurrect an unmounted record. `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). Each tick diffs the catalog and `applyChange`s: `put` fetches by content hash through the overlay into a `.mirall.part`, then renames; `del` unlinks a local file **only if** it is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
 4. **Deletion safety.** `shouldHonorDeletions({ownerOnline, driveCount})` honors owner-side deletions only when the owner is online *and* the listing is non-empty — a lagged or empty replica cannot cascade-wipe a mirror. Mirrors are read-only and idempotent: no per-file retry budget; a failed file just retries next tick.
 5. **Pause / unmount.** `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record, and reclaims cached blobs. Status flows through `event:foreign-folder-mount-status` (`active` / `scanning` / `paused-error` / `paused-enospc` / `mount-point-gone`).
 
@@ -648,11 +659,15 @@ Every share — folder and loose — moves bytes through the **overlay** backend
 
 The dispatch seam is `getContentBackend(share)` (`transfer/content-backends.js`): the overlay backend for `contentMode === 'overlay'` (when the build's overlay flag is on), and the `UNSUPPORTED` sentinel for every other mode — absent, the retired `'eager'`/`'deferred'` modes, or an unknown future mode — which callers render as unavailable rather than routing to a removed path. `test/integration/content-backend-conformance.test.js` locks the contract.
 
+**Channel version negotiation.** The `hyper-overlay/v2` channel announces `{version, capabilities}` in its protomux channel handshake. A peer that sends no handshake bytes — every build before this shipped — is read as the *unannounced* version (1) with no capabilities, so a behaviour gated on a capability bit is simply off against it. The decoder is **total**: any channel on the socket dying takes the whole socket with it, and the channel id is the public protocol string, so a decoder that could throw would hand any swarm peer a one-frame socket kill. `MIN_VERSION` is 1 today, so no installed build is refused; when it is raised (in the same change that drops a message slot or changes a codec), a peer below it loses **only its content channel** — the socket, its sibling control channel (`mirall/handshake`, or `mirall/content-hello` when the separate content plane is on) and Corestore replication all stay up.
+
 The generic v2 serve/fetch engine is a vendored subset of the `hyper-overlay` project; `backends/overlay/vendor/PROVENANCE.md` documents what was vendored and every local modification. Mirall-specific policy (authorization, catalogs, lifecycle) lives **outside** `vendor/`.
 
 #### Bandwidth limiting
 
 User-set transfer caps (`transfer/bandwidth-limiter.js`) are byte-denominated token buckets — one for each direction, created in `overlay-instance.js` and **injected** into the protocol so `vendor/` keeps no app imports. Both read their rate through a getter on every call, so a settings change applies to **in-flight** transfers with nothing to re-plumb.
+
+**The serve path decodes a file's chunk map once, not once per chunk.** A chunk-need used to re-read and JSON-decode the whole map from the file-index bee, and the scheduler re-assigns after every accepted chunk — measured at 101 bee reads for a 113-chunk file, which extrapolates to roughly 1.7 GB of JSON parsed per 1 GiB served, synchronously on the worker thread. A bounded LRU of decoded maps (`transfer/chunk-map-cache.js`, injected into the vendored `FileIndex` the way the limiters are injected; `serveChunkMapCacheBytes`, default 32 MiB, `0` disables) makes it one decode per serve; every write to a chunk-map key invalidates it, and a fence stops an in-flight decode from caching a pre-write value. Chunks are read asynchronously on **one fd per (peer, file)**, released on channel close or after 30 s idle, instead of an `openSync`/`readSync` pair per chunk.
 
 **Every consumer holds its own `stream()` handle** — one per `ChunkScheduler`, one per peer on the serve side. There is deliberately no way to consume budget from the limiter object itself: a shared implicit handle would let two consumers overwrite each other's pending request, and a scheduler racing the bucket directly starves everything waiting its turn.
 
@@ -798,7 +813,7 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 |---|---|---|
 | `useProfile` | `profile:get`, `profile:set` | `event:profile-needed` |
 | `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `event:state`, `event:reconcile` (members/join-requests), `event:membership-granted`/`-denied`/`-creator-divergence` |
-| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `event:reconcile` (files + members); publish/prepare progress from `useDecorations` |
+| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `event:reconcile` (files + members), refreshes coalesced (750 ms leading+trailing); publish/prepare progress from `useDecorations` |
 | `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `event:reconcile` (members + join-requests) |
 | `useSpaceMembers(spaceId)` | `space:members` (module-cached full roster for card facepiles) | `event:reconcile` (members) |
 | `useUpdates` | — (passive: staged update + `dismiss`) | `bridge.onPearEvent('updated')` via `updates.ts` |
@@ -1172,7 +1187,7 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 
 ### Resource bounds
 
-`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, and the serve-gate rate limiter.
+`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. A budget that is multiplied by a live count is clamped finite and non-negative where it is read, so a hand-edited `Infinity` cannot silently disable the lane it is meant to bound.
 
 ---
 

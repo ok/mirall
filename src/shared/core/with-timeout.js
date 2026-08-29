@@ -27,6 +27,13 @@ export function withReadTimeout(promise, ms, fallback) {
   return Promise.race([p, guard]).finally(() => clearTimeout(timer))
 }
 
+// The budget left until `deadlineAt`, never negative: an inner read that follows one that
+// already spent part of the caller's allowance derives its own bound from this, so one
+// deadline covers the whole sequence instead of each step charging the full budget again.
+export function remainingMs(deadlineAt, now = Date.now()) {
+  return Math.max(0, deadlineAt - now)
+}
+
 // Budget for reading another peer's profile bee, comfortably under the renderer's
 // 30 s IPC timeout so a single unreachable member can't stall an IPC (e.g.
 // share:list, which fans out over every member) to the point of timing out.

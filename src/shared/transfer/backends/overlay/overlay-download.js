@@ -10,7 +10,7 @@ import { fetchContentToFile, makeFetchDiag } from './overlay-backend.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../swarm.js'
-import { markDownloaded, markVerified, isDownloadedFile } from '../../files.js'
+import { markDownloaded, markVerified, isDownloadedFile, isDownloadedWithHash } from '../../files.js'
 import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,
 } from '../../pending-transfers.js'
@@ -105,6 +105,28 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // released (the fetch IIFE deletes it on settle). Lets a later discard still tell
   // the holder we stopped, since the registry no longer carries the hash.
   const pausedHashes = new Map()
+  // transferId -> ErrorCode for a terminal failure whose durable write FAILED. The row is the
+  // only thing that keeps a checksum / disk-full / dest-unavailable row out of the next
+  // level-triggered re-drive; when it cannot be written, this map keeps the verdict for the
+  // life of the process. Cleared by the user's Resume click, by a discard, and by a restart on
+  // republished content — the same three things that clear a durable errorCode.
+  const terminalCodes = new Map()
+
+  // Record a terminal verdict on the row. Never throws: the caller still emits the error (the
+  // transfer DID fail); what the warn adds is that the failure is not durable.
+  // Only the codes runReconcile actually suppresses are worth remembering; anything else would
+  // grow the map for the life of the worker without ever being read.
+  const SUPPRESSED_CODES = new Set([ErrorCodes.TRANSFER_CHECKSUM, ErrorCodes.TRANSFER_DISK_FULL, ErrorCodes.TRANSFER_DEST_UNAVAILABLE])
+
+  async function recordTerminal (job, code) {
+    try {
+      await recordPendingError(job.spaceId, job.pendingKey, code)
+      terminalCodes.delete(job.transferId)
+    } catch (err) {
+      if (SUPPRESSED_CODES.has(code)) terminalCodes.set(job.transferId, code)
+      log.warn('could not persist the transfer error — auto-resume is suppressed only until restart:', job.relPath, code, '-', err.message)
+    }
+  }
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
   // transferId -> { dry, bytes, timer } for a stall being retried. `dry` counts CONSECUTIVE
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
@@ -253,7 +275,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     else if (code === ErrorCodes.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
     else if (code === ErrorCodes.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
     else log.debug('overlay fetch failed:', job.relPath, '-', r.code)
-    await recordPendingError(job.spaceId, job.pendingKey, code).catch(() => {})
+    await recordTerminal(job, code)
     channel.emitError(job, code)
     channel.emitUpdated(job.spaceId)
   }
@@ -311,9 +333,17 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     // Durable positive fact FIRST: a crash inside this window must re-derive
     // 'downloaded' (a lingering resume row is masked by the downloaded status),
     // never 'remote' — which would re-download and duplicate the file.
+    terminalCodes.delete(job.transferId)
     await markDownloaded(job.spaceId, job.pendingKey, job.finalPath, { hash: job.contentHash })
     await markVerified(job.spaceId, job.verifyKey, job.contentHash)
-    await clearPending(job.spaceId, job.pendingKey).catch(() => {})
+    // The claim above already decides the status; the row only matters to the resume scan,
+    // which drops a claimed row itself (runReconcile). So a failed clear degrades to one extra
+    // read at the next reconcile — but it has to be visible.
+    try {
+      await clearPending(job.spaceId, job.pendingKey)
+    } catch (err) {
+      log.warn('could not clear the pending row of a completed download:', job.relPath, '-', err.message)
+    }
     channel.emitUpdated(job.spaceId)
     channel.emitComplete(job, job.finalPath)
   }
@@ -377,7 +407,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       if (!dirExists(path.dirname(job.finalPath))) {
         registry.delete(transferId)
         log.warn('overlay download refused — download folder unavailable:', path.dirname(job.finalPath))
-        await recordPendingError(job.spaceId, job.pendingKey, ErrorCodes.TRANSFER_DEST_UNAVAILABLE).catch(() => {})
+        await recordTerminal(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
         channel.emitError(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
         channel.emitUpdated(job.spaceId)
         return { queued: true }
@@ -391,7 +421,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       if (missingFreeSpaceFor(job)) {
         registry.delete(transferId)
         log.warn('overlay download refused — not enough free disk space:', job.relPath, 'needs', job.size, 'bytes')
-        await recordPendingError(job.spaceId, job.pendingKey, ErrorCodes.TRANSFER_DISK_FULL).catch(() => {})
+        await recordTerminal(job, ErrorCodes.TRANSFER_DISK_FULL)
         channel.emitError(job, ErrorCodes.TRANSFER_DISK_FULL)
         channel.emitUpdated(job.spaceId)
         return { queued: true }
@@ -413,7 +443,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       ;(async () => {
         const r = await fetchImpl(job.contentHash, { finalPath: job.finalPath, onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b) }, onVerify: (fraction) => channel.emitVerifying?.(job, fraction), onEnd: diag.onEnd })
         await settleFetch(transferId, job, r, diag)
-      })().catch((err) => log.debug('overlay download task failed:', err.message))
+      })().catch((err) => log.warn('overlay download task failed after the fetch settled:', job.relPath, '-', err.message))
 
       return { transferId, finalPath: job.finalPath }
     } catch (err) {
@@ -446,6 +476,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // runReconcile skip the row as "manually paused" forever, so no reconnect ever resumes it.
   function clearPauseMarker (transferId) {
     pausedHashes.delete(transferId)
+    terminalCodes.delete(transferId)
     // [mirall] FIX-BW9 — a deliberate Resume/download click starts a fresh retry budget.
     // Inheriting a dry counter from earlier automatic attempts makes the click park after one
     // try, which is precisely the symptom this fix set out to remove.
@@ -467,11 +498,22 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       const hash = pausedHashes.get(transferId)
       if (hash) getOverlay()?.notifyTransferStopped(hash)
     }
-    pausedHashes.delete(transferId)
     cancelStallRetry(transferId)
+    // Clear the durable row FIRST. Everything after it is destructive and in-memory-only, so a
+    // failed clear must not leave the row alive with its partial deleted and its manual-pause
+    // marker dropped — that combination auto-resumes from zero a transfer the user paused and
+    // then discarded.
+    try {
+      await clearPending(spaceId, pendingKey)
+    } catch (err) {
+      log.warn('could not clear the pending row on discard:', pendingKey, '-', err.message)
+      channel.emitUpdated(spaceId)
+      throw err
+    }
+    pausedHashes.delete(transferId)
     const finalPath = pending?.finalPath
     if (finalPath) discardPartial(finalPath)
-    await clearPending(spaceId, pendingKey).catch(() => {})
+    terminalCodes.delete(transferId)
     channel.emitCancelled(spaceId, transferId, pendingKey, pending)
     channel.emitUpdated(spaceId)
     return pending
@@ -579,12 +621,22 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       if (!channel.ownsPendingRow(row) || row.ownerKey !== ownerKey) continue
       const transferId = channel.transferIdForRow(spaceId, row)
       if (registry.has(transferId)) continue // active → reconcileActive* owns supersede + removal
-      const suppressed = pausedHashes.has(transferId) || row.errorCode === ErrorCodes.TRANSFER_CHECKSUM || row.errorCode === ErrorCodes.TRANSFER_DISK_FULL || row.errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE
+      const errorCode = row.errorCode ?? terminalCodes.get(transferId)
+      const suppressed = pausedHashes.has(transferId) || errorCode === ErrorCodes.TRANSFER_CHECKSUM || errorCode === ErrorCodes.TRANSFER_DISK_FULL || errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE
       if (suppressed && !deep) continue
+      // A completed download whose row outlived its claim (a failed clear, or a crash between
+      // the claim and the clear): the file is on disk and claimed, so finish the intent here
+      // instead of fetching a file we already have. Placed after the suppressed check so a
+      // paused or terminally-errored row still costs zero I/O, and before the catalog read
+      // below, which is the expensive step this saves.
+      if (await isDownloadedWithHash(spaceId, row.filePath, row.contentHash)) {
+        await clearPending(spaceId, row.filePath).catch((err) => log.warn('could not clear a stale pending row:', row.filePath, '-', err.message))
+        continue
+      }
       const { removed, seq, job } = await channel.resolvePendingRow(spaceId, row)
       const decision = republishDecision(row.contentHash, { removed, seq, contentHash: job?.contentHash ?? null }, row.sourceSeq)
       if (decision === 'drop') { // tombstoned, or re-added with identical content
-        await dropRemoved(spaceId, row.filePath, transferId).catch((err) => log.debug('overlay drop-removed failed:', row.filePath, err.message))
+        await dropRemoved(spaceId, row.filePath, transferId).catch((err) => log.warn('overlay drop-removed failed:', row.filePath, '-', err.message))
         continue
       }
       // The owner advertised a new version but has not materialized its hash yet. KEEP the row
@@ -599,8 +651,16 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
         // row 'suppressed' (checksum/disk-full never auto-resume) so it would never restart.
         discardPartial(job.finalPath)
         cancelStallRetry(transferId)   // [mirall] FIX-BW9 — new content, fresh retry budget
-        const { errorCode, erroredAt, ...cleanRow } = row
-        await recordPending(spaceId, row.filePath, { ...cleanRow, sourceSeq: job.sourceSeq, contentHash: job.contentHash, bytesTransferred: 0 }).catch(() => {})
+        const { errorCode: _priorCode, erroredAt: _priorAt, ...cleanRow } = row
+        try {
+          await recordPending(spaceId, row.filePath, { ...cleanRow, sourceSeq: job.sourceSeq, contentHash: job.contentHash, bytesTransferred: 0 })
+        } catch (err) {
+          // The row still names the old hash, so the next scan derives a restart again and
+          // retries this write; starting now would fail the same write inside start().
+          log.warn('could not re-point the pending row at the republished content:', row.filePath, '-', err.message)
+          continue
+        }
+        terminalCodes.delete(transferId)
         if (pausedHashes.has(transferId)) continue // a manual pause is the user's intent — the cleared row resumes on the new content when they hit Resume, not automatically
         // Surface a supersede so the UI shows one continuous "the file was updated, re-downloading",
         // whether the source-change was caught here (a transfer parked on the null-hash window, now

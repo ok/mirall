@@ -492,6 +492,74 @@ re-diffable against upstream. Categories:
     process-wide singleton, so leaked debt from one flapping fetch throttles every concurrent
     one. Covered by the refund cases in `test/unit/bandwidth-limiter.test.js`.
 
+20. **Serve-side chunk-map cache + per-session async chunk reads (`file-index.js` +
+    `overlay-v2.js` + `protocol-v2.js` + `transfer.js`, perf).** Upstream's serve loop
+    (`_onChunkNeed`) re-read the file's whole chunk map from the FileIndex bee — header, every
+    page, a full `JSON.parse` — on every chunk-need, and `ChunkScheduler` re-assigns after each
+    accepted chunk, so a steady-state need carries one index and a serve decoded the map about
+    C times (measured on an 8 MiB fixture: **101 bee reads for C=113 chunks**; extrapolated,
+    1.7 GB of JSON for a 1 GiB file and 1.1 TB for 100 GiB, all synchronous on the single worker
+    thread). `FileIndex` now takes an injected `opts.chunkMapCache` — a bounded LRU of DECODED
+    maps living in app code (`src/shared/transfer/chunk-map-cache.js`, sized by
+    `serveChunkMapCacheBytes`, default 32 MiB, `0` disables) — exactly the way the bandwidth
+    limiters are injected, so `vendor/` gains no app imports and an embedder that injects
+    nothing decodes from the bee on every read as upstream does. The hook points are in
+    `FileIndex` because it is the only module that sees every write to a chunk-map key:
+    `_putPagedValue` / `_delPagedValue` became thin wrappers that invalidate in a `finally`,
+    `compact()` and `_close()` clear, and a `_mutations` fence stops a decode that was in flight
+    across a write from caching the pre-write value. Upstream's read/write bodies survive
+    verbatim as `_decodePagedValue` / `_writePagedValue` / `_erasePagedValue`, so they stay
+    re-diffable.
+
+    `readChunk`'s `openSync` + `readSync` + `closeSync` **per chunk** (a 4 MiB tier-3 read
+    blocking the loop each time) is replaced on the serve path by one fd per (peer, file):
+    `TransferManager` gained `openChunkSource` / `readChunkAt` / `closeChunkSource` (tracked, so
+    `openFdCount()` sees them) and the protocol keeps `peer._serveFds`, closing on channel
+    close, on `destroy()`, and after `serveFdIdleMs` (30 s, injectable) without a read. The fd
+    number is never carried across an await and every close deletes the map entry before
+    closing, so a reused descriptor cannot be mistaken for a live one. The new await is a
+    revocation window like the limiter and drain waits, so the serve grant is re-checked past it
+    and **before** the upload cap is charged. `readChunk` itself is untouched for other callers.
+    Covered by `test/unit/chunk-map-cache.test.js` and
+    `test/integration/overlay-serve-chunkmap-cache.test.js`.
+
+21. **Channel handshake actually reaches the wire (`messages-v2.js` + `protocol-v2.js` +
+    `overlay-v2.js`, correctness).** `attach` called `channel.open({ version, capabilities })`
+    but `createChannel` declared no `handshake` encoding, and protomux encodes a handshake only
+    when one is declared (`index.js:104,113`) — so the version and capability bits were silently
+    dropped and `_onOpen` never saw them. The channel had no negotiated version at all, and the
+    `CAP_*` bits gated nothing.
+
+    Declaring `messages.handshake` is the fix, but the encoding as it stood could not simply be
+    declared: every build in the field (v1.8.0, v1.9.0) sends an open frame with **no** handshake
+    bytes, protomux hands that empty tail straight to the decoder, and a throw there runs
+    `_safeDestroy` on the whole mux — measured: with a strict decoder the socket AND its sibling
+    `mirall/handshake` channel are destroyed on every `new to old` pairing. `handshake.decode` is
+    therefore **total**: it bounds-checks every field and falls back to the exported
+    `UNANNOUNCED_HANDSHAKE = { version: 1, capabilities: 0 }`, so neither an absent tail (an old
+    build) nor a truncated one (garbage, or a hostile peer's one-byte frame — the channel id is
+    the public protocol string, so any swarm peer can open it) can throw. Reading field-by-field
+    also keeps the format append-only-extensible: a future peer that appends a third byte stays
+    decodable by today's builds, which is the same cliff one release later. Version 1 is
+    deliberate — every shipped build runs this same v2 message set, so "1" means "v2 messages, no
+    announcement", and raising the minimum to 2 later retires exactly the unannounced builds.
+
+    `_onOpen` records `peer.remoteVersion` / `peer.remoteCaps` and gates on `minVersion`
+    (`MIN_VERSION = 1`, so nothing in the field is refused today); a peer below it loses **only
+    its content channel** — the socket, its sibling control channel (`mirall/handshake`, or
+    `mirall/content-hello` when the separate content plane is on) and corestore replication all
+    stay up. A refused peer is also marked `peer.rejected`, and every `onmessage` is wrapped so
+    frames the remote pipelined behind its open are dropped rather than dispatched: protomux
+    drains them *after* `onopen` returns, against a record captured before our `close()`.
+    `onPeerOpen` / `onPeerRejected` are constructor opts the app layer wires to its logger, so
+    `vendor/` keeps no logger; both must be synchronous. `protocol-v2.js` also gained
+    `export { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS }` (upstream keeps all
+    four module-private) purely so the tests can assert against the real constants. Rollout is a
+    single phase: old peers need nothing, and the tolerant decode must ship in the same commit as
+    the declaration. Covered by `test/unit/overlay-handshake.test.js` (the four-way pairing
+    matrix against real protomux, a malformed-tail case, plus a wire-byte pin) and
+    `test/integration/overlay-channel-handshake.test.js`.
+
 ## Re-diffing against upstream
 
 ```
