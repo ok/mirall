@@ -408,6 +408,8 @@ Every identity-asserting frame carries a signature binding sender → socket Noi
 
 **Handshake:** one per local space per connection. `channel.onopen` iterates every joined topic (`sendHandshakeMessages`).
 
+**Identity-frame rate limit.** `admitIdentityFrame` charges a per-socket dual-lane token bucket (`handshake-guard.js`) keyed on the Noise key: frames for a topic we joined ride the *matched* lane, everything else the generous *unmatched* lane, so a multi-space peer's foreign-topic frames can't starve the one that matters. The matched lane's burst is `handshakeBurst + handshakeBurstPerTopic x the distinct topics THAT SOCKET has matched` (8 + 3 per shared space, re-read per take and never counted past the topics we hold), because an honest reconnect legitimately sends one frame per shared space plus our reciprocal — a fixed burst banned any pair sharing 24+ spaces, while scaling by our own space count instead would hand a peer that matched one topic an allowance that grows with every space we join. Refill is 1/s; the drop counter decays at the same rate, and 24 consecutive drops on either lane evict the Noise key (`bannedNoiseKeys` -> the swarm firewall) for the process lifetime.
+
 **Leave frame:** broadcast by `space:leave` to every connected socket *before* local teardown (§6). `handleLeaveFrame` verifies the claimed `profileKey` is already authenticated on this socket via `socketToPeers` — **spoof guard**; without it any connected peer could kick a third party out of others' member lists — then prunes the leaver from persisted `members`, evicts from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`), and emits `event:member-left`.
 
 **On receipt (`handleHandshake`):**
@@ -1155,7 +1157,7 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 
 ### Resource bounds
 
-`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, and the serve-gate rate limiter.
+`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. A budget that is multiplied by a live count is clamped finite and non-negative where it is read, so a hand-edited `Infinity` cannot silently disable the lane it is meant to bound.
 
 ---
 
