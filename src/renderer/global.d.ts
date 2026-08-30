@@ -168,6 +168,7 @@ export interface MirallDevConsole {
   profile(): Promise<unknown>
   mounts(): Promise<unknown>
   features(): Promise<unknown>
+  metrics(): Promise<unknown>
   version(): Promise<unknown>
   update(): Promise<unknown>
   identity(): Promise<unknown>

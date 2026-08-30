@@ -75,6 +75,17 @@ const mirall: MirallDevConsole = {
   mounts: () => diag('mounts', 'mounts:list-all'),
   profile: () => diag('profile', 'profile:get'),
   features: () => diag('feature flags', 'features:get'),
+  // Per-request call counts, failures, in-flight and timing. This is how the fan-out claims in the
+  // architecture review get checked against a running app instead of estimated.
+  metrics: async () => {
+    const diagnostics = await request('diagnostics:export', { redact: true }) as {
+      requests?: { metrics?: Record<string, unknown>; failures?: Record<string, unknown> }
+    }
+    const metrics = diagnostics.requests?.metrics ?? {}
+    console.table(metrics)
+    if (diagnostics.requests?.failures) console.table(diagnostics.requests.failures)
+    return metrics
+  },
   version: async () => {
     const v = await window.bridge.appVersion()
     console.log('[mirall] version:', v)

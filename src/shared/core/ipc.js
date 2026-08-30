@@ -6,6 +6,7 @@ import { createHintBus } from '../state/hints.js'
 import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { createHandlerTable, validateArgs } from './handler-table.js'
+import { createRequestMetrics } from './request-metrics.js'
 
 const log = createLogger('ipc')
 
@@ -50,6 +51,28 @@ const EXPECTED = new Set(CONTRACT_EXPECTED_CODES)
 // this map without bound. Unknown types collapse into one bucket, and the map is capped.
 const MAX_FAILURE_KEYS = 256
 const requestFailures = new Map()
+
+// Per-request timing and outcomes. The router already had the numbers and discarded them; keeping
+// them is what makes a claim like "one member change costs eleven round-trips" checkable instead of
+// estimated.
+const requestMetrics = createRequestMetrics()
+
+export function getRequestMetrics() {
+  return requestMetrics.snapshot()
+}
+
+export function resetRequestMetrics() {
+  requestMetrics.reset()
+}
+
+// Ordered key=value rather than JSON: the transport is a console line forwarded to main and read by
+// a human with grep. The router is the one place with enough structure to be worth it — converting
+// the other 400 positional call sites is a separate, mechanical change.
+function logRequestFailure(log, { req, code, ms, message }) {
+  const line = `req-failed req=${req} code=${code} ms=${ms} — ${message}`
+  if (EXPECTED.has(code)) log.debug(line)
+  else log.warn(line)
+}
 
 export function getRequestFailureCounters() {
   const out = {}
@@ -128,18 +151,20 @@ export function createIPC(pipe, { requests } = {}) {
       return
     }
 
-    const started = Date.now()
     log.debug('req', label)
-    Promise.resolve(entry.fn(msg)).then(
-      (data) => { log.debug('res', label, 'ok', `${Date.now() - started}ms`); respond(msg.id, data) },
+    const settle = requestMetrics.begin(msg.type)
+    // The second argument is the request's context. `signal` is null until cancellation is wired
+    // (r07-3): the seam costs one line now and re-plumbing 86 handlers later. Every handler takes
+    // one parameter today and ignores this one.
+    Promise.resolve(entry.fn(msg, { id: msg.id ?? null, signal: null })).then(
+      (data) => { log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
       (err) => {
+        const ms = settle(false)
         const code = err?.code || 'UNKNOWN'
         countFailure(msg.type, code)
-        // A failing request is logged at warn so it survives the default level. Successes stay at
-        // debug: they are the verbose trace, and only wanted when someone asked for it.
-        const line = ['req-failed', label, `code=${code}`, `ms=${Date.now() - started}`, err?.message || String(err)]
-        if (EXPECTED.has(code)) log.debug(...line)
-        else log.warn(...line)
+        // A failing request logs at warn so it survives the default level. Successes stay at debug:
+        // they are the verbose trace, and only wanted when someone asked for it.
+        logRequestFailure(log, { req: label, code, ms, message: err?.message || String(err) })
         respond(msg.id, null, err?.message, code)
       }
     )

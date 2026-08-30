@@ -172,7 +172,7 @@ test('logs handler errors and unknown commands', async (t) => {
   pipe.feed({ id: '2', type: 'boom' })
   pipe.feed({ id: '3', type: 'ghost' })
   await tick()
-  t.ok(lines.some((l) => l.startsWith('req-failed boom #2') && l.includes('kaboom')), 'logs the failing handler')
+  t.ok(lines.some((l) => l.startsWith('req-failed req=boom #2') && l.includes('kaboom')), 'logs the failing handler')
   t.ok(lines.some((l) => l.startsWith('req-unknown ghost')), 'logs an unknown command')
   // ghost responds synchronously; boom's rejection resolves a tick later — so
   // find the #3 response rather than assuming write order.
