@@ -60,7 +60,19 @@ function barrierFetch () {
   return state
 }
 
-const settle = () => new Promise((r) => setTimeout(r, 60))
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const settle = () => sleep(60)
+
+// Waits for a condition instead of a fixed delay: the resume path is coalesced and single-flighted,
+// so a sleep long enough on this machine is not long enough on a slower CI runner.
+async function until (fn, ms = 15000) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    if (await fn()) return true
+    await sleep(10)
+  }
+  return false
+}
 
 // REGRESSION (FIX-DL-ADMIT: runReconcile looped every pending row and called start() with no
 // counting, so a reconnect with N pending rows spawned N chunk schedulers, watchdog timers, fds
@@ -83,6 +95,9 @@ test('REGRESSION (FIX-DL-ADMIT): a reconnect backlog never exceeds the admission
   }
 
   await engine.resumeForOwner(OWNER, SPACE)
+  // Wait for the gate to fill rather than for a duration: the assertion is that it never fills
+  // PAST the limit, which is checked continuously by the barrier's peak counter.
+  t.ok(await until(() => engine.admissionStats().held >= 2), 'the reconcile admitted its first jobs')
   await settle()
 
   t.is(fetches.peak, 2, 'only two fetches ran at once')
@@ -90,7 +105,7 @@ test('REGRESSION (FIX-DL-ADMIT): a reconnect backlog never exceeds the admission
   t.ok(engine.admissionStats().queued >= 1, 'the rest are parked on the gate, not running')
 
   // Drain: every job must still complete once slots free.
-  for (let i = 0; i < 12 && fetches.started.length < 8; i++) { fetches.releaseAll(); await settle() }
+  for (let i = 0; i < 40 && fetches.started.length < 8; i++) { fetches.releaseAll(); await settle() }
   t.is(fetches.started.length, 8, 'all eight eventually ran')
   t.is(fetches.peak, 2, 'and the peak never rose')
   fetches.releaseAll()
@@ -105,12 +120,11 @@ test('a job cancelled while queued never reaches the fetch', async (t) => {
   const first = makeJob(ctx, 1)
   const queued = makeJob(ctx, 2)
   await engine.start(first)
-  await settle()
-  t.is(fetches.started.length, 1, 'the first holds the only slot')
+  t.ok(await until(() => fetches.started.length === 1), 'the first holds the only slot')
 
   await engine.start(queued)
-  await settle()
-  t.is(fetches.started.length, 1, 'the second is parked')
+  t.ok(await until(() => engine.admissionStats().queued === 1), 'the second is parked')
+  t.is(fetches.started.length, 1, 'and never reached the fetch')
 
   engine.cancel(queued.transferId)
   fetches.releaseAll()
@@ -128,14 +142,13 @@ test('an express job starts ahead of a queued bulk backlog', async (t) => {
   const fetches = barrierFetch()
 
   await engine.start(makeJob(ctx, 0))
-  await settle()
+  t.ok(await until(() => fetches.started.length === 1), 'the first job holds the only slot')
   for (let i = 1; i <= 4; i++) await engine.start(makeJob(ctx, i))
-  await settle()
-  t.is(fetches.started.length, 1, 'the bulk backlog is parked behind the running job')
+  t.ok(await until(() => engine.admissionStats().queued === 4), 'the bulk backlog is parked behind it')
+  t.is(fetches.started.length, 1, 'none of the backlog started')
 
   await engine.start(makeJob(ctx, 9, { express: true }))
-  await settle()
-  t.is(fetches.started.length, 2, 'the express job started anyway')
+  t.ok(await until(() => fetches.started.length === 2), 'the express job started anyway')
   t.is(fetches.started[1], hashFor(9), 'and it was the express one, not the head of the bulk queue')
 
   fetches.releaseAll()
@@ -150,8 +163,7 @@ test('a limit of zero restores the unbounded behaviour', async (t) => {
   const fetches = barrierFetch()
 
   for (let i = 0; i < 6; i++) await engine.start(makeJob(ctx, i))
-  await settle()
-  t.is(fetches.peak, 6, 'every job ran at once')
+  t.ok(await until(() => fetches.peak === 6), 'every job ran at once')
   t.is(engine.admissionStats().queued, 0, 'nothing was gated')
   fetches.releaseAll()
   await settle()
@@ -169,16 +181,13 @@ test('a supersede restart at limit 1 does not deadlock on its own slot', async (
 
   const job = makeJob(ctx, 1)
   await engine.start(job)
-  await settle()
-  t.is(fetches.started.length, 1, 'the job holds the only slot')
+  t.ok(await until(() => fetches.started.length === 1), 'the job holds the only slot')
 
   const newJob = makeJob(ctx, 2, { transferId: job.transferId, pendingKey: job.pendingKey })
   t.ok(engine.supersede(job.transferId, newJob, job.contentHash), 'superseded')
   fetches.releaseAll()
-  await settle()
-  await settle()
-
-  t.is(fetches.started.length, 2, 'the restart acquired the slot the superseded job released')
+  t.ok(await until(() => fetches.started.length === 2),
+    'the restart acquired the slot the superseded job released (a hang here means the chain became blocking)')
   t.is(fetches.started[1], hashFor(2), 'and it fetched the new content hash')
   fetches.releaseAll()
   await settle()
@@ -190,14 +199,14 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
   const fetches = barrierFetch()
 
   await engine.start(makeJob(ctx, 1))
-  await settle()
+  t.ok(await until(() => fetches.started.length === 1), 'the first holds the slot')
   await engine.start(makeJob(ctx, 2))
-  await settle()
-  t.is(fetches.started.length, 1, 'the second job is parked on the gate')
+  t.ok(await until(() => engine.admissionStats().queued === 1), 'the second is parked on the gate')
 
   await teardownOverlay()
   engine.drainAdmission()
-  await settle()
+  // A negative assertion, so it needs a real pause: the released waiter must NOT reach a fetch.
+  await sleep(300)
 
   t.is(fetches.started.length, 1, 'the parked job abandoned instead of fetching')
   t.is(engine.admissionStats().queued, 0, 'and nothing is left holding close() open')
