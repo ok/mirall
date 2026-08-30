@@ -26,14 +26,14 @@ import {
   recordJoinRequest, listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
   pinCreatorKey, markCreatorDivergence, clearCreatorDivergence, ownLooseCatalogPublish, persistLeftTombstone,
 } from '../spaces/space.js'
-import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
+import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
-import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, leaveFrameBound } from './handshake-guard.js'
+import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape, leaveFrameBound } from './handshake-guard.js'
 import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
 import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, contentPlaneHasPeer, getContentPlaneStatus, getContentSwarm } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
@@ -128,6 +128,11 @@ const boundSignerKeys = new Map()       // profileKey → signerKey hex
 const pendingAdmitInflight = new Set()  // 'spaceId:joinerKey' currently being admitted via reconcile
 const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
 let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
+let frameLimiter = null                 // general per-socket budget charged for EVERY frame type
+// Why a frame was dropped, for diagnostics — hardening nobody can see is hardening nobody can tune.
+const droppedFrames = { oversize: 0, rate: 0, parse: 0, shape: 0, unknown: 0 }
+function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
+export function getDroppedFrameCounters() { return { ...droppedFrames } }
 // Unsettled identity-frame announcements per (socket, space), drained by the convergence
 // tick — the level-triggered resend that heals a dropped handshake/membership:request.
 const announceLedger = createAnnounceLedger()
@@ -199,6 +204,7 @@ function initSwarm(_ipc) {
   // The matched lane's cap follows the topics we joined (read per take, so joins and leaves
   // need no re-plumbing) — see createDualRateLimiter.
   rateLimiter = createDualRateLimiter({ ...getHandshakeRateLimit(), topics: () => spaceTopics.size })
+  frameLimiter = createRateLimiter(getPeerFrameLimits())
   const dropWindow = getIdentityFrameDropWindow()
   testDrop = dropWindow.count > 0 ? { ...dropWindow, seen: 0 } : null
   bootedAt = Date.now()
@@ -262,11 +268,48 @@ function initSwarm(_ipc) {
       },
     })
 
+    // Constant for the life of the connection, so it is derived once rather than per frame.
+    const noiseHex = peerInfo?.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : null
     const msgHandler = channel.addMessage({
       encoding: c.string,
       onmessage(str) {
+        // Charged BEFORE the decode: the point of a frame budget is to bound the work an
+        // unauthenticated peer can make us do, and JSON.parse is that work. Every type is metered
+        // here — the identity lanes below cover only handshake and membership:request, so without
+        // this a peer could flood presence or share-prepare-progress (one renderer decoration
+        // event per frame) at line rate.
+        // str.length is a cheap lower bound on the UTF-8 size (every UTF-16 unit costs at least one
+        // byte), so it rejects the clearly-oversized without a scan; byteLength settles the rest,
+        // because a cap named in bytes that counted UTF-16 units would admit ~3x what it claims.
+        const maxBytes = getPeerFrameMaxBytes()
+        if (maxBytes > 0 && (str.length > maxBytes || b4a.byteLength(str) > maxBytes)) {
+          countDroppedFrame('oversize')
+          log.warn('dropping oversize peer frame:', str.length, 'bytes from', remoteKey + '...')
+          return
+        }
+        if (noiseHex && frameLimiter) {
+          const r = frameLimiter.take(noiseHex)
+          if (!r.ok) {
+            countDroppedFrame('rate')
+            if (r.ban) {
+              log.warn('evicting peer flooding the frame channel', remoteKey + '...')
+              bannedNoiseKeys.add(noiseHex)
+              try { peerInfo.ban(true) } catch {}
+              socket.destroy()
+            }
+            return
+          }
+        }
+
         let msg
-        try { msg = JSON.parse(str) } catch (err) { log.error('handshake parse error:', err); return }
+        // debug, not error: a malformed frame is now a metered, counted, expected event, and
+        // logging it at error would hand any peer on the topic a log-spam primitive.
+        try { msg = JSON.parse(str) } catch (err) { countDroppedFrame('parse'); log.debug('handshake parse error:', err.message); return }
+        if (!validFrameShape(msg)) {
+          countDroppedFrame('shape')
+          log.debug('dropping malformed peer frame from', remoteKey + '...')
+          return
+        }
 
         // A frame asserting the SENDER's profileKey (handshake, membership:request) must be
         // well-formed and — when enforced — carry a signature binding the claimed profileKey to this
@@ -394,9 +437,12 @@ function dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler) {
     handleMembershipCancelAck(socket, msg)
   } else if (msg.type === 'share-prepare-progress') {
     handleSharePrepareProgressFrame(socket, msg)
-  } else if (typeof msg.type === 'string' && msg.type.startsWith('membership:')) {
+  } else if (msg.type.startsWith('membership:')) {
     if (msg.type === 'membership:request' && msg.profileKey) registerPendingRequester(socket, remoteKey, msg)
     membershipControlHandler?.(msg, { socket, peerInfo, reply })  // handler verifies a grant's identity binding + asserted root
+  } else {
+    countDroppedFrame('unknown')
+    log.debug('ignoring unknown peer frame type:', msg.type)
   }
 }
 
@@ -1897,6 +1943,7 @@ async function destroySwarm() {
   lastConnectionAt = null
   lastEmittedStatus = null
   hostChangeCount = 0
+  for (const k of Object.keys(droppedFrames)) droppedFrames[k] = 0
   lastKnownHost = null
   currentReachability = { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null }
   verdictHistory = []
@@ -1927,6 +1974,7 @@ async function destroySwarm() {
   bannedNoiseKeys.clear()
   rateLimiter?.clear()
   rateLimiter = null
+  frameLimiter = null
   membersPoke.reset()
   ipcRef = null
   leavingSpaces.clear()
@@ -2216,6 +2264,7 @@ export function getDiagnosticCounters() {
     bootedAt,
     hostChangeCount,
     localPortStable: safeAddress().port > 0,
+    droppedFrames: getDroppedFrameCounters(),
   }
 }
 

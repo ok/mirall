@@ -14,6 +14,14 @@ const BINDING_CONTEXT = b4a.from('mirall/handshake-binding/v1')
 const BINDING_CONTEXT_V2 = b4a.from('mirall/handshake-binding/v2')
 const SIG_HEX = /^[0-9a-f]{128}$/i
 
+// Every decoded frame must be a plain object carrying a string `type` before anything reads a
+// property off it. JSON.parse('null') returns null, and the property read that follows sits
+// OUTSIDE the message handler's try — it reaches protomux's _ondata, which _safeDestroy's the
+// socket. One word from any peer on the topic would drop the connection.
+export function validFrameShape (msg) {
+  return !!msg && typeof msg === 'object' && !Array.isArray(msg) && typeof msg.type === 'string'
+}
+
 // Shape check for frames that assert the SENDER's identity (handshake,
 // membership:request). Rejects malformed hex before any b4a.from reaches the data
 // layer, so a garbage key can't poison the in-memory maps.

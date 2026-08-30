@@ -80,6 +80,13 @@ const DEFAULTED = {
   handshakeAbuseThreshold: 24,
   // Frames naming a topic we did not join: dropped before any signature verify, so the lane
   // can be generous (mirrors the overlay serve limiter). Bans only on a sustained flood.
+  // Every peer frame is metered on a general lane, not just the two identity types. Presence is
+  // the busiest honest source at one frame per (peer, space) per 5 s, so 256/20ms leaves an order
+  // of magnitude of headroom. peerFrameBurst 0 switches the lane off; peerFrameMaxBytes 0 the cap.
+  peerFrameMaxBytes: 65536,
+  peerFrameBurst: 256,
+  peerFrameRefillMs: 20,
+  peerFrameAbuseThreshold: 512,
   handshakeUnmatchedBurst: 32,
   handshakeUnmatchedRefillMs: 250,
   handshakeUnmatchedAbuseThreshold: 256,
@@ -282,6 +289,19 @@ export function getPublishConcurrency() {
   if (n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n >= 1) return Math.floor(n)
   return DEFAULTED.publishConcurrency
+}
+
+export function getPeerFrameMaxBytes() {
+  return finiteAtLeast(config.peerFrameMaxBytes, 0, DEFAULTED.peerFrameMaxBytes)
+}
+
+export function getPeerFrameLimits() {
+  const c = config
+  return {
+    burst: finiteAtLeast(c.peerFrameBurst, 0, DEFAULTED.peerFrameBurst),
+    refillMs: finiteAtLeast(c.peerFrameRefillMs, 1, DEFAULTED.peerFrameRefillMs),
+    abuseThreshold: finiteAtLeast(c.peerFrameAbuseThreshold, 1, DEFAULTED.peerFrameAbuseThreshold),
+  }
 }
 
 export function getDownloadConcurrency() {
