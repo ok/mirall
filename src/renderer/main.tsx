@@ -4,6 +4,14 @@ import './i18n.js'
 import './dev-console.js'
 import { createRoot } from 'react-dom/client'
 import App from './app.js'
+import { request } from './ipc.js'
+import { configureQueryStore } from './store/query-store.js'
+import { installReconcileBridge } from './store/reconcile.js'
+
+// Before the first render: the store's transport, and the single reconcile subscription every
+// store-backed view re-derives from.
+configureQueryStore({ request })
+installReconcileBridge()
 
 if (__DEV__ && window.bridge?.isDev?.()) {
   void (async () => {
