@@ -10,7 +10,7 @@
 // renderer-facing handlers, the shutdown deadline and `Bare.exit`. boot() and close() never exit
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
-import { getPeerPresenceDwellMs, isOverlayEnabled, isInPlaceFilesEnabled, isSeparateContentPlaneEnabled, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
+import { getPeerPresenceDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
@@ -23,25 +23,20 @@ import {
   resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators,
   persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/space.js'
-import { openMemberViewsForKnownSpaces, closeAllMemberViews } from '../shared/spaces/member-registry.js'
+import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
 import { PendingTransfersBee, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
-import { initBackends, teardownBackends, fanoutAttach } from '../shared/transfer/content-backends.js'
-import { initLooseOverlay, rehydrateLooseFiles, resumeLooseForOwner } from '../shared/transfer/loose-overlay.js'
-import { resumeOverlayForOwner, setSharePrepareBroadcast, abortInFlightPublishes, clearPublishAbort } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
-import { getJournalDir, revokeServesForSpace, bumpServeEpoch } from '../shared/transfer/backends/overlay/overlay-instance.js'
+import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import {
-  initSwarm, destroySwarm, joinSpaceTopic, compactStore, broadcastDeparture, broadcastSharePrepareProgress,
-  setMembershipControlHandler, setConnectionAttachHook, setOverlayReconnectHook,
-  setRevokeServesForSpaceHook, setStalledOwnersHook, getSwarmDht, setRelayThrough,
+  Swarm, joinSpaceTopic, compactStore, broadcastDeparture, broadcastSharePrepareProgress, setRelayThrough,
   configurePendingLeaves, registerPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic,
   configurePendingCancels, leavePendingCancelTopic,
 } from '../shared/transfer/swarm.js'
-import { initContentSwarm, destroyContentSwarm, setContentAttachHook, setContentResumeHook } from '../shared/transfer/content-swarm.js'
-import { setMembershipRevokedHook } from '../shared/spaces/member-registry.js'
+import { ContentSwarm } from '../shared/transfer/content-swarm.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
 import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
@@ -57,6 +52,7 @@ import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { AuditLog } from '../shared/audit/audit-runtime.js'
 import { Catalogs } from '../shared/shares/share-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-watch.js'
+import { OverlayBackend } from '../shared/transfer/backends/overlay/overlay-runtime.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
@@ -127,12 +123,13 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
  * @returns the root: the handles the entry's handlers need, plus close().
  */
 export async function boot(bootstrap, {
-  ipc, log, membershipControl = null, publishDownloadRoots = () => {},
+  ipc, log, membershipControl = null, publishDownloadRoots = () => {}, memberRegistry = {},
   swarm = true, onPartialRoot = null, masterSecret = undefined,
 } = {}) {
   const life = createLifecycle({ log })
   let durable = null
   let publishService = null
+  let overlayBackend = null
 
   // The reverse of boot, defined BEFORE anything starts and handed to the caller at once. A
   // shutdown can arrive at any point during boot — the pipe closes when Electron main dies, and
@@ -161,18 +158,8 @@ export async function boot(bootstrap, {
     try { await new Promise((resolve) => setTimeout(resolve, 150)) } catch {}
 
     await life.close({ deadlineAt: Date.now() + budgetMs })
-
-    // Not yet resources: the member views, the content backends and both swarms keep the order
-    // the entry gave them, and each no-ops when its init never ran. Phase 2 and 3 fold them into
-    // the lifecycle above.
-    try { closeAllMemberViews() } catch {}
-    try { await teardownBackends() } catch {}
-    if (swarm) {
-      try { await destroyContentSwarm() } catch {}
-      try { await destroySwarm() } catch {}
-    }
-    // Last, and after the tail: the tail's overlay teardown is what emits the serve-completed
-    // rows this tier records, and closing the store closes every session anything still holds.
+    // Last: the runtime tier's overlay teardown is what emits the serve-completed rows this tier
+    // records, and closing the store closes every session anything still holds.
     await durable?.close({ deadlineAt: Date.now() + durableBudgetMs })
   }
   onPartialRoot?.({ close })
@@ -209,8 +196,14 @@ export async function boot(bootstrap, {
     // the owned-folder subsystem needs the settle callback at wiring time, and the runtime that owns
     // it needs the mounts bee — construction is free of side effects, so both can be satisfied.
     const mounts = new MountsRuntime('mounts', { ipc })
-    // A shutdown latch nothing clears; retired with the overlay backend in Phase 3.
-    clearPublishAbort()
+    // Before every hook consumer and before the swarm: an inbound connection that landed without
+    // the overlay channel attached would silently never get one.
+    overlayBackend = await life.start(new OverlayBackend('overlay', {
+      ipc,
+      broadcastSharePrepare: (spaceId, p) => {
+        if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p)
+      },
+    }))
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,
@@ -233,15 +226,24 @@ export async function boot(bootstrap, {
     publishDownloadRoots()
     await backfillMembership(activeSpaces, log)
 
-    const useContentPlane = isOverlayEnabled() && isSeparateContentPlaneEnabled()
-    await wireSubsystemHooks({ ipc, log, membershipControl, useContentPlane })
-    // `swarm: false` is how the single-peer test suite boots the data layer without a network: it
-    // has never started a swarm, and skipping it here is what lets those tests boot through the root.
+    // Before the swarm: starting it wires the registry's collaborators, and a handshake that
+    // landed while they were still the no-op defaults would read every peer as disconnected.
+    // Also before the topic joins, so an inbound membership:request from a departed peer that
+    // reconnects can't be handled with an unseeded tombstone set — which would misread `hadLeft`,
+    // take the reconnect re-grant shortcut, and clear the durable tombstone before it was loaded.
+    await life.start(new MemberViews('member-views', { overlayBackend, ...memberRegistry }))
+
+    // `swarm: false` is how the single-peer test suite boots the data layer without a network.
     if (swarm) {
-      initSwarm(ipc)
-      if (useContentPlane) initContentSwarm(getSwarmDht())
-      // After BOTH constructors: getContentSwarm() is null until the line above runs, and a
-      // relay installed on the control swarm alone leaves every file byte unrelayed.
+      const swarmSubsystem = await life.start(new Swarm('swarm', {
+        ipc,
+        membershipControl,
+        overlayBackend,
+        stalledOwners: listPendingOwnerKeys,
+      }))
+      await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend }))
+      // After BOTH: getContentSwarm() is null until the content swarm starts, and a relay
+      // installed on the control swarm alone leaves every file byte unrelayed.
       applyRelayConfig(log)
     }
 
@@ -253,12 +255,6 @@ export async function boot(bootstrap, {
 
     await sweepOrphans(log)
 
-    // Open derived member views (which seed the durable leave-tombstones into memory) BEFORE joining
-    // topics, so an inbound membership:request from a departed peer that reconnects can't be handled
-    // with an unseeded tombstone set — which would misread `hadLeft`, take the reconnect re-grant
-    // shortcut, and clear the durable tombstone before it was ever loaded. The fold self-heals as more
-    // peer bees replicate after the topics join below.
-    await openMemberViewsForKnownSpaces()
 
     if (swarm) {
       for (const space of activeSpaces) {
@@ -271,14 +267,14 @@ export async function boot(bootstrap, {
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    return { close, store, mounts, auditLog, ownedFolders, publishService, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
+    return { close, store, mounts, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
   }
 }
 
 
 
 // The one-time content migrations, all of which must land BEFORE the initial publish scans
-// and before initBackends opens the overlay index. Returns whether the overlay index moved.
+// and before the overlay backend opens the index. Returns whether the overlay index moved.
 async function runContentMigrations(log) {
   // One-time migration: move owned folder shares recorded with a retired contentMode
   // (undefined / 'eager' / 'deferred') to overlay BEFORE the initial publish scans below, so
@@ -294,8 +290,8 @@ async function runContentMigrations(log) {
     log.warn('catalog SCK-encrypt migration failed:', err.message)
   }
   // One-time migration: copy the overlay's plaintext local index into an M-encrypted core
-  // generation and purge the plaintext one, BEFORE initBackends opens the overlay so it opens
-  // the encrypted generation directly.
+  // generation and purge the plaintext one, BEFORE the overlay backend opens the index so it
+  // opens the encrypted generation directly.
   let didMigrateOverlayIndex = false
   try { didMigrateOverlayIndex = (await migrateOverlayIndexToEncrypted())?.migrated === true } catch (err) {
     log.warn('overlay-index at-rest migration failed:', err.message)
@@ -359,59 +355,6 @@ async function backfillMembership(activeSpaces, log) {
   }
 }
 
-async function wireSubsystemHooks({ ipc, log, membershipControl, useContentPlane }) {
-  // wire backends + every connection handler/hook BEFORE the swarm starts
-  // accepting connections, so no inbound connection lands without the overlay
-  // channel attached, the content/membership handlers set, or the overlay instance
-  // created (a connection in that window would silently never get an overlay channel).
-  await initBackends(ipc) // overlay instance + IPC ref when the flag is on
-  initLooseOverlay(ipc)
-  if (isInPlaceFilesEnabled()) rehydrateLooseFiles().catch((err) => log.debug('loose rehydrate failed:', err.message))
-  if (isOverlayEnabled()) {
-    // Auto-resume overlay downloads (loose + folder) when their owner (re)connects.
-    const autoResume = (ownerKey, spaceId) => {
-      if (isInPlaceFilesEnabled()) resumeLooseForOwner(ownerKey, spaceId).catch((err) => log.debug('loose auto-resume failed:', err.message))
-      resumeOverlayForOwner(ownerKey, spaceId).catch((err) => log.debug('overlay folder auto-resume failed:', err.message))
-  }
-    // BOTH planes drive the resume. The control handshake marks the owner's presence lease
-    // synchronously before firing this hook, so a resume it triggers can never observe the stale
-    // "owner offline" that start()'s gate reads — whereas a content-plane hello routinely lands
-    // while the control socket is still re-handshaking, and its resume is dropped. With only the
-    // content hook installed, out-of-phase flapping starves the download of every trigger it has.
-    setOverlayReconnectHook(autoResume)
-    if (useContentPlane) {
-      // The content plane authenticates per owner with no space, so fan the resume across our
-      // spaces — coalesced per owner so reconnect churn doesn't re-run listSpaces() each time.
-      // Still needed alongside the control hook: a content-only flap re-runs no handshake.
-      const resumePending = new Map()
-      setContentResumeHook((ownerKey) => {
-        if (resumePending.has(ownerKey)) return
-        const timer = setTimeout(() => {
-          resumePending.delete(ownerKey)
-          listSpaces()
-            .then((spaces) => { for (const s of spaces) if (!s.leaving) autoResume(ownerKey, s.spaceId) })
-            .catch((err) => log.debug('content-hello resume fan-out failed:', err.message))
-        }, 250)
-        timer.unref?.()
-        resumePending.set(ownerKey, timer)
-      })
-  }
-  }
-  setMembershipControlHandler(membershipControl)
-  if (useContentPlane) setContentAttachHook(fanoutAttach) // overlay binds its channel on content connections
-  else setConnectionAttachHook(fanoutAttach) // lets overlay bind its channel per connection
-  // Lets the convergence tick see a download whose owner has dropped off either plane.
-  setStalledOwnersHook(listPendingOwnerKeys)
-  setSharePrepareBroadcast((spaceId, p) => { if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p) })
-  // A peer left a space we are still in: stop serving THAT PEER the space's bytes. Scoped to the
-  // leaver — a space-wide revoke here would also cut off every other member still legitimately
-  // downloading from us. The epoch bump then re-checks the rest against the live membership gate.
-  setRevokeServesForSpaceHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
-  // The same revocation, learned through replication (the observed-leave fold) instead of a direct
-  // frame. An epoch bump alone is inert here (the fold does not remove the member from the roster,
-  // so the serve gate would re-approve), so ACTIVELY drop the leaver's grants for the space.
-  setMembershipRevokedHook((spaceId, profileKey) => { revokeServesForSpace(spaceId, profileKey); bumpServeEpoch() })
-}
 
 // Crash leftovers: partials, retired peer-cache cores, orphaned receive journals. All
 // best-effort — a failure here defers reclamation, it never blocks boot.

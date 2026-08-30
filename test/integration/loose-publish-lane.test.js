@@ -7,7 +7,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { initDownloads, getOwnedSourcePath, markOwnedSource, clearOwnedSource } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import {
-  initLooseOverlay, _resetLooseOverlay, looseShareFile, looseCancelPublish, looseSourceFor, looseSources,
+  initLooseOverlay, looseShareFile, looseCancelPublish, looseSourceFor, looseSources,
   sweepLoosePresence, handleLooseFsEvent, looseUnshareFile, rehydrateLooseFiles, LOOSE_SHARE_ID,
 } from '../../src/shared/transfer/loose-overlay.js'
 import { getOwnEntry, advertise } from '../../src/shared/shares/share-catalog.js'
@@ -51,7 +51,7 @@ async function setup (t, { concurrency = 2 } = {}) {
   await initPendingTransfers()
   looseSources.clear()
   initLooseOverlay(ctx.fake.ipc)
-  t.teardown(() => { _resetLooseOverlay(); stopOwnedFolder(ctx.spaceId, ctx.share.id); setRuntimeConfig(cfg) })
+  t.teardown(() => { stopOwnedFolder(ctx.spaceId, ctx.share.id); setRuntimeConfig(cfg) })
   return ctx
 }
 

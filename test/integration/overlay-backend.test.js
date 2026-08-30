@@ -12,7 +12,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import {
-  initContentBackendOverlay, _resetContentBackendOverlay, overlayHashFile, overlaySweepPresence, makeServable,
+  initContentBackendOverlay, overlayHashFile, overlaySweepPresence, makeServable,
 } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
 // Drive the overlay adapter's OWNER side against one fresh data layer. The
@@ -39,11 +39,10 @@ async function setup (t, { files = {} } = {}) {
     fs.writeFileSync(abs, contents)
   }
   initContentBackendOverlay(ctx.fake.ipc)
-  serveIndex._reset()
+  serveIndex.reset()
   await overlayBackend.init() // initOverlay + rehydrate (nothing published yet)
   t.teardown(async () => {
-    _resetContentBackendOverlay()
-    serveIndex._reset()
+    serveIndex.reset()
     await teardownOverlay()
   })
   return { ...ctx, spaceId: space.spaceId, share, mountPath }

@@ -7,7 +7,6 @@
 import path from 'bare-path'
 import { getOverlay } from './backends/overlay/overlay-instance.js'
 import { publishContent, broadcastSharePrepare, evictIfUnreferenced, makeServable } from './backends/overlay/overlay-backend.js'
-import { createOverlayDownloadEngine } from './backends/overlay/overlay-download.js'
 import {
   tombstone as catalogTombstone, getOwnEntry, listOwnShare, listOwnShareForDisplay, collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog,
 } from '../shares/share-catalog.js'
@@ -331,7 +330,7 @@ function ensureLooseCatalogWatch (spaceId, member, keyHex, sck) {
     // One reconcile pass over our inactive pending rows: tear down downloads for a source the
     // owner tombstoned OR re-published (so a re-add does NOT auto-resume), and re-drive genuinely
     // interrupted ones — the owner may never have disconnected.
-    looseEngine.reconcileOnAppend(member.publicKey, spaceId).catch((err) => log.debug('loose catalog-append reconcile failed:', err.message))
+    engine().reconcileOnAppend(member.publicKey, spaceId).catch((err) => log.debug('loose catalog-append reconcile failed:', err.message))
   }, sck)
   // Baseline at registration so the peer's existing catalog is adopted, not replayed, and the
   // next file they publish is the first thing recorded.
@@ -346,7 +345,7 @@ function ensureLooseCatalogWatch (spaceId, member, keyHex, sck) {
 async function reconcileActiveLooseTransfers (spaceId, member) {
   const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member)
   if (!readable) return
-  for (const [transferId, slot] of looseEngine.activeSlots()) {
+  for (const [transferId, slot] of engine().activeSlots()) {
     if (slot.spaceId !== spaceId || slot.ownerPublicKey !== member.publicKey) continue
     const drivePath = slot.pendingKey
     const inflightHash = slot.contentHash
@@ -354,14 +353,14 @@ async function reconcileActiveLooseTransfers (spaceId, member) {
     const decision = republishDecision(inflightHash, state, slot.sourceSeq)
     // Tombstoned, or re-added with identical content → terminate; don't silently continue the
     // old partial. A genuine content change falls through to the supersede below.
-    if (decision === 'drop') { await looseEngine.dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue }
+    if (decision === 'drop') { await engine().dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue }
     // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
     // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
     // restarts it on the new content via runReconcile.
-    if (decision === 'pending') { looseEngine.releaseForRepublish(transferId); continue }
+    if (decision === 'pending') { engine().releaseForRepublish(transferId); continue }
     if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
     const newJob = await buildLooseJob(spaceId, member, drivePath)
-    if (newJob) looseEngine.supersede(transferId, { ...newJob, prevBytes: 0 }, inflightHash)
+    if (newJob) engine().supersede(transferId, { ...newJob, prevBytes: 0 }, inflightHash)
   }
 }
 
@@ -411,7 +410,16 @@ function recordTransferOutcome(job, outcome, errorCode) {
   }).catch(() => {})
 }
 
-const looseEngine = createOverlayDownloadEngine({
+let looseEngine = null
+
+export function setLooseEngine(next) { looseEngine = next }
+
+function engine() {
+  if (!looseEngine) throw new Error('loose overlay: not started')
+  return looseEngine
+}
+
+export const looseChannel = {
   diagLabel: 'loose download',
   inPlace: true,
   ownsPendingRow: (row) => row.inPlace === true && row.shareId === LOOSE_SHARE_ID,
@@ -445,16 +453,16 @@ const looseEngine = createOverlayDownloadEngine({
   },
   emitRemovedByOwner: (spaceId, pendingKey, row, transferId) =>
     ipcRef?.emit('event:transfer-removed', { spaceId, transferId, path: pendingKey, fileName: path.basename(row?.relPath || rel(pendingKey)) }),
-})
+}
 
-export function looseHasTransfer (transferId) { return looseEngine.has(transferId) }
-export function looseTransferActive (spaceId, relPath) { return looseEngine.has(looseTransferIdFor(spaceId, relPath)) }
+export function looseHasTransfer (transferId) { return engine().has(transferId) }
+export function looseTransferActive (spaceId, relPath) { return engine().has(looseTransferIdFor(spaceId, relPath)) }
 
 export async function looseDownload (spaceId, member, drivePath) {
   const relPath = rel(drivePath)
   // This is the manual resume path too, so retire any pause marker up front — start() clears it
   // as well, but the guards below can return before we ever reach start().
-  looseEngine.clearPauseMarker(looseTransferIdFor(spaceId, relPath))
+  engine().clearPauseMarker(looseTransferIdFor(spaceId, relPath))
   if (!getOverlay() || !(member?.looseCatalogKey || member?.looseCatalogKeyEnc)) return { queued: true }
   const job = await buildLooseJob(spaceId, member, drivePath)
   if (!job) {
@@ -467,27 +475,27 @@ export async function looseDownload (spaceId, member, drivePath) {
     ipcRef?.emit('event:files-updated', { spaceId })
     return { queued: true }
   }
-  return looseEngine.start(job)
+  return engine().start(job)
 }
 
-export function loosePause (transferId) { return looseEngine.pause(transferId) }
-export function looseCancelTransfer (transferId) { return looseEngine.cancel(transferId) }
+export function loosePause (transferId) { return engine().pause(transferId) }
+export function looseCancelTransfer (transferId) { return engine().cancel(transferId) }
 export function looseCancel (spaceId, drivePath) {
-  return looseEngine.cancelByKey(spaceId, drivePath, looseTransferIdFor(spaceId, rel(drivePath)))
+  return engine().cancelByKey(spaceId, drivePath, looseTransferIdFor(spaceId, rel(drivePath)))
 }
 // Cancel + discard every in-flight loose download for a space (leave teardown): the
 // engine keeps fetching a started transfer even after its pending row is cleared, so
 // without this the partial is orphaned and a late completion re-writes purged meta rows.
 export async function looseCancelSpace (spaceId) {
   const ids = []
-  for (const [transferId, slot] of looseEngine.activeSlots()) {
+  for (const [transferId, slot] of engine().activeSlots()) {
     if (slot.spaceId === spaceId) ids.push(transferId)
   }
   // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
   // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
-  await Promise.all(ids.map((id) => looseEngine.cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
+  await Promise.all(ids.map((id) => engine().cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
 }
-export function resumeLooseForOwner (ownerKey, spaceId) { return looseEngine.resumeForOwner(ownerKey, spaceId) }
+export function resumeLooseForOwner (ownerKey, spaceId) { return engine().resumeForOwner(ownerKey, spaceId) }
 
 // Boot: in-memory serve maps + reverse map are not persisted. Re-register every
 // own loose file whose source still exists (re-hashing if it changed while
@@ -570,9 +578,8 @@ export async function sweepLoosePresence () {
   await Promise.all(retires)
 }
 
-export function _resetLooseOverlay () {
+export function resetLooseState () {
   ipcRef = null
   looseSources.clear()
   sweepGone.clear()
-  looseEngine._registry.clear()
 }

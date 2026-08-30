@@ -74,7 +74,7 @@ test('REGRESSION (FIX: crash backstop is installed before the core-opening boot 
   t.ok(backstopAt < firstAwaitAt, 'backstop is installed before the entry\'s first await')
   t.ok(backstopAt < bootAt, 'backstop is installed before boot() — i.e. before every core open')
   const bootSrc = fs.readFileSync(path.join(srcRoot, 'worker', 'boot.js'), 'utf8')
-  for (const marker of ['new Store(', 'initBackends(', 'initSwarm(']) {
+  for (const marker of ['new Store(', 'new OverlayBackend(', 'new Swarm(']) {
     t.ok(bootSrc.includes(marker), marker + ' opens cores inside the root, after the backstop')
   }
 })

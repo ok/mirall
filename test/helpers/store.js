@@ -5,9 +5,6 @@ import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
 import { setProfile } from '../../src/shared/spaces/profile.js'
 import { boot, bootDurable } from '../../src/worker/boot.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { _resetContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
-import { _resetLooseOverlay } from '../../src/shared/transfer/loose-overlay.js'
 import { createFakeIpc } from './fake-ipc.js'
 
 let seq = 0
@@ -19,6 +16,20 @@ function tmpDir (label) {
 }
 
 const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+
+// A single-peer test has no swarm, so the registry's connection-backed collaborators answer
+// "nobody is connected". Passed explicitly rather than defaulted, so the degradation is visible
+// and MemberViews' require() still fails loudly on a genuinely missing one.
+export const offlineMemberRegistry = {
+  metaFor: () => null,
+  isConnected: () => false,
+  profileFor: async () => null,
+  readmitConnected: () => {},
+  emitMembersUpdated: () => {},
+  emitJoinRequest: () => {},
+  emitJoinRequestsUpdated: () => {},
+  emitSharesUpdated: () => {},
+}
 
 // Production layout: the store sits at <peerDir>/app-storage, so identity.enc and space-keys.enc —
 // which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
@@ -56,17 +67,13 @@ export async function freshPeerWithIdentity (t, { displayName = 'Tester' } = {})
 async function bootPeer (t, { displayName, masterSecret }) {
   const { config, storage, downloads } = peerDirs(t)
   const fake = createFakeIpc()
-  const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret })
+  const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   await setProfile({ displayName })
   // order:1 — brittle sorts teardowns and runs the default order:0 ones first, so a test's own
   // teardown still has a live data layer to work against. Closing the root first would leave every
   // bee accessor pointing at nothing.
   t.teardown(async () => {
     try { await root.close() } catch (err) { console.warn('[test] root.close failed:', err.message) }
-    // Started by boot() but not yet owned by it — the overlay modules Phase 3 converts.
-    try { _resetContentBackendOverlay() } catch {}
-    try { _resetLooseOverlay() } catch {}
-    try { serveIndex._reset() } catch {}
   }, { order: 1 })
   return { storage, downloads, fake, tmpDir, root }
 }

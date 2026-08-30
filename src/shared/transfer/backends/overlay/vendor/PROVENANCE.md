@@ -560,6 +560,27 @@ re-diffable against upstream. Categories:
     matrix against real protomux, a malformed-tail case, plus a wire-byte pin) and
     `test/integration/overlay-channel-handshake.test.js`.
 
+22. **Protocol teardown split out of `close()` (`overlay-v2.js`, lifecycle).** `HyperOverlayV2`
+    gains `closeProtocol()`, which destroys the protocol and nulls it, leaving the file index and
+    the sync feed open. Upstream has one teardown (`_close`), which is all-or-nothing: the host
+    could either keep everything or lose everything.
+
+    Mirall needs the middle state. The swarm subsystems close before the overlay does (the
+    overlay is a dependency of both, so the lifecycle closes it later), and when a swarm goes
+    down its sockets must be dropped while the overlay can still answer from its index — the
+    publish service and the owned-folder watcher drain against a live overlay after the network
+    is gone. Destroying the protocol is also what fires the per-peer teardown and its serve-end
+    callbacks, so doing it while the sockets are still up is what lets those callbacks run at all;
+    deferring it to `_close` runs them against already-dead sockets, and the serve ledger never
+    sees the ends.
+
+    `closeProtocol()` is idempotent, and `_close` is unchanged — its `if (this._protocol)` guard
+    already makes the protocol half a no-op once `closeProtocol()` has run, so the ordinary
+    single-shot teardown path still works untouched for a host that never calls it. Covered by
+    `test/integration/overlay-vendor-close-protocol.test.js` (the index keeps serving, idempotence,
+    `close()` after it, and the peer teardown firing while both sockets are still up); the host-side
+    ordering that depends on it is pinned by `test/integration/swarm-lifecycle.test.js`.
+
 ## Re-diffing against upstream
 
 ```

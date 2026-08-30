@@ -73,7 +73,7 @@ export const serveIndex = {
     return hashToRefs.get(contentHash)?.has(refKey(spaceId, shareId, relPath)) === true
   },
 
-  _reset() {
+  reset() {
     hashToRefs.clear()
   },
 }

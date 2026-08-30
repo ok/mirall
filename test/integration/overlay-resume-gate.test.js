@@ -83,14 +83,15 @@ test('REGRESSION (FIX-9: the control-plane resume hook is installed even when th
   // The hook wiring moved with the boot sequence into the composition root.
   const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'boot.js'), 'utf8')
 
-  const controlAt = src.indexOf('setOverlayReconnectHook(autoResume)')
-  const contentAt = src.indexOf('setContentResumeHook(')
-  t.ok(controlAt > -1, 'the control-plane resume hook is wired')
-  t.ok(contentAt > -1, 'the content-plane resume hook is wired')
-  t.ok(controlAt < contentAt,
-    'the control hook is installed before (i.e. outside) the content-plane branch — not as its else')
-  t.absent(/else\s*\{\s*setOverlayReconnectHook/.test(src),
-    'the control hook is not gated behind the content plane being off')
+  // Both planes now take the SAME overlay backend as a constructor dep, which is the invariant
+  // this pinned: the control hook can no longer be the else-branch of the content plane, because
+  // neither is a branch any more.
+  const swarmDep = src.match(/new Swarm\('swarm', \{[\s\S]*?\}\)\)/)?.[0] || ''
+  const contentDep = src.match(/new ContentSwarm\('content-swarm', \{[^}]*\}\)/)?.[0] || ''
+  t.ok(/overlayBackend/.test(swarmDep), 'the control swarm resumes through the overlay backend')
+  t.ok(/overlayBackend/.test(contentDep), 'and so does the content swarm')
+  t.absent(/setOverlayReconnectHook|setContentResumeHook/.test(src),
+    'neither resume path is a nullable hook slot any more')
 })
 
 test('REGRESSION (FIX-9: a resume trigger arriving while the owner looks offline does not consume the intent)', async (t) => {

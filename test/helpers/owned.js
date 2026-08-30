@@ -8,19 +8,15 @@ import { saveOwnedMount, saveForeignMount } from '../../src/shared/folders/mount
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
 // Create a space + an overlay owned-folder share owned by this peer + its mount dir.
 // Overlay is the only content backend, so the share is stamped overlay and the
 // overlay instance is brought up in-process (no second peer).
 export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
-  const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
-  await initOverlay()
-  initContentBackendOverlay(ctx.fake.ipc)
-  t.teardown(async () => { await teardownOverlay() })
+  const ctx = await freshPeer(t)
 
   const space = await createSpace('Aurora')
   const share = {

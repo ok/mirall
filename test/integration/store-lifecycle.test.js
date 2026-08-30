@@ -1,7 +1,7 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, offlineMemberRegistry } from '../helpers/store.js'
 import { boot } from '../../src/worker/boot.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -62,7 +62,7 @@ test('REGRESSION (LIFECYCLE-2b): a catalog write on a pre-restart space works af
   const config = getRuntimeConfig()
   await ctx.root.close()
 
-  const second = await boot(config, { ipc: createFakeIpc().ipc, log: quiet, swarm: false, masterSecret: null })
+  const second = await boot(config, { ipc: createFakeIpc().ipc, log: quiet, swarm: false, masterSecret: null, memberRegistry: offlineMemberRegistry })
   t.teardown(() => second.close())
 
   const after = await ownCatalog(space.spaceId)

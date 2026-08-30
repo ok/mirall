@@ -6,12 +6,12 @@ import { mergeMemberIdentity } from './member-identity.js'
 import { foldPendingSet } from './pending-set.js'
 import { tombstoneActive, observedLeavers } from './member-set.js'
 import { createLogger } from '../core/logger.js'
+import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
 
 // Set by the worker. A hook, not an import: the overlay reaches back into spaces/ for the
 // membership gate, so importing it here would close the cycle.
 let membershipRevokedHook = null
-export function setMembershipRevokedHook (fn) { membershipRevokedHook = fn }
 
 const log = createLogger('member-registry')
 
@@ -75,7 +75,7 @@ export function captureDeficits () {
 // lets a rejoin self-clear the tombstone via tombstoneActive.
 const lefts = new Map()   // spaceId -> Map<keyHex, leaveTs>
 
-let deps = {
+const DEFAULT_DEPS = {
   metaFor: () => null,              // (spaceId, key) => { driveKey, displayName, avatar } | null (live swarm)
   isConnected: () => false,         // (spaceId, key) => bool (a live handshake for this space)
   profileFor: async () => null,     // (spaceId, key) => { displayName, avatar } | null (replicated bee)
@@ -85,6 +85,8 @@ let deps = {
   emitJoinRequestsUpdated: () => {},// (spaceId) => void
   emitSharesUpdated: () => {},      // (spaceId) => void — a followed member's share/<space>/* changed
 }
+
+let deps = { ...DEFAULT_DEPS }
 
 export function configureMemberRegistry (next) {
   deps = { ...deps, ...next }
@@ -270,7 +272,7 @@ async function applyObservedLeave (spaceId, key, leaveTs) {
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 
-export async function openMemberViewsForKnownSpaces () {
+async function openMemberViewsForKnownSpaces () {
   for (const space of await listSpaces()) {
     try { await openMemberView(space.spaceId) } catch (err) { log.warn('open view failed:', space.spaceId, err.message) }
   }
@@ -413,4 +415,25 @@ function reconcilePending (spaceId, entry, { requests, denied, members, approved
   }
   if (!changed) { for (const k of prev.keys()) if (!pending.has(k)) { changed = true; break } }
   if (changed) deps.emitJoinRequestsUpdated(spaceId)
+}
+
+export class MemberViews extends Subsystem {
+  constructor (name, deps) {
+    super(name, deps)
+    this.require('overlayBackend', 'metaFor', 'isConnected', 'profileFor', 'readmitConnected', 'emitMembersUpdated')
+  }
+
+  async _open () {
+    const { overlayBackend, ...registry } = this.deps
+    configureMemberRegistry(registry)
+    membershipRevokedHook = (spaceId, profileKey) => overlayBackend.revokeServesForSpace(spaceId, profileKey)
+    await openMemberViewsForKnownSpaces()
+  }
+
+  async _close () {
+    closeAllMemberViews()
+    membershipRevokedHook = null
+    // A second boot in one process must not inherit the first boot's closures.
+    deps = { ...DEFAULT_DEPS }
+  }
 }
