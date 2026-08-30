@@ -13,7 +13,7 @@ import os from 'bare-os'
 import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
+import { createIPC, getBootstrapPromise, getRequestFailureCounters } from '../shared/core/ipc.js'
 import {
   setRuntimeConfig,
   getRuntimeConfig,
@@ -1977,6 +1977,7 @@ ipc.handle('diagnostics:export', async (msg) => {
       arch: os.arch(),
     },
     counters: getDiagnosticCounters(),
+    requestFailures: getRequestFailureCounters(),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
