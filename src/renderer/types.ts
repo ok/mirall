@@ -1,3 +1,4 @@
+import type { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS } from '../shared/contract/statuses.js'
 export interface Profile {
   displayName: string
   avatar: string | null
@@ -50,31 +51,9 @@ export interface Space {
   downloadFolder?: string
 }
 
-export type FileStatus =
-  | 'mine'
-  | 'downloaded'
-  | 'remote'
-  | 'preparing'
-  | 'downloading'
-  | 'verifying'
-  | 'publishing'
-  | 'paused-interrupted'
-  | 'paused-offline'
-  | 'unavailable'
-  | 'error'
+export type FileStatus = (typeof FILE_STATUS)[number]
 
-export type BadgeStatus =
-  | 'mine'
-  | 'on-device'
-  | 'available'
-  | 'downloading'
-  | 'verifying'
-  | 'preparing'
-  | 'publishing'
-  | 'paused'
-  | 'owner-offline'
-  | 'unavailable'
-  | 'error'
+export type BadgeStatus = (typeof BADGE_STATUS)[number]
 
 export interface FileEntry {
   path: string
@@ -169,17 +148,7 @@ export interface ForeignFolderMount {
   status?: ForeignMountStatus
 }
 
-export type ShareFileStatus =
-  | 'remote'
-  | 'preparing'
-  | 'downloading'
-  | 'verifying'
-  | 'downloaded'
-  | 'synced'
-  | 'unavailable'
-  | 'paused-interrupted'
-  | 'paused-offline'
-  | 'error'
+export type ShareFileStatus = (typeof SHARE_FILE_STATUS)[number]
 
 export interface ShareFileEntry {
   relPath: string
