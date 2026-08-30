@@ -75,17 +75,22 @@ test('REGRESSION (FIX-367): the space list holds its empty hero until spaces:lis
 test('REGRESSION (FIX-367): both list hooks survive a remount without refetching from zero', (t) => {
   // The cache is what makes a revisit render instantly; without it the gates above merely
   // trade the empty hero for a "Loading files…" flash on every space switch.
+  // Both hooks read through the query store now, which holds the cross-mount cache. The property
+  // is unchanged — a revisit renders from cache, and only a genuinely cold entry reports loading —
+  // but it lives in query-store.js, where query-store.test.js pins it directly.
   const shares = read('hooks', 'useShares.ts')
-  t.ok(/const shareCache = new Map/.test(shares), 'useShares keeps a cross-mount cache')
-  t.ok(/shareCache\.set\(spaceId/.test(shares), 'a fresh read populates it')
-  t.ok(/useState\(\(\) => !shareCache\.has\(spaceId\)\)/.test(shares), 'a cached space does not report loading')
-  t.absent(/setLoading\(true\)\n\s+try \{/.test(shares), 'an event-driven refresh never re-opens the loading window')
+  t.ok(/useQuery<Share\[\]>\('share:list'/.test(shares), 'useShares reads through the store')
+  t.absent(/const shareCache = new Map/.test(shares), 'and keeps no second cache to disagree with it')
+  t.ok(/const cold = shares\.data === undefined/.test(shares),
+    'a cached space does not report loading, so the empty hero never flashes over it')
+  t.ok(/pruneShareCache/.test(shares), 'a departed space still drops its cached rows')
 
-  t.ok(/pruneShareCache/.test(shares), 'a departed space drops its cached rows')
-
+  // useSpaces now reads through the query store, which holds the cross-mount cache the flash fix
+  // depends on. The property is unchanged — a revisit renders from cache and an unfetched entry
+  // reports loading — but it lives in query-store.js now, where query-store.test.js pins it.
   const spaces = read('hooks', 'useSpaces.ts')
-  t.ok(/let spacesCache/.test(spaces), 'useSpaces keeps a cross-mount cache')
-  t.ok(/useState\(\(\) => spacesCache === null\)/.test(spaces), 'a warm cache does not report loading')
-  t.ok(/finally \{\s*\n\s*setLoading\(false\)/.test(spaces), 'a rejected list still settles loading')
-  t.ok(/pruneShareCache\(data\.map/.test(spaces), 'the roster drives the share-cache pruning')
+  t.ok(/useQuery<Space\[\]>\('spaces:list'/.test(spaces), 'useSpaces reads through the store')
+  t.ok(/data === undefined && fetching/.test(spaces), 'and a refetch does not re-open the loading window')
+  t.absent(/let spacesCache/.test(spaces), 'and keeps no second cache of its own to disagree with it')
+  t.ok(/pruneShareCache\(ids\)/.test(spaces), 'the roster still drives the share-cache pruning')
 })
