@@ -657,7 +657,7 @@ root = await boot(bootstrap, {
   // the line below; both carry the same close().
   onPartialRoot: (partial) => { root = partial },
 })
-const { mounts, applyRelayConfig } = root
+const { mounts, intents, applyRelayConfig } = root
 
 // The renderer asks on mount and again whenever a transfer reports the folder gone, so the
 // banner can appear at once rather than on the next tick. Re-probing (rather than returning the
@@ -1100,6 +1100,10 @@ ipc.handle('owned-folder:delete', async (msg) => {
     log.warn('delete requested for unknown share:', msg.shareId)
   }
 
+  // The two writes below land in different bees, so a crash between them leaves the share still
+  // advertised with no mount behind it. Recorded first, cleared last; boot finishes the pair.
+  const intentId = await intents.beginOrNull('owned-delete', { spaceId: msg.spaceId, shareId: msg.shareId })
+
   mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   stopOwnedFolder(msg.spaceId, msg.shareId)
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
@@ -1108,6 +1112,7 @@ ipc.handle('owned-folder:delete', async (msg) => {
   // tombstone below retires the catalog from every consumer's view.
   await deleteOwnedMount(msg.spaceId, msg.shareId)
   await tombstoneShare(msg.spaceId, msg.shareId)
+  await intents.complete(intentId)
   record('share.deleted', {
     actor: selfActor(),
     space: spaceRef(await getSpace(msg.spaceId)),
@@ -1198,7 +1203,11 @@ ipc.handle('foreign-folder:set-enabled', async (msg) => {
 
 ipc.handle('foreign-folder:unmount', async (msg) => {
   const mount = await getForeignMount(msg.spaceId, msg.shareId)
+  // The unmount drops the mount record and the mirror record in two stores; a crash between them
+  // leaves a mirror loop armed against a mount that is already gone.
+  const intentId = await intents.beginOrNull('foreign-unmount', { spaceId: msg.spaceId, shareId: msg.shareId })
   await unmountForeignFolder(msg.spaceId, msg.shareId)
+  await intents.complete(intentId)
   record('mirror.removed', {
     actor: selfActor(),
     space: spaceRef(await getSpace(msg.spaceId)),
