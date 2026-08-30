@@ -145,14 +145,14 @@ Bootstrap:
 2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
 3. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
 4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
-   1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee`.
+   1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
    3. `ServeLedger`, immediately after `AuditLog` so that on the way out it flushes **before** that bee closes and while the spaces bee it reads is still open.
    4. `Catalogs` (the own/peer catalog bee caches) → `SpaceDrives` (`loadDrives`; on failure, `cleanupOrphanedData()`) → the three manifest caps → the one-time content migrations.
 
    The **runtime** tier is closed first, in reverse of this order:
    5. `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OverlayBackend` (the overlay instance, the serve index and both download engines — constructed here rather than at module level, which is what keeps the package's import cycle free of construction), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
-   6. Interrupted-leave resume, download-root hydration, the membership backfill.
+   6. Interrupted-leave resume, then `intents.recover()` — the durable intent log's boot pass (§ below) — then download-root hydration and the membership backfill. Recovery runs after every reconciler has registered and before the swarm, so a topic join cannot re-arm a watcher against a space the pass is about to forget.
    7. `MemberViews` — **before** the swarms, because starting it is what wires the member registry's collaborators, and a handshake that landed while they were still the no-op defaults would read every peer as disconnected. It is also necessarily before the topic joins, so an inbound membership request cannot be handled with an unseeded tombstone set.
    8. `Swarm`, then `ContentSwarm` (which needs the control swarm's DHT node), then `applyRelayConfig()` — a relay installed on the control swarm alone leaves every file byte unrelayed. Every hook the swarm fires is a **constructor dep** (`membershipControl`, `overlayBackend`, `stalledOwners`) declared with `require()`, so a missing one fails at boot with the subsystem's name instead of being a `hook?.()` that never fires. Then the crash-leftover sweeps, the topic joins and the pending-leave replay.
    9. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune) last.
@@ -161,6 +161,25 @@ Bootstrap:
 6. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
 
 Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` → `root.close()` under a 4 s hard deadline, then `Bare.exit(0)`. `close()` announces departure and halts publishing first (deliberately not in reverse order — the datagram has to leave UDX before any socket drops), waits a 150 ms flush window (**ref'd**: it is the one await on the path with no work behind it, and an unref'd timer there empties the loop for an in-process caller holding no other handle), then closes the runtime tier in reverse — there is no hand-ordered tail left — and **last** the durable tier — whose `Store._close` warns, naming any Corestore session still open, because that list is precisely the handles nobody owned. Tearing the network down is itself what emits `serve.completed` rows, which is why the ledger and the audit bee are in the tier that closes after it. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
+
+**Durable intents.** A multi-step flow whose steps span stores writes `intent/<kind>/<id>` to the
+intents bee as its FIRST durable act and deletes it as its LAST (`core/intents.js`); a reconciler
+registered against that kind completes it idempotently at the next boot. Recording is best-effort —
+a flow that cannot write its intent still runs, losing only the recovery net, because refusing the
+user's action over a bookkeeping write would be the worse outcome. A reconciler that throws keeps
+its record for the next boot; an intent whose kind is unknown is left untouched, so a downgrade
+cannot eat a newer build's pending work. Converted so far: `owned-delete`, `foreign-unmount`.
+`space:leave` keeps its own `space.leaving` marker (load-bearing in the boot filter and the member
+fold) but shares the teardown ORDER with the boot pass through `spaces/leave-flow.js`, which is what
+the two used to encode independently and drift on.
+
+**Bounded by construction.** Three caps the review's scale findings asked for, each with a `0`
+rollback: `downloadConcurrency` (3) admits fetches through a FIFO semaphore with one express lane
+for user-initiated downloads, so a reconnect backlog cannot spawn one chunk scheduler, watchdog, fd
+and ticker per pending row; `peerFrameBurst`/`peerFrameMaxBytes` meter and size-cap EVERY peer frame
+before the decode, not just the two identity types; `peerCatalogCacheLimit` (64) bounds the open
+peer-catalog set with a refcounted LRU — watchers and in-flight reads pin their entry, because the
+cached values are live handles and `onEvict` closes them.
 
 **Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
 
@@ -956,6 +975,10 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` factories, and the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` — the overlay instance, the serve index and both download engines as one lifetime; outside the package's import cycle so wiring them together adds no edge to it |
 | `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
+| `src/shared/core/intents.js` | `createIntentLog()` — durable intent records + the per-kind reconcilers boot dispatches |
+| `src/shared/core/lru.js` | `createRefCountedLru()` — bounded cache of live handles; an entry with readers is never evicted |
+| `src/shared/spaces/leave-flow.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share |
+| `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the space:leave handler as a module, the first seam out of the entrypoint |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 | `src/shared/` | Worker data layer (below); `invite-envelope.js` is also dynamically imported by main |
 | `src/renderer/` | Renderer source (TS + React → `assets/dist/`) |
