@@ -7,10 +7,11 @@ export { getFileIcon } from './fileIcon.js'
 
 const AVATAR_SIZE = 160
 
-// Keep in sync with src/shared/identity-limits.js (NAME_MAX lives in invite-envelope.js); the
-// renderer cannot import the worker data layer, so the bounds are mirrored here.
-export const NAME_MAX = 80
-export const AVATAR_MAX_BYTES = 256 * 1024
+// Imported, not mirrored. The contract package is plain ESM with no imports of its own, so esbuild
+// bundles it into the renderer and Bare loads the same file in the worker — one declaration, and the
+// "keep in sync" comment that used to stand here is now a build error instead of a hope.
+import { NAME_MAX, AVATAR_MAX_BYTES } from '../shared/contract/limits.js'
+export { NAME_MAX, AVATAR_MAX_BYTES }
 export const AVATAR_INPUT_MAX_BYTES = 16 * 1024 * 1024
 
 export function getInitials(displayName: string | null | undefined): string {

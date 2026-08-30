@@ -1,6 +1,10 @@
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import path from 'path'
 import test from 'brittle'
-import { Scope, scopeMatches } from '../../src/shared/state/scope.js'
-import { scopeMatches as rendererScopeMatches } from '../../src/renderer/scope-match.js'
+import { Scope, scopeMatches } from '../../src/shared/contract/scope.js'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
 
 test('scopeMatches: kind + space must agree', (t) => {
   t.ok(scopeMatches(Scope.files('S1'), Scope.files('S1')))
@@ -26,11 +30,22 @@ test('scopeMatches: a spaceId-less members view (the spaces list) matches any me
   t.absent(scopeMatches(Scope.files('S1'), { kind: 'members' }))
 })
 
-// scope.js (worker) and scope-match.js (renderer) are hand-mirrored; a reconcile emitted with
-// one and consumed by the other must decide identically. A hand-picked matrix missed two
-// executed divergence classes (a narrow share-files hint vs a broad view, and shareIds on a
-// non-share-files kind), so this asserts agreement pairwise-exhaustively instead.
-test('REGRESSION (FIX-EDA-13: renderer mirror agrees with the worker pairwise-exhaustively)', (t) => {
+// The two used to be hand-mirrored implementations that had to agree, and this matrix is what
+// caught the divergences a hand-picked table missed. There is one implementation now, so comparing
+// it to itself would be a tautology — instead the matrix pins its SEMANTICS against an independent
+// reference written from the documented rule: a hint matches a view iff the kinds are equal and
+// every id BOTH sides pin is equal. If the implementation is ever "simplified" into disagreeing
+// with the rule it documents, this fails.
+function referenceMatches (hint, view) {
+  if (!hint || !view) return false
+  if (hint.kind !== view.kind) return false
+  for (const id of ['spaceId', 'shareId']) {
+    if (view[id] != null && hint[id] != null && hint[id] !== view[id]) return false
+  }
+  return true
+}
+
+test('REGRESSION (FIX-EDA-13: the matcher agrees with its documented rule pairwise-exhaustively)', (t) => {
   const kinds = ['files', 'shares', 'share-files', 'members', 'mirrors', 'join-requests']
   const spaceIds = ['S1', 'S2', null, undefined]
   const shareIds = ['A', 'B', null, undefined]
@@ -48,8 +63,20 @@ test('REGRESSION (FIX-EDA-13: renderer mirror agrees with the worker pairwise-ex
   const mismatches = []
   for (const hint of scopes) {
     for (const view of scopes) {
-      if (rendererScopeMatches(hint, view) !== scopeMatches(hint, view)) mismatches.push([hint, view])
+      if (view === null) continue
+      if (scopeMatches(hint, view) !== referenceMatches(hint, view)) mismatches.push([hint, view])
     }
   }
-  t.alike(mismatches, [], 'every (hint, view) pair decides identically in both matchers')
+  t.is(scopes.length, 97, 'the matrix is the size it claims')
+  t.alike(mismatches, [], 'every (hint, view) pair decides as the documented rule says')
+})
+
+// The twin is gone: src/renderer/scope.ts re-exports the contract's implementation, so there is no
+// second copy to disagree with. Asserted structurally, since a future re-introduction would be
+// silent otherwise.
+test('the renderer re-exports the contract rather than reimplementing it', (t) => {
+  const src = readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'scope.ts'), 'utf8')
+  t.ok(/export \{ Scope, scopeMatches \} from '\.\.\/shared\/contract\/scope\.js'/.test(src),
+    'scope.ts is an import path, not an implementation')
+  t.absent(/function scopeMatches/.test(src), 'no second implementation crept back in')
 })

@@ -181,6 +181,26 @@ before the decode, not just the two identity types; `peerCatalogCacheLimit` (64)
 peer-catalog set with a refcounted LRU — watchers and in-flight reads pin their entry, because the
 cached values are live handles and `onEvict` closes them.
 
+**The contract package.** `src/shared/contract/` is the vocabulary all three runtimes speak:
+request names and their argument shapes (`requests.js`), error codes (`errors.js`), event names,
+limits, status tuples, the reconcile `Scope`, and the audit kinds. **Plain ESM with zero imports** —
+that constraint is what lets esbuild bundle it into the renderer, Bare load it in the worker and
+main reach it through `import()`, and it is test-enforced. The renderer's hand-maintained twins
+(`scope-match.js`, and the kind list inside `auditKinds.ts`) are gone; `scope.ts` and `auditKinds.ts`
+remain as import paths that re-export. `.js` + `.d.ts` rather than `.ts` because the unit suite runs
+under brittle-node with no build step — and because TypeScript never compares the two,
+`contract-declarations.test.js` does, including the status tuples the renderer derives its unions
+from.
+
+**The handler table.** `core/handler-table.js` holds each request's function beside its contract
+spec. `ipc.handle(name, fn)` is now a shim onto `table.register`, so registering a name the contract
+does not declare **throws at boot** rather than surfacing as a field 404, and the router validates
+every payload against the declared arg shape before the handler runs — replacing the four
+`typeof msg.` checks that were spread across 85 handlers. A bad payload is refused with
+`INVALID_ARGUMENT` and counted. Only `spaceId` and `shareId` are required; everything else is
+type-checked when present but never demanded, so the gate cannot reject traffic a caller already
+sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary it exercises.
+
 **Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
 
 - **No module-level timers.** Arm periodic work in a `Subsystem._open` through `this.timers`, so it dies with the subsystem. Enforced by an eslint `no-restricted-syntax` selector on the data-layer block (`moduleLevelTimerRestrictions`), driven through eslint's own parser by `test/unit/module-level-timers.test.js`.
@@ -977,6 +997,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
 | `src/shared/core/intents.js` | `createIntentLog()` — durable intent records + the per-kind reconcilers boot dispatches |
 | `src/shared/core/lru.js` | `createRefCountedLru()` — bounded cache of live handles; an entry with readers is never evicted |
+| `src/shared/contract/` | The vocabulary all three runtimes share — requests, codes, events, limits, statuses, scope, audit kinds. Zero imports, by rule |
+| `src/shared/core/handler-table.js` | `createHandlerTable()` + `validateArgs()` — each request's function beside its declared shape |
 | `src/shared/spaces/leave-flow.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share |
 | `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the space:leave handler as a module, the first seam out of the entrypoint |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |

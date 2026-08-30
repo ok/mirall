@@ -8,7 +8,7 @@ import b4a from 'b4a'
 const HEX64 = /^[0-9a-f]{64}$/i
 const HEX32 = /^[0-9a-f]{32}$/i
 const B64URL = /^[A-Za-z0-9_-]+$/
-const NAME_MAX = 80
+import { NAME_MAX } from './contract/limits.js'
 const SCHEMA_MAX = 2
 
 function b64urlEncode(str) {

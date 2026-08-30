@@ -2,6 +2,17 @@ import test from 'brittle'
 import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
+// The router is strict about names it does not know, which is the point in production. A test
+// declares the small vocabulary it exercises instead of registering into the real contract.
+const TEST_REQUESTS = Object.freeze({
+  'thing:do': { kind: 'command', args: {} },
+  'thing:ok': { kind: 'command', args: {} },
+  'preview:make': { kind: 'command', args: {} },
+  'a:do': { kind: 'command', args: {} },
+  'b:do': { kind: 'command', args: {} },
+})
+
+
 // The router logs through createLogger, which writes to console.warn / console.log. Capturing both
 // is the only way to assert the LEVEL, which is the entire point of this fix.
 function captureConsole (t) {
@@ -33,7 +44,7 @@ function setup (t, { verbose = false } = {}) {
   resetRequestFailureCounters()
   t.teardown(() => { setRuntimeConfig(prev); resetRequestFailureCounters() })
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   return { ipc, pipe }
 }
 

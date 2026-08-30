@@ -3,6 +3,19 @@ import { EventEmitter } from 'events'
 import { createIPC, getBootstrapPromise, scopeForEvent } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
+// The router is strict about names it does not know, which is the point in production. A test
+// declares the small vocabulary it exercises instead of registering into the real contract.
+const TEST_REQUESTS = Object.freeze({
+  'add': { kind: 'command', args: {} },
+  'boom': { kind: 'command', args: {} },
+  'boom2': { kind: 'command', args: {} },
+  'bootstrap': { kind: 'command', args: {} },
+  'echo': { kind: 'command', args: {} },
+  'ok': { kind: 'command', args: {} },
+  'x': { kind: 'command', args: {} },
+})
+
+
 // Minimal pipe double: an EventEmitter that records what the IPC writes.
 function fakePipe () {
   const ee = new EventEmitter()
@@ -17,7 +30,7 @@ const tick = () => new Promise((r) => setImmediate(r))
 
 test('requests are queued until start(), then dispatched', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('add', (m) => m.a + m.b)
   pipe.feed({ id: '1', type: 'add', a: 2, b: 3 })
   await tick()
@@ -29,7 +42,7 @@ test('requests are queued until start(), then dispatched', async (t) => {
 
 test('NDJSON frame split across chunks reassembles', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('echo', (m) => m.v)
   ipc.start()
   const frame = JSON.stringify({ id: '9', type: 'echo', v: 'hi' }) + '\n'
@@ -41,7 +54,7 @@ test('NDJSON frame split across chunks reassembles', async (t) => {
 
 test('unknown command responds NOT_FOUND', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.start()
   pipe.feed({ id: '7', type: 'nope' })
   await tick()
@@ -55,7 +68,7 @@ test('handler rejection returns error + code (default UNKNOWN)', async (t) => {
   // rejected promise that dispatch catches. (A *synchronous* throw from a
   // non-async handler escapes uncaught — all app handlers avoid that by being async.)
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('boom', async () => { const e = new Error('kaboom'); e.code = 'MYCODE'; throw e })
   ipc.handle('boom2', async () => { throw new Error('no code') })
   ipc.start()
@@ -70,7 +83,7 @@ test('handler rejection returns error + code (default UNKNOWN)', async (t) => {
 
 test('bootstrap line resolves getBootstrapPromise and is not dispatched', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   let called = false
   ipc.handle('bootstrap', () => { called = true })
   ipc.start()
@@ -84,7 +97,7 @@ test('bootstrap line resolves getBootstrapPromise and is not dispatched', async 
 
 test('emit writes {type, ...payload}; respond without id is a no-op', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.emit('event:hello', { a: 1 })
   t.alike(pipe.lastMsg(), { type: 'event:hello', a: 1 })
   const before = pipe.written.length
@@ -94,7 +107,7 @@ test('emit writes {type, ...payload}; respond without id is a no-op', async (t) 
 
 test('malformed JSON is skipped, not fatal', async (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('ok', () => 'good')
   ipc.start()
   pipe.feedRaw('{ this is not json }\n')
@@ -123,7 +136,7 @@ function captureIpcLog (t) {
 test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatches', async (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
   setRuntimeConfig({ verbose: false })
@@ -136,7 +149,7 @@ test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatche
 test('verbose traces req + res (with timing); response payload is unchanged', async (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
   setRuntimeConfig({ verbose: true })
@@ -152,7 +165,7 @@ test('verbose traces req + res (with timing); response payload is unchanged', as
 test('logs handler errors and unknown commands', async (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.handle('boom', async () => { throw new Error('kaboom') })
   ipc.start()
   setRuntimeConfig({ verbose: true })
@@ -170,7 +183,7 @@ test('logs handler errors and unknown commands', async (t) => {
 test('emit logs events but skips the noisy *-progress streams', (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   setRuntimeConfig({ verbose: true })
   ipc.emit('event:files-updated', { spaceId: 'x' })
   ipc.emit('event:transfer-progress', { transferId: 't', bytes: 1 })
@@ -222,7 +235,7 @@ test('scopeForEvent: deliberately unmapped and malformed events fan no hint', (t
 
 test('emitting a members poke fans a members reconcile hint on the wire', (t) => {
   const pipe = fakePipe()
-  const ipc = createIPC(pipe)
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.emit('event:members-updated', { spaceId: 'S9' })
   const msgs = pipe.written.map((s) => JSON.parse(s))
   t.alike(msgs.find((m) => m.type === 'event:reconcile')?.scope, { kind: 'members', spaceId: 'S9' })

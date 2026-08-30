@@ -1,3 +1,5 @@
+// The closed audit vocabulary, in the contract package because the renderer needs the same kind
+// names to match a search term typed in any locale against the translated labels.
 // The closed audit vocabulary. A kind absent from this table is refused at write time — the
 // log's value depends on the vocabulary being reviewed rather than accreted. `category` drives
 // the viewer's filter; `tier` is the attribution confidence recorded with every row:

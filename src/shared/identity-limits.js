@@ -4,7 +4,8 @@ import { NAME_MAX } from './invite-envelope.js'
 
 // 256 KB data-URI string length. Tunable per-ingest via runtime-config getResourceCaps().avatarMaxBytes;
 // this is the production default and the renderer mirror's source of truth.
-export const AVATAR_MAX_BYTES = 256 * 1024
+import { AVATAR_MAX_BYTES } from './contract/limits.js'
+export { AVATAR_MAX_BYTES }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i
 

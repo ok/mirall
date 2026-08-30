@@ -3,7 +3,9 @@
 // before start() are queued so no request is lost during boot.
 import { createLogger } from './logger.js'
 import { createHintBus } from '../state/hints.js'
-import { Scope } from '../state/scope.js'
+import { Scope } from '../contract/scope.js'
+import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
+import { createHandlerTable, validateArgs } from './handler-table.js'
 
 const log = createLogger('ipc')
 
@@ -38,12 +40,10 @@ export function scopeForEvent(type, payload = {}) {
   return toScope ? toScope(payload) : null
 }
 
-// Codes that are ordinary control flow rather than faults: the user cancelled, or a bounded read
-// gave up as designed. Logging these at warn would teach the reader to ignore the level.
-// ECANCELLED is real (overlay-backend stamps it on an aborted read). PREVIEW_CANCELLED is the
-// renderer's declared contract — two modals branch on it — that the worker does not actually throw
-// yet; it is listed so the classification is already right when that gap is closed.
-const EXPECTED_CODES = new Set(['ECANCELLED', 'PREVIEW_CANCELLED'])
+// Ordinary control flow rather than faults: the user cancelled, or a bounded read gave up as
+// designed. Logging these at warn would teach the reader to ignore the level. Both are genuinely
+// thrown — ECANCELLED by the overlay backend on an aborted read, PREVIEW_CANCELLED by walk-disk.js.
+const EXPECTED = new Set(CONTRACT_EXPECTED_CODES)
 
 // The code half is a closed set, but the type half is whatever the renderer sent — an unknown
 // command is counted under its requested name, so a buggy or looping caller could otherwise grow
@@ -61,8 +61,13 @@ export function resetRequestFailureCounters() {
   requestFailures.clear()
 }
 
-export function createIPC(pipe) {
-  const handlers = new Map()
+// `requests` is injectable so a test can declare the small vocabulary it exercises. Production
+// passes nothing and gets the real contract, which is what makes an unknown handler name a boot
+// failure rather than a 404 discovered in the field.
+export function createIPC(pipe, { requests } = {}) {
+  // The table owns the request metadata; `handle` below is a thin shim onto it so all 85 existing
+  // registrations keep working while domains move onto register(ipc, deps) one at a time.
+  const table = createHandlerTable(requests ? { requests } : {})
   const queued = []
   let ready = false
   let buffer = ''
@@ -99,8 +104,8 @@ export function createIPC(pipe) {
   })
 
   function dispatch(msg) {
-    const handler = handlers.get(msg.type)
-    if (!handler) {
+    const entry = table.get(msg.type)
+    if (!entry) {
       // warn, not debug: the renderer asking for a handler that does not exist is a contract
       // break, and at the default level a debug line means nobody ever learns of it.
       log.warn('req-unknown', msg.type)
@@ -111,9 +116,21 @@ export function createIPC(pipe) {
     // Trace the whole renderer↔worker command flow at debug level so verbose
     // logging shows what the UI is actually driving, with per-request timing.
     const label = msg.id != null ? `${msg.type} #${msg.id}` : msg.type
+
+    // Validated from the contract's arg shape before the handler sees it: four `typeof msg.` checks
+    // were spread across 85 handlers, so a malformed payload used to surface as an internal error
+    // from somewhere deep in a handler body instead of a refusal at the boundary.
+    const invalid = validateArgs(entry.spec.args, msg)
+    if (invalid) {
+      log.warn('req-invalid', label, invalid)
+      countFailure(msg.type, INVALID_ARGUMENT)
+      respond(msg.id, null, invalid, INVALID_ARGUMENT)
+      return
+    }
+
     const started = Date.now()
     log.debug('req', label)
-    Promise.resolve(handler(msg)).then(
+    Promise.resolve(entry.fn(msg)).then(
       (data) => { log.debug('res', label, 'ok', `${Date.now() - started}ms`); respond(msg.id, data) },
       (err) => {
         const code = err?.code || 'UNKNOWN'
@@ -121,7 +138,7 @@ export function createIPC(pipe) {
         // A failing request is logged at warn so it survives the default level. Successes stay at
         // debug: they are the verbose trace, and only wanted when someone asked for it.
         const line = ['req-failed', label, `code=${code}`, `ms=${Date.now() - started}`, err?.message || String(err)]
-        if (EXPECTED_CODES.has(code)) log.debug(...line)
+        if (EXPECTED.has(code)) log.debug(...line)
         else log.warn(...line)
         respond(msg.id, null, err?.message, code)
       }
@@ -157,7 +174,7 @@ export function createIPC(pipe) {
   }
 
   function handle(type, fn) {
-    handlers.set(type, fn)
+    table.register(type, fn)
   }
 
   function start() {

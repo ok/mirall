@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { buildRecord, SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
-import { KINDS } from '../../src/shared/audit/audit-kinds.js'
+import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 
 const base = { seq: 1, ts: 1754236800000, kind: 'space.created' }
 
