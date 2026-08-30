@@ -66,6 +66,9 @@ const DEFAULTED = {
   // Concurrent overlay downloads. A reconnect can have hundreds of pending rows and each running
   // fetch owns a chunk scheduler, a watchdog, an fd and a progress ticker. 0 disables the gate.
   downloadConcurrency: 3,
+  // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
+  // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
+  peerCatalogCacheLimit: 64,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
   // before charging). An honest connection sends one frame per shared space, we reciprocate
   // each, and a name change or ledger re-send can add a third inside one refill window — so
@@ -302,6 +305,10 @@ export function getPeerFrameLimits() {
     refillMs: finiteAtLeast(c.peerFrameRefillMs, 1, DEFAULTED.peerFrameRefillMs),
     abuseThreshold: finiteAtLeast(c.peerFrameAbuseThreshold, 1, DEFAULTED.peerFrameAbuseThreshold),
   }
+}
+
+export function getPeerCatalogCacheLimit() {
+  return finiteAtLeast(config.peerCatalogCacheLimit, 0, DEFAULTED.peerCatalogCacheLimit)
 }
 
 export function getDownloadConcurrency() {

@@ -9,10 +9,11 @@ import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
 import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias } from '../spaces/space.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
-import { getRuntimeConfig } from '../core/runtime-config.js'
+import { getRuntimeConfig, getPeerCatalogCacheLimit } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { createRefCountedLru } from '../core/lru.js'
 
 const log = createLogger('share-catalog')
 
@@ -24,7 +25,14 @@ const log = createLogger('share-catalog')
 export const FILE_PREFIX = 'file/'
 
 const ownCatalogs = new Map()   // spaceId -> Hyperbee (writable)
-const peerCatalogs = new Map()  // catalogKeyHex -> Hyperbee (read-only)
+// Bounded: one Hyperbee + Hypercore session per (peer, space), each with an append listener, and
+// every open core replicates to every socket. Unbounded it grew to peers x spaces and was reclaimed
+// only on leave. A watched catalog is PINNED — evicting one would silently stop the mirror loop its
+// append listener drives, trading a memory bound for a correctness bug.
+const peerCatalogs = createRefCountedLru({
+  limit: () => getPeerCatalogCacheLimit(),
+  onEvict: (keyHex, bee) => { bee.close().catch(() => {}) },
+})
 
 export function fileKey(shareId, relPath) {
   return FILE_PREFIX + shareId + '/' + relPath
@@ -230,6 +238,9 @@ export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null
     if (!bee) return null
     w = { ids: new Set(), cbs: new Set(), bee }
     peerCatalogWatchers.set(catalogKeyHex, w)
+    // Pin for the watcher's lifetime: the listener below is the mirror loop's level signal, and a
+    // cache eviction that closed this bee would stop it with no error anywhere.
+    peerCatalogs.acquire(catalogKeyHex)
     bee.core.on('append', () => { for (const cb of w.cbs) cb(bee) })
   }
   if (!w.ids.has(listenerId)) {
@@ -273,30 +284,37 @@ async function syncPeerHead(bee, timeoutMs = peerReadTimeoutMs()) {
 export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, limit = Infinity, timeoutMs = peerReadTimeoutMs(), onEach = null } = {}) {
   const bee = openPeerCatalog(catalogKeyHex, sck)
   if (!bee) return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 }
-  // ONE NETWORK budget per peer: the head sync and the drain share this deadline, so an owner
-  // whose head never arrives costs `timeoutMs` once — not once here and once more inside the
-  // drain. The drain's own timer is floored at LOCAL_DRAIN_MS, so the call can exceed the
-  // deadline by that much; past the deadline the walk is disk-only and cannot park on a peer.
-  // The flip side is that a head sync which eats most of the budget leaves the drain less time
-  // than it used to have, so a very large peer share over a slow link reports complete:false
-  // more readily — the renderer keeps its last list, which is the intended degradation.
-  const deadlineAt = Date.now() + timeoutMs
-  let headSynced = false
-  try { headSynced = await syncPeerHead(bee, timeoutMs) } catch { return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 } }
-  const prefix = sharePrefixKey(shareId)
-  const left = remainingMs(deadlineAt)
-  // Budget spent on the head: read only what is already on disk. hyperbee forwards `wait` to
-  // core.get, so a missing block throws instead of parking for a peer — rows we replicated
-  // before still surface (an offline owner keeps its `unavailable` rows), and the drain can
-  // never park for a second budget.
-  const stream = bee.createReadStream({ gte: prefix, lt: prefix + '\xff', wait: left > 0 })
-  const { entries, complete, total, totalBytes } = await drainWithTimeout(stream, prefix, Math.max(left, LOCAL_DRAIN_MS), limit, onEach)
-  // `complete` also requires blocks (length>0) so the renderer keeps its last list over an
-  // empty read; `stalled` is the narrower "the read could not finish" signal (head-sync
-  // failed or the traversal timed out) — a legitimately-empty catalog is fully read, NOT
-  // stalled, so a re-poll backstop keyed on stalled won't churn on a zero-share peer.
-  const traversed = headSynced && complete
-  return { entries, total, totalBytes, complete: traversed && bee.core.length > 0, stalled: !traversed }
+  // Pinned for the length of the read: the body awaits, and an eviction triggered by a
+  // concurrent open would otherwise close this bee underneath the gets below.
+  peerCatalogs.acquire(catalogKeyHex)
+  try {
+    // ONE NETWORK budget per peer: the head sync and the drain share this deadline, so an owner
+    // whose head never arrives costs `timeoutMs` once — not once here and once more inside the
+    // drain. The drain's own timer is floored at LOCAL_DRAIN_MS, so the call can exceed the
+    // deadline by that much; past the deadline the walk is disk-only and cannot park on a peer.
+    // The flip side is that a head sync which eats most of the budget leaves the drain less time
+    // than it used to have, so a very large peer share over a slow link reports complete:false
+    // more readily — the renderer keeps its last list, which is the intended degradation.
+    const deadlineAt = Date.now() + timeoutMs
+    let headSynced = false
+    try { headSynced = await syncPeerHead(bee, timeoutMs) } catch { return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 } }
+    const prefix = sharePrefixKey(shareId)
+    const left = remainingMs(deadlineAt)
+    // Budget spent on the head: read only what is already on disk. hyperbee forwards `wait` to
+    // core.get, so a missing block throws instead of parking for a peer — rows we replicated
+    // before still surface (an offline owner keeps its `unavailable` rows), and the drain can
+    // never park for a second budget.
+    const stream = bee.createReadStream({ gte: prefix, lt: prefix + '\xff', wait: left > 0 })
+    const { entries, complete, total, totalBytes } = await drainWithTimeout(stream, prefix, Math.max(left, LOCAL_DRAIN_MS), limit, onEach)
+    // `complete` also requires blocks (length>0) so the renderer keeps its last list over an
+    // empty read; `stalled` is the narrower "the read could not finish" signal (head-sync
+    // failed or the traversal timed out) — a legitimately-empty catalog is fully read, NOT
+    // stalled, so a re-poll backstop keyed on stalled won't churn on a zero-share peer.
+    const traversed = headSynced && complete
+    return { entries, total, totalBytes, complete: traversed && bee.core.length > 0, stalled: !traversed }
+  } finally {
+    peerCatalogs.release(catalogKeyHex)
+  }
 }
 
 export async function listPeerShareMeta(catalogKeyHex, shareId, { sck = null } = {}) {
@@ -321,10 +339,17 @@ export function classifyEntryNode(node) {
 export async function getPeerEntryState(catalogKeyHex, shareId, relPath, { sck = null } = {}) {
   const bee = openPeerCatalog(catalogKeyHex, sck)
   if (!bee) return null
-  try { await syncPeerHead(bee) } catch { return null }
-  const node = await withReadTimeout(bee.get(fileKey(shareId, relPath)), peerReadTimeoutMs(), null)
-  const state = classifyEntryNode(node)
-  return state ? { relPath, ...state } : null
+  // Pinned across the head sync and the get: both await, and an eviction from a concurrent open
+  // would close this bee mid-read.
+  peerCatalogs.acquire(catalogKeyHex)
+  try {
+    try { await syncPeerHead(bee) } catch { return null }
+    const node = await withReadTimeout(bee.get(fileKey(shareId, relPath)), peerReadTimeoutMs(), null)
+    const state = classifyEntryNode(node)
+    return state ? { relPath, ...state } : null
+  } finally {
+    peerCatalogs.release(catalogKeyHex)
+  }
 }
 
 export async function getPeerEntry(catalogKeyHex, shareId, relPath, opts = {}) {
@@ -332,11 +357,20 @@ export async function getPeerEntry(catalogKeyHex, shareId, relPath, opts = {}) {
   return state && !state.removed ? { relPath: state.relPath, size: state.size, mtime: state.mtime, contentHash: state.contentHash, seq: state.seq } : null
 }
 
+// The cache's shape, for the tests that pin the bound and the watcher pin. Not a reset seam: it
+// reads, it does not mutate.
+export function peerCatalogCacheStats() {
+  return { size: peerCatalogs.size(), keys: peerCatalogs.keys(), refsOf: (k) => peerCatalogs.refsOf(k) }
+}
+
 export function dropCatalog(spaceId, catalogKeyHex) {
   if (spaceId) ownCatalogs.delete(spaceId)
   if (catalogKeyHex) {
-    peerCatalogs.delete(catalogKeyHex)
-    peerCatalogWatchers.delete(catalogKeyHex)
+    if (peerCatalogWatchers.delete(catalogKeyHex)) peerCatalogs.release(catalogKeyHex)
+    // Closed, not just forgotten: dropping the reference alone left the core session open for the
+    // life of the process, and every open core replicates to every socket. Fire-and-forget because
+    // every caller is synchronous; a close failure means the store is already going down.
+    peerCatalogs.delete(catalogKeyHex)?.close().catch(() => {})
   }
 }
 
@@ -443,7 +477,7 @@ export class Catalogs extends Subsystem {
   // refused: throwing here would turn a shutdown that ran out of budget into an app that will
   // not start.
   async _open() {
-    const stale = ownCatalogs.size + peerCatalogs.size
+    const stale = ownCatalogs.size + peerCatalogs.size()
     if (stale) {
       this.log.warn(`dropping ${stale} catalog handle(s) left by a previous instance`)
       await this._closeAll()
