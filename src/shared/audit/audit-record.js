@@ -5,7 +5,7 @@
 // must be in the row itself. Live state cannot be joined against — leaving a space deletes its
 // record, and a peer's name needs that peer online or replicated — so a row holding only ids
 // would render raw hex forever. Hence a name snapshot on every participant, taken at write time.
-import { isKnownKind, categoryOf, tierOf } from './audit-kinds.js'
+import { isKnownKind, categoryOf, tierOf } from '../contract/audit-kinds.js'
 
 export const SCHEMA_VERSION = 1
 

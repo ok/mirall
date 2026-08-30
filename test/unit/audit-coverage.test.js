@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { KINDS, CATEGORIES } from '../../src/shared/audit/audit-kinds.js'
+import { KINDS, CATEGORIES } from '../../src/shared/contract/audit-kinds.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(here, '..', '..')

@@ -1,47 +1,11 @@
-// Renderer-side mirror of the worker's audit vocabulary (src/shared/audit/audit-kinds.js). The
-// renderer cannot import worker data-layer code, so this is a hand-maintained twin like
-// scope.ts — test/unit/audit-kinds-twin.test.js fails if the two lists diverge.
+// The audit vocabulary is one declaration in the contract package now. This file remains as the
+// renderer's import path; the hand-maintained twin it used to hold — and the test that watched the
+// two lists for divergence — are gone, because divergence is no longer representable.
 //
-// It exists so a search term typed in any locale can be matched against the TRANSLATED kind
-// labels and turned into a `kinds` filter: the stored search blob is proper nouns only.
-export const AUDIT_KINDS: string[] = [
-  'space.created',
-  'space.joined',
-  'space.updated',
-  'space.left',
-  'invite.minted',
-  'membership.requested',
-  'membership.approved',
-  'membership.denied',
-  'membership.granted',
-  'membership.approval_revoked',
-  'member.joined',
-  'member.left',
-  'file.shared',
-  'file.unshared',
-  'transfer.completed',
-  'transfer.failed',
-  'serve.completed',
-  'peer.file_shared',
-  'peer.file_unshared',
-  'share.created',
-  'share.deleted',
-  'share.mounted',
-  'share.relocated',
-  'mirror.created',
-  'mirror.removed',
-  'peer.share_created',
-  'peer.share_deleted',
-  'mirror.peer_mirrored',
-  'mirror.peer_unmirrored',
-  'security.serve_denied',
-  'security.integrity_failure',
-  'security.creator_divergence',
-  'audit.suppressed',
-  'network.offline',
-  'network.blocked',
-  'network.at_risk',
-  'network.restored',
-  'network.peer_lost',
-  'network.peer_back',
-]
+// The renderer needs the kind names so a search term typed in any locale can be matched against the
+// TRANSLATED labels and turned into a `kinds` filter: the stored search blob is proper nouns only.
+import { KINDS } from '../shared/contract/audit-kinds.js'
+
+export { KINDS, CATEGORY, CATEGORIES, isKnownKind, categoryOf, tierOf } from '../shared/contract/audit-kinds.js'
+
+export const AUDIT_KINDS: readonly string[] = Object.keys(KINDS)

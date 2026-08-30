@@ -5,7 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
-import { KINDS } from '../../src/shared/audit/audit-kinds.js'
+import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')

@@ -3,7 +3,7 @@
 // before start() are queued so no request is lost during boot.
 import { createLogger } from './logger.js'
 import { createHintBus } from '../state/hints.js'
-import { Scope } from '../state/scope.js'
+import { Scope } from '../contract/scope.js'
 
 const log = createLogger('ipc')
 

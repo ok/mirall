@@ -2,22 +2,19 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { KINDS } from '../../src/shared/audit/audit-kinds.js'
+import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const TWIN = path.join(here, '..', '..', 'src', 'renderer', 'auditKinds.ts')
 
-// The renderer cannot import worker data-layer code, so AUDIT_KINDS is a hand-maintained twin.
-// Divergence is silent at runtime — a missing kind just stops matching in locale search — so it
-// is caught here instead.
-function twinKinds () {
+// This test used to diff two hand-maintained lists. The vocabulary now lives once in the contract
+// package and the renderer re-exports it, so the divergence it watched for cannot occur — what is
+// worth guarding instead is that nobody reintroduces the twin.
+test('the renderer re-exports the audit vocabulary instead of mirroring it', (t) => {
   const src = readFileSync(TWIN, 'utf8')
-  return src.match(/'([a-z_]+(?:\.[a-z_]+)+)'/g).map((s) => s.slice(1, -1))
-}
-
-test('the renderer kind list matches the worker vocabulary exactly', (t) => {
-  t.alike(twinKinds().sort(), Object.keys(KINDS).sort(),
-    'src/renderer/auditKinds.ts and src/shared/audit/audit-kinds.js must stay in sync')
+  t.ok(/from '\.\.\/shared\/contract\/audit-kinds\.js'/.test(src), 'imported from the contract')
+  const literals = src.match(/'[a-z_]+(?:\.[a-z_]+)+'/g) || []
+  t.alike(literals, [], 'no kind names are re-listed here — that list is what used to drift')
 })
 
 test('every kind has a label and a sentence key in the English catalogue', (t) => {

@@ -1,6 +1,6 @@
-// Canonical identity for a re-derivable view. A reconcile hint carries a Scope; a view
-// consumes hints whose Scope matches its own. Kept in sync with src/renderer/scope.ts (the
-// renderer can't import from the worker data layer).
+// Canonical identity for a re-derivable view. A reconcile hint carries a Scope; a view consumes
+// hints whose Scope matches its own. One declaration for all three runtimes — the renderer used to
+// keep a hand-maintained mirror in scope.ts plus a second copy of scopeMatches in scope-match.js.
 
 export const Scope = {
   files: (spaceId) => ({ kind: 'files', spaceId }),

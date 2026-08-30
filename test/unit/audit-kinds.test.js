@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { KINDS, CATEGORY, CATEGORIES, isKnownKind, categoryOf, tierOf } from '../../src/shared/audit/audit-kinds.js'
+import { KINDS, CATEGORY, CATEGORIES, isKnownKind, categoryOf, tierOf } from '../../src/shared/contract/audit-kinds.js'
 
 test('every kind declares a valid category and tier', (t) => {
   for (const [kind, meta] of Object.entries(KINDS)) {
