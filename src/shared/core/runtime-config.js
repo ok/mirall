@@ -63,6 +63,9 @@ const DEFAULTED = {
   // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. The scheduler
   // clamps to >= 1.
   publishConcurrency: 2,
+  // Concurrent overlay downloads. A reconnect can have hundreds of pending rows and each running
+  // fetch owns a chunk scheduler, a watchdog, an fd and a progress ticker. 0 disables the gate.
+  downloadConcurrency: 3,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
   // before charging). An honest connection sends one frame per shared space, we reciprocate
   // each, and a name change or ledger re-send can add a third inside one refill window — so
@@ -279,6 +282,12 @@ export function getPublishConcurrency() {
   if (n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n >= 1) return Math.floor(n)
   return DEFAULTED.publishConcurrency
+}
+
+export function getDownloadConcurrency() {
+  const n = config.downloadConcurrency
+  if (typeof n === 'number' && Number.isFinite(n) && n >= 0) return Math.floor(n)
+  return DEFAULTED.downloadConcurrency
 }
 
 export function getPublishOrder() {

@@ -599,6 +599,7 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   const prev = await getPendingFor(spaceId, drivePath)
   const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
   return engine().start({
+    express: true,
     spaceId, pendingKey: drivePath, path: drivePath, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
