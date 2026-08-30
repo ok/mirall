@@ -7,10 +7,12 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
 const workerMain = src('worker/main.js')
 // The boot sequence and the mount runtime moved out of the entry into the composition root and
-// worker/mounts-runtime.js; the invariants below are unchanged, only the file that carries them.
+// worker/mounts-runtime.js, and the space:leave teardown into worker/ipc/space-leave.js; the
+// invariants below are unchanged, only the file that carries them.
 const boot = src('worker/boot.js')
 const mountsRuntime = src('worker/mounts-runtime.js')
 const swarm = src('shared/transfer/swarm.js')
+const spaceLeave = src('worker/ipc/space-leave.js')
 
 // These pin worker-orchestration fixes from the state-conveyance code review that can't be driven
 // at the unit layer (they need the live swarm/DHT); the behavioral halves live in test/flow.
@@ -54,7 +56,7 @@ test('REGRESSION (FIX-18: a handshake for a space with no local record is reject
 })
 
 test('REGRESSION (FIX-19: the post-teardown topic rejoin re-checks the live marker)', (t) => {
-  t.ok(/function rejoinPendingLeaveTopicAfterTeardown\(spaceId, space\) \{\s*\n\s*if \(!hasPendingLeave\(spaceId\)/.test(workerMain),
+  t.ok(/function rejoinPendingLeaveTopicAfterTeardown\(spaceId, space\) \{\s*\n\s*if \(!hasPendingLeave\(spaceId\)/.test(spaceLeave),
     'rejoin gates on hasPendingLeave, not a stale armed flag')
 })
 
@@ -64,7 +66,7 @@ test('REGRESSION (FIX-21: an enabled foreign mirror missing at boot is durably p
 })
 
 test('REGRESSION (FIX-E1: the pending-leave marker arms on any unacked member, not a vacuous bool)', (t) => {
-  const fn = workerMain.slice(workerMain.indexOf('async function armPendingLeaveIfUnwitnessed'))
+  const fn = spaceLeave.slice(spaceLeave.indexOf('async function armPendingLeaveIfUnwitnessed'))
   const body = fn.slice(0, fn.indexOf('\n}'))
   t.ok(/others\.length === 0\) return false/.test(body), 'a solo space (no other members) never arms a marker')
   t.ok(/others\.every\(\(k\) => acked\.has\(k\)\) \) return false|others\.every\(\(k\) => acked\.has\(k\)\)\) return false/.test(body.replace(/\s+/g, ' ')) || /every\(\(k\) => acked\.has\(k\)\)/.test(body),

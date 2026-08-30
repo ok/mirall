@@ -2,18 +2,19 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { LEAVE_PHASES } from '../../src/shared/spaces/leave-flow.js'
 
 // The boot wiring isn't importable (it opens real cores under Bare), so pin the structural
 // invariants source-side, like worker-epipe-guard.test.js does: boot must complete interrupted
 // leaves BEFORE the membership backfill and exclude them from it, and the teardown must persist
 // the leaving marker before the member del.
 //
-// The boot sequence lives in the composition root (src/worker/boot.js); the leave teardown is a
-// handler and stays in the entry.
+// The boot sequence lives in the composition root (src/worker/boot.js); the leave teardown moved
+// out of the entry into src/worker/ipc/space-leave.js.
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = readFileSync(path.join(here, '..', '..', 'src', 'worker', 'boot.js'), 'utf8')
-const entrySrc = readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+const entrySrc = readFileSync(path.join(here, '..', '..', 'src', 'worker', 'ipc', 'space-leave.js'), 'utf8')
 
 test('G4 wiring: boot completes interrupted leaves and excludes them from membership/topic setup', (t) => {
   // Anchor on the CALL (`await …`), never the bare symbol: the import line would otherwise
@@ -36,6 +37,10 @@ test('G4 wiring: boot completes interrupted leaves and excludes them from member
 })
 
 test('G4 wiring: teardown persists the durable marker before clearOwnMembership', (t) => {
-  const ordered = entrySrc.match(/tracker\.phase = 'mark-leaving'[\s\S]*?markSpaceLeavingDurable[\s\S]*?tracker\.phase = 'clearOwnMembership'/)
-  t.ok(ordered, 'markSpaceLeavingDurable phase precedes the clearOwnMembership phase')
+  // The member del now runs as the first step of the shared teardown order, so the phase name is
+  // stamped by leave-flow.js via onPhase rather than written inline. The invariant is unchanged:
+  // the durable marker must be written before the departure it makes recoverable.
+  const ordered = entrySrc.match(/tracker\.phase = 'mark-leaving'[\s\S]*?markSpaceLeavingDurable[\s\S]*?clearMembership:[\s\S]*?clearOwnMembership\(/)
+  t.ok(ordered, 'markSpaceLeavingDurable precedes the member del')
+  t.is(LEAVE_PHASES[0], 'clearOwnMembership', 'and the shared order still opens on that phase')
 })
