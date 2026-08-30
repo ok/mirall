@@ -1,3 +1,4 @@
+import type { RequestName } from '../shared/contract/requests.js'
 // window.mirall — a small, always-present developer console for live debugging,
 // including on production builds. It layers a friendly, discoverable surface
 // over the existing plumbing: read-only diagnostics go through the worker RPC
@@ -37,7 +38,7 @@ function help(): void {
 
 // Run a read-only worker query, log the result with a label, and return it so
 // the value is also usable from the console (e.g. `await mirall.spaces()`).
-async function diag(label: string, type: string, payload: Record<string, unknown> = {}): Promise<unknown> {
+async function diag(label: string, type: RequestName, payload: Record<string, unknown> = {}): Promise<unknown> {
   try {
     const data = await request(type, payload)
     console.log(`[mirall] ${label}:`, data)
