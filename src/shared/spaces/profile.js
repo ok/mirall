@@ -86,9 +86,14 @@ export function getIdentitySigner() {
 // snapshot sessions hyperbee opens per get) settles with REQUEST_TIMEOUT instead of waiting for a
 // block that may never arrive — so an abandoned read cannot pin the core through a hung batch.
 // 0 keeps hypercore's default (wait forever), which the long-lived holders want.
-export function openProfileBee(publicKeyBuffer, { timeoutMs = 0 } = {}) {
+// `active` marks the session as one that wants replication. An inactive session does not count
+// toward the core's replicator activity, so the core is not force-attached to every open muxer
+// (corestore's per-connection attach pass skips it). Defaults TRUE so every syncing read behaves
+// exactly as before: a read that needs blocks and opens inactive would simply never get them.
+export function openProfileBee(publicKeyBuffer, { timeoutMs = 0, active = true } = {}) {
   const store = getStore()
-  const core = timeoutMs ? store.get({ key: publicKeyBuffer, timeout: timeoutMs }) : store.get(publicKeyBuffer)
+  const opts = { key: publicKeyBuffer, ...(timeoutMs ? { timeout: timeoutMs } : {}), ...(active ? {} : { active: false }) }
+  const core = (timeoutMs || !active) ? store.get(opts) : store.get(publicKeyBuffer)
   return new Hyperbee(core, {
     keyEncoding: 'utf-8',
     valueEncoding: 'json',
@@ -462,13 +467,16 @@ export async function withPeerBee(profileKeyHex, fn, {
   fallback = null,
   sync = true,
 } = {}) {
+  // A read that does not sync is answerable from local blocks by construction, so its session has
+  // no reason to advertise the core to every connected peer for the length of the read.
+  const active = sync
   const deadline = Date.now() + timeoutMs
   let bee = null
   try {
     // Inside the try: a malformed key or a store closing during shutdown must degrade to the
     // fallback like any other unreadable peer, not reject into a caller that has no catch
     // (buildWantedKeys awaits this bare, and one throw would abort the whole leftover scan).
-    bee = openProfileBee(b4a.from(profileKeyHex, 'hex'), { timeoutMs })
+    bee = openProfileBee(b4a.from(profileKeyHex, 'hex'), { timeoutMs, active })
     await bee.ready()
     if (sync) await boundedUpdate(bee.core, Math.max(0, deadline - Date.now()))
     return await withReadTimeout(fn(bee), Math.max(0, deadline - Date.now()), fallback)

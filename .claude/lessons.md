@@ -150,6 +150,25 @@ retained bytes.
 
 **Moving an init call into a `Subsystem._open` reorders it against everything else, and the code that depended on the old order fails silently.** Two of these shipped into one branch and only the flow suite saw either. `rehydrateLooseFiles()` ran ahead of the overlay instance instead of behind it, and its two sinks (`makeServable`, `enqueueLoosePublish`) both *return early* on a null `getOverlay()` — so a crash-interrupted file stayed unhashed on "Adding" forever, with the `.catch()` swallowing the evidence. `configureMemberRegistry` moved after the swarm start, leaving a window where a handshake read every peer through no-op `DEFAULT_DEPS` (`isConnected: () => false`). The shape is identical both times: a dependency expressed as a silent fallthrough rather than a throw, so reordering degrades behavior instead of breaking. When lifting a call into a subsystem, diff its new position against the old one (`git show origin/staging:<file>`) and check every collaborator it reaches for a null-guard that returns instead of throwing — those are the ones that go quiet. Restart/crash flow tests are the only layer that catches this class; unit and integration were green through both.
 
+**A parse guard is not a shape guard: `JSON.parse('null')` succeeds and returns `null`.** The
+mirall/handshake intake wrapped `JSON.parse` in a try, then read `msg.type` on the next line —
+outside it. `null` is the one input that parses cleanly and throws on the property read (`42`,
+`"s"`, `[]`, `true` all read `.type` as `undefined` harmlessly), and that throw escapes the message
+handler into protomux's `_ondata`, which `_safeDestroy`s the socket. The channel id is the public
+protocol string, so any peer on the topic could drop a connection with a four-character frame.
+Verified against real protomux: `at Object.recv (protomux/index.js:276) → Channel._recv →
+Protomux._decode → Protomux._ondata`. Decode and shape are two separate checks — after every
+`JSON.parse` of untrusted input, assert the shape (`!!v && typeof v === 'object' && !Array.isArray(v)`)
+before touching a property.
+
+**A cache of live handles needs refcounts, and the readers need them as much as the watchers.**
+Bounding `peerCatalogs` with an LRU whose `onEvict` closes the bee introduced a use-after-close: the
+read paths hold the bee across two awaits (a head sync and a get), so a catalog opened by a
+CONCURRENT read could evict and close it mid-read. Pinning the long-lived watcher was the obvious
+half and was not enough — anything holding the handle across an await has to pin it. The tell is
+that the value is a handle rather than a value: if `onEvict` does real work, every `get` that
+outlives a tick is a bug until proven otherwise.
+
 **A timer armed at module level is beyond every `close()`.** It runs at import, before any owner exists, so no shutdown path can reach it — five sites did this and every one outlived the worker's stop sequence, masked only because `Bare.exit` followed. Arm periodic work in a `Subsystem._open` through `this.timers`, which the base clears on the `'close'` event (not in `_close`: `ReadyResource` ends a failed `_open` without ever running it). An eslint selector (`moduleLevelTimerRestrictions`) and a runtime timer shim enforce both halves.
 
 **A Hyperbee or Hyperdrive whose Corestore closed underneath it still reports `closed === false`.** `ReadyResource.closed` only flips when the resource's OWN close() runs; a session closed by its store is invisible to the wrapper — only `handle.core.closed` tells the truth. So a cache cannot protect itself with a `closed` check, and a handle held across a restart is a live-looking object whose first write throws `SESSION_CLOSED`. Handles are owned by a resource that closes them, never probed by whoever cached them.

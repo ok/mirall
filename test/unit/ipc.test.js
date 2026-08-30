@@ -107,11 +107,16 @@ test('malformed JSON is skipped, not fatal', async (t) => {
 
 // Count only the IPC logger's own lines (tagged [ipc]); forward the rest so
 // brittle's own TAP over console.log is untouched.
+// Both channels: the router logs its trace through console.log (debug) and its failures through
+// console.warn, which is what makes a failed request visible at the default level.
 function captureIpcLog (t) {
-  const real = console.log
+  const realLog = console.log
+  const realWarn = console.warn
   const lines = []
-  console.log = (...a) => { if (a[0] === '[ipc]') { lines.push(a.slice(1).join(' ')); return } real(...a) }
-  t.teardown(() => { console.log = real; setRuntimeConfig({}) })
+  const grab = (real) => (...a) => { if (a[0] === '[ipc]') { lines.push(a.slice(1).join(' ')); return } real(...a) }
+  console.log = grab(realLog)
+  console.warn = grab(realWarn)
+  t.teardown(() => { console.log = realLog; console.warn = realWarn; setRuntimeConfig({}) })
   return lines
 }
 
@@ -142,7 +147,9 @@ test('verbose traces req + res (with timing); response payload is unchanged', as
   t.is(pipe.lastMsg().data, 'yo', 'logging does not alter the response')
 })
 
-test('verbose logs handler errors and unknown commands', async (t) => {
+// Failures and unknown commands moved from debug to warn (FIX-OBS-1) so they survive the default
+// level; this test keeps its original intent and follows them there.
+test('logs handler errors and unknown commands', async (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
   const ipc = createIPC(pipe)
@@ -152,8 +159,8 @@ test('verbose logs handler errors and unknown commands', async (t) => {
   pipe.feed({ id: '2', type: 'boom' })
   pipe.feed({ id: '3', type: 'ghost' })
   await tick()
-  t.ok(lines.some((l) => l.startsWith('res boom #2 ERROR kaboom')), 'logs the failing handler')
-  t.ok(lines.includes('req ghost — no handler'), 'logs an unknown command')
+  t.ok(lines.some((l) => l.startsWith('req-failed boom #2') && l.includes('kaboom')), 'logs the failing handler')
+  t.ok(lines.some((l) => l.startsWith('req-unknown ghost')), 'logs an unknown command')
   // ghost responds synchronously; boom's rejection resolves a tick later — so
   // find the #3 response rather than assuming write order.
   const ghost = pipe.written.map((s) => JSON.parse(s)).find((m) => m.id === '3')

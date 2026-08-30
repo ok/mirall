@@ -475,7 +475,8 @@ export async function looseDownload (spaceId, member, drivePath) {
     ipcRef?.emit('event:files-updated', { spaceId })
     return { queued: true }
   }
-  return engine().start(job)
+  // The user clicked download: express, so it never queues behind a reconnect backlog.
+  return engine().start({ ...job, express: true })
 }
 
 export function loosePause (transferId) { return engine().pause(transferId) }

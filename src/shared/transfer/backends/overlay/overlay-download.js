@@ -18,6 +18,8 @@ import { makeProgressTicker } from '../../progress-ticker.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
+import { createSemaphore } from '../../../core/concurrency.js'
+import { getDownloadConcurrency } from '../../../core/runtime-config.js'
 import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
@@ -132,6 +134,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
   // indefinitely while a wedged one gives up.
   const stallRetries = new Map()
+  // Bounds how many fetches own a chunk scheduler, a watchdog, an fd and a ticker at once.
+  // A user-initiated job takes the express lane so a click never queues behind a reconnect backlog.
+  const admission = createSemaphore({ limit: () => getDownloadConcurrency() })
 
   const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerPublicKey))
 
@@ -282,6 +287,44 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
 
   // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish
   // may have landed while the bytes were in flight — the fetch's own result is only half the
+  // The gated half of a download: everything past this point owns a chunk scheduler, a watchdog,
+  // an fd and a ticker, which is what the admission limit exists to bound. start() has already
+  // reserved the registry slot synchronously, so a queued job still reads as active and a second
+  // trigger cannot start a duplicate fetch while this waits.
+  async function runFetchTask (slot, job, transferId) {
+    const releaseSlot = await admission.acquire({ express: !!job.express })
+    try {
+      // The wait above is unbounded, so re-check every reason to abandon that the pre-fetch path
+      // already checked — the same window recordPending guards against, only wider.
+      if (slot.cancelled) {
+        registry.delete(transferId)
+        if (slot.restartJob) restartAfterSupersede(slot.restartJob)
+        return
+      }
+      // hasOverlay() covers the shutdown path: drainAdmission() releases parked waiters so close()
+      // is not held open, and they must not then fetch into a torn-down overlay.
+      if (slot.paused || !hasOverlay() || !ownerOnline(job.ownerPublicKey)) {
+        registry.delete(transferId)
+        channel.emitUpdated(job.spaceId)
+        return
+      }
+      // Set past the gate so it keeps meaning "a fetch is in flight in the vendor layer" — the four
+      // cancel/pause sites gate their cancelFetch call on it.
+      slot.fetching = true
+      // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
+      // bytes (chunk-scheduler.js), so the ticker needs no resume offset.
+      const ticker = makeProgressTicker(job.size, ({ bytes, total, speed, eta }) => {
+        channel.emitProgress(job, { bytes, total, speed, eta })
+        updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
+      })
+      const diag = makeFetchDiag(channel.diagLabel, job.relPath, job.size, job.contentHash)
+      const r = await fetchImpl(job.contentHash, { finalPath: job.finalPath, onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b) }, onVerify: (fraction) => channel.emitVerifying?.(job, fraction), onEnd: diag.onEnd })
+      await settleFetch(transferId, job, r, diag)
+    } finally {
+      releaseSlot()
+    }
+  }
+
   // story, and which of these applies decides whether the slot is restarted or released.
   async function settleFetch (transferId, job, r, diag) {
     const s = registry.get(transferId)
@@ -427,23 +470,13 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
         return { queued: true }
       }
 
-      slot.fetching = true
-      // Flip the row to 'downloading' immediately: emitUpdated re-derives the list (now that the
-      // engine has an active slot), emitProgress seeds the decoration bar before the first byte.
+      // Flip the row to 'downloading' immediately: emitUpdated re-derives the list (the engine
+      // holds the slot from here, admitted or queued), emitProgress seeds the bar before the
+      // first byte. Status derives from the registry slot, not from `fetching`.
       channel.emitProgress(job, { bytes: job.prevBytes || 0, total: job.size, speed: 0, eta: null })
       channel.emitUpdated(job.spaceId)
-      // The overlay scheduler reports CUMULATIVE bytes already seeded with the
-      // resumed on-disk bytes (chunk-scheduler.js), so the ticker needs no resume
-      // offset — pushTo carries the true cumulative.
-      const ticker = makeProgressTicker(job.size, ({ bytes, total, speed, eta }) => {
-        channel.emitProgress(job, { bytes, total, speed, eta })
-        updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
-      })
-      const diag = makeFetchDiag(channel.diagLabel, job.relPath, job.size, job.contentHash)
-      ;(async () => {
-        const r = await fetchImpl(job.contentHash, { finalPath: job.finalPath, onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b) }, onVerify: (fraction) => channel.emitVerifying?.(job, fraction), onEnd: diag.onEnd })
-        await settleFetch(transferId, job, r, diag)
-      })().catch((err) => log.warn('overlay download task failed after the fetch settled:', job.relPath, '-', err.message))
+      runFetchTask(slot, job, transferId)
+        .catch((err) => log.warn('overlay download task failed after the fetch settled:', job.relPath, '-', err.message))
 
       return { transferId, finalPath: job.finalPath }
     } catch (err) {
@@ -557,7 +590,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     // Setting restartJob outranks a republish-park (settleFetch checks restartJob first), so a
     // supersede that lands while the slot is parking still restarts on the new hash.
     tr.cancelled = true
-    tr.restartJob = newJob
+    // The new job is rebuilt from the catalog, so carry the lane the original was admitted on:
+    // a supersede is not the user changing their mind about how urgent this download is.
+    tr.restartJob = { ...newJob, express: newJob.express ?? tr.job?.express }
     // signal:false — a supersede is a system-initiated restart on a new hash, not a
     // user stop. The restart's content-request re-establishes the holder's serve row
     // on the same path, so don't emit STOPPED (it would blink the downloader's avatar off).
@@ -690,5 +725,5 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)
   }
 
-  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), _registry: registry, _stallRetries: stallRetries }
+  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), drainAdmission: () => admission.drain(), admissionStats: () => admission.stats(), _registry: registry, _stallRetries: stallRetries }
 }

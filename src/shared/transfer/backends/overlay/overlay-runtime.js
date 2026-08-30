@@ -27,6 +27,8 @@ export class OverlayBackend extends Subsystem {
     this.require('ipc', 'broadcastSharePrepare')
     this.resumePending = new Map()
     this.overlay = null
+    this.folderEngine = null
+    this.looseEngine = null
   }
 
   async _open() {
@@ -42,8 +44,10 @@ export class OverlayBackend extends Subsystem {
     // (every entry point checks getOverlay()), and on the kill-switch build the alternative is an
     // engine() that throws out of files:list, space:leave and the transfer handlers.
     initLooseOverlay(this.deps.ipc)
-    setFolderEngine(createOverlayDownloadEngine(folderChannel))
-    setLooseEngine(createOverlayDownloadEngine(looseChannel))
+    this.folderEngine = createOverlayDownloadEngine(folderChannel)
+    this.looseEngine = createOverlayDownloadEngine(looseChannel)
+    setFolderEngine(this.folderEngine)
+    setLooseEngine(this.looseEngine)
     if (isInPlaceFilesEnabled()) {
       rehydrateLooseFiles().catch((err) => this.log.debug('loose rehydrate failed:', err.message))
     }
@@ -64,10 +68,16 @@ export class OverlayBackend extends Subsystem {
   async _close() {
     for (const timer of this.resumePending.values()) this.timers.clear(timer)
     this.resumePending.clear()
+    // Before the teardown: a download parked on the admission gate would otherwise hold its
+    // task past the stop deadline waiting for a slot nobody will release.
+    this.folderEngine?.drainAdmission()
+    this.looseEngine?.drainAdmission()
     await teardownOverlay()
     this.overlay = null
     setFolderEngine(null)
     setLooseEngine(null)
+    this.folderEngine = null
+    this.looseEngine = null
     serveIndex.reset()
     resetContentBackendState()
     resetLooseState()

@@ -12,6 +12,7 @@ import { readOwnShares, tombstoneShare } from '../shares/shares.js'
 import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import keysMod from 'hypercore-storage/lib/keys.js'
+import { runLeaveTeardown } from './leave-flow.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
@@ -398,29 +399,23 @@ export function markSpaceLeavingDurable(spaceId) {
 // (a throw keeps the marker so the next boot retries it — co-member convergence depends on it);
 // the mount/share steps are best-effort so one bad record can't strand the others or the forget.
 export async function resumeInterruptedLeave(spaceId) {
-  await clearOwnMembership(spaceId)
-  try {
-    for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === spaceId)) {
-      await deleteOwnedMount(spaceId, m.shareId)
-    }
-  } catch (err) {
-    log.warn('resume leave: owned-mount cleanup failed:', spaceId, '-', err.message)
-  }
-  try {
-    for (const s of await readOwnShares(spaceId)) {
-      await tombstoneShare(spaceId, s.id)
-    }
-  } catch (err) {
-    log.warn('resume leave: share tombstoning failed:', spaceId, '-', err.message)
-  }
-  try {
-    for (const m of (await listForeignMounts()).filter((x) => x.spaceId === spaceId)) {
-      await deleteForeignMount(spaceId, m.shareId)
-    }
-  } catch (err) {
-    log.warn('resume leave: foreign-mount cleanup failed:', spaceId, '-', err.message)
-  }
-  await forgetSpaceRecord(spaceId)
+  await runLeaveTeardown(spaceId, {
+    clearMembership: () => clearOwnMembership(spaceId),
+    ownedMounts: async () => {
+      for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === spaceId)) {
+        await deleteOwnedMount(spaceId, m.shareId)
+      }
+    },
+    shares: async () => {
+      for (const s of await readOwnShares(spaceId)) await tombstoneShare(spaceId, s.id)
+    },
+    foreignMounts: async () => {
+      for (const m of (await listForeignMounts()).filter((x) => x.spaceId === spaceId)) {
+        await deleteForeignMount(spaceId, m.shareId)
+      }
+    },
+    forget: () => forgetSpaceRecord(spaceId),
+  }, { log })
 }
 
 // Durable, LOCAL-only leave tombstones: we record that we observed a peer leave a space so the

@@ -63,6 +63,12 @@ const DEFAULTED = {
   // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. The scheduler
   // clamps to >= 1.
   publishConcurrency: 2,
+  // Concurrent overlay downloads. A reconnect can have hundreds of pending rows and each running
+  // fetch owns a chunk scheduler, a watchdog, an fd and a progress ticker. 0 disables the gate.
+  downloadConcurrency: 3,
+  // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
+  // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
+  peerCatalogCacheLimit: 64,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
   // before charging). An honest connection sends one frame per shared space, we reciprocate
   // each, and a name change or ledger re-send can add a third inside one refill window — so
@@ -77,6 +83,13 @@ const DEFAULTED = {
   handshakeAbuseThreshold: 24,
   // Frames naming a topic we did not join: dropped before any signature verify, so the lane
   // can be generous (mirrors the overlay serve limiter). Bans only on a sustained flood.
+  // Every peer frame is metered on a general lane, not just the two identity types. Presence is
+  // the busiest honest source at one frame per (peer, space) per 5 s, so 256/20ms leaves an order
+  // of magnitude of headroom. peerFrameBurst 0 switches the lane off; peerFrameMaxBytes 0 the cap.
+  peerFrameMaxBytes: 65536,
+  peerFrameBurst: 256,
+  peerFrameRefillMs: 20,
+  peerFrameAbuseThreshold: 512,
   handshakeUnmatchedBurst: 32,
   handshakeUnmatchedRefillMs: 250,
   handshakeUnmatchedAbuseThreshold: 256,
@@ -279,6 +292,29 @@ export function getPublishConcurrency() {
   if (n === Infinity) return Infinity
   if (typeof n === 'number' && Number.isFinite(n) && n >= 1) return Math.floor(n)
   return DEFAULTED.publishConcurrency
+}
+
+export function getPeerFrameMaxBytes() {
+  return finiteAtLeast(config.peerFrameMaxBytes, 0, DEFAULTED.peerFrameMaxBytes)
+}
+
+export function getPeerFrameLimits() {
+  const c = config
+  return {
+    burst: finiteAtLeast(c.peerFrameBurst, 0, DEFAULTED.peerFrameBurst),
+    refillMs: finiteAtLeast(c.peerFrameRefillMs, 1, DEFAULTED.peerFrameRefillMs),
+    abuseThreshold: finiteAtLeast(c.peerFrameAbuseThreshold, 1, DEFAULTED.peerFrameAbuseThreshold),
+  }
+}
+
+export function getPeerCatalogCacheLimit() {
+  return finiteAtLeast(config.peerCatalogCacheLimit, 0, DEFAULTED.peerCatalogCacheLimit)
+}
+
+export function getDownloadConcurrency() {
+  const n = config.downloadConcurrency
+  if (typeof n === 'number' && Number.isFinite(n) && n >= 0) return Math.floor(n)
+  return DEFAULTED.downloadConcurrency
 }
 
 export function getPublishOrder() {

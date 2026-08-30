@@ -12,6 +12,11 @@
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { getPeerPresenceDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
+import { IntentsBee, getIntentsBee } from '../shared/core/intent-store.js'
+import { createIntentLog } from '../shared/core/intents.js'
+import { deleteOwnedMount } from '../shared/folders/mount-store.js'
+import { tombstoneShare } from '../shared/shares/shares.js'
+import { unmountForeignFolder } from '../shared/folders/foreign-folders.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../shared/core/unlock-providers.js'
@@ -89,6 +94,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new DownloadsBee('downloads'))
   await durable.start(new PendingTransfersBee('pending-transfers'))
   await durable.start(new MountsBee('mounts-meta'))
+  await durable.start(new IntentsBee('intents'))
   const installId = await getInstallId(bootstrap.storage).catch((err) => {
     log.warn('install id unavailable:', err.message)
     return null
@@ -213,8 +219,22 @@ export async function boot(bootstrap, {
     await life.start(new ForeignMirrors('foreign-mirrors', { ipc }))
     await life.start(new EchoGuardPurge('echo-guard'))
     await life.start(new PeerWatch('peer-watch'))
+    // Reconcilers register with the flows they complete, then one pass finishes everything a prior
+    // process left half-done. Before the swarm and the topic joins: recovery re-asserts durable
+    // departures and drops mount records, and a join racing that would re-arm a watcher or a
+    // mirror against a space this pass is about to forget.
+    const intents = createIntentLog({ bee: getIntentsBee, log })
+    intents.register('owned-delete', async ({ spaceId, shareId }) => {
+      await deleteOwnedMount(spaceId, shareId)
+      await tombstoneShare(spaceId, shareId)
+    })
+    intents.register('foreign-unmount', async ({ spaceId, shareId }) => {
+      await unmountForeignFolder(spaceId, shareId)
+    })
+
     const knownSpaces = await listSpaces()
     await resumeInterruptedLeaves(knownSpaces, log)
+    await intents.recover()
     const activeSpaces = knownSpaces.filter((s) => !s.leaving)
     // Hydrated here, from the spaces that SURVIVED the interrupted-leave pass above, and off the
     // scan that pass already did. A space being left keeps no download root: hydrating it would
@@ -267,7 +287,7 @@ export async function boot(bootstrap, {
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    return { close, store, mounts, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
+    return { close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
   }
 }
 

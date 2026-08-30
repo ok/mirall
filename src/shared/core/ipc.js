@@ -38,6 +38,29 @@ export function scopeForEvent(type, payload = {}) {
   return toScope ? toScope(payload) : null
 }
 
+// Codes that are ordinary control flow rather than faults: the user cancelled, or a bounded read
+// gave up as designed. Logging these at warn would teach the reader to ignore the level.
+// ECANCELLED is real (overlay-backend stamps it on an aborted read). PREVIEW_CANCELLED is the
+// renderer's declared contract — two modals branch on it — that the worker does not actually throw
+// yet; it is listed so the classification is already right when that gap is closed.
+const EXPECTED_CODES = new Set(['ECANCELLED', 'PREVIEW_CANCELLED'])
+
+// The code half is a closed set, but the type half is whatever the renderer sent — an unknown
+// command is counted under its requested name, so a buggy or looping caller could otherwise grow
+// this map without bound. Unknown types collapse into one bucket, and the map is capped.
+const MAX_FAILURE_KEYS = 256
+const requestFailures = new Map()
+
+export function getRequestFailureCounters() {
+  const out = {}
+  for (const [key, n] of requestFailures) out[key] = n
+  return out
+}
+
+export function resetRequestFailureCounters() {
+  requestFailures.clear()
+}
+
 export function createIPC(pipe) {
   const handlers = new Map()
   const queued = []
@@ -78,7 +101,10 @@ export function createIPC(pipe) {
   function dispatch(msg) {
     const handler = handlers.get(msg.type)
     if (!handler) {
-      log.debug('req', msg.type, '— no handler')
+      // warn, not debug: the renderer asking for a handler that does not exist is a contract
+      // break, and at the default level a debug line means nobody ever learns of it.
+      log.warn('req-unknown', msg.type)
+      countFailure('unknown-command', 'NOT_FOUND')
       respond(msg.id, null, `Unknown command: ${msg.type}`, 'NOT_FOUND')
       return
     }
@@ -89,8 +115,26 @@ export function createIPC(pipe) {
     log.debug('req', label)
     Promise.resolve(handler(msg)).then(
       (data) => { log.debug('res', label, 'ok', `${Date.now() - started}ms`); respond(msg.id, data) },
-      (err) => { log.debug('res', label, 'ERROR', err.message, `${Date.now() - started}ms`); respond(msg.id, null, err.message, err.code || 'UNKNOWN') }
+      (err) => {
+        const code = err?.code || 'UNKNOWN'
+        countFailure(msg.type, code)
+        // A failing request is logged at warn so it survives the default level. Successes stay at
+        // debug: they are the verbose trace, and only wanted when someone asked for it.
+        const line = ['req-failed', label, `code=${code}`, `ms=${Date.now() - started}`, err?.message || String(err)]
+        if (EXPECTED_CODES.has(code)) log.debug(...line)
+        else log.warn(...line)
+        respond(msg.id, null, err?.message, code)
+      }
     )
+  }
+
+  function countFailure(type, code) {
+    const key = `${type}:${code}`
+    if (!requestFailures.has(key) && requestFailures.size >= MAX_FAILURE_KEYS) {
+      requestFailures.set('other:OVERFLOW', (requestFailures.get('other:OVERFLOW') || 0) + 1)
+      return
+    }
+    requestFailures.set(key, (requestFailures.get(key) || 0) + 1)
   }
 
   function respond(id, data, error, code) {
