@@ -516,6 +516,9 @@ export async function runMaterializeTick(spaceId, shareId) {
     return tickInFlight.get(key)
   }
   const p = materializeOnce(spaceId, shareId).finally(() => {
+    // Identity-guarded, matching initialMaterializeScan: a pass settling after a scan replaced the
+    // entry must not delete the LIVE one, which would un-serialise two passes over the same mount.
+    if (tickInFlight.get(key) !== p) return
     tickInFlight.delete(key)
     if (tickDirty.delete(key)) runMaterializeTick(spaceId, shareId).catch(() => {})
   })
