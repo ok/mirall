@@ -1,3 +1,4 @@
+import type { RequestName } from '../shared/contract/requests.js'
 // window.mirall — a small, always-present developer console for live debugging,
 // including on production builds. It layers a friendly, discoverable surface
 // over the existing plumbing: read-only diagnostics go through the worker RPC
@@ -37,7 +38,7 @@ function help(): void {
 
 // Run a read-only worker query, log the result with a label, and return it so
 // the value is also usable from the console (e.g. `await mirall.spaces()`).
-async function diag(label: string, type: string, payload: Record<string, unknown> = {}): Promise<unknown> {
+async function diag(label: string, type: RequestName, payload: Record<string, unknown> = {}): Promise<unknown> {
   try {
     const data = await request(type, payload)
     console.log(`[mirall] ${label}:`, data)
@@ -75,6 +76,17 @@ const mirall: MirallDevConsole = {
   mounts: () => diag('mounts', 'mounts:list-all'),
   profile: () => diag('profile', 'profile:get'),
   features: () => diag('feature flags', 'features:get'),
+  // Per-request call counts, failures, in-flight and timing. This is how the fan-out claims in the
+  // architecture review get checked against a running app instead of estimated.
+  metrics: async () => {
+    const diagnostics = await request('diagnostics:export', { redact: true }) as {
+      requests?: { metrics?: Record<string, unknown>; failures?: Record<string, unknown> }
+    }
+    const metrics = diagnostics.requests?.metrics ?? {}
+    console.table(metrics)
+    if (diagnostics.requests?.failures) console.table(diagnostics.requests.failures)
+    return metrics
+  },
   version: async () => {
     const v = await window.bridge.appVersion()
     console.log('[mirall] version:', v)

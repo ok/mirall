@@ -1,3 +1,4 @@
+import type { RequestName } from '../shared/contract/requests.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
 const WORKER_SPEC = '/src/worker/main.js'
 
@@ -240,7 +241,7 @@ if (typeof window !== 'undefined') {
 }
 
 export async function request(
-  type: string,
+  type: RequestName,
   payload: Record<string, unknown> = {},
   timeout = DEFAULT_TIMEOUT,
 ): Promise<unknown> {

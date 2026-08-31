@@ -103,3 +103,13 @@ test('every event the worker emits is declared in the contract', (t) => {
   const undeclared = [...emitted].filter((e) => !contract.EVENT_NAMES.includes(e)).sort()
   t.alike(undeclared, [], 'events emitted but absent from the contract')
 })
+
+// The RequestName union is what makes request() type-safe; declared as Record<string, …> it would
+// be `string` and a typo would compile. Generated from requests.js, so it must equal it exactly —
+// a union that silently rots is how `setVerbose` escaped the contract in the first place.
+test('the declared RequestName union matches the request rows exactly', (t) => {
+  const dts = readFileSync(path.join(dir, 'requests.d.ts'), 'utf8')
+  const block = dts.slice(dts.indexOf('export type RequestName ='), dts.indexOf('export type ArgType'))
+  const declared = [...block.matchAll(/\|\s*'([^']+)'/g)].map((m) => m[1]).sort()
+  t.alike(declared, Object.keys(contract.REQUESTS).sort(), 'every request row has a declared name and vice versa')
+})

@@ -63,7 +63,7 @@ test('REGRESSION (FIX-OBS-1): a failing request is logged at warn at the default
 
   const failure = cap.warns.find((l) => l.includes('req-failed'))
   t.ok(failure, 'the failure reached console.warn')
-  t.ok(failure.includes('thing:do'), 'carries the request type')
+  t.ok(failure.includes('req=thing:do'), 'carries the request type')
   t.ok(failure.includes('code=EPATH'), 'carries the error code')
   t.ok(failure.includes('it broke'), 'carries the message')
   t.ok(/ms=\d+/.test(failure), 'carries the duration')

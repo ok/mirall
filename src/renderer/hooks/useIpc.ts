@@ -1,7 +1,8 @@
+import type { RequestName } from '../../shared/contract/requests.js'
 import { useState, useEffect, useCallback } from 'react'
 import { request } from '../ipc.js'
 
-export function useIpcQuery(type: string, payload: Record<string, unknown>, deps: React.DependencyList = []) {
+export function useIpcQuery(type: RequestName, payload: Record<string, unknown>, deps: React.DependencyList = []) {
   const [data, setData] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

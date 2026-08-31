@@ -13,7 +13,7 @@ import os from 'bare-os'
 import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { createIPC, getBootstrapPromise, getRequestFailureCounters } from '../shared/core/ipc.js'
+import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics } from '../shared/core/ipc.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import {
   setRuntimeConfig,
@@ -1714,6 +1714,7 @@ ipc.handle('diagnostics:export', async (msg) => {
     },
     counters: getDiagnosticCounters(),
     requestFailures: getRequestFailureCounters(),
+    requestMetrics: getRequestMetrics(),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
