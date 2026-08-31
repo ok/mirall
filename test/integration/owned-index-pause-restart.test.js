@@ -2,6 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
+import crypto from 'hypercore-crypto'
 import { trackTimers } from '../helpers/timers.js'
 
 // The shim must wrap the globals BEFORE the modules load, so everything under test comes in through
@@ -25,14 +26,21 @@ const tmp = (label) => fs.mkdtempSync(path.join(os.tmpdir(), `mirall-index-pause
 // run MountsRuntime at all — so it could observe neither half.
 test('the pause survives a restart, and boot arms no cadence for it', async (t) => {
   t.teardown(() => timers.restore())
-  const storage = tmp('store')
+  // Nested like production (<peerDir>/app-storage): identity.enc and space-keys.enc are written
+  // to dirname(storage), and a flat tmp dir would share them with every other test.
+  const root = tmp('store')
+  const storage = path.join(root, 'app-storage')
+  fs.mkdirSync(storage, { recursive: true })
   const downloads = tmp('dl')
   t.teardown(() => {
-    for (const dir of [storage, downloads]) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }
+    for (const dir of [root, downloads]) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }
   })
   const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, overlayEnabled: true }
+  // Passed to BOTH boots: a space needs the master secret, and the cores are keyPair-derived from
+  // it, so the restart only reopens the same store when it presents the same one.
+  const masterSecret = crypto.randomBytes(32)
 
-  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
+  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   await setProfile({ displayName: 'Tester' })
   const space = await createSpace('Aurora')
   const share = {
@@ -41,7 +49,7 @@ test('the pause survives a restart, and boot arms no cadence for it', async (t) 
     name: 'Vault',
     owner: getLocalPublicKeyHex(),
     contentMode: 'overlay',
-    catalogKey: await ownCatalogKeyHex(space.spaceId),
+    catalogKeyEnc: await ownCatalogKeyHex(space.spaceId),
     createdAt: Date.now(),
   }
   await publishShare(space.spaceId, share)
@@ -54,7 +62,7 @@ test('the pause survives a restart, and boot arms no cadence for it', async (t) 
   await first.close()
 
   const fake = createFakeIpc()
-  const second = await boot(config, { ipc: fake.ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
+  const second = await boot(config, { ipc: fake.ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(() => second.close())
 
   t.ok((await getOwnedMount(space.spaceId, share.id)).indexPaused, 'the flag is durable')
