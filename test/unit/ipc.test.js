@@ -172,7 +172,11 @@ test('logs handler errors and unknown commands', async (t) => {
   pipe.feed({ id: '2', type: 'boom' })
   pipe.feed({ id: '3', type: 'ghost' })
   await tick()
-  t.ok(lines.some((l) => l.startsWith('req-failed req=boom #2') && l.includes('kaboom')), 'logs the failing handler')
+  const failed = lines.find((l) => l.startsWith('req-failed'))
+  t.ok(failed, 'logs the failing handler')
+  t.ok(failed.includes('req=boom'), 'with the request type as its own field')
+  t.ok(failed.includes('id=2'), 'and the request id as its own field, not concatenated into the type')
+  t.ok(failed.includes('kaboom'), 'and the error message')
   t.ok(lines.some((l) => l.startsWith('req-unknown ghost')), 'logs an unknown command')
   // ghost responds synchronously; boom's rejection resolves a tick later — so
   // find the #3 response rather than assuming write order.

@@ -1,10 +1,14 @@
 import test from 'brittle'
-import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
+import { createIPC, getRequestFailureCounters, resetRequestFailureCounters, getRequestMetrics, resetRequestMetrics } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { AppError } from '../../src/shared/core/errors.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
 const TEST_REQUESTS = Object.freeze({
+  'thing:sync-boom': { kind: 'command', args: {} },
+  'thing:fields': { kind: 'command', args: {} },
+  'thing:cancel': { kind: 'command', args: {} },
   'thing:do': { kind: 'command', args: {} },
   'thing:ok': { kind: 'command', args: {} },
   'preview:make': { kind: 'command', args: {} },
@@ -150,4 +154,119 @@ test('the failure counter map is bounded', async (t) => {
   const counters = getRequestFailureCounters()
   t.ok(Object.keys(counters).length <= 257, 'the map stayed capped')
   t.is(counters['unknown-command:NOT_FOUND'], 400, 'and unknown commands share one bucket')
+})
+
+// A handler that throws SYNCHRONOUSLY (not from an async body) escaped through
+// `Promise.resolve(entry.fn(...))` — the call is evaluated before the promise exists, so the throw
+// unwound into the frame-parse catch that wraps dispatch(). Three consequences, all silent:
+// the caller got no response and hung to the renderer's 30s timeout, the failure was counted
+// nowhere, and requestMetrics.begin() had already incremented inFlight with no settle to match.
+// Only `shutdown` is non-async in the worker today, but the metrics leak is what makes this
+// load-bearing here: a monotonically rising inFlight reads as saturation.
+test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, and settled', async (t) => {
+  resetRequestFailureCounters()
+  resetRequestMetrics()
+  t.teardown(() => { resetRequestFailureCounters(); resetRequestMetrics() })
+  const { warns } = captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:sync-boom', () => { throw new Error('sync throw') })
+  ipc.start()
+
+  pipe.feed({ id: '1', type: 'thing:sync-boom' })
+  await new Promise((r) => setImmediate(r))
+
+  const res = pipe.written.map((s) => JSON.parse(s)).find((m) => m.id === '1')
+  t.ok(res, 'the caller is answered rather than left to time out')
+  t.is(res.code, 'UNKNOWN', 'with a code')
+  t.is(res.error, 'sync throw', 'and the message')
+  t.is(getRequestFailureCounters()['thing:sync-boom:UNKNOWN'], 1, 'the failure is counted')
+  t.is(getRequestMetrics()['thing:sync-boom'].inFlight, 0, 'in-flight settles back to zero')
+  t.is(getRequestMetrics()['thing:sync-boom'].failures, 1, 'and is recorded as a failure')
+  t.absent(warns.some((l) => l.includes('unparseable')), 'never misreported as a malformed frame')
+})
+
+
+test('the failure line carries req, id, code and ms as separate fields', async (t) => {
+  const { warns } = captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:do', async () => { throw new AppError('NOT_FOUND', 'gone') })
+  ipc.start()
+  pipe.feed({ id: '9', type: 'thing:do' })
+  await new Promise((r) => setImmediate(r))
+
+  const line = warns.find((l) => l.includes('req-failed'))
+  t.ok(line, 'the failure is logged')
+  t.ok(line.includes('req=thing:do'), 'the type is its own field')
+  t.ok(line.includes('id=9'), 'and the id is too — previously both were fused into one token')
+  t.ok(line.includes('code=NOT_FOUND'), 'the code is a field')
+  t.ok(/\bms=\d+/.test(line), 'and the duration is a numeric field')
+})
+
+// AppError carried a code and nothing else, so a handler that knew exactly which space and share
+// had failed could only say so in English that the renderer had to parse back.
+test("REGRESSION (FIX-R09-7): an AppError's fields reach both the log and the caller", async (t) => {
+  const { warns } = captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:fields', async () => {
+    throw new AppError('EOWNERSHIP', 'not yours', { spaceId: 'S1', shareId: 'F2' })
+  })
+  ipc.start()
+  pipe.feed({ id: '4', type: 'thing:fields' })
+  await new Promise((r) => setImmediate(r))
+
+  const res = pipe.written.map((s) => JSON.parse(s)).find((m) => m.id === '4')
+  t.is(res.code, 'EOWNERSHIP')
+  t.alike(res.fields, { spaceId: 'S1', shareId: 'F2' }, 'structure crosses the boundary, not only prose')
+
+  const line = warns.find((l) => l.includes('req-failed'))
+  t.ok(line.includes('spaceId=S1') && line.includes('shareId=F2'), 'and the same fields reach the log')
+})
+
+test('an error without fields produces a response with no fields key at all', async (t) => {
+  captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:do', async () => { throw new AppError('NOT_FOUND', 'gone') })
+  ipc.start()
+  pipe.feed({ id: '5', type: 'thing:do' })
+  await new Promise((r) => setImmediate(r))
+  const res = pipe.written.map((s) => JSON.parse(s)).find((m) => m.id === '5')
+  t.absent('fields' in res, 'absent, not null — a consumer should not have to tell the two apart')
+})
+
+test("an error's own fields cannot overwrite the router's canonical ones", async (t) => {
+  const { warns } = captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:fields', async () => {
+    throw new AppError('NOT_FOUND', 'gone', { code: 'FORGED', req: 'forged' })
+  })
+  ipc.start()
+  pipe.feed({ id: '6', type: 'thing:fields' })
+  await new Promise((r) => setImmediate(r))
+  const line = warns.find((l) => l.includes('req-failed'))
+  t.ok(line.includes('code=NOT_FOUND'), 'the router wins the code')
+  t.ok(line.includes('req=thing:fields'), 'and the request name')
+  t.absent(line.includes('FORGED'), 'the forged value never appears')
+})
+
+test('an expected code still logs at debug once it carries fields', async (t) => {
+  const { warns, logs } = captureConsole(t)
+  setRuntimeConfig({ verbose: true })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:cancel', async () => { throw new AppError('ECANCELLED', 'user cancelled', { spaceId: 'S1' }) })
+  ipc.start()
+  pipe.feed({ id: '8', type: 'thing:cancel' })
+  await new Promise((r) => setImmediate(r))
+  t.absent(warns.some((l) => l.includes('req-failed')), 'the #118 level policy survives the change')
+  t.ok(logs.some((l) => l.includes('req-failed') && l.includes('spaceId=S1')), 'it is at debug, with its fields')
 })

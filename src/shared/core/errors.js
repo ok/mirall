@@ -10,9 +10,13 @@ import { CODES } from '../contract/errors.js'
 export const ErrorCodes = CODES
 
 export class AppError extends Error {
-  constructor(code, message) {
+  // `fields` is structured context the router logs and returns on the response frame, so a caller
+  // can branch on the failing ids instead of parsing the English message. Optional: all 58 existing
+  // call sites pass two arguments and keep working unchanged.
+  constructor(code, message, fields = null) {
     super(message)
     this.code = code
+    this.fields = fields
   }
 }
 

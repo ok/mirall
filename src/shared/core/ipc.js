@@ -1,7 +1,7 @@
 // The worker end of the renderer↔worker pipe: NDJSON request/response framing with a
 // handler table, `event:*` pushes, and the coalesced reconcile hint bus. Frames arriving
 // before start() are queued so no request is lost during boot.
-import { createLogger } from './logger.js'
+import { createLogger, fields } from './logger.js'
 import { createHintBus } from '../state/hints.js'
 import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
@@ -75,10 +75,13 @@ export function resetRequestMetrics() {
 // Ordered key=value rather than JSON: the transport is a console line forwarded to main and read by
 // a human with grep. The router is the one place with enough structure to be worth it — converting
 // the other 400 positional call sites is a separate, mechanical change.
-function logRequestFailure(log, { req, code, ms, message }) {
-  const line = `req-failed req=${req} code=${code} ms=${ms} — ${message}`
-  if (EXPECTED.has(code)) log.debug(line)
-  else log.warn(line)
+// Every part of the line is key=value now, message included — the previous format concatenated the
+// type and id into one `req=boom #2` token, which is unreadable to anything but a human. The error's
+// own fields are spread FIRST so the router's canonical keys win a name clash.
+function logRequestFailure(log, { req, id, code, ms, message, extra }) {
+  const bag = fields({ ...(extra || {}), req, id, code, ms, msg: message })
+  if (EXPECTED.has(code)) log.debug('req-failed', bag)
+  else log.warn('req-failed', bag)
 }
 
 export function getRequestFailureCounters() {
@@ -201,7 +204,12 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // The second argument is the request's context. `signal` is null until cancellation is wired
     // (r07-3): the seam costs one line now and re-plumbing 86 handlers later. Every handler takes
     // one parameter today and ignores this one.
-    Promise.resolve(entry.fn(msg, { id: msg.id ?? null, signal: null })).then(
+    // `new Promise(resolve => resolve(...))`, not `Promise.resolve(...)`: the latter EVALUATES the
+    // handler before the promise exists, so a handler that throws synchronously unwound into the
+    // frame-parse catch around dispatch() — reported as an unparseable frame at debug, never
+    // answered (the caller hung to the renderer's 30s timeout), never counted, and with the
+    // in-flight metric already incremented and no settle to match it.
+    new Promise((resolve) => resolve(entry.fn(msg, { id: msg.id ?? null, signal: null }))).then(
       (data) => { log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
       (err) => {
         const ms = settle(false)
@@ -209,8 +217,12 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
         countFailure(msg.type, code)
         // A failing request logs at warn so it survives the default level. Successes stay at debug:
         // they are the verbose trace, and only wanted when someone asked for it.
-        logRequestFailure(log, { req: label, code, ms, message: err?.message || String(err) })
-        respond(msg.id, null, err?.message, code)
+        logRequestFailure(log, {
+          req: msg.type, id: msg.id ?? null, code, ms,
+          message: err?.message || String(err),
+          extra: err?.fields || null,
+        })
+        respond(msg.id, null, err?.message, code, err?.fields || null)
       }
     )
   }
@@ -224,10 +236,10 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     requestFailures.set(key, (requestFailures.get(key) || 0) + 1)
   }
 
-  function respond(id, data, error, code) {
+  function respond(id, data, error, code, errorFields) {
     if (!id) return
     const msg = error
-      ? { id, type: 'response', error, code }
+      ? { id, type: 'response', error, code, ...(errorFields ? { fields: errorFields } : {}) }
       : { id, type: 'response', data }
     pipe.write(JSON.stringify(msg) + '\n')
   }
@@ -254,10 +266,17 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   }
 
   ipcSingleton.bootstrapPromise = bootstrapPromise
+  ipcSingleton.queueDepth = () => queued.length
   return { handle, emit, respond, start }
 }
 
-const ipcSingleton = { bootstrapPromise: null }
+const ipcSingleton = { bootstrapPromise: null, queueDepth: null }
+
+// The pre-start queue is otherwise invisible: it is bounded now, and a caller that keeps hitting
+// that bound during a slow boot is exactly the condition worth surfacing.
+export function getQueueDepth() {
+  return ipcSingleton.queueDepth ? ipcSingleton.queueDepth() : 0
+}
 
 export function getBootstrapPromise() {
   if (!ipcSingleton.bootstrapPromise) {
