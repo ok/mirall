@@ -1,6 +1,6 @@
 // A file row in a space's list: derives the action buttons from file status and swaps the
 // right-hand lane between publish/verify/download progress, the who-is-downloading indicator, and the status pill.
-import { useState, useEffect, useId } from 'react'
+import { memo, useState, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatSize, getFileIcon, fileName } from '../../utils.js'
 import { errorCodeToI18nKey } from '../../errorMessages.js'
@@ -140,7 +140,7 @@ function ActionSlot({
   )
 }
 
-export default function FileCard({
+function FileCard({
   file,
   decoration,
   onDownload,
@@ -234,3 +234,10 @@ export default function FileCard({
     </div>
   )
 }
+
+// The decoration heartbeat re-renders SpaceView once a second for as long as any transfer is live.
+// Without this every row re-rendered with it; with it, only the rows whose own file, decoration or
+// download summary actually changed do. The default shallow compare is what we want: every prop is
+// a primitive, a row object reconciled for identity, a per-key value from a Map (decoration,
+// downloadSummary), or a stable handler.
+export default memo(FileCard)

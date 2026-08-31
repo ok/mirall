@@ -1,5 +1,6 @@
 // A folder-share row on the space screen: the whole card opens the folder, and the
 // action menu adapts to the share's role (owned, mirrored to disk, or browse-only).
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 import type { Profile, SpaceMember } from '../../types.js'
@@ -49,7 +50,7 @@ function OwnerAvatar({ owner, isYou, selfProfile }: { owner: SpaceMember | null;
   )
 }
 
-export default function ShareCard({
+function ShareCard({
   share,
   owner,
   selfProfile,
@@ -169,3 +170,8 @@ export default function ShareCard({
   )
 }
 
+// SpaceView re-renders once a second under the decoration heartbeat, and a share card's content
+// has nothing to do with a transfer's progress. Every handler prop is useCallback'd at the call
+// site; the role gating that used to build them conditionally lives in menuItems above, which is
+// where it was already being applied.
+export default memo(ShareCard)

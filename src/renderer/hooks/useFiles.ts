@@ -81,7 +81,10 @@ export function useFiles(spaceId: string) {
     }
   }
 
-  async function downloadFile(file: FileEntry) {
+  // Stable identities, like useShareFiles' equivalents: these are handed straight to memoized file
+  // rows, and a fresh closure per render made every row's shallow compare fail — so the list
+  // re-rendered whole on each decoration heartbeat. They close over nothing but spaceId.
+  const downloadFile = useCallback(async (file: FileEntry) => {
     return await request('files:download', {
       spaceId,
       driveKey: file.driveKey,
@@ -89,23 +92,23 @@ export function useFiles(spaceId: string) {
       inPlace: file.inPlace ?? false,
       ownerKey: file.owner.publicKey,
     })
-  }
+  }, [spaceId])
 
-  async function unshareFile(path: string) {
+  const unshareFile = useCallback(async (path: string) => {
     await request('files:remove', { spaceId, path })
-  }
+  }, [spaceId])
 
-  async function discardPartial(file: FileEntry) {
+  const discardPartial = useCallback(async (file: FileEntry) => {
     await request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false })
-  }
+  }, [spaceId])
 
-  async function cancelPublish(path: string) {
+  const cancelPublish = useCallback(async (path: string) => {
     await request('files:cancel-publish', { spaceId, path })
-  }
+  }, [spaceId])
 
-  async function revealFile(path: string) {
+  const revealFile = useCallback(async (path: string) => {
     await request('files:reveal', { spaceId, path })
-  }
+  }, [spaceId])
 
   const allFiles = useMemo(
     () => mergeOptimistic(files, [...uploadingFiles.values()]),

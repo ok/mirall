@@ -5,12 +5,17 @@ import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
 import { mountErrorI18nKey } from '../errorMessages.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useQuery } from '../store/useQuery.js'
+import { refetchQuery } from '../store/query-store.js'
 import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
+
+// Module-level so the entry's scope list is one array, not a fresh literal per render.
+const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }]
 
 interface StorageInfo {
   totalDiskUsage: number
@@ -86,8 +91,6 @@ function samePath(a: string, b: string) {
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
-  const [info, setInfo] = useState<StorageInfo | null>(null)
-  const [loading, setLoading] = useState(true)
   const [downloadFolder, setDownloadFolder] = useState<string>('')
   const [folderError, setFolderError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -96,11 +99,14 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const [freedBytes, setFreedBytes] = useState<number | null>(null)
   const freeingRef = useRef(false)
 
+  // storage:info is a cross-space disk aggregate, so it watches the file, share and share-file
+  // scopes without pinning a spaceId — a hint for any space matches (scopeMatches only compares an
+  // id the VIEW pins). The coalesce window matters here: an owned-folder scan pokes files-updated
+  // in bursts, and this read walks the store.
+  const { data: info, loading } = useQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
+
   const refreshInfo = useCallback(() => {
-    return request('storage:info').then((data) => {
-      setInfo(data as StorageInfo)
-      setLoading(false)
-    })
+    return refetchQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES).catch(() => {})
   }, [])
 
   const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
@@ -119,8 +125,6 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       freeingRef.current = false
     }
   }, [refreshInfo])
-
-  useEffect(() => { refreshInfo() }, [refreshInfo])
 
   useEffect(() => {
     let cancelled = false
@@ -167,7 +171,10 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       <div className="pt-8 px-8 max-w-2xl mx-auto">
       <PageHeader title={t('storageSettings.title')} subtitle={t('storageSettings.intro')} onBack={onBack} />
 
-      {loading ? (
+      {/* Only a COLD read shows the calculating line. A hint-driven refetch keeps the numbers on
+          screen while it runs — the store keeps the last value precisely so a background
+          invalidation can't blank a panel the user is reading. */}
+      {loading && !info ? (
         <p role="status" className="text-on-surface-variant py-8 text-center">{t('storageSettings.calculating')}</p>
       ) : info && (
         <div className="space-y-10">

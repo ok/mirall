@@ -1,5 +1,5 @@
 // Space screen: loose files and folder shares with drag-drop adding, transfer controls, member presence, and invites.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FileEntry } from '../types.js'
 import { useFiles } from '../hooks/useFiles.js'
@@ -141,7 +141,10 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     }
   }
 
-  async function handleLocate(share: ShareWithRole) {
+  // The row handlers below are useCallback'd because they are props of memoized rows (ShareCard,
+  // FileCard): an identity that changes every render defeats the memo, and the decoration
+  // heartbeat re-renders this screen once a second for as long as a transfer is live.
+  const handleLocate = useCallback(async (share: ShareWithRole) => {
     const picked = await window.bridge.browseShareFolder()
     if (!picked) return
     try {
@@ -150,7 +153,28 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
-  }
+  }, [spaceId, toast, t])
+
+  const handleOpenShare = useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare])
+
+  const handleOpenInFinder = useCallback(async (share: ShareWithRole) => {
+    try { await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id }) } catch {}
+  }, [spaceId])
+
+  const handleDeleteRequest = useCallback((share: ShareWithRole) => { setShareToDelete(share) }, [])
+  const handleMirrorRequest = useCallback((share: ShareWithRole) => { setShareToMirror(share) }, [])
+
+  const handleUnmount = useCallback(async (share: ShareWithRole) => {
+    await unmountForeignMount(share.spaceId, share.id)
+  }, [])
+
+  const handlePauseMirror = useCallback(async (share: ShareWithRole) => {
+    await setForeignMountEnabled(share.spaceId, share.id, false)
+  }, [])
+
+  const handleResumeMirror = useCallback(async (share: ShareWithRole) => {
+    await setForeignMountEnabled(share.spaceId, share.id, true)
+  }, [])
 
   useEffect(() => {
     function handle(event: Event) {
@@ -186,10 +210,6 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     onBack()
   }
 
-  async function handleDownload(file: FileEntry) {
-    await downloadFile(file)
-  }
-
   async function handleLeave() {
     await leaveSpace(spaceId)
   }
@@ -200,13 +220,13 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     setFileToRemove(null)
   }
 
-  async function handleDiscardPartial(file: FileEntry) {
-    await discardPartial(file)
-  }
-
-  async function handleReveal(file: FileEntry) {
+  const handleReveal = useCallback(async (file: FileEntry) => {
     await revealFile(file.path)
-  }
+  }, [revealFile])
+
+  const handleRemoveRequest = useCallback((file: FileEntry) => { setFileToRemove(file) }, [])
+
+  const handleCancelPublish = useCallback((file: FileEntry) => { void cancelPublish(file.path) }, [cancelPublish])
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
@@ -410,22 +430,14 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                           share={share}
                           owner={owner}
                           selfProfile={profile}
-                          onOpen={(s) => onOpenShare?.(s)}
-                          onOpenInFinder={share.role === 'mine' || share.role === 'mirrored' ? async (s) => {
-                            try { await request('share:reveal-folder', { spaceId, ownerKey: s.owner, shareId: s.id }) } catch {}
-                          } : undefined}
-                          onDelete={share.role === 'mine' ? (s) => setShareToDelete(s) : undefined}
-                          onLocate={share.role === 'mine' ? handleLocate : undefined}
-                          onMirror={share.role === 'browse' ? (s) => setShareToMirror(s) : undefined}
-                          onUnmount={share.role === 'mirrored' ? async (s) => {
-                            await unmountForeignMount(s.spaceId, s.id)
-                          } : undefined}
-                          onPauseMirror={share.role === 'mirrored' ? async (s) => {
-                            await setForeignMountEnabled(s.spaceId, s.id, false)
-                          } : undefined}
-                          onResumeMirror={share.role === 'mirrored' ? async (s) => {
-                            await setForeignMountEnabled(s.spaceId, s.id, true)
-                          } : undefined}
+                          onOpen={handleOpenShare}
+                          onOpenInFinder={handleOpenInFinder}
+                          onDelete={handleDeleteRequest}
+                          onLocate={handleLocate}
+                          onMirror={handleMirrorRequest}
+                          onUnmount={handleUnmount}
+                          onPauseMirror={handlePauseMirror}
+                          onResumeMirror={handleResumeMirror}
                         />
                       )
                     })}
@@ -460,18 +472,18 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-4">
-                    {files.map((file, i) => (
+                    {files.map((file) => (
                       <FileCard
-                        key={`${file.driveKey}-${file.path}-${i}`}
+                        key={`${file.driveKey}-${file.path}`}
                         file={file}
                         decoration={getDecoration(file.path)}
-                        onDownload={handleDownload}
+                        onDownload={downloadFile}
                         onCancel={cancelDownload}
                         onPause={pauseDownload}
                         onReveal={handleReveal}
-                        onUnshare={(f) => setFileToRemove(f)}
-                        onDiscardPartial={handleDiscardPartial}
-                        onCancelPublish={(f) => cancelPublish(f.path)}
+                        onUnshare={handleRemoveRequest}
+                        onDiscardPartial={discardPartial}
+                        onCancelPublish={handleCancelPublish}
                         members={members}
                         downloadSummary={getDownloadSummary(file.path)}
                       />

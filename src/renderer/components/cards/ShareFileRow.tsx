@@ -1,7 +1,7 @@
 // One file row in a folder share: transfer status/progress, per-file actions, and the
 // owner-side who-is-downloading indicator. Extracted from FolderView so the collapsible
 // tree and the flat list can share it.
-import { useState, useId, useEffect } from 'react'
+import { memo, useState, useId, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
@@ -94,7 +94,7 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
   return <div className="w-10 h-10" />
 }
 
-export default function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, onDiscardPartial, displayName, leadingGutter }: ShareFileRowProps) {
+function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, onDiscardPartial, displayName, leadingGutter }: ShareFileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const isDownloading = file.status === 'downloading'
@@ -255,3 +255,8 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
     </div>
   )
 }
+
+// Same reason as FileCard: the folder tree's rows must not repaint on every decoration heartbeat.
+// `file` keeps its identity across a listing refetch (shareFilesReconcile.js), `members` is the
+// memoized roster, `downloadSummary` is a per-path Map value, and the five handlers are stable.
+export default memo(ShareFileRow)
