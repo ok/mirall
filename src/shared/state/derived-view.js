@@ -28,6 +28,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   let running = false          // a fold is in flight
   let again = false            // a change landed mid-fold → run exactly once more after
   let timer = null             // pending debounce timer (debounceMs > 0)
+  let inFlight = null          // the running fold, so close() can wait for the reads it holds
 
   // Coalesce a burst of change signals into one fold and serialize folds so two changes
   // can't run overlapping folds whose results land out of order. If a change arrives while
@@ -40,11 +41,13 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     if (running) { again = true; return }
     if (scheduled) return
     scheduled = true
-    if (debounceMs > 0) { timer = setTimeout(run, debounceMs); timer.unref?.() }
-    else queueMicrotask(run)
+    const start = () => { inFlight = run() }
+    if (debounceMs > 0) { timer = setTimeout(start, debounceMs); timer.unref?.() }
+    else queueMicrotask(start)
   }
 
   async function run () {
+    if (closed) { scheduled = false; return }
     scheduled = false
     timer = null
     running = true
@@ -77,6 +80,10 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   async function close () {
     closed = true
     if (timer) { clearTimeout(timer); timer = null }
+    // A fold in flight is reading peer bees, and each read holds a core session until it
+    // resolves. Closing out from under it leaves those sessions open for the store to find.
+    try { await inFlight } catch { /* the fold's own error path already reported */ }
+    inFlight = null
     for (const { watcher } of watchers.values()) {
       try { await watcher.close() } catch { /* already gone */ }
     }

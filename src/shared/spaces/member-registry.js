@@ -178,7 +178,9 @@ export function closeMemberView (spaceId) {
   lefts.delete(spaceId)
   releaseCaptures(spaceId)
   setDerivedRequests(spaceId, null)
-  Promise.resolve(entry.view?.close?.()).catch(() => {})
+  // Returned so the shutdown path can await it — the view holds peer-bee sessions the store
+  // must not close underneath. Every other caller drops the promise, as before.
+  return Promise.resolve(entry.view?.close?.()).catch(() => {})
 }
 
 // Record that `key` left this space (from their leave frame) at the leaver's clock stamp `leaveTs`.
@@ -278,8 +280,8 @@ async function openMemberViewsForKnownSpaces () {
   }
 }
 
-export function closeAllMemberViews () {
-  for (const spaceId of [...views.keys()]) closeMemberView(spaceId)
+export async function closeAllMemberViews () {
+  await Promise.allSettled([...views.keys()].map((spaceId) => closeMemberView(spaceId)))
   captureRefs.clear()
   captures.clear()
 }
@@ -431,7 +433,7 @@ export class MemberViews extends Subsystem {
   }
 
   async _close () {
-    closeAllMemberViews()
+    await closeAllMemberViews()
     membershipRevokedHook = null
     // A second boot in one process must not inherit the first boot's closures.
     deps = { ...DEFAULT_DEPS }
