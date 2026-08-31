@@ -93,9 +93,17 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
   // first render before derive() resolves).
   const { status: ownedStatus } = useOwnedMount(spaceId, isYou ? share.id : '')
-  // The scan's own queue depth, which the file rows cannot show: a queued file has no catalog
-  // entry yet, so it has no row. Owner-only — a member has no view of our scheduler.
-  const indexing = deriveIndexSummary(useIndexProgress(spaceId, isYou ? share.id : ''))
+  // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
+  // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
+  // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
+  // `live` is what stops a peer's count outliving its owner: they send no closing frame when they
+  // drop, so the hook drops the value rather than merely hiding it. It also guarantees `owner` is
+  // resolved before the notice can be active, so the sentence always has a name in it.
+  const indexing = deriveIndexSummary(useIndexProgress(spaceId, share.id, {
+    own: isYou,
+    ownerKey: share.owner,
+    live: isYou || (owner != null && owner.online !== false),
+  }))
   const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
 
   async function handleRevealFolder() {
@@ -286,11 +294,13 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
                 the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
                 only queued has no row yet, which is exactly the gap this closes. */}
-            {isYou && indexing.active && (
+            {indexing.active && !loading && !error && (
               <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm">
                 <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
                 <span>
-                  {t('folder.indexingSummary', { count: indexing.files })}
+                  {isYou
+                    ? t('folder.indexingSummary', { count: indexing.files })
+                    : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '?' })}
                   {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
                 </span>
               </div>
@@ -299,11 +309,11 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 deliberately NOT in a live region — ProgressBar makes the same call for the same
                 reason. This one carries a count-free sentence, so it is announced once when the
                 scan starts and once when it ends, while the numbers stay browsable as text. */}
-            {isYou && (
-              <div role="status" aria-live="polite" className="sr-only">
-                {indexing.active ? t('folder.indexingAnnounce') : ''}
-              </div>
-            )}
+            <div role="status" aria-live="polite" className="sr-only">
+              {indexing.active && !loading && !error
+                ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '?' }))
+                : ''}
+            </div>
             {/* Always-present live region so the "first N of M" notice is ANNOUNCED when it
                 appears — a role=status region added to the DOM already-populated is not
                 reliably announced by screen readers, so it must pre-exist (empty) and update. */}

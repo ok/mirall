@@ -37,7 +37,8 @@ import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-insta
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import {
-  Swarm, joinSpaceTopic, compactStore, broadcastDeparture, broadcastSharePrepareProgress, setRelayThrough,
+  Swarm, joinSpaceTopic, compactStore, broadcastDeparture, broadcastSharePrepareProgress,
+  broadcastShareIndexProgress, setRelayThrough,
   configurePendingLeaves, registerPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic,
   configurePendingCancels, leavePendingCancelTopic,
 } from '../shared/transfer/swarm.js'
@@ -215,6 +216,9 @@ export async function boot(bootstrap, {
       ipc,
       publishService,
       settleScan: (promise, spaceId, shareId) => mounts.settleScanStatus(promise, spaceId, shareId),
+      broadcastIndex: (spaceId, p) => {
+        if (isSharePrepareProgressEnabled()) broadcastShareIndexProgress(spaceId, p)
+      },
     }))
     await life.start(new ForeignMirrors('foreign-mirrors', { ipc }))
     await life.start(new EchoGuardPurge('echo-guard'))

@@ -435,6 +435,8 @@ function dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler) {
     handleLeaveAckFrame(socket, msg)
   } else if (msg.type === 'membership:cancel-ack') {
     handleMembershipCancelAck(socket, msg)
+  } else if (msg.type === 'share-index-progress') {
+    handleShareIndexProgressFrame(socket, msg)
   } else if (msg.type === 'share-prepare-progress') {
     handleSharePrepareProgressFrame(socket, msg)
   } else if (msg.type.startsWith('membership:')) {
@@ -1735,6 +1737,46 @@ export function broadcastSharePrepareProgress(spaceId, payload) {
     const handler = socketMsgHandlers.get(peer.socket)
     if (handler) { try { handler.send(frame) } catch {} }
   }
+}
+
+// A share is admission-gated at 5k files and a folder that grows past it keeps publishing, so this
+// is a display bound, not a limit — it only stops a peer-supplied count from rendering as nonsense.
+const MAX_WIRE_COUNT = 1_000_000
+
+// Owner→members: how much of a share is still waiting to be indexed. Ephemeral like the per-file
+// frame above, and for the same reason — the queue is not durable state, so it is re-announced
+// rather than replicated. It carries what the catalog cannot: files that have no entry yet because
+// their publish has not started.
+export function broadcastShareIndexProgress(spaceId, payload) {
+  if (socketMsgHandlers.size === 0) return
+  const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
+  const frame = JSON.stringify({ type: 'share-index-progress', profileKey: profileKeyHex, spaceId, ...payload })
+  for (const [, peer] of connectedPeers) {
+    if (!peer.spaces.has(spaceId)) continue
+    const handler = socketMsgHandlers.get(peer.socket)
+    if (handler) { try { handler.send(frame) } catch {} }
+  }
+}
+
+// Re-surface an owner's queue depth to our renderer. Same anti-spoof guard as the prepare frame:
+// accept only from an identity authenticated on this socket. Non-authoritative and count-only —
+// it names no file and gates no content, so the worst a bad frame can do is a wrong number in a
+// notice. Its own validator: the prepare frame's requires total > 0 and bytes within it, which a
+// queue summary does not satisfy.
+function handleShareIndexProgressFrame(socket, msg) {
+  const { profileKey, spaceId, shareId, adding, bytesQueued } = msg
+  if (typeof profileKey !== 'string' || typeof spaceId !== 'string' || typeof shareId !== 'string') return
+  if (!socketToPeers.get(socket)?.has(profileKey)) return
+  // The sender is carried through as `ownerKey` so the consumer can require it to be the share's
+  // actual owner. Authentication proves only WHO is speaking: without this any approved co-member
+  // could describe someone else's share, and the notice names that someone by display name.
+  // Wire numbers are peer-controlled: whole counts only, bounded, so a bad frame cannot reach the
+  // renderer as a fractional or astronomically pluralized sentence.
+  const safeCount = (n) => (Number.isSafeInteger(n) && n > 0 ? Math.min(n, MAX_WIRE_COUNT) : 0)
+  const safeBytes = (n) => (Number.isFinite(n) && n > 0 ? Math.min(n, Number.MAX_SAFE_INTEGER) : 0)
+  ipcRef.emit('event:share-index-progress', {
+    spaceId, shareId, ownerKey: profileKey, adding: safeCount(adding), bytesQueued: safeBytes(bytesQueued),
+  })
 }
 
 // Receive a peer's heartbeat: refresh its lease, but only for an identity already

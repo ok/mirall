@@ -1,9 +1,14 @@
-// The owner's live folder-scan status: how many of its files are queued or being hashed right now.
+// A folder share's live scan status: how many of its files are still queued or being hashed.
 //
-// A named subscription, not a reconcile scope: event:owned-folder-index-progress is a `decoration`
-// event (test/unit/event-taxonomy.test.js), so it carries no scope and must never get a POKE_SCOPE
-// row. The frame carries the whole status, so it is latched directly rather than re-derived — the
-// one-shot request below is the backstop that makes the notice correct on mount, before any event.
+// Two sources, one shape. Our OWN share reports locally through
+// `event:owned-folder-index-progress`, with `owned-folder:index-status` as the on-mount backstop so
+// the notice is right before any event arrives. A PEER's share arrives as
+// `event:share-index-progress`, re-announced by its owner over the handshake channel — ephemeral by
+// design (a queue is not durable state), so there is nothing to read on mount and it stays blank
+// until the first frame.
+//
+// Named subscriptions, not reconcile scopes: both are `decoration` events
+// (test/unit/event-taxonomy.test.js), so they carry no scope and must never get a POKE_SCOPE row.
 import { useState, useEffect } from 'react'
 import { request, subscribe } from '../ipc.js'
 import type { IndexStatus } from '../indexSummary.js'
@@ -11,34 +16,64 @@ import type { IndexStatus } from '../indexSummary.js'
 interface IndexProgressEvent extends IndexStatus {
   spaceId: string
   shareId: string
+  ownerKey?: string
 }
 
-export function useIndexProgress(spaceId: string, shareId: string): IndexStatus | null {
+export interface IndexProgressSource {
+  /** Our own share: report locally and read the backstop. */
+  own: boolean
+  /** The share's owner. A peer frame is accepted only from them. */
+  ownerKey: string
+  /**
+   * Whether the source can still speak for itself — always true for our own share, and for a peer's
+   * only while they are reachable. NOT merely a paint gate: a peer that drops mid-scan sends no
+   * closing frame, so a latched count would survive the outage and reappear the moment presence
+   * returned, describing work that finished long ago. A TTL would be the wrong instrument here —
+   * frames are emitted when the queue changes shape, and a single multi-GB hash is minutes of
+   * legitimate silence.
+   */
+  live: boolean
+}
+
+export function useIndexProgress(spaceId: string, shareId: string, source: IndexProgressSource): IndexStatus | null {
+  const { own, ownerKey, live } = source
   const [status, setStatus] = useState<IndexStatus | null>(null)
   // Cleared DURING RENDER, not in the effect: FolderView is reused rather than keyed per share, so
   // an effect-time reset runs after the render that already carries the new share — one frame of
   // the previous folder's count under this folder's header. The same reason useShareFiles resets
-  // its fold here. Empty ids take this path too, so leaving an owned folder drops its status
-  // instead of latching it behind the caller's render guard.
-  const [watched, setWatched] = useState(spaceId + '|' + shareId)
-  const current = spaceId + '|' + shareId
-  if (watched !== current) {
-    setWatched(current)
+  // its fold here. Every input is in the key, so a change of share, of side, of owner, or of
+  // liveness drops what the old one said instead of latching it.
+  const key = [spaceId, shareId, own, ownerKey, live].join('|')
+  const [watched, setWatched] = useState(key)
+  if (watched !== key) {
+    setWatched(key)
     setStatus(null)
   }
 
   useEffect(() => {
-    if (!spaceId || !shareId) return
+    if (!spaceId || !shareId || !live) return
     let alive = true
-    request('owned-folder:index-status', { spaceId, shareId })
-      .then((s) => { if (alive) setStatus(s as IndexStatus) })
-      .catch(() => {})
-    const unsub = subscribe<IndexProgressEvent>('event:owned-folder-index-progress', (msg) => {
+    // Frames arrive every ~500ms during a scan, so the backstop's answer can resolve AFTER one and
+    // be older than it — the count would visibly step backwards. It is a cold start, not a source
+    // of truth: once anything live has landed, it yields.
+    let sawFrame = false
+    if (own) {
+      request('owned-folder:index-status', { spaceId, shareId })
+        // Narrowed to the two fields the notice reads, so both sources hold the same shape and a
+        // later reader cannot come to depend on a field only one of them carries.
+        .then((s) => { if (alive && !sawFrame) setStatus({ adding: (s as IndexStatus)?.adding, bytesQueued: (s as IndexStatus)?.bytesQueued }) })
+        .catch(() => {})
+    }
+    const event = own ? 'event:owned-folder-index-progress' : 'event:share-index-progress'
+    const unsub = subscribe<IndexProgressEvent>(event, (msg) => {
       if (msg.spaceId !== spaceId || msg.shareId !== shareId) return
-      setStatus({ adding: msg.adding, queued: msg.queued, running: msg.running, done: msg.done, failed: msg.failed, totalOnDisk: msg.totalOnDisk, bytesQueued: msg.bytesQueued })
+      // A peer frame describes someone else's share unless it came from that share's owner.
+      if (!own && msg.ownerKey !== ownerKey) return
+      sawFrame = true
+      setStatus({ adding: msg.adding, bytesQueued: msg.bytesQueued })
     })
     return () => { alive = false; unsub() }
-  }, [spaceId, shareId])
+  }, [spaceId, shareId, own, ownerKey, live])
 
   return status
 }

@@ -26,6 +26,7 @@ export const EVENTS = Object.freeze({
   OWNED_FOLDER_SCAN_COMPLETED: 'event:owned-folder-scan-completed',
   PROFILE_NEEDED: 'event:profile-needed',
   SHARE_FILES_UPDATED: 'event:share-files-updated',
+  SHARE_INDEX_PROGRESS: 'event:share-index-progress',
   SHARES_UPDATED: 'event:shares-updated',
   STATE: 'event:state',
   TRANSFER_COMPLETE: 'event:transfer-complete',
