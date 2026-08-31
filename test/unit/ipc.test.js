@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { EventEmitter } from 'events'
-import { createIPC, getBootstrapPromise, scopeForEvent } from '../../src/shared/core/ipc.js'
+import { createIPC, getBootstrapPromise, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
@@ -239,4 +239,138 @@ test('emitting a members poke fans a members reconcile hint on the wire', (t) =>
   ipc.emit('event:members-updated', { spaceId: 'S9' })
   const msgs = pipe.written.map((s) => JSON.parse(s))
   t.alike(msgs.find((m) => m.type === 'event:reconcile')?.scope, { kind: 'members', spaceId: 'S9' })
+})
+
+// --- read-buffer and pre-start queue bounds (r07-1) ---
+//
+// The caps are injectable for the same reason `requests` is: a test declares the small bound it
+// exercises instead of allocating megabytes. One test below deliberately uses the REAL default,
+// because a cap that is sane in a test and wrong in production is the failure worth guarding.
+
+test('REGRESSION (FIX-IPC-CAP: an unterminated frame grew the read buffer without bound)', async (t) => {
+  const pipe = fakePipe()
+  resetRequestFailureCounters()
+  t.teardown(() => resetRequestFailureCounters())
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  ipc.handle('echo', (m) => m.v)
+  ipc.start()
+
+  // NO newline, ever. This is the whole defect: without a cap these bytes sit in `buffer` for the
+  // life of the process and nothing observable happens — which is also why "no response was
+  // written" does NOT prove the fix. The counter is the discriminator: it can only fire if the
+  // reader refused the frame on SIZE, before any frame boundary arrived to parse.
+  pipe.feedRaw('x'.repeat(4096))
+  await tick()
+  t.is(getRequestFailureCounters()['oversized-frame:INVALID_ARGUMENT'], 1,
+    'the oversized frame was refused on size, with no newline to trigger a parse failure')
+  t.is(pipe.written.length, 0, 'and it was not answered')
+
+  pipe.feedRaw('\n')
+  pipe.feed({ id: '1', type: 'echo', v: 42 })
+  await tick()
+  t.alike(pipe.lastMsg(), { id: '1', type: 'response', data: 42 }, 'the reader resynced and still serves')
+})
+
+test('REGRESSION (FIX-IPC-CAP: the tail of a discarded frame was parsed as a fresh frame)', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  let calls = 0
+  ipc.handle('echo', (m) => { calls++; return m.v })
+  ipc.start()
+
+  // An oversized frame whose TAIL is itself a valid request. Without a "still skipping" flag the
+  // reader drops the head, then parses this tail and dispatches it — turning one oversized frame
+  // into one forged frame, which is worse than the unbounded buffer it replaced.
+  pipe.feedRaw('x'.repeat(2048))
+  await tick()
+  pipe.feedRaw(JSON.stringify({ id: 'forged', type: 'echo', v: 1 }) + '\n')
+  await tick()
+  t.is(calls, 0, 'the tail of a discarded frame is never dispatched')
+
+  pipe.feed({ id: '2', type: 'echo', v: 7 })
+  await tick()
+  t.is(calls, 1, 'and the reader is live again afterwards')
+})
+
+test('a frame just under the REAL cap is delivered intact', async (t) => {
+  const pipe = fakePipe()
+  // The real default on purpose: the largest legitimate inbound frame is a profile update carrying
+  // a base64 avatar (AVATAR_MAX_BYTES * 4/3 plus JSON escaping). A cap chosen too low — main's
+  // 64 KB MAIN_REQUEST_MAX_LINE, say — would break avatar upload and no other test would notice.
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('echo', (m) => m.v.length)
+  ipc.start()
+
+  const big = 'a'.repeat(700_000)
+  pipe.feed({ id: '1', type: 'echo', v: big })
+  await tick()
+  t.alike(pipe.lastMsg(), { id: '1', type: 'response', data: 700_000 })
+})
+
+test('many small frames arriving in one oversized chunk all dispatch', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  let calls = 0
+  ipc.handle('echo', () => { calls++; return null })
+  ipc.start()
+
+  // Twenty ~200-byte frames in ONE chunk, well past the 1 KB cap in total. Every frame is small;
+  // only the read buffer is large. A cap that bounded the BUFFER rather than one FRAME would
+  // discard all twenty.
+  const one = JSON.stringify({ type: 'echo', v: 'b'.repeat(150) }) + '\n'
+  pipe.feedRaw(one.repeat(20))
+  await tick()
+  t.is(calls, 20, 'the cap bounds one frame, not the read buffer')
+})
+
+test('a frame exactly at the cap is accepted, one byte over is refused', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 200 })
+  let calls = 0
+  ipc.handle('echo', () => { calls++; return null })
+  ipc.start()
+
+  const exact = JSON.stringify({ type: 'echo', v: 'x'.repeat(200 - 30) })
+  t.ok(exact.length <= 200, 'fixture is at or under the cap')
+  pipe.feedRaw(exact + '\n')
+  await tick()
+  t.is(calls, 1, 'a frame at the cap is served')
+
+  // Again the counter, not the absence of a reply: unparseable garbage produces no reply either way.
+  resetRequestFailureCounters()
+  pipe.feedRaw('y'.repeat(201))
+  await tick()
+  t.is(getRequestFailureCounters()['oversized-frame:INVALID_ARGUMENT'], 1, 'one byte over is refused on size')
+  t.is(calls, 1, 'and no handler ran')
+})
+
+test('REGRESSION (FIX-IPC-CAP: the pre-start queue was unbounded)', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxQueuedFrames: 10 })
+  let calls = 0
+  ipc.handle('echo', () => { calls++; return null })
+
+  for (let i = 0; i < 25; i++) pipe.feed({ id: String(i), type: 'echo' })
+  await tick()
+
+  // Refused, not silently dropped: a caller awaiting a response must not hang forever on a
+  // promise nothing will ever settle.
+  const refusals = pipe.written.map((s) => JSON.parse(s)).filter((m) => m.code === 'INVALID_ARGUMENT')
+  t.is(refusals.length, 15, 'every frame past the cap was answered with a refusal')
+
+  ipc.start()
+  await tick()
+  t.is(calls, 10, 'exactly the capped number were queued and then dispatched')
+})
+
+test('the pre-start queue cap does not apply once started', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxQueuedFrames: 2 })
+  let calls = 0
+  ipc.handle('echo', () => { calls++; return null })
+  ipc.start()
+
+  for (let i = 0; i < 20; i++) pipe.feed({ id: String(i), type: 'echo' })
+  await tick()
+  t.is(calls, 20, 'a live router dispatches without queueing')
 })

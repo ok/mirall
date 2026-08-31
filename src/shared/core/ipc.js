@@ -5,6 +5,7 @@ import { createLogger } from './logger.js'
 import { createHintBus } from '../state/hints.js'
 import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
+import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
 import { createHandlerTable, validateArgs } from './handler-table.js'
 import { createRequestMetrics } from './request-metrics.js'
 
@@ -52,6 +53,12 @@ const EXPECTED = new Set(CONTRACT_EXPECTED_CODES)
 const MAX_FAILURE_KEYS = 256
 const requestFailures = new Map()
 
+// Frames arriving before start() are queued so no request is lost during boot — which runs the
+// migrations and the drive load and can take seconds on a large library. Uncapped, a caller
+// retrying across that window grows this without bound. Worker-internal capacity with no
+// counterpart on the sender's side, so unlike IPC_MAX_FRAME_BYTES it is NOT contract vocabulary.
+const MAX_QUEUED_FRAMES = 1000
+
 // Per-request timing and outcomes. The router already had the numbers and discarded them; keeping
 // them is what makes a claim like "one member change costs eleven round-trips" checkable instead of
 // estimated.
@@ -87,18 +94,49 @@ export function resetRequestFailureCounters() {
 // `requests` is injectable so a test can declare the small vocabulary it exercises. Production
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
-export function createIPC(pipe, { requests } = {}) {
+export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES } = {}) {
   // The table owns the request metadata; `handle` below is a thin shim onto it so all 85 existing
   // registrations keep working while domains move onto register(ipc, deps) one at a time.
   const table = createHandlerTable(requests ? { requests } : {})
   const queued = []
   let ready = false
   let buffer = ''
+  // After an oversized frame the bytes still arriving belong to the frame being discarded. Without
+  // this, the TAIL of that frame is parsed as though it were a fresh one — turning one oversized
+  // frame into one forged frame, which is worse than the unbounded buffer it replaces.
+  let skipping = false
   let bootstrapResolve
   const bootstrapPromise = new Promise((resolve) => { bootstrapResolve = resolve })
 
   pipe.on('data', (chunk) => {
     buffer += chunk.toString()
+
+    // Resync first: drop bytes until the newline that ends the frame already given up on.
+    if (skipping) {
+      const nl = buffer.indexOf('\n')
+      if (nl === -1) { buffer = ''; return }
+      buffer = buffer.slice(nl + 1)
+      skipping = false
+    }
+
+    // Refused on SIZE, before the frame is ever materialised as a JSON string — and before any
+    // newline arrives to make it a parse failure instead. The `indexOf` test is what scopes the cap
+    // to ONE FRAME rather than to the read buffer: a chunk carrying many small frames can exceed
+    // the cap in total and every one of them is still legitimate.
+    //
+    // `.length` is UTF-16 code units, not bytes, so a multi-byte frame is measured smaller than a
+    // sender computing Buffer.byteLength would. That asymmetry is deliberately in the safe
+    // direction: a frame the sender believes is legal is never rejected here. The memory bound
+    // still holds — a string of N code units is O(N) — and for the JSON+base64 traffic this
+    // carries the two are identical anyway.
+    if (buffer.length > maxFrameBytes && buffer.indexOf('\n') === -1) {
+      log.warn('oversized frame discarded:', buffer.length, 'bytes exceeds', maxFrameBytes)
+      countFailure('oversized-frame', INVALID_ARGUMENT)
+      buffer = ''
+      skipping = true
+      return
+    }
+
     const lines = buffer.split('\n')
     buffer = lines.pop()
     for (const line of lines) {
@@ -114,6 +152,13 @@ export function createIPC(pipe, { requests } = {}) {
         }
         if (ready) {
           dispatch(msg)
+        } else if (queued.length >= maxQueuedFrames) {
+          // Refused, not silently dropped: a caller awaiting a response must not hang on a promise
+          // nothing will ever settle. Keeping the OLDEST keeps the frames most likely to be the
+          // session's real first requests.
+          log.warn('pre-start queue full, frame refused:', msg.type)
+          countFailure(msg.type || 'unknown-command', INVALID_ARGUMENT)
+          respond(msg.id, null, 'worker is still starting', INVALID_ARGUMENT)
         } else {
           queued.push(msg)
         }
