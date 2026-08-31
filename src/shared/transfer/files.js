@@ -157,6 +157,29 @@ export async function isVerifiedDownload(spaceId, key, contentHash) {
   return (await getVerifiedHash(spaceId, key)) === contentHash
 }
 
+// Answers "does this folder exist?" once per folder instead of once per claim.
+//
+// The probe only runs for a claim whose FILE is missing, so on a healthy volume it never runs at
+// all. The case it exists for is the opposite one: a detached or unreachable volume, where every
+// row misses and every miss is a blocking probe against a dead mount — a capped listing would pay
+// thousands of them for a question with one answer. Downloads are flat, so those thousands of
+// claims resolve into a handful of directories at most.
+//
+// The memo lives exactly one listing: callers create a probe per pass and drop it, so a volume that
+// comes back is seen by the next listing. Within one pass a single answer is also the CORRECT one —
+// the row loop is synchronous and the listing already renders one consistent snapshot.
+export function createDirProbe() {
+  const seen = new Map()
+  return (dir) => {
+    let present = seen.get(dir)
+    if (present === undefined) {
+      present = fs.existsSync(dir)
+      seen.set(dir, present)
+    }
+    return present
+  }
+}
+
 // "Downloaded / on your device" must reflect bytes ACTUALLY present on disk, and — for a
 // space that pins its own download folder — inside that folder. The downloads-meta record
 // is only a hint; the file is the truth.
@@ -164,8 +187,10 @@ export async function isVerifiedDownload(spaceId, key, contentHash) {
 // The filesystem + config half of that decision; download-claim.js holds the rule and the order.
 // Synchronous: every fact it needs is a stat or an in-memory config read, so a batched listing can
 // call it per row without the loop yielding. `dirExists` is resolved ONLY when the file is missing,
-// so the common case still costs one existsSync.
-export function verdictForClaim(spaceId, filePath, rec, currentHash = null) {
+// so the common case still costs one existsSync. A caller looping over many claims passes a
+// `dirProbe` from createDirProbe so the folder question is asked once per folder, not once per row;
+// the default keeps the single-claim callers on a plain probe.
+export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirProbe = fs.existsSync) {
   if (!rec) return claimVerdict({ rec: null })
   const onDisk = claimedPathFor(filePath, rec)
   const exists = fs.existsSync(onDisk)
@@ -173,7 +198,7 @@ export function verdictForClaim(spaceId, filePath, rec, currentHash = null) {
   return claimVerdict({
     rec,
     exists,
-    dirExists: exists ? true : fs.existsSync(path.dirname(onDisk)),
+    dirExists: exists ? true : dirProbe(path.dirname(onDisk)),
     currentHash,
     pinned,
     insidePinned: pinned ? isInsideDownloadDir(onDisk, pinned) : true,

@@ -20,6 +20,7 @@ import {
   listVerifiedForShare,
   pruneDownloadClaims,
   verdictForClaim,
+  createDirProbe,
 } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -269,4 +270,53 @@ test('REGRESSION (FIX-21): a detached volume keeps the claim, a deleted file dro
 
   fs.mkdirSync(volume, { recursive: true })
   t.is(verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1').prune, true, 'the folder back without the file is a deletion')
+})
+
+// A listing over a detached volume asks "is the download folder there?" for every row it renders.
+// The answer cannot differ between two rows of one pass, so the probe asks the filesystem once per
+// folder — and the memo must not outlive the pass, or a remounted volume would stay invisible.
+test('createDirProbe asks the filesystem once per folder, and only for its own pass', async (t) => {
+  const { tmpDir } = await setup(t)
+  const volume = path.join(tmpDir('probe'), 'Volume')
+  fs.mkdirSync(volume, { recursive: true })
+
+  const probe = createDirProbe()
+  t.is(probe(volume), true, 'present on the first ask')
+
+  fs.rmSync(volume, { recursive: true, force: true })
+  t.is(probe(volume), true, 'the same pass keeps its answer — one folder, one syscall')
+  t.is(fs.existsSync(volume), false, 'precondition: the folder really is gone now')
+
+  t.is(createDirProbe()(volume), false, 'a fresh probe sees the current disk, so the memo is per-pass')
+})
+
+test('createDirProbe keeps distinct folders apart', async (t) => {
+  const { tmpDir } = await setup(t)
+  const root = tmpDir('probe2')
+  const there = path.join(root, 'There')
+  fs.mkdirSync(there, { recursive: true })
+  const probe = createDirProbe()
+  t.is(probe(there), true)
+  t.is(probe(path.join(root, 'Gone')), false, 'a second folder is answered on its own merits')
+  t.is(probe(there), true, 'and the first answer is unaffected')
+})
+
+// The claim rule must not shift because the folder answer arrived from a memo rather than a
+// direct stat — the detached-volume branch is the one that KEEPS a claim, and getting it wrong
+// destroys the record for a file still sitting on that disk.
+test('verdictForClaim reaches the same verdict through a probe as without one', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const volume = path.join(tmpDir('vol2'), 'Ext')
+  fs.mkdirSync(volume, { recursive: true })
+  const landed = path.join(volume, 'v.txt')
+  fs.writeFileSync(landed, 'bytes')
+  await markDownloaded(spaceId, '/Docs/v.txt', landed, { hash: 'h1' })
+  const rec = (await listDownloadClaimsForShare(spaceId, 'Docs')).get('/Docs/v.txt')
+
+  fs.rmSync(volume, { recursive: true, force: true })
+  const direct = verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1')
+  const probed = verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1', createDirProbe())
+  t.alike(probed, direct, 'same verdict either way')
+  t.is(probed.reason, 'volume-unavailable')
+  t.is(probed.prune, false, 'and the claim still survives a detached volume')
 })

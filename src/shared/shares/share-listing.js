@@ -22,6 +22,7 @@ import { overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend
 import {
   claimedPathFor,
   verdictForClaim,
+  createDirProbe,
   listVerifiedForShare,
   listDownloadClaimsForShare,
   pruneDownloadClaims,
@@ -57,7 +58,7 @@ function statSizeOrNull(absPath) {
 //
 // Synchronous by design: every fact it needs is in a prefetched map, an in-memory engine map, or a
 // stat. The row loop therefore never yields, which is what removes the worker-side stall.
-function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, deps }) {
+function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps }) {
   const isVerified = Boolean(entry.contentHash) && verified.get(entry.relPath) === entry.contentHash
 
   if (foreignMount && foreignMount.enabled) {
@@ -74,7 +75,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
 
   const drivePath = '/' + share.name + '/' + entry.relPath
   const rec = claims.get(drivePath) || null
-  const verdict = deps.verdictForClaim(spaceId, drivePath, rec, entry.contentHash)
+  const verdict = deps.verdictForClaim(spaceId, drivePath, rec, entry.contentHash, dirProbe)
   // Collected, never acted on here: a del is a write, and taking a write turn per stale row is the
   // cost this batching exists to remove. The listing flushes them once, after the rows.
   if (verdict.prune) prune.push(drivePath)
@@ -137,6 +138,11 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   throwIfAborted(signal)
 
   const prune = []
+  // One probe for the whole pass: a detached download folder is one question, not one per row.
+  // Built here rather than injected — it is a memo this pass makes for itself, not a collaborator
+  // a caller could meaningfully substitute, so it stays out of `deps` where every test double
+  // would otherwise have to know about it.
+  const dirProbe = createDirProbe()
   const out = []
   for (const entry of entries) {
     let row
@@ -147,7 +153,7 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
       if (isOwn) {
         row = { status: entry.contentHash ? 'synced' : 'publishing', localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null }
       } else {
-        row = overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, deps })
+        row = overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps })
       }
     } catch (err) {
       log.warn('skipping overlay file row with an unsafe path:', entry.relPath, '-', err.message)
