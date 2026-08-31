@@ -287,7 +287,11 @@ export async function boot(bootstrap, {
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    return { close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces, applyRelayConfig: () => applyRelayConfig(log) }
+    return {
+      close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces,
+      applyRelayConfig: () => applyRelayConfig(log),
+      health: () => [...(durable?.health() || []), ...life.health()],
+    }
   }
 }
 

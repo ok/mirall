@@ -32,6 +32,7 @@ import { markVerified, isVerifiedUnchanged } from '../transfer/files.js'
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { mirrorVerdict } from './mirror-health.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError } from './walk-disk.js'
 
@@ -43,6 +44,9 @@ const activeLoops = new Map()
 // far above its old home, registers into it.
 const tickInFlight = new Map()
 const pendingTicks = new Map()
+// loopKey -> { startedAt, progressAt, completedAt }. progressAt is bumped per file the pass
+// begins fetching, which is what separates a slow scan from a dead one.
+const mirrorLiveness = new Map()
 let ipcRef = null
 
 // The single guarded peer-key -> absolute-path conversion. Every site that turns
@@ -278,9 +282,12 @@ export async function applyChange(mount, change) {
 export async function initialMaterializeScan(mount) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const p = runInitialMaterializeScan(mount).finally(() => {
-    if (tickInFlight.get(key) === p) tickInFlight.delete(key)
+    if (tickInFlight.get(key) !== p) return
+    tickInFlight.delete(key)
+    markMirrorPassEnded(key)
   })
   tickInFlight.set(key, p)
+  markMirrorPassStarted(key)
   return await p
 }
 
@@ -516,10 +523,16 @@ export async function runMaterializeTick(spaceId, shareId) {
     return tickInFlight.get(key)
   }
   const p = materializeOnce(spaceId, shareId).finally(() => {
+    // Identity-guarded, matching initialMaterializeScan: a stale pass settling after a restart
+    // replaced the entry must not delete the LIVE one, which would un-serialise two passes over
+    // the same mount.
+    if (tickInFlight.get(key) !== p) return
     tickInFlight.delete(key)
+    markMirrorPassEnded(key)
     if (tickDirty.delete(key)) runMaterializeTick(spaceId, shareId).catch(() => {})
   })
   tickInFlight.set(key, p)
+  markMirrorPassStarted(key)
   return p
 }
 
@@ -617,6 +630,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   let res
   const streamKey = loopKey(mount.spaceId, mount.shareId)
   activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
+  markMirrorProgress(streamKey)
   pausedMirrorHashes.delete(streamKey) // a fresh/resumed fetch supersedes any paused-stop marker
   // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
   ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
@@ -624,7 +638,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     res = await overlay.fetchFile(entry.contentHash, {
       destPath: abs,
       reSeed: false,
-      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b) },
+      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); markMirrorProgress(streamKey) },
       onVerify: (fraction) => ipcRef?.emit('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: 0, total,
       }),
@@ -790,6 +804,53 @@ async function ownerLeftSpace(spaceId, ownerKey) {
   return !space.members.some((m) => m.publicKey === ownerKey)
 }
 
+function markMirrorPassStarted(key) {
+  const at = Date.now()
+  const entry = mirrorLiveness.get(key)
+  if (entry) { entry.startedAt = at; entry.progressAt = at } else {
+    mirrorLiveness.set(key, { startedAt: at, progressAt: at, completedAt: 0 })
+  }
+}
+
+function markMirrorProgress(key) {
+  const entry = mirrorLiveness.get(key)
+  if (entry) entry.progressAt = Date.now()
+}
+
+function markMirrorPassEnded(key) {
+  const entry = mirrorLiveness.get(key)
+  if (!entry) return
+  entry.startedAt = 0
+  entry.progressAt = 0
+  entry.completedAt = Date.now()
+}
+
+// One verdict per mount that has a live loop. A mount with no loop is not reported: it is paused,
+// unmounted or gone, none of which this can or should recover.
+export function mirrorHealth({ now = Date.now() } = {}) {
+  const pollIntervalMs = getResourceCaps().foreignPollIntervalMs
+  const rows = []
+  for (const loop of activeLoops.values()) {
+    const key = loopKey(loop.spaceId, loop.shareId)
+    const verdict = mirrorVerdict(mirrorLiveness.get(key), { now, pollIntervalMs })
+    rows.push({ spaceId: loop.spaceId, shareId: loop.shareId, ...verdict })
+  }
+  return rows
+}
+
+// Un-wedge one mirror. stopForeignLoop bumps cancelGen, so a hung pass is generation-invalidated
+// and bails at its next checkpoint without writing; clearing the in-flight entry is the part the
+// stop does NOT do, and without it the fresh interval coalesces straight back onto the dead promise.
+export async function restartForeignLoop(spaceId, shareId) {
+  const key = loopKey(spaceId, shareId)
+  stopForeignLoop(spaceId, shareId)
+  tickInFlight.delete(key)
+  tickDirty.delete(key)
+  mirrorLiveness.delete(key)
+  await startForeignLoop({ spaceId, shareId })
+  runMaterializeTick(spaceId, shareId).catch((err) => log.debug('materialize tick after restart failed:', err.message))
+}
+
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   const key = loopKey(spaceId, shareId)
   // Invalidate any in-flight scan/tick (it bails at the next file) and abort the
@@ -846,6 +907,20 @@ export class ForeignMirrors extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc') }
   async _open() { initForeignFolders(this.deps.ipc) }
   async _close() { await stopAllForeignLoops() }
+
+  // Counts, not identifiers: diagnostics:export is user-shareable and redacts peer keys and
+  // topics, so space and share ids must not ride along. The probe names the mount in the worker
+  // log instead.
+  health() {
+    const open = !this.closed && !this.stopping
+    const mirrors = open ? mirrorHealth() : []
+    const wedged = mirrors.filter((mirror) => !mirror.ok)
+    return {
+      ok: open && wedged.length === 0,
+      detail: wedged.length ? wedged.map((mirror) => mirror.detail).join('; ') : null,
+      mirrors: { total: mirrors.length, wedged: wedged.length },
+    }
+  }
 }
 
 export async function unmountForeignFolder(spaceId, shareId) {
@@ -859,6 +934,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
   const key = loopKey(spaceId, shareId)
   syncedSets.delete(key)
   syncDirty.delete(key)
+  mirrorLiveness.delete(key)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, 'idle')
   ipcRef?.emit('event:share-files-updated', { spaceId, shareId })

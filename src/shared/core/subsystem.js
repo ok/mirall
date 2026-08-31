@@ -35,6 +35,13 @@ export class Subsystem extends ReadyResource {
     }
   }
 
+  // Open and not tearing down. A subsystem that can say more about whether it is still doing its
+  // job overrides this; reporting is deliberately separate from any recovery, so a subsystem
+  // nothing can restart still reports.
+  health() {
+    return { ok: !this.closed && !this.stopping, detail: null }
+  }
+
   // A missing collaborator fails at construction — at boot, in the root, with the subsystem's
   // name — instead of as a `hook?.()` that never fires.
   require(...names) {
@@ -86,5 +93,9 @@ export function createLifecycle({ log }) {
       }
     },
     get started() { return started.slice() },
+    // `name` is spread last so a subsystem returning its own cannot shadow the row key.
+    health() {
+      return started.map((subsystem) => ({ ...subsystem.health(), name: subsystem.name }))
+    },
   }
 }
