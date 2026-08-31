@@ -190,6 +190,7 @@
     "addingCount_other": "{{count}} in aggiunta",
     "indexingSummary_one": "Aggiunta di {{count}} file a questa cartella",
     "indexingSummary_other": "Aggiunta di {{count}} file a questa cartella",
+    "indexingAnnounce": "Aggiunta di file a questa cartella",
     "indexingQueuedSize": "{{size}} da leggere",
     "subfolderCount_one": "contiene {{count}} sottocartella",
     "subfolderCount_other": "contiene {{count}} sottocartelle",

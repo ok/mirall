@@ -190,6 +190,7 @@
     "addingCount_other": "{{count}} werden geteilt",
     "indexingSummary_one": "{{count}} Datei wird diesem Ordner hinzugefügt",
     "indexingSummary_other": "{{count}} Dateien werden diesem Ordner hinzugefügt",
+    "indexingAnnounce": "Dateien werden diesem Ordner hinzugefügt",
     "indexingQueuedSize": "{{size}} zu lesen",
     "subfolderCount_one": "enthält {{count}} Unterordner",
     "subfolderCount_other": "enthält {{count}} Unterordner",

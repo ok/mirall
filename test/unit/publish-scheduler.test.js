@@ -507,3 +507,55 @@ test('REGRESSION (FIX-INDEX-START): an item that STARTS is reported, not only on
   t.is(reports[reports.length - 1].running, 0, 'a drained lane reports nothing running')
   t.is(reports[reports.length - 1].queued, 0)
 })
+
+// REGRESSION (FIX-INDEX-RETIRE): the per-share counters had no notion of op, so a retire — enqueued
+// with the departing file's size as its sort key — was reported as work to add, with bytes to read.
+test('REGRESSION (FIX-INDEX-RETIRE): retires are not counted as additions', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  s.beginShare('s1', 'sh1', 0)
+  s.enqueueMany([
+    { spaceId: 's1', shareId: 'sh1', relPath: 'gone-a.bin', op: OP.RETIRE, size: 1024 * 1024, priority: PRIORITY.BULK },
+    { spaceId: 's1', shareId: 'sh1', relPath: 'gone-b.bin', op: OP.RETIRE, size: 2048 * 1024, priority: PRIORITY.BULK },
+  ])
+  await sleep(0)
+
+  const deleting = s.statusFor('s1', 'sh1')
+  t.is(deleting.queued + deleting.running, 2, 'the lane still reports the work it holds')
+  t.is(deleting.adding, 0, 'but none of it is an addition')
+  t.is(deleting.bytesQueued, 0, 'and a retire reads no bytes')
+
+  s.enqueue({ spaceId: 's1', shareId: 'sh1', relPath: 'new.bin', op: OP.PUBLISH, size: 4096, priority: PRIORITY.BULK })
+  const mixed = s.statusFor('s1', 'sh1')
+  t.is(mixed.adding, 1, 'a publish alongside them counts exactly once')
+  t.is(mixed.bytesQueued, 4096, 'and contributes only its own bytes')
+  await g.releaseAll()
+})
+
+// REGRESSION (FIX-INDEX-CANCEL): cancelShare empties the queue, but with no item of that share
+// holding a slot there is no settle behind it — so the last report anyone saw was the pre-cancel
+// depth, and a view driven by it stayed latched on work that no longer exists.
+test('REGRESSION (FIX-INDEX-CANCEL): cancelling a share reports the emptied lane', async (t) => {
+  const g = gate()
+  const reports = []
+  const s = createPublishScheduler({
+    execute: g.execute,
+    concurrency: () => 1,
+    onProgress: (spaceId, shareId) => reports.push(s.statusFor(spaceId, shareId)),
+  })
+  // Another space holds the only slot, so nothing of sh1's ever runs — the case with no settle.
+  s.enqueue({ spaceId: 'other', shareId: 'sh0', relPath: 'hog.bin', op: OP.PUBLISH, size: 1, priority: PRIORITY.BULK })
+  await sleep(0)
+  s.enqueueMany([
+    { spaceId: 's1', shareId: 'sh1', relPath: 'a.bin', op: OP.PUBLISH, size: 10, priority: PRIORITY.BULK },
+    { spaceId: 's1', shareId: 'sh1', relPath: 'b.bin', op: OP.PUBLISH, size: 20, priority: PRIORITY.BULK },
+  ])
+  await sleep(0)
+  t.is(s.statusFor('s1', 'sh1').adding, 2, 'precondition: two files queued behind another space')
+
+  const before = reports.length
+  s.cancelShare('s1', 'sh1')
+  t.ok(reports.length > before, 'the cancel reported')
+  t.is(reports[reports.length - 1].adding, 0, 'and reported the lane as empty')
+  await g.releaseAll()
+})

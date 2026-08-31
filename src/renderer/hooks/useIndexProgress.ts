@@ -15,17 +15,27 @@ interface IndexProgressEvent extends IndexStatus {
 
 export function useIndexProgress(spaceId: string, shareId: string): IndexStatus | null {
   const [status, setStatus] = useState<IndexStatus | null>(null)
+  // Cleared DURING RENDER, not in the effect: FolderView is reused rather than keyed per share, so
+  // an effect-time reset runs after the render that already carries the new share — one frame of
+  // the previous folder's count under this folder's header. The same reason useShareFiles resets
+  // its fold here. Empty ids take this path too, so leaving an owned folder drops its status
+  // instead of latching it behind the caller's render guard.
+  const [watched, setWatched] = useState(spaceId + '|' + shareId)
+  const current = spaceId + '|' + shareId
+  if (watched !== current) {
+    setWatched(current)
+    setStatus(null)
+  }
 
   useEffect(() => {
     if (!spaceId || !shareId) return
     let alive = true
-    setStatus(null)
     request('owned-folder:index-status', { spaceId, shareId })
       .then((s) => { if (alive) setStatus(s as IndexStatus) })
       .catch(() => {})
     const unsub = subscribe<IndexProgressEvent>('event:owned-folder-index-progress', (msg) => {
       if (msg.spaceId !== spaceId || msg.shareId !== shareId) return
-      setStatus({ queued: msg.queued, running: msg.running, done: msg.done, failed: msg.failed, totalOnDisk: msg.totalOnDisk, bytesQueued: msg.bytesQueued })
+      setStatus({ adding: msg.adding, queued: msg.queued, running: msg.running, done: msg.done, failed: msg.failed, totalOnDisk: msg.totalOnDisk, bytesQueued: msg.bytesQueued })
     })
     return () => { alive = false; unsub() }
   }, [spaceId, shareId])

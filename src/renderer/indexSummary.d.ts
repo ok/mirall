@@ -1,4 +1,6 @@
 export interface IndexStatus {
+  /** Publish work only — the queue also carries retires, which are not additions. */
+  adding?: number
   queued?: number
   running?: number
   done?: number
@@ -10,8 +12,6 @@ export interface IndexStatus {
 export interface IndexSummary {
   active: boolean
   files: number
-  running: number
-  queued: number
   bytesQueued: number
 }
 

@@ -55,7 +55,9 @@ export default async function s120 ({ runDir, bootstrap }) {
     await r.ok('the notice clears once the scan drains', async () => {
       await waitFor(async () => {
         const text = allText(await A.snap())
-        return /shared by you/i.test(text) && !/adding \d+ files to this folder/i.test(text)
+        // `files?` — the singular renders at exactly one file left, and a plural-only regex
+        // would call the notice gone while it is still on screen.
+        return /shared by you/i.test(text) && !/adding \d+ files? to this folder/i.test(text)
       }, 180000, 'the scan notice goes away when there is nothing left to add')
       await A.shot('s120-A-settled', runDir)
     })
