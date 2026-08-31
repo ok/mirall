@@ -752,12 +752,14 @@ async function loadShareDescriptor(spaceId, ownerKey, shareId) {
   return share
 }
 
-ipc.handle('share:list-files', async (msg) => {
+ipc.handle('share:list-files', async (msg, ctx) => {
   const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
   // Overlay is the only content backend; an unsupported mode renders as unavailable.
   const backend = getContentBackend(share)
   if (backend === UNSUPPORTED) return { entries: [], complete: true, total: 0, totalBytes: 0 }
-  return await listOverlayShareFiles(msg.spaceId, share, backend)
+  // The first handler to honour a cancellation, and the one the renderer's query store actually
+  // cancels: a folder listing whose view has been superseded or navigated away from.
+  return await listOverlayShareFiles(msg.spaceId, share, backend, undefined, { signal: ctx?.signal ?? null })
 })
 
 ipc.handle('share:reveal-folder', async (msg) => {
