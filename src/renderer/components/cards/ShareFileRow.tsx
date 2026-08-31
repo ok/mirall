@@ -37,7 +37,7 @@ interface FileRowActionsProps {
   action: string
   relPath: string
   transferId?: string
-  isPreparing: boolean
+  busyLabel: string
   onDownload: (relPath: string) => void
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
@@ -45,7 +45,7 @@ interface FileRowActionsProps {
   onDiscardPartial: (relPath: string) => void
 }
 
-function FileRowActions({ action, relPath, transferId, isPreparing, onDownload, onReveal, onPause, onCancel, onDiscardPartial }: FileRowActionsProps) {
+function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, onReveal, onPause, onCancel, onDiscardPartial }: FileRowActionsProps) {
   const { t } = useTranslation()
   if (action === 'pause-cancel' && transferId) {
     return (
@@ -87,7 +87,7 @@ function FileRowActions({ action, relPath, transferId, isPreparing, onDownload, 
     return (
       <span role="status" aria-live="polite" className="w-10 h-10 flex items-center justify-center">
         <Icon name="update" className="text-on-surface-variant animate-pulse" />
-        <span className="sr-only">{isPreparing ? t('file.preparing') : t('file.syncing')}</span>
+        <span className="sr-only">{busyLabel}</span>
       </span>
     )
   }
@@ -98,7 +98,12 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const isDownloading = file.status === 'downloading'
+  // Indexing, not transferring: the owner hashes its own file ('publishing'), and a member
+  // watching that file waits on the same hash ('preparing'). Neither moves bytes to this device,
+  // so both stay out of the download lane and off its "Download progress" meter.
   const isPreparing = file.status === 'preparing'
+  const isPublishing = file.status === 'publishing'
+  const isIndexing = isPreparing || isPublishing
   // Verifying is a display sub-phase of an active (server-derived) download, carried on the
   // decoration — not a status the renderer sets. Parity with the loose FileCard path.
   const isVerifying = isDownloading && file.progress?.phase === 'verifying'
@@ -111,11 +116,13 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
   const waiting = isDownloading && (file.progress?.bytes ?? 0) === 0
   const badge = badgeStyle(shareFileStatusToBadge(isVerifying ? 'verifying' : waiting ? 'preparing' : file.status, isOwn))
   const pausedBytes = (isPausedInterrupted || isPausedOffline) ? file.pendingBytes : undefined
-  const showActiveProgressBar = ((isDownloading && !waiting) || isPreparing) && file.progress && file.progress.total > 0
+  const showDownloadProgressBar = isDownloading && !waiting && file.progress != null && file.progress.total > 0
+  const showIndexProgressBar = isIndexing && file.progress != null && file.progress.total > 0
   const progressEta = resolveEta(file.progress?.eta, file.progress?.avgSpeed)
   const showPausedProgressBar = (isPausedInterrupted || isPausedOffline)
     && pausedBytes != null && pausedBytes > 0 && file.size > 0
   const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!transferId })
+  const busyLabel = isPublishing ? t('status.publishing') : isPreparing ? t('file.preparing') : t('file.syncing')
 
   // Sender-side download indicator: who is currently pulling this file from us. Only
   // shown on an owned share's row at rest — a competing progress branch takes
@@ -125,7 +132,7 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
   const hasDownloaders = (downloadSummary?.peerKeys.length ?? 0) > 0
-  const inProgressBranch = showActiveProgressBar || showPausedProgressBar || isVerifying
+  const inProgressBranch = showDownloadProgressBar || showIndexProgressBar || showPausedProgressBar || isVerifying
   const indicatorActive = hasDownloaders && !inProgressBranch
   useEffect(() => {
     if (!indicatorActive) setShowDownloaders(false)
@@ -156,9 +163,23 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
             <Badge label={t(badge.labelKey)} classes={badge.classes} />
           </div>
         </>
-      ) : showActiveProgressBar && file.progress ? (
+      ) : showIndexProgressBar && file.progress ? (
         <>
-          <div className={`ml-6 ${isDownloading ? 'basis-40' : 'basis-32'} shrink-0 self-center`}>
+          <div className="ml-6 basis-32 shrink-0 self-center">
+            <DownloadProgressLane
+              value={Math.min(100, Math.round((file.progress.bytes / file.progress.total) * 100))}
+              label={t('file.indexingProgress')}
+              eta={progressEta.etaText}
+              indeterminate={progressEta.indeterminate}
+            />
+          </div>
+          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
+            <Badge label={t(badge.labelKey)} classes={badge.classes} />
+          </div>
+        </>
+      ) : showDownloadProgressBar && file.progress ? (
+        <>
+          <div className="ml-6 basis-40 shrink-0 self-center">
             <DownloadProgressLane
               value={Math.min(100, Math.round((file.progress.bytes / file.progress.total) * 100))}
               label={t('file.downloadProgress')}
@@ -212,7 +233,7 @@ export default function ShareFileRow({ file, isOwn, manualControls, spaceId, mem
           action={action}
           relPath={file.relPath}
           transferId={transferId}
-          isPreparing={isPreparing}
+          busyLabel={busyLabel}
           onDownload={onDownload}
           onReveal={onReveal}
           onPause={onPause}

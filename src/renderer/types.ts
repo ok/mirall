@@ -172,7 +172,7 @@ export interface ShareFileEntry {
   }
 }
 
-export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'available' | 'paused' | 'error'
+export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
 
 export interface FileTreeFileNode {
   kind: 'file'

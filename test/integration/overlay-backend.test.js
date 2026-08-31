@@ -262,20 +262,28 @@ test('dedup: two identical files share one hash; deleting one keeps the other se
   t.absent(serveIndex.has(e1.contentHash), 'forgotten once both identical paths are deleted')
 })
 
-// The owner must be refreshed at advertise-time (the `preparing` row), not only
+// The owner must be refreshed at advertise-time (the row it can already see), not only
 // after the slow hash — so it tracks the consumer instead of lagging a whole
 // scan behind. Deterministic proof: the share-files-updated refresh is emitted
 // before the first hashing-progress event.
-test('owner refresh fires at advertise-time, before hashing progress', async (t) => {
+//
+// REGRESSION (FIX-PREP2 + FIX-PREP5): that hashing progress is the OWNER's own — phase
+// 'publishing', the side of the channel that says "I am adding this", never the consumer's
+// 'preparing' — and it is terminated by a `done` frame, or the bar it raised outlives the hash.
+test('owner refresh fires at advertise-time, before its own publishing progress', async (t) => {
   const ctx = await setup(t, { files: { 'a.txt': 'advertise before hashing' } })
   await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', path.join(ctx.mountPath, 'a.txt'))
 
   const order = ctx.fake.events.map((e) => e.type)
+  const decorations = ctx.fake.events.filter((e) => e.type === 'event:decoration')
   const firstUpdated = order.indexOf('event:share-files-updated')
-  const firstPrepare = ctx.fake.events.findIndex((e) => e.type === 'event:decoration' && e.payload.phase === 'preparing')
+  const firstPublish = ctx.fake.events.findIndex((e) => e.type === 'event:decoration' && e.payload.phase === 'publishing')
   t.ok(firstUpdated >= 0, 'owner received a share-files-updated refresh')
-  t.ok(firstPrepare >= 0, 'hashing emitted a prepare decoration')
-  t.ok(firstUpdated < firstPrepare, 'refresh fired before hashing — owner sees the preparing row at advertise-time')
+  t.ok(firstPublish >= 0, 'hashing emitted a publishing decoration')
+  t.ok(firstUpdated < firstPublish, 'refresh fired before hashing — owner sees the adding row at advertise-time')
+  t.absent(decorations.some((e) => e.payload.phase === 'preparing'),
+    "the owner never paints itself the consumer's waiting phase")
+  t.ok(decorations.at(-1)?.payload.done === true, 'the bar is terminated when the hash lands')
 })
 
 // The whole-file integrity verify (now STREAMED so a multi-GB file is checked

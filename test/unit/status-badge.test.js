@@ -11,7 +11,7 @@ const FILE_STATUSES = [
   'paused-interrupted', 'paused-offline', 'unavailable', 'error',
 ]
 const SHARE_STATUSES = [
-  'remote', 'preparing', 'downloading', 'verifying', 'downloaded', 'synced',
+  'remote', 'preparing', 'downloading', 'verifying', 'publishing', 'downloaded', 'synced',
   'unavailable', 'paused-interrupted', 'paused-offline',
 ]
 const ROLES = ['mine', 'browse', 'mirrored']
@@ -80,6 +80,17 @@ test('CONTRACT: preparing/downloading are blue, downloaded is green, and none ar
   for (const s of ['preparing', 'downloading', 'downloaded']) {
     t.absent(badgeStyle(fileStatusToBadge(s)).classes.includes('bg-error-container'), `${s} is not the error pill`)
   }
+})
+
+// REGRESSION (FIX-PREP2: a folder share had no way to say "I am adding this" — the owner's own
+// freshly-added file was forced through the CONSUMER's token and read "Preparing…", the same pill
+// a member waiting on someone else's hash gets.)
+test('REGRESSION (FIX-PREP2): the owner adding a folder file reads "Adding", not "Preparing…"', (t) => {
+  t.is(badgeStyle(shareFileStatusToBadge('publishing', true)).labelKey, 'status.publishing')
+  t.is(badgeStyle(fileStatusToBadge('publishing')).labelKey, 'status.publishing',
+    'the loose and folder paths name the owner-side state the same way')
+  t.is(badgeStyle(shareFileStatusToBadge('preparing', false)).labelKey, 'status.preparing',
+    'a member waiting on the owner keeps the preparing pill')
 })
 
 test('NEUTRAL: all three folder roles are the neutral chip', (t) => {

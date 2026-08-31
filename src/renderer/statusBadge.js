@@ -35,6 +35,7 @@ const SHARE_FILE_STATUS_TO_BADGE = {
   preparing: 'preparing',
   downloading: 'downloading',
   verifying: 'verifying',
+  publishing: 'publishing',
   downloaded: 'on-device',
   synced: 'on-device',
   unavailable: 'unavailable',

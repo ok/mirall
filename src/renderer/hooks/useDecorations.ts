@@ -38,17 +38,29 @@ interface DecorationEvent {
 export function useDecorations(channel: string, spaceId: string, keyPrefix?: string) {
   const [byKey, setByKey] = useState(new Map<string, Decoration>())
   const samplers = useRef(new Map<string, SpeedSampler>())
+  // The phase each key currently paints, mirrored outside the state so a `done` can be judged
+  // against it without reading state inside an updater.
+  const phases = useRef(new Map<string, DecorationPhase | undefined>())
 
   useEffect(() => {
     setByKey(new Map())
     const drop = (key: string) => {
       samplers.current.delete(key)
+      phases.current.delete(key)
       setByKey(prev => { if (!prev.has(key)) return prev; const n = new Map(prev); n.delete(key); return n })
     }
     const unsub = subscribe<DecorationEvent>('event:decoration', (m) => {
       if (m.channel !== channel || m.spaceId !== spaceId) return
       if (keyPrefix && !m.key.startsWith(keyPrefix)) return
-      if (m.done) { drop(m.key); return }
+      if (m.done) {
+        // A `done` that names a phase clears only a bar of THAT phase. The owner's terminal
+        // prepare frame rides the same key as our own download of the same file, and a re-publish
+        // restarts that download the moment the new hash lands — the two can cross.
+        if (m.phase && phases.current.get(m.key) !== m.phase) return
+        drop(m.key)
+        return
+      }
+      phases.current.set(m.key, m.phase)
       const now = Date.now()
       if (m.phase === 'verifying') {
         // Verify frames carry no fresh transfer bytes (the mirror path sends 0) — sampling them
@@ -87,7 +99,7 @@ export function useDecorations(channel: string, spaceId: string, keyPrefix?: str
         return changed ? n : prev
       })
     }, 1000)
-    return () => { unsub(); clearInterval(hb); samplers.current.clear() }
+    return () => { unsub(); clearInterval(hb); samplers.current.clear(); phases.current.clear() }
   }, [channel, spaceId, keyPrefix])
 
   return {

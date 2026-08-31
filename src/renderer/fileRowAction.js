@@ -12,10 +12,10 @@ export function fileRowAction ({ status, manualControls, hasTransferId }) {
     if (status === 'error') return 'retry-discard'
     if (status === 'remote') return 'download'
     if (status === 'unavailable') return 'download-disabled'
-    if (status === 'preparing') return 'busy'
+    if (status === 'preparing' || status === 'publishing') return 'busy'
     return 'none'
   }
 
-  if (status === 'downloading' || status === 'verifying' || status === 'preparing') return 'busy'
+  if (status === 'downloading' || status === 'verifying' || status === 'preparing' || status === 'publishing') return 'busy'
   return 'none'
 }

@@ -142,7 +142,9 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       }
       return f
     }
-    if (f.status === 'preparing' && d.phase === 'preparing') {
+    // Indexing rows take only their own side's frame: 'publishing' is our hash of our own file,
+    // 'preparing' is the owner's hash of theirs.
+    if ((f.status === 'preparing' && d.phase === 'preparing') || (f.status === 'publishing' && d.phase === 'publishing')) {
       return { ...f, verifyFraction: undefined, progress: { bytes: d.bytes, total: d.total, speed: 0, eta: d.eta } }
     }
     return f

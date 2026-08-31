@@ -203,7 +203,10 @@ registerPublishChannel('loose', {
       return { changed, contentHash }
     } finally {
       // Only clear a bar we actually raised: a fast-pathed healthy entry never created a ticker.
-      if (ticker) deco(spaceId, drivePathOf(relPath), { done: true })
+      if (ticker) {
+        deco(spaceId, drivePathOf(relPath), { done: true })
+        broadcastSharePrepare(spaceId, { shareId: LOOSE_SHARE_ID, relPath, done: true })
+      }
     }
   },
   async afterPublish (item, { absPath }, { changed, contentHash }) {

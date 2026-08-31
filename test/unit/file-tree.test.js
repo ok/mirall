@@ -47,13 +47,39 @@ test('statusCategory maps every ShareFileStatus member', (t) => {
   t.is(statusCategory('downloaded'), 'on-device')
   t.is(statusCategory('synced'), 'on-device')
   t.is(statusCategory('downloading'), 'downloading')
-  t.is(statusCategory('preparing'), 'downloading')
   t.is(statusCategory('verifying'), 'downloading')
+  t.is(statusCategory('preparing'), 'preparing')
+  t.is(statusCategory('publishing'), 'preparing')
   t.is(statusCategory('paused-interrupted'), 'paused')
   t.is(statusCategory('paused-offline'), 'paused')
   t.is(statusCategory('error'), 'error')
   t.is(statusCategory('remote'), 'available')
   t.is(statusCategory('unavailable'), 'available')
+})
+
+// REGRESSION (FIX-PREP1: indexing rolled up as a transfer — a folder whose files the OWNER was
+// hashing ('publishing'), or whose members were waiting on that hash ('preparing'), reported
+// "N downloading" on both sides, with nobody pulling a single byte.)
+test('REGRESSION (FIX-PREP1): indexing rows roll up as preparing, never as downloading', (t) => {
+  const tree = buildFileTree([
+    f('Movies/a.mkv', 100, 'preparing'),
+    f('Movies/b.mkv', 200, 'publishing'),
+    f('Movies/c.mkv', 300, 'remote')
+  ])
+  const movies = tree[0]
+  t.is(movies.statusCounts.downloading, 0, 'nothing is downloading — no bytes are moving to this device')
+  t.is(movies.statusCounts.preparing, 2)
+  t.is(movies.statusCounts.available, 1)
+})
+
+test('a real download still counts as downloading alongside indexing rows', (t) => {
+  const tree = buildFileTree([
+    f('Movies/a.mkv', 100, 'preparing'),
+    f('Movies/b.mkv', 200, 'downloading'),
+    f('Movies/c.mkv', 300, 'verifying')
+  ])
+  t.is(tree[0].statusCounts.downloading, 2, 'verifying is the tail of a download, so it stays in that bucket')
+  t.is(tree[0].statusCounts.preparing, 1)
 })
 
 test('folders sort before files; names sort alphanumeric, case-insensitive', (t) => {

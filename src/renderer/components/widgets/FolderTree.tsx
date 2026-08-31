@@ -6,6 +6,7 @@ import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
 import ShareFileRow from '../cards/ShareFileRow.js'
 import { formatSize } from '../../utils.js'
+import { badgeStyle } from '../../statusBadge.js'
 import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
 interface FileRowCallbacks {
@@ -33,6 +34,7 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
   const open = rest.isExpanded(node.path)
   const onDevice = node.statusCounts['on-device']
   const downloading = node.statusCounts.downloading
+  const preparing = node.statusCounts.preparing
   const meta = [t('folder.fileCountAndSize', { count: node.fileCount, size: formatSize(node.totalBytes) })]
   if (onDevice > 0) meta.push(t('folder.onDeviceCount', { count: onDevice }))
   if (node.folderCount > 0) meta.push(t('folder.subfolderCount', { count: node.folderCount }))
@@ -59,8 +61,18 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
           <span className="font-bold text-accent block truncate">{node.name}</span>
           <span className="text-xs text-on-surface-variant mt-0.5 block truncate">{metaText}</span>
         </span>
-        {downloading > 0 && (
-          <Badge label={t('folder.downloadingCount', { count: downloading })} classes="bg-info text-accent" className="self-center mr-1" />
+        {(downloading > 0 || preparing > 0) && (
+          <span className="flex items-center gap-1.5 self-center mr-1 shrink-0">
+            {downloading > 0 && (
+              <Badge label={t('folder.downloadingCount', { count: downloading })} classes={badgeStyle('downloading').classes} />
+            )}
+            {preparing > 0 && (
+              <Badge
+                label={t(rest.isOwn ? 'folder.addingCount' : 'folder.preparingCount', { count: preparing })}
+                classes={badgeStyle('preparing').classes}
+              />
+            )}
+          </span>
         )}
       </button>
       {open && (
