@@ -12,10 +12,21 @@
 
 const count = (n) => (Number.isFinite(n) && n > 0 ? n : 0)
 
-export function deriveIndexSummary (status) {
+// The mount carries the durable pause. A paused index has an EMPTY queue — pausing drops it, and
+// rebuilding it costs one walk because a published file is never re-hashed — so `paused` is
+// deliberately independent of `active`: a paused folder reports the same zero a finished one does,
+// and only the mount tells them apart.
+export function deriveIndexSummary (status, mount) {
   const files = count(status?.adding)
+  const paused = !!mount?.indexPaused
+  // The scan's first phase walks the disk and fills no queue, so `adding` is 0 for the whole of it
+  // — minutes on a large folder, during which the notice would otherwise show nothing and offer no
+  // way to stop. That is exactly when a user reaches for one, so the phase counts as active.
+  const scanning = !paused && !!mount?.scanning
   return {
-    active: files > 0,
+    active: files > 0 || scanning,
+    scanning: scanning && files === 0,
+    paused,
     files,
     // Already publish-only and already dropped when an item starts, so this is what is still
     // WAITING to be read; the running file's own bytes are on its row's bar.

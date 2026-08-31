@@ -70,7 +70,10 @@ function ShareCard({
   const isYou = share.role === 'mine'
   const sourceMissing = isYou && share.mountStatus === 'mount-point-gone'
   const mirrorPaused = share.role === 'mirrored' && share.mirrorEnabled === false
-  const badge = roleBadge(share.role, { paused: mirrorPaused, missing: sourceMissing })
+  // A paused index is durable state the card must show: without it a folder the user paused looks
+  // identical to a healthy one, and there is nothing on this screen to tell them otherwise.
+  const indexPaused = isYou && share.mountStatus === 'paused'
+  const badge = roleBadge(share.role, { paused: mirrorPaused || indexPaused, missing: sourceMissing })
 
   const sizeLine = shareSizeLine({
     isYou,

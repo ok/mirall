@@ -125,6 +125,10 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
+  'owned-folder:pause-index': { kind: 'command', args: {
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
   'owned-folder:preview': { kind: 'command', args: {
     ignore: { type: ARG.array, optional: true },
     mountPath: { type: ARG.path, optional: true },
@@ -134,6 +138,10 @@ export const REQUESTS = Object.freeze({
   } },
   'owned-folder:relocate': { kind: 'command', args: {
     mountPath: { type: ARG.path, optional: true },
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
+  'owned-folder:resume-index': { kind: 'command', args: {
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
@@ -237,6 +245,4 @@ export const REQUEST_NAMES = Object.freeze(Object.keys(REQUESTS))
 
 // Handlers with no caller anywhere in src/ or test/. Recorded rather than deleted: removing one is
 // a behaviour change and belongs in its own commit. The test asserts this list only shrinks.
-export const UNREFERENCED_REQUESTS = Object.freeze([
-  'owned-folder:cancel-index',
-])
+export const UNREFERENCED_REQUESTS = Object.freeze([])

@@ -92,7 +92,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // mountRootAvailable disk check) on every mount-status event — the useShares projection covers
   // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
   // first render before derive() resolves).
-  const { status: ownedStatus } = useOwnedMount(spaceId, isYou ? share.id : '')
+  const { status: ownedStatus, indexPaused, scanning } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
   // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
@@ -103,7 +103,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     own: isYou,
     ownerKey: share.owner,
     live: isYou || (owner != null && owner.online !== false),
-  }))
+  }), { indexPaused, scanning })
   const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
 
   async function handleRevealFolder() {
@@ -137,6 +137,32 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   async function handlePauseResume() {
     try {
       await setForeignMountEnabled(spaceId, share.id, !foreignEnabled)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function handlePauseIndex() {
+    try {
+      await request('owned-folder:pause-index', { spaceId, shareId: share.id })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  // Stop, not Pause: the queue is dropped but the normal reconcile cadence stays armed and picks
+  // the folder back up on its own.
+  async function handleStopIndex() {
+    try {
+      await request('owned-folder:cancel-index', { spaceId, shareId: share.id })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function handleResumeIndex() {
+    try {
+      await request('owned-folder:resume-index', { spaceId, shareId: share.id })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
@@ -290,19 +316,41 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 <span>{t('folder.sourceMissingBanner')}</span>
               </div>
             )}
+            {isYou && indexing.paused && !loading && !error && (
+              <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-warning/20 text-on-surface text-sm">
+                <Icon name="pause" size={16} className="text-warning shrink-0" />
+                <span className="flex-1">{t('folder.indexPausedBanner')}</span>
+                <Button variant="secondary" icon="play_arrow" onClick={handleResumeIndex}>
+                  {t('folder.indexResume')}
+                </Button>
+              </div>
+            )}
             {/* Always-present live region so the scan notice is ANNOUNCED when it appears — same
                 reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
                 the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
                 only queued has no row yet, which is exactly the gap this closes. */}
-            {indexing.active && !loading && !error && (
+            {indexing.active && !indexing.paused && !loading && !error && (
               <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm">
                 <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
-                <span>
-                  {isYou
-                    ? t('folder.indexingSummary', { count: indexing.files })
-                    : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '?' })}
+                <span className="flex-1">
+                  {indexing.scanning
+                    ? t('folder.indexScanning')
+                    : isYou
+                      ? t('folder.indexingSummary', { count: indexing.files })
+                      : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '?' })}
                   {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
                 </span>
+                {/* Owner only: a member watching someone else's scan has nothing to pause. */}
+                {isYou && (
+                  <>
+                    <Button variant="secondary" icon="pause" onClick={handlePauseIndex}>
+                      {t('folder.indexPause')}
+                    </Button>
+                    <Button variant="secondary" icon="stop" onClick={handleStopIndex}>
+                      {t('folder.indexStop')}
+                    </Button>
+                  </>
+                )}
               </div>
             )}
             {/* The counts above change about twice a second for the length of the scan, so they are
@@ -310,7 +358,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 reason. This one carries a count-free sentence, so it is announced once when the
                 scan starts and once when it ends, while the numbers stay browsable as text. */}
             <div role="status" aria-live="polite" className="sr-only">
-              {indexing.active && !loading && !error
+              {indexing.active && !indexing.paused && !loading && !error
                 ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '?' }))
                 : ''}
             </div>

@@ -14,7 +14,7 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 // Create a space + an overlay owned-folder share owned by this peer + its mount dir.
 // Overlay is the only content backend, so the share is stamped overlay and the
 // overlay instance is brought up in-process (no second peer).
-export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
+export async function setupOwnedShare (t, { name = 'Notes', files = null } = {}) {
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   const ctx = await freshPeer(t)
 
@@ -31,7 +31,16 @@ export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount')
   await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  writeFiles(mountPath, files)
   return { ...ctx, spaceId: space.spaceId, share, mountPath }
+}
+
+function writeFiles (root, files) {
+  for (const [rel, contents] of Object.entries(files ?? {})) {
+    const abs = path.join(root, ...rel.split('/'))
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, contents)
+  }
 }
 
 // Publish an overlay owned share with files AND mount it back on the SAME peer as a
@@ -40,12 +49,7 @@ export async function setupOwnedShare (t, { name = 'Notes' } = {}) {
 // the owner's source file to the requested dest — so the shared materialize scaffolding
 // (initialMaterializeScan / runMaterializeTick) still runs in-process on the overlay path.
 export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
-  const ctx = await setupOwnedShare(t, { name })
-  for (const [rel, contents] of Object.entries(files)) {
-    const abs = path.join(ctx.mountPath, ...rel.split('/'))
-    fs.mkdirSync(path.dirname(abs), { recursive: true })
-    fs.writeFileSync(abs, contents)
-  }
+  const ctx = await setupOwnedShare(t, { name, files })
   await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   // The mirror lists from the owner's catalog and fetches by content hash; stub both

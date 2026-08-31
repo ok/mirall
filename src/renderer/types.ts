@@ -116,7 +116,7 @@ export interface Share {
   deletedAt?: number
 }
 
-export type OwnedMountStatus = 'scanning' | 'active' | 'paused-error' | 'mount-point-gone'
+export type OwnedMountStatus = 'scanning' | 'active' | 'paused' | 'paused-error' | 'mount-point-gone'
 
 export interface OwnedFolderMount {
   spaceId: string
@@ -127,6 +127,7 @@ export interface OwnedFolderMount {
   lastScanCompletedAt?: number
   status?: OwnedMountStatus
   lastError?: string | null
+  indexPaused?: boolean
 }
 
 export type ForeignMountStatus =
