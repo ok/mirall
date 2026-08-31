@@ -1057,6 +1057,7 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `transfer/transfer-status.js` | `pausedStatusFor` — derives a row's paused sub-status |
 | `transfer/pending-transfers.js` | Pending-transfers bee CRUD (resume across restarts) |
 | `transfer/swarm.js` | Hyperswarm + Protomux handshakes, per-space identity binding (§16), overlay channel attach, presence/membership gossip |
+| `transfer/swarm-diagnostics.js` | The swarm's read-only reporting surface: address, routing-table size, peer reach, peer samples, DHT health, connect/relay stats, and the offline status shape. `swarm.js` builds one instance over accessors and assembles the results into the status object. Imports no `bare-*`, so it is unit-tested. |
 | `transfer/handshake-guard.js` | Verifies the identity binding on every identity-asserting frame (§16) |
 | `transfer/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
 | `transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}`; shared by single-file transfers and folder mirroring |

@@ -162,7 +162,9 @@ const STATUS_EMIT_DEBOUNCE_MS = 300
 const RECONNECT_THROTTLE_MS = 5000
 const DHT_VERSION = (() => {
   try {
-    const url = new URL('../../node_modules/hyperdht/package.json', import.meta.url)
+    // Three levels: this file is src/shared/transfer/, so ../../ lands on src/, where there is no
+    // node_modules. That typo made the reported version a permanent 'unknown'.
+    const url = new URL('../../../node_modules/hyperdht/package.json', import.meta.url)
     const text = fs.readFileSync(url, 'utf8')
     const pkg = JSON.parse(text)
     return typeof pkg.version === 'string' ? pkg.version : 'unknown'
