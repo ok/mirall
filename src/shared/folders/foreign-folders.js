@@ -838,6 +838,19 @@ export function mirrorHealth({ now = Date.now() } = {}) {
   return rows
 }
 
+// Un-wedge one mirror. stopForeignLoop bumps cancelGen, so a hung pass is generation-invalidated
+// and bails at its next checkpoint without writing; clearing the in-flight entry is the part the
+// stop does NOT do, and without it the fresh interval coalesces straight back onto the dead promise.
+export async function restartForeignLoop(spaceId, shareId) {
+  const key = loopKey(spaceId, shareId)
+  stopForeignLoop(spaceId, shareId)
+  tickInFlight.delete(key)
+  tickDirty.delete(key)
+  mirrorLiveness.delete(key)
+  await startForeignLoop({ spaceId, shareId })
+  runMaterializeTick(spaceId, shareId).catch((err) => log.debug('materialize tick after restart failed:', err.message))
+}
+
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   const key = loopKey(spaceId, shareId)
   // Invalidate any in-flight scan/tick (it bails at the next file) and abort the
