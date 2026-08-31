@@ -25,6 +25,7 @@ import {
   getPeerEntry,
   getPeerEntryState,
   watchPeerCatalog,
+  setOwnCatalogAppendHook,
   resolvePeerCatalog,
   catalogKeyField,
 } from '../../../shares/share-catalog.js'
@@ -118,8 +119,15 @@ let publishesAborting = false
 const sharesRefresh = makeSharesRefresh(
   (spaceId, shareId) => ipcRef?.emit('event:share-files-updated', { spaceId, shareId }),
 )
-export function initContentBackendOverlay(ipc) { ipcRef = ipc }
-export function resetContentBackendState() { ipcRef = null; sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
+export function initContentBackendOverlay(ipc) {
+  ipcRef = ipc
+  // The owner's level trigger. A catalog append is the one owner-side signal that cannot fire ahead
+  // of the write it announces, which is exactly what publishOne's advertise-time touch cannot
+  // promise for a batched publish. Wildcarded on the share axis (no shareId): ONE catalog backs
+  // every share in the space plus the loose channel, so an append names no single share.
+  setOwnCatalogAppendHook((spaceId) => sharesRefresh.touch(spaceId, undefined))
+}
+export function resetContentBackendState() { ipcRef = null; setOwnCatalogAppendHook(null); sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
 export function abortInFlightPublishes() { publishesAborting = true }
 export function setSharePrepareBroadcast(fn) { peerPrepareBroadcast = fn }
 // Installed by owned-folders: (spaceId, shareId, relPath) → true while a publish for that path is
@@ -288,7 +296,7 @@ async function publishOne(spaceId, share, relPath, absPath, { catalog = directCa
       catalog,
       signal,
       force,
-      // Refresh the owner's view NOW (the `preparing` row) + start the hashing-progress
+      // Refresh the owner's view NOW (the `publishing` row) + start the hashing-progress
       // ticker — the same instant the consumer's peer-catalog append surfaces it.
       onAdvertised: (size) => {
         sharesRefresh.touch(spaceId, share.id)
