@@ -7,6 +7,7 @@
 //   - aria-valuetext still carries count · speed · ETA even where the visible line is compacted;
 //   - the per-peer row puts the name on the left and right-aligns the avatar + bar at ~half width,
 //     the name yields under pressure while speed · ETA stays whole, and a warmup row shows a "%".
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import PeerDownloadIndicator from './../../src/renderer/components/cards/PeerDownloadIndicator.js'

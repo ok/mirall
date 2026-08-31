@@ -3,6 +3,7 @@
 // stack + "+N" overflow chip, encodes each peer's sync state as a ring colour (synced/synced-pulse/
 // paused — never opacity), shows the heading, and carries an accessible name listing the mirrors and
 // their states — the a11y + colour contract can't be measured without a real AX tree + CSS.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import MirroredByWidget from './../../src/renderer/components/cards/MirroredByWidget.js'

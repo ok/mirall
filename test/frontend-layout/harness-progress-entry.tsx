@@ -4,6 +4,7 @@
 // exposes aria-valuenow + a valuetext that carries the percentage. Also checks the
 // real resolveEta logic: null = "Estimating…"/indeterminate, 0/undefined = hidden,
 // > 0 = formatted, and a >0 eta with a decayed (0) speed = stalled → hidden.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import DownloadProgressLane from './../../src/renderer/components/widgets/DownloadProgressLane.js'

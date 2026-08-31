@@ -7,6 +7,7 @@
 // Mounts the REAL <TopNav> and walks the REAL stylesheet for any :hover rule
 // that repaints the logo, so it catches the whole class (opacity, color, fill,
 // filter) rather than one utility by name.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import TopNav from './../../src/renderer/components/layout/TopNav.js'

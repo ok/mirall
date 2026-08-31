@@ -146,6 +146,10 @@
     onFirstHideNotice: noop,
     onHiddenToTray: noop,
     onKeyboardCommand: noop,
+    // ConnectionStatusProvider reads these on mount; a missing method throws during render and
+    // takes the whole tree down, so any harness mounting a real screen renders nothing at all.
+    getNetOnline: () => Promise.resolve(true),
+    onNetOnlineChange: () => noop,
     deepLink: { subscribe: () => noop },
   }
 })()

@@ -4,6 +4,7 @@
 // (the whole card navigates), while the action buttons stay clickable on top. A
 // second mount checks `isolate` confines the action cluster's z-10 so an earlier
 // sibling at z-10 (the sticky section header) paints over the card.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import ShareCard from './../../src/renderer/components/cards/ShareCard.js'

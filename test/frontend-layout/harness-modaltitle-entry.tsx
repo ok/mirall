@@ -4,6 +4,7 @@
 // the extension (`XXX-X002_…final.mov`, not just `.mov`), (4) stay within two
 // lines, while (5) a short name renders in full and (6) the full name still
 // reaches assistive tech. Mounts the REAL <RemoveFileModal> twice.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import RemoveFileModal from './../../src/renderer/components/modals/RemoveFileModal.js'
 

@@ -2,6 +2,7 @@
 // <SpaceView> (the only place that can't be exercised by agent-desktop, since it
 // drives the AX tree and can't synthesize a native file-drag), dispatches synthetic
 // DragEvents, and asserts the crossfade + geometry + copy in real layout.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
