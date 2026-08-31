@@ -23,11 +23,9 @@ async function coreInStore (dkHex) {
 // any current drive, so it — and the blobs core its header points at — can be
 // reclaimed, while an active space's drive and the system bees are untouched.
 //
-// KNOWN GAP: the remnant below is an UNENCRYPTED drive — the shape a pre-v1.7.0 (eager-era)
-// space left behind. classifyLeftovers identifies a drive by opening its metadata core with no
-// encryption key and reading it as a Hyperbee (leftover.js inspectCore), so the SCK-encrypted
-// metadata core of a space created since then classifies as 'other' and is never reclaimed.
-// Reclaiming those needs the inspector to try each known space's SCK; not covered here.
+// The remnant below is an UNENCRYPTED drive — the shape a pre-v1.7.0 space left behind. An
+// SCK-encrypted one is reclaimed too: inspectCore retries an unidentified core under each key the
+// vault holds (leftover-after-leave covers that end to end).
 test('orphan drive remnant is reclaimed; active drives and system bees kept', async (t) => {
   await freshPeer(t)
   await initDownloads()

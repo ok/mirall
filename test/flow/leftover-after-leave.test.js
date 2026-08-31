@@ -7,15 +7,6 @@ import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 
 const FLAGS = { overlayEnabled: true }
 
-// KNOWN GAP — this test is RED, and the cause is not this test.
-// classifyLeftovers identifies a leftover core by opening it with NO encryption key and reading
-// it as a Hyperbee (leftover.js inspectCore → readSampleKeys → classifyBeeKind). Every catalog has
-// been SCK-encrypted since v1.7.0, so a peer's leftover catalog classifies as 'other' and is
-// neither scanned nor reclaimable — the "no leftover catalogs remain" assertions below pass
-// vacuously because nothing was ever found. Same root cause as the orphan-drive gap noted in
-// test/integration/orphan-drive-reclaim.test.js. Fixing it needs the inspector to try each known
-// space's SCK; until then the Storage leftover feature is blind to encrypted cores.
-//
 // Leftover connection data only exists after a real prior connection: Bob browses
 // Alice's overlay share, so her replicated catalog lands in his store. When Bob
 // leaves, the drives and Alice's profile are purged (Option C), but her catalog

@@ -44,6 +44,12 @@ export function hasContentKey(spaceId) {
   return map.has(spaceId)
 }
 
+// Every SCK we hold, for the leftover scan: a core encrypted under one of them reads as garbage
+// without it, and a leave keeps the vault entry — which is exactly when its leftovers show up.
+export function listContentKeys() {
+  return [...map.values()]
+}
+
 export async function putContentKey(spaceId, sck) {
   map.set(spaceId, b4a.from(sck))
   await persist()
