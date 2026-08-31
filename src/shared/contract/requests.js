@@ -125,6 +125,10 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
+  'owned-folder:pause-index': { kind: 'command', args: {
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
   'owned-folder:preview': { kind: 'command', args: {
     ignore: { type: ARG.array, optional: true },
     mountPath: { type: ARG.path, optional: true },
@@ -134,6 +138,10 @@ export const REQUESTS = Object.freeze({
   } },
   'owned-folder:relocate': { kind: 'command', args: {
     mountPath: { type: ARG.path, optional: true },
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
+  'owned-folder:resume-index': { kind: 'command', args: {
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },

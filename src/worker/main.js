@@ -159,7 +159,7 @@ import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { boot } from './boot.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
-import { saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
+import { saveOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import {
   handleFsEventFromMain,
@@ -170,7 +170,6 @@ import {
   mountRootAvailable,
   countFolderFiles,
   getIndexStatus,
-  cancelIndex,
 } from '../shared/folders/owned-folders.js'
 
 import { exceedsShareFileLimit, shareFileLimitMessage } from '../shared/folders/share-limits.js'
@@ -950,13 +949,17 @@ ipc.handle('owned-folder:index-status', async (msg) => {
 // Stops the current index; the share stays mounted and watched. The cancelled pass would have
 // recorded 'active' and armed the periodic reconcile on completion — do both here instead.
 ipc.handle('owned-folder:cancel-index', async (msg) => {
-  const cancelled = cancelIndex(msg.spaceId, msg.shareId)
-  const mount = await getOwnedMount(msg.spaceId, msg.shareId)
-  if (mount) {
-    await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'active')
-    mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mount.mountPath, mount.ignore)
-  }
-  return { cancelled }
+  return await mounts.stopIndex(msg.spaceId, msg.shareId)
+})
+
+// Pause the index: stop the burst AND the cadence, durably. Unlike cancel-index above, nothing
+// resumes this but an explicit resume — that is the whole difference between Stop and Pause.
+ipc.handle('owned-folder:pause-index', async (msg) => {
+  return await mounts.pauseIndex(msg.spaceId, msg.shareId)
+})
+
+ipc.handle('owned-folder:resume-index', async (msg) => {
+  return await mounts.resumeIndex(msg.spaceId, msg.shareId)
 })
 
 // Re-point an owned folder at a new on-disk location after the original source
@@ -981,21 +984,30 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   await saveOwnedMount(mount)
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
-  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
+  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? 'paused' : 'scanning')
   ipc.emit('main-request', {
     command: 'owned-folder:start-watcher',
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
   })
 
+  // Locate Folder is not Resume: a paused index stays paused at its new path, and the deep pass
+  // plus the reconcile timer are the resume's job. The debt is RECORDED rather than dropped —
+  // without deep, the resume's fast diff misses on every fresh mtime and re-advertises each entry
+  // (publishContent advertises with a null hash before re-hashing), which is exactly the mirror
+  // churn the deep pass exists to avoid.
+  if (mount.indexPaused) await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
+  //
   // Relocate diffs by content hash (deep): the new path is typically a moved/copied
   // tree whose mtimes differ, but identical content must upload nothing so mirror
   // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
-  mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
-    .then((result) => {
-      if (result?.cancelled) return
-      if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
-      mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
-    })
+  if (!mount.indexPaused) {
+    mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
+      .then((result) => {
+        if (result?.cancelled) return
+        if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+        mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
+      })
+  }
 
   record('share.relocated', {
     actor: selfActor(),
