@@ -108,6 +108,7 @@ test('REGRESSION: the creator-divergence clear transition is never silent', (t) 
     })
     t.ok(sites > 0, `${rel}: has a divergence clear site`)
   }
-  eachClearEmits('shared/transfer/swarm.js')
+  // The admission gates moved out of swarm.js; the guard follows the call site, not the file.
+  eachClearEmits('shared/transfer/admission-gates.js')
   eachClearEmits('worker/main.js')
 })
