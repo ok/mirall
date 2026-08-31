@@ -203,3 +203,31 @@ test('the health block carries no identifying values, so redaction is a no-op fo
   const health = { loopLagMs: 5, loopLagMaxMs: 5, queueDepth: 0 }
   t.alike(buildDiagnostics(makeCtx({ health }), true).health, buildDiagnostics(makeCtx({ health }), false).health)
 })
+
+// The per-subsystem verdicts ride inside the health block. Nested, so the shallow "health survives"
+// guard above would not notice the builder flattening or dropping them.
+test('REGRESSION (FIX-R09-2): the per-subsystem health rows survive the builder', (t) => {
+  const health = {
+    loopLagMs: 1,
+    loopLagMaxMs: 2,
+    queueDepth: 0,
+    subsystems: [
+      { name: 'store', ok: true, detail: null },
+      { name: 'foreign-mirrors', ok: false, detail: 'no progress for 700s', mirrors: { total: 3, wedged: 1 } },
+    ],
+  }
+  const bundle = buildDiagnostics(makeCtx({ health }), true)
+  t.is(bundle.health.subsystems.length, 2)
+  t.is(bundle.health.subsystems[1].ok, false)
+  t.alike(bundle.health.subsystems[1].mirrors, { total: 3, wedged: 1 })
+})
+
+// PRIVACY: the mirror verdicts are counts and durations on purpose. Space and share ids are not
+// exported anywhere else in the bundle, and a wedged-mirror row must not be the exception.
+test('PRIVACY: subsystem health rows carry no space or share identifiers', (t) => {
+  const health = {
+    subsystems: [{ name: 'foreign-mirrors', ok: false, detail: 'no progress for 700s', mirrors: { total: 2, wedged: 1 } }],
+  }
+  const serialised = JSON.stringify(buildDiagnostics(makeCtx({ health }), true))
+  t.absent(/"(spaceId|shareId)"/.test(serialised), 'no space or share id keys anywhere in the bundle')
+})

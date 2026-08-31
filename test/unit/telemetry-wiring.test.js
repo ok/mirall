@@ -51,3 +51,7 @@ test('getQueueDepth reports frames parked before the router goes live', async (t
   await new Promise((r) => setImmediate(r))
   t.is(getQueueDepth(), 0, 'and the queue drains when it goes live')
 })
+
+test('REGRESSION (FIX-R09-2): the entry feeds the per-subsystem health into the same block', (t) => {
+  t.ok(/subsystems:\s*root\?\.health\(\)/.test(entry), 'diagnostics ctx carries subsystems: root?.health()')
+})

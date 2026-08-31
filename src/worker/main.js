@@ -1729,7 +1729,7 @@ ipc.handle('diagnostics:export', async (msg) => {
     counters: getDiagnosticCounters(),
     requestFailures: getRequestFailureCounters(),
     requestMetrics: getRequestMetrics(),
-    health: health.snapshot({ queueDepth: getQueueDepth() }),
+    health: health.snapshot({ queueDepth: getQueueDepth(), subsystems: root?.health() || [] }),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
