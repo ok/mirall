@@ -7,7 +7,9 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
-import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
+import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
+import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
@@ -19,6 +21,15 @@ import {
 // consumer fetch (two-peer) is validated in the flow tier (A6). The defining
 // property asserted here: publishing copies NO bytes into a core — the overlay
 // serves straight from the user's source file on disk.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// Bounded settle for an in-process event. No scaled(): test/helpers/timing.js reads process.env,
+// which Bare does not provide. The assertion that follows is what fails, never this wait.
+async function until (pred, ms = 5000) {
+  const deadline = Date.now() + ms
+  while (!pred() && Date.now() < deadline) await sleep(10)
+  return pred()
+}
+
 async function setup (t, { files = {} } = {}) {
   const ctx = await freshPeer(t)
   const space = await createSpace('Aurora')
@@ -284,6 +295,59 @@ test('owner refresh fires at advertise-time, before its own publishing progress'
   t.absent(decorations.some((e) => e.payload.phase === 'preparing'),
     "the owner never paints itself the consumer's waiting phase")
   t.ok(decorations.at(-1)?.payload.done === true, 'the bar is terminated when the hash lands')
+})
+
+// REGRESSION (FIX-OWN-APPEND): the same promise, for the BULK path. A bulk publish stages its
+// advertise in the space's catalog batch, so the advertise-time refresh above announces a row that
+// is not readable yet — and nothing fires again until the item settles, which for a multi-GB hash
+// is minutes. So the owner's own folder sat on a pre-flush snapshot while every member, level-
+// triggered by that same catalog's append, already showed the indexing row. The owner now watches
+// its own catalog too: the write that lands announces itself, share-axis wildcard (no shareId,
+// since one catalog backs every share in the space).
+test('REGRESSION (FIX-OWN-APPEND): a batched publish refreshes the owner once its write lands', async (t) => {
+  const ctx = await setup(t, { files: { 'a.txt': 'staged, not yet flushed' } })
+  // Hold the flush window open: this test is about the gap between staging and landing, and a
+  // background flush firing mid-assertion would close it for the wrong reason.
+  const cfg = getRuntimeConfig()
+  setRuntimeConfig({ ...cfg, catalogFlushMs: 60000, catalogFlushMaxOps: 1000 })
+  t.teardown(() => setRuntimeConfig(cfg))
+
+  const bee = await ownCatalog(ctx.spaceId)
+  // The share-pinned refreshes are the publish call sites; only the catalog watcher emits without a
+  // shareId, so the wildcard is what tells the new signal apart from the ones that already fired.
+  // Scoped to THIS space: the module-global sharesRefresh coalescer outlives a test, and its
+  // trailing fire resolves ipcRef when it fires — so a neighbouring test's pending fire can land in
+  // this one's events. The spaceId is what tells them apart.
+  const mine = (e) => e.type === 'event:share-files-updated' && e.payload.shareId === undefined && e.payload.spaceId === ctx.spaceId
+  const landed = () => ctx.fake.events.filter(mine)
+  const lengthAtLanded = []
+  const emit = ctx.fake.ipc.emit
+  ctx.fake.ipc.emit = (type, payload) => {
+    if (mine({ type, payload })) lengthAtLanded.push(bee.core.length)
+    emit(type, payload)
+  }
+  t.teardown(() => { ctx.fake.ipc.emit = emit })
+
+  const catalog = createCatalogBatch(ctx.spaceId)
+  await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', path.join(ctx.mountPath, 'a.txt'), { catalog })
+
+  t.ok(ctx.fake.emitted('event:share-files-updated').length > 0, 'the publish announced itself at advertise-time')
+  t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'),
+    'but the row it announced is not readable yet — the write is still staged in the batch')
+  t.is(landed().length, 0, 'and nothing has announced a landed write')
+
+  await catalog.flush()
+  await until(() => landed().length > 0)
+  t.ok(landed().length > 0, 'the landed write announces itself')
+  t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'and by then the row is readable')
+  // The level-trigger property, stated as the thing that cannot happen: an announcement rides an
+  // append, so it can never run ahead of the write the way the advertise-time touch does.
+  t.ok(lengthAtLanded[0] > 0, 'the announcement could not precede the write that caused it')
+  // A first flush appends the bee header AND the data block, and the 250 ms coalescer answers the
+  // first with its leading edge; the trailing edge is what carries the rest. Settled, the owner has
+  // been told about every landed write.
+  await until(() => lengthAtLanded[lengthAtLanded.length - 1] === bee.core.length)
+  t.is(lengthAtLanded[lengthAtLanded.length - 1], bee.core.length, 'settled, the owner saw every write landed')
 })
 
 // The whole-file integrity verify (now STREAMED so a multi-GB file is checked
