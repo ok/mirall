@@ -331,6 +331,40 @@ export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, lim
   }
 }
 
+// The version of a peer catalog we already hold, WITHOUT a network wait: `bee.version` is
+// Math.max(1, _checkout || core.length), and a connected reader's core.length follows the writer on
+// its own because hypercore defaults eagerUpgrade on — the same mechanism that makes the peer-catalog
+// 'append' hook fire. So this answers "has the owner appended since we last converged?" for the price
+// of a property read, where core.update({ wait: true }) would cost up to peerReadTimeoutMs per call
+// against an offline owner.
+//
+// null means UNKNOWN — no key, no SCK, or a core never opened. Callers must read null as "walk",
+// never as "unchanged": the fail-safe direction is more work, never less.
+export async function peerCatalogVersion(spaceId, rec, { space } = {}) {
+  try {
+    const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, rec, { space })
+    if (!readable) return null
+    const bee = openPeerCatalog(keyHex, sck)
+    if (!bee) return null
+    // Pinned across the await for the same reason collectPeerShare pins: inserting into the LRU can
+    // evict — and close — an unpinned entry, including this one, and the pending ready() would then
+    // reject underneath us.
+    peerCatalogs.acquire(keyHex)
+    try {
+      await bee.ready()
+      return bee.version
+    } finally {
+      peerCatalogs.release(keyHex)
+    }
+  } catch (err) {
+    // Never throws. A caller reads null as "walk", and the whole contract of this probe is that
+    // failing to answer costs work rather than correctness — a rejection escaping here would abort
+    // the mirror pass before it did anything, and the tick's callers only log at debug.
+    log.debug('peer catalog version unavailable:', err.message)
+    return null
+  }
+}
+
 export async function listPeerShareMeta(catalogKeyHex, shareId, { sck = null } = {}) {
   const { entries, complete } = await collectPeerShare(catalogKeyHex, shareId, { sck })
   return { entries, complete }

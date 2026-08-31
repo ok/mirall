@@ -13,6 +13,11 @@ export const overlayBackend = {
   publishDelete: A.overlayPublishDelete,
   listOwn: A.overlayListOwn,
   listPeerWithMeta: A.overlayListPeerWithMeta,
+  // OPTIONAL member. A backend without it makes its mirrors walk every tick, which is the behaviour
+  // before it existed. Optional deliberately: promoting a member of an injected contract to required
+  // breaks every hand-written double at once, and such a break surfaces as a TypeError that kills
+  // the test runner without printing an assertion — expensive to diagnose, trivial to avoid.
+  catalogVersion: A.overlayCatalogVersion,
   requestDownload: A.overlayRequestDownload,
   ensureRemote: A.overlayEnsureRemote,
   releaseRemote: A.overlayReleaseRemote,
