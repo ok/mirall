@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   configureQueryStore, fetchQuery, invalidate, keyOf, peek, subscribeKey, resetQueryStore, storeStats,
-  setQueryData,
+  setQueryData, refetchQuery, invalidateKey,
 } from '../../src/renderer/store/query-store.js'
 
 // A transport that records every call and lets a test settle each one by hand, so concurrency is
@@ -9,12 +9,24 @@ import {
 function fakeTransport () {
   const calls = []
   const pending = []
-  const request = (type, params) => {
-    calls.push({ type, params })
-    return new Promise((resolve, reject) => pending.push({ resolve, reject }))
+  const aborted = []
+  // Rejects on abort, because the real transport does: request() deletes its pending entry, writes
+  // the cancel frame and rejects. A double that only recorded the abort would leave every abandoned
+  // read pending forever and hide exactly the case these tests exist for.
+  const request = (type, params, opts) => {
+    calls.push({ type, params, signal: opts?.signal ?? null })
+    return new Promise((resolve, reject) => {
+      pending.push({ resolve, reject })
+      opts?.signal?.addEventListener('abort', () => {
+        aborted.push(type)
+        const err = new Error('cancelled: ' + type)
+        err.code = 'ECANCELLED'
+        reject(err)
+      })
+    })
   }
   return {
-    request, calls,
+    request, calls, aborted,
     settle: (i, value) => pending[i].resolve(value),
     fail: (i, err) => pending[i].reject(err),
     count: () => calls.length,
@@ -334,4 +346,106 @@ test('REGRESSION (FIX-QUERY-STARVE): a sustained hint stream still refreshes the
   const refetches = tr.count() - before
   t.ok(refetches >= 4, `the view kept refreshing under a sustained stream (${refetches} refetches)`)
   unsub()
+})
+
+// The store already DISCARDED a response whose seq is stale — every one of these sites bumps seq
+// precisely to abandon a read. The worker was the only party that never learned.
+test('a read the store abandons is aborted, not just ignored', async (t) => {
+  const tr = setup(t)
+  fetchQuery('share:list-files', { shareId: 'a' }, ['shareFiles:sp:a']).catch(() => {})
+  t.ok(tr.calls[0].signal, 'the store hands the transport a signal')
+  invalidate('shareFiles:sp:a')
+  t.alike(tr.aborted, ['share:list-files'], 'invalidate aborts the read it discarded')
+})
+
+test('refetchQuery aborts the in-flight read it deliberately does not join', async (t) => {
+  const tr = setup(t)
+  fetchQuery('space:members', { spaceId: 'sp' }).catch(() => {})
+  refetchQuery('space:members', { spaceId: 'sp' }).catch(() => {})
+  t.alike(tr.aborted, ['space:members'], 'the pre-mutation read is stopped, not merely abandoned')
+  t.is(tr.count(), 2, 'and a fresh one was issued')
+})
+
+test('setQueryData aborts the read its pushed value supersedes', async (t) => {
+  const tr = setup(t)
+  fetchQuery('spaces:list').catch(() => {})
+  setQueryData('spaces:list', {}, [{ id: 'x' }])
+  t.alike(tr.aborted, ['spaces:list'])
+})
+
+test('invalidateKey aborts a dropped entry whether or not it has subscribers', async (t) => {
+  const tr = setup(t)
+  fetchQuery('space:members', { spaceId: 'gone' }).catch(() => {})
+  const key = keyOf('space:members', { spaceId: 'gone' })
+  const off = subscribeKey(key, () => {})
+  invalidateKey((k) => k === key)
+  t.alike(tr.aborted, ['space:members'], 'watched entry: abandoned and aborted')
+  off()
+
+  tr.aborted.length = 0
+  fetchQuery('space:members', { spaceId: 'orphan' }).catch(() => {})
+  invalidateKey((k) => k === keyOf('space:members', { spaceId: 'orphan' }))
+  t.alike(tr.aborted, ['space:members'], 'unwatched entry is deleted outright, and still aborted first')
+})
+
+test('a settled read leaves no controller behind for a later abandon to fire', async (t) => {
+  const tr = setup(t)
+  const p = fetchQuery('spaces:list')
+  tr.settle(0, [])
+  await p
+  invalidate('files:sp')
+  t.alike(tr.aborted, [], 'nothing to abort — the settle released the controller')
+})
+
+test('a second fetch does not strand the first controller', async (t) => {
+  // The release guard: a settling read must not clear a controller a NEWER read installed, or the
+  // newer one becomes uncancellable.
+  const tr = setup(t)
+  fetchQuery('spaces:list').catch(() => {})
+  refetchQuery('spaces:list').catch(() => {})   // abandons #0, installs #1
+  tr.settle(0, ['stale'])                        // the abandoned read answers late
+  await tick()
+  tr.aborted.length = 0
+  invalidate('files:sp')                         // no scope match, must not abort
+  refetchQuery('spaces:list').catch(() => {})    // this one must abort #1
+  t.alike(tr.aborted, ['spaces:list'], 'the live controller survived the late settle of the old read')
+})
+
+// Cancellation is an OPTIMISATION and must be invisible to callers: an abandoned read resolved with
+// the entry's value before the worker was ever told to stop, and it still does. Without the
+// ECANCELLED branch in fetchQuery, switching cancellation on would have turned every
+// invalidate-during-a-read into a rejection that five hooks and useQuery never used to see.
+test('an abandoned read still resolves with the entry value, and never poisons it', async (t) => {
+  const tr = setup(t)
+  const key = keyOf('spaces:list')
+  subscribeKey(key, () => {})
+  const first = fetchQuery('spaces:list')
+  tr.settle(0, [{ id: 'good' }])
+  await first
+
+  const abandoned = fetchQuery('spaces:list')
+  const second = refetchQuery('spaces:list')
+  t.alike(tr.aborted, ['spaces:list'], 'the abandoned read was aborted at the transport')
+  t.alike(await abandoned, [{ id: 'good' }], 'yet the caller sees the entry value, not a rejection')
+  t.is(peek(key).error, null, 'and the entry carries no error from a read it had already dropped')
+
+  tr.settle(tr.count() - 1, [{ id: 'fresh' }])
+  await second
+  t.alike(peek(key).data, [{ id: 'fresh' }], 'the replacement read lands normally')
+})
+
+// The narrowness of that branch: only OUR cancellation is swallowed. A worker that ignores the
+// signal and then fails for a real reason — the case the router deliberately supports, since
+// cancellation is advisory — must still surface that failure to whoever is holding the promise.
+test('a genuine failure on an abandoned read is still rethrown', async (t) => {
+  resetQueryStore()
+  const pending = []
+  // No abort wiring: this stands in for a handler that ignores the signal and fails on its own.
+  configureQueryStore({ request: () => new Promise((resolve, reject) => pending.push({ resolve, reject })) })
+  t.teardown(() => resetQueryStore())
+
+  const failing = fetchQuery('spaces:list')
+  refetchQuery('spaces:list').catch(() => {})
+  pending[0].reject(new Error('worker exploded'))
+  await t.exception(failing, /worker exploded/, 'not every error on a stale read is ours to swallow')
 })

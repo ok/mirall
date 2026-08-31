@@ -1,5 +1,6 @@
 import type { ScopePattern } from '../../shared/contract/scope.js'
 import type { RequestName } from '../../shared/contract/requests.js'
+import type { RequestOptions } from '../ipc.js'
 
 export interface QuerySnapshot<T> {
   data: T | undefined
@@ -8,7 +9,7 @@ export interface QuerySnapshot<T> {
 }
 
 export declare function configureQueryStore (opts: {
-  request: (type: RequestName, params?: Record<string, unknown>) => Promise<unknown>
+  request: (type: RequestName, params?: Record<string, unknown>, opts?: RequestOptions) => Promise<unknown>
 }): void
 export declare function keyOf (type: RequestName, params?: Record<string, unknown>): string
 export declare function fetchQuery<T> (type: RequestName, params?: Record<string, unknown>, scopes?: ScopePattern | ScopePattern[] | null, opts?: { coalesceMs?: number }): Promise<T>

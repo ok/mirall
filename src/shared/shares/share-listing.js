@@ -8,6 +8,7 @@
 import fs from 'bare-fs'
 import { createLogger } from '../core/logger.js'
 import { getListFilesCap } from '../core/runtime-config.js'
+import { throwIfAborted } from '../core/cancellation.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { consumerRowStatusFor, unhashedStatusFor } from '../transfer/transfer-status.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
@@ -109,7 +110,13 @@ async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, 
   return { verified, claims: await deps.listDownloadClaimsForShare(spaceId, share.name, { keep }) }
 }
 
-export async function listOverlayShareFiles(spaceId, share, backend, deps = productionDeps) {
+// `signal` is the router's cancellation token. The checkpoints sit at the await boundaries and
+// NOT inside the row loop: that loop is synchronous, so the event loop never turns during it and
+// `aborted` cannot change mid-pass — a per-row check would be dead code that reads like diligence.
+// The one that pays is the catalog read above it, which for a peer share is network-bound and
+// carries its own timeout.
+export async function listOverlayShareFiles(spaceId, share, backend, deps = productionDeps, { signal = null } = {}) {
+  throwIfAborted(signal)
   const isOwn = share.owner === deps.getLocalPublicKeyHex()
   // One bounded pass returns the first `cap` catalog entries AND the true {total, totalBytes}
   // for the whole share, so a huge folder never materialises a 150k-row array and the count is
@@ -119,12 +126,15 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   const { entries, total, totalBytes, complete = true } = isOwn
     ? await backend.listOwn(spaceId, share.id, cap)
     : await backend.listPeerWithMeta(spaceId, share, cap)
+  throwIfAborted(signal)
   const ownerOnline = isOwn ? true : deps.isOwnerOnline(share.owner)
   const ownedMount = isOwn ? await deps.getOwnedMount(spaceId, share.id) : null
   const foreignMount = isOwn ? null : await deps.getForeignMount(spaceId, share.id)
   const pending = isOwn ? null : new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
 
   const { verified, claims } = await prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, deps })
+  // The last point an abort can land: everything below is synchronous until the prune.
+  throwIfAborted(signal)
 
   const prune = []
   const out = []

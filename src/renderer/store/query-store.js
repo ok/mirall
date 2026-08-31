@@ -1,4 +1,5 @@
 import { scopeMatches } from '../../shared/contract/scope.js'
+import { CODES } from '../../shared/contract/errors.js'
 
 // One entry per [type, params]. The store owns FETCHING, DEDUP, CACHING and INVALIDATION — and
 // nothing else. The never-blank merge and the terminal-vs-transient error policy stay in the hooks:
@@ -42,6 +43,9 @@ function entryFor (key, scopes) {
       // hint is not the one that knows the request.
       type: null,
       params: null,
+      // Aborts the read this entry currently has in flight. The store already DISCARDS a response
+      // whose seq is stale; this is what stops the worker computing it.
+      controller: null,
       coalesceMs: 0,
       timer: null,
       pendingHint: false,
@@ -75,6 +79,15 @@ function publish (entry) {
   for (const notify of entry.subscribers) notify()
 }
 
+// Every site that bumps `seq` is saying "the answer in flight is no longer wanted". Until now the
+// only party that did not learn it was the worker doing the work.
+function abandon (entry) {
+  entry.seq += 1
+  entry.promise = null
+  entry.controller?.abort()
+  entry.controller = null
+}
+
 export function fetchQuery (type, params = {}, scopes = null, { coalesceMs } = {}) {
   const key = keyOf(type, params)
   const entry = entryFor(key, normalizeScopes(scopes))
@@ -86,8 +99,14 @@ export function fetchQuery (type, params = {}, scopes = null, { coalesceMs } = {
   if (entry.promise) return entry.promise
 
   const seq = ++entry.seq
-  const inFlight = send(type, params).then(
+  const controller = new AbortController()
+  entry.controller = controller
+  // Cleared only by the read that owns it: a later fetch has already installed its own controller,
+  // and clearing that one here would leave the newer read uncancellable.
+  const release = () => { if (entry.controller === controller) entry.controller = null }
+  const inFlight = send(type, params, { signal: controller.signal }).then(
     (data) => {
+      release()
       if (seq !== entry.seq) return entry.data
       entry.data = data
       entry.error = null
@@ -96,8 +115,14 @@ export function fetchQuery (type, params = {}, scopes = null, { coalesceMs } = {
       return data
     },
     (err) => {
-      // Rethrown, never interpreted: the caller decides whether this error is terminal. The entry
-      // keeps its last good data so a hook can choose to keep rendering it.
+      release()
+      // A read WE abandoned coming back cancelled is our own doing, not a failure the caller asked
+      // about — so it resolves with the entry's value, exactly as the success path's stale-seq
+      // branch does. Aborting the worker's work is an optimisation and must stay invisible: without
+      // this, turning cancellation on would convert every invalidate-during-a-read into a rejection
+      // callers never used to see. Any OTHER error, and any error on a read still current, is
+      // rethrown untouched — the caller decides whether it is terminal.
+      if (seq !== entry.seq && err?.code === CODES.ECANCELLED) return entry.data
       if (seq === entry.seq) {
         entry.error = err
         entry.promise = null
@@ -118,8 +143,7 @@ export function invalidate (hint) {
   const touched = []
   for (const [key, entry] of entries) {
     if (!entry.scopes.some((view) => scopeMatches(hint, view))) continue
-    entry.seq += 1
-    entry.promise = null
+    abandon(entry)
     touched.push(key)
     publish(entry)
     // An entry nobody is watching is left stale and refetches when a view next mounts. One that IS
@@ -182,8 +206,7 @@ export function storeStats () {
 export function setQueryData (type, params, data, scopes = null) {
   const key = keyOf(type, params)
   const entry = entryFor(key, normalizeScopes(scopes))
-  entry.seq += 1
-  entry.promise = null
+  abandon(entry)
   entry.data = data
   entry.error = null
   publish(entry)
@@ -197,10 +220,7 @@ export function setQueryData (type, params, data, scopes = null) {
 export function refetchQuery (type, params = {}, scopes = null) {
   const key = keyOf(type, params)
   const entry = entries.get(key)
-  if (entry) {
-    entry.seq += 1
-    entry.promise = null
-  }
+  if (entry) abandon(entry)
   return fetchQuery(type, params, scopes ?? entry?.scopes ?? null)
 }
 
@@ -217,9 +237,8 @@ export function invalidateKey (shouldDrop) {
     if (!shouldDrop(key)) continue
     dropped.push(key)
     if (entry.timer) { clearTimeout(entry.timer); entry.timer = null }
-    if (entry.subscribers.size === 0) { entries.delete(key); continue }
-    entry.seq += 1
-    entry.promise = null
+    if (entry.subscribers.size === 0) { entry.controller?.abort(); entries.delete(key); continue }
+    abandon(entry)
     entry.data = undefined
     entry.error = null
     publish(entry)
