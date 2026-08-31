@@ -52,8 +52,16 @@ test('REGRESSION (FIX-3 wiring): the worker installs the crash backstop at boot'
     'worker/main.js imports installCrashBackstop from crash-backstop.js'
   )
   t.ok(
-    /\binstallCrashBackstop\s*\(\s*log\s*\)/.test(workerMainSrc),
-    'worker/main.js calls installCrashBackstop(log) — without it an unhandled rejection aborts the worker'
+    /\binstallCrashBackstop\s*\(\s*log\b/.test(workerMainSrc),
+    'worker/main.js calls installCrashBackstop(log, …) — without it an unhandled rejection aborts the worker'
+  )
+  t.ok(
+    /isArmed:\s*\(\)\s*=>\s*bootComplete\s*&&\s*!shuttingDown/.test(workerMainSrc),
+    'escalation is armed only once boot finished and no shutdown is running'
+  )
+  t.ok(
+    /onUnstable:.*safeShutdown\('unstable',\s*WORKER_EXIT_UNSTABLE\)/.test(workerMainSrc),
+    'escalation goes through safeShutdown (bounded by its deadline) and carries the unstable exit code'
   )
 })
 
@@ -67,7 +75,7 @@ test('REGRESSION (FIX-3 wiring): the worker installs the crash backstop at boot'
 // invariant is literal: the backstop precedes the entry's FIRST await (the bootstrap frame), and
 // therefore boot(), which is where every core open now lives.
 test('REGRESSION (FIX: crash backstop is installed before the core-opening boot init)', (t) => {
-  const backstopAt = workerMainSrc.indexOf('installCrashBackstop(log)')
+  const backstopAt = workerMainSrc.indexOf('installCrashBackstop(log,')
   const firstAwaitAt = workerMainSrc.indexOf('await getBootstrapPromise()')
   const bootAt = workerMainSrc.indexOf('await boot(bootstrap')
   t.ok(backstopAt > 0 && firstAwaitAt > 0 && bootAt > 0, 'all boot markers present')
@@ -84,4 +92,108 @@ test('REGRESSION (FIX-1 wiring): the fire-and-forget handshake dispatch is .catc
     /handleHandshake\([^)]*\)\s*\.catch\s*\(/.test(swarmSrc),
     'dispatchFrame guards the async handleHandshake call with .catch — an un-awaited rejection would otherwise escape the synchronous try/catch around dispatchFrame'
   )
+})
+
+// The escalation half. installCrashBackstop keeps a worker alive through ISOLATED faults — that is
+// what the two tests at the top of this file prove and it must not change. What is added is a RATE:
+// a worker producing faults faster than the threshold is not recovering, and staying up leaves it
+// wedged silently forever with nothing reporting it.
+//
+// A fake clock rather than real time: the window is 60s in production and a test must not be.
+function fakeClock() {
+  let t = 1_000_000
+  return { now: () => t, advance: (ms) => { t += ms } }
+}
+
+const silentLog = { error() {}, warn() {}, info() {}, debug() {} }
+
+// Bare's own emit is the only way to drive the installed listeners, and a synthetic throw would
+// abort the test worklet. Calling the handler through Bare's emitter exercises the real wiring.
+function stormOf(n, emit) { for (let i = 0; i < n; i++) emit() }
+
+test('an isolated fault still keeps the worker alive and never escalates', (t) => {
+  const calls = []
+  const clock = fakeClock()
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 3, windowMs: 1000, now: clock.now, onUnstable: () => calls.push(1),
+  })
+  t.teardown(dispose)
+  Bare.emit('unhandledRejection', new Error('isolated'))
+  t.is(calls.length, 0, 'one fault below the threshold does not exit — the original guarantee')
+})
+
+test('REGRESSION (FIX-R09-1: a fault storm left the worker wedged instead of respawning)', (t) => {
+  const calls = []
+  const clock = fakeClock()
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 3, windowMs: 1000, now: clock.now, onUnstable: () => calls.push(1),
+  })
+  t.teardown(dispose)
+  stormOf(3, () => Bare.emit('unhandledRejection', new Error('storm')))
+  t.is(calls.length, 1, 'escalates once the threshold is reached inside the window')
+})
+
+// The test that justifies a RATE over a total: without the window, a healthy long-running session
+// accumulating isolated faults over hours would eventually exit for no reason.
+test('faults spread wider than the window never escalate', (t) => {
+  const calls = []
+  const clock = fakeClock()
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 3, windowMs: 1000, now: clock.now, onUnstable: () => calls.push(1),
+  })
+  t.teardown(dispose)
+  for (let i = 0; i < 10; i++) {
+    Bare.emit('unhandledRejection', new Error('slow drip'))
+    clock.advance(10 * 60 * 1000)
+  }
+  t.is(calls.length, 0, 'ten faults ten minutes apart are a healthy worker, not an unstable one')
+})
+
+test('escalation fires exactly once under a sustained storm', (t) => {
+  const calls = []
+  const clock = fakeClock()
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 3, windowMs: 1000, now: clock.now, onUnstable: () => calls.push(1),
+  })
+  t.teardown(dispose)
+  stormOf(50, () => Bare.emit('uncaughtException', new Error('storm')))
+  t.is(calls.length, 1, 'the latch holds — 50 faults produce one exit, not 48 racing ones')
+})
+
+// REGRESSION: the backstop is installed BEFORE boot precisely so a storm of background core opens
+// during startup cannot abort the worker. Escalating there would turn "slow to start" into "will
+// not start" — and a worker that dies before ready is what the renderer's give-up budget stops by
+// leaving the app permanently dead.
+test('REGRESSION (FIX-R09-1: a boot-time storm must not escalate while disarmed)', (t) => {
+  const calls = []
+  const clock = fakeClock()
+  let armed = false
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 3, windowMs: 60_000, now: clock.now, isArmed: () => armed, onUnstable: () => calls.push(1),
+  })
+  t.teardown(dispose)
+  stormOf(10, () => Bare.emit('unhandledRejection', new Error('boot storm')))
+  t.is(calls.length, 0, 'a storm during boot is logged and survived, exactly as before')
+
+  // Disarming must not SPEND the one escalation: a storm continuing past boot still has to exit.
+  armed = true
+  Bare.emit('unhandledRejection', new Error('still failing after boot'))
+  t.is(calls.length, 1, 'the latch was not burned while disarmed — the next fault escalates')
+})
+
+test('the fault window stays bounded under a sustained storm', (t) => {
+  const clock = fakeClock()
+  const dispose = installCrashBackstop(silentLog, {
+    threshold: 1e9, windowMs: 1000, now: clock.now, onUnstable: () => {},
+  })
+  t.teardown(dispose)
+  // Without the filter-on-every-record this is itself an unbounded-memory bug: the array would
+  // hold every fault for the life of the worker.
+  for (let i = 0; i < 5000; i++) {
+    Bare.emit('unhandledRejection', new Error('storm'))
+    clock.advance(10) // 5000 faults spanning 50s, of which only the last 1000ms may be retained
+  }
+  // 1000ms of window at one fault per 10ms is ~101 stamps. Asserting the COUNT, not merely that
+  // the process survived: an unpruned array reaches 5000 here and survives just as happily.
+  t.ok(dispose.faultsInWindow() <= 101, `the window holds one window's worth, not all 5000 (held ${dispose.faultsInWindow()})`)
 })

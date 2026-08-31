@@ -156,15 +156,15 @@ function onWorkerExit(code: number): void {
   buffer = '' // drop any half-frame left by the dead worker
   decoder = new TextDecoder('utf-8')
   failAllPending('Worker exited with code ' + code)
-  scheduleRespawn()
+  scheduleRespawn(code)
 }
 
 // Single gate governing every (re)spawn after the first boot. Honors the policy's backoff and
 // give-up so a crash-loop can't spin forever, and wakes parked request()s on each transition.
-function scheduleRespawn(): void {
+function scheduleRespawn(exitCode: number): void {
   if (shuttingDown) { armReady(); return } // app quitting — leave the worker down, wake waiters
   if (respawnScheduled || permanentlyDown) { armReady(); return }
-  const { respawn, delayMs } = respawnPolicy.onExit()
+  const { respawn, delayMs } = respawnPolicy.onExit(exitCode)
   if (!respawn) {
     permanentlyDown = true
     armReady() // wake parked requests so they throw fast instead of hanging
@@ -199,7 +199,7 @@ async function spawnWorker(): Promise<void> {
     // policy gate rather than latching workerStarted=true forever (which would wedge the app).
     console.error('worker spawn failed:', err)
     workerStarted = false
-    scheduleRespawn()
+    scheduleRespawn(0) // no worker ever ran, so this is not an unstable exit
     return
   }
   probeWorkerReady()
