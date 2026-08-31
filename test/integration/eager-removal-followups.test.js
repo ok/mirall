@@ -8,11 +8,7 @@ import { setupOwnedShare } from '../helpers/owned.js'
 import { createSpace, getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { reclaimLegacyPeerCaches } from '../../src/shared/storage/legacy-peer-cache.js'
-import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { publishShare, readOwnShares, generateShareId } from '../../src/shared/shares/shares.js'
 import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
-import { migrateLegacyOwnedSharesToOverlay } from '../../src/shared/shares/migrate-content-mode.js'
-import { getContentBackend, UNSUPPORTED } from '../../src/shared/transfer/content-backends.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { onFsEvent, periodicReconcile } from '../../src/shared/folders/owned-folders.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
@@ -25,32 +21,6 @@ import { initDownloads, addFile, removeFile } from '../../src/shared/transfer/fi
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initLooseOverlay, looseHasOwn, looseSources } from '../../src/shared/transfer/loose-overlay.js'
-
-// C1 — legacy owned folder shares (pre-overlay: contentMode undefined / 'eager') resolve to
-// UNSUPPORTED after this build, so the owner's folder lists empty and stops publishing. The
-// boot migration must re-stamp them to overlay.
-test('REGRESSION (C1): boot migration re-stamps a legacy owned share to overlay (idempotently)', async (t) => {
-  await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
-  t.teardown(() => setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false }))
-  const space = await createSpace('Legacy')
-
-  // A pre-overlay owned folder share: contentMode left undefined (eager was the default).
-  const legacy = { id: generateShareId(), type: 'owned-folder', name: 'Docs', owner: getLocalPublicKeyHex(), createdAt: Date.now() }
-  await publishShare(space.spaceId, legacy)
-  const before = (await readOwnShares(space.spaceId)).find((s) => s.id === legacy.id)
-  t.is(getContentBackend(before), UNSUPPORTED, 'legacy share is UNSUPPORTED before migration (would list empty)')
-
-  const { migrated } = await migrateLegacyOwnedSharesToOverlay()
-  t.is(migrated, 1, 'one legacy share migrated')
-
-  const after = (await readOwnShares(space.spaceId)).find((s) => s.id === legacy.id)
-  t.is(after.contentMode, 'overlay', 're-stamped to overlay')
-  t.ok(after.catalogKey, 'a catalog key was assigned')
-  t.not(getContentBackend(after), UNSUPPORTED, 'now resolves to the overlay backend (serves + publishes)')
-
-  t.is((await migrateLegacyOwnedSharesToOverlay()).migrated, 0, 'idempotent — a second pass migrates nothing')
-})
 
 // C2 — periodicReconcile dropped its { deep } arg, so the scheduled deep pass ran shallow and
 // re-hashed + re-advertised identical content whose mtime merely drifted (churn → mirror

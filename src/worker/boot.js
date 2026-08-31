@@ -45,7 +45,6 @@ import {
 import { ContentSwarm } from '../shared/transfer/content-swarm.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
-import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MountsBee, listForeignMounts } from '../shared/folders/mount-store.js'
@@ -304,13 +303,6 @@ export async function boot(bootstrap, {
 // The one-time content migrations, all of which must land BEFORE the initial publish scans
 // and before the overlay backend opens the index. Returns whether the overlay index moved.
 async function runContentMigrations(log) {
-  // One-time migration: move owned folder shares recorded with a retired contentMode
-  // (undefined / 'eager' / 'deferred') to overlay BEFORE the initial publish scans below, so
-  // such a share re-advertises into the catalog instead of resolving to UNSUPPORTED (empty
-  // listing, publishing stops).
-  try { await migrateLegacyOwnedSharesToOverlay() } catch (err) {
-    log.warn('legacy content-mode migration failed:', err.message)
-  }
   // One-time migration: encrypt existing plaintext v2 catalogs with the SCK (space content key —
   // holding it is what grants read access to a space) BEFORE the initial publish scans below, so
   // the re-advertise repopulates the new encrypted core and the old plaintext core is purged first.
