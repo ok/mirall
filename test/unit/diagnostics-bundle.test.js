@@ -175,3 +175,31 @@ test('the query filter and the mapper cannot drift apart', (t) => {
   }
   t.is(verdictHistoryFromAudit([{ kind: 'network.peer_lost', ts: 1, subject: {} }]).length, 0, 'and the peer family does not')
 })
+
+// buildDiagnostics names every key it carries and silently drops the rest. That is not a
+// hypothetical: requestFailures (#118) and requestMetrics (#120) each shipped as a no-op because
+// the producer was wired and the builder never named the key. These are the guards that were
+// missing both times.
+test('REGRESSION (FIX-R09-7): the health block survives the builder', (t) => {
+  const bundle = buildDiagnostics(makeCtx({ health: { loopLagMs: 42, loopLagMaxMs: 900, queueDepth: 3 } }), true)
+  t.alike(bundle.health, { loopLagMs: 42, loopLagMaxMs: 900, queueDepth: 3 })
+})
+
+test('REGRESSION (FIX-OBS-1/R09-7): the requests block survives the builder', (t) => {
+  const bundle = buildDiagnostics(makeCtx({
+    requestMetrics: { 'space:members': { calls: 11, failures: 1, inFlight: 0, avgMs: 7, maxMs: 30, slow: 0 } },
+    requestFailures: { 'space:members:NOT_FOUND': 1 },
+  }), true)
+  t.is(bundle.requests.metrics['space:members'].calls, 11)
+  t.is(bundle.requests.failures['space:members:NOT_FOUND'], 1)
+})
+
+test('an absent health block defaults rather than throwing', (t) => {
+  // The worker always supplies it, but a caller that predates the field must not crash the export.
+  t.alike(buildDiagnostics(makeCtx(), true).health, {})
+})
+
+test('the health block carries no identifying values, so redaction is a no-op for it', (t) => {
+  const health = { loopLagMs: 5, loopLagMaxMs: 5, queueDepth: 0 }
+  t.alike(buildDiagnostics(makeCtx({ health }), true).health, buildDiagnostics(makeCtx({ health }), false).health)
+})

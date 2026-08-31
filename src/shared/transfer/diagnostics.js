@@ -35,7 +35,7 @@ export function verdictHistoryFromAudit(entries = []) {
 // form, is the port 0, did it change, how many dials opened — is answerable without the
 // actual IP, the real keys, or space names.
 export function buildDiagnostics(ctx, redact = true) {
-  const { status, history, env, counters, peerSamples, requestFailures = {}, requestMetrics = {} } = ctx
+  const { status, history, env, counters, peerSamples, requestFailures = {}, requestMetrics = {}, health = {} } = ctx
   const topicAlias = makeAliaser('t')
   const samples = peerSamples.map((peer) => ({
     peer: redact ? shortId(peer.publicKey) : peer.publicKey,
@@ -98,6 +98,8 @@ export function buildDiagnostics(ctx, redact = true) {
     // neither is redacted. Carried explicitly because a key the builder does not name is dropped,
     // which is how the failure counters shipped dead.
     requests: { metrics: requestMetrics, failures: requestFailures },
+
+    health,
 
     spaces: {
       count: status.topics,

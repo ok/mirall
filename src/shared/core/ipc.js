@@ -266,10 +266,17 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   }
 
   ipcSingleton.bootstrapPromise = bootstrapPromise
+  ipcSingleton.queueDepth = () => queued.length
   return { handle, emit, respond, start }
 }
 
-const ipcSingleton = { bootstrapPromise: null }
+const ipcSingleton = { bootstrapPromise: null, queueDepth: null }
+
+// The pre-start queue is otherwise invisible: it is bounded now, and a caller that keeps hitting
+// that bound during a slow boot is exactly the condition worth surfacing.
+export function getQueueDepth() {
+  return ipcSingleton.queueDepth ? ipcSingleton.queueDepth() : 0
+}
 
 export function getBootstrapPromise() {
   if (!ipcSingleton.bootstrapPromise) {

@@ -13,7 +13,8 @@ import os from 'bare-os'
 import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics } from '../shared/core/ipc.js'
+import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth } from '../shared/core/ipc.js'
+import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import {
   setRuntimeConfig,
@@ -192,6 +193,11 @@ import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMo
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
 
+// Started next to ipc.start() rather than here: before the router goes live the loop is busy with
+// boot I/O by design, and sampling that would report a wedge that is really just a large library
+// being opened.
+const health = createHealthMonitor()
+
 // Main authorizes "reveal in folder" against these, and cannot read the space records
 // that hold the per-space overrides, so the set is pushed to it on every change.
 function publishDownloadRoots() {
@@ -231,6 +237,7 @@ async function safeShutdown(reason) {
   // reaps that case.)
   const deadline = setTimeout(() => { try { Bare.exit(0) } catch {} }, 4000)
   deadline.unref?.()
+  health.stop()
   // The whole stop sequence — the departure announce, the flush window, then every subsystem in
   // the reverse of its start order — lives in the composition root. `root` is null until boot()
   // returns, which is what lets the pipe-close hooks below fire at any point during startup.
@@ -1711,6 +1718,7 @@ ipc.handle('diagnostics:export', async (msg) => {
     counters: getDiagnosticCounters(),
     requestFailures: getRequestFailureCounters(),
     requestMetrics: getRequestMetrics(),
+    health: health.snapshot({ queueDepth: getQueueDepth() }),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
@@ -1754,6 +1762,7 @@ ipc.handle('audit:export', async (msg) => ({
 
 // === Go live: flush queued frames, announce ready ===
 
+health.start()
 ipc.start()
 
 ipc.emit('event:worker-ready')
