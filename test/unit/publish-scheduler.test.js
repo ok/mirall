@@ -477,3 +477,33 @@ test('pendingRelPaths lists queued and running paths for a share', async (t) => 
   t.alike(s.pendingRelPaths('B', 'sh'), [])
   await g.releaseAll()
 })
+
+// REGRESSION (FIX-INDEX-START): the scheduler reported progress only from run()'s finally, so while
+// a multi-GB hash held a slot nobody had been told the item started — every consumer of statusFor()
+// went on describing a queue that had already moved on, for as long as the hash took.
+test('REGRESSION (FIX-INDEX-START): an item that STARTS is reported, not only one that settles', async (t) => {
+  const g = gate()
+  const reports = []
+  const s = createPublishScheduler({
+    execute: g.execute,
+    concurrency: () => 1,
+    onProgress: (spaceId, shareId) => reports.push(s.statusFor(spaceId, shareId)),
+  })
+  s.beginShare('s1', 'sh1', 2)
+  s.enqueue({ spaceId: 's1', shareId: 'sh1', relPath: 'a.bin', op: OP.PUBLISH, size: 10, priority: PRIORITY.BULK })
+  s.enqueue({ spaceId: 's1', shareId: 'sh1', relPath: 'b.bin', op: OP.PUBLISH, size: 20, priority: PRIORITY.BULK })
+  await sleep(0)
+
+  const latest = () => reports[reports.length - 1]
+  t.is(g.started.length, 1, 'precondition: one item runs and holds the only slot, one waits')
+  t.ok(reports.length > 0, 'the lane reported without waiting for anything to settle')
+  t.is(latest().running, 1, 'the held item is reported as running')
+  t.is(latest().queued, 1, 'and the one that started nothing is reported as waiting')
+
+  await g.release('s1/a.bin')
+  t.is(latest().running, 1, 'the second item is now the running one')
+  await g.releaseAll()
+  await sleep(0)
+  t.is(reports[reports.length - 1].running, 0, 'a drained lane reports nothing running')
+  t.is(reports[reports.length - 1].queued, 0)
+})
