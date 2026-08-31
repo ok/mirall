@@ -101,9 +101,10 @@ export default async function s120 ({ runDir, bootstrap }) {
       // which self-heals the buggy code too. It is prevented by construction instead: liveness is
       // part of the hook's reset key, so the value is dropped, never merely hidden.
       //
-      // Ten more files, then quit while the lane is still full.
-      for (let i = 0; i < 10; i++) {
-        writeFileSync(path.join(ownDir, `wave2-0${i}.bin`), Buffer.alloc(256 * 1024 * 1024, 41 + i))
+      // A smaller second wave — six is already past the lane's three slots, which is all this step
+      // needs, and the suite pays for every byte twice (fixture plus what the owner publishes).
+      for (let i = 0; i < 6; i++) {
+        writeFileSync(path.join(ownDir, `wave2-0${i}.bin`), Buffer.alloc(128 * 1024 * 1024, 41 + i))
       }
       await catchWindow(B, (t) => /alice is adding \d+ files? to this folder/i.test(t),
         'the member sees the second wave before the owner leaves')
