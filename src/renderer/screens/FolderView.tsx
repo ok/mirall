@@ -286,21 +286,22 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
                 the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
                 only queued has no row yet, which is exactly the gap this closes. */}
+            {isYou && indexing.active && (
+              <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm">
+                <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
+                <span>
+                  {t('folder.indexingSummary', { count: indexing.files })}
+                  {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
+                </span>
+              </div>
+            )}
+            {/* The counts above change about twice a second for the length of the scan, so they are
+                deliberately NOT in a live region — ProgressBar makes the same call for the same
+                reason. This one carries a count-free sentence, so it is announced once when the
+                scan starts and once when it ends, while the numbers stay browsable as text. */}
             {isYou && (
-              <div
-                role="status"
-                aria-live="polite"
-                className={indexing.active ? 'flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm' : 'sr-only'}
-              >
-                {indexing.active ? (
-                  <>
-                    <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
-                    <span>
-                      {t('folder.indexingSummary', { count: indexing.files })}
-                      {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
-                    </span>
-                  </>
-                ) : null}
+              <div role="status" aria-live="polite" className="sr-only">
+                {indexing.active ? t('folder.indexingAnnounce') : ''}
               </div>
             )}
             {/* Always-present live region so the "first N of M" notice is ANNOUNCED when it

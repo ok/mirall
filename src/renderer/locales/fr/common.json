@@ -190,6 +190,7 @@
     "addingCount_other": "{{count}} en cours d’ajout",
     "indexingSummary_one": "Ajout de {{count}} fichier à ce dossier",
     "indexingSummary_other": "Ajout de {{count}} fichiers à ce dossier",
+    "indexingAnnounce": "Ajout de fichiers à ce dossier",
     "indexingQueuedSize": "{{size}} à lire",
     "subfolderCount_one": "contient {{count}} sous-dossier",
     "subfolderCount_other": "contient {{count}} sous-dossiers",

@@ -42,6 +42,11 @@ function createHeap(cmp) {
   }
 }
 
+// The per-share bytes and `adds` counters are PUBLISH work only: a retire carries the departing
+// file's size purely as a sort key and reads nothing, so summing those in made deleting a folder
+// report the same shape as adding one.
+const isAdd = (item) => item.op !== OP.RETIRE
+
 const sameFacts = (a, b) => a.op === b.op && a.size === b.size && a.mtime === b.mtime && a.deep === b.deep
 
 // `settled` and `exited` are read lazily off the run's shared deferreds (see work-item.js).
@@ -61,13 +66,13 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
 
   const bucket = (shareId) => {
     let b = perShare.get(shareId)
-    if (!b) perShare.set(shareId, (b = { queued: 0, running: 0, queuedBytes: 0 }))
+    if (!b) perShare.set(shareId, (b = { queued: 0, running: 0, queuedBytes: 0, adds: 0, runningAdds: 0 }))
     return b
   }
   const live = (entry) => byKey.get(entry.item.key) === entry.item && entry.item.state === STATE.QUEUED && entry.gen === entry.item.gen
   const push = (item) => heap.push({ item, gen: item.gen, priority: item.priority, op: item.op, size: item.size, seq: item.seq })
-  const admit = (item) => { queued += 1; queuedBytes += item.size; const b = bucket(item.shareId); b.queued += 1; b.queuedBytes += item.size }
-  const release = (item) => { queued -= 1; queuedBytes -= item.size; const b = bucket(item.shareId); b.queued -= 1; b.queuedBytes -= item.size }
+  const admit = (item) => { queued += 1; queuedBytes += item.size; const b = bucket(item.shareId); b.queued += 1; if (isAdd(item)) { b.adds += 1; b.queuedBytes += item.size } }
+  const release = (item) => { queued -= 1; queuedBytes -= item.size; const b = bucket(item.shareId); b.queued -= 1; if (isAdd(item)) { b.adds -= 1; b.queuedBytes -= item.size } }
 
   function enqueue(spec) {
     const key = itemKey(spec.shareId, spec.relPath)
@@ -119,7 +124,7 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       item.state = STATE.RUNNING
       release(item)
       running += 1
-      bucket(item.shareId).running += 1
+      const b = bucket(item.shareId); b.running += 1; if (isAdd(item)) b.runningAdds += 1
       return item
     }
   }
@@ -129,7 +134,9 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
   function settle(item, settlement) {
     if (item.state !== STATE.RUNNING) return item.state
     running -= 1
-    bucket(item.shareId).running -= 1
+    // isAdd is read before the requeue arm below reassigns item.op, or a publish superseded by a
+    // retire (a file deleted mid-hash) would decrement the wrong lane.
+    const b = bucket(item.shareId); b.running -= 1; if (isAdd(item)) b.runningAdds -= 1
     const run = item.run
     const exit = item.exit
     if (item.dirty) {
@@ -207,7 +214,9 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       const b = perShare.get(shareId)
       return b ? b.queued + b.running : 0
     },
+    // Publish-only, both of them: what the share still has to READ, and how many files that is.
     bytesForShare(shareId) { return perShare.get(shareId)?.queuedBytes ?? 0 },
+    addingForShare(shareId) { const b = perShare.get(shareId); return b ? b.adds + b.runningAdds : 0 },
     stats() { return { queued, running, queuedBytes } },
   }
 }

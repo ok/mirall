@@ -214,6 +214,7 @@
     "addingCount_other": "{{count}} adding",
     "indexingSummary_one": "Adding {{count}} file to this folder",
     "indexingSummary_other": "Adding {{count}} files to this folder",
+    "indexingAnnounce": "Adding files to this folder",
     "indexingQueuedSize": "{{size}} to read",
     "subfolderCount_one": "contains {{count}} subfolder",
     "subfolderCount_other": "contains {{count}} subfolders",

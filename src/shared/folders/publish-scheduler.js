@@ -124,6 +124,8 @@ function describeShare(queues, running, tallies, spaceId, shareId, order, concur
     failed: t?.failed ?? 0,
     totalOnDisk: t?.totalOnDisk ?? null,
     bytesQueued: q?.bytesForShare(shareId) ?? 0,
+    // Publish work only — `queued`/`running` above count retires too, and a delete is not an add.
+    adding: q?.addingForShare(shareId) ?? 0,
     order,
     concurrency,
   }
@@ -274,6 +276,10 @@ export function createPublishScheduler({
       tallies.cancel(key)
       releaseWaiters(key)
       if (!q || isIdle(q)) onSpaceIdle?.(spaceId)
+      // Emptying the queue is a shape change like any other, and the one nothing else covers: with
+      // no item of this share holding a slot there is no settle to follow, so without this the last
+      // report anyone saw is the pre-cancel depth.
+      onProgress?.(spaceId, shareId)
       return n
     },
     // One path's item, no pass semantics. `exited` resolves once its executor has returned (at
