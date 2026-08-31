@@ -48,7 +48,8 @@
     "test:layout:modaltitle": "node test/frontend-layout/run-modaltitle.mjs",
     "test:layout:logohover": "node test/frontend-layout/run-logohover.mjs",
     "test:layout:mirrorers": "node test/frontend-layout/run-mirrorers.mjs",
-    "test:layout:indexing": "node test/frontend-layout/run-indexing.mjs"
+    "test:layout:indexing": "node test/frontend-layout/run-indexing.mjs",
+    "test:layout:memo": "node test/frontend-layout/run-memo.mjs"
   },
   "devDependencies": {
     "@axe-core/react": "^4.13.0",

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember } from '../../types.js'
 import Icon from '../primitives/Icon.js'
@@ -7,7 +8,7 @@ interface MemberCardProps {
   member: SpaceMember
 }
 
-export default function MemberCard({ member }: MemberCardProps) {
+function MemberCard({ member }: MemberCardProps) {
   const { t } = useTranslation()
   const isOnline = member.online !== false
 
@@ -29,3 +30,8 @@ export default function MemberCard({ member }: MemberCardProps) {
     </div>
   )
 }
+
+// `member` is the only prop and it keeps its identity while the roster is unchanged (useMembers
+// memoizes the projection), so this row sits out the decoration heartbeat entirely. A presence
+// transition rebuilds every member object and re-renders the roster, which is correct.
+export default memo(MemberCard)
