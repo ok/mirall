@@ -133,7 +133,7 @@ import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { pathFromMount } from '../shared/transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
-import { getStorageInfo, cleanupOrphanedData, freeSpace } from '../shared/storage/storage.js'
+import { getStorageInfo, freeSpace } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
@@ -1539,7 +1539,6 @@ ipc.handle('feedback:send', async (msg) => {
 })
 
 ipc.handle('storage:info', async () => await getStorageInfo())
-ipc.handle('storage:cleanup', async () => await cleanupOrphanedData())
 
 ipc.handle('storage:leftover-scan', async () => await classifyLeftovers())
 

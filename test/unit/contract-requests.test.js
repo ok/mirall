@@ -64,6 +64,6 @@ test('every row is well formed', (t) => {
 // A ratchet, not a snapshot: deleting a dead handler is a behaviour change with its own commit, but
 // nothing may be ADDED to the unreferenced list without someone noticing.
 test('the unreferenced-handler list only shrinks', (t) => {
-  t.ok(UNREFERENCED_REQUESTS.length <= 2, 'no new unreferenced handler was introduced')
+  t.ok(UNREFERENCED_REQUESTS.length <= 1, 'no new unreferenced handler was introduced')
   for (const name of UNREFERENCED_REQUESTS) t.ok(REQUESTS[name], `${name} is still a real request`)
 })

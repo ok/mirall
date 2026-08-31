@@ -84,7 +84,6 @@ export type RequestName =
   | 'space:toggle-favorite'
   | 'space:update'
   | 'spaces:list'
-  | 'storage:cleanup'
   | 'storage:free-space'
   | 'storage:info'
   | 'storage:leftover-scan'
