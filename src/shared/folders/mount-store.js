@@ -54,6 +54,30 @@ export async function setOwnedMountStatus(spaceId, shareId, status, lastError = 
   return true
 }
 
+// Durable user intent: this folder's index is paused until an explicit resume. A FIELD, not a
+// status, because four writers overwrite status (a scan settle, the mount-gone path, mount,
+// relocate) and a pause recorded only there is lost at the next settle. Read-merge for the same
+// reason as below. No-op (false) when the record is gone.
+export async function setOwnedIndexPaused(spaceId, shareId, paused) {
+  const key = ownedKey(spaceId, shareId)
+  const entry = await bee.get(key)
+  if (!entry?.value) return false
+  if (!!entry.value.indexPaused === !!paused) return true
+  await bee.put(key, { ...entry.value, indexPaused: !!paused })
+  return true
+}
+
+// Patch an owned mount's bookkeeping through a fresh read-merge, for the same reason
+// patchForeignMount exists: a whole-object write-back would clobber whatever a concurrent scan
+// settle or probe persisted meanwhile. No-op (false) when the record is gone.
+export async function patchOwnedMount(spaceId, shareId, patch) {
+  const key = ownedKey(spaceId, shareId)
+  const entry = await bee.get(key)
+  if (!entry?.value) return false
+  await bee.put(key, { ...entry.value, ...patch })
+  return true
+}
+
 // Stamp lastScanCompletedAt via a fresh read-merge rather than writing back a whole mount
 // object captured before a minutes-long scan — that stale write-back would clobber a
 // status/mountPath a concurrent probe or relocate persisted mid-scan. No-op if unmounted.

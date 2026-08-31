@@ -46,6 +46,10 @@ function sched() {
 }
 
 const reconcileTimers = new Map()
+// Diff passes currently reading a mount. A pause or a stop must reach the pass itself, not just the
+// queue it is about to fill: cancelShare empties a queue, and the pass then hands enqueueMany
+// everything it walked — so on a large tree the index restarts the moment that read lands.
+const scanSignals = new Map()
 // Catch-up passes currently walking a mount, and the latch that stops new ones being armed. A
 // catch-up re-arms ITSELF while files are still settling, so clearing the timers is not enough:
 // without the latch a pass that resolves during teardown schedules another one on a closed store.
@@ -134,6 +138,10 @@ registerPublishChannel('folder', {
   async resolve(item) {
     const mount = await getOwnedMount(item.spaceId, item.shareId)
     if (!mount) return { skip: 'skipped-unmounted' }
+    // The watcher does not go through the diff: onFsEvent enqueues straight onto the scheduler on
+    // the INTERACTIVE lane, so a file edited during a pause would publish past the scan's own gate.
+    // Dropping it is the same recovery shape as skipped-root-gone — the resume scan re-derives it.
+    if (mount.indexPaused) return { skip: 'skipped-index-paused' }
     // A missing root is ambiguous (unplugged, offline) and never a delete. When a root vanishes
     // chokidar emits one unlink per file, and every one of them lands here.
     if (!mountRootAvailable(mount.mountPath)) return { skip: 'skipped-root-gone' }
@@ -279,9 +287,53 @@ function publishVerdict(prev, info, deep, deferFresh) {
   return 'publish'
 }
 
+// Which of the two abort routes ended a pass decides what the caller records: a pause settles the
+// durable status to 'paused', a stop records nothing at all and lets the cadence pick it back up.
+async function bailIfAborted(spaceId, shareId, signal) {
+  const mount = await getOwnedMount(spaceId, shareId)
+  if (mount?.indexPaused) return { skipped: 'index-paused', totalOnDisk: 0 }
+  if (signal.aborted) return { cancelled: true, totalOnDisk: 0 }
+  return null
+}
+
+// Reads both sides of the diff — the disk walk and the catalog — under an abort signal registered
+// for this share, so a pause or a stop can end the pass instead of being overwritten by it. The
+// signal reaches walk-disk per file; the re-check afterwards covers the rest of the window, because
+// the caller's enqueueMany is the point of no return and the catalog read is O(catalog).
+//
+// The signal cannot interrupt walk-disk's initial recursive readdir, only the stat loop that
+// follows it, so a very deep tree still pays that enumeration in full.
+async function readBothSides(spaceId, shareId, mountPath, ignore) {
+  const key = spaceId + ':' + shareId
+  const signal = { aborted: false }
+  scanSignals.set(key, signal)
+  try {
+    const walk = await walkDisk(mountPath, ignore, { signal })
+    // Commit the space batch first, or this read misses every hash materialized in the last flush
+    // window and re-enqueues those files.
+    await settleCatalog(spaceId)
+    const known = new Map()
+    for await (const entry of listOwnShare(spaceId, shareId)) known.set(entry.relPath, entry)
+    const bail = await bailIfAborted(spaceId, shareId, signal)
+    return bail ? { bail } : { walk, known }
+  } catch (err) {
+    // walk-disk raises PREVIEW_CANCELLED for any aborted walk, preview or not.
+    if (err?.code !== 'PREVIEW_CANCELLED') throw err
+    // The `??` is load-bearing: an aborted walk has no result to hand back, so a null bail here
+    // would fall through to the caller destructuring an undefined walk.
+    return { bail: (await bailIfAborted(spaceId, shareId, { aborted: true })) ?? { cancelled: true, totalOnDisk: 0 } }
+  } finally {
+    if (scanSignals.get(key) === signal) scanSignals.delete(key)
+  }
+}
+
 async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, deferFresh }) {
   const mount = await getOwnedMount(spaceId, shareId)
   if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount missing')
+  // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
+  // It is also what makes a pause survive a restart by construction — boot's resume pass, the
+  // reconcile timer and the watcher's catch-up all call in through here.
+  if (mount.indexPaused) return { skipped: 'index-paused', totalOnDisk: 0 }
   const share = await loadShareForMount(mount)
 
   // A missing root is ambiguous (transient vs. permanent) and guessing "deleted" would enqueue a
@@ -297,12 +349,9 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
     return { skipped: 'unsupported-content-mode', totalOnDisk: 0 }
   }
 
-  const { onDisk, unreadable } = await walkDisk(mountPath, ignore)
-  // Commit the space batch first, or this read misses every hash materialized in the last flush
-  // window and re-enqueues those files.
-  await settleCatalog(spaceId)
-  const known = new Map()
-  for await (const entry of listOwnShare(spaceId, shareId)) known.set(entry.relPath, entry)
+  const { walk, known, bail } = await readBothSides(spaceId, shareId, mountPath, ignore)
+  if (bail) return bail
+  const { onDisk, unreadable } = walk
 
   sched().beginShare(spaceId, shareId, onDisk.size)
   const specs = []
@@ -344,6 +393,9 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 export async function initialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   const r = await reconcileShare(spaceId, shareId, mountPath, ignore, opts)
   if (r.skipped) return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 }
+  // A diff aborted mid-walk enqueued nothing, so there is no drain to park on and no tally to
+  // collect — falling through would read the missing tally as a clean finish and record 'active'.
+  if (r.cancelled) return { cancelled: true, uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0, deferred: 0 }
   const t = await sched().whenDrained(spaceId, shareId)
   await settleCatalog(spaceId)
   return {
@@ -423,7 +475,16 @@ export function getIndexStatus(spaceId, shareId) {
   return sched().statusFor(spaceId, shareId)
 }
 
+// Stops a walk in progress. walk-disk honours the signal per file (it is how cancel-preview
+// works); the scan path simply never passed one.
+export function abortScan(spaceId, shareId) {
+  const signal = scanSignals.get(spaceId + ':' + shareId)
+  if (signal) signal.aborted = true
+  return !!signal
+}
+
 export function cancelIndex(spaceId, shareId) {
+  abortScan(spaceId, shareId)
   return sched().cancelShare(spaceId, shareId)
 }
 
@@ -458,6 +519,8 @@ export class OwnedFolders extends Subsystem {
     setPendingPublishProbe(null)
     for (const timer of reconcileTimers.values()) clearTimeout(timer)
     reconcileTimers.clear()
+    for (const signal of scanSignals.values()) signal.aborted = true
+    scanSignals.clear()
     // Bounded, like every other drain: the pass itself bails at its next file, and waiting for
     // that bail is what makes closing the cores it reads safe.
     if (catchupInFlight.size) {

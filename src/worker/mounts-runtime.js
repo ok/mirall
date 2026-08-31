@@ -11,8 +11,9 @@ import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listDownloadRoots } from '../shared/core/paths.js'
-import { setOwnedMountStatus, listOwnedMounts, listAllMounts, listForeignMounts, getForeignMount } from '../shared/folders/mount-store.js'
-import { periodicReconcile, stopOwnedFolder, mountRootAvailable } from '../shared/folders/owned-folders.js'
+import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
+import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone, mirrorHealth, restartForeignLoop } from '../shared/folders/foreign-folders.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
 
@@ -84,10 +85,19 @@ export class MountsRuntime extends Subsystem {
           continue
         }
         this.lastMountPointStatus.set('owned-folder:' + mount.shareId, true)
+        // The watcher starts even for a paused index: a paused INDEX is not a paused FOLDER. Edits
+        // made during the pause are seen, declined by the publish channel, and re-derived from disk
+        // by the resume scan — pausing must not silently lose changes.
         this.deps.ipc.emit('main-request', {
           command: 'owned-folder:start-watcher',
           args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
         })
+        // The scan would decline itself anyway, but an interval that can never do work reads as a
+        // bug later. Re-assert the status so a restart repaints the badge from the durable record.
+        if (mount.indexPaused) {
+          await this.setOwnedStatus(mount.spaceId, mount.shareId, 'paused')
+          continue
+        }
         this.settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
         this.schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
       }
@@ -229,6 +239,9 @@ export class MountsRuntime extends Subsystem {
       const result = await promise
       if (result?.cancelled) return result
       if (result?.skipped === 'mount-point-gone') await this.handleOwnedMountGone(spaceId, shareId)
+      // A paused index is a decision, not a fault: it carries no lastError and must not reach the
+      // paused-error branch below, which raises an error toast and an unhealthy badge.
+      else if (result?.skipped === 'index-paused') await this.setOwnedStatus(spaceId, shareId, 'paused')
       else if (result?.skipped) await this.setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
       else await this.setOwnedStatus(spaceId, shareId, 'active')
       return result
@@ -266,6 +279,64 @@ export class MountsRuntime extends Subsystem {
     }
   }
 
+  // Pause an owned folder's index: stop the burst, stop the cadence, record the intent durably.
+  // Unlike cancel-index (the Stop), nothing resumes this but an explicit resume — that is the whole
+  // difference between the two.
+  async pauseIndex(spaceId, shareId) {
+    const mount = await getOwnedMount(spaceId, shareId)
+    if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    // The flag first: an item enqueued between the cancel and the write must be declined by the
+    // publish channel rather than published.
+    await setOwnedIndexPaused(spaceId, shareId, true)
+    const cancelled = cancelIndex(spaceId, shareId)
+    this.cancelPeriodicReconcile(spaceId, shareId)
+    // A missing source folder outranks the pause as a status — but the event must fire either way:
+    // it is the only thing that tells the renderer to re-read the mount, so skipping it left the
+    // paused banner unrendered and the folder looking like it had simply finished.
+    const gone = !mountRootAvailable(mount.mountPath)
+    await this.setOwnedStatus(spaceId, shareId, gone ? 'mount-point-gone' : 'paused')
+    return { cancelled, paused: true, mountPointGone: gone }
+  }
+
+  // Stop: drop the queue and hand the folder back to the ordinary cadence. The counterpart to
+  // pauseIndex, which also disarms that cadence and records a durable intent.
+  async stopIndex(spaceId, shareId) {
+    const cancelled = cancelIndex(spaceId, shareId)
+    const mount = await getOwnedMount(spaceId, shareId)
+    // A Stop on an already-paused index must not un-pause it. Both controls are on screen together,
+    // so a Stop can land in the window before Pause's status event re-renders; writing 'active' and
+    // arming the cadence would leave a healthy badge over a gated index and an interval that can
+    // never do work — the state the boot resume goes out of its way to avoid.
+    if (mount && !mount.indexPaused) {
+      await this.setOwnedStatus(spaceId, shareId, 'active')
+      this.schedulePeriodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore)
+    }
+    return { cancelled }
+  }
+
+  // Everything that can fail happens BEFORE the flag is cleared, so a resume that cannot run leaves
+  // the pause intact rather than destroying the intent and silently doing nothing. Clearing it
+  // still precedes arming the scan, or that scan is declined by the gate resume has not yet lifted.
+  async resumeIndex(spaceId, shareId) {
+    const mount = await getOwnedMount(spaceId, shareId)
+    if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    if (!mountRootAvailable(mount.mountPath)) {
+      await this.handleOwnedMountGone(spaceId, shareId)
+      throw new AppError(ErrorCodes.NOT_FOUND, 'Source folder is missing — locate it before resuming')
+    }
+    await setOwnedIndexPaused(spaceId, shareId, false)
+    // A relocate that landed while this was paused recorded a debt: its deep pass never ran, and
+    // the fast diff would re-advertise every entry on the new tree's fresh mtimes.
+    const deep = !!mount.deepScanOwed
+    if (deep) await patchOwnedMount(spaceId, shareId, { deepScanOwed: false })
+    // Before the pass, not after: on a large folder the walk is minutes, and a badge still reading
+    // 'paused' makes the click look ignored.
+    await this.setOwnedStatus(spaceId, shareId, 'scanning')
+    this.settleScanStatus(periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore, { deep }), spaceId, shareId)
+    this.schedulePeriodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore)
+    return { resumed: true, deep }
+  }
+
   async probeMountPoints() {
     const fsMod = await import('bare-fs')
     const all = await listAllMounts()
@@ -290,6 +361,14 @@ export class MountsRuntime extends Subsystem {
             command: 'owned-folder:start-watcher',
             args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
           })
+          // A path coming back is not the user pressing Resume, so a paused index stays paused —
+          // without this, unplug + replug is a silent resume. The status is re-asserted because
+          // handleOwnedMountGone overwrote it when the path vanished.
+          const paused = (await getOwnedMount(mount.spaceId, mount.shareId))?.indexPaused
+          if (paused) {
+            await this.setOwnedStatus(mount.spaceId, mount.shareId, 'paused')
+            continue
+          }
           this.settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
           this.schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
         }
