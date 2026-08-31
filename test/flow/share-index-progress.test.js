@@ -36,9 +36,14 @@ test('owner broadcasts its scan queue; a member sees how much is still to be add
     }
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
 
+    const aKey = (await A.request('profile:get')).publicKey
     const ev = await gotQueue
     t.ok(ev.adding > 1, 'the member is told about work no catalog entry exists for yet')
     t.ok(typeof ev.bytesQueued === 'number' && ev.bytesQueued >= 0, 'with the bytes still to read')
+    // Authentication proves who is speaking, not what they may speak about. The sender is carried
+    // through so a consumer can require it to be the share's owner — without it any approved
+    // co-member could describe someone else's share, and the notice names an owner by display name.
+    t.is(ev.ownerKey, aKey, "the frame is attributed to the share's owner")
 
     await gotDrain
     t.pass('and is told when the queue is empty, so the notice cannot stick')

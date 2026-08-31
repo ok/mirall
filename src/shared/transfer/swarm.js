@@ -1739,6 +1739,10 @@ export function broadcastSharePrepareProgress(spaceId, payload) {
   }
 }
 
+// A share is admission-gated at 5k files and a folder that grows past it keeps publishing, so this
+// is a display bound, not a limit — it only stops a peer-supplied count from rendering as nonsense.
+const MAX_WIRE_COUNT = 1_000_000
+
 // Owner→members: how much of a share is still waiting to be indexed. Ephemeral like the per-file
 // frame above, and for the same reason — the queue is not durable state, so it is re-announced
 // rather than replicated. It carries what the catalog cannot: files that have no entry yet because
@@ -1763,9 +1767,16 @@ function handleShareIndexProgressFrame(socket, msg) {
   const { profileKey, spaceId, shareId, adding, bytesQueued } = msg
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string' || typeof shareId !== 'string') return
   if (!socketToPeers.get(socket)?.has(profileKey)) return
-  // Wire numbers are peer-controlled: a non-finite or negative count must never reach the renderer.
-  const safe = (n) => (Number.isFinite(n) && n > 0 ? n : 0)
-  ipcRef.emit('event:share-index-progress', { spaceId, shareId, adding: safe(adding), bytesQueued: safe(bytesQueued) })
+  // The sender is carried through as `ownerKey` so the consumer can require it to be the share's
+  // actual owner. Authentication proves only WHO is speaking: without this any approved co-member
+  // could describe someone else's share, and the notice names that someone by display name.
+  // Wire numbers are peer-controlled: whole counts only, bounded, so a bad frame cannot reach the
+  // renderer as a fractional or astronomically pluralized sentence.
+  const safeCount = (n) => (Number.isSafeInteger(n) && n > 0 ? Math.min(n, MAX_WIRE_COUNT) : 0)
+  const safeBytes = (n) => (Number.isFinite(n) && n > 0 ? Math.min(n, Number.MAX_SAFE_INTEGER) : 0)
+  ipcRef.emit('event:share-index-progress', {
+    spaceId, shareId, ownerKey: profileKey, adding: safeCount(adding), bytesQueued: safeBytes(bytesQueued),
+  })
 }
 
 // Receive a peer's heartbeat: refresh its lease, but only for an identity already

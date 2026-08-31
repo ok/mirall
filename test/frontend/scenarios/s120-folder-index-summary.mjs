@@ -82,9 +82,37 @@ export default async function s120 ({ runDir, bootstrap }) {
       }, 180000, "the owner's notice goes away when there is nothing left to add")
       await waitFor(async () => {
         const text = allText(await B.snap())
-        return !/alice is adding \d+ files? to this folder/i.test(text)
+        // Positively anchored on the folder screen B is meant to be looking at: a bare negative
+        // also passes on a crashed window or an empty AX tree, which is exactly the stuck-notice
+        // regression this step exists to catch.
+        return /owned by alice/i.test(text) && !/alice is adding \d+ files? to this folder/i.test(text)
       }, 180000, "the member's notice goes away too — a stuck one would outlive the scan")
       await B.shot('s120-B-settled', runDir)
+    })
+
+    await r.ok('an owner that quits mid-scan takes its notice with it', async () => {
+      // The summary is ephemeral: a departing owner sends no closing frame, so the member has to
+      // drop it on the owner's liveness rather than wait to be told.
+      //
+      // Not covered here, and not cheaply coverable: the RESURRECTION case, where the owner returns
+      // with an empty queue and the member re-paints a count from before the outage. Reproducing it
+      // needs the member to miss the closing frames while the owner drains — a network partition,
+      // not a quit, since an owner that restarts mid-scan simply re-enqueues and sends fresh ones,
+      // which self-heals the buggy code too. It is prevented by construction instead: liveness is
+      // part of the hook's reset key, so the value is dropped, never merely hidden.
+      //
+      // Ten more files, then quit while the lane is still full.
+      for (let i = 0; i < 10; i++) {
+        writeFileSync(path.join(ownDir, `wave2-0${i}.bin`), Buffer.alloc(256 * 1024 * 1024, 41 + i))
+      }
+      await catchWindow(B, (t) => /alice is adding \d+ files? to this folder/i.test(t),
+        'the member sees the second wave before the owner leaves')
+      await A.quit()
+      await waitFor(async () => {
+        const text = allText(await B.snap())
+        return /owned by alice/i.test(text) && !/alice is adding \d+ files? to this folder/i.test(text)
+      }, 120000, "the member's notice clears once its owner is gone")
+      await B.shot('s120-B-owner-gone', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A, B] }

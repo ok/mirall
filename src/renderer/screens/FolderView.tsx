@@ -96,8 +96,14 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
   // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
-  const indexingStatus = useIndexProgress(spaceId, share.id, isYou)
-  const indexing = deriveIndexSummary(isYou || owner?.online !== false ? indexingStatus : null)
+  // `live` is what stops a peer's count outliving its owner: they send no closing frame when they
+  // drop, so the hook drops the value rather than merely hiding it. It also guarantees `owner` is
+  // resolved before the notice can be active, so the sentence always has a name in it.
+  const indexing = deriveIndexSummary(useIndexProgress(spaceId, share.id, {
+    own: isYou,
+    ownerKey: share.owner,
+    live: isYou || (owner != null && owner.online !== false),
+  }))
   const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
 
   async function handleRevealFolder() {
@@ -294,7 +300,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 <span>
                   {isYou
                     ? t('folder.indexingSummary', { count: indexing.files })
-                    : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '' })}
+                    : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '?' })}
                   {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
                 </span>
               </div>
@@ -305,7 +311,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 scan starts and once when it ends, while the numbers stay browsable as text. */}
             <div role="status" aria-live="polite" className="sr-only">
               {indexing.active
-                ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '' }))
+                ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '?' }))
                 : ''}
             </div>
             {/* Always-present live region so the "first N of M" notice is ANNOUNCED when it
