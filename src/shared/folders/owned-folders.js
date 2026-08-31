@@ -33,6 +33,9 @@ let ipcRef = null
 // Injected by the worker: maps a scan outcome onto the mount's durable status and the live UI
 // event. Unset outside the worker (integration helpers).
 let settleScanRef = null
+// Injected by the worker: owner→member broadcast of this share's queue depth. Unset outside the
+// worker (integration helpers) and when the feature flag is off.
+let broadcastIndexRef = null
 
 // Set by OwnedFolders._open. The channel and the coalescer below are module-level (they arm
 // nothing at import), so they reach the running instance's scheduler through here.
@@ -83,7 +86,11 @@ const progress = makeKeyedCoalescer((spaceId, shareId) => {
   // Tolerant: the publish service drains its executors AFTER this subsystem closes, and each
   // settling item pokes progress on the way out.
   const status = scheduler?.statusFor(spaceId, shareId)
-  if (status) ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...status })
+  if (!status) return
+  ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...status })
+  // Members see the same queue we do. Only the two numbers a watcher can act on cross the wire —
+  // the rest (tallies, ordering, concurrency) is ours and says nothing about their view.
+  broadcastIndexRef?.(spaceId, { shareId, adding: status.adding, bytesQueued: status.bytesQueued })
 }, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
 
 registerPublishChannel('folder', {
@@ -116,9 +123,10 @@ registerPublishChannel('folder', {
   },
 })
 
-export function initOwnedFolders(_ipc, { settleScan = null } = {}) {
+export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = null } = {}) {
   ipcRef = _ipc
   settleScanRef = settleScan
+  broadcastIndexRef = broadcastIndex
   // The presence sweep must never reclaim a path whose publish is queued or running. Installed
   // here rather than by the service, which must not import the backend (import cycle).
   setPendingPublishProbe((spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false)
@@ -400,7 +408,10 @@ export class OwnedFolders extends Subsystem {
   async _open() {
     scheduler = this.deps.publishService.scheduler
     stopping = false
-    initOwnedFolders(this.deps.ipc, { settleScan: this.deps.settleScan ?? null })
+    initOwnedFolders(this.deps.ipc, {
+      settleScan: this.deps.settleScan ?? null,
+      broadcastIndex: this.deps.broadcastIndex ?? null,
+    })
   }
 
   async _close() {
