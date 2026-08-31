@@ -121,6 +121,48 @@ test('an unsafe relPath skips its row without aborting the listing', async (t) =
   t.is(res.total, 2, 'the count still reports what the catalog holds')
 })
 
+// The listing builds its own directory probe and hands the SAME one to every row, so the folder
+// question reaches the filesystem once per folder however many rows resolve into it. Observed
+// through verdictForClaim, which is where the probe is actually used.
+test('every row of one listing shares one directory probe', async (t) => {
+  const deps = countingDeps()
+  const received = new Set()
+  deps.verdictForClaim = (spaceId, drivePath, rec, hash, dirProbe) => {
+    received.add(dirProbe)
+    return { downloaded: false, prune: false, reason: 'volume-unavailable' }
+  }
+  await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(500)), deps)
+  t.is(received.size, 1, '500 rows, one probe — not one per row')
+  t.is(typeof [...received][0], 'function', 'and it is a real probe, not undefined')
+})
+
+test('the probe a listing hands out asks the filesystem once per folder', async (t) => {
+  const deps = countingDeps()
+  let probe = null
+  deps.verdictForClaim = (spaceId, drivePath, rec, hash, dirProbe) => {
+    probe = dirProbe
+    return { downloaded: false, prune: false, reason: 'volume-unavailable' }
+  }
+  await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(3)), deps)
+  const dir = path.join(os.tmpdir(), 'mirall-probe-' + Date.now().toString(36))
+  t.is(probe(dir), false, 'absent folder')
+  fs.mkdirSync(dir, { recursive: true })
+  t.teardown(() => { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} })
+  t.is(probe(dir), false, 'the pass keeps its answer even though the folder now exists')
+})
+
+test('each listing gets a fresh probe, so a remounted volume is seen on the next pass', async (t) => {
+  const deps = countingDeps()
+  const seen = []
+  deps.verdictForClaim = (spaceId, drivePath, rec, hash, dirProbe) => {
+    seen.push(dirProbe)
+    return { downloaded: false, prune: false, reason: 'volume-unavailable' }
+  }
+  await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(2)), deps)
+  await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(2)), deps)
+  t.is(new Set(seen).size, 2, 'two listings, two probes — never module state that outlives a pass')
+})
+
 // ---------------------------------------------------------------------------
 // Row parity across the whole decision space.
 //
