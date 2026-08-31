@@ -25,8 +25,17 @@ export function unhealthyOwnedStatus(m: (OwnedFolderMount & { mountPointMissing?
 // owned-folder:list-all (a live mountRootAvailable disk check plus the durable
 // mount.status) instead of latching msg.status — the same projection SpaceView gets
 // via useShares, but from a subscriber that is actually mounted while FolderView is open.
-export function useOwnedMount(spaceId: string, shareId: string) {
-  const [status, setStatus] = useState<string | null>(null)
+export interface OwnedMountState {
+  status: string | null
+  indexPaused: boolean
+  /** The scan is walking the disk. It fills no queue, so nothing else can report that phase. */
+  scanning: boolean
+}
+
+const NO_OWNED_MOUNT: OwnedMountState = { status: null, indexPaused: false, scanning: false }
+
+export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
+  const [state, setState] = useState<OwnedMountState>(NO_OWNED_MOUNT)
 
   useEffect(() => {
     if (!spaceId || !shareId) return
@@ -36,7 +45,14 @@ export function useOwnedMount(spaceId: string, shareId: string) {
         if (!alive) return
         const rows = mounts as (OwnedFolderMount & { mountPointMissing?: boolean })[]
         const m = rows.find((x) => x.spaceId === spaceId && x.shareId === shareId)
-        setStatus(unhealthyOwnedStatus(m))
+        // Both from one read: the badge projection AND the durable intent behind it. The status
+        // alone cannot carry the pause — a scan settle overwrites it, and 'mount-point-gone'
+        // legitimately outranks it while the source is missing.
+        setState({
+          status: unhealthyOwnedStatus(m),
+          indexPaused: !!m?.indexPaused,
+          scanning: m?.status === 'scanning',
+        })
       }).catch(() => {})
     }
     derive()
@@ -46,7 +62,7 @@ export function useOwnedMount(spaceId: string, shareId: string) {
     return () => { alive = false; unsub() }
   }, [spaceId, shareId])
 
-  return { status }
+  return state
 }
 
 export async function validateOwnedMount(mountPath: string, shareId?: string): Promise<MountValidationResult> {

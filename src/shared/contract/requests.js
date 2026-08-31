@@ -245,6 +245,4 @@ export const REQUEST_NAMES = Object.freeze(Object.keys(REQUESTS))
 
 // Handlers with no caller anywhere in src/ or test/. Recorded rather than deleted: removing one is
 // a behaviour change and belongs in its own commit. The test asserts this list only shrinks.
-export const UNREFERENCED_REQUESTS = Object.freeze([
-  'owned-folder:cancel-index',
-])
+export const UNREFERENCED_REQUESTS = Object.freeze([])
