@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // The owner must refresh its file view incrementally during the scan, not just
@@ -13,7 +13,7 @@ import { scaled } from '../helpers/timing.js'
 test('overlay owner refreshes incrementally during the scan, not only at the end',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true } })
     const aKey = (await A.request('profile:get')).publicKey
     const { spaceId } = await A.request('space:create', { name: 'Aurora' })
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })

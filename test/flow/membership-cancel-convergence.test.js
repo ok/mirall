@@ -8,7 +8,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flagsFor = (kek) => ({ identityKEK: kek, membershipApprovalEnabled: true })
+const flagsFor = (kek) => ({ identityKEK: kek })
 const showsB = (reqs, bKey) => Array.isArray(reqs) && reqs.some((r) => r.publicKey === bKey)
 
 // A withdrawing pending joiner must reach the member showing its request; that member writes a

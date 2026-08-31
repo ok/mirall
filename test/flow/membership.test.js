@@ -12,9 +12,7 @@ test('two peers converge on shared space membership after handshake', async (t) 
   const aKey = (await A.request('profile:get')).publicKey
   const bKey = (await B.request('profile:get')).publicKey
 
-  // `event:member-joined` (which connectInSpace awaits) fires before the member
-  // is persisted via updateMembers, so poll for the persisted membership rather
-  // than reading once. spaces:list injects self first, then persisted peers.
+  // Poll rather than reading once: spaces:list injects self first, then persisted peers.
   const hasMember = (key) => (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
     return !!(s && s.members.some((m) => m.publicKey === key))

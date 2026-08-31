@@ -26,5 +26,6 @@
   "looseFileLimit": "Puedes compartir hasta 100 archivos por espacio. Elimina algunos para añadir más.",
   "shareFileLimit": "Las carpetas compartidas están limitadas a 5000 archivos. Elige una carpeta más pequeña o divídela en varios recursos compartidos.",
   "downloadFolderOverlapsMount": "Esta carpeta se solapa con una carpeta que compartes o replicas. Las descargas allí se publicarían a tus pares: elige otra carpeta.",
-  "downloadFolderInvalid": "Mirall no puede usar esta carpeta. Puede que se haya movido o eliminado, o que Mirall no pueda escribir en ella."
+  "downloadFolderInvalid": "Mirall no puede usar esta carpeta. Puede que se haya movido o eliminado, o que Mirall no pueda escribir en ella.",
+  "spaceUnsupported": "Este espacio se creó con una versión mucho más antigua de Mirall y ya no se puede usar."
 }

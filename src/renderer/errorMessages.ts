@@ -42,6 +42,8 @@ const MOUNT_ERROR_I18N_KEY_BY_CODE: Record<string, string> = {
   // Thrown by the folder validator itself (missing, unwritable, not a directory), and thrown
   // FIRST — so leaving it unmapped shows an untranslated English literal to every user.
   DOWNLOAD_FOLDER_INVALID: 'downloadFolderInvalid',
+  // share:create refuses a pre-encryption space, and the add-folder modal reads this map.
+  SPACE_UNSUPPORTED: 'spaceUnsupported',
 }
 
 export function mountErrorI18nKey(code: string | null | undefined): string | null {

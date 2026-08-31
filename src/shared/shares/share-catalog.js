@@ -3,11 +3,12 @@
 // Owner side writes and (on leave) purges its own catalog; consumer side opens
 // peers' catalogs read-only by key, with bounded, fault-tolerant reads so an
 // offline owner or a corrupt core degrades a listing instead of hanging or
-// blanking it. v2 catalogs are encrypted with the SCK (space content key).
+// blanking it. Catalogs are encrypted with the SCK (space content key).
 import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
-import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias } from '../spaces/space.js'
+import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias, isLegacySpace } from '../spaces/space.js'
+import { AppError, ErrorCodes } from '../core/errors.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
 import { getRuntimeConfig, getPeerCatalogCacheLimit } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
@@ -50,30 +51,31 @@ function sharePrefixKey(shareId) {
   return FILE_PREFIX + shareId + '/'
 }
 
-// v2 (encrypted) catalog cores live under a distinct name so they get a fresh keyPair/key —
+// Encrypted catalog cores live under a distinct name so they get a fresh keyPair/key —
 // hypercore can't retro-encrypt an existing plaintext core, so encryption requires a new core.
 const ENC_SUFFIX = '-e1'
 
+// The pre-encryption core name. Read only by the catalog-encryption migration, which copies
+// and purges the superseded plaintext core of a space created before catalog encryption.
 function plaintextCatalogName(space, spaceId) {
   const suffix = space?.driveSuffix
   return suffix ? 'space-catalog-' + spaceId + '-' + suffix : 'space-catalog-' + spaceId
 }
 
 function catalogNameForSpace(space, spaceId) {
-  const base = plaintextCatalogName(space, spaceId)
-  return space?.schemaVersion === 2 ? base + ENC_SUFFIX : base
+  return plaintextCatalogName(space, spaceId) + ENC_SUFFIX
 }
 
 // Tolerant of a missing record by design: purgeOwnCatalog() resolves this name during
-// space-leave AFTER the space record is deleted. Publish/advertise callers must ensure
-// the record exists first (see space.js publishLooseCatalogKey) — never call this to
+// space-leave AFTER the space record is deleted — which is why the leave path passes the
+// record it already read rather than letting this re-read it. Publish/advertise callers must
+// ensure the record exists first (see space.js publishLooseCatalogKey) — never call this to
 // derive a name to WRITE into before the record is saved, or you fork a divergent core.
 export async function catalogNameFor(spaceId) {
   return catalogNameForSpace(await getSpace(spaceId), spaceId)
 }
 
-// The plaintext core name for a space that is now v2 — used only by the catalog-encryption
-// migration to read/purge the superseded pre-encryption core.
+// Used only by the catalog-encryption migration, to read/purge the superseded core.
 export async function legacyPlaintextCatalogName(spaceId) {
   return plaintextCatalogName(await getSpace(spaceId), spaceId)
 }
@@ -82,10 +84,15 @@ export async function ownCatalog(spaceId) {
   const cached = ownCatalogs.get(spaceId)
   if (cached) return cached
   const space = await getSpace(spaceId)
+  // A pre-encryption space can never obtain an SCK, so say that rather than report a missing key:
+  // callers surface a code the UI can explain instead of a raw Error out of the IPC handler.
+  if (isLegacySpace(space)) {
+    throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, 'This space was created by an older version of Mirall and can no longer be used')
+  }
   const sck = getSpaceContentKey(spaceId, space)
-  // A v2 space's catalog MUST be SCK-encrypted; an OWN catalog always has an SCK
-  // (created ⇒ derivable, joined+approved ⇒ vault), so a missing one is a fault, not plaintext.
-  if (space?.schemaVersion === 2 && !sck) throw new Error('ownCatalog: v2 space ' + spaceId + ' has no SCK')
+  // A catalog MUST be SCK-encrypted; an OWN catalog always has an SCK (created ⇒ derivable,
+  // joined+approved ⇒ vault), so a missing one is a fault, not plaintext.
+  if (!sck) throw new Error('ownCatalog: space ' + spaceId + ' has no SCK')
   const bee = createBee(catalogNameForSpace(space, spaceId), sck ? { encryptionKey: sck } : {})
   await bee.ready()
   ownCatalogs.set(spaceId, bee)
@@ -103,13 +110,10 @@ export async function ownCatalogKeyHex(spaceId) {
   return b4a.toString(bee.core.key, 'hex')
 }
 
-// The own catalog key + whether it is the SCK-encrypted (v2) core. Callers publish the key
-// into the matching field (…Enc for encrypted, the bare field for plaintext) so a reader
-// knows from the FIELD whether to apply the SCK — the cross-version dual-read signal.
+// The own catalog key. Published into the …Enc field so a reader knows from the FIELD to apply
+// the SCK; the bare field remains readable for records written before catalog encryption.
 export async function ownCatalogPublish(spaceId) {
-  const space = await getSpace(spaceId)
-  const keyHex = await ownCatalogKeyHex(spaceId)
-  return { keyHex, encrypted: space?.schemaVersion === 2 }
+  return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true }
 }
 
 export async function advertise(spaceId, shareId, relPath, { size, mtime, contentHash = null }) {
@@ -218,8 +222,9 @@ export function catalogKeyField(keyHex, encrypted, prefix = 'catalogKey') {
 }
 
 // Read the catalog key + whether it's encrypted from a share/member/job/pending record. The …Enc
-// field wins; a v1/plaintext key falls back. Recognises both the 'catalogKey' and 'looseCatalogKey'
-// field pairs so one reader serves shares, members, and persisted rows.
+// field wins; a plaintext key (written before catalog encryption, or by a peer that has not yet
+// migrated) falls back. Recognises both the 'catalogKey' and 'looseCatalogKey' field pairs so one
+// reader serves shares, members, and persisted rows.
 export function readCatalogKey(rec) {
   const enc = rec?.catalogKeyEnc || rec?.looseCatalogKeyEnc || null
   if (enc) return { keyHex: enc, encrypted: true }
@@ -433,6 +438,10 @@ export async function purgeOwnCatalog(spaceId, space = null) {
   const bee = ownCatalogs.get(spaceId) || createBee(name)
   dropCatalog(spaceId)
   await purgeCatalogCore(bee, name)
+  // A pre-encryption space's real catalog carries no "-e1", so the purge above resolved a core
+  // that never existed and the plaintext one — full file metadata, readable with no key — would
+  // survive the leave with its alias still claimed. Nothing else reclaims an own-catalog core.
+  if (isLegacySpace(rec)) await purgeLegacyPlaintextCatalog(rec, spaceId)
 }
 
 // Close a catalog bee and delete its core + alias. Shared by leave (purgeOwnCatalog) and the

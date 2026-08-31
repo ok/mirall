@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suffix.js'
 
@@ -29,7 +29,7 @@ async function waitForSize (file, want, ms = scaled(60000)) {
 test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resume completes it',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: OWNER_FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: OWNER_FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: MIRROR_FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey

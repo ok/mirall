@@ -4,7 +4,7 @@
 // pinning of the creator root the membership fold trusts.
 import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
-import { isMembershipApprovalEnabled, isInPlaceFilesEnabled } from '../core/runtime-config.js'
+import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
 import { ownCatalogPublish } from '../shares/share-catalog.js'
 import { listOwnedMounts, deleteOwnedMount, listForeignMounts, deleteForeignMount } from '../folders/mount-store.js'
@@ -34,10 +34,9 @@ async function publishLooseCatalogKey (spaceId, space) {
   } catch (err) { log.debug('loose-catalog key publish failed:', err.message) }
 }
 
-// Carried in the handshake so co-members in a v1 space (no member-view fold to hydrate it from
-// records) can open our loose catalog. Returns { keyHex, encrypted } — the same value
-// publishLooseCatalogKey writes to the profile bee — so the handshake lands it in the matching
-// member field (…Enc when the catalog is v2, i.e. encrypted with the space content key, SCK).
+// Carried in the handshake so a co-member can open our loose catalog before the member-view fold
+// hydrates it from records. Returns { keyHex, encrypted } — the same value publishLooseCatalogKey
+// writes to the profile bee.
 export async function ownLooseCatalogPublish (spaceId) {
   if (!isInPlaceFilesEnabled()) return null
   try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
@@ -124,12 +123,20 @@ export async function initSpaces() {
   await spacesBee.ready()
 }
 
-// Per-space content key (SCK), or null for v1/unencrypted spaces. A space I created
-// re-derives from M if the vault entry is ever lost; a space I joined has it only
-// from the grant stored in the vault.
+// Per-space content key (SCK). A space I created re-derives from M if the vault entry is ever
+// lost; a space I joined has it only from the grant stored in the vault.
 export function getSpaceContentKey(spaceId, space) {
-  if (!space || space.schemaVersion !== 2) return null
+  if (!space) return null
   return getContentKey(spaceId) || (space.sckDerivable ? deriveSpaceContentKey(spaceId) : null)
+}
+
+// A space created before v1.7.0, when every space became SCK-encrypted. There is no upgrade
+// path — v2 needs the CREATOR to mint an SCK and re-grant every member, a coordinated multi-peer
+// re-key rather than a local migration — so such a record is surfaced as unsupported instead of
+// half-working: catalog naming, own-catalog open and the admit gate all assume v2. This is the
+// only schemaVersion read left in the data layer.
+export function isLegacySpace(space) {
+  return !!space && space.schemaVersion !== 2
 }
 
 export async function createSpace(name, icon = 'folder') {
@@ -138,18 +145,18 @@ export async function createSpace(name, icon = 'folder') {
   const spaceId = topicHex.slice(0, 16)
   const driveSuffix = makeDriveSuffix()
 
-  const v2 = isMembershipApprovalEnabled() && hasMasterSecret()
-  let sck = null
-  if (v2) {
-    sck = deriveSpaceContentKey(spaceId)
-    await putContentKey(spaceId, sck)
-  }
+  // Every space is SCK-encrypted, so one cannot exist without the master secret its key derives
+  // from. Production always holds one — main.js refuses to start when secure storage is
+  // unavailable — so this is an invariant, not a user-facing outcome.
+  if (!hasMasterSecret()) throw new Error('createSpace: an identity is required to create a space')
+  const sck = deriveSpaceContentKey(spaceId)
+  await putContentKey(spaceId, sck)
 
   const drive = createDrive(makeDriveName(spaceId, driveSuffix), { encryptionKey: sck })
   await drive.ready()
   drives.set(spaceId, drive)
   // Publish our drive key so co-members (incl. ones who only derive us from records) can open it.
-  if (v2) await markSpaceDriveKey(spaceId, b4a.toString(drive.key, 'hex'))
+  await markSpaceDriveKey(spaceId, b4a.toString(drive.key, 'hex'))
 
   const space = {
     name,
@@ -158,10 +165,11 @@ export async function createSpace(name, icon = 'folder') {
     created: new Date().toISOString(),
     members: [],
     driveSuffix,
+    schemaVersion: 2,
+    sckDerivable: true,
     // creatorKey is the root of the membership OR-Set (conflict-free add/remove set)
-    // fold. I created this space, so I am its root — stamp myself. v2-only: v1 has
-    // no membership fold.
-    ...(v2 ? { schemaVersion: 2, sckDerivable: true, creatorKey: getLocalPublicKeyHex() } : {}),
+    // fold. I created this space, so I am its root — stamp myself.
+    creatorKey: getLocalPublicKeyHex(),
   }
   await spacesBee.put('space/' + spaceId, space)
   // AFTER the record exists, so ownCatalog resolves the canonical (suffixed) core —
@@ -171,7 +179,7 @@ export async function createSpace(name, icon = 'folder') {
   return { spaceId, ...space, driveKey: b4a.toString(drive.key, 'hex') }
 }
 
-export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { schemaVersion, inviteId, creator } = {}) {
+export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator } = {}) {
   const spaceId = topicHex.slice(0, 16)
 
   const existing = await spacesBee.get('space/' + spaceId)
@@ -196,49 +204,30 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     return { spaceId, ...existing.value }
   }
 
-  const driveSuffix = makeDriveSuffix()
+  if (!hasMasterSecret()) throw new Error('joinSpace: an identity is required to join a space')
 
-  // v2 join: stay pending and DON'T create the writable drive yet — it must be
-  // encrypted from block 0 once the granted SCK arrives (hypercore can't
-  // retro-encrypt). materializeOwnDrive creates it on grant.
-  if (schemaVersion === 2 && isMembershipApprovalEnabled() && hasMasterSecret()) {
-    const space = {
-      name,
-      icon,
-      topic: topicHex,
-      created: new Date().toISOString(),
-      members: [],
-      driveSuffix,
-      schemaVersion: 2,
-      status: 'pending',
-      ...(inviteId ? { inviteId } : {}),
-      // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
-      // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
-      // authoritatively pins/corrects it from the authenticated SCK-grant before this space
-      // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
-      // must seed from the creator, not whichever member's invite we joined through.
-      ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
-    }
-    await spacesBee.put('space/' + spaceId, space)
-    return { spaceId, ...space, driveKey: null, pending: true }
-  }
-
-  const drive = createDrive(makeDriveName(spaceId, driveSuffix))
-  await drive.ready()
-  drives.set(spaceId, drive)
-
+  // Stay pending and DON'T create the writable drive yet — it must be encrypted from block 0
+  // once the granted SCK arrives (hypercore can't retro-encrypt). materializeOwnDrive creates
+  // it on grant.
   const space = {
     name,
     icon,
     topic: topicHex,
     created: new Date().toISOString(),
     members: [],
-    driveSuffix,
+    driveSuffix: makeDriveSuffix(),
+    schemaVersion: 2,
+    status: 'pending',
+    ...(inviteId ? { inviteId } : {}),
+    // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
+    // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
+    // authoritatively pins/corrects it from the authenticated SCK-grant before this space
+    // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
+    // must seed from the creator, not whichever member's invite we joined through.
+    ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
   }
   await spacesBee.put('space/' + spaceId, space)
-  await publishLooseCatalogKey(spaceId, space)
-
-  return { spaceId, ...space, driveKey: b4a.toString(drive.key, 'hex') }
+  return { spaceId, ...space, driveKey: null, pending: true }
 }
 
 export async function listSpaces() {
@@ -500,25 +489,19 @@ async function clearAllLeftTombstones(spaceId) {
   }
 }
 
-// Release a drive's core sessions ahead of purging its on-disk state. In identity
-// mode the drive is built over the ROOT corestore (the `_db` Hyperdrive ctor path),
-// so drive.close() would close that root and kill every other session — the
-// "RocksDB session is closed" / "closing core" cascade that strands the leave before
-// it deletes the space record. Close just this drive's own cores instead; the root
-// stays open. Seed-mode drives (no master secret) own a namespaced corestore, so
-// closing them is safe and still drops the (namespace, 'db') alias resolution.
-async function releaseDriveForPurge(drive, blobs) {
-  if (hasMasterSecret()) {
-    try {
-      if (blobs) await blobs.core.close()
-      if (drive.db) await drive.db.close()
-    } catch (err) {
-      log.warn('drive core release during purge failed:', err.message)
-    }
-  } else {
-    try { await drive.close() } catch (err) {
-      log.warn('drive close during purge failed:', err.message)
-    }
+// Release a SPACE drive's own core sessions. A space cannot exist without the master secret
+// (createSpace/joinSpace refuse without one), so a space drive is always the explicit-keypair
+// shape: built over the ROOT corestore via the `_db` Hyperdrive ctor path. drive.close() would
+// therefore close that root and kill every other session — the "RocksDB session is closed" /
+// "closing core" cascade. Close just this drive's own cores instead; the root stays open and
+// whatever runs next still has a store. (createDrive's namespaced branch is still reachable for
+// drives that are not a space's — nothing here opens one.)
+async function releaseDriveCores(drive, blobs) {
+  try {
+    if (blobs) await blobs.core.close()
+    if (drive.db) await drive.db.close()
+  } catch (err) {
+    log.warn('drive core release failed:', err.message)
   }
 }
 
@@ -539,20 +522,18 @@ export async function purgeSpaceDrive(spaceId, onProgress, { compact = true } = 
     const metaDk = b4a.toString(drive.core.discoveryKey, 'hex')
     const blobs = await drive.getBlobs()
     const blobsDk = blobs ? b4a.toString(blobs.core.discoveryKey, 'hex') : null
-    const driveNamespace = drive.corestore?.ns ? b4a.from(drive.corestore.ns) : null
 
     // Clear the drive's blocks before the header delete so RocksDB accounts blob
     // garbage; purgeCoreDk alone strands blob-separated values (garbage stays 0).
     try { await drive.clearAll() } catch (err) { log.warn('drive clearAll before purge failed:', err.message) }
 
-    await releaseDriveForPurge(drive, blobs)
+    await releaseDriveCores(drive, blobs)
 
     emit('purgingLocalMeta')
+    // A space drive opens by keyPair, not name (see releaseDriveCores), so there is no
+    // (namespace, 'db') alias to purge — drive.corestore.ns is the root namespace, which
+    // purgeAlias must not touch.
     await purgeCoreDk(cs, db, metaDk)
-    // Explicit-keypair drives (identity mode) open by keyPair, not name, so there
-    // is no (namespace, 'db') alias to purge — and drive.corestore.ns is the root
-    // namespace, which purgeAlias must not touch. Core data is still freed above.
-    if (driveNamespace && !hasMasterSecret()) await purgeAlias(cs, driveNamespace, 'db')
     emit('purgingLocalBlobs')
     if (blobsDk) await purgeCoreDk(cs, db, blobsDk)
 
@@ -671,7 +652,7 @@ export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
     // Idempotent backfills, re-run every boot. Not part of loading the drive: a profile or
     // catalog write that fails must not cost the space its record.
     try {
-      if (space.schemaVersion === 2) await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
+      await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
       await publishLooseCatalogKey(space.spaceId, space)
     } catch (err) {
       log.warn('post-load backfill failed for', space.spaceId, '-', err.message)
@@ -820,18 +801,18 @@ export function clearCreatorDivergence(spaceId) {
   return mutateSpace(spaceId, (s) => (s.creatorDivergence ? { ...s, creatorDivergence: false } : s))
 }
 
-// A v2 space we JOINED whose creatorKey is only TOFU-pinned (trust-on-first-use — it came
+// A space we JOINED whose creatorKey is only TOFU-pinned (trust-on-first-use — it came
 // from a bearer invite, not an authenticated assertion) is marked unverified, arming the
 // handshake divergence cross-check and letting the UI flag an unverified owner. It does NOT
 // self-heal through onGrant — an approved space never re-enters the grant flow — so the
 // authenticated re-confirmation comes from the handshake `creator` assertion. Self-created
-// (sckDerivable) and v1 spaces are untouched. One-shot per space (creatorMigrated stamp):
+// (sckDerivable) spaces are untouched. One-shot per space (creatorMigrated stamp):
 // re-flagging on every boot would downgrade an authenticated pin back to provisional,
 // re-opening the adopt path to a divergent root after any restart. Returns the count flagged.
 export async function flagUnverifiedJoinedCreators() {
   let flagged = 0
   for (const space of await listSpaces()) {
-    if (space.schemaVersion !== 2 || space.sckDerivable) continue
+    if (space.sckDerivable) continue
     if (space.creatorMigrated) continue
     if (!space.creatorKey || space.creatorUnverified) {
       // Nothing to flag, but stamp it so a later authenticated pin is never re-armed either.
@@ -864,9 +845,16 @@ export class SpacesBee extends Subsystem {
 export class SpaceDrives extends Subsystem {
   async _open() { this.load = await loadDrives() }
 
+  // Releases each drive's own cores rather than closing the drive: the root corestore must
+  // survive, because the tiers that close after this one still read and write through it — the
+  // serve ledger's flush resolves each space to record its audit row, and the store's own close
+  // is what finally releases the lock.
   async _close() {
     const open = [...drives.values()]
     drives.clear()
-    await Promise.allSettled(open.map((drive) => drive.close()))
+    await Promise.allSettled(open.map(async (drive) => {
+      const blobs = await drive.getBlobs().catch(() => null)
+      await releaseDriveCores(drive, blobs)
+    }))
   }
 }

@@ -25,7 +25,7 @@ import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {
   SpacesBee, SpaceDrives, listSpaces, getSpace,
-  resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators,
+  resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators, isLegacySpace,
   persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/space.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
@@ -45,7 +45,6 @@ import {
 import { ContentSwarm } from '../shared/transfer/content-swarm.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
-import { migrateLegacyOwnedSharesToOverlay } from '../shared/shares/migrate-content-mode.js'
 import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MountsBee, listForeignMounts } from '../shared/folders/mount-store.js'
@@ -304,13 +303,6 @@ export async function boot(bootstrap, {
 // The one-time content migrations, all of which must land BEFORE the initial publish scans
 // and before the overlay backend opens the index. Returns whether the overlay index moved.
 async function runContentMigrations(log) {
-  // One-time migration: move owned folder shares recorded with a retired contentMode
-  // (undefined / 'eager' / 'deferred') to overlay BEFORE the initial publish scans below, so
-  // such a share re-advertises into the catalog instead of resolving to UNSUPPORTED (empty
-  // listing, publishing stops).
-  try { await migrateLegacyOwnedSharesToOverlay() } catch (err) {
-    log.warn('legacy content-mode migration failed:', err.message)
-  }
   // One-time migration: encrypt existing plaintext v2 catalogs with the SCK (space content key —
   // holding it is what grants read access to a space) BEFORE the initial publish scans below, so
   // the re-advertise repopulates the new encrypted core and the old plaintext core is purged first.
@@ -381,6 +373,11 @@ async function backfillMembership(activeSpaces, log) {
   try { await flagUnverifiedJoinedCreators() } catch (err) {
     log.warn('creatorKey migration failed:', err.message)
   }
+  // Pre-v1.7.0 records cannot be upgraded and the data layer now assumes an encrypted space
+  // throughout, so name them here rather than let one fail obscurely later. The renderer shows
+  // the same spaces as unsupported.
+  const legacy = activeSpaces.filter(isLegacySpace)
+  if (legacy.length) log.warn('unsupported pre-encryption space(s):', legacy.map((s) => s.spaceId).join(', '))
 }
 
 

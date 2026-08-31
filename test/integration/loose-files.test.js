@@ -120,11 +120,12 @@ test('same file shared in two spaces tracks both (multi-space reverse map)', asy
 // bug published a suffix-less key (getSpace null before the record was saved); the
 // in-memory catalog cache masked it in-session, so the test drops the cache (a
 // restart) and asserts the published key still resolves to the catalog the owner
-// advertises into.
+// advertises into. Every catalog is SCK-encrypted, so the key lands in loosecatEnc/.
 test('createSpace publishes the canonical (suffixed) loose-catalog key', async (t) => {
   const ctx = await setup(t) // setup() creates the space with the in-place flag ON
-  const published = (await getProfileBee().get('loosecat/' + ctx.spaceId))?.value
+  const published = (await getProfileBee().get('loosecatEnc/' + ctx.spaceId))?.value
   t.ok(published, 'a loose-catalog key was published at createSpace')
+  t.absent((await getProfileBee().get('loosecat/' + ctx.spaceId))?.value, 'and not into the plaintext field')
 
   dropCatalog(ctx.spaceId) // clear the ownCatalogs cache → re-derive from the saved record (simulates a restart)
   const canonical = await ownCatalogKeyHex(ctx.spaceId)

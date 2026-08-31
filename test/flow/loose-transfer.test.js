@@ -11,7 +11,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // Production model: identity-at-rest + membership approval. Loose peer visibility
 // rides the approval handout; overlay/in-place ship on.
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 function writeTmpFile (bytes) {
   const p = path.join(os.tmpdir(), `mirall-src-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.bin`)

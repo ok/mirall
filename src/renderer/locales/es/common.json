@@ -113,7 +113,8 @@
     "waitingDocsTitle": "¿Por qué estoy esperando?",
     "waitingDocsBody": "Una invitación lleva la dirección del espacio, nunca su clave. Esa la entrega alguien que ya está dentro, así que un miembro tiene que estar en línea y accesible antes de que puedan dejarte entrar. La aprobación automática elimina la decisión, no la entrega.",
     "encryptedBadge": "Cifrado",
-    "unencryptedBadge": "Sin cifrar"
+    "legacyBadge": "No compatible",
+    "legacyWarning": "Este espacio se creó con una versión mucho más antigua de Mirall y ya no se puede usar. Crea un espacio nuevo y comparte tus carpetas en ese."
   },
   "scanPreview": {
     "computing": "Calculando vista previa…",

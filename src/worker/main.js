@@ -64,6 +64,7 @@ import {
   markCreatorDivergence,
   clearCreatorDivergence,
   clearPendingLeave,
+  isLegacySpace,
 } from '../shared/spaces/space.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
 import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
@@ -371,7 +372,7 @@ async function handleMembershipControl(msg, ctx) {
 async function onJoinRequest(msg) {
   const spaceId = (msg.spaceTopic || '').slice(0, 16)
   const space = spaceId ? await getSpace(spaceId) : null
-  if (!space || space.schemaVersion !== 2) return
+  if (!space) return
   // We are still pending ourselves: we hold no content key, so we can neither grant
   // nor meaningfully approve — ignore other peers' requests entirely.
   if (space.status === 'pending') return
@@ -689,6 +690,9 @@ ipc.handle('share:list', async (msg) => {
   return await listSharesForSpace(msg.spaceId)
 })
 
+// Shown for every action refused on a pre-encryption space, so the three call sites cannot drift.
+const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mirall and can no longer be used'
+
 ipc.handle('share:create', async (msg) => {
   const space = await getSpace(msg.spaceId)
   if (!space) throw new AppError(ErrorCodes.NOT_FOUND, 'Space not found')
@@ -712,10 +716,13 @@ ipc.handle('share:create', async (msg) => {
   // second copy), advertising into a replicated catalog peers list/fetch from.
   // Stamped at creation (replicates). A build without overlay can't create shares.
   if (!isOverlayEnabled()) throw new AppError(ErrorCodes.OVERLAY_REQUIRED, 'Folder sharing requires the overlay backend')
-  // A v2 space's catalog is SCK-encrypted; without the SCK (a pending, not-yet-approved
-  // member) we can't open our own catalog to advertise into. Refuse cleanly rather than let
-  // ownCatalog throw a raw Error out of the IPC handler.
-  if (space.schemaVersion === 2 && !getSpaceContentKey(msg.spaceId, space)) {
+  // Before the SCK check below, which would otherwise report a pre-encryption space as one we are
+  // merely un-approved for.
+  if (isLegacySpace(space)) throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
+  // A space's catalog is SCK-encrypted; without the SCK (a pending, not-yet-approved member)
+  // we can't open our own catalog to advertise into. Refuse cleanly rather than let ownCatalog
+  // throw a raw Error out of the IPC handler.
+  if (!getSpaceContentKey(msg.spaceId, space)) {
     throw new AppError(ErrorCodes.EOWNERSHIP, 'Cannot share into a space you have not been approved for yet')
   }
   share.contentMode = 'overlay'
@@ -753,9 +760,12 @@ async function loadShareDescriptor(spaceId, ownerKey, shareId) {
 
 ipc.handle('share:list-files', async (msg, ctx) => {
   const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
-  // Overlay is the only content backend; an unsupported mode renders as unavailable.
+  // Overlay is the only content backend; an unsupported mode renders as unavailable. A
+  // pre-encryption space lists empty for the same reason — its catalog cannot be opened, and the
+  // renderer already explains why (space.legacyWarning) rather than surfacing a failed read.
   const backend = getContentBackend(share)
   if (backend === UNSUPPORTED) return { entries: [], complete: true, total: 0, totalBytes: 0 }
+  if (isLegacySpace(await getSpace(msg.spaceId))) return { entries: [], complete: true, total: 0, totalBytes: 0 }
   // The first handler to honour a cancellation, and the one the renderer's query store actually
   // cancels: a folder listing whose view has been superseded or navigated away from.
   return await listOverlayShareFiles(msg.spaceId, share, backend, undefined, { signal: ctx?.signal ?? null })
@@ -1265,7 +1275,7 @@ ipc.handle('space:join', async (msg) => {
   }
   const rejoinSpaceId = decoded.topic.slice(0, 16)
   log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
-  const space = await joinSpace(decoded.topic, name, msg.icon, { schemaVersion: decoded.schemaVersion, inviteId: decoded.inviteId, creator: decoded.creator })
+  const space = await joinSpace(decoded.topic, name, msg.icon, { inviteId: decoded.inviteId, creator: decoded.creator })
   await markOwnMembership(space.spaceId, { refresh: true })
   // A genuine rejoin supersedes any pending outbound leave: the fresh member/<S> record (strictly
   // newer ts) outranks the old tombstone on co-members, so retire the marker + its replay topic.
@@ -1312,15 +1322,19 @@ ipc.handle('space:invite', async (msg) => {
     err.code = 'NOT_A_MEMBER'
     throw err
   }
+  // We hold no SCK for a pre-encryption space, so nobody redeeming this link could ever be
+  // approved — the joiner would mint a v2 pending record (legacy on OUR side, not theirs) and
+  // wait forever with no way to learn why.
+  if (isLegacySpace(space)) throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
   // Embed our identity so the joiner can show us as an offline member before we
   // first connect. Display name is a snapshot at invite time; the handshake later
   // corrects it if we've since renamed.
   const profile = await getProfile()
-  // Mint a replicated per-link record (v2 only) when the caller asks for auto-approve OR an expiry —
-  // the new UI always sends an expiry. A bare programmatic call (no opts) stays record-less = a
+  // Mint a replicated per-link record when the caller asks for auto-approve OR an expiry — the
+  // new UI always sends an expiry. A bare programmatic call (no opts) stays record-less = a
   // plain manual, never-expiring invite.
   let inviteId, expiresAt
-  if (space.schemaVersion === 2 && (msg.autoAdmit || Number.isInteger(msg.expiresInMs))) {
+  if (msg.autoAdmit || Number.isInteger(msg.expiresInMs)) {
     inviteId = b4a.toString(crypto.randomBytes(16), 'hex')
     expiresAt = Number.isInteger(msg.expiresInMs) ? Date.now() + msg.expiresInMs : null
     await markInvite(space.spaceId, inviteId, { autoApprove: !!msg.autoAdmit, expiresAt })
@@ -1341,7 +1355,7 @@ ipc.handle('space:invite', async (msg) => {
     // from `owner` above, which is us (the inviter). Absent on pre-creatorKey joined
     // spaces; the fold's transition fallback covers those.
     creator: space.creatorKey,
-    schemaVersion: space.schemaVersion,
+    schemaVersion: 2,
     autoAdmit: !!(inviteId && msg.autoAdmit),
     inviteId,
     expiresAt,
@@ -1352,7 +1366,7 @@ ipc.handle('space:approve-member', async (msg) => {
   // The real gate: approval IS handing out the content key, so a peer who holds no key
   // (pending, or otherwise unauthorized) physically cannot approve anyone — enforced by
   // the sck check inside resolveJoinRequest.
-  if (!space || space.schemaVersion !== 2 || space.status === 'pending') return false
+  if (!space || space.status === 'pending') return false
   const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
   if (approved) {
     record('membership.approved', {

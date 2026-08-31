@@ -22,11 +22,11 @@ test('REGRESSION (FIX-C2: a joiner denied while offline gets the deny on reconne
     const bKek = kekHex()
     const A = await launchPeer(t, {
       bootstrap, displayName: 'Alice', storage: path.join(mkTmpDir(t), 'app-storage'), downloads: mkTmpDir(t),
-      flags: { identityKEK: kekHex(), membershipApprovalEnabled: true },
+      flags: { identityKEK: kekHex() },
     })
     let B = await launchPeer(t, {
       bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
-      flags: { identityKEK: bKek, membershipApprovalEnabled: true },
+      flags: { identityKEK: bKek },
     })
 
     const space = await A.request('space:create', { name: 'Gated' })
@@ -48,7 +48,7 @@ test('REGRESSION (FIX-C2: a joiner denied while offline gets the deny on reconne
 
     B = await launchPeer(t, {
       bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
-      flags: { identityKEK: bKek, membershipApprovalEnabled: true },
+      flags: { identityKEK: bKek },
     })
     await B.waitFor('event:membership-denied', (m) => m.spaceId === sid, 120000)
     t.pass('the reconnect knock earned the re-sent deny')
@@ -76,11 +76,11 @@ test('REGRESSION (FIX-C2: a fresh review invite re-opens the door after a denial
     const bKek = kekHex()
     const A = await launchPeer(t, {
       bootstrap, displayName: 'Alice', storage: path.join(mkTmpDir(t), 'app-storage'), downloads: mkTmpDir(t),
-      flags: { identityKEK: kekHex(), membershipApprovalEnabled: true },
+      flags: { identityKEK: kekHex() },
     })
     const B = await launchPeer(t, {
       bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
-      flags: { identityKEK: bKek, membershipApprovalEnabled: true },
+      flags: { identityKEK: bKek },
     })
 
     const space = await A.request('space:create', { name: 'Reopen' })

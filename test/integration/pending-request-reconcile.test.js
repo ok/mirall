@@ -25,7 +25,7 @@ async function boot (t, label) {
     try { await getStore().close() } catch {}
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
   })
-  setRuntimeConfig({ storage, membershipApprovalEnabled: true, peerReadTimeoutMs: 3000 })
+  setRuntimeConfig({ storage, peerReadTimeoutMs: 3000 })
   initStore(storage)
   setMasterSecret(b4a.from('44'.repeat(32), 'hex'))
   await initSpaceKeys()

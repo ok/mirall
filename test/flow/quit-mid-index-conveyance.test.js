@@ -9,7 +9,7 @@ import { scaled, unscaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 // Headline conveyance: the owner gracefully quits WHILE a loose file is still indexing. The peer
 // must both (i) see the owner offline promptly (B1 departure announce) and (ii) flip that

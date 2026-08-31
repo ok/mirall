@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 
 // End-to-end: the durable mirror-participation record lets a share's OWNER see who mirrors it,
 // and its state, across the wire — a fact the ephemeral serve ledger can't carry once bytes stop.
@@ -47,7 +47,7 @@ test('owner sees a peer mount, pause and unmount a mirror of its share', { timeo
 // the tombstone replicates on reconnect. The ephemeral serve ledger cannot do this.
 test('a peer unmount reaches an owner who was offline at unmount time', { timeout: 120000 }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const aStore = mkTmpDir(t)
+  const aStore = mkStoreDir(t)
   let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)

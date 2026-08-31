@@ -1,7 +1,6 @@
 import test from 'brittle'
 import { freshPeerWithIdentity } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { markOwnMembership, getLocalPublicKeyHex, markApproval, hasOwnApproval } from '../../src/shared/spaces/profile.js'
 import { createSpace, pinCreatorKey } from '../../src/shared/spaces/space.js'
@@ -14,11 +13,8 @@ import { openMemberView, closeMemberView, isMember } from '../../src/shared/spac
 // applyObservedLeave's revokeApproval is a no-op and cannot tear the edge out from under the
 // assertion. That isolates the fold's own behaviour from the observed-leave path.
 
-const v2 = () => setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true })
-
 async function rootedSpace (t, name, { departure }) {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace(name)
   await markOwnMembership(spaceId)
   const me = getLocalPublicKeyHex()
@@ -68,7 +64,6 @@ test('REGRESSION (FIX-361/FIX-362): the root leaving keeps its earlier vouches a
 // it and the revoke actually fires. That is the case the adoption exists for.
 test('REGRESSION (FIX-363): a departing member\'s vouchees are adopted, not orphaned', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('AdoptOnLeave')
   await markOwnMembership(spaceId)
 

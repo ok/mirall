@@ -35,16 +35,22 @@ test('explicit-keypair peers replicate a shared file', { timeout: 150000 }, asyn
   t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'explicit-keypair drive replicated byte-exact')
 })
 
-test('migration through the real worker preserves identity and spaces', { timeout: 150000 }, async (t) => {
+test('migration through the real worker preserves the network identity', { timeout: 150000 }, async (t) => {
   const bootstrap = await localTestnet(t)
   const root = mkTmpDir(t)
   const storage = path.join(root, 'app-storage')
   const downloads = mkTmpDir(t)
 
-  // Boot legacy (no KEK) → seed-derived identity; create a space.
-  let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads })
+  // Boot legacy (no KEK) → seed-derived identity. `identityKEK: undefined` opts out of the KEK
+  // launchPeer injects for every other peer; this is the one test whose subject IS the keyless
+  // store a pre-MIR-02 build left behind.
+  //
+  // It no longer creates a space first: a space cannot exist without a master secret, so the
+  // "space survived migration" half can only be rebuilt from a hand-written seed-derived fixture.
+  // The profile core the boot opens is seed-derived either way, which is what makes this a genuine
+  // migrating install (resolveMasterSecret's hasExistingCores branch) rather than a fresh one.
+  let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: undefined } })
   const keyBefore = (await A.request('profile:get')).publicKey
-  const space = await A.request('space:create', { name: 'Vault' })
   t.absent(fs.existsSync(path.join(root, 'identity.enc')), 'no envelope on the legacy install')
 
   const pid = A.sidecar?._process?.pid
@@ -55,6 +61,4 @@ test('migration through the real worker preserves identity and spaces', { timeou
   A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: kekHex() } })
   t.is((await A.request('profile:get')).publicKey, keyBefore, 'network identity preserved across migration')
   t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'envelope created by migration')
-  const spaces = await A.request('spaces:list')
-  t.ok(spaces.some((s) => s.spaceId === space.spaceId), 'space survived migration')
 })

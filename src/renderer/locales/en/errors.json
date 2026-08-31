@@ -26,5 +26,6 @@
   "looseFileLimit": "You can share up to 100 files per space. Remove some to add more.",
   "shareFileLimit": "Shared folders are limited to 5,000 files. Choose a smaller folder, or split it into several shares.",
   "downloadFolderOverlapsMount": "This folder overlaps a folder you share or mirror. Downloads there would be published to your peers — choose a different folder.",
-  "downloadFolderInvalid": "Mirall can't use this folder. It may have been moved or removed, or Mirall can't write to it."
+  "downloadFolderInvalid": "Mirall can't use this folder. It may have been moved or removed, or Mirall can't write to it.",
+  "spaceUnsupported": "This space was created by a much older version of Mirall and can no longer be used."
 }

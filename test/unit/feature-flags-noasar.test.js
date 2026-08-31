@@ -11,7 +11,7 @@ import { primeFeatureFlags, readFeatureFlags, __resetForTest } from '../../src/m
 // readFeatureFlags() used to read the asar path lazily, inside getWorker — which
 // runs AFTER getPear installs the noAsar wrappers — so a read landing in that
 // window threw ENOTDIR, the silent catch returned {}, and EVERY flag (overlay,
-// inPlaceFiles, and the MIR-01/03 security gates) fell to false for the worker's
+// inPlaceFiles, and the MIR-03 security gate) fell to false for the worker's
 // whole lifetime. A restart that didn't overlap an update read the flags fine —
 // the intermittency the user observed. The fix reads + caches the file once at
 // boot (primeFeatureFlags, in preloadAsarCache, before the noAsar window opens).
@@ -41,7 +41,7 @@ function resetEnv(t) {
 test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the boot cache holds even after the file becomes unreadable', (t) => {
   __resetForTest()
   resetEnv(t)
-  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, membershipApproval: true })
+  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, handshakeIdentityBinding: true })
 
   // Boot read (before the noAsar window) succeeds and caches.
   primeFeatureFlags(dir)
@@ -53,7 +53,7 @@ test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the bo
   const flags = readFeatureFlags()
   t.is(flags.overlay, true, 'overlay stays true from the boot cache (would be undefined on a fresh racy read)')
   t.is(flags.inPlaceFiles, true, 'inPlaceFiles stays true')
-  t.is(flags.membershipApproval, true, 'security-gate flag stays true — not silently disabled')
+  t.is(flags.handshakeIdentityBinding, true, 'security-gate flag stays true — not silently disabled')
 })
 
 test('primeFeatureFlags parses the on-disk flags', (t) => {
@@ -126,6 +126,16 @@ test('REGRESSION (structural): preloadAsarCache primes feature flags before the 
   t.ok(/require\(['"]\.\/feature-flags(\.js)?['"]\)/.test(mainSrc), "main.js requires './feature-flags.js'")
   t.absent(/readFileSync\([^)]*getAppPath\(\)[^)]*feature-flags\.json/.test(mainSrc),
     'main.js no longer does a lazy fs read of the asar feature-flags.json path')
+})
+
+// The identity KEK resolve used to sit behind `if (!process.env.MIRALL_INSECURE_IDENTITY)`, which
+// let a run boot with no identity.enc at all — the RocksDB seed WAS the identity, in plaintext,
+// and every local metadata bee stayed unencrypted. Nothing set it, and the data layer now refuses
+// to create a space without M, so the hatch is gone. Pinned here because its return would be
+// silent: the app would still start, just without at-rest identity protection.
+test('REGRESSION (structural): no env var can skip the identity KEK resolve', (t) => {
+  t.absent(/MIRALL_INSECURE_IDENTITY/.test(mainSrc), 'main.js no longer honours an insecure-identity escape hatch')
+  t.ok(/identityKek\.resolveKEKHex\(storagePath\)/.test(mainSrc), 'the KEK resolve still runs unconditionally at startup')
 })
 
 test('the relay flag is opt-in: absent, degraded, and explicit-false all read off', (t) => {

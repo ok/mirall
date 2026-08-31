@@ -18,7 +18,7 @@ const memberKeys = async (peer, spaceId) =>
 
 test('REGRESSION (G4): a leave interrupted by a hard quit completes at the next boot', { timeout: 300000 }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+  const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   // B is relaunched, so its KEK + storage must stay fixed across boots.
   const bStorage = idStore(t)
   const bDownloads = mkTmpDir(t)

@@ -3,7 +3,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import fs from 'fs'
 import path from 'path'
 import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
-import { mkTmpDir } from '../helpers/fixtures.js'
+import { mkTmpDir, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 const FLAGS = { overlayEnabled: true }
@@ -16,7 +16,7 @@ const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && 
 test('REGRESSION (FIX-EDA-18): member and share transitions fan reconcile hints',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
 
     // Arm before the join: the arrival hint fires during connect, when the spaceId is not yet known.
@@ -47,7 +47,7 @@ test('a joiner gets files hints after member persist and lists a pre-connect loo
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const flags = { overlayEnabled: true, inPlaceFilesEnabled: true }
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })
 
     const space = await A.request('space:create', { name: 'Loose' })
@@ -60,10 +60,10 @@ test('a joiner gets files hints after member persist and lists a pre-connect loo
     B.on('event:files-updated', (m) => { if (m.spaceId === spaceId) seq.push('files') })
     B.on('event:members-updated', (m) => { if (m.spaceId === spaceId) seq.push('members') })
 
-    const inviteCode = await A.request('space:invite', { spaceId })
-    const bSawA = B.waitFor('event:member-joined', (m) => m.spaceId === spaceId)
+    const inviteCode = await A.request('space:invite', { spaceId, autoAdmit: true })
+    const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId)
     await B.request('space:join', { inviteCode })
-    await bSawA
+    await bGranted
 
     const filesAfterMembers = () => {
       const m = seq.indexOf('members')

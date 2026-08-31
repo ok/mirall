@@ -18,7 +18,7 @@ const memberKeys = async (peer, spaceId) =>
   new Set(((await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)?.members || []).map((m) => m.publicKey))
 
 test('FIX-240: a co-member-approved leaver is dropped by the creator and the approver', { timeout: 300000 }, async (t) => {
-  const flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+  const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')

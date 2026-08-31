@@ -6,7 +6,6 @@ import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
 import { freshPeerWithIdentity } from '../helpers/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getLocalPublicKeyHex, markOwnMembership, markApproval, readMembershipRecord, markRequest, readPeerRequests } from '../../src/shared/spaces/profile.js'
 import {
@@ -14,7 +13,6 @@ import {
 } from '../../src/shared/spaces/space.js'
 import { openMemberView, closeMemberView, isLeft, isMember } from '../../src/shared/spaces/member-registry.js'
 
-const v2 = () => setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true })
 const waitFor = async (pred, ms = 5000) => {
   const t0 = Date.now()
   while (Date.now() - t0 < ms) { if (await pred()) return true; await new Promise((r) => setTimeout(r, 25)) }
@@ -89,7 +87,6 @@ test('forgetSpaceRecord purges only that space’s leave tombstones', async (t) 
 
 test('REGRESSION (FIX-240b): openMemberView re-seeds the in-memory tombstone from disk', async (t) => {
   await freshPeerWithIdentity(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true })
 
   const { spaceId } = await createSpace('Durable')
   // Simulate a co-member that applied a leave for K in a prior session (durable tombstone on disk),
@@ -108,7 +105,6 @@ test('REGRESSION (FIX-240b): openMemberView re-seeds the in-memory tombstone fro
 // member/<S> ts — was previously exercised nowhere end-to-end. Drive it through the real fold.
 test('REGRESSION (FIX-240b): a durable tombstone suppresses on open, then self-clears on a newer rejoin', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const me = getLocalPublicKeyHex()
   const { spaceId } = await createSpace('Rejoin')
   await markOwnMembership(spaceId)                 // creator is an active member (fold root)

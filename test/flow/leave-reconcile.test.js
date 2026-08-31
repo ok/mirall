@@ -1,13 +1,11 @@
 import test from 'brittle'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { MODES } from '../helpers/modes.js'
 
-for (const mode of MODES) {
-test(`when A leaves a shared space, B prunes A from membership [${mode.name}]`, { timeout: 90000 }, async (t) => {
+test('when A leaves a shared space, B prunes A from membership', { timeout: 90000 }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', flags: mode.flags() })
-  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', flags: mode.flags() })
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
   const aKey = (await A.request('profile:get')).publicKey
   const bKey = (await B.request('profile:get')).publicKey
@@ -31,4 +29,3 @@ test(`when A leaves a shared space, B prunes A from membership [${mode.name}]`, 
   const online = await B.request('members:online', { spaceId })
   t.absent(online.includes(aKey), 'A no longer shown online for B')
 })
-}

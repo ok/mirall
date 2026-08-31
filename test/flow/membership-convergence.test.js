@@ -9,7 +9,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // v2 membership approval only engages in identity mode (createSpace gates v2 on a
 // master secret), so these run identity-only — seed mode has no approval to converge.
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 const memberSetOf = async (peer, spaceId) => {
   const list = await peer.request('spaces:list')

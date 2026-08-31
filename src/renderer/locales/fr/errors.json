@@ -26,5 +26,6 @@
   "looseFileLimit": "Vous pouvez partager jusqu'à 100 fichiers par espace. Supprimez-en pour en ajouter d'autres.",
   "shareFileLimit": "Les dossiers partagés sont limités à 5 000 fichiers. Choisissez un dossier plus petit, ou répartissez-le sur plusieurs partages.",
   "downloadFolderOverlapsMount": "Ce dossier chevauche un dossier que vous partagez ou mettez en miroir. Les téléchargements y seraient publiés à vos pairs — choisissez un autre dossier.",
-  "downloadFolderInvalid": "Mirall ne peut pas utiliser ce dossier. Il a peut-être été déplacé ou supprimé, ou Mirall ne peut pas y écrire."
+  "downloadFolderInvalid": "Mirall ne peut pas utiliser ce dossier. Il a peut-être été déplacé ou supprimé, ou Mirall ne peut pas y écrire.",
+  "spaceUnsupported": "Cet espace a été créé avec une version bien plus ancienne de Mirall et ne peut plus être utilisé."
 }

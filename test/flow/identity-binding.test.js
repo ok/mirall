@@ -12,7 +12,7 @@ import { decodeInvite } from '../../src/shared/invite-envelope.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // Identity mode + membership approval + binding ENFORCED.
-const bindFlags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+const bindFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 
 const memberKeys = async (peer, spaceId) => {
   const list = await peer.request('spaces:list')

@@ -8,7 +8,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 const launch = (t, name, bootstrap) =>
   launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 const keyOf = async (peer) => (await peer.request('profile:get')).publicKey

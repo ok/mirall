@@ -13,7 +13,7 @@ import { scaled } from '../helpers/timing.js'
 // disk, and re-downloading afterwards completes byte-exact (no stale partial).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function setup (t) {

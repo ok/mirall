@@ -1,4 +1,5 @@
 import Sidecar from 'bare-sidecar'
+import crypto from 'crypto'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
@@ -10,6 +11,17 @@ import { scaled, summarize, tail, TIMING } from './timing.js'
 // runs under Bare. This is the most faithful two-client harness.
 
 const WORKER_ENTRY = path.resolve('src/worker/main.js')
+
+// Every peer boots with an identity: a space is only created when the worker holds a master
+// secret, and production always does. Keyed by storage dir rather than minted per launch —
+// relaunching against the same storage (the offline-window pattern) must present the KEK that
+// wrapped that dir's identity.enc, or resolveMasterSecret throws 'identity unlock failed'.
+const kekByStorage = new Map()
+function kekFor (storage) {
+  let kek = kekByStorage.get(storage)
+  if (!kek) { kek = crypto.randomBytes(32).toString('hex'); kekByStorage.set(storage, kek) }
+  return kek
+}
 
 function tmp (label) {
   const dir = path.join(os.tmpdir(), `mirall-peer-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
@@ -55,6 +67,9 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
   // in identity mode.
   storage = storage || path.join(tmp('peer'), 'app-storage')
   downloads = downloads || tmp('dl')
+  // An explicit `identityKEK: undefined` opts out — the one caller that wants a keyless (pre-MIR-02)
+  // store is identity-replication's migration test.
+  flags = { identityKEK: kekFor(storage), ...flags }
   const sidecar = new Sidecar(WORKER_ENTRY)
   installExitBackstop()
   const child = sidecar._process
@@ -219,37 +234,40 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
   return peer
 }
 
-// A creates a space, invites B, B joins; resolves once both peers have
-// exchanged a handshake (each sees the other join). Returns the spaceId.
-export async function connectInSpace (t, A, B, name = 'Test Space') {
-  const space = await A.request('space:create', { name })
-  const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const aSawB = A.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId, 120000)
-  const bSawA = B.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId, 120000)
-  await B.request('space:join', { inviteCode })
-  await Promise.all([aSawB, bSawA])
-
-  // `event:member-joined` fires before the membership row is persisted, so a
-  // spaces:list query right after this returns can still miss the peer. Locally
-  // the write lands in time; under CI's slower scheduling it loses the race and
-  // the caller's "sees the other as a member" assertion flakes. Wait until each
-  // side has actually persisted the other before returning — the same guard
-  // addPeerToSpace relies on.
+// Wait until each peer has PERSISTED the other as an approved member. Not `event:member-joined`:
+// a joiner's first handshake is refused by the read gate (it isn't approved yet), so on the owner
+// side the event only fires on the joiner's post-grant re-handshake — and nothing orders that
+// against the grant itself. The persisted roster is the state every caller actually needs, and it
+// is what the approval flow has always waited on.
+async function awaitMutualMembership (A, B, spaceId) {
   const aKey = (await A.request('profile:get')).publicKey
   const bKey = (await B.request('profile:get')).publicKey
   const persisted = (key) => (list) => {
-    const s = list.find((x) => x.spaceId === space.spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === key))
+    const s = list.find((x) => x.spaceId === spaceId)
+    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
   }
-  await A.until('spaces:list', {}, persisted(bKey), { ms: 30000, every: 1000 })
-  await B.until('spaces:list', {}, persisted(aKey), { ms: 30000, every: 1000 })
+  await A.until('spaces:list', {}, persisted(bKey), { ms: 60000, every: 1000 })
+  await B.until('spaces:list', {}, persisted(aKey), { ms: 60000, every: 1000 })
+}
 
+// A creates a space, invites B through an auto-approve link, B joins; resolves once both peers
+// hold the other as a member. Returns the spaceId.
+export async function connectInSpace (t, A, B, name = 'Test Space') {
+  const space = await A.request('space:create', { name })
+  // A plain link leaves B pending until a member approves. An auto-approve link is the
+  // production equivalent of an open join; connectInSpaceWithApproval covers the manual path.
+  const inviteCode = await A.request('space:invite', {
+    spaceId: space.spaceId, autoAdmit: true, expiresInMs: 2 * 60 * 60 * 1000,
+  })
+  const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId, 120000)
+  await B.request('space:join', { inviteCode })
+  await bGranted
+  await awaitMutualMembership(A, B, space.spaceId)
   return space.spaceId
 }
 
-// v2 (membership-approval) variant: A creates an encrypted space, B joins → pending,
-// A receives the join request and approves it, then both converge as members.
-// Both peers must be launched with { identityKEK, membershipApprovalEnabled: true }.
+// Manual-approval variant: A creates a space, B joins through a plain link → pending, A receives
+// the join request and approves it, then both converge as members.
 export async function connectInSpaceWithApproval (t, A, B, name = 'Secure Space') {
   const space = await A.request('space:create', { name })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
@@ -259,16 +277,7 @@ export async function connectInSpaceWithApproval (t, A, B, name = 'Secure Space'
   const req = await aGotRequest
   await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: req.publicKey })
   await bGranted
-
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
-  const persisted = (key) => (list) => {
-    const s = list.find((x) => x.spaceId === space.spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
-  }
-  await A.until('spaces:list', {}, persisted(bKey), { ms: 30000, every: 1000 })
-  await B.until('spaces:list', {}, persisted(aKey), { ms: 30000, every: 1000 })
-
+  await awaitMutualMembership(A, B, space.spaceId)
   return space.spaceId
 }
 
@@ -295,14 +304,20 @@ export async function waitForCatalogEntry (peer, spaceId, filePath, { ms = 60000
 // is what it actually needs before it can replicate the owner's drive.
 export async function addPeerToSpace (owner, joiner, spaceId) {
   const ownerKey = (await owner.request('profile:get')).publicKey
-  const inviteCode = await owner.request('space:invite', { spaceId })
-  const ownerSaw = owner.waitFor('event:member-joined', (m) => m.spaceId === spaceId, 120000)
+  const joinerKey = (await joiner.request('profile:get')).publicKey
+  // Auto-approve, like connectInSpace: a plain link leaves the joiner pending until a member acts.
+  const inviteCode = await owner.request('space:invite', {
+    spaceId, autoAdmit: true, expiresInMs: 2 * 60 * 60 * 1000,
+  })
+  const granted = joiner.waitFor('event:membership-granted', (m) => m.spaceId === spaceId, 120000)
   await joiner.request('space:join', { inviteCode })
-  await ownerSaw
-  await joiner.until('spaces:list', {}, (list) => {
+  await granted
+  const persisted = (key) => (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === ownerKey))
-  }, { ms: 30000, every: 1000 })
+    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
+  }
+  await owner.until('spaces:list', {}, persisted(joinerKey), { ms: 60000, every: 1000 })
+  await joiner.until('spaces:list', {}, persisted(ownerKey), { ms: 60000, every: 1000 })
 }
 
 // v2 (membership-approval) variant of addPeerToSpace: add a 3rd+ peer to an EXISTING

@@ -16,7 +16,7 @@ import { LINKS } from '../helpers/impair.js'
 // a reproduced field failure (convergence/resume stalls on a real link).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex(), netImpair })
+const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), netImpair })
 
 async function shareSeeDownload (t, A, B, spaceId, aKey, aSrc, name, mb, seed) {
   const bytes = patternedBytes(mb * 1024 * 1024, seed)

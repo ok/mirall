@@ -14,7 +14,7 @@ import { scaled } from '../helpers/timing.js'
 // stuck tombstone). FE s85/s100.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 // B1 — owner cancels the publish while still indexing.

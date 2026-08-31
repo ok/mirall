@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 
 // The content backend's observable status matrix: remote → downloaded → synced →
 // unavailable. Overlay is the only backend; a future one is validated by adding
@@ -22,7 +22,7 @@ function runContract(label, { flags, contentMode }) {
   test(`[${label}] status matrix: remote → downloaded → synced → unavailable`,
     { timeout: 150000 }, async (t) => {
       const bootstrap = await localTestnet(t)
-      const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags })
+      const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
       const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })
       const spaceId = await connectInSpace(t, A, B)
       const aKey = (await A.request('profile:get')).publicKey

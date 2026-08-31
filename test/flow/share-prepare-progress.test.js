@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 const FLAGS = { overlayEnabled: true, sharePrepareProgressEnabled: true }
@@ -16,7 +16,7 @@ const FLAGS = { overlayEnabled: true, sharePrepareProgressEnabled: true }
 test('owner broadcasts indexing progress; receiver sees a preparing decoration while the file is still hashing',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
 
@@ -42,7 +42,7 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
 test('owner with the flag off never broadcasts prepare-progress',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: true } })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey
@@ -72,7 +72,7 @@ test('owner with the flag off never broadcasts prepare-progress',
 test('the owner indexes as publishing, the member as preparing, and the member gets a terminal frame',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey

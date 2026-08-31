@@ -702,7 +702,6 @@ function getWorker(specifier) {
     // Same idea for the add-folder admission gate, so the frontend suite can trip it with a
     // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
     maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,
-    membershipApprovalEnabled: readFeatureFlags().membershipApproval === true,
     handshakeIdentityBindingEnabled: readFeatureFlags().handshakeIdentityBinding === true,
     // in-place files are served through the overlay instance, so enabling them implies overlay.
     overlayEnabled: readFeatureFlags().overlay === true || readFeatureFlags().inPlaceFiles === true,
@@ -1533,19 +1532,17 @@ if (!lock) {
     } catch (err) {
       console.error('[identity] storage perms failed:', err.message)
     }
-    if (!process.env.MIRALL_INSECURE_IDENTITY) {
-      try {
-        const identityKek = require('./identity-kek.js')
-        identityKEKHex = identityKek.resolveKEKHex(storagePath)
-        identityProtection = identityKek.storageBackend() === 'basic_text' ? 'weak' : 'protected'
-        if (identityProtection === 'weak') {
-          console.warn('[identity] safeStorage backend is basic_text (no OS keyring); identity.enc is only weakly protected — rely on full-disk encryption')
-        }
-      } catch (err) {
-        dialog.showErrorBox('Mirall cannot start', 'Secure storage is unavailable, so your identity key cannot be protected. ' + err.message)
-        app.quit()
-        return
+    try {
+      const identityKek = require('./identity-kek.js')
+      identityKEKHex = identityKek.resolveKEKHex(storagePath)
+      identityProtection = identityKek.storageBackend() === 'basic_text' ? 'weak' : 'protected'
+      if (identityProtection === 'weak') {
+        console.warn('[identity] safeStorage backend is basic_text (no OS keyring); identity.enc is only weakly protected — rely on full-disk encryption')
       }
+    } catch (err) {
+      dialog.showErrorBox('Mirall cannot start', 'Secure storage is unavailable, so your identity key cannot be protected. ' + err.message)
+      app.quit()
+      return
     }
 
     await createWindow()

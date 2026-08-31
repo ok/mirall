@@ -9,7 +9,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && m.scope.spaceId === spaceId
 
 // A loose file shared AFTER connect must fan a files-scoped reconcile hint to the peer so a

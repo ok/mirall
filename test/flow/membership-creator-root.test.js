@@ -12,7 +12,7 @@ const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // Identity mode + membership approval + binding ENFORCED — MIR-26 enforcement shares the
 // MIR-03 saturation gate, so the root assertion is only authoritative once binding is on.
-const bindFlags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+const bindFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 
 const spaceOf = async (peer, spaceId) => (await peer.request('spaces:list')).find((s) => s.spaceId === spaceId)
 const memberKeys = async (peer, spaceId) => new Set(((await spaceOf(peer, spaceId))?.members || []).map((m) => m.publicKey))

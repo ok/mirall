@@ -14,7 +14,7 @@ import { scaled } from '../helpers/timing.js'
 // Loose (in-place) path; folder shares ride the same engine + derivation.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = (over = {}) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex(), ...over })
+const v2flags = (over = {}) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), ...over })
 
 test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
   { timeout: scaled(180000) }, async (t) => {

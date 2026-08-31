@@ -11,7 +11,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 const memberKeys = async (peer, spaceId) => {
   const s = (await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)
   return new Set((s?.members || []).map((m) => m.publicKey))

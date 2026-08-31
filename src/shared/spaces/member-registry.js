@@ -92,9 +92,9 @@ export function configureMemberRegistry (next) {
   deps = { ...deps, ...next }
 }
 
-// Open a view for a space once it is an approved v2 space WITH a creatorKey (the OR-Set
-// root). Pending spaces and spaces without a creatorKey have no fold root to seed from,
-// so they stay on the handshake-driven membership path instead.
+// Open a view for a space once it is approved AND has a creatorKey (the OR-Set root). Pending
+// spaces and spaces without a creatorKey have no fold root to seed from, so they stay on the
+// handshake-driven membership path instead.
 export async function openMemberView (spaceId) {
   if (views.has(spaceId)) return
   // Claim the slot SYNCHRONOUSLY before any await so two concurrent opens can't both build a view
@@ -104,7 +104,7 @@ export async function openMemberView (spaceId) {
   views.set(spaceId, entry)
   try {
     const space = await getSpace(spaceId)
-    if (!space || space.schemaVersion !== 2 || !space.creatorKey || space.status === 'pending' || space.leaving) {
+    if (!space || !space.creatorKey || space.status === 'pending' || space.leaving) {
       views.delete(spaceId)
       return
     }
@@ -178,7 +178,9 @@ export function closeMemberView (spaceId) {
   lefts.delete(spaceId)
   releaseCaptures(spaceId)
   setDerivedRequests(spaceId, null)
-  Promise.resolve(entry.view?.close?.()).catch(() => {})
+  // Returned so the shutdown path can await it — the view holds peer-bee sessions the store
+  // must not close underneath. Every other caller drops the promise, as before.
+  return Promise.resolve(entry.view?.close?.()).catch(() => {})
 }
 
 // Record that `key` left this space (from their leave frame) at the leaver's clock stamp `leaveTs`.
@@ -278,8 +280,8 @@ async function openMemberViewsForKnownSpaces () {
   }
 }
 
-export function closeAllMemberViews () {
-  for (const spaceId of [...views.keys()]) closeMemberView(spaceId)
+export async function closeAllMemberViews () {
+  await Promise.allSettled([...views.keys()].map((spaceId) => closeMemberView(spaceId)))
   captureRefs.clear()
   captures.clear()
 }
@@ -431,7 +433,7 @@ export class MemberViews extends Subsystem {
   }
 
   async _close () {
-    closeAllMemberViews()
+    await closeAllMemberViews()
     membershipRevokedHook = null
     // A second boot in one process must not inherit the first boot's closures.
     deps = { ...DEFAULT_DEPS }

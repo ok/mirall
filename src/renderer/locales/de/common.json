@@ -113,7 +113,8 @@
     "waitingDocsTitle": "Warum warte ich?",
     "waitingDocsBody": "Eine Einladung enthält die Adresse des Raums, nie den Schlüssel dazu. Den übergibt jemand, der schon drin ist — deshalb muss ein Mitglied online und erreichbar sein, bevor du hineinkommst. Automatische Freigabe nimmt die Entscheidung ab, nicht die Übergabe.",
     "encryptedBadge": "Verschlüsselt",
-    "unencryptedBadge": "Unverschlüsselt"
+    "legacyBadge": "Nicht unterstützt",
+    "legacyWarning": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden. Erstelle einen neuen Raum und teile deine Ordner dort erneut."
   },
   "scanPreview": {
     "computing": "Vorschau wird berechnet…",

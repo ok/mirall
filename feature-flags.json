@@ -1,5 +1,4 @@
 {
-  "membershipApproval": true,
   "handshakeIdentityBinding": true,
   "overlay": true,
   "inPlaceFiles": true,

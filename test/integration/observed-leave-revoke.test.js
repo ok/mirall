@@ -1,7 +1,6 @@
 import test from 'brittle'
 import { freshPeerWithIdentity } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { markOwnMembership, markApproval, hasOwnApproval } from '../../src/shared/spaces/profile.js'
 import { createSpace, upsertMember } from '../../src/shared/spaces/space.js'
@@ -11,16 +10,11 @@ import { openMemberView, closeMemberView, isMember, isLeft } from '../../src/sha
 // the leaver's durable `del member/<S>` replicates and the fold observes it — otherwise a later
 // re-assert of member/<S> {active:true} is silently re-admitted off the surviving approval.
 
-// createSpace only mints a v2 space (schemaVersion 2 + creatorKey — what openMemberView requires)
-// with the membership-approval flag on.
-const v2 = () => setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true })
-
 // REGRESSION (G6): before the fix, only handleLeaveFrame revoked/tombstoned — a fold-observed
 // del dropped the leaver from the display set but left approved/<S>/<B> standing, so a stale
 // re-assert was re-admitted with no fresh approval.
 test('REGRESSION (G6): a fold-observed leave revokes our vouch and blocks silent re-admit', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('G6-live')
   await markOwnMembership(spaceId)
 
@@ -58,7 +52,6 @@ test('REGRESSION (G6): a fold-observed leave revokes our vouch and blocks silent
 // seed there is no member→inactive transition and the vouch survives forever.
 test('REGRESSION (G6): a leave observed only after a restart still revokes (durable roster seed)', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('G6-restart')
   await markOwnMembership(spaceId)
 
@@ -86,7 +79,6 @@ test('REGRESSION (G6): a leave observed only after a restart still revokes (dura
 // also covers our own authored approvals: exactly the keys a missed revoke matters for.
 test('REGRESSION (G6): a vouched leaver absent from the roster still revokes after restart (approvals seed)', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('G6-seed')
   await markOwnMembership(spaceId)
 

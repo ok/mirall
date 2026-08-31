@@ -9,7 +9,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
 const statusOf = (f, p) => (Array.isArray(f) ? f.find((e) => e.path === p)?.status : undefined)
 

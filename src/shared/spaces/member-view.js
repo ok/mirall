@@ -92,7 +92,15 @@ export function viewSignature ({ members, approved, requests, denied, memberTs, 
 // Call trackKey(key) to fold in a roster key learned out-of-band.
 export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onError, onBeeAppend, onFollow }) {
   const self = selfKey ?? getLocalPublicKeyHex()
-  const beeFor = (key) => openProfileBee(b4a.from(key, 'hex'))
+  // One bee per roster key, kept so close() can release them. A derived view stores the WATCHER,
+  // not the bee, and corestore tracks a session per open until it is closed — an unclosed one is
+  // still replicating to every socket long after the view is gone.
+  const bees = new Map()
+  const beeFor = (key) => {
+    let bee = bees.get(key)
+    if (!bee) bees.set(key, bee = openProfileBee(b4a.from(key, 'hex')))
+    return bee
+  }
   const readRecord = (key) => readMembershipRecord(key, spaceId)
 
   // Active follow: an open live download per roster bee so a co-member's approval AND the joiner's
@@ -182,13 +190,16 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
     view.recompute()
   }
 
-  const close = () => {
+  const close = async () => {
     closed = true
     for (const dl of follows.values()) { try { dl?.destroy?.(null) } catch {} }
     follows.clear()
     for (const { watcher } of shareWatchers.values()) { try { watcher.close() } catch {} }
     shareWatchers.clear()
-    return view.close()
+    // After the view: its close awaits the fold, which is what is still reading these bees.
+    await view.close()
+    for (const bee of bees.values()) { try { await bee.close() } catch {} }
+    bees.clear()
   }
 
   if (creatorKey) trackKey(creatorKey)

@@ -9,7 +9,7 @@ import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 
 // What ONE realistic two-peer session must produce. This is the completeness half of the
 // guarantee: if a call site stops firing, the kind drops out and this fails.

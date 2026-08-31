@@ -69,6 +69,9 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const { spaces, createInvite, leaveSpace, updateSpace, toggleFavorite, approveMember, denyMember } = useSpaces()
   const space = spaces.find(s => s.spaceId === spaceId)
   const isPending = space?.status === 'pending'
+  // Created before v1.7.0, when every space became encrypted. No upgrade path exists, and the
+  // data layer now assumes v2 throughout — so say so rather than let it half-work.
+  const isLegacy = !!space && space.schemaVersion !== 2
   const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
   const toast = useToast()
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -190,18 +193,21 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   useEffect(() => {
     function handle(event: Event) {
       const action = (event as CustomEvent<SpaceAction>).detail
+      // Leave is the only action a legacy space keeps: everything else writes, and the data layer
+      // refuses it (SPACE_UNSUPPORTED) because there is no content key and no way to mint one.
+      if (action === 'leave') { setShowLeaveModal(true); return }
+      if (isPending || isLegacy) return
       if (action === 'add-files') fileInputRef.current?.click()
       else if (action === 'add-folder') void handleShareFolderRequest('')
-      else if (action === 'invite') { if (!isPending) setShowInviteModal(true) }
-      else if (action === 'leave') setShowLeaveModal(true)
-      else if (action === 'edit') { if (!isPending) setShowEditModal(true) }
+      else if (action === 'invite') setShowInviteModal(true)
+      else if (action === 'edit') setShowEditModal(true)
     }
     window.addEventListener(SPACE_ACTION_EVENT, handle)
     return () => window.removeEventListener(SPACE_ACTION_EVENT, handle)
-  }, [isPending])
+  }, [isPending, isLegacy])
 
   function handleInvite() {
-    if (isPending) return
+    if (isPending || isLegacy) return
     setShowInviteModal(true)
   }
 
@@ -254,9 +260,9 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
               <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
                 {space?.name || t('space.fallbackName')}
               </h1>
-              {space && space.schemaVersion !== 2 && (
-                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-bold border border-outline">
-                  {t('space.unencryptedBadge')}
+              {isLegacy && (
+                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-error-container text-on-error-container text-xs font-bold border border-outline">
+                  {t('space.legacyBadge')}
                 </span>
               )}
             </div>
@@ -270,7 +276,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
               </Button>
             ) : (
               <>
-                <Button icon="group_add" onClick={handleInvite}>
+                <Button icon="group_add" onClick={handleInvite} disabled={isLegacy}>
                   {t('space.inviteShort')}
                 </Button>
                 <ActionMenu
@@ -287,6 +293,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                       id: 'edit',
                       label: t('space.edit'),
                       icon: 'edit',
+                      disabled: isLegacy,
                       onAction: () => setShowEditModal(true),
                     },
                     {
@@ -309,6 +316,15 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           </div>
         </div>
       </div>
+
+      {isLegacy && (
+        <div className="shrink-0 pb-4">
+          <div role="alert" className="rounded-2xl p-4 flex items-center gap-3 bg-error-container">
+            <Icon name="warning" className="text-on-error-container shrink-0" />
+            <p className="flex-1 min-w-0 font-bold text-on-error-container">{t('space.legacyWarning')}</p>
+          </div>
+        </div>
+      )}
 
       {space?.creatorDivergence && (
         <div className="shrink-0 pb-4">
@@ -365,7 +381,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       ) : (
       <div
         className="relative flex-1 overflow-hidden grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
-        {...dragHandlers}
+        {...(isLegacy ? {} : dragHandlers)}
       >
         <div
           ref={filesRef}
@@ -496,14 +512,16 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         </div>
 
         <div className="flex flex-col gap-6 min-h-0 overflow-hidden pt-12">
-          <div className="shrink-0">
-            <DropZone
-              onFilesSelected={(files) => addFiles(files)}
-              folderSupportEnabled
-              onFolderSelected={handleShareFolderRequest}
-              dragActive={dragActive}
-            />
-          </div>
+          {!isLegacy && (
+            <div className="shrink-0">
+              <DropZone
+                onFilesSelected={(files) => addFiles(files)}
+                folderSupportEnabled
+                onFolderSelected={handleShareFolderRequest}
+                dragActive={dragActive}
+              />
+            </div>
+          )}
           <div className="shrink-0">
             <StorageIndicator spaceId={spaceId} />
           </div>
@@ -524,7 +542,6 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       />
       <InviteModal
         isOpen={showInviteModal}
-        canAutoApprove={space?.schemaVersion === 2}
         onCreate={(opts) => createInvite(spaceId, opts)}
         onClose={() => setShowInviteModal(false)}
       />

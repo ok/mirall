@@ -15,6 +15,7 @@ import { compactStore } from '../transfer/swarm.js'
 import { withReadTimeout } from '../core/with-timeout.js'
 import { mapLimit } from '../core/concurrency.js'
 import { classifyBeeKind } from './leftover-classify.js'
+import { listContentKeys } from '../spaces/space-keys.js'
 
 const log = createLogger('leftover')
 
@@ -161,11 +162,14 @@ async function driveBlobs(drive) {
 // store session so closing it (only at purge time) never tears down the root db.
 const probeDrives = new Map()
 
-function probeDrive(store, dkHex, key) {
-  let drive = probeDrives.get(dkHex)
+function probeDrive(store, dkHex, key, encryptionKey = null) {
+  // Keyed by encryption too: the same core probed plaintext and under an SCK are different opens,
+  // and handing back the plaintext one would read the encrypted drive's header as noise.
+  const cacheKey = encryptionKey ? dkHex + ':enc' : dkHex
+  let drive = probeDrives.get(cacheKey)
   if (!drive) {
-    drive = new Hyperdrive(store.session(), key)
-    probeDrives.set(dkHex, drive)
+    drive = new Hyperdrive(store.session(), key, encryptionKey ? { encryptionKey } : {})
+    probeDrives.set(cacheKey, drive)
   }
   return drive
 }
@@ -188,17 +192,22 @@ async function closeProbe(dkHex) {
 //    data loss. The Hyperdrive runs on a store *session* — Hyperdrive._close() closes
 //    the corestore it is handed, so the root db must not be passed.
 //  - everything else (raw blobs core, unreadable, a contentless bee) stays 'other'.
-async function inspectCore(store, dk) {
+// Read a core's first keys under `encryptionKey` (null = plaintext) and name the shape they are.
+// `readable` separates "opened, has blocks, made no sense" — worth retrying under a key — from
+// "empty or unopenable", which no key can help.
+async function sampleCore(store, dk, encryptionKey) {
   let metaBytes = 0
   let key = null
   let beeKind = null
+  let readable = false
 
-  const core = store.get({ discoveryKey: dk })
+  const core = store.get({ discoveryKey: dk, ...(encryptionKey ? { encryptionKey } : {}) })
   try {
     const ready = await withReadTimeout(core.ready().then(() => true), INSPECT_MS, false)
     metaBytes = core.byteLength || 0
     key = core.key
     if (ready && core.length > 0) {
+      readable = true
       const bee = new Hyperbee(core, { keyEncoding: 'utf-8', valueEncoding: 'json' })
       const sample = await withReadTimeout(readSampleKeys(bee).catch(() => null), INSPECT_MS, null)
       if (sample !== null) beeKind = classifyBeeKind(sample)
@@ -206,13 +215,32 @@ async function inspectCore(store, dk) {
   } catch { /* unreadable → other */ } finally {
     try { await core.close() } catch {}
   }
+  return { metaBytes, key, beeKind, readable }
+}
 
+async function inspectCore(store, dk) {
+  let probe = await sampleCore(store, dk, null)
+  let sck = null
+
+  // Catalogs and space drives have been SCK-encrypted since v1.7.0, and one opened without its key
+  // is indistinguishable from noise — which is why every encrypted leftover used to classify as
+  // 'other' and outlive the reclaim. Retry under each key the vault holds; a leave keeps the entry,
+  // so the key for a space whose leftovers these are is still there. Only the two shapes that are
+  // actually SCK-encrypted are accepted, so a wrong key's garbage cannot be mistaken for a match.
+  if (probe.readable && probe.beeKind === null) {
+    for (const candidate of listContentKeys()) {
+      const enc = await sampleCore(store, dk, candidate)
+      if (enc.beeKind === 'catalog' || enc.beeKind === 'orphan') { probe = enc; sck = candidate; break }
+    }
+  }
+
+  const { metaBytes, key, beeKind } = probe
   if (beeKind === 'profile' || beeKind === 'catalog') return { kind: beeKind, bytes: metaBytes }
   if (beeKind === 'file-index') return { kind: 'other', bytes: metaBytes }
 
   if (beeKind === 'orphan' && key) {
     try {
-      const drive = probeDrive(store, hex(dk), key)
+      const drive = probeDrive(store, hex(dk), key, sck)
       const blobs = await withReadTimeout(driveBlobs(drive), INSPECT_MS, undefined).catch(() => undefined)
       if (blobs && blobs.core.byteLength > 0) {
         return { kind: 'drive', blobsDkHex: hex(blobs.core.discoveryKey), bytes: metaBytes + blobs.core.byteLength }
