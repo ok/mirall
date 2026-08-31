@@ -82,6 +82,40 @@ async function loadShare(spaceId, shareId) {
   return share
 }
 
+// Members learn of a scan from frames sent when the queue changes SHAPE — and a queue sitting
+// behind one multi-GB hash changes shape twice in several minutes. A member who opens the folder in
+// between, or who reconnects mid-scan, would otherwise see nothing at all, which is exactly the case
+// this feature exists for. So an active share re-announces itself on a timer: ephemeral status is
+// re-announced, never replayed, and the frame is idempotent, so a missed one costs latency only.
+const INDEX_ANNOUNCE_MS = 5000
+const announcing = new Map()
+let announceTimer = null
+// Injected so a test can drive the re-announce without waiting out the real cadence.
+let announceMs = INDEX_ANNOUNCE_MS
+
+function announceIndex(spaceId, shareId) {
+  const status = scheduler?.statusFor(spaceId, shareId)
+  if (!(status?.adding > 0)) return false
+  broadcastIndexRef?.(spaceId, { shareId, adding: status.adding, bytesQueued: status.bytesQueued })
+  return true
+}
+
+// Runs only while some share is scanning, and stops itself the moment none is.
+function armIndexAnnounce() {
+  if (announceTimer || announcing.size === 0) return
+  announceTimer = setInterval(() => {
+    for (const [key, at] of announcing) if (!announceIndex(at.spaceId, at.shareId)) announcing.delete(key)
+    if (announcing.size === 0) { clearInterval(announceTimer); announceTimer = null }
+  }, announceMs)
+  announceTimer.unref?.()
+}
+
+export function stopIndexAnnounce() {
+  if (announceTimer) clearInterval(announceTimer)
+  announceTimer = null
+  announcing.clear()
+}
+
 const progress = makeKeyedCoalescer((spaceId, shareId) => {
   // Tolerant: the publish service drains its executors AFTER this subsystem closes, and each
   // settling item pokes progress on the way out.
@@ -91,6 +125,9 @@ const progress = makeKeyedCoalescer((spaceId, shareId) => {
   // Members see the same queue we do. Only the two numbers a watcher can act on cross the wire —
   // the rest (tallies, ordering, concurrency) is ours and says nothing about their view.
   broadcastIndexRef?.(spaceId, { shareId, adding: status.adding, bytesQueued: status.bytesQueued })
+  const key = spaceId + '|' + shareId
+  if (status.adding > 0) { announcing.set(key, { spaceId, shareId }); armIndexAnnounce() }
+  else announcing.delete(key)
 }, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
 
 registerPublishChannel('folder', {
@@ -123,10 +160,11 @@ registerPublishChannel('folder', {
   },
 })
 
-export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = null } = {}) {
+export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = null, indexAnnounceMs = INDEX_ANNOUNCE_MS } = {}) {
   ipcRef = _ipc
   settleScanRef = settleScan
   broadcastIndexRef = broadcastIndex
+  announceMs = indexAnnounceMs
   // The presence sweep must never reclaim a path whose publish is queued or running. Installed
   // here rather than by the service, which must not import the backend (import cycle).
   setPendingPublishProbe((spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false)
@@ -416,6 +454,7 @@ export class OwnedFolders extends Subsystem {
 
   async _close() {
     stopping = true
+    stopIndexAnnounce()
     setPendingPublishProbe(null)
     for (const timer of reconcileTimers.values()) clearTimeout(timer)
     reconcileTimers.clear()
