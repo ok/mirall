@@ -178,10 +178,11 @@ const diag = createSwarmDiagnostics({
   getDhtVersion: () => DHT_VERSION,
 })
 // The join gates. connectedPeers is passed rather than imported: it is this module's registry.
-const gates = createAdmissionGates({ connectedPeers, log })
+const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => ipcRef })
 
-// Re-exported, not relocated: overlay-instance.js imports isApprovedMember and worker/main.js
-// imports resolveInvite from this module. The gates moved; swarm.js stays their public address so
+// Re-exported, not relocated: worker/main.js imports BOTH (isApprovedMember for the join-request
+// auto-admit check, resolveInvite for the invite path) and overlay-instance.js imports
+// isApprovedMember. The gates moved; swarm.js stays their public address so
 // no caller has to learn a new import path for a refactor that changed nothing for them.
 export const isApprovedMember = (spaceId, joinerKey) => gates.isApprovedMember(spaceId, joinerKey)
 export const resolveInvite = (space, inviteId) => gates.resolveInvite(space, inviteId)
@@ -1107,7 +1108,7 @@ export async function reconcilePendingRequester(spaceId, joinerKey) {
     const space = await getSpace(spaceId)
     if (!space || space.status === 'pending') return
     if ((space.members || []).some((m) => m.publicKey === joinerKey)) return
-    if (!(await isApprovedByPeers(space, joinerKey))) return
+    if (!(await gates.isApprovedByPeers(space, joinerKey))) return
     const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
     const topic = spaceTopics.get(spaceId)
     if (!sock || !topic) return

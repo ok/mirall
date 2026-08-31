@@ -76,6 +76,10 @@ export default [
       globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
     },
     rules: {
+      // The data layer has no typechecker over it — tsconfig only includes src/renderer — so an
+      // identifier left behind by a refactor resolves to nothing and surfaces only as a swallowed
+      // runtime warning. Two such bugs shipped green through every gate before this was turned on.
+      'no-undef': 'error',
       ...unusedVars,
       ...complexityBudget,
       'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions],

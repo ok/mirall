@@ -2,9 +2,9 @@
 // handshake asks before it registers anyone — approval (does any member vouch for them?) and the
 // creator root (do we and they agree on who founded the space?).
 //
-// Extracted from swarm.js. A factory over two collaborators rather than free functions: `connectedPeers`
-// is swarm.js's registry and `log` is its named logger, and taking them explicitly is what keeps this
-// module free of the swarm's module state.
+// Extracted from swarm.js. A factory over three collaborators: `connectedPeers` is swarm.js's peer
+// registry, `log` its named logger, and `getIpc` reaches the pipe lazily — the IPC handle is null until
+// the worker wires it, so it must be read at emit time, not captured at construction.
 import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite } from '../spaces/profile.js'
 import { getSpace, recordJoinRequest, pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/space.js'
 import { isHandshakeIdentityBindingEnabled } from '../core/runtime-config.js'
@@ -12,14 +12,15 @@ import { reconcileAssertedRoot } from '../spaces/creator-root.js'
 import { snapshotCandidates } from '../spaces/invite-policy.js'
 import { isLeft, openMemberView, closeMemberView } from '../spaces/member-registry.js'
 
-export function createAdmissionGates({ connectedPeers, log }) {
+export function createAdmissionGates({ connectedPeers, log, getIpc }) {
   // A v2 peer is admitted if we already hold them as a member, or any member we know has an
   // authored `approved/<S>/<joiner>` record for them (an approval by one member propagates
   // via replication — no gossip). This is the read gate; the derived set governs the list.
   async function isApprovedByPeers(space, joinerKey) {
     const me = getLocalPublicKeyHex()
     // Our OWN approval counts — without this the owner can't admit a peer it approved itself once the
-    // upserted member is dropped by a fold that hasn't read the joiner's (not-yet-replicated) // leaving the joiner stuck as a pending request on the very peer that approved them.
+    // upserted member is dropped by a fold that hasn't read the joiner's (not-yet-replicated) record,
+  // leaving the joiner stuck as a pending request on the very peer that approved them.
     if (await hasOwnApproval(space.spaceId, joinerKey)) return true
     for (const m of space.members || []) {
       if (m.publicKey === joinerKey || m.publicKey === me) continue
@@ -84,14 +85,14 @@ export function createAdmissionGates({ connectedPeers, log }) {
       // an open view re-derives and drops the banner, mirroring the set path below.
       if (space.creatorDivergence) {
         await clearCreatorDivergence(spaceId)
-        ipcRef.emit('event:membership-creator-divergence', { spaceId })
+        getIpc()?.emit('event:membership-creator-divergence', { spaceId })
       }
       return
     }
     if (decision === 'refuse') {
       log.warn('handshake creator divergence — confirmed', space.creatorKey.slice(0, 12) + '...', 'vs peer', asserted.slice(0, 12) + '...')
       await markCreatorDivergence(spaceId)
-      ipcRef.emit('event:membership-creator-divergence', { spaceId })
+      getIpc()?.emit('event:membership-creator-divergence', { spaceId })
       return
     }
     const keyChanged = space.creatorKey !== asserted
@@ -128,5 +129,5 @@ export function createAdmissionGates({ connectedPeers, log }) {
     return true
   }
 
-  return { isApprovedMember, resolveInvite, admitMember }
+  return { isApprovedByPeers, isApprovedMember, resolveInvite, admitMember }
 }
