@@ -31,9 +31,6 @@ on:
           - linux-arm64
           - win32-x64
 
-env:
-  NODE_VERSION: '22'
-
 permissions:
   contents: write
 
@@ -152,7 +149,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '24.20.0'
 
       - name: Patch package.json version
         shell: bash

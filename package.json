@@ -7,6 +7,10 @@
   "author": "Oliver Kohl",
   "type": "commonjs",
   "main": "src/main/main.js",
+  "engines": {
+    "node": ">=22.9.0",
+    "npm": ">=11"
+  },
   "scripts": {
     "postinstall": "node -e \"const fs=require('fs');const p='node_modules/.bin/bare';try{if(!fs.existsSync(p))fs.symlinkSync('../bare-runtime/bin/bare',p)}catch{}\"",
     "build:js": "esbuild src/renderer/main.tsx --bundle --format=esm --target=es2022 --jsx=automatic --outfile=assets/dist/main.js --minify --define:__DEV__=false --sourcemap --sources-content=false --loader:.png=file --loader:.jpg=file --loader:.svg=file",
