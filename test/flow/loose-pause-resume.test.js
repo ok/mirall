@@ -12,12 +12,11 @@ import { scaled } from '../helpers/timing.js'
 // and auto-resume when the owner reconnects. The resume mechanics themselves are
 // covered deterministically in the vendor tests (overlay-vendor-transfer +
 // overlay-vendor-scheduler); these exercise the end-to-end wiring over two peers.
-// Loose discovery rides the v2 membership fold (looseCatalogKey is folded from the
-// owner's profile bee), so these run on v2 spaces (membership approval + identity
-// store) — the model real installs use (membershipApproval defaults on).
+// Loose discovery rides the membership fold (looseCatalogKey is folded from the
+// owner's profile bee).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 test('loose download: pause mid-flight surfaces paused-interrupted; resume completes byte-exact',
   { timeout: scaled(180000) }, async (t) => {

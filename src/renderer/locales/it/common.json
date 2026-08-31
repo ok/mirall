@@ -113,7 +113,8 @@
     "waitingDocsTitle": "Perché sto aspettando?",
     "waitingDocsBody": "Un invito contiene l'indirizzo dello spazio, mai la sua chiave. A consegnarla è un dispositivo già membro: perciò un membro deve essere online e raggiungibile prima che tu possa entrare. L'approvazione automatica elimina la decisione, non la consegna.",
     "encryptedBadge": "Crittografato",
-    "unencryptedBadge": "Non crittografato"
+    "legacyBadge": "Non supportato",
+    "legacyWarning": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato. Crea un nuovo spazio e condividi lì le tue cartelle."
   },
   "scanPreview": {
     "computing": "Calcolo dell'anteprima…",

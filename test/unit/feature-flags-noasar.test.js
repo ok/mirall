@@ -11,7 +11,7 @@ import { primeFeatureFlags, readFeatureFlags, __resetForTest } from '../../src/m
 // readFeatureFlags() used to read the asar path lazily, inside getWorker — which
 // runs AFTER getPear installs the noAsar wrappers — so a read landing in that
 // window threw ENOTDIR, the silent catch returned {}, and EVERY flag (overlay,
-// inPlaceFiles, and the MIR-01/03 security gates) fell to false for the worker's
+// inPlaceFiles, and the MIR-03 security gate) fell to false for the worker's
 // whole lifetime. A restart that didn't overlap an update read the flags fine —
 // the intermittency the user observed. The fix reads + caches the file once at
 // boot (primeFeatureFlags, in preloadAsarCache, before the noAsar window opens).
@@ -41,7 +41,7 @@ function resetEnv(t) {
 test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the boot cache holds even after the file becomes unreadable', (t) => {
   __resetForTest()
   resetEnv(t)
-  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, membershipApproval: true })
+  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, handshakeIdentityBinding: true })
 
   // Boot read (before the noAsar window) succeeds and caches.
   primeFeatureFlags(dir)
@@ -53,7 +53,7 @@ test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the bo
   const flags = readFeatureFlags()
   t.is(flags.overlay, true, 'overlay stays true from the boot cache (would be undefined on a fresh racy read)')
   t.is(flags.inPlaceFiles, true, 'inPlaceFiles stays true')
-  t.is(flags.membershipApproval, true, 'security-gate flag stays true — not silently disabled')
+  t.is(flags.handshakeIdentityBinding, true, 'security-gate flag stays true — not silently disabled')
 })
 
 test('primeFeatureFlags parses the on-disk flags', (t) => {

@@ -11,12 +11,10 @@ import { scaled } from '../helpers/timing.js'
 // nothing is copied into a drive. A member sees it in the flat file list (from the
 // replicated loose catalog) and fetches by content hash over the overlay channel.
 // Loose discovery resolves the owner's looseCatalogKey from two channels (like driveKey):
-// the live handshake and the profile bee (folded via member-registry in v2 spaces). These
-// run on v2 spaces — the model real installs use (membershipApproval defaults on); the v1
-// handshake-only path is covered by loose-inplace-seed-mode.test.js.
+// the live handshake and the profile bee (folded via member-registry).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 function spaceLive (info, spaceId) {
   const s = (info?.spaces || []).find((x) => x.spaceId === spaceId)

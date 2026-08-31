@@ -92,9 +92,9 @@ export function configureMemberRegistry (next) {
   deps = { ...deps, ...next }
 }
 
-// Open a view for a space once it is an approved v2 space WITH a creatorKey (the OR-Set
-// root). Pending spaces and spaces without a creatorKey have no fold root to seed from,
-// so they stay on the handshake-driven membership path instead.
+// Open a view for a space once it is approved AND has a creatorKey (the OR-Set root). Pending
+// spaces and spaces without a creatorKey have no fold root to seed from, so they stay on the
+// handshake-driven membership path instead.
 export async function openMemberView (spaceId) {
   if (views.has(spaceId)) return
   // Claim the slot SYNCHRONOUSLY before any await so two concurrent opens can't both build a view
@@ -104,7 +104,7 @@ export async function openMemberView (spaceId) {
   views.set(spaceId, entry)
   try {
     const space = await getSpace(spaceId)
-    if (!space || space.schemaVersion !== 2 || !space.creatorKey || space.status === 'pending' || space.leaving) {
+    if (!space || !space.creatorKey || space.status === 'pending' || space.leaving) {
       views.delete(spaceId)
       return
     }

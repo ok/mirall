@@ -25,14 +25,14 @@ function tmp (label) {
   return dir
 }
 
-async function boot (t, label, { membershipApprovalEnabled = true } = {}) {
+async function boot (t, label) {
   const root = tmp(label)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {
     try { await getStore().close() } catch {}
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
   })
-  setRuntimeConfig({ storage, membershipApprovalEnabled })
+  setRuntimeConfig({ storage })
   initStore(storage)
   setMasterSecret(b4a.from('44'.repeat(32), 'hex'))
   await initSpaceKeys()
@@ -49,18 +49,11 @@ test('createSpace stamps creatorKey = self on a v2 space', async (t) => {
   t.is((await getSpace(space.spaceId)).creatorKey, getLocalPublicKeyHex(), 'persisted')
 })
 
-test('a v1 space carries no creatorKey (no membership fold)', async (t) => {
-  await boot(t, 'create-v1', { membershipApprovalEnabled: false })
-  const space = await createSpace('Plain')
-  t.absent(space.schemaVersion, 'v1 space')
-  t.absent(space.creatorKey, 'no creatorKey on v1')
-})
-
 test('joinSpace stores the creator carried by the invite', async (t) => {
   await boot(t, 'join')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const creator = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator })
   t.is(joined.pending, true, 'v2 join is pending')
   t.is((await getSpace(joined.spaceId)).creatorKey, creator, 'creator stored from invite')
 })
@@ -68,7 +61,7 @@ test('joinSpace stores the creator carried by the invite', async (t) => {
 test('joinSpace without a creator (legacy invite) leaves creatorKey absent', async (t) => {
   await boot(t, 'join-legacy')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2 })
+  const joined = await joinSpace(topic, 'Joined', 'folder')
   t.absent((await getSpace(joined.spaceId)).creatorKey, 'no creator carried, none stored')
 })
 
@@ -89,7 +82,7 @@ test('backfill stamps a self-created space missing creatorKey, idempotently', as
 test('backfill leaves joined spaces (no sckDerivable) untouched', async (t) => {
   await boot(t, 'backfill-joined')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2 })
+  const joined = await joinSpace(topic, 'Joined', 'folder')
   t.absent((await getSpace(joined.spaceId)).sckDerivable, 'joined space is not self-created')
 
   t.is(await backfillSelfCreatedCreatorKey(), 0, 'no self-created space to stamp')
@@ -103,7 +96,7 @@ test('REGRESSION (MIR-26: invite creator is stored provisional)', async (t) => {
   await boot(t, 'join-provisional')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const creator = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator })
   const space = await getSpace(joined.spaceId)
   t.is(space.creatorKey, creator, 'creator pre-seeded from invite')
   t.is(space.creatorUnverified, true, 'but marked provisional until an authenticated grant')
@@ -121,7 +114,7 @@ test('pinCreatorKey sets the root and clears the provisional flag', async (t) =>
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const hint = b4a.toString(crypto.randomBytes(32), 'hex')
   const real = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator: hint })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator: hint })
   t.is((await getSpace(joined.spaceId)).creatorUnverified, true, 'starts provisional')
 
   await pinCreatorKey(joined.spaceId, real)
@@ -137,7 +130,7 @@ test('flagUnverifiedJoinedCreators flags TOFU-pinned joined spaces, leaves the r
   // A pre-MIR-26 joined space: creatorKey pinned, but no creatorUnverified flag yet.
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const creator = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator })
   await mutateSpace(joined.spaceId, (s) => { delete s.creatorUnverified; return s })
   t.absent((await getSpace(joined.spaceId)).creatorUnverified, 'pre-migration: no flag')
 
@@ -155,7 +148,7 @@ test('REGRESSION (FIX-EDA-9): divergence marks, clears on re-convergence, and cl
   await boot(t, 'divergence-clear')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const real = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator: real })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator: real })
   await pinCreatorKey(joined.spaceId, real)
 
   await markCreatorDivergence(joined.spaceId)
@@ -181,7 +174,7 @@ test('REGRESSION (FIX-EDA-17): the migration is one-shot — an authenticated pi
   await boot(t, 'migration-oneshot')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const creator = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator })
   await mutateSpace(joined.spaceId, (s) => { delete s.creatorUnverified; return s })
 
   t.is(await flagUnverifiedJoinedCreators(), 1, 'first boot: pre-MIR-26 pin flagged provisional')
@@ -199,7 +192,7 @@ test('the migration stamps already-provisional joined spaces without re-flagging
   await boot(t, 'migration-stamp')
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
   const creator = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2, creator })
+  const joined = await joinSpace(topic, 'Joined', 'folder', { creator })
   t.is((await getSpace(joined.spaceId)).creatorUnverified, true, 'post-MIR-26 join starts provisional')
 
   t.is(await flagUnverifiedJoinedCreators(), 0, 'already provisional — nothing to flag')

@@ -19,9 +19,7 @@ const AUDIT_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 // Prune our own expired invite links (reusable-until-expiry records are never consumed).
 // Best-effort: enforcement is by timestamp regardless, so a missed run only defers cleanup.
 async function sweepAllExpiredInvites() {
-  for (const s of await listSpaces()) {
-    if (s.schemaVersion === 2) await sweepExpiredInvites(s.spaceId)
-  }
+  for (const s of await listSpaces()) await sweepExpiredInvites(s.spaceId)
 }
 
 export class Sweeps extends Subsystem {

@@ -25,7 +25,7 @@ import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {
   SpacesBee, SpaceDrives, listSpaces, getSpace,
-  resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators,
+  resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators, isLegacySpace,
   persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/space.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
@@ -373,6 +373,11 @@ async function backfillMembership(activeSpaces, log) {
   try { await flagUnverifiedJoinedCreators() } catch (err) {
     log.warn('creatorKey migration failed:', err.message)
   }
+  // Pre-v1.7.0 records cannot be upgraded and the data layer now assumes an encrypted space
+  // throughout, so name them here rather than let one fail obscurely later. The renderer shows
+  // the same spaces as unsupported.
+  const legacy = activeSpaces.filter(isLegacySpace)
+  if (legacy.length) log.warn('unsupported pre-encryption space(s):', legacy.map((s) => s.spaceId).join(', '))
 }
 
 

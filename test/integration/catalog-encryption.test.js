@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { freshPeer, freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeerWithIdentity } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace, getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -15,7 +15,7 @@ import {
 // A v2 (membership-gated) peer: identity keypair + the flags createSpace reads to pick schema v2.
 async function v2Peer (t) {
   const ctx = await freshPeerWithIdentity(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true, overlayEnabled: true, inPlaceFilesEnabled: true })
+  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx
 }
 
@@ -36,22 +36,6 @@ test('v2 space: catalog is SCK-encrypted, key published in the …Enc field', as
   const rec = await readProfileRecord(getLocalPublicKeyHex(), space.spaceId)
   t.is(rec.looseCatalogKeyEnc, pub.keyHex, 'key published in loosecatEnc/')
   t.is(rec.looseCatalogKey, null, 'legacy plaintext loosecat/ field is NOT set for v2')
-})
-
-test('v1 space: catalog stays plaintext in the legacy field', async (t) => {
-  await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
-  const space = await createSpace('Legacy')
-  t.absent(space.schemaVersion, 'no schema version → v1')
-
-  const name = await catalogNameFor(space.spaceId)
-  t.absent(name.endsWith('-e1'), 'v1 catalog uses the plaintext core name')
-  const pub = await ownCatalogPublish(space.spaceId)
-  t.is(pub.encrypted, false, 'v1 catalog is not flagged encrypted')
-
-  const rec = await readProfileRecord(getLocalPublicKeyHex(), space.spaceId)
-  t.is(rec.looseCatalogKey, pub.keyHex, 'v1 key published in the legacy loosecat/ field')
-  t.is(rec.looseCatalogKeyEnc, null, 'no loosecatEnc/ for v1')
 })
 
 test('owner reads back its own encrypted catalog', async (t) => {
@@ -96,8 +80,10 @@ test('resolvePeerCatalog: …Enc demands the SCK, legacy stays plaintext', async
   t.is(none.keyHex, null, 'no catalog key → nothing to read')
   t.absent(none.readable, 'no key → not readable')
 
-  // A pending member (no SCK injected) resolving an encrypted key is NOT readable — the metadata gate.
-  const gated = await resolvePeerCatalog(space.spaceId, { catalogKeyEnc: 'AA' }, { space: { spaceId: space.spaceId } })
+  // A pending member resolving an encrypted key is NOT readable — the metadata gate. Uses a
+  // space we hold no vault entry for: holding the SCK is exactly what the gate turns on.
+  const otherId = 'ff'.repeat(8)
+  const gated = await resolvePeerCatalog(otherId, { catalogKeyEnc: 'AA' }, { space: { spaceId: otherId } })
   t.absent(gated.readable, 'encrypted catalog with no SCK is gated (pending joiner reads nothing)')
 })
 

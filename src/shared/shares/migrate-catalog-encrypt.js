@@ -1,4 +1,4 @@
-import { listSpaces, getSpaceContentKey } from '../spaces/space.js'
+import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.js'
 import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'
 import {
@@ -12,16 +12,16 @@ const log = createLogger('catalog-encrypt-migration')
 const FLAG = 'catalog-sck-encrypt-v1'
 const spaceFlag = (spaceId) => FLAG + '/' + spaceId
 
-// One-time, idempotent compat pass. v2 spaces created by releases before catalog encryption
+// One-time, idempotent compat pass. Spaces created by releases before catalog encryption
 // have a PLAINTEXT catalog — a pending joiner could list file metadata without the SCK (space
-// content key). For each v2 space I own: COPY the plaintext
+// content key). For each space I own: COPY the plaintext
 // catalog's entries into the new SCK-encrypted "-e1" core (so loose files + folders whose mount is
 // offline at boot survive, and the scan's mtime fast-path still fires), publish the key into the
 // …Enc fields, then PURGE the plaintext core — the purge is what closes the leak.
 //
 // A per-space marker makes retries cheap and skips already-migrated spaces; the global flag is only
-// set once EVERY v2 space is done, so a space still awaiting its SCK (a pending joiner) is retried
-// on later boots rather than silently left plaintext. v1 spaces are untouched.
+// set once EVERY space is done, so a space still awaiting its SCK (a pending joiner) is retried
+// on later boots rather than silently left plaintext.
 export async function migrateCatalogsToEncrypted () {
   const flagBee = createLocalBee('app-migrations')
   try {
@@ -38,10 +38,12 @@ async function run (flagBee) {
   let migrated = 0
   let deferred = 0
   for (const space of await listSpaces()) {
-    if (space.schemaVersion !== 2) continue
+    // A pre-encryption space can never obtain an SCK, so letting it fall into the deferred bucket
+    // below would hold the global flag open and re-run this whole pass on every boot, forever.
+    if (isLegacySpace(space)) continue
     const spaceId = space.spaceId
     if ((await flagBee.get(spaceFlag(spaceId)))?.value?.completedAt) continue
-    if (!getSpaceContentKey(spaceId, space)) { deferred += 1; log.warn('defer v2 space without SCK (retry after approval):', spaceId); continue }
+    if (!getSpaceContentKey(spaceId, space)) { deferred += 1; log.warn('defer space without SCK (retry after approval):', spaceId); continue }
     try {
       await migrateOneCatalog(space, spaceId)
       await flagBee.put(spaceFlag(spaceId), { completedAt: Date.now() })

@@ -547,7 +547,7 @@ async function crossCheckCreatorRoot(spaceId, space, asserted) {
   }
 }
 
-// v2 read gate. Returns true if the peer is admitted — a recognized member, or one a co-member
+// The read gate. Returns true if the peer is admitted — a recognized member, or one a co-member
 // approved (admitted via the APPROVAL record in the approver's already-replicated bee, not the
 // joiner's own record, which isn't replicated to us until admission). When admitted with the
 // identity binding enforced, its authenticated creator root is cross-checked. Returns false
@@ -556,7 +556,7 @@ async function crossCheckCreatorRoot(spaceId, space, asserted) {
 // by SOME member), but we raise no approve banner, since under replication lag that would let a
 // co-member "re-approve" a peer who already joined. (Genuine no-drive joiners come through
 // onJoinRequest, which still does.)
-async function admitV2Member(spaceId, space, msg) {
+async function admitMember(spaceId, space, msg) {
   // A peer we just saw leave: ignore lingering handshakes (the connection often outlives the leave
   // frame during teardown). Cleared when they send a fresh join request.
   if (isLeft(spaceId, msg.profileKey)) return false
@@ -658,7 +658,7 @@ async function handleHandshake(socket, peerInfo, msg) {
     return
   }
 
-  // While we're pending in this v2 space we hold no content key — don't admit the peer.
+  // While we're pending in this space we hold no content key — don't admit the peer.
   // But if it's a member we pre-seeded (the inviter), pull their avatar so it shows in the
   // spaces list / waiting view. After the grant flips us to approved, our re-handshake
   // draws the reciprocal back in.
@@ -671,9 +671,9 @@ async function handleHandshake(socket, peerInfo, msg) {
     return
   }
 
-  // v2 read gate: only admit a peer we (or a co-member) approved; everyone else is recorded as a
+  // Read gate: only admit a peer we (or a co-member) approved; everyone else is recorded as a
   // converging join request and the handshake stops here.
-  if (space?.schemaVersion === 2 && !(await admitV2Member(spaceId, space, msg))) return
+  if (!(await admitMember(spaceId, space, msg))) return
 
   const peerKey = msg.profileKey
   const isNewToSpace = trackPeerConnection(socket, spaceId, msg)
@@ -1209,7 +1209,7 @@ export async function reconcilePendingRequester(spaceId, joinerKey) {
   pendingAdmitInflight.add(key)
   try {
     const space = await getSpace(spaceId)
-    if (!space || space.schemaVersion !== 2 || space.status === 'pending') return
+    if (!space || space.status === 'pending') return
     if ((space.members || []).some((m) => m.publicKey === joinerKey)) return
     if (!(await isApprovedByPeers(space, joinerKey))) return
     const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)

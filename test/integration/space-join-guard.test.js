@@ -4,14 +4,16 @@ import { freshPeer } from '../helpers/store.js'
 import { joinSpace, createSpace, listSpaces, getDrive, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { encodeInvite, decodeInvite } from '../../src/shared/invite-envelope.js'
 
-test('re-joining the same invite topic is idempotent (one space, drive reused)', async (t) => {
+test('re-joining the same invite topic is idempotent (one space, still pending)', async (t) => {
   await freshPeer(t)
   const topic = b4a.toString(b4a.alloc(32, 9), 'hex')
   const a = await joinSpace(topic, 'Project')
   const b = await joinSpace(topic, 'Project (again)')
   t.is(a.spaceId, b.spaceId, 'spaceId derived from the topic')
   t.is((await listSpaces()).filter((s) => s.spaceId === a.spaceId).length, 1, 'not duplicated')
-  t.ok(getDrive(a.spaceId), 'drive present')
+  // The writable drive is minted on grant (materializeOwnDrive), not at join.
+  t.is((await getSpace(a.spaceId)).status, 'pending', 'still pending after the second join')
+  t.absent(getDrive(a.spaceId), 'no drive while pending')
 })
 
 test('joining a space you created returns the existing record (no-op)', async (t) => {

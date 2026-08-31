@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // Overlay: the owner's REAL file on disk is the source — nothing is copied into a
@@ -20,14 +20,14 @@ function spaceLive (info, spaceId) {
 test('overlay: owner publishes in place (no second copy); peer fetches by content hash',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     t.is(share.contentMode, 'overlay', 'share created in overlay mode under the flag')
-    t.ok(share.catalogKey, 'share record carries the catalog key')
+    t.ok(share.catalogKeyEnc, 'share record carries the SCK-encrypted catalog key')
 
     const folder = mkTmpDir(t)
     const bytes = patternedBytes(256 * 1024, 9)
@@ -72,7 +72,7 @@ test('overlay: owner publishes in place (no second copy); peer fetches by conten
 test('overlay: a file is unavailable while the owner is offline',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey

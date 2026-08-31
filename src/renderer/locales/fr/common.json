@@ -113,7 +113,8 @@
     "waitingDocsTitle": "Pourquoi cette attente ?",
     "waitingDocsBody": "Une invitation contient l'adresse de l'espace, jamais sa clé. C'est un appareil déjà membre qui la transmet : un membre doit donc être en ligne et joignable avant que vous puissiez entrer. L'approbation automatique supprime la décision, pas la transmission.",
     "encryptedBadge": "Chiffré",
-    "unencryptedBadge": "Non chiffré"
+    "legacyBadge": "Non pris en charge",
+    "legacyWarning": "Cet espace a été créé avec une version bien plus ancienne de Mirall et ne peut plus être utilisé. Créez un nouvel espace et partagez-y vos dossiers."
   },
   "scanPreview": {
     "computing": "Calcul de l'aperçu…",

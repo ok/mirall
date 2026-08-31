@@ -4,7 +4,7 @@
 // pinning of the creator root the membership fold trusts.
 import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
-import { isMembershipApprovalEnabled, isInPlaceFilesEnabled } from '../core/runtime-config.js'
+import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
 import { ownCatalogPublish } from '../shares/share-catalog.js'
 import { listOwnedMounts, deleteOwnedMount, listForeignMounts, deleteForeignMount } from '../folders/mount-store.js'
@@ -34,10 +34,9 @@ async function publishLooseCatalogKey (spaceId, space) {
   } catch (err) { log.debug('loose-catalog key publish failed:', err.message) }
 }
 
-// Carried in the handshake so co-members in a v1 space (no member-view fold to hydrate it from
-// records) can open our loose catalog. Returns { keyHex, encrypted } — the same value
-// publishLooseCatalogKey writes to the profile bee — so the handshake lands it in the matching
-// member field (…Enc when the catalog is v2, i.e. encrypted with the space content key, SCK).
+// Carried in the handshake so a co-member can open our loose catalog before the member-view fold
+// hydrates it from records. Returns { keyHex, encrypted } — the same value publishLooseCatalogKey
+// writes to the profile bee.
 export async function ownLooseCatalogPublish (spaceId) {
   if (!isInPlaceFilesEnabled()) return null
   try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
@@ -124,12 +123,20 @@ export async function initSpaces() {
   await spacesBee.ready()
 }
 
-// Per-space content key (SCK), or null for v1/unencrypted spaces. A space I created
-// re-derives from M if the vault entry is ever lost; a space I joined has it only
-// from the grant stored in the vault.
+// Per-space content key (SCK). A space I created re-derives from M if the vault entry is ever
+// lost; a space I joined has it only from the grant stored in the vault.
 export function getSpaceContentKey(spaceId, space) {
-  if (!space || space.schemaVersion !== 2) return null
+  if (!space) return null
   return getContentKey(spaceId) || (space.sckDerivable ? deriveSpaceContentKey(spaceId) : null)
+}
+
+// A space created before v1.7.0, when every space became SCK-encrypted. There is no upgrade
+// path — v2 needs the CREATOR to mint an SCK and re-grant every member, a coordinated multi-peer
+// re-key rather than a local migration — so such a record is surfaced as unsupported instead of
+// half-working: catalog naming, own-catalog open and the admit gate all assume v2. This is the
+// only schemaVersion read left in the data layer.
+export function isLegacySpace(space) {
+  return !!space && space.schemaVersion !== 2
 }
 
 export async function createSpace(name, icon = 'folder') {
@@ -138,18 +145,18 @@ export async function createSpace(name, icon = 'folder') {
   const spaceId = topicHex.slice(0, 16)
   const driveSuffix = makeDriveSuffix()
 
-  const v2 = isMembershipApprovalEnabled() && hasMasterSecret()
-  let sck = null
-  if (v2) {
-    sck = deriveSpaceContentKey(spaceId)
-    await putContentKey(spaceId, sck)
-  }
+  // Every space is SCK-encrypted, so one cannot exist without the master secret its key derives
+  // from. Production always holds one — main.js refuses to start when secure storage is
+  // unavailable — so this is an invariant, not a user-facing outcome.
+  if (!hasMasterSecret()) throw new Error('createSpace: an identity is required to create a space')
+  const sck = deriveSpaceContentKey(spaceId)
+  await putContentKey(spaceId, sck)
 
   const drive = createDrive(makeDriveName(spaceId, driveSuffix), { encryptionKey: sck })
   await drive.ready()
   drives.set(spaceId, drive)
   // Publish our drive key so co-members (incl. ones who only derive us from records) can open it.
-  if (v2) await markSpaceDriveKey(spaceId, b4a.toString(drive.key, 'hex'))
+  await markSpaceDriveKey(spaceId, b4a.toString(drive.key, 'hex'))
 
   const space = {
     name,
@@ -158,10 +165,11 @@ export async function createSpace(name, icon = 'folder') {
     created: new Date().toISOString(),
     members: [],
     driveSuffix,
+    schemaVersion: 2,
+    sckDerivable: true,
     // creatorKey is the root of the membership OR-Set (conflict-free add/remove set)
-    // fold. I created this space, so I am its root — stamp myself. v2-only: v1 has
-    // no membership fold.
-    ...(v2 ? { schemaVersion: 2, sckDerivable: true, creatorKey: getLocalPublicKeyHex() } : {}),
+    // fold. I created this space, so I am its root — stamp myself.
+    creatorKey: getLocalPublicKeyHex(),
   }
   await spacesBee.put('space/' + spaceId, space)
   // AFTER the record exists, so ownCatalog resolves the canonical (suffixed) core —
@@ -171,7 +179,7 @@ export async function createSpace(name, icon = 'folder') {
   return { spaceId, ...space, driveKey: b4a.toString(drive.key, 'hex') }
 }
 
-export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { schemaVersion, inviteId, creator } = {}) {
+export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator } = {}) {
   const spaceId = topicHex.slice(0, 16)
 
   const existing = await spacesBee.get('space/' + spaceId)
@@ -196,49 +204,30 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     return { spaceId, ...existing.value }
   }
 
-  const driveSuffix = makeDriveSuffix()
+  if (!hasMasterSecret()) throw new Error('joinSpace: an identity is required to join a space')
 
-  // v2 join: stay pending and DON'T create the writable drive yet — it must be
-  // encrypted from block 0 once the granted SCK arrives (hypercore can't
-  // retro-encrypt). materializeOwnDrive creates it on grant.
-  if (schemaVersion === 2 && isMembershipApprovalEnabled() && hasMasterSecret()) {
-    const space = {
-      name,
-      icon,
-      topic: topicHex,
-      created: new Date().toISOString(),
-      members: [],
-      driveSuffix,
-      schemaVersion: 2,
-      status: 'pending',
-      ...(inviteId ? { inviteId } : {}),
-      // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
-      // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
-      // authoritatively pins/corrects it from the authenticated SCK-grant before this space
-      // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
-      // must seed from the creator, not whichever member's invite we joined through.
-      ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
-    }
-    await spacesBee.put('space/' + spaceId, space)
-    return { spaceId, ...space, driveKey: null, pending: true }
-  }
-
-  const drive = createDrive(makeDriveName(spaceId, driveSuffix))
-  await drive.ready()
-  drives.set(spaceId, drive)
-
+  // Stay pending and DON'T create the writable drive yet — it must be encrypted from block 0
+  // once the granted SCK arrives (hypercore can't retro-encrypt). materializeOwnDrive creates
+  // it on grant.
   const space = {
     name,
     icon,
     topic: topicHex,
     created: new Date().toISOString(),
     members: [],
-    driveSuffix,
+    driveSuffix: makeDriveSuffix(),
+    schemaVersion: 2,
+    status: 'pending',
+    ...(inviteId ? { inviteId } : {}),
+    // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
+    // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
+    // authoritatively pins/corrects it from the authenticated SCK-grant before this space
+    // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
+    // must seed from the creator, not whichever member's invite we joined through.
+    ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
   }
   await spacesBee.put('space/' + spaceId, space)
-  await publishLooseCatalogKey(spaceId, space)
-
-  return { spaceId, ...space, driveKey: b4a.toString(drive.key, 'hex') }
+  return { spaceId, ...space, driveKey: null, pending: true }
 }
 
 export async function listSpaces() {
@@ -671,7 +660,7 @@ export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
     // Idempotent backfills, re-run every boot. Not part of loading the drive: a profile or
     // catalog write that fails must not cost the space its record.
     try {
-      if (space.schemaVersion === 2) await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
+      await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
       await publishLooseCatalogKey(space.spaceId, space)
     } catch (err) {
       log.warn('post-load backfill failed for', space.spaceId, '-', err.message)
@@ -820,18 +809,18 @@ export function clearCreatorDivergence(spaceId) {
   return mutateSpace(spaceId, (s) => (s.creatorDivergence ? { ...s, creatorDivergence: false } : s))
 }
 
-// A v2 space we JOINED whose creatorKey is only TOFU-pinned (trust-on-first-use — it came
+// A space we JOINED whose creatorKey is only TOFU-pinned (trust-on-first-use — it came
 // from a bearer invite, not an authenticated assertion) is marked unverified, arming the
 // handshake divergence cross-check and letting the UI flag an unverified owner. It does NOT
 // self-heal through onGrant — an approved space never re-enters the grant flow — so the
 // authenticated re-confirmation comes from the handshake `creator` assertion. Self-created
-// (sckDerivable) and v1 spaces are untouched. One-shot per space (creatorMigrated stamp):
+// (sckDerivable) spaces are untouched. One-shot per space (creatorMigrated stamp):
 // re-flagging on every boot would downgrade an authenticated pin back to provisional,
 // re-opening the adopt path to a divergent root after any restart. Returns the count flagged.
 export async function flagUnverifiedJoinedCreators() {
   let flagged = 0
   for (const space of await listSpaces()) {
-    if (space.schemaVersion !== 2 || space.sckDerivable) continue
+    if (space.sckDerivable) continue
     if (space.creatorMigrated) continue
     if (!space.creatorKey || space.creatorUnverified) {
       // Nothing to flag, but stamp it so a later authenticated pin is never re-armed either.

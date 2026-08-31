@@ -41,6 +41,7 @@ export const CODES = Object.freeze({
   SOURCE_CHANGED: 'SOURCE_CHANGED',
   SOURCE_NOT_ON_DISK: 'SOURCE_NOT_ON_DISK',
   SPACE_EXISTS: 'SPACE_EXISTS',
+  SPACE_UNSUPPORTED: 'SPACE_UNSUPPORTED',  // created before v1.7.0; no SCK, and no path to one
   TCC_GATED: 'TCC_GATED',  // adopted from a bare string
   TIMEOUT: 'TIMEOUT',
   TRANSFER_CHECKSUM: 'TRANSFER_CHECKSUM',

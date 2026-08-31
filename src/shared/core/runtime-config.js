@@ -25,7 +25,7 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'up
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
   'dev', 'verbose',
-  'membershipApprovalEnabled', 'handshakeIdentityBindingEnabled', 'relayEnabled',
+  'handshakeIdentityBindingEnabled', 'relayEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -234,10 +234,6 @@ export function getRuntimeConfig() {
 
 export function getPeerPresenceDwellMs() {
   return config.peerPresenceDwellMs
-}
-
-export function isMembershipApprovalEnabled() {
-  return config.membershipApprovalEnabled
 }
 
 export function isHandshakeIdentityBindingEnabled() {

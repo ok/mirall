@@ -18,14 +18,13 @@ type ExpiryId = typeof EXPIRY[number]['id']
 
 interface InviteModalProps {
   isOpen: boolean
-  canAutoApprove?: boolean
   onClose: () => void
   onCreate: (opts: { autoApprove: boolean; expiresInMs: number }) => Promise<string | null>
 }
 
 const BADGE_BASE = 'inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline'
 
-export default function InviteModal({ isOpen, canAutoApprove, onClose, onCreate }: InviteModalProps) {
+export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalProps) {
   const { t, i18n } = useTranslation()
   const [autoApprove, setAutoApprove] = useState(false)
   const [expiry, setExpiry] = useState<ExpiryId>('2h')
@@ -80,41 +79,37 @@ export default function InviteModal({ isOpen, canAutoApprove, onClose, onCreate 
               button DOM across steps and `transition-all` animates Create morphing into Change. */}
           {code === null ? (
             <Fragment key="configure">
-              {canAutoApprove && (
-                <div className="bg-surface-container-low rounded-xl overflow-hidden">
-                  <Toggle
-                    label={t('invite.autoApprove')}
-                    description={t('invite.autoApproveDesc')}
-                    checked={autoApprove}
-                    onChange={setAutoApprove}
-                  />
-                </div>
-              )}
+              <div className="bg-surface-container-low rounded-xl overflow-hidden">
+                <Toggle
+                  label={t('invite.autoApprove')}
+                  description={t('invite.autoApproveDesc')}
+                  checked={autoApprove}
+                  onChange={setAutoApprove}
+                />
+              </div>
 
-              {canAutoApprove && (
-                <div className="space-y-3">
-                  <p id="invite-expiry-label" className="font-headline text-sm font-bold text-accent px-1">{t('invite.expiresAfter')}</p>
-                  <div role="group" aria-labelledby="invite-expiry-label" className="flex gap-1 bg-surface-container-low rounded-xl p-1">
-                    {EXPIRY.map((e) => {
-                      const selected = e.id === expiry
-                      return (
-                        <button
-                          key={e.id}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => setExpiry(e.id)}
-                          className={
-                            'flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ' +
-                            (selected ? 'bg-surface-container-lowest text-accent shadow-sm' : 'text-on-surface-variant hover:text-accent')
-                          }
-                        >
-                          {t(e.labelKey)}
-                        </button>
-                      )
-                    })}
-                  </div>
+              <div className="space-y-3">
+                <p id="invite-expiry-label" className="font-headline text-sm font-bold text-accent px-1">{t('invite.expiresAfter')}</p>
+                <div role="group" aria-labelledby="invite-expiry-label" className="flex gap-1 bg-surface-container-low rounded-xl p-1">
+                  {EXPIRY.map((e) => {
+                    const selected = e.id === expiry
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setExpiry(e.id)}
+                        className={
+                          'flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ' +
+                          (selected ? 'bg-surface-container-lowest text-accent shadow-sm' : 'text-on-surface-variant hover:text-accent')
+                        }
+                      >
+                        {t(e.labelKey)}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
 
               <div className="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
                 <Icon name="info" size={20} className="text-secondary shrink-0" />
@@ -140,23 +135,19 @@ export default function InviteModal({ isOpen, canAutoApprove, onClose, onCreate 
                 </button>
               </div>
 
-              {canAutoApprove && (
-                <div className="flex flex-wrap items-center gap-2 px-1">
-                  <span className={BADGE_BASE + (autoApprove ? ' bg-secondary-container text-on-secondary-container' : ' bg-surface-container-highest text-on-surface-variant')}>
-                    {autoApprove ? t('invite.badge.auto') : t('invite.badge.review')}
-                  </span>
-                  <span className={BADGE_BASE + ' bg-surface-container-highest text-on-surface-variant'}>
-                    {t('invite.badge.expires', { date: expiresLabel })}
-                  </span>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-2 px-1">
+                <span className={BADGE_BASE + (autoApprove ? ' bg-secondary-container text-on-secondary-container' : ' bg-surface-container-highest text-on-surface-variant')}>
+                  {autoApprove ? t('invite.badge.auto') : t('invite.badge.review')}
+                </span>
+                <span className={BADGE_BASE + ' bg-surface-container-highest text-on-surface-variant'}>
+                  {t('invite.badge.expires', { date: expiresLabel })}
+                </span>
+              </div>
 
               <div className="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
                 <Icon name="info" size={20} className="text-secondary shrink-0" />
                 <p className="text-sm text-on-surface-variant font-medium">
-                  {canAutoApprove
-                    ? (autoApprove ? t('invite.autoNote', { date: expiresLabel }) : t('invite.reviewNote', { date: expiresLabel }))
-                    : t('invite.infoText')}
+                  {autoApprove ? t('invite.autoNote', { date: expiresLabel }) : t('invite.reviewNote', { date: expiresLabel })}
                 </p>
               </div>
 

@@ -1,8 +1,8 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshDurable, freshDurableWithIdentity } from '../helpers/store.js'
+import { freshDurableWithIdentity } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { createSpace, joinSpace } from '../../src/shared/spaces/space.js'
+import { createSpace, joinSpace, mutateSpace } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
@@ -22,7 +22,7 @@ async function coreInStore (dkHex) {
 // The durable tier only: boot() runs migrateCatalogsToEncrypted, and these tests drive it.
 async function v2Peer (t) {
   const ctx = await freshDurableWithIdentity(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true, overlayEnabled: true, inPlaceFilesEnabled: true })
+  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx
 }
 
@@ -78,7 +78,7 @@ test('migration copies folder AND loose entries into the encrypted core, then pu
 // marked complete — otherwise its plaintext catalog is never purged and never retried after approval.
 test('defers a v2 space with no SCK and does not mark the migration complete', async (t) => {
   await v2Peer(t)
-  await joinSpace('ab'.repeat(32), 'Pending', 'folder', { schemaVersion: 2 })
+  await joinSpace('ab'.repeat(32), 'Pending', 'folder')
 
   const res = await migrateCatalogsToEncrypted()
   t.is(res.migrated, 0, 'nothing migrated')
@@ -86,18 +86,14 @@ test('defers a v2 space with no SCK and does not mark the migration complete', a
   t.absent((await migrateCatalogsToEncrypted()).skipped, 'not marked complete while a space is deferred (retries next boot)')
 })
 
-test('leaves v1 spaces untouched', async (t) => {
-  await freshDurable(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
-  const space = await createSpace('Legacy')
-  await publishShare(space.spaceId, {
-    id: SHARE, type: 'owned-folder', name: 'Docs', owner: getLocalPublicKeyHex(),
-    contentMode: 'overlay', catalogKey: await ownCatalogKeyHex(space.spaceId), createdAt: 1,
-  })
+// A legacy space can never obtain an SCK, so counting it as "deferred" would hold the global flag
+// open and re-run the whole pass on every boot for the life of the install.
+test('a legacy space is skipped, not deferred — the migration still closes out', async (t) => {
+  await v2Peer(t)
+  const space = await createSpace('Ancient')
+  await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.schemaVersion; return next })
 
   const res = await migrateCatalogsToEncrypted()
-  t.is(res.migrated, 0, 'no v1 space migrated')
-  const s = (await readOwnShares(space.spaceId)).find((x) => x.id === SHARE)
-  t.ok(s.catalogKey, 'v1 share keeps its plaintext catalogKey')
-  t.absent(s.catalogKeyEnc, 'no encrypted key added for v1')
+  t.is(res.deferred, 0, 'the legacy space is not deferred')
+  t.ok((await migrateCatalogsToEncrypted()).skipped, 'the global flag closed out, so later boots no-op')
 })

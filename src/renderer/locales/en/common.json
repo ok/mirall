@@ -137,7 +137,8 @@
     "waitingDocsTitle": "Why am I waiting?",
     "waitingDocsBody": "An invite carries the address of the space, never the key to it. Someone already inside hands that over — so a member has to be online and reachable before you can be let in. Auto-approve removes the decision, not the hand-over.",
     "encryptedBadge": "Encrypted",
-    "unencryptedBadge": "Unencrypted"
+    "legacyBadge": "Unsupported",
+    "legacyWarning": "This space was created by a much older version of Mirall and can no longer be used. Create a new space and share your folders into that one."
   },
   "scanPreview": {
     "computing": "Computing preview…",

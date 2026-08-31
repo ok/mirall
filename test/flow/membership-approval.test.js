@@ -8,7 +8,7 @@ import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 test('joiner is pending, member approves, then files converge', { timeout: 150000 }, async (t) => {
   const bootstrap = await localTestnet(t)
@@ -170,18 +170,6 @@ test('no approver online → joiner stays pending without failure', { timeout: 1
   await B.request('space:join', { inviteCode: invite })
   const bSpaces = await B.request('spaces:list')
   t.is(bSpaces.find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'B waits, no failure')
-})
-
-test('v1 (no schema) space still auto-joins — grandfathered', { timeout: 150000 }, async (t) => {
-  const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
-  const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
-  const space = await A.request('space:create', { name: 'Legacy' })
-  const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const aSawB = A.waitFor('event:member-joined', (m) => m.spaceId === space.spaceId)
-  await B.request('space:join', { inviteCode: invite })
-  await aSawB
-  t.pass('v1 join is immediate, no approval required')
 })
 
 // Auto-approve links are reusable until expiry (not single-use): every redeemer is admitted with

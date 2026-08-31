@@ -2,7 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace, getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
+import { putContentKey } from '../../src/shared/spaces/space-keys.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
@@ -36,6 +37,15 @@ async function setup (t) {
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
+}
+
+// A second space that stands in for the consumer context, sharing the owner space's SCK the way
+// co-members of one space do — the peer catalog below is that space's own encrypted core, so the
+// reader must hold the key that opens it.
+async function consumerSpace (ctx, name) {
+  const space = await createSpace(name)
+  await putContentKey(space.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
+  return space
 }
 
 function writeSource (ctx, name, contents) {
@@ -235,9 +245,9 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   const abs = writeSource(ctx, 'v.bin', 'x'.repeat(2048))
   await looseShareFile(ctx.spaceId, abs, 'v.bin')
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'v.bin')
-  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKey: await ownCatalogKeyHex(ctx.spaceId) }
+  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
 
-  const spaceB = await createSpace('Borealis')
+  const spaceB = await consumerSpace(ctx, 'Borealis')
   const dir = ctx.tmpDir('dl')
   setSpaceDownloadRoot(spaceB.spaceId, dir)
   const landed = path.join(dir, 'v.bin')
@@ -345,9 +355,9 @@ test('A: a still-hashing own loose file is listed as publishing, then flips to m
 test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to unavailable when the owner is offline', async (t) => {
   const ctx = await setup(t)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'p.bin', { size: 4096, mtime: 1, contentHash: null })
-  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKey: await ownCatalogKeyHex(ctx.spaceId) }
+  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
 
-  const spaceB = await createSpace('Borealis')
+  const spaceB = await consumerSpace(ctx, 'Borealis')
   const row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/p.bin')
   t.ok(row, 'null-hash peer file is listed (was hidden before)')
   // Presence-gated (#372): with no in-process presence the owner reads offline, so a still-hashing
@@ -366,7 +376,7 @@ test('REGRESSION (FIX-cycle): files.js <-> loose-overlay.js import without a cir
 
 test('R10: fs-event dispatch — change re-hashes, atomic-save unlink is a no-op, real unlink is scoped per space', async (t) => {
   const ctx = await setup(t)
-  const spaceB = await createSpace('Borealis')
+  const spaceB = await consumerSpace(ctx, 'Borealis')
   const abs = writeSource(ctx, 'doc.txt', 'v1')
   await looseShareFile(ctx.spaceId, abs, 'doc.txt')
   await looseShareFile(spaceB.spaceId, abs, 'doc.txt')

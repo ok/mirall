@@ -51,7 +51,9 @@ test('REGRESSION (FIX-17: space:join retires a pending leave only when one is ar
 test('REGRESSION (FIX-18: a handshake for a space with no local record is rejected)', (t) => {
   // Anchor inside handleHandshake (unique log line) and check the null-space guard precedes admit.
   const h = swarm.slice(swarm.indexOf('handshake topic not matched locally'))
-  const beforeAdmit = h.slice(0, h.indexOf('admitV2Member'))
+  const admitAt = h.indexOf('admitMember')
+  t.not(admitAt, -1, 'the admit gate is still named admitMember (a rename would make this vacuous)')
+  const beforeAdmit = h.slice(0, admitAt)
   t.ok(/if \(!space\) \{/.test(beforeAdmit), 'handleHandshake returns early on a null space before the admit gate')
 })
 
