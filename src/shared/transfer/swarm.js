@@ -13,8 +13,8 @@
 import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import c from 'compact-encoding'
-import b4a from 'b4a'
 import fs from 'bare-fs'
+import b4a from 'b4a'
 import os from 'bare-os'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import {
@@ -53,6 +53,7 @@ import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT_SETTLE_MS, LIVENESS_FAILURES_FOR_OFFLINE } from '../core/reachability.js'
+import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 
 const log = createLogger('swarm')
 
@@ -159,8 +160,6 @@ let lastReconnectAt = 0
 let bootedAt = 0
 const STATUS_EMIT_DEBOUNCE_MS = 300
 const RECONNECT_THROTTLE_MS = 5000
-const DEFAULT_BOOTSTRAP = ['node1.hyperdht.org:49737', 'node2.hyperdht.org:49737', 'node3.hyperdht.org:49737']
-
 const DHT_VERSION = (() => {
   try {
     const url = new URL('../../node_modules/hyperdht/package.json', import.meta.url)
@@ -171,6 +170,14 @@ const DHT_VERSION = (() => {
     return 'unknown'
   }
 })()
+
+// Read-only reporting over the live swarm. Accessors, not the handle: initSwarm/destroySwarm
+// reassign `swarm`, and relaySelections is a counter this module keeps.
+const diag = createSwarmDiagnostics({
+  getSwarm: () => swarm,
+  getRelaySelections: () => relaySelections,
+  getDhtVersion: () => DHT_VERSION,
+})
 
 const BENIGN_SOCKET_ERRORS = ['timed out', 'reset by peer', 'Duplicate connection']
 function isBenignSocketError (err) {
@@ -2063,140 +2070,6 @@ async function destroySwarm() {
   log.info('swarm destroyed')
 }
 
-function getBootstrapList() {
-  try {
-    const list = global.Pear?.config?.dht?.bootstrap
-    if (Array.isArray(list)) return list.map(String)
-  } catch {}
-  return DEFAULT_BOOTSTRAP
-}
-
-function safeAddress() {
-  try {
-    const addr = swarm?.dht?.address?.()
-    if (addr && typeof addr.port === 'number') {
-      return { host: typeof addr.host === 'string' ? addr.host : null, port: addr.port }
-    }
-  } catch {}
-  return { host: null, port: 0 }
-}
-
-function safeRoutingTableSize() {
-  try {
-    const arr = swarm?.dht?.toArray?.({ limit: 50 })
-    return Array.isArray(arr) ? arr.length : 0
-  } catch { return 0 }
-}
-
-// The gap between peers we DISCOVERED on our topics and peers we actually connected to
-// is the strongest connectivity signal available: the DHT told us where they are and we
-// could not open a socket to any of them.
-function snapshotPeerReach() {
-  const peers = swarm?.peers
-  if (!peers) return { discovered: 0, connected: 0, exhausted: 0 }
-  let exhausted = 0
-  for (const info of peers.values()) {
-    // attempts > 3 is where hyperswarm's _shouldRequeue gives up and the peer leaves the
-    // retry queue until a fresh lookup rediscovers it.
-    if (!info.proven && info.attempts > 3) exhausted++
-  }
-  return { discovered: peers.size, connected: swarm.connections?.size || 0, exhausted }
-}
-
-const PEER_SAMPLE_CAP = 32
-
-// PeerInfo.topics carries an upstream "remove on next major" marker, so never assume it.
-function topicHexOf(info) {
-  const topic = Array.isArray(info?.topics) ? info.topics[0] : null
-  if (!topic) return null
-  try { return b4a.toString(topic, 'hex') } catch { return null }
-}
-
-function snapshotPeerSamples() {
-  const peers = swarm?.peers
-  if (!peers) return []
-  const out = []
-  for (const [key, info] of peers) {
-    if (out.length >= PEER_SAMPLE_CAP) break
-    out.push({
-      publicKey: key,
-      topic: topicHexOf(info),
-      attempts: info.attempts || 0,
-      proven: !!info.proven,
-    })
-  }
-  return out
-}
-
-function snapshotDhtHealth() {
-  const health = swarm?.dht?.health
-  if (!health) return { online: true, degraded: false, cold: true, idle: true, timeoutsRate: 0 }
-  const s = health.stats || {}
-  return {
-    online: s.online !== false,
-    degraded: !!s.degraded,
-    cold: !!s.cold,
-    idle: !!s.idle,
-    timeoutsRate: typeof s.timeoutsRate === 'number' ? s.timeoutsRate : 0,
-  }
-}
-
-function snapshotStats() {
-  const s = swarm?.stats || {}
-  const c = s.connects || {}
-  const cl = c.client || {}
-  const sv = c.server || {}
-  return {
-    updates: s.updates || 0,
-    connects: {
-      client: { opened: cl.opened || 0, closed: cl.closed || 0, attempted: cl.attempted || 0 },
-      server: { opened: sv.opened || 0, closed: sv.closed || 0, attempted: sv.attempted || 0 },
-    },
-    bannedPeers: s.bannedPeers || 0,
-    relaying: snapshotRelayingStats(),
-  }
-}
-
-// hyperdht counts relayed connection attempts on the DHT node, not the swarm, so this
-// reads through to the shared node rather than swarm.stats.
-function snapshotRelayingStats() {
-  const r = swarm?.dht?.stats?.relaying || {}
-  return { selected: relaySelections, attempts: r.attempts || 0, successes: r.successes || 0, aborts: r.aborts || 0 }
-}
-
-function offlineStatusSnapshot() {
-  return {
-    state: 'offline',
-    dhtReady: false,
-    announced: false,
-    peerCount: 0,
-    connecting: 0,
-    suspended: false,
-    lastConnectionAt: null,
-    bootedAt: 0,
-    identity: { publicKey: '', nodeId: null },
-    address: { publicHost: null, publicPort: 0, localPort: 0 },
-    nat: { firewalled: null, randomized: null, ephemeral: true },
-    routing: { bootstrap: getBootstrapList(), tableSize: 0 },
-    topics: 0,
-    stats: {
-      updates: 0,
-      connects: {
-        client: { opened: 0, closed: 0, attempted: 0 },
-        server: { opened: 0, closed: 0, attempted: 0 },
-      },
-      bannedPeers: 0,
-      relaying: { selected: 0, attempts: 0, successes: 0, aborts: 0 },
-    },
-    peerReach: { discovered: 0, connected: 0, exhausted: 0 },
-    dhtHealth: { online: false, degraded: false, cold: true, idle: true, timeoutsRate: 0 },
-    canary: { state: CANARY.UNAVAILABLE, at: 0 },
-    liveness: { failures: 0, checkedAt: 0, interfaceKind: 'physical' },
-    reachability: { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null },
-    versions: { dht: DHT_VERSION },
-  }
-}
-
 // === Blind relay ===
 
 const RELAY_PROBE_TIMEOUT_MS = 10000
@@ -2272,7 +2145,7 @@ function recordVerdictTransition(next) {
 
 function recomputeReachability() {
   const dht = swarm?.dht || {}
-  const stats = snapshotStats()
+  const stats = diag.snapshotStats()
   const now = Date.now()
   const raw = classify({
     now,
@@ -2287,9 +2160,9 @@ function recomputeReachability() {
       publicHost: typeof dht.host === 'string' ? dht.host : null,
       publicPort: typeof dht.port === 'number' ? dht.port : 0,
     },
-    routing: { tableSize: safeRoutingTableSize() },
-    dhtHealth: snapshotDhtHealth(),
-    peerReach: snapshotPeerReach(),
+    routing: { tableSize: diag.safeRoutingTableSize() },
+    dhtHealth: diag.snapshotDhtHealth(),
+    peerReach: diag.snapshotPeerReach(),
     dials: { attempted: stats.connects.client.attempted, opened: stats.connects.client.opened },
     canary: lastCanaryResult,
     liveness: { failures: livenessFailures, checkedAt: livenessCheckedAt },
@@ -2315,13 +2188,13 @@ export function getDiagnosticCounters() {
     readyAt,
     bootedAt,
     hostChangeCount,
-    localPortStable: safeAddress().port > 0,
+    localPortStable: diag.safeAddress().port > 0,
     droppedFrames: getDroppedFrameCounters(),
   }
 }
 
 export function getPeerSamples() {
-  return snapshotPeerSamples()
+  return diag.snapshotPeerSamples()
 }
 
 const CANARY_TIMEOUT_MS = 10000
@@ -2560,7 +2433,7 @@ export async function probeCanary(upgradeKey, { force = false } = {}) {
 }
 
 export function getSwarmStatus() {
-  if (!swarm) return offlineStatusSnapshot()
+  if (!swarm) return diag.offlineStatusSnapshot()
 
   const reachability = recomputeReachability()
 
@@ -2573,7 +2446,7 @@ export function getSwarmStatus() {
     : peerCount > 0 ? 'online' : 'connecting'
 
   const dht = swarm.dht || {}
-  const addr = safeAddress()
+  const addr = diag.safeAddress()
   const pubKey = swarm.keyPair?.publicKey
     ? b4a.toString(swarm.keyPair.publicKey, 'hex')
     : ''
@@ -2600,14 +2473,14 @@ export function getSwarmStatus() {
       ephemeral: !!dht.ephemeral,
     },
     routing: {
-      bootstrap: getBootstrapList(),
-      tableSize: safeRoutingTableSize(),
+      bootstrap: diag.getBootstrapList(),
+      tableSize: diag.safeRoutingTableSize(),
     },
     topics: spaceTopics.size,
     contentPlane: getContentPlaneStatus(),
-    stats: snapshotStats(),
-    peerReach: snapshotPeerReach(),
-    dhtHealth: snapshotDhtHealth(),
+    stats: diag.snapshotStats(),
+    peerReach: diag.snapshotPeerReach(),
+    dhtHealth: diag.snapshotDhtHealth(),
     canary: lastCanaryResult,
     liveness: { failures: livenessFailures, checkedAt: livenessCheckedAt, interfaceKind },
     reachability,
