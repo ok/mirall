@@ -11,7 +11,7 @@ import { installReconcileBridge } from './store/reconcile.js'
 
 // Before the first render: the store's transport, and the single reconcile subscription every
 // store-backed view re-derives from.
-configureQueryStore({ request })
+configureQueryStore({ request: (type, params, opts) => request(type, params, undefined, opts) })
 configurePrefsStore({ getPrefs: () => window.bridge.getPrefs(), setPrefs: (patch) => window.bridge.setPrefs(patch) })
 installReconcileBridge()
 

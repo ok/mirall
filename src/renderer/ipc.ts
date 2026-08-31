@@ -1,6 +1,14 @@
 import type { RequestName } from '../shared/contract/requests.js'
+import { FRAME } from '../shared/contract/frames.js'
+import { CODES } from '../shared/contract/errors.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
 const WORKER_SPEC = '/src/worker/main.js'
+
+const ECANCELLED = CODES.ECANCELLED
+
+export interface RequestOptions {
+  signal?: AbortSignal
+}
 
 interface PendingRequest {
   resolve: (data: unknown) => void
@@ -240,11 +248,21 @@ if (typeof window !== 'undefined') {
   ensureWorker().catch((err) => console.error('worker start failed:', err))
 }
 
+function cancelledError(type: RequestName): Error & { code: string } {
+  const err = new Error(`cancelled: ${type}`) as Error & { code: string }
+  err.code = ECANCELLED
+  return err
+}
+
 export async function request(
   type: RequestName,
   payload: Record<string, unknown> = {},
   timeout = DEFAULT_TIMEOUT,
+  opts: RequestOptions = {},
 ): Promise<unknown> {
+  // Refused before the worker wait, not after: an already-aborted caller must not be parked on a
+  // respawn it has no interest in the outcome of.
+  if (opts.signal?.aborted) throw cancelledError(type)
   await ensureWorker()
   // Wait for the CURRENT worker to be ready, re-reading readyPromise each iteration so a respawn
   // (which re-arms it) wakes us onto the new worker instead of stranding us on a stale promise.
@@ -256,24 +274,56 @@ export async function request(
 
   const id = nextId++
   return new Promise<unknown>((resolve, reject) => {
+    const signal = opts.signal
+    // A caller may reuse one signal across many reads (one per screen), so a listener left behind
+    // on every settled request would accumulate for the life of that signal.
+    const detach = (): void => { signal?.removeEventListener('abort', onAbort) }
+
     const timer = timeout > 0
       ? setTimeout(() => {
           if (pending.has(id)) {
             pending.delete(id)
+            detach()
             reject(new Error(`IPC timeout: ${type} (${timeout}ms)`))
           }
         }, timeout)
       : null
 
+    function onAbort(): void {
+      if (!pending.has(id)) return
+      pending.delete(id)
+      if (timer) clearTimeout(timer)
+      detach()
+      // Fire-and-forget, and the local rejection does not wait for it: the worker's answer is
+      // irrelevant once we have stopped listening, and awaiting an ack would put a round-trip in
+      // front of an operation whose whole purpose is to stop waiting. A late response finds no
+      // pending entry and is dropped by handleLine.
+      const frame = JSON.stringify({ type: FRAME.CANCEL, id }) + '\n'
+      void window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => undefined)
+      reject(cancelledError(type))
+    }
+
+    // Re-checked here, not only on entry: the caller may have aborted during the worker-ready wait
+    // above, and a listener attached to an already-aborted signal never fires — the request would
+    // run to completion with nobody left to receive it.
+    if (signal?.aborted) {
+      if (timer) clearTimeout(timer)
+      reject(cancelledError(type))
+      return
+    }
+
     pending.set(id, {
-      resolve: (data) => { if (timer) clearTimeout(timer); resolve(data) },
-      reject: (err) => { if (timer) clearTimeout(timer); reject(err) },
+      resolve: (data) => { if (timer) clearTimeout(timer); detach(); resolve(data) },
+      reject: (err) => { if (timer) clearTimeout(timer); detach(); reject(err) },
     })
+
+    signal?.addEventListener('abort', onAbort, { once: true })
 
     const envelope = JSON.stringify({ id, type, ...payload }) + '\n'
     window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(envelope)).catch((err) => {
       pending.delete(id)
       if (timer) clearTimeout(timer)
+      detach()
       reject(err instanceof Error ? err : new Error(String(err)))
     })
   })
