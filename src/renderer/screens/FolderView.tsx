@@ -22,6 +22,8 @@ import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileT
 import { request } from '../ipc.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useOwnedMount } from '../hooks/useFolderMount.js'
+import { useIndexProgress } from '../hooks/useIndexProgress.js'
+import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
@@ -91,6 +93,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
   // first render before derive() resolves).
   const { status: ownedStatus } = useOwnedMount(spaceId, isYou ? share.id : '')
+  // The scan's own queue depth, which the file rows cannot show: a queued file has no catalog
+  // entry yet, so it has no row. Owner-only — a member has no view of our scheduler.
+  const indexing = deriveIndexSummary(useIndexProgress(spaceId, isYou ? share.id : ''))
   const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
 
   async function handleRevealFolder() {
@@ -275,6 +280,27 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
               <div role="alert" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-error-container text-on-error-container text-sm">
                 <Icon name="warning" size={16} className="shrink-0" />
                 <span>{t('folder.sourceMissingBanner')}</span>
+              </div>
+            )}
+            {/* Always-present live region so the scan notice is ANNOUNCED when it appears — same
+                reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
+                the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
+                only queued has no row yet, which is exactly the gap this closes. */}
+            {isYou && (
+              <div
+                role="status"
+                aria-live="polite"
+                className={indexing.active ? 'flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm' : 'sr-only'}
+              >
+                {indexing.active ? (
+                  <>
+                    <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
+                    <span>
+                      {t('folder.indexingSummary', { count: indexing.files })}
+                      {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
+                    </span>
+                  </>
+                ) : null}
               </div>
             )}
             {/* Always-present live region so the "first N of M" notice is ANNOUNCED when it
