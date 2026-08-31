@@ -128,6 +128,16 @@ test('REGRESSION (structural): preloadAsarCache primes feature flags before the 
     'main.js no longer does a lazy fs read of the asar feature-flags.json path')
 })
 
+// The identity KEK resolve used to sit behind `if (!process.env.MIRALL_INSECURE_IDENTITY)`, which
+// let a run boot with no identity.enc at all — the RocksDB seed WAS the identity, in plaintext,
+// and every local metadata bee stayed unencrypted. Nothing set it, and the data layer now refuses
+// to create a space without M, so the hatch is gone. Pinned here because its return would be
+// silent: the app would still start, just without at-rest identity protection.
+test('REGRESSION (structural): no env var can skip the identity KEK resolve', (t) => {
+  t.absent(/MIRALL_INSECURE_IDENTITY/.test(mainSrc), 'main.js no longer honours an insecure-identity escape hatch')
+  t.ok(/identityKek\.resolveKEKHex\(storagePath\)/.test(mainSrc), 'the KEK resolve still runs unconditionally at startup')
+})
+
 test('the relay flag is opt-in: absent, degraded, and explicit-false all read off', (t) => {
   __resetForTest()
   resetEnv(t)

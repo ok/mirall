@@ -36,7 +36,8 @@ export function storeEpoch() {
 
 // When set, identity cores open from an explicit keyPair derived from M instead of
 // the persisted seed (so the scrubbed on-disk seed yields no signing key). null ⇒
-// plain name-based seed derivation (tests / the MIRALL_INSECURE_IDENTITY escape hatch).
+// plain name-based seed derivation, which only the tests that boot without an identity use;
+// production always resolves M.
 export function setMasterSecret(buf) {
   masterSecret = buf
   metadataKey = null

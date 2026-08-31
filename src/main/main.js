@@ -1532,19 +1532,17 @@ if (!lock) {
     } catch (err) {
       console.error('[identity] storage perms failed:', err.message)
     }
-    if (!process.env.MIRALL_INSECURE_IDENTITY) {
-      try {
-        const identityKek = require('./identity-kek.js')
-        identityKEKHex = identityKek.resolveKEKHex(storagePath)
-        identityProtection = identityKek.storageBackend() === 'basic_text' ? 'weak' : 'protected'
-        if (identityProtection === 'weak') {
-          console.warn('[identity] safeStorage backend is basic_text (no OS keyring); identity.enc is only weakly protected — rely on full-disk encryption')
-        }
-      } catch (err) {
-        dialog.showErrorBox('Mirall cannot start', 'Secure storage is unavailable, so your identity key cannot be protected. ' + err.message)
-        app.quit()
-        return
+    try {
+      const identityKek = require('./identity-kek.js')
+      identityKEKHex = identityKek.resolveKEKHex(storagePath)
+      identityProtection = identityKek.storageBackend() === 'basic_text' ? 'weak' : 'protected'
+      if (identityProtection === 'weak') {
+        console.warn('[identity] safeStorage backend is basic_text (no OS keyring); identity.enc is only weakly protected — rely on full-disk encryption')
       }
+    } catch (err) {
+      dialog.showErrorBox('Mirall cannot start', 'Secure storage is unavailable, so your identity key cannot be protected. ' + err.message)
+      app.quit()
+      return
     }
 
     await createWindow()
