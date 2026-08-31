@@ -1097,10 +1097,6 @@ async function handleMainRequest(command, args, worker) {
     ownedFolderWatchers.stopWatcher(args.shareId)
     return
   }
-  if (command === 'foreign-folder:stop-watcher') {
-    ownedFolderWatchers.stopWatcher(args.shareId)
-    return
-  }
 }
 
 ipcMain.handle('owned-folder:start-watcher', (_evt, { shareId, mountPath, ignore }) => {

@@ -228,7 +228,6 @@ export const REQUESTS = Object.freeze({
     spaceId: { type: ARG.spaceId, optional: true },
   } },
   'spaces:list': { kind: 'query', args: {} },
-  'storage:cleanup': { kind: 'command', args: {} },
   'storage:free-space': { kind: 'query', args: {} },
   'storage:info': { kind: 'query', args: {} },
   'storage:leftover-scan': { kind: 'query', args: {} },
@@ -240,5 +239,4 @@ export const REQUEST_NAMES = Object.freeze(Object.keys(REQUESTS))
 // a behaviour change and belongs in its own commit. The test asserts this list only shrinks.
 export const UNREFERENCED_REQUESTS = Object.freeze([
   'owned-folder:cancel-index',
-  'storage:cleanup',
 ])
