@@ -6,11 +6,13 @@ import { createRoot } from 'react-dom/client'
 import App from './app.js'
 import { request } from './ipc.js'
 import { configureQueryStore } from './store/query-store.js'
+import { configurePrefsStore } from './store/prefs-store.js'
 import { installReconcileBridge } from './store/reconcile.js'
 
 // Before the first render: the store's transport, and the single reconcile subscription every
 // store-backed view re-derives from.
 configureQueryStore({ request })
+configurePrefsStore({ getPrefs: () => window.bridge.getPrefs(), setPrefs: (patch) => window.bridge.setPrefs(patch) })
 installReconcileBridge()
 
 if (__DEV__ && window.bridge?.isDev?.()) {

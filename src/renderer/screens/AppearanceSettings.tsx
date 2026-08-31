@@ -1,11 +1,11 @@
 // Appearance settings: theme (light/dark/system), language, and UI zoom.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n.js'
 import { applyTheme, getStoredTheme, type ThemeMode } from '../theme.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { usePrefs } from '../store/usePrefs.js'
 import { useZoom, ZOOM_LEVELS, isSameZoom } from '../hooks/useZoom.js'
-import type { AppPrefs } from '../global.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
@@ -22,21 +22,9 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const currentLang = i18n.language
   const showMenuBarToggle = window.bridge.getPlatform() !== 'darwin'
-  const [prefs, setLocalPrefs] = useState<AppPrefs | null>(null)
-
-  useEffect(() => {
-    if (!showMenuBarToggle) return
-    let cancelled = false
-    window.bridge.getPrefs().then((p) => { if (!cancelled) setLocalPrefs(p) })
-    return () => { cancelled = true }
-  }, [showMenuBarToggle])
-
-  async function updatePrefs(partial: Partial<AppPrefs>) {
-    if (!prefs) return
-    setLocalPrefs({ ...prefs, ...partial })
-    const next = await window.bridge.setPrefs(partial)
-    setLocalPrefs(next)
-  }
+  // macOS has no menu-bar toggle, and prefs are read here for nothing else — so this screen does
+  // not pull them there. Everywhere else it shares the one copy with GeneralSettings.
+  const { prefs, update: updatePrefs } = usePrefs({ enabled: showMenuBarToggle })
 
   function handleTheme(mode: ThemeMode) {
     setTheme(mode)

@@ -1,8 +1,7 @@
 // General settings: minimize-to-tray and open-at-login toggles persisted via main's app prefs.
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import type { AppPrefs } from '../global.js'
+import { usePrefs } from '../store/usePrefs.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import Toggle from '../components/primitives/Toggle.js'
@@ -13,26 +12,12 @@ interface GeneralSettingsProps {
 
 export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
   const { t } = useTranslation()
-  const [prefs, setLocalPrefs] = useState<AppPrefs | null>(null)
+  const { prefs, update } = usePrefs()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const isMac = window.bridge.getPlatform() === 'darwin'
   const introKey = isMac ? 'generalSettings.introMac' : 'generalSettings.intro'
   const minimizeKey = isMac ? 'generalSettings.minimizeToTrayMac' : 'generalSettings.minimizeToTray'
   const minimizeDescKey = isMac ? 'generalSettings.minimizeToTrayDescMac' : 'generalSettings.minimizeToTrayDesc'
-
-  useEffect(() => {
-    let cancelled = false
-    window.bridge.getPrefs().then((p) => { if (!cancelled) setLocalPrefs(p) })
-    return () => { cancelled = true }
-  }, [])
-
-  async function update(partial: Partial<AppPrefs>) {
-    if (!prefs) return
-    const optimistic = { ...prefs, ...partial }
-    setLocalPrefs(optimistic)
-    const next = await window.bridge.setPrefs(partial)
-    setLocalPrefs(next)
-  }
 
   return (
     <div
