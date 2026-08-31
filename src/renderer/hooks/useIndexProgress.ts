@@ -53,11 +53,15 @@ export function useIndexProgress(spaceId: string, shareId: string, source: Index
   useEffect(() => {
     if (!spaceId || !shareId || !live) return
     let alive = true
+    // Frames arrive every ~500ms during a scan, so the backstop's answer can resolve AFTER one and
+    // be older than it — the count would visibly step backwards. It is a cold start, not a source
+    // of truth: once anything live has landed, it yields.
+    let sawFrame = false
     if (own) {
       request('owned-folder:index-status', { spaceId, shareId })
         // Narrowed to the two fields the notice reads, so both sources hold the same shape and a
         // later reader cannot come to depend on a field only one of them carries.
-        .then((s) => { if (alive) setStatus({ adding: (s as IndexStatus)?.adding, bytesQueued: (s as IndexStatus)?.bytesQueued }) })
+        .then((s) => { if (alive && !sawFrame) setStatus({ adding: (s as IndexStatus)?.adding, bytesQueued: (s as IndexStatus)?.bytesQueued }) })
         .catch(() => {})
     }
     const event = own ? 'event:owned-folder-index-progress' : 'event:share-index-progress'
@@ -65,6 +69,7 @@ export function useIndexProgress(spaceId: string, shareId: string, source: Index
       if (msg.spaceId !== spaceId || msg.shareId !== shareId) return
       // A peer frame describes someone else's share unless it came from that share's owner.
       if (!own && msg.ownerKey !== ownerKey) return
+      sawFrame = true
       setStatus({ adding: msg.adding, bytesQueued: msg.bytesQueued })
     })
     return () => { alive = false; unsub() }

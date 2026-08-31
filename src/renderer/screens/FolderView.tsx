@@ -294,7 +294,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
                 the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
                 only queued has no row yet, which is exactly the gap this closes. */}
-            {indexing.active && (
+            {indexing.active && !loading && !error && (
               <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm">
                 <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
                 <span>
@@ -310,7 +310,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                 reason. This one carries a count-free sentence, so it is announced once when the
                 scan starts and once when it ends, while the numbers stay browsable as text. */}
             <div role="status" aria-live="polite" className="sr-only">
-              {indexing.active
+              {indexing.active && !loading && !error
                 ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '?' }))
                 : ''}
             </div>
