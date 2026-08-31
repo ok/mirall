@@ -5,10 +5,11 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig, getResourceCaps } from '../../src/shared/core/runtime-config.js'
 import {
   runMaterializeTick, startForeignLoop, stopForeignLoop, restartForeignLoop, mirrorHealth,
+  unmountForeignFolder,
 } from '../../src/shared/folders/foreign-folders.js'
 import { STALL_FACTOR } from '../../src/shared/folders/mirror-health.js'
 import { MountsRuntime } from '../../src/worker/mounts-runtime.js'
@@ -190,4 +191,40 @@ test('REGRESSION (FIX-R09-2 wiring): the mount probe actually calls the liveness
   const openBody = src.slice(src.indexOf('async _open()'), src.indexOf('async _resumeOwnedMounts'))
   t.ok(/this\.probeMirrorLiveness\(\)/.test(openBody), 'the periodic probe body calls probeMirrorLiveness')
   t.ok(/restartForeignLoop/.test(src), 'and the runtime imports the restart it drives')
+})
+
+// stopForeignLoop bumps cancelGen before the restart re-arms, so the pass being abandoned is
+// generation-invalidated. Its trailing persist would otherwise re-save a mount the user removed.
+test('a restart cannot resurrect a mount that was unmounted', async (t) => {
+  const { spaceId, shareId, spy } = await wedgedMirror(t)
+
+  runMaterializeTick(spaceId, shareId)
+  await waitUntil(() => spy.fetches === 1)
+
+  await unmountForeignFolder(spaceId, shareId)
+  t.is(await getForeignMount(spaceId, shareId), null, 'the record is gone')
+
+  await restartForeignLoop(spaceId, shareId)
+  await delay(80)
+  t.is(await getForeignMount(spaceId, shareId), null, 'and the restart did not bring it back')
+  t.is(spy.fetches, 1, 'no pass runs for a mount that no longer exists')
+})
+
+test('the abandoned pass writes nothing once it finally settles', async (t) => {
+  const { spaceId, shareId, spy } = await wedgedMirror(t)
+
+  runMaterializeTick(spaceId, shareId)
+  await waitUntil(() => spy.fetches === 1)
+
+  await restartForeignLoop(spaceId, shareId)
+  await waitUntil(() => spy.fetches === 2)
+
+  const before = await getForeignMount(spaceId, shareId)
+  const cancelled = new Error('cancelled'); cancelled.code = 'ECANCELLED'
+  spy.rejecters.shift()(cancelled)
+  await delay(80)
+
+  const after = await getForeignMount(spaceId, shareId)
+  t.alike(after.syncedPaths, before.syncedPaths, 'the stale pass recorded no ownership')
+  t.is(after.status, before.status, 'and settled no status of its own')
 })
