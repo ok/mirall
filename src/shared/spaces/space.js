@@ -489,25 +489,19 @@ async function clearAllLeftTombstones(spaceId) {
   }
 }
 
-// Release a drive's core sessions ahead of purging its on-disk state. In identity
-// mode the drive is built over the ROOT corestore (the `_db` Hyperdrive ctor path),
-// so drive.close() would close that root and kill every other session — the
-// "RocksDB session is closed" / "closing core" cascade that strands the leave before
-// it deletes the space record. Close just this drive's own cores instead; the root
-// stays open. Seed-mode drives (no master secret) own a namespaced corestore, so
-// closing them is safe and still drops the (namespace, 'db') alias resolution.
-async function releaseDriveForPurge(drive, blobs) {
-  if (hasMasterSecret()) {
-    try {
-      if (blobs) await blobs.core.close()
-      if (drive.db) await drive.db.close()
-    } catch (err) {
-      log.warn('drive core release during purge failed:', err.message)
-    }
-  } else {
-    try { await drive.close() } catch (err) {
-      log.warn('drive close during purge failed:', err.message)
-    }
+// Release a SPACE drive's own core sessions. A space cannot exist without the master secret
+// (createSpace/joinSpace refuse without one), so a space drive is always the explicit-keypair
+// shape: built over the ROOT corestore via the `_db` Hyperdrive ctor path. drive.close() would
+// therefore close that root and kill every other session — the "RocksDB session is closed" /
+// "closing core" cascade. Close just this drive's own cores instead; the root stays open and
+// whatever runs next still has a store. (createDrive's namespaced branch is still reachable for
+// drives that are not a space's — nothing here opens one.)
+async function releaseDriveCores(drive, blobs) {
+  try {
+    if (blobs) await blobs.core.close()
+    if (drive.db) await drive.db.close()
+  } catch (err) {
+    log.warn('drive core release failed:', err.message)
   }
 }
 
@@ -528,20 +522,18 @@ export async function purgeSpaceDrive(spaceId, onProgress, { compact = true } = 
     const metaDk = b4a.toString(drive.core.discoveryKey, 'hex')
     const blobs = await drive.getBlobs()
     const blobsDk = blobs ? b4a.toString(blobs.core.discoveryKey, 'hex') : null
-    const driveNamespace = drive.corestore?.ns ? b4a.from(drive.corestore.ns) : null
 
     // Clear the drive's blocks before the header delete so RocksDB accounts blob
     // garbage; purgeCoreDk alone strands blob-separated values (garbage stays 0).
     try { await drive.clearAll() } catch (err) { log.warn('drive clearAll before purge failed:', err.message) }
 
-    await releaseDriveForPurge(drive, blobs)
+    await releaseDriveCores(drive, blobs)
 
     emit('purgingLocalMeta')
+    // A space drive opens by keyPair, not name (see releaseDriveCores), so there is no
+    // (namespace, 'db') alias to purge — drive.corestore.ns is the root namespace, which
+    // purgeAlias must not touch.
     await purgeCoreDk(cs, db, metaDk)
-    // Explicit-keypair drives (identity mode) open by keyPair, not name, so there
-    // is no (namespace, 'db') alias to purge — and drive.corestore.ns is the root
-    // namespace, which purgeAlias must not touch. Core data is still freed above.
-    if (driveNamespace && !hasMasterSecret()) await purgeAlias(cs, driveNamespace, 'db')
     emit('purgingLocalBlobs')
     if (blobsDk) await purgeCoreDk(cs, db, blobsDk)
 
@@ -853,9 +845,16 @@ export class SpacesBee extends Subsystem {
 export class SpaceDrives extends Subsystem {
   async _open() { this.load = await loadDrives() }
 
+  // Releases each drive's own cores rather than closing the drive: the root corestore must
+  // survive, because the tiers that close after this one still read and write through it — the
+  // serve ledger's flush resolves each space to record its audit row, and the store's own close
+  // is what finally releases the lock.
   async _close() {
     const open = [...drives.values()]
     drives.clear()
-    await Promise.allSettled(open.map((drive) => drive.close()))
+    await Promise.allSettled(open.map(async (drive) => {
+      const blobs = await drive.getBlobs().catch(() => null)
+      await releaseDriveCores(drive, blobs)
+    }))
   }
 }
