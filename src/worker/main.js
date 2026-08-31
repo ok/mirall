@@ -31,6 +31,7 @@ import {
 import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
+import { WORKER_EXIT_UNSTABLE } from '../shared/contract/exit-codes.js'
 import { getContentBackend, UNSUPPORTED } from '../shared/transfer/content-backends.js'
 import {
   getProfile,
@@ -217,11 +218,21 @@ function dropSpaceDownloadRoot(spaceId) {
 // up front it is logged and boot continues. (A genuinely fatal *awaited* init can still leave
 // boot incomplete, but the worker stays alive and logs loudly instead of vanishing — strictly
 // better than a silent abort.)
-installCrashBackstop(log)
+// Armed only once the worker is LIVE (see isArmed below): the paragraph above is the reason —
+// escalating during boot would re-create the abort this guard exists to prevent. `bootComplete`
+// flips next to the ready broadcast, so the worker and the renderer's respawn policy agree on
+// what "this generation booted" means.
+installCrashBackstop(log, {
+  isArmed: () => bootComplete && !shuttingDown,
+  onUnstable: () => { safeShutdown('unstable', WORKER_EXIT_UNSTABLE) },
+})
 
 let root = null
+let bootComplete = false
 let shuttingDown = false
-async function safeShutdown(reason) {
+// `exitCode` is how the renderer tells an unstable exit from any other death. They want
+// opposite respawn budgets and nothing else about the two exits differs.
+async function safeShutdown(reason, exitCode = 0) {
   if (shuttingDown) return
   shuttingDown = true
   log.warn('shutdown:', reason)
@@ -229,14 +240,14 @@ async function safeShutdown(reason) {
   // (This covers the "stuck on an await" case; if the event loop is starved by a
   // busy loop the timer can't fire either — the parent's SIGKILL backstop is what
   // reaps that case.)
-  const deadline = setTimeout(() => { try { Bare.exit(0) } catch {} }, 4000)
+  const deadline = setTimeout(() => { try { Bare.exit(exitCode) } catch {} }, 4000)
   deadline.unref?.()
   // The whole stop sequence — the departure announce, the flush window, then every subsystem in
   // the reverse of its start order — lives in the composition root. `root` is null until boot()
   // returns, which is what lets the pipe-close hooks below fire at any point during startup.
   try { await root?.close() } catch (err) { log.warn('shutdown: close failed:', err.message) }
   log.info('shutdown complete')
-  Bare.exit(0)
+  Bare.exit(exitCode)
 }
 
 // Register the pipe-close teardown BEFORE the bootstrap await. If the parent dies
@@ -1759,6 +1770,10 @@ ipc.start()
 ipc.emit('event:worker-ready')
 
 log.info('ready')
+// From here a fault storm is the worker's own failure, not a boot that has not finished, so the
+// backstop may escalate. Set after the ready broadcast so the renderer has already recorded this
+// generation as booted before any escalation can end it.
+bootComplete = true
 
 const profile = await getProfile()
 refreshAuditSelfName(profile?.displayName)
