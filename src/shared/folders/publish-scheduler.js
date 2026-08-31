@@ -174,6 +174,11 @@ export function createPublishScheduler({
 
   function run(item) {
     running.add(item)
+    // An item STARTING moves a file from queued to running, and for a multi-GB hash that is the last
+    // shape change for minutes — reporting only from the settle hook below left every consumer of
+    // statusFor() describing a queue that had already moved on. Bounded by the consumer's own
+    // coalescer, so a burst of starts is one report.
+    onProgress?.(item.spaceId, item.shareId)
     ;(async () => {
       let settlement
       try {
@@ -234,14 +239,24 @@ export function createPublishScheduler({
     // Merges: the catch-up diff fires during a mount's drain, and a reset here would hand the
     // mount's whenDrained zeros.
     beginShare(spaceId, shareId, totalOnDisk) { tallies.begin(tallyKey(spaceId, shareId), totalOnDisk) },
+    // Admitting work is a shape change too, and for the lane that matters most: with every slot
+    // held by a long hash, an enqueue starts nothing, so without this the only report would be the
+    // one from whichever item settles next — a queue depth of 40 read as 0 for the length of a
+    // multi-GB hash. Reported AFTER pump(), so the counts already reflect anything it started.
     enqueue(spec) {
       const r = queueFor(spec.spaceId).enqueue(spec)
       pump()
+      onProgress?.(spec.spaceId, spec.shareId)
       return r
     },
     enqueueMany(specs) {
-      for (const s of specs) queueFor(s.spaceId).enqueue(s)
+      const touched = new Map()
+      for (const spec of specs) {
+        queueFor(spec.spaceId).enqueue(spec)
+        touched.set(tallyKey(spec.spaceId, spec.shareId), spec)
+      }
       pump()
+      for (const spec of touched.values()) onProgress?.(spec.spaceId, spec.shareId)
     },
     whenDrained(spaceId, shareId) {
       const key = tallyKey(spaceId, shareId)
