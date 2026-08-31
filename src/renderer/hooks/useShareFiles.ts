@@ -1,10 +1,12 @@
-// Owns a folder share's file listing (never-blank reconcile, latest-wins reads, coalesced refreshes) plus per-file transfer/prepare progress; re-derives on reconcile hints, paints progress from the decoration channel.
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { request, subscribe } from '../ipc.js'
-import { reconcileFiles } from '../shareFilesReconcile.js'
-import { deriveFolderInfo } from '../folderInfo.js'
-import { makeCoalescer } from '../coalesce.js'
-import { Scope, scopeMatches, type Scope as ScopeType } from '../scope.js'
+// A folder share's file listing. The query store holds the raw share:list-files response; this hook
+// keeps the parts that are judgements about what a folder listing MEANS — the never-blank fold
+// across successive reads, the header totals derived from both, and which failures are terminal —
+// and paints per-file progress from the decoration channel at render.
+import { useState, useCallback, useMemo } from 'react'
+import { request } from '../ipc.js'
+import { useQuery } from '../store/useQuery.js'
+import { refetchQuery } from '../store/query-store.js'
+import { foldListing, emptyFold, resetFold, resolveListing, type Fold } from '../shareFilesFold.js'
 import { shareDecoKey } from '../decoration-key.js'
 import { useDecorations } from './useDecorations.js'
 import type { ShareFileEntry, ShareFileStatus } from '../types.js'
@@ -50,87 +52,69 @@ interface ListResult {
   fileLimit?: number | null
 }
 
+function toEntry(e: ServerEntry): ShareFileEntry {
+  return {
+    relPath: e.relPath,
+    size: e.size,
+    hash: e.hash,
+    mtime: e.mtime,
+    status: e.status,
+    localPath: e.localPath ?? undefined,
+    verified: e.verified,
+    pendingBytes: e.pendingBytes,
+    errorCode: e.errorCode,
+    transferId: e.transferId,
+  }
+}
+
 export function useShareFiles(spaceId: string, ownerKey: string, shareId: string, _role: 'mine' | 'browse' | 'mirrored') {
-  const [files, setFiles] = useState<ShareFileEntry[]>([])
-  const [info, setInfo] = useState<FolderInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const seqRef = useRef(0)
-  const filesRef = useRef<ShareFileEntry[]>([])
   const { byKey: decorations } = useDecorations('transfer', spaceId, shareDecoKey(shareId, ''))
 
-  const refresh = useCallback(async () => {
-    if (!spaceId || !shareId || !ownerKey) return
-    const seq = ++seqRef.current
-    try {
-      const res = await request('share:list-files', { spaceId, ownerKey, shareId }) as ListResult
-      if (seq !== seqRef.current) return
-      const mapped: ShareFileEntry[] = res.entries.map((e) => ({
-        relPath: e.relPath,
-        size: e.size,
-        hash: e.hash,
-        mtime: e.mtime,
-        status: e.status,
-        localPath: e.localPath ?? undefined,
-        verified: e.verified,
-        pendingBytes: e.pendingBytes,
-        errorCode: e.errorCode,
-        transferId: e.transferId,
-      }))
-      // One read carries both the rows and their completeness; an incomplete/partial peer
-      // read must not blank or shrink the list (reconcileFiles keeps the last good rows).
-      const next: ShareFileEntry[] = reconcileFiles(filesRef.current, mapped, { complete: res.complete })
-      filesRef.current = next
-      setFiles(next)
-      // On a complete read fileCount is the TRUE total (res.total) and `next` may be capped to
-      // listFilesCap, which the over-limit banner reports; on an incomplete read the count can only
-      // rise above the reconciled rows, never fall below them. (see deriveFolderInfo)
-      setInfo(deriveFolderInfo(res, next))
-      setError(null)
-    } catch (err) {
-      if (seq !== seqRef.current) return
-      const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined
-      // A timeout / peer-unavailable read is transient → keep the last good list. A gone or
-      // access-revoked share (NOT_FOUND / EOWNERSHIP) is terminal → clear and surface it so a
-      // deleted share doesn't linger as a phantom listing.
-      const terminal = code === 'NOT_FOUND' || code === 'EOWNERSHIP'
-      if (filesRef.current.length > 0 && !terminal) {
-        setError(null)
-      } else {
-        filesRef.current = []
-        setFiles([])
-        setInfo(null)
-        setError(err instanceof Error ? err.message : String(err))
-      }
-    } finally {
-      if (seq === seqRef.current) setLoading(false)
-    }
-  }, [spaceId, ownerKey, shareId])
+  // Two scopes feed this view: the share's own rows, and the space's peer/presence transitions,
+  // which change row status (remote/unavailable, paused-offline) without touching the catalog.
+  const scopes = useMemo(
+    () => [{ kind: 'share-files', spaceId, shareId }, { kind: 'files', spaceId }],
+    [spaceId, shareId],
+  )
+  const ready = Boolean(spaceId && shareId && ownerKey)
+  // The store holds the RAW response. It never learns what `complete` or `truncated` mean — those
+  // are share:list-files concepts, and the fold below is where they are read.
+  const { data, error: queryError, loading: fetching } = useQuery<ListResult>(
+    'share:list-files',
+    { spaceId, ownerKey, shareId },
+    scopes,
+    { coalesceMs: 750, enabled: ready },
+  )
 
-  useEffect(() => {
-    // Reset list state when the share changes so the never-blank merge can't carry the
-    // previous share's rows into this one (FolderView is reused, not keyed per share).
-    filesRef.current = []
-    setFiles([])
-    setInfo(null)
-    setError(null)
-    // Loading state only on first load / when the share changes — not on the
-    // event-driven refreshes below, which would otherwise collapse the list and
-    // reset scroll position (e.g. after downloading a file).
-    setLoading(true)
-    // Coalesce the per-append refresh storm during a large index into one trailing
-    // refresh per window; the first load is immediate.
-    const coalescer = makeCoalescer(() => { void refresh() }, { intervalMs: 750 })
-    void refresh()
-    // Level-triggered: two scopes feed this view — the share's own rows (share-files) and the
-    // space's peer/presence transitions (files), which affect row status (remote/unavailable,
-    // paused-offline/-interrupted) without touching the share catalog.
-    const unsubReconcile = subscribe<{ scope: ScopeType }>('event:reconcile', (msg) => {
-      if (scopeMatches(msg.scope, Scope.shareFiles(spaceId, shareId)) ||
-          scopeMatches(msg.scope, Scope.files(spaceId))) coalescer.trigger()
-    })
-    return () => { coalescer.cancel(); unsubReconcile() }
-  }, [refresh, spaceId, shareId])
+  // The fold across successive responses, advanced DURING RENDER. reconcileFiles needs the previous
+  // reconciled list, which the store cannot supply — it holds the latest answer, not the history.
+  // React's documented way to carry a value between renders is to hold it in state and update it
+  // conditionally here; an effect would be the derived-state-in-effect anti-pattern, a memo has no
+  // memory of its own output, and a ref written in render is not a render input.
+  const [fold, setFold] = useState<Fold>(emptyFold)
+  const [foldedShare, setFoldedShare] = useState(shareId)
+  // Paths whose download was just requested. An override rather than a write into the list: seeded
+  // into the rows it would be dropped by the next refetch, and the seed exists only to cover the
+  // gap before the first decoration frame arrives.
+  const [seeded, setSeeded] = useState<ReadonlySet<string>>(new Set())
+
+  if (foldedShare !== shareId) {
+    // FolderView is reused, not keyed per share, so the previous share's rows must not merge in.
+    setFoldedShare(shareId)
+    setFold(resetFold())
+  } else if (data && data !== fold.res) {
+    setFold(foldListing(fold, data, toEntry))
+  }
+
+  const { rows: files, info, error } = resolveListing(fold, queryError as (Error & { code?: string }) | null)
+  // Only a genuinely cold share reports loading; a hint-driven refetch keeps the rows and the
+  // scroll position.
+  const loading = ready && fold.res === null && fetching && !queryError
+
+  const refresh = useCallback(async () => {
+    if (!ready) return
+    await refetchQuery<ListResult>('share:list-files', { spaceId, ownerKey, shareId }, scopes).catch(() => {})
+  }, [ready, spaceId, ownerKey, shareId, scopes])
 
   // Per-file transfer progress rides the unified decoration channel (keyed shareId:relPath) and is
   // merged at render — never into the list state, so a late frame can't outlive a refresh. The gate
@@ -139,6 +123,11 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   // this share, so the memo recomputes only for this share's frames or a fresh listing.
   const decorated = useMemo(() => files.map((f) => {
     const d = decorations.get(shareDecoKey(shareId, f.relPath))
+    // The seed only paints while there is no real frame yet and the row has not left the transfer
+    // states — a decoration, or any other status, outranks it.
+    if (!d && seeded.has(f.relPath) && (f.status === 'downloading' || f.status === 'preparing')) {
+      return { ...f, progress: { bytes: f.pendingBytes ?? 0, total: f.size, speed: 0, eta: null } }
+    }
     if (!d) return f
     // Match the decoration phase to the row's status: the shared key has no receiver-side terminal
     // done, so a lingering cross-phase frame (a preparing frame left on a now-downloading row) must
@@ -157,7 +146,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       return { ...f, verifyFraction: undefined, progress: { bytes: d.bytes, total: d.total, speed: 0, eta: d.eta } }
     }
     return f
-  }), [files, decorations, shareId])
+  }), [files, decorations, shareId, seeded])
 
   const downloadFile = useCallback(
     async (relPath: string) => {
@@ -166,11 +155,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       if (!transferId) return
       // Seed the progress bar; the row's status flips to 'downloading' from the worker's re-derive
       // (the engine emits share-files-updated on start), not a client override.
-      setFiles((prev) => prev.map((f) => (
-        f.relPath === relPath
-          ? { ...f, progress: { bytes: f.pendingBytes ?? 0, total: f.size, speed: 0, eta: null } }
-          : f
-      )))
+      setSeeded((prev) => { const next = new Set(prev); next.add(relPath); return next })
     },
     [spaceId, ownerKey, shareId]
   )
