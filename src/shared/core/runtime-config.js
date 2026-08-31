@@ -140,6 +140,12 @@ const DEFAULTED = {
   // Foreign-mirror materialize poll cadence. Tests shrink it to assert orphan-mount teardown
   // (owner left → unmount) promptly; production uses the 30s default.
   foreignPollIntervalMs: 30_000,
+  // How many mirror ticks may skip the walk before one runs in full regardless. The owner's catalog
+  // version cannot see a LOCAL change (a user deleting a mirrored file) and a foreign mount has no
+  // filesystem watcher, so this backstop is what repairs it — within 5 min at the 30s poll.
+  // 1 disables the skip entirely: the rollback, settable in a shipped build via
+  // MIRALL_FOREIGN_FULL_WALK_EVERY, which the host forwards on the bootstrap frame.
+  foreignFullWalkEvery: 10,
   // Per-requester rate limit on the overlay serve gate (inbound content-requests),
   // keyed on the asker's authenticated profile key. More
   // generous than the handshake limiter — a legit consumer issues one request
@@ -418,5 +424,6 @@ export function getResourceCaps() {
     avatarMaxBytes: c.maxAvatarBytes,
     deriveDebounceMs: c.deriveDebounceMs,
     foreignPollIntervalMs: c.foreignPollIntervalMs,
+    foreignFullWalkEvery: c.foreignFullWalkEvery,
   }
 }

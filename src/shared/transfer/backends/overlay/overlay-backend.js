@@ -27,6 +27,7 @@ import {
   watchPeerCatalog,
   setOwnCatalogAppendHook,
   resolvePeerCatalog,
+  peerCatalogVersion,
   catalogKeyField,
 } from '../../../shares/share-catalog.js'
 import { getOwnedMount } from '../../../folders/mount-store.js'
@@ -477,6 +478,12 @@ export async function overlayListPeerWithMeta(spaceId, share, limit = Infinity, 
   if (!readable) return { entries: [], complete: true, total: 0, totalBytes: 0 }
   ensurePeerCatalogWatch(spaceId, share, keyHex, sck)
   return await collectPeerShare(keyHex, share.id, { sck, limit, onEach })
+}
+
+// The mirror loop's cheap "has anything changed?" probe. Optional in the backend contract: a backend
+// that cannot answer simply has no member, and its mirrors walk every tick exactly as before.
+export async function overlayCatalogVersion(spaceId, share) {
+  return await peerCatalogVersion(spaceId, share)
 }
 
 // On an owner-catalog append, re-resolve every active overlay-folder transfer from THIS

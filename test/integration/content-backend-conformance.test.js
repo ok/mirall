@@ -15,6 +15,13 @@ const CONTRACT = [
   'requestDownload', 'ensureRemote', 'releaseRemote',
 ]
 
+// Members a backend MAY implement. A caller must reach every one of these through `?.` and behave
+// correctly when it is absent — `catalogVersion` missing means a mirror walks every tick, which is
+// simply the behaviour before it existed. Kept separate from CONTRACT deliberately: promoting one of
+// these to required breaks every hand-written double at once, and that is a decision to take on
+// purpose rather than by adding a line to the wrong list.
+const OPTIONAL = ['catalogVersion', 'init', 'attach', 'teardown', 'sweepPresence']
+
 test('absent / legacy / unknown content modes are UNSUPPORTED', (t) => {
   for (const share of [{ contentMode: 'eager' }, {}, null, { contentMode: 'deferred' }, { contentMode: 'future-mode' }]) {
     t.is(getContentBackend(share), UNSUPPORTED)
@@ -40,4 +47,19 @@ test('overlay resolves to a backend when the flag is on (UNSUPPORTED when off)',
   }
   t.ok(hasContentBackend({ contentMode: 'overlay' }), 'hasContentBackend true when usable')
   t.absent(isUnsupportedShare({ contentMode: 'overlay' }), 'isUnsupportedShare false when the flag is on')
+})
+
+test('optional backend members are optional, and absent ones are never called unguarded', (t) => {
+  setRuntimeConfig({ overlayEnabled: true })
+  t.teardown(() => setRuntimeConfig({ overlayEnabled: false }))
+  const backend = getContentBackend({ contentMode: 'overlay' })
+  for (const name of OPTIONAL) {
+    t.is(typeof backend[name], 'function', `overlay implements the optional ${name}`)
+    t.absent(CONTRACT.includes(name), `${name} is NOT in the required contract`)
+  }
+  // The behaviour that matters — a backend missing an optional member still works — is asserted
+  // against the real call site in foreign-mirror-head-skip.test.js ('a backend with no
+  // catalogVersion walks every tick'). Asserting `absent?.()` here would only prove optional
+  // chaining works, which is true of every JS runtime and would stay green if a caller dropped
+  // the `?.`.
 })

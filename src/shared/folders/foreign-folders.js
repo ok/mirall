@@ -33,6 +33,7 @@ import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { mirrorVerdict } from './mirror-health.js'
+import { shouldWalk } from './mirror-walk.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError } from './walk-disk.js'
 
@@ -281,6 +282,7 @@ export async function applyChange(mount, change) {
 // the bulk stop can only WAIT for what it can see, hence the same in-flight map the poll tick uses.
 export async function initialMaterializeScan(mount) {
   const key = loopKey(mount.spaceId, mount.shareId)
+  forgetConverged(key)
   const p = runInitialMaterializeScan(mount).finally(() => {
     if (tickInFlight.get(key) !== p) return
     tickInFlight.delete(key)
@@ -461,6 +463,15 @@ const pausedMirrorHashes = new Map()
 // outlives pause/resume (a stopped pass has already written files it must keep owning) and is
 // dropped only on unmount, with the record.
 const syncedSets = new Map() // loopKey -> Set<ownerKey>
+// loopKey -> the owner-catalog version the last CONVERGED pass walked, and how many ticks have
+// skipped since. A converged mirror re-walks only when that version moves or the backstop is due.
+const convergedHeads = new Map()
+const skippedTicks = new Map()
+
+function forgetConverged (key) {
+  convergedHeads.delete(key)
+  skippedTicks.delete(key)
+}
 const syncDirty = new Set()  // loopKeys whose Set / renamedPaths differ from the persisted record
 
 function syncedSetFor (mount) {
@@ -728,6 +739,31 @@ async function initialMaterializeScanCatalog(mount, share) {
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
+
+  // Read BEFORE the listing: an append landing mid-walk leaves the head past the version this pass
+  // records, so the next tick walks. A pass only ever converges against the snapshot it walked.
+  const version = await getContentBackend(share).catalogVersion?.(mount.spaceId, share) ?? null
+  const skipped = skippedTicks.get(key) || 0
+  const decision = shouldWalk({
+    // Only a non-null version is ever stored, so a miss and an unknown both read as null.
+    watermark: convergedHeads.get(key) ?? null,
+    version,
+    skipped,
+    fullWalkEvery: getResourceCaps().foreignFullWalkEvery,
+  })
+  if (!decision.walk) {
+    skippedTicks.set(key, skipped + 1)
+    // No settle: the pass that converged already wrote the terminal state, and by definition
+    // nothing has happened since.
+    return
+  }
+  if (skipped > 0) log.debug('mirror walking after', skipped, 'skipped tick(s):', decision.reason, mount.shareId)
+  // A walk invalidates the watermark up front. Only a pass that reaches the convergence test below
+  // may re-establish one, so a pass that throws midway — an unlink the OS refuses, a bee put that
+  // fails — cannot leave a stale watermark standing over a zeroed skip counter, which would retry
+  // the failed work at the backstop's cadence instead of the poll's.
+  forgetConverged(key)
+
   const synced = syncedSetFor(mount)
   const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
@@ -768,6 +804,18 @@ async function materializeOnceCatalog(mount, share) {
   // Once per pass and only when something changed — the old code wrote the whole record on every
   // tick of an owner-online mirror, whether or not anything moved.
   await persistSyncState(mount, key, gen)
+  // Nothing left to do: every file present, the listing a full read, and no path still owned that the
+  // catalog no longer lists. Every entry in the listing was recorded into `synced` above, so the
+  // listing is a subset of the Set and equal sizes prove the two agree — an O(1) test for
+  // "no deletions pending".
+  //
+  // Deliberately NOT gated on `honorDeletions`: that gate says whether this pass was ALLOWED to act
+  // on deletions, not whether any exist. An offline owner cannot append, so it is exactly when
+  // skipping is safest — and if deletions really are outstanding the size check catches them and the
+  // mirror keeps walking. A cancelled pass proves nothing, and a version we could not read cannot
+  // authorise a later skip.
+  const converged = allPresent && complete && synced.size === onDrive.size
+  if (converged && version !== null && !mirrorStopped(key, gen)) convergedHeads.set(key, version)
   // Re-check the generation adjacent to the enqueue (no await between) so a pause/unmount that
   // landed during the deletion-reconcile await above can't be overwritten by this terminal write.
   if (!mirrorStopped(key, gen)) await settleMirrorSyncState(mount, allPresent)
@@ -847,6 +895,7 @@ export async function restartForeignLoop(spaceId, shareId) {
   tickInFlight.delete(key)
   tickDirty.delete(key)
   mirrorLiveness.delete(key)
+  forgetConverged(key)
   await startForeignLoop({ spaceId, shareId })
   runMaterializeTick(spaceId, shareId).catch((err) => log.debug('materialize tick after restart failed:', err.message))
 }
@@ -875,6 +924,7 @@ export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {
     pausedMirrorHashes.delete(key)
   }
   tickDirty.delete(key)
+  forgetConverged(key)
   const handle = activeLoops.get(key)
   if (handle) {
     clearInterval(handle.timer)
@@ -935,6 +985,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
   syncedSets.delete(key)
   syncDirty.delete(key)
   mirrorLiveness.delete(key)
+  forgetConverged(key)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, 'idle')
   ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
