@@ -25,6 +25,14 @@ const log = createLogger('share-catalog')
 export const FILE_PREFIX = 'file/'
 
 const ownCatalogs = new Map()   // spaceId -> Hyperbee (writable)
+// Notified with (spaceId) whenever OUR OWN catalog core appends. Every other party learns of a
+// catalog change from its `append`; the owner alone was refreshed by the publish call sites, which
+// fire BEFORE a batched write reaches the bee (catalog-writer buffers for catalogFlushMs). Through a
+// long hash nothing else fires, so the owner's own listing sat on a pre-flush snapshot while every
+// member watched the indexing row it could not see. Installed by the overlay backend rather than
+// imported, so this module keeps no dependency on the IPC layer (as setOverlayCatalogChangeHook).
+let ownAppendHook = null
+export function setOwnCatalogAppendHook(fn) { ownAppendHook = fn }
 // Bounded: one Hyperbee + Hypercore session per (peer, space), each with an append listener, and
 // every open core replicates to every socket. Unbounded it grew to peers x spaces and was reclaimed
 // only on leave. A watched catalog is PINNED — evicting one would silently stop the mirror loop its
@@ -81,6 +89,12 @@ export async function ownCatalog(spaceId) {
   const bee = createBee(catalogNameForSpace(space, spaceId), sck ? { encryptionKey: sck } : {})
   await bee.ready()
   ownCatalogs.set(spaceId, bee)
+  // Attached at creation, so no writer or reader can forget it, and read through `ownAppendHook`
+  // at fire time, so a bee opened before the backend installed the hook still reports. The guard
+  // silences a session that is no longer this space's catalog: `ownCatalog` awaits before it sets,
+  // so two concurrent misses build two sessions of one core and both would otherwise report every
+  // append, and a dropped catalog would keep reporting for a space that no longer has one.
+  bee.core.on('append', () => { if (ownCatalogs.get(spaceId) === bee) ownAppendHook?.(spaceId) })
   return bee
 }
 
@@ -484,8 +498,8 @@ export class Catalogs extends Subsystem {
     }
   }
 
-  // The watchers hold the same bees peerCatalogs does, and their 'append' listeners sit on the
-  // core session, so closing the bee drops them too.
+  // The watchers hold the same bees peerCatalogs does, and their 'append' listeners — the peer
+  // watchers' and the own catalogs' — sit on the core session, so closing the bee drops them too.
   async _closeAll() {
     const open = [...ownCatalogs.values(), ...peerCatalogs.values()]
     ownCatalogs.clear()
