@@ -22,7 +22,7 @@ import { scaled } from '../helpers/timing.js'
 // up in a space whose existing members are invisible to him. Do not drop that assertion.
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
-const flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const memberKeys = (list, spaceId) =>
   new Set((list.find((s) => s.spaceId === spaceId)?.members || []).map((m) => m.publicKey))

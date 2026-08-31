@@ -31,7 +31,6 @@ const HOSTILE_LINK = { latencyMs: 200, jitterMs: 150, flapEveryMs: FLAP_MS, flap
 const flags = () => ({
   overlayEnabled: true,
   inPlaceFilesEnabled: true,
-  membershipApprovalEnabled: true,
   identityKEK: kekHex(),
   netImpair: HOSTILE_LINK,
   convergenceTickMs: 3000,

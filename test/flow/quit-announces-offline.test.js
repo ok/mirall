@@ -8,7 +8,7 @@ import { scaled, unscaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 // A graceful quit (the real {type:'shutdown'} that runs safeShutdown → broadcastDeparture) must
 // drop the owner from the peer's presence promptly — well under the 15s PRESENCE_TTL_MS — instead

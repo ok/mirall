@@ -26,7 +26,7 @@ async function boot (t, label) {
     try { await getStore().close() } catch {}
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
   })
-  setRuntimeConfig({ storage, membershipApprovalEnabled: true })
+  setRuntimeConfig({ storage })
   initStore(storage)
   setMasterSecret(b4a.from('44'.repeat(32), 'hex'))
   await initSpaceKeys()
@@ -42,7 +42,7 @@ test('v2 create is encrypted; v2 join is pending with no drive', async (t) => {
   t.ok(space.sckDerivable, 'creator can re-derive the SCK')
 
   const topic = b4a.toString(crypto.randomBytes(32), 'hex')
-  const joined = await joinSpace(topic, 'Joined', 'folder', { schemaVersion: 2 })
+  const joined = await joinSpace(topic, 'Joined', 'folder')
   t.is(joined.pending, true, 'v2 join is pending')
   t.is((await getSpace(joined.spaceId)).status, 'pending')
   t.absent(getDrive(joined.spaceId), 'no drive created while pending')

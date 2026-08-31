@@ -20,7 +20,6 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // assertions only (poll with `until`), never wall-clock latency (lessons.md L16).
 const tightFlags = () => ({
   identityKEK: kekHex(),
-  membershipApprovalEnabled: true,
   maxPendingRequesters: 8,
   maxApprovalsPerMember: 8,
   maxMembersPerSpace: 8,

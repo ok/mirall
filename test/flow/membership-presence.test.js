@@ -13,7 +13,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 const launch = (t, name, bootstrap) =>
   launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -95,7 +95,7 @@ test('a reconnecting member re-emits members-updated even though its record is u
   const bStore = idStore(t)
   // B is relaunched against the SAME storage, so it must reuse the SAME identity KEK — a fresh KEK
   // can't unlock the encrypted identity written on the first boot.
-  const bFlags = { identityKEK: kekHex(), membershipApprovalEnabled: true }
+  const bFlags = { identityKEK: kekHex() }
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: bFlags })
   const space = await A.request('space:create', { name: 'Reconnect' })

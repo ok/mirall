@@ -1,4 +1,5 @@
 import test from 'brittle'
+import crypto from 'hypercore-crypto'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
@@ -70,17 +71,24 @@ test('REGRESSION (LIFECYCLE-1a): no data-layer interval is armed after the full 
 // closed instance, or a TDZ on re-import would fail the second boot or the operations after it.)
 test('REGRESSION (LIFECYCLE-1b): in-process restart against the same storage', async (t) => {
   t.teardown(() => timers.restore())   // the last test in the file — see the shim comment above
-  const storage = tmp('store')
+  // Nested like production (<peerDir>/app-storage): space-keys.enc and identity.enc are written
+  // to dirname(storage), and a flat tmpdir would share them with every other test.
+  const root = tmp('store')
+  const storage = path.join(root, 'app-storage')
+  fs.mkdirSync(storage, { recursive: true })
   const downloads = tmp('dl')
-  t.teardown(() => { for (const d of [storage, downloads]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} } })
+  t.teardown(() => { for (const d of [root, downloads]) { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} } })
   const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
+  // Passed to BOTH boots: the cores are keyPair-derived from M, so a restart only reopens the
+  // same store when it presents the same one. Explicit rather than inherited from a prior test.
+  const masterSecret = crypto.randomBytes(32)
 
-  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
+  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   const space = await createSpace('Aurora')
   await first.close()
   t.is(timers.intervals().length, 0, 'first close leaves nothing armed\n' + timers.describe(timers.intervals()))
 
-  const second = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, memberRegistry: offlineMemberRegistry })
+  const second = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   const spaces = await listSpaces()
   t.ok(spaces.some((s) => s.spaceId === space.spaceId), 'the space created before the restart is listed after it')
   const again = await createSpace('Borealis')

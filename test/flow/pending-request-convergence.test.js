@@ -8,7 +8,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 // REGRESSION: C requests and goes OFFLINE before B ever joins, so B can only learn about C
 // from A's replicated receipt — never from a live frame. On main B sees nothing; on branch B

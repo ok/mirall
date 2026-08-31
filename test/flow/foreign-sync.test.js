@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 
 async function waitForFile (p, { present = true, ms = 90000, every = 500 } = {}) {
   const start = Date.now()
@@ -21,7 +21,7 @@ async function waitForFile (p, { present = true, ms = 90000, every = 500 } = {})
 test('REGRESSION (connectivity gate): mirror defers while owner offline+uncached, then materializes on return',
   { timeout: 180000 }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const aStore = mkTmpDir(t)
+    const aStore = mkStoreDir(t)
     const aDownloads = mkTmpDir(t)
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: aDownloads })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

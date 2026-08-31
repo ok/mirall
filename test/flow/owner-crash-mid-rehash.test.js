@@ -26,7 +26,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
 const flags = (kek) => ({
-  overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true,
+  overlayEnabled: true, inPlaceFilesEnabled: true,
   sharePrepareProgressEnabled: true, identityKEK: kek,
 })
 const statusOf = (list, p) => list.find((e) => e.path === p)?.status

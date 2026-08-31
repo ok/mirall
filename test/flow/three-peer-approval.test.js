@@ -53,11 +53,11 @@ async function runScenario (t, flags) {
 }
 
 test('3-peer approval — binding ON + identity (shipped config)', { timeout: 300000 }, async (t) => {
-  await runScenario(t, () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true }))
+  await runScenario(t, () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true }))
 })
 
 test('3-peer approval — binding OFF + identity', { timeout: 300000 }, async (t) => {
-  await runScenario(t, () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: false }))
+  await runScenario(t, () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: false }))
 })
 
 // REGRESSION: a co-member B approves a joiner C it learned about via REPLICATION (the fold over
@@ -65,7 +65,7 @@ test('3-peer approval — binding OFF + identity', { timeout: 300000 }, async (t
 // bound signer key from C's live connection (boundSignerKeys) — C is connected to B in the mesh —
 // rather than from the request-record copy; else B's approval silently fails and C hangs forever.
 test('3-peer: a co-member can approve a joiner learned via replication', { timeout: 300000 }, async (t) => {
-  const flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, handshakeIdentityBindingEnabled: true })
+  const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')

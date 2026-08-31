@@ -7,7 +7,7 @@ import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 // Owner adds files, a member joins and sees them, then that member (a CO-MEMBER, not the owner)
 // approves a third peer — who must also see the owner's files. The owner's drive key now rides the

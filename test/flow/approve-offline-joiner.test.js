@@ -7,7 +7,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
-const v2flags = (kek) => ({ identityKEK: kek, membershipApprovalEnabled: true })
+const v2flags = (kek) => ({ identityKEK: kek })
 const hasMember = (sid, key) => (list) => {
   const s = list.find((x) => x.spaceId === sid)
   return !!(s && (s.members || []).some((m) => m.publicKey === key))

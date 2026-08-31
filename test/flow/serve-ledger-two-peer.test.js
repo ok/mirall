@@ -14,7 +14,7 @@ import { scaled } from '../helpers/timing.js'
 // clears once downloads finish.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 async function shareAndSee (A, peers, spaceId, aSrc, name, seed, mb) {
   const bytes = patternedBytes(mb * 1024 * 1024, seed)

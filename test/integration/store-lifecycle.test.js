@@ -62,7 +62,7 @@ test('REGRESSION (LIFECYCLE-2b): a catalog write on a pre-restart space works af
   const config = getRuntimeConfig()
   await ctx.root.close()
 
-  const second = await boot(config, { ipc: createFakeIpc().ipc, log: quiet, swarm: false, masterSecret: null, memberRegistry: offlineMemberRegistry })
+  const second = await boot(config, { ipc: createFakeIpc().ipc, log: quiet, swarm: false, masterSecret: ctx.masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(() => second.close())
 
   const after = await ownCatalog(space.spaceId)

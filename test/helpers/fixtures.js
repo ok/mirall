@@ -40,6 +40,14 @@ export function mkTmpDir (t) {
   return d
 }
 
+// A peer's storage path, nested one level like production (<userData>/app-storage). identity.enc
+// and space-keys.enc are written to dirname(storage), so a flat tmp dir would put every peer's
+// in the SHARED tmp root — where two peers with different KEKs collide on one envelope and the
+// second fails to boot with "space-keys: unlock failed".
+export function mkStoreDir (t) {
+  return path.join(mkTmpDir(t), 'app-storage')
+}
+
 export function patternedBytes (n, seed = 7) {
   const b = Buffer.alloc(n)
   for (let i = 0; i < n; i++) b[i] = (i * seed + 13) & 0xff

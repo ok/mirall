@@ -54,12 +54,11 @@ function peerDirs (t) {
 // composes it, minus the network. NOTE: src/shared modules are process-global singletons — one
 // peer per test process; the integration files are loaded one-per-thread under `brittle-bare -j`.
 export async function freshPeer (t, { displayName = 'Tester' } = {}) {
-  return bootPeer(t, { displayName, masterSecret: null })
+  return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
 }
 
-// Same as freshPeer but on the explicit-keypair identity path (a random master secret stands in
-// for a resolved M), so the suite exercises the derived-keypair createBee/createDrive that the
-// os-keychain path produces.
+// Kept as the explicit spelling for tests whose SUBJECT is the derived-keypair
+// createBee/createDrive that the os-keychain path produces.
 export async function freshPeerWithIdentity (t, { displayName = 'Tester' } = {}) {
   return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
 }
@@ -75,7 +74,9 @@ async function bootPeer (t, { displayName, masterSecret }) {
   t.teardown(async () => {
     try { await root.close() } catch (err) { console.warn('[test] root.close failed:', err.message) }
   }, { order: 1 })
-  return { storage, downloads, fake, tmpDir, root }
+  // masterSecret is handed back so a test that REBOOTS this storage can present the same M —
+  // the cores are keyPair-derived from it, so a second boot without it opens different cores.
+  return { storage, downloads, fake, tmpDir, root, masterSecret }
 }
 
 // The durable tier alone, for a test whose subject is what boot() does AFTER it — a content

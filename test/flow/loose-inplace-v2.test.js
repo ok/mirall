@@ -9,7 +9,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), membershipApprovalEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 // #326 + #330: a loose (in-place) file in a v2 space rides the SCK-ENCRYPTED catalog, whose key is
 // carried on the handshake in the looseCatalogKeyEnc field (not the plaintext looseCatalogKey). So a

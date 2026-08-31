@@ -7,7 +7,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // and sits in the "waiting to be let in" state; A sees the join-request banner and
 // approves B; B's waiting state clears. Exercises JoinRequestBanner (single),
 // the joiner waiting state, and the request/grant path through the UI.
-// Requires the membershipApproval flag ON + identity mode (real keychain).
+// Requires identity mode (real keychain).
 export default async function s54 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()

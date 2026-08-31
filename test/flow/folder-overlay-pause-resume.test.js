@@ -5,7 +5,7 @@ import b4a from 'b4a'
 import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // Non-mirrored overlay folder downloads now run on the same engine as space-root
@@ -16,7 +16,7 @@ const FLAGS = { overlayEnabled: true }
 test('overlay folder: pause mid-flight surfaces paused-interrupted; resume completes byte-exact',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey
@@ -73,7 +73,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
 test('overlay folder: a queued download auto-resumes when the owner returns',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const aStore = mkTmpDir(t)
+    const aStore = mkStoreDir(t)
     const folder = mkTmpDir(t)
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
@@ -112,7 +112,7 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
 test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog append — no auto-resume)',
   { timeout: scaled(240000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).publicKey

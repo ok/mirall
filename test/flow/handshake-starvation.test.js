@@ -7,7 +7,7 @@ import { launchPeer, waitForCatalogEntry } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
-const v2flags = (extra = {}) => ({ identityKEK: kekHex(), membershipApprovalEnabled: true, ...extra })
+const v2flags = (extra = {}) => ({ identityKEK: kekHex(), ...extra })
 // Fast re-announce for tests that exercise the convergence tick; production runs 15s/10s.
 const fastTick = { convergenceTickMs: 300, announceBaseMs: 250, announceCapMs: 1000, announceMaxAttempts: 8 }
 

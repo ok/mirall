@@ -15,7 +15,7 @@ import { scaled } from '../helpers/timing.js'
 // peer we still share another space with, which no other test would catch.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
 
 test('leaving one shared space does not disturb an in-flight transfer in another',

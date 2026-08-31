@@ -1,13 +1,11 @@
 import test from 'brittle'
 import { freshPeerWithIdentity } from '../helpers/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace, joinSpace, getSpace, forgetSpaceRecord, markSpaceLeavingDurable, resumeInterruptedLeave } from '../../src/shared/spaces/space.js'
 import { markOwnMembership, clearOwnMembership, readMembershipRecord, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { saveOwnedMount, saveForeignMount, listOwnedMounts, listForeignMounts } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 
 // Identity mode + v2 spaces — the production-default shape for leave/teardown paths.
-const v2 = () => setRuntimeConfig({ ...getRuntimeConfig(), membershipApprovalEnabled: true })
 
 async function memberActive (spaceId) {
   const rec = await readMembershipRecord(getLocalPublicKeyHex(), spaceId)
@@ -19,7 +17,6 @@ async function memberActive (spaceId) {
 // clearOwnMembership had del'd the record (the "already active? keep" guard misses a del).
 test('REGRESSION (G4): boot completes a mid-leave space instead of re-marking it', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('Aurora')
   await markOwnMembership(spaceId)
   t.ok(await memberActive(spaceId), 'precondition: active member of own space')
@@ -41,7 +38,6 @@ test('REGRESSION (G4): boot completes a mid-leave space instead of re-marking it
 // interrupted space (as the old loop did) revives the membership.
 test('REGRESSION (G4): markOwnMembership on a mid-leave space revives it (proves the exclusion matters)', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('Boreal')
   await markSpaceLeavingDurable(spaceId)
   await clearOwnMembership(spaceId)
@@ -57,7 +53,6 @@ test('REGRESSION (G4): markOwnMembership on a mid-leave space revives it (proves
 // rejoin must not re-surface them.
 test('REGRESSION (G4): resumeInterruptedLeave drops mount records and tombstones own share ads', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('Umbra')
   await saveOwnedMount({ spaceId, shareId: 'sh-own', mountPath: '/tmp/x', enabled: true })
   await saveForeignMount({ spaceId, shareId: 'sh-for', mountPath: '/tmp/y', enabled: true })
@@ -76,7 +71,6 @@ test('REGRESSION (G4): resumeInterruptedLeave drops mount records and tombstones
 // teardown's own completion step — so no marker survives for boot to see.
 test('G4: a completed leave carries no leaving marker', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const { spaceId } = await createSpace('Cirrus')
   await markSpaceLeavingDurable(spaceId)
   await forgetSpaceRecord(spaceId)
@@ -88,7 +82,6 @@ test('G4: a completed leave carries no leaving marker', async (t) => {
 // and the NEXT boot silently deleted the space the user just rejoined.
 test('REGRESSION (G4): rejoining a leaving-marked space clears the marker', async (t) => {
   await freshPeerWithIdentity(t)
-  v2()
   const space = await createSpace('Dorado')
   await markSpaceLeavingDurable(space.spaceId)
   t.ok((await getSpace(space.spaceId))?.leaving, 'precondition: marker persisted')

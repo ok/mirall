@@ -14,6 +14,12 @@ const completed = async () => (await queryAudit({ limit: 50 })).entries.filter((
 // close destroys each peer, whose onclose fires the serve-end callback. All three of the audit
 // bee, the ledger's open sessions and the unawaited getSpace→record write were gone before that
 // ran, so a transfer interrupted by quitting recorded nothing at all.)
+//
+// It only ever ran on a peer with no master secret, where a space drive owns a namespaced
+// corestore. In identity mode — what production always is — the drive is built over the ROOT
+// corestore, so SpaceDrives._close's drive.close() closed the root out from under every tier that
+// closes after it: the ledger's getSpace threw, its .catch logged at debug, and the row was lost
+// on every quit. SpaceDrives._close now releases each drive's own cores instead.
 test('REGRESSION (LIFECYCLE-2e): a serve still live at shutdown is recorded', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Aurora')
@@ -25,7 +31,9 @@ test('REGRESSION (LIFECYCLE-2e): a serve still live at shutdown is recorded', as
 
   await ctx.root.close()
 
-  const after = await freshDurable(t, { storage: ctx.storage, displayName: null })
+  // Same M as the peer that wrote them: the audit and ledger cores are keyPair-derived from it,
+  // so rebooting this storage without it would open a different, empty set.
+  const after = await freshDurable(t, { storage: ctx.storage, displayName: null, masterSecret: ctx.masterSecret })
   const rows = await completed()
   t.is(rows.length, 1, 'the interrupted serve was recorded during the shutdown')
   t.is(rows[0].subject.bytes, 512, 'with the bytes actually served')

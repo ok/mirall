@@ -13,7 +13,7 @@ import { LINKS } from '../helpers/impair.js'
 // the logic is robust even here; a timeout/failure = a reproduced field failure.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex(), netImpair })
+const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), netImpair })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function seeRemote (B, spaceId, name) {

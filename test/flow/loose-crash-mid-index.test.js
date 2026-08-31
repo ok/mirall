@@ -14,7 +14,7 @@ import { scaled } from '../helpers/timing.js'
 // the settle window fails this test (that IS the zombie). Untested at the flow layer before now.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 test('owner crash mid-index then restart: no permanent null-hash publishing zombie',

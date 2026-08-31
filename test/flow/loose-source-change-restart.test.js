@@ -15,7 +15,7 @@ import { scaled } from '../helpers/timing.js'
 // for ~30s, then PEER_NOT_AVAILABLE).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
 
 test('loose download auto-restarts when the source changes mid-transfer',

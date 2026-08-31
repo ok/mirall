@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes, dirSize } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, dirSize, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // The defining overlay guarantee, measured on the real on-disk stores: publishing
@@ -20,8 +20,8 @@ const flush = (ms = 1500) => new Promise((r) => setTimeout(r, ms))
 test('overlay: publish imports no blob; download writes no content blocks into the consumer store',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const aStore = mkTmpDir(t)
-    const bStore = mkTmpDir(t)
+    const aStore = mkStoreDir(t)
+    const bStore = mkStoreDir(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)

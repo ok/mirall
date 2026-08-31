@@ -13,7 +13,7 @@ import { scaled } from '../helpers/timing.js'
 // intermediate; this characterizes the pre-remote status the peer actually observes. FE s86.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, membershipApprovalEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 test('peer observes a loose file settle from indexing to remote while the owner hashes',
