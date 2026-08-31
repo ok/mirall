@@ -6,6 +6,9 @@ import { createHintBus } from '../state/hints.js'
 import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
+import { FRAME } from '../contract/frames.js'
+import { AppError, ErrorCodes } from './errors.js'
+import { createCancellation } from './cancellation.js'
 import { createHandlerTable, validateArgs } from './handler-table.js'
 import { createRequestMetrics } from './request-metrics.js'
 
@@ -101,6 +104,14 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   // The table owns the request metadata; `handle` below is a thin shim onto it so all 85 existing
   // registrations keep working while domains move onto register(ipc, deps) one at a time.
   const table = createHandlerTable(requests ? { requests } : {})
+  // One entry per dispatched-but-unsettled request, keyed by the caller's id. Not a new unbounded
+  // structure: it holds exactly the set the pending promise chain already holds, and makes it
+  // addressable so a cancel frame can reach it. A cap belongs with IPC flow control, not here.
+  //
+  // Per-instance, like `queued` and unlike the metrics counters: it is control state, so a second
+  // router in the same process (every test that builds one) must not be able to abort the first
+  // one's work. getInFlightCount() reaches it through the singleton, the way getQueueDepth() does.
+  const inFlight = new Map()
   const queued = []
   let ready = false
   let buffer = ''
@@ -146,11 +157,18 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       if (!line) continue
       try {
         const msg = JSON.parse(line)
-        if (msg && msg.type === 'bootstrap') {
+        if (msg && msg.type === FRAME.BOOTSTRAP) {
           if (bootstrapResolve) {
             bootstrapResolve(msg)
             bootstrapResolve = null
           }
+          continue
+        }
+        // Before the `ready` test on purpose: a cancel dispatched through the queue would be
+        // processed AFTER the request it cancels, so a slow boot — the one moment cancelling is
+        // most useful — is the one moment it would not work.
+        if (msg && msg.type === FRAME.CANCEL) {
+          cancel(msg.id)
           continue
         }
         if (ready) {
@@ -201,17 +219,23 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
 
     log.debug('req', label)
     const settle = requestMetrics.begin(msg.type)
-    // The second argument is the request's context. `signal` is null until cancellation is wired
-    // (r07-3): the seam costs one line now and re-plumbing 86 handlers later. Every handler takes
-    // one parameter today and ignores this one.
+    // A request with no id cannot be cancelled — nothing can name it — so it gets no token and an
+    // event-style frame costs nothing.
+    const cancellation = msg.id != null ? createCancellation() : null
+    if (cancellation) inFlight.set(msg.id, cancellation)
+    // The settle path is the SINGLE owner of removal. Deleting on abort instead would drop the entry
+    // while the handler is still running, and a second cancel for that id would then read as
+    // "already settled" and silently do nothing.
+    const done = () => { if (msg.id != null) inFlight.delete(msg.id) }
     // `new Promise(resolve => resolve(...))`, not `Promise.resolve(...)`: the latter EVALUATES the
     // handler before the promise exists, so a handler that throws synchronously unwound into the
     // frame-parse catch around dispatch() — reported as an unparseable frame at debug, never
     // answered (the caller hung to the renderer's 30s timeout), never counted, and with the
     // in-flight metric already incremented and no settle to match it.
-    new Promise((resolve) => resolve(entry.fn(msg, { id: msg.id ?? null, signal: null }))).then(
-      (data) => { log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
+    new Promise((resolve) => resolve(entry.fn(msg, { id: msg.id ?? null, signal: cancellation?.signal ?? null }))).then(
+      (data) => { done(); log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
       (err) => {
+        done()
         const ms = settle(false)
         const code = err?.code || 'UNKNOWN'
         countFailure(msg.type, code)
@@ -225,6 +249,41 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
         respond(msg.id, null, err?.message, code, err?.fields || null)
       }
     )
+  }
+
+  // Best-effort and idempotent: a cancel for an id that has already settled, was never sent, or was
+  // already cancelled is a no-op, because the renderer fires it without waiting to learn which.
+  function cancel(id) {
+    if (id == null) return
+    // The queue first. A frame that has not been dispatched has no token to abort, and leaving it
+    // queued means the cancel is ignored and the work runs in full the moment start() fires.
+    const queuedAt = queued.findIndex((m) => m && m.id === id)
+    if (queuedAt !== -1) {
+      const [dropped] = queued.splice(queuedAt, 1)
+      log.debug('cancel', id, `(${dropped.type}, dropped from the pre-start queue)`)
+      // Answered, unlike an in-flight cancel: nothing else ever will, and a caller that has not yet
+      // discarded its pending entry would otherwise wait out the renderer's full request timeout.
+      respond(id, null, 'cancelled before dispatch', ErrorCodes.ECANCELLED)
+      return
+    }
+    const entry = inFlight.get(id)
+    if (!entry) { log.debug('cancel', id, '(already settled or unknown)'); return }
+    log.debug('cancel', id, '(in flight)')
+    entry.abort(new AppError(ErrorCodes.ECANCELLED, 'cancelled by the caller'))
+  }
+
+  // Every outstanding request, aborted before the data layer closes under it. Without this a handler
+  // parked on a bee read that is about to be closed throws a "session closed" error into the crash
+  // backstop's fault window; aborting first routes it through the ECANCELLED path the router already
+  // treats as expected.
+  function abortAll(reason) {
+    if (!inFlight.size) return 0
+    const n = inFlight.size
+    log.debug('aborting', n, 'in-flight requests')
+    for (const entry of [...inFlight.values()]) {
+      entry.abort(new AppError(ErrorCodes.ECANCELLED, reason || 'worker is shutting down'))
+    }
+    return n
   }
 
   function countFailure(type, code) {
@@ -267,15 +326,23 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
 
   ipcSingleton.bootstrapPromise = bootstrapPromise
   ipcSingleton.queueDepth = () => queued.length
-  return { handle, emit, respond, start }
+  ipcSingleton.inFlightCount = () => inFlight.size
+  return { handle, emit, respond, start, cancel, abortAll }
 }
 
-const ipcSingleton = { bootstrapPromise: null, queueDepth: null }
+const ipcSingleton = { bootstrapPromise: null, queueDepth: null, inFlightCount: null }
 
 // The pre-start queue is otherwise invisible: it is bounded now, and a caller that keeps hitting
 // that bound during a slow boot is exactly the condition worth surfacing.
 export function getQueueDepth() {
   return ipcSingleton.queueDepth ? ipcSingleton.queueDepth() : 0
+}
+
+// The one number that proves the registry does not leak: it must return to 0 after every settle,
+// cancelled or not. requestMetrics' per-type inFlight answers a different question (which request is
+// slow) and would hide a leak in one type behind traffic in another.
+export function getInFlightCount() {
+  return ipcSingleton.inFlightCount ? ipcSingleton.inFlightCount() : 0
 }
 
 export function getBootstrapPromise() {

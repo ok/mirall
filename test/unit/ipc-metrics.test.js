@@ -91,8 +91,8 @@ test('inFlight is observable while a request is running', async (t) => {
   t.is(getRequestMetrics()['thing:do'].inFlight, 0, 'and clears when it settles')
 })
 
-// The seam cancellation (r07-3) will use. Adding it now costs one line; adding it later means
-// touching all 86 handlers.
+// The context every handler is handed. `signal` was a null placeholder when this test was written;
+// it is now a live cancellation token (see ipc-cancellation.test.js for what drives it).
 test('the handler receives a context carrying its request id', async (t) => {
   const { ipc, pipe } = setup(t)
   let ctx = null
@@ -103,7 +103,8 @@ test('the handler receives a context carrying its request id', async (t) => {
   await flush()
 
   t.is(ctx.id, 42, 'the request id reaches the handler')
-  t.is(ctx.signal, null, 'signal is the seam, null until cancellation is wired')
+  t.ok(ctx.signal, 'and a cancellation token, no longer the null seam')
+  t.is(ctx.signal.aborted, false, 'not aborted for an ordinary request')
 })
 
 test('metrics are kept per request type', async (t) => {

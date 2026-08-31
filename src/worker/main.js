@@ -12,7 +12,7 @@
 import os from 'bare-os'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth } from '../shared/core/ipc.js'
+import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth, getInFlightCount } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import {
@@ -241,6 +241,11 @@ async function safeShutdown(reason, exitCode = 0) {
   const deadline = setTimeout(() => { try { Bare.exit(exitCode) } catch {} }, 4000)
   deadline.unref?.()
   health.stop()
+  // Before the data layer closes under them: a handler parked on a bee read that is about to be
+  // closed throws a "session closed" error into the crash backstop's fault window, which exits the
+  // worker once it fills. Aborted first, the same handler leaves through the ECANCELLED path the
+  // router already treats as expected.
+  ipc.abortAll('worker is shutting down')
   // The whole stop sequence — the departure announce, the flush window, then every subsystem in
   // the reverse of its start order — lives in the composition root. `root` is null until boot()
   // returns, which is what lets the pipe-close hooks below fire at any point during startup.
@@ -1621,7 +1626,7 @@ ipc.handle('diagnostics:export', async (msg) => {
     counters: getDiagnosticCounters(),
     requestFailures: getRequestFailureCounters(),
     requestMetrics: getRequestMetrics(),
-    health: health.snapshot({ queueDepth: getQueueDepth(), subsystems: root?.health() || [] }),
+    health: health.snapshot({ queueDepth: getQueueDepth(), subsystems: root?.health() || [], inFlightRequests: getInFlightCount() }),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
