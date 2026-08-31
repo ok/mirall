@@ -10,7 +10,6 @@
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() is last, so
 // no frame is dispatched until every handler is registered.
 import os from 'bare-os'
-import fs from 'bare-fs'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth } from '../shared/core/ipc.js'
@@ -25,7 +24,6 @@ import {
   isHandshakeIdentityBindingEnabled,
   isOverlayEnabled,
   isInPlaceFilesEnabled,
-  getListFilesCap,
   isRelayEnabled,
   setRelayConfig,
 } from '../shared/core/runtime-config.js'
@@ -74,7 +72,6 @@ import {
   leaveSpaceTopic,
   cleanupSpaceDrives,
   getConnectedPeers,
-  isOwnerOnline,
   broadcastProfileUpdate,
   getSwarmStatus,
   testRelayReachable,
@@ -118,11 +115,8 @@ import {
   removeFile,
   revealFile,
   addFile,
-  isDownloadedFile,
   getDownloadedPath,
   revealLocalPath,
-  getVerifiedHash,
-  isVerifiedDownload,
   claimedPathFor,
 } from '../shared/transfer/files.js'
 import {
@@ -133,13 +127,12 @@ import {
   looseCancelPublish,
   handleLooseFsEvent,
 } from '../shared/transfer/loose-overlay.js'
-import { overlayPause, overlayCancel, overlayCancelByKey, overlayHasTransfer } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayPause, overlayCancel, overlayCancelByKey } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../shared/transfer/serve-ledger.js'
 
-import { consumerRowStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
+import { pathFromMount } from '../shared/transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
-import { listPendingForSpace } from '../shared/transfer/pending-transfers.js'
 import { getStorageInfo, cleanupOrphanedData, freeSpace } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
@@ -161,13 +154,13 @@ import {
 } from '../shared/audit/audit-log.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../shared/shares/shares.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
+import { listOverlayShareFiles } from '../shared/shares/share-listing.js'
 import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { boot } from './boot.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
 import { saveOwnedMount, getOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
-import { relKeyEscapes } from '../shared/folders/path-keys.js'
 import {
   handleFsEventFromMain,
   initialPublishScan,
@@ -180,14 +173,13 @@ import {
   cancelIndex,
 } from '../shared/folders/owned-folders.js'
 
-import { exceedsShareFileLimit, shareFileLimitMessage, listingTruncated } from '../shared/folders/share-limits.js'
+import { exceedsShareFileLimit, shareFileLimitMessage } from '../shared/folders/share-limits.js'
 import {
   initialMaterializeScan,
   previewMaterializeScan,
   startForeignLoop,
   setForeignEnabled,
   unmountForeignFolder,
-  foreignFetchActive,
 } from '../shared/folders/foreign-folders.js'
 import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
@@ -762,106 +754,6 @@ ipc.handle('share:list-files', async (msg) => {
   if (backend === UNSUPPORTED) return { entries: [], complete: true, total: 0, totalBytes: 0 }
   return await listOverlayShareFiles(msg.spaceId, share, backend)
 })
-
-// Contain a renderer-supplied (share:reveal-file) or catalog relPath inside the mount, so
-// neither a compromised renderer nor a malicious owner catalog can reveal/open a file
-// outside the share folder. Same guard as the data layer (path-keys.relKeyEscapes); reject
-// before building the path.
-function pathFromMount(mountPath, relPath) {
-  if (relKeyEscapes(relPath)) {
-    throw new AppError(ErrorCodes.EPATH, `file path rejected — unsafe segment escapes the share folder: ${relPath}`)
-  }
-  const sep = mountPath.includes('\\') ? '\\' : '/'
-  const root = mountPath.replace(/[/\\]+$/, '')
-  const abs = root + sep + relPath.split('/').join(sep)
-  if (!(abs === root || abs.startsWith(root + sep))) {
-    throw new AppError(ErrorCodes.EPATH, `file path rejected — resolves outside the share folder: ${relPath}`)
-  }
-  return abs
-}
-
-function statSizeOrNull(absPath) {
-  try { return fs.statSync(absPath).size } catch { return null }
-}
-
-// Consumer-side status for a catalog-backed overlay share row. A null contentHash means
-// the owner is still hashing → `preparing` while the owner is online, else `unavailable`
-// (entries are advertised before hashing completes). Downloads land in the downloads folder and are recorded in the downloaded
-// registry (markDownloaded), so `downloaded` is detected via isDownloadedFile — a file
-// counts as downloaded iff the registry lists it.
-async function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending }) {
-  if (foreignMount && foreignMount.enabled) {
-    const abs = pathFromMount(foreignMount.mountPath, entry.relPath)
-    if (statSizeOrNull(abs) === entry.size) {
-      const verified = !!entry.contentHash && (await getVerifiedHash(spaceId, share.id + '|' + entry.relPath)) === entry.contentHash
-      return { status: 'synced', localPath: abs, verified }
-    }
-    // The mirror loop is pulling this row right now — 'downloading' so FolderView's
-    // bar/speed/verify lane (all gated on the status) render during materialization.
-    if (foreignFetchActive(spaceId, share.id, entry.relPath)) {
-      return { status: 'downloading', localPath: null, pendingBytes: 0 }
-    }
-    if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null }
-    return { status: ownerOnline ? 'remote' : 'unavailable', localPath: null }
-  }
-  const drivePath = '/' + share.name + '/' + entry.relPath
-  if (await isDownloadedFile(spaceId, drivePath, entry.contentHash)) {
-    const verified = await isVerifiedDownload(spaceId, share.id + '|' + entry.relPath, entry.contentHash)
-    return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || claimedPathFor(drivePath, null), verified }
-  }
-  // Status is one ordered rule set, mirroring the loose path's order (which hand-rolls the same
-  // null-hash-first check at its call site) — an in-flight fetch is 'downloading', a null hash is
-  // the owner's index, and only then does the durable pending row decide error/paused. Derived
-  // there, never overlaid by the renderer.
-  const transferId = transferIdFor(spaceId, share.id, entry.relPath)
-  const row = consumerRowStatusFor({
-    hashed: Boolean(entry.contentHash),
-    isActive: overlayHasTransfer(transferId),
-    pendingRow: pending?.get(drivePath),
-    ownerOnline,
-  })
-  return { ...row, localPath: null }
-}
-
-async function listOverlayShareFiles(spaceId, share, backend) {
-  const isOwn = share.owner === getLocalPublicKeyHex()
-  // One bounded pass returns the first `cap` catalog entries AND the true {total, totalBytes}
-  // for the whole share, so a huge folder never materialises a 150k-row array and the count is
-  // always consistent with the rows (total >= entries.length). The rich display rows below are
-  // built only for the capped entries.
-  const cap = getListFilesCap()
-  const { entries, total, totalBytes, complete = true } = isOwn
-    ? await backend.listOwn(spaceId, share.id, cap)
-    : await backend.listPeerWithMeta(spaceId, share, cap)
-  const ownerOnline = isOwn ? true : isOwnerOnline(share.owner)
-  const ownedMount = isOwn ? await getOwnedMount(spaceId, share.id) : null
-  const foreignMount = isOwn ? null : await getForeignMount(spaceId, share.id)
-  const pending = isOwn ? null : new Map((await listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
-  const out = []
-  for (const entry of entries) {
-    let row
-    try {
-      // pathFromMount throws on an unsafe peer-supplied relPath — skip that one
-      // entry rather than aborting the whole listing (a malicious owner catalog
-      // must not make the share un-browsable).
-      if (isOwn) {
-        row = { status: entry.contentHash ? 'synced' : 'publishing', localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null }
-      } else {
-        row = await overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending })
-      }
-    } catch (err) {
-      log.warn('skipping overlay file row with an unsafe path:', entry.relPath, '-', err.message)
-      continue
-    }
-    out.push({ relPath: entry.relPath, size: entry.size, hash: entry.contentHash || '', mtime: entry.mtime, status: row.status, localPath: row.localPath, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode, transferId: isOwn ? undefined : transferIdFor(spaceId, share.id, entry.relPath) })
-  }
-  // Truncation is a FACT the worker reports, never something the renderer infers from
-  // (total > rows): on an incomplete read `total` is itself partial, so that inference collapses
-  // to false exactly when the rows were capped — and the truncation goes silent.
-  const truncated = listingTruncated({ rowCount: entries.length, total, cap, complete })
-  if (truncated) log.debug(`share:list-files showing ${out.length} of ${total} rows for share ${share.id} (capped at ${cap})`)
-  return { entries: out, complete, total, totalBytes, truncated, fileLimit: truncated ? cap : null }
-}
 
 ipc.handle('share:reveal-folder', async (msg) => {
   const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)

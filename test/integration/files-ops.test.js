@@ -16,6 +16,10 @@ import {
   markVerified,
   getVerifiedHash,
   cleanupDownloadHistory,
+  listDownloadClaimsForShare,
+  listVerifiedForShare,
+  pruneDownloadClaims,
+  verdictForClaim,
 } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -190,4 +194,79 @@ test('verified marker round-trips and is cleared on space cleanup', async (t) =>
 
   await cleanupDownloadHistory(spaceId)
   t.is(await getVerifiedHash(spaceId, key), null, 'cleared with the space download history')
+})
+
+// The share listing reads every row's claim from one range scan instead of a point read per row,
+// so the scan must answer exactly what the point reads answered — no sibling share's keys, and
+// nothing retained for a row the listing will not render.
+test('listDownloadClaimsForShare scans one share and never a sibling', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const dir = tmpDir('dl')
+  for (const drivePath of ['/Docs/a.txt', '/Docs/sub/b.txt', '/Docs2/c.txt', '/Doc/d.txt']) {
+    const landed = path.join(dir, drivePath.split('/').join('_'))
+    fs.writeFileSync(landed, 'bytes')
+    await markDownloaded(spaceId, drivePath, landed, { hash: 'h' })
+  }
+
+  const claims = await listDownloadClaimsForShare(spaceId, 'Docs')
+  t.alike([...claims.keys()].sort(), ['/Docs/a.txt', '/Docs/sub/b.txt'], 'only the named share, nested paths included')
+  t.is(claims.get('/Docs/a.txt').hash, 'h', 'the whole record comes back, not just the path')
+
+  const other = await listDownloadClaimsForShare('other-space', 'Docs')
+  t.is(other.size, 0, 'the scan is scoped to the space as well as the share')
+})
+
+test('the keep filter bounds retention without narrowing the scan', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const landed = path.join(tmpDir('dl'), 'k.txt')
+  fs.writeFileSync(landed, 'bytes')
+  await markDownloaded(spaceId, '/Docs/keep.txt', landed, { hash: 'h1' })
+  await markDownloaded(spaceId, '/Docs/drop.txt', landed, { hash: 'h2' })
+  await markVerified(spaceId, 'sh1|keep.txt', 'h1')
+  await markVerified(spaceId, 'sh1|drop.txt', 'h2')
+
+  const claims = await listDownloadClaimsForShare(spaceId, 'Docs', { keep: new Set(['/Docs/keep.txt']) })
+  t.alike([...claims.keys()], ['/Docs/keep.txt'])
+
+  const verified = await listVerifiedForShare(spaceId, 'sh1', { keep: new Set(['keep.txt']) })
+  t.alike([...verified.keys()], ['keep.txt'])
+  t.is((await listVerifiedForShare(spaceId, 'sh1')).size, 2, 'no keep is the unfiltered scan the storage summary relies on')
+})
+
+test('pruneDownloadClaims removes exactly the listed keys in one batch', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const landed = path.join(tmpDir('dl'), 'p.txt')
+  fs.writeFileSync(landed, 'bytes')
+  for (const drivePath of ['/Docs/one.txt', '/Docs/two.txt', '/Docs/three.txt']) {
+    await markDownloaded(spaceId, drivePath, landed, { hash: 'h' })
+  }
+
+  t.is(await pruneDownloadClaims(spaceId, []), 0, 'an empty batch is a no-op')
+  t.is(await pruneDownloadClaims(spaceId, ['/Docs/one.txt', '/Docs/three.txt']), 2)
+  t.alike([...(await listDownloadClaimsForShare(spaceId, 'Docs')).keys()], ['/Docs/two.txt'])
+})
+
+// FIX-21 again, now through the verdict the batched listing and the point read share: a file whose
+// CONTAINING FOLDER also vanished means the volume is detached, not that the user deleted the copy.
+// Pruning there would destroy the claim for a file still sitting on that disk.
+test('REGRESSION (FIX-21): a detached volume keeps the claim, a deleted file drops it', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const volume = path.join(tmpDir('vol'), 'ExternalDisk')
+  fs.mkdirSync(volume, { recursive: true })
+  const landed = path.join(volume, 'v.txt')
+  fs.writeFileSync(landed, 'bytes')
+  await markDownloaded(spaceId, '/Docs/v.txt', landed, { hash: 'h1' })
+
+  const rec = (await listDownloadClaimsForShare(spaceId, 'Docs')).get('/Docs/v.txt')
+  t.is(verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1').downloaded, true, 'present on the mounted volume')
+
+  fs.rmSync(volume, { recursive: true, force: true })
+  const detached = verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1')
+  t.is(detached.prune, false, 'the volume is gone, so the claim is NOT pruned')
+  t.is(detached.downloaded, false, 'but the file is not reported as on this device')
+  t.absent(await isDownloadedFile(spaceId, '/Docs/v.txt', 'h1'), 'the point-read path agrees')
+  t.is(await getDownloadedPath(spaceId, '/Docs/v.txt'), landed, 'and the record survived the read')
+
+  fs.mkdirSync(volume, { recursive: true })
+  t.is(verdictForClaim(spaceId, '/Docs/v.txt', rec, 'h1').prune, true, 'the folder back without the file is a deletion')
 })
