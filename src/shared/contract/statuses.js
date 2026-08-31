@@ -35,6 +35,7 @@ export const SHARE_FILE_STATUS = Object.freeze([
   'preparing',
   'downloading',
   'verifying',
+  'publishing',
   'downloaded',
   'synced',
   'unavailable',

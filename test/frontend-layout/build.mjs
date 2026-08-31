@@ -75,4 +75,9 @@ await build({
   entryPoints: [path.join(HERE, 'harness-mirrorers-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-mirrorers.js'),
 })
+await build({
+  ...common,
+  entryPoints: [path.join(HERE, 'harness-indexing-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-indexing.js'),
+})
 console.error('[build] harness bundled')

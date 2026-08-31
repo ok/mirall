@@ -25,6 +25,8 @@ test('mirrored on-disk files keep Reveal', (t) => {
 
 test('owner preparing indicator (#193) is preserved as a passive busy state', (t) => {
   t.is(mirror('preparing'), 'busy')
+  t.is(mirror('publishing'), 'busy', "the owner's own indexing row is busy, not actionable")
+  t.is(manual('publishing'), 'busy')
 })
 
 test('verifying behaves like downloading — pause/cancel when controllable, busy otherwise', (t) => {

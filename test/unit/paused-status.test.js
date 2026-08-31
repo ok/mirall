@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { pausedStatusFor, pauseReasonFor, unhashedStatusFor } from '../../src/shared/transfer/transfer-status.js'
+import { pausedStatusFor, pauseReasonFor, unhashedStatusFor, consumerRowStatusFor } from '../../src/shared/transfer/transfer-status.js'
 
 // REGRESSION (FIX-1): a mid-index (null-hash) file must degrade preparing→unavailable when the
 // owner goes offline, so a peer that quit mid-add doesn't leave the file stuck on "Preparing…".
@@ -47,5 +47,67 @@ test('pausedStatusFor: missing bytesTransferred clamps to 0 (fresh pending row, 
   t.alike(
     pausedStatusFor({ pendingRow: { finalPath: '/x' }, isActive: false, ownerOnline: true }),
     { status: 'paused-interrupted', pendingBytes: 0 }
+  )
+})
+
+// REGRESSION (FIX-PREP4: the republish park KEEPS the pending row — zeroed — through the owner's
+// re-hash, precisely so the wait derives 'preparing' and the materialized-hash append restarts it.
+// The folder path read the pending row FIRST, so that wait surfaced as an amber "Paused" row
+// nobody paused, offering Resume against a content hash that no longer exists. The loose path,
+// which tests the null hash first, always read it correctly — this pins the order for both.)
+test('REGRESSION (FIX-PREP4): a null hash outranks the parked pending row → preparing, not paused', (t) => {
+  const parked = { bytesTransferred: 0, finalPath: '/dl/a.txt' }
+  t.alike(
+    consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: parked, ownerOnline: true }),
+    { status: 'preparing' },
+    "the owner is re-hashing — the row is waiting on them, not paused by us"
+  )
+  t.alike(
+    consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: parked, ownerOnline: false }),
+    { status: 'unavailable' },
+    'an offline owner can never complete the hash, so the placeholder degrades'
+  )
+})
+
+test('consumerRowStatusFor: an in-flight fetch outranks everything and carries its bytes', (t) => {
+  t.alike(
+    consumerRowStatusFor({ hashed: true, isActive: true, pendingRow: { bytesTransferred: 512 }, ownerOnline: true }),
+    { status: 'downloading', pendingBytes: 512 }
+  )
+})
+
+test('consumerRowStatusFor: a hashed entry falls through error → paused → remote', (t) => {
+  t.alike(
+    consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: { errorCode: 'EHASHMISMATCH' }, ownerOnline: true }),
+    { status: 'error', errorCode: 'EHASHMISMATCH' }
+  )
+  t.alike(
+    consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: { bytesTransferred: 900 }, ownerOnline: true }),
+    { status: 'paused-interrupted', pendingBytes: 900 }
+  )
+  t.alike(consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: true }), { status: 'remote' })
+  t.alike(consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: false }), { status: 'unavailable' })
+})
+
+// A parked row is ZEROED, so "has partial bytes" is what separates the owner's re-hash from a
+// genuinely interrupted download. Offline, the null-hash wait cannot resolve, and answering
+// 'unavailable' would stand a row with bytes on disk down to no affordance at all — no Discard,
+// no bytes shown — until the owner comes back.
+test('consumerRowStatusFor: an offline owner cannot mask a partial — it keeps paused-offline and its bytes', (t) => {
+  t.alike(
+    consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: { bytesTransferred: 4096 }, ownerOnline: false }),
+    { status: 'paused-offline', pendingBytes: 4096 }
+  )
+  t.alike(
+    consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: { bytesTransferred: 0 }, ownerOnline: false }),
+    { status: 'unavailable' },
+    'a parked (zeroed) row has nothing to discard, so the frozen placeholder still wins'
+  )
+})
+
+test('consumerRowStatusFor: a reachable owner mid-re-hash outranks a partial (the restart discards it)', (t) => {
+  t.alike(
+    consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: { bytesTransferred: 4096 }, ownerOnline: true }),
+    { status: 'preparing' }
   )
 })

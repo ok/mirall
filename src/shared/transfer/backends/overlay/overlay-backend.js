@@ -293,7 +293,9 @@ async function publishOne(spaceId, share, relPath, absPath, { catalog = directCa
       onAdvertised: (size) => {
         sharesRefresh.touch(spaceId, share.id)
         ticker = makeProgressTicker(size, ({ bytes, total, speed, eta }) => {
-          ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key: shareDecoKey(share.id, relPath), phase: 'preparing', bytes, total, speed, eta })
+          // Our own row is 'publishing' (we are adding this file); the peers we broadcast to see
+          // 'preparing' (they are waiting on our hash). Same ticker, one phase per side.
+          ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key: shareDecoKey(share.id, relPath), phase: 'publishing', bytes, total, speed, eta })
           broadcastSharePrepare(spaceId, { shareId: share.id, relPath, bytes, total, eta })
         })
       },
@@ -302,6 +304,10 @@ async function publishOne(spaceId, share, relPath, absPath, { catalog = directCa
     return changed
   } finally {
     ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key: shareDecoKey(share.id, relPath), done: true })
+    // Peers get a terminal frame too — their decoration map is cleared ONLY by `done`, so without
+    // this the bar we raised on them lingers at ~100% and repaints stale on the next re-hash.
+    // Gated on the ticker: only a broadcast we actually started may clear that key.
+    if (ticker) broadcastSharePrepare(spaceId, { shareId: share.id, relPath, done: true })
   }
 }
 

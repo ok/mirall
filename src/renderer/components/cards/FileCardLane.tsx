@@ -61,7 +61,7 @@ function PublishLane({ view }: { view: FileCardView }) {
     <ProgressLaneShell status={view.displayStatus}>
       <DownloadProgressLane
         value={view.publishPct}
-        label={t('file.publishProgress')}
+        label={t('file.indexingProgress')}
         eta={eta.etaText}
         indeterminate={!view.publishDecor || eta.indeterminate}
       />
@@ -102,7 +102,7 @@ function PreparingLane({ view }: { view: FileCardView }) {
     <ProgressLaneShell status={view.displayStatus}>
       <DownloadProgressLane
         value={view.preparingPct}
-        label={t('file.preparing')}
+        label={t('file.indexingProgress')}
         eta={eta.etaText}
         indeterminate={eta.indeterminate}
       />

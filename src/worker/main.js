@@ -134,7 +134,7 @@ import {
 import { overlayPause, overlayCancel, overlayCancelByKey, overlayHasTransfer } from '../shared/transfer/backends/overlay/overlay-backend.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../shared/transfer/serve-ledger.js'
 
-import { pausedStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
+import { consumerRowStatusFor, unhashedStatusFor } from '../shared/transfer/transfer-status.js'
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
 import { listPendingForSpace } from '../shared/transfer/pending-transfers.js'
@@ -791,22 +791,18 @@ async function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignM
     const verified = await isVerifiedDownload(spaceId, share.id + '|' + entry.relPath, entry.contentHash)
     return { status: 'downloaded', localPath: (await getDownloadedPath(spaceId, drivePath)) || claimedPathFor(drivePath, null), verified }
   }
-  // A failed (non-active) download surfaces as 'error' with the code, so the row
-  // offers Retry/Dismiss + the message — parity with the loose path, instead of a
-  // misleading 'paused-interrupted' that re-fetches the same bad bytes on Resume.
+  // Status is one ordered rule set, mirroring the loose path's order (which hand-rolls the same
+  // null-hash-first check at its call site) — an in-flight fetch is 'downloading', a null hash is
+  // the owner's index, and only then does the durable pending row decide error/paused. Derived
+  // there, never overlaid by the renderer.
   const transferId = transferIdFor(spaceId, share.id, entry.relPath)
-  const isActive = overlayHasTransfer(transferId)
-  const pendingRow = pending?.get(drivePath)
-  // An in-flight fetch is 'downloading' — derived here, not overlaid by the renderer.
-  if (isActive) return { status: 'downloading', localPath: null, pendingBytes: pendingRow?.bytesTransferred || 0 }
-  if (pendingRow?.errorCode) return { status: 'error', localPath: null, errorCode: pendingRow.errorCode }
-  // A pending row with no live transfer is an interrupted/paused download →
-  // paused-interrupted/paused-offline; overlayHasTransfer gates it so a refresh
-  // mid-download doesn't flip the row.
-  const paused = pausedStatusFor({ pendingRow, isActive, ownerOnline })
-  if (paused) return { status: paused.status, localPath: null, pendingBytes: paused.pendingBytes }
-  if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null }
-  return { status: ownerOnline ? 'remote' : 'unavailable', localPath: null }
+  const row = consumerRowStatusFor({
+    hashed: Boolean(entry.contentHash),
+    isActive: overlayHasTransfer(transferId),
+    pendingRow: pending?.get(drivePath),
+    ownerOnline,
+  })
+  return { ...row, localPath: null }
 }
 
 async function listOverlayShareFiles(spaceId, share, backend) {
@@ -831,7 +827,7 @@ async function listOverlayShareFiles(spaceId, share, backend) {
       // entry rather than aborting the whole listing (a malicious owner catalog
       // must not make the share un-browsable).
       if (isOwn) {
-        row = { status: entry.contentHash ? 'synced' : 'preparing', localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null }
+        row = { status: entry.contentHash ? 'synced' : 'publishing', localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null }
       } else {
         row = await overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending })
       }

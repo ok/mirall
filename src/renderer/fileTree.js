@@ -11,9 +11,14 @@ export function statusCategory (status) {
     case 'synced':
       return 'on-device'
     case 'downloading':
-    case 'preparing':
     case 'verifying':
       return 'downloading'
+    // The owner indexing a file ('publishing') and a member waiting on that index ('preparing')
+    // are not transfers: rolled into 'downloading' they made a folder nobody was pulling from
+    // report "N downloading".
+    case 'preparing':
+    case 'publishing':
+      return 'preparing'
     case 'paused-interrupted':
     case 'paused-offline':
       return 'paused'
@@ -25,7 +30,7 @@ export function statusCategory (status) {
 }
 
 function emptyCounts () {
-  return { 'on-device': 0, downloading: 0, available: 0, paused: 0, error: 0 }
+  return { 'on-device': 0, downloading: 0, preparing: 0, available: 0, paused: 0, error: 0 }
 }
 
 // relPath → clean segment list. Tolerant of backslashes and leading/trailing slashes.

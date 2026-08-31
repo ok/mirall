@@ -81,7 +81,7 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 | Token | Hex | Used for |
 |---|---|---|
 | `success` / `on-success` | `#c1ecc4` / `#0c4d20` | The green "it's on your device" state — shared-by-you + downloaded |
-| `info` / `on-info` | `#d6e6f5` / `#1f4a78` | The blue "in transfer" state — downloading / preparing / adding |
+| `info` / `on-info` | `#d6e6f5` / `#1f4a78` | The blue "busy" state — transferring (downloading / verifying) or indexing (preparing / adding) |
 | `online` / `offline` | `#0d8b80` / `#a0a4ac` | Member presence |
 | `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk |
 | `error` | `#ba1a1a` | Hard error text/icon |
@@ -388,7 +388,9 @@ Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and
 **always `border border-outline`** (a deliberate border). `statusBadge.js` maps
 file/share state onto a **fixed 5-token palette**, each token one fixed meaning:
 🟢 `bg-success` (on your device — `mine` + `downloaded`/`synced`),
-🔵 `bg-info` (in transfer — `downloading` / `preparing` / `verifying` (`animate-pulse`) / `publishing`),
+🔵 `bg-info` (busy — `downloading` / `verifying` (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) /
+`publishing` indexing them; `publishing` is the OWNER hashing its own file ("Adding"), `preparing` a member
+waiting on that hash, and neither is a transfer — the folder roll-up counts them apart from downloads),
 🟡 `bg-warning` (needs attention — `paused-interrupted`, folder `missing`/`mount-point-gone`),
 🔴 `bg-error-container` (`error` only),
 ⚪ `bg-surface-container-highest` (passive / not-here / **all folder roles** — `mine`/`browse`/`mirrored` —

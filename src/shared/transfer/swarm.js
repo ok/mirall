@@ -1776,13 +1776,23 @@ function handleSharePrepareProgressFrame(socket, msg) {
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string') return
   if (typeof shareId !== 'string' || typeof relPath !== 'string') return
   if (!socketToPeers.get(socket)?.has(profileKey)) return
+  const key = shareId === LOOSE_SHARE_ID ? '/' + relPath : shareDecoKey(shareId, relPath)
+  // The owner finished (or abandoned) the hash. Decorations are cleared only by this frame, so
+  // without it the bar sits at ~100% and repaints stale on the next re-hash of the same path. It
+  // carries no numbers to validate, and clears at most a cosmetic bar a progress frame repaints.
+  if (msg.done === true) {
+    // Phase-scoped: this key is SHARED with our own download of the same file, and a re-publish
+    // restarts that download the moment the materialized hash replicates — a `done` landing just
+    // after it must not take down a live download bar.
+    ipcRef.emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', done: true })
+    return
+  }
   // Wire numbers are peer-controlled: drop anything non-finite / out of range so a bad frame
   // can't reach the renderer as a NaN bar (width:'NaN%' / aria-valuenow=NaN).
   if (!Number.isFinite(bytes) || !Number.isFinite(total) || total <= 0 || bytes < 0 || bytes > total) return
   // null/absent = the owner is still warming up its estimate ("Estimating…"); preserve it. Any
   // other value is a peer-controlled number, so clamp non-finite/non-positive to 0.
   const safeEta = eta == null ? null : (Number.isFinite(eta) && eta > 0 ? eta : 0)
-  const key = shareId === LOOSE_SHARE_ID ? '/' + relPath : shareDecoKey(shareId, relPath)
   ipcRef.emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', bytes, total, speed: 0, eta: safeEta })
 }
 
