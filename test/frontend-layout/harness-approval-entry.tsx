@@ -4,6 +4,7 @@
 // is in flight, that the derived request row is NEVER hidden (Fix B keeps the projection as the
 // sole source of truth — no reconcile hint is emitted here), and that the button re-enables once
 // the call settles. window.bridge is installed by fake-bridge.js loaded first in the HTML.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'

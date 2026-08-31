@@ -7,6 +7,7 @@
 //
 // `window.bridge` is installed by fake-bridge.js (a classic script loaded first
 // in harness-members.html), so `ipc.ts` and every hook/component run unmodified.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'

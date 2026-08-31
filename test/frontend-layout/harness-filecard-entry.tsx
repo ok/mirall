@@ -4,6 +4,7 @@
 // live inside the existing meta line, not add a third text row). Also mounts the
 // real <ToastContainer> and asserts a long message grows the toast to its 720px
 // cap while a short one stays at content width.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import FileCard from './../../src/renderer/components/cards/FileCard.js'

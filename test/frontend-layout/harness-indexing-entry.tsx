@@ -3,6 +3,7 @@
 // index, and a member's folder with a real download alongside — and reads back what each one
 // actually says. Indexing is not a transfer: neither side may be told anything is downloading,
 // and the bar over an indexing row must be named for the indexing it measures.
+import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import FolderTree from './../../src/renderer/components/widgets/FolderTree.js'
