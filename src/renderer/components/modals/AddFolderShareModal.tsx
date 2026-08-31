@@ -151,6 +151,11 @@ export default function AddFolderShareModal({
     return () => { cancelPreview() }
   }, [isOpen, initialMountPath])
 
+  // Deliberately NOT on the query store, though it is param-keyed and looks like a query: this is
+  // a point-in-time filesystem probe. The folder can be deleted, unmounted or filled between two
+  // opens of the modal, and a cached verdict would show a stale answer for a path the user just
+  // changed — a correctness regression traded for a round-trip nobody is waiting on. The cancel
+  // flag stays.
   useEffect(() => {
     if (!isOpen || !mountPath) return
     let cancelled = false

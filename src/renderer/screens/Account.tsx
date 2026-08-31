@@ -8,6 +8,7 @@ import { connectionDesc, activityDesc } from '../profileRows.js'
 import type { AuditConfig, AuditStats, Profile } from '../types.js'
 import type { IdentityProtection } from '../global.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useQuery } from '../store/useQuery.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useUpdates } from '../hooks/useUpdates.js'
 import { useKeyboard } from '../keyboard/KeyboardProvider.js'
@@ -183,28 +184,16 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
   const [identity, setIdentity] = useState<IdentityProtection | null>(null)
-  const [auditConfig, setAuditConfig] = useState<AuditConfig | null>(null)
-  const [auditStats, setAuditStats] = useState<AuditStats | null>(null)
+  // Through the query store for the dedup and the cache — but with NO scopes, deliberately. The
+  // audit scope exists and would invalidate on every event:audit-updated; this is a summary line,
+  // not a live counter, and a subscription would repaint the row on every recorded event for no
+  // user benefit. Scope-less still re-reads on each mount (fetchQuery only dedups an in-flight
+  // request), so the row is as fresh as the hand-rolled effect was — minus its cancel flag.
+  const { data: auditConfig } = useQuery<AuditConfig>('audit:get-config', {}, null)
+  const { data: auditStats } = useQuery<AuditStats>('audit:stats', {}, null)
 
   useEffect(() => {
     window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})
-  }, [])
-
-  // Read once on mount: this is a summary line, not a live counter — a subscription would repaint
-  // the row on every recorded event for no user benefit.
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([
-      request('audit:get-config') as Promise<AuditConfig>,
-      request('audit:stats') as Promise<AuditStats>,
-    ])
-      .then(([config, stats]) => {
-        if (cancelled) return
-        setAuditConfig(config)
-        setAuditStats(stats)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
   }, [])
 
   return (
@@ -231,7 +220,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
         <ActionRow
           icon="history"
           label={t('settings.activityLog')}
-          desc={activityDesc(t, auditConfig, auditStats)}
+          desc={activityDesc(t, auditConfig ?? null, auditStats ?? null)}
           onClick={onOpenActivityLog}
         />
       </div>
