@@ -1,10 +1,11 @@
 import test from 'brittle'
-import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
+import { createIPC, getRequestFailureCounters, resetRequestFailureCounters, getRequestMetrics, resetRequestMetrics } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
 const TEST_REQUESTS = Object.freeze({
+  'thing:sync-boom': { kind: 'command', args: {} },
   'thing:do': { kind: 'command', args: {} },
   'thing:ok': { kind: 'command', args: {} },
   'preview:make': { kind: 'command', args: {} },
@@ -151,3 +152,35 @@ test('the failure counter map is bounded', async (t) => {
   t.ok(Object.keys(counters).length <= 257, 'the map stayed capped')
   t.is(counters['unknown-command:NOT_FOUND'], 400, 'and unknown commands share one bucket')
 })
+
+// A handler that throws SYNCHRONOUSLY (not from an async body) escaped through
+// `Promise.resolve(entry.fn(...))` — the call is evaluated before the promise exists, so the throw
+// unwound into the frame-parse catch that wraps dispatch(). Three consequences, all silent:
+// the caller got no response and hung to the renderer's 30s timeout, the failure was counted
+// nowhere, and requestMetrics.begin() had already incremented inFlight with no settle to match.
+// Only `shutdown` is non-async in the worker today, but the metrics leak is what makes this
+// load-bearing here: a monotonically rising inFlight reads as saturation.
+test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, and settled', async (t) => {
+  resetRequestFailureCounters()
+  resetRequestMetrics()
+  t.teardown(() => { resetRequestFailureCounters(); resetRequestMetrics() })
+  const { warns } = captureConsole(t)
+  setRuntimeConfig({ verbose: false })
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('thing:sync-boom', () => { throw new Error('sync throw') })
+  ipc.start()
+
+  pipe.feed({ id: '1', type: 'thing:sync-boom' })
+  await new Promise((r) => setImmediate(r))
+
+  const res = pipe.written.map((s) => JSON.parse(s)).find((m) => m.id === '1')
+  t.ok(res, 'the caller is answered rather than left to time out')
+  t.is(res.code, 'UNKNOWN', 'with a code')
+  t.is(res.error, 'sync throw', 'and the message')
+  t.is(getRequestFailureCounters()['thing:sync-boom:UNKNOWN'], 1, 'the failure is counted')
+  t.is(getRequestMetrics()['thing:sync-boom'].inFlight, 0, 'in-flight settles back to zero')
+  t.is(getRequestMetrics()['thing:sync-boom'].failures, 1, 'and is recorded as a failure')
+  t.absent(warns.some((l) => l.includes('unparseable')), 'never misreported as a malformed frame')
+})
+

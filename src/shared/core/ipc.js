@@ -201,7 +201,12 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // The second argument is the request's context. `signal` is null until cancellation is wired
     // (r07-3): the seam costs one line now and re-plumbing 86 handlers later. Every handler takes
     // one parameter today and ignores this one.
-    Promise.resolve(entry.fn(msg, { id: msg.id ?? null, signal: null })).then(
+    // `new Promise(resolve => resolve(...))`, not `Promise.resolve(...)`: the latter EVALUATES the
+    // handler before the promise exists, so a handler that throws synchronously unwound into the
+    // frame-parse catch around dispatch() — reported as an unparseable frame at debug, never
+    // answered (the caller hung to the renderer's 30s timeout), never counted, and with the
+    // in-flight metric already incremented and no settle to match it.
+    new Promise((resolve) => resolve(entry.fn(msg, { id: msg.id ?? null, signal: null }))).then(
       (data) => { log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
       (err) => {
         const ms = settle(false)
