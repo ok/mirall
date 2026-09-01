@@ -1,6 +1,7 @@
-// Storage accounting + reclaim behind the Storage screen: measure the store's disk
-// footprint (per-space drives, overlay index, database remainder) and run the
-// cleanup passes — a boot-time metadata sweep and the user-driven free-space action.
+// Storage accounting behind the Storage screen: measure the store's disk footprint (per-space
+// drives, overlay index, database remainder), plus the boot-time metadata sweep. Reclaim is no
+// longer user-driven — the overlay copies no file bytes into the store, so there was nothing
+// left for a "free up space" action to free.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
@@ -75,23 +76,6 @@ export async function getStorageInfo() {
     indexBytes,
     dbBytes,
   }
-}
-
-// One-click reclaim for the Storage screen: rebuild the overlay index without dead
-// chunk maps and purge orphaned peer metadata, then report the disk actually freed.
-// Non-destructive — only unreferenced data is dropped.
-export async function freeSpace() {
-  const before = getDirSize(getStoragePath())
-  let changed = false
-  try {
-    const { compactOverlayIndex } = await import('../transfer/backends/overlay/overlay-backend.js')
-    if ((await compactOverlayIndex()).compacted) changed = true
-  } catch (err) { log.warn('index compaction failed:', err.message) }
-  try { if ((await purgeLeftovers()).purged > 0) changed = true } catch (err) { log.warn('leftover purge failed:', err.message) }
-  // Nothing reclaimed → the store is unchanged; skip the second full-tree stat walk.
-  if (!changed) return { freedBytes: 0 }
-  const after = getDirSize(getStoragePath())
-  return { freedBytes: Math.max(0, before - after) }
 }
 
 async function readDriveBytes(drive) {

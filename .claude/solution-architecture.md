@@ -782,7 +782,6 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `files:download` | `{ spaceId, driveKey, path }` | `{ transferId }` |
 | `files:pause-download` / `files:cancel-download` | `{ transferId }` | `{ ok:true }` |
 | `storage:info` | `{}` | `{ totalDiskUsage, storagePath, spaces[], otherBytes }` |
-| `storage:cleanup` / `storage:free-space` | `{}` | `{ purged }` / `{ freedBytes }` — `free-space` reclaims resident-cache bytes across every space (called by `StorageSettings.tsx`) |
 | `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
 | `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
 | `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true }` |
@@ -925,7 +924,7 @@ Adding a locale: drop `locales/<code>/{common,errors}.json`, add a `SUPPORTED_LA
 | **Activity Log** | Account → Activity | The audit-log viewer: search, space/person/time/category filters, day-grouped rows, Load more. Cross-links to its settings |
 | **Activity Log settings** | Settings → Activity Log | Recording toggle, retention, JSON export, delete. Cross-links back to the viewer |
 | **Settings** | Gear icon | Profile edit, theme toggle, nav to Storage / Activity Log / About |
-| **Storage Settings** | From Settings | `StorageIndicator` per space, total / other breakdown, cleanup → `storage:cleanup` |
+| **Storage Settings** | From Settings | `StorageIndicator` per space, download-folder picker, usage breakdown (read-only — reclaim is automatic) |
 | **About** | From Settings | Version info, "Send feedback" → `FeedbackModal` |
 
 Modals rendered from root: `FeedbackModal` (comment + `modern-screenshot` capture via `feedback:send`).
