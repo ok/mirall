@@ -52,6 +52,18 @@ import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, resetRegistries } from './swarm-registries.js'
+import {
+  initPresenceBroadcast, stopPresenceHeartbeat, broadcastPresence, resolveSpaceIdForTopic,
+  handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame,
+} from './presence-broadcast.js'
+// Re-exported so swarm.js stays the public address for these: worker/main.js and the overlay
+// backend import them from here.
+export { broadcastDeparture, broadcastSharePrepareProgress, broadcastShareIndexProgress } from './presence-broadcast.js'
+import {
+  initDeferredAdmission, resetDeferredAdmission, reconcilePendingRequester,
+  reconcilePendingRequestersForApprover, emitPeerSharesUpdated,
+} from './deferred-admission.js'
+export { readmitConnectedMembers, emitSharesUpdated } from './deferred-admission.js'
 
 const log = createLogger('swarm')
 
@@ -168,6 +180,16 @@ const diag = createSwarmDiagnostics({
   getDhtVersion: () => DHT_VERSION,
 })
 // The join gates. connectedPeers is passed rather than imported: it is this module's registry.
+initDeferredAdmission({
+  getGates: () => gates,
+  log,
+  handleHandshake: (...a) => handleHandshake(...a),
+  sendSingleHandshake: (...a) => sendSingleHandshake(...a),
+  getIpc: () => ipcRef,
+})
+
+initPresenceBroadcast({ presence, membersPoke, getSwarm: () => swarm, getIpc: () => ipcRef })
+
 const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => ipcRef })
 
 // Re-exported, not relocated: worker/main.js imports BOTH (isApprovedMember for the join-request
@@ -1081,126 +1103,6 @@ function handleMembershipCancelAck(socket, msg) {
 // otherwise. This layer deliberately never prunes membership on disconnect — admission is
 // separate from membership display, and a dead socket says nothing about membership.
 
-// === Deferred admission of pending joiners ===
-
-// A peer we recorded as a pending join request may since have been approved by a
-// co-member. Re-run the gate; if it now passes, admit them. If we hold their driveKey
-// (captured from a post-grant re-handshake) we replay their handshake directly — opening
-// their drive, listing them as a member, sending the reciprocal, and clearing the stale
-// request via the shared admit path. If we only ever saw their membership:request (no
-// drive), we prompt a fresh handshake over the live socket so they re-send with a driveKey
-// the gate can then admit for content — rather than bailing and leaving them unadmitted.
-export async function reconcilePendingRequester(spaceId, joinerKey) {
-  const key = spaceId + ':admit:' + joinerKey
-  if (pendingAdmitInflight.has(key)) return
-  pendingAdmitInflight.add(key)
-  try {
-    const space = await getSpace(spaceId)
-    if (!space || space.status === 'pending') return
-    if ((space.members || []).some((m) => m.publicKey === joinerKey)) return
-    if (!(await gates.isApprovedByPeers(space, joinerKey))) return
-    const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
-    const topic = spaceTopics.get(spaceId)
-    if (!sock || !topic) return
-    const driveKey = getJoinRequestDriveKey(spaceId, joinerKey)
-    if (!driveKey) {
-      const handler = socketMsgHandlers.get(sock)
-      if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
-      return
-    }
-    const req = listJoinRequests(spaceId).find((r) => r.publicKey === joinerKey)
-    await handleHandshake(sock, null, {
-      type: 'handshake',
-      profileKey: joinerKey,
-      driveKey,
-      displayName: req?.displayName || 'Unknown',
-      spaceTopic: topic,
-    })
-  } finally {
-    pendingAdmitInflight.delete(key)
-  }
-}
-
-async function reconcilePendingRequestersForSpace(spaceId) {
-  for (const req of listJoinRequests(spaceId)) {
-    reconcilePendingRequester(spaceId, req.publicKey).catch((err) => {
-      log.warn('pending requester reconcile failed:', err.message)
-    })
-  }
-}
-
-async function reconcilePendingRequestersForApprover(approverKey) {
-  const spaces = await listSpaces()
-  for (const space of spaces) {
-    if (!(space.members || []).some((m) => m.publicKey === approverKey)) continue
-    await reconcilePendingRequestersForSpace(space.spaceId)
-  }
-}
-
-const readmitInflight = new Set()
-
-// The derived member set just vouched for joinerKey; admit it if we have a live socket but no
-// admitted handshake for this space (its handshake raced ahead of the record that admits it, so we
-// bounced it to a join request and never sent the reciprocal — leaving a connected member showing as
-// Unknown/Offline). Replaying handleHandshake opens its drive, lists it, marks presence, and sends
-// the reciprocal. If we never captured its driveKey, send our handshake instead to prompt a fresh
-// one. Unlike reconcilePendingRequester this trusts the fold (no isApprovedByPeers re-check), so it
-// also admits the creator, who is approved by nobody.
-async function admitDerivedMember(spaceId, joinerKey) {
-  const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
-  const topic = spaceTopics.get(spaceId)
-  if (!sock || !topic) return
-  const driveKey = getJoinRequestDriveKey(spaceId, joinerKey)
-  if (!driveKey) {
-    const handler = socketMsgHandlers.get(sock)
-    if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
-    return
-  }
-  const req = listJoinRequests(spaceId).find((r) => r.publicKey === joinerKey)
-  await handleHandshake(sock, null, {
-    type: 'handshake',
-    profileKey: joinerKey,
-    driveKey,
-    displayName: req?.displayName || 'Unknown',
-    spaceTopic: topic,
-  })
-}
-
-export function readmitConnectedMembers(spaceId, keys) {
-  for (const key of keys) {
-    if (!pendingRequesters.has(key) && !connectedPeers.has(key)) continue
-    const guard = spaceId + ':' + key
-    if (readmitInflight.has(guard)) continue
-    readmitInflight.add(guard)
-    admitDerivedMember(spaceId, key)
-      .catch((err) => log.warn('readmit on derive failed:', err.message))
-      .finally(() => readmitInflight.delete(guard))
-  }
-}
-
-export function emitSharesUpdated(spaceId) {
-  if (ipcRef) ipcRef.emit('event:shares-updated', { spaceId })
-}
-
-// A peer's profile bee appended (it holds their `share/<space>/*` records), so refresh the
-// share list for every space we share with them. Coarse by design — any bee change pokes
-// the list — but cheap, and it's the renderer's only signal that a peer added/removed a share.
-// We poke the FILE list too: files:list hides a peer's folder-share contents using prefixes read
-// from this same profile bee, but the renderer's useFiles refreshes only on event:files-updated
-// (the profile-bee append fires shares-updated, not files-updated). Without this a peer's
-// newly-shared — or slow-to-replicate — folder would leak its files into the flat loose-file list
-// until some unrelated files-updated happened to fire.
-async function emitPeerSharesUpdated(profileKeyHex) {
-  if (!ipcRef) return
-  for (const space of await listSpaces()) {
-    if ((space.members || []).some((m) => m.publicKey === profileKeyHex)) {
-      ipcRef.emit('event:shares-updated', { spaceId: space.spaceId })
-      ipcRef.emit('event:files-updated', { spaceId: space.spaceId })
-      ipcRef.emit('event:mirrors-updated', { spaceId: space.spaceId })
-    }
-  }
-}
-
 // === Topics, outbound handshakes & space cleanup ===
 
 export async function joinSpaceTopic(spaceId) {
@@ -1578,158 +1480,6 @@ export function compactStore() {
   }, 'forced full-range')
 }
 
-// === Presence & ephemeral broadcasts ===
-
-// Heartbeat: advertise our own liveness per space to the peers in it. The recipient leases
-// us for PRESENCE_TTL_MS from when it receives this — we can't extend our own lease.
-function broadcastPresence() {
-  if (socketMsgHandlers.size === 0) return
-  const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  for (const [spaceId, topicHex] of spaceTopics) {
-    for (const [, peer] of connectedPeers) {
-      if (!peer.spaces.has(spaceId)) continue
-      const handler = socketMsgHandlers.get(peer.socket)
-      if (handler) { try { handler.send(JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex })) } catch {} }
-    }
-  }
-}
-
-// Graceful-quit departure: tell every connected peer we're going offline NOW so they flip us
-// offline immediately instead of waiting out the socket close / 15s presence TTL. Reuses the
-// presence frame with offline:true (NOT the leave frame — that mints membership tombstones we must
-// not trigger on a mere quit). Best-effort; socket close + TTL remain the backstops.
-export function broadcastDeparture() {
-  // Stop our own heartbeat first: a heartbeat firing later in the shutdown teardown window would
-  // re-mark us online on a receiver (mark after clear) and undo this departure.
-  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null }
-  if (!swarm || socketMsgHandlers.size === 0) return
-  const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  for (const [spaceId, topicHex] of spaceTopics) {
-    for (const [, peer] of connectedPeers) {
-      if (!peer.spaces.has(spaceId)) continue
-      const handler = socketMsgHandlers.get(peer.socket)
-      if (handler) { try { handler.send(JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex, offline: true })) } catch {} }
-    }
-  }
-}
-
-// Owner→members: live indexing/hashing progress for a file still advertised with contentHash:null
-// (consumer status 'preparing'). Ephemeral, scoped to peers connected on this space.
-export function broadcastSharePrepareProgress(spaceId, payload) {
-  if (socketMsgHandlers.size === 0) return
-  const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  const frame = JSON.stringify({ type: 'share-prepare-progress', profileKey: profileKeyHex, spaceId, ...payload })
-  for (const [, peer] of connectedPeers) {
-    if (!peer.spaces.has(spaceId)) continue
-    const handler = socketMsgHandlers.get(peer.socket)
-    if (handler) { try { handler.send(frame) } catch {} }
-  }
-}
-
-// A share is admission-gated at 5k files and a folder that grows past it keeps publishing, so this
-// is a display bound, not a limit — it only stops a peer-supplied count from rendering as nonsense.
-const MAX_WIRE_COUNT = 1_000_000
-
-// Owner→members: how much of a share is still waiting to be indexed. Ephemeral like the per-file
-// frame above, and for the same reason — the queue is not durable state, so it is re-announced
-// rather than replicated. It carries what the catalog cannot: files that have no entry yet because
-// their publish has not started.
-export function broadcastShareIndexProgress(spaceId, payload) {
-  if (socketMsgHandlers.size === 0) return
-  const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  const frame = JSON.stringify({ type: 'share-index-progress', profileKey: profileKeyHex, spaceId, ...payload })
-  for (const [, peer] of connectedPeers) {
-    if (!peer.spaces.has(spaceId)) continue
-    const handler = socketMsgHandlers.get(peer.socket)
-    if (handler) { try { handler.send(frame) } catch {} }
-  }
-}
-
-// Re-surface an owner's queue depth to our renderer. Same anti-spoof guard as the prepare frame:
-// accept only from an identity authenticated on this socket. Non-authoritative and count-only —
-// it names no file and gates no content, so the worst a bad frame can do is a wrong number in a
-// notice. Its own validator: the prepare frame's requires total > 0 and bytes within it, which a
-// queue summary does not satisfy.
-function handleShareIndexProgressFrame(socket, msg) {
-  const { profileKey, spaceId, shareId, adding, bytesQueued } = msg
-  if (typeof profileKey !== 'string' || typeof spaceId !== 'string' || typeof shareId !== 'string') return
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
-  // The sender is carried through as `ownerKey` so the consumer can require it to be the share's
-  // actual owner. Authentication proves only WHO is speaking: without this any approved co-member
-  // could describe someone else's share, and the notice names that someone by display name.
-  // Wire numbers are peer-controlled: whole counts only, bounded, so a bad frame cannot reach the
-  // renderer as a fractional or astronomically pluralized sentence.
-  const safeCount = (n) => (Number.isSafeInteger(n) && n > 0 ? Math.min(n, MAX_WIRE_COUNT) : 0)
-  const safeBytes = (n) => (Number.isFinite(n) && n > 0 ? Math.min(n, Number.MAX_SAFE_INTEGER) : 0)
-  ipcRef.emit('event:share-index-progress', {
-    spaceId, shareId, ownerKey: profileKey, adding: safeCount(adding), bytesQueued: safeBytes(bytesQueued),
-  })
-}
-
-// Receive a peer's heartbeat: refresh its lease, but only for an identity already
-// authenticated on this socket (same guard as the leave frame) — so presence can't be
-// spoofed for a peer we never handshaked. The TTL is ours; any sender-claimed expiry is
-// ignored.
-function handlePresenceFrame(socket, msg) {
-  const kind = presenceFrameKind(msg)
-  if (kind === 'ignore') return
-  const { profileKey, spaceTopic } = msg
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
-  const spaceId = resolveSpaceIdForTopic(spaceTopic)
-  if (!spaceId) return
-  if (kind === 'clear') {
-    // Explicit graceful-quit departure (offline:true): flip the peer offline now, don't wait for
-    // the socket close or the TTL. Gate the emit on a real online→offline transition (like the mark
-    // path) so repeated departure frames can't amplify reconcile hints. Idempotent with the
-    // socket-close handleDisconnect that follows.
-    if (presence.clear(profileKey, spaceId)) {
-      membersPoke.poke(spaceId)
-      ipcRef?.emit('event:files-updated', { spaceId })
-    }
-    return
-  }
-  if (presence.mark(profileKey, spaceId)) {
-    // Same-socket lease restore: the peer went silent past the TTL and is back without
-    // a re-handshake — the arrival mirror of the onExpire departure emit.
-    peerSeen(profileKey, spaceId)
-    membersPoke.poke(spaceId)
-    ipcRef?.emit('event:files-updated', { spaceId })
-  }
-}
-
-// Re-surface a peer's indexing progress to our renderer. Same anti-spoof guard as presence/leave:
-// accept only from an identity authenticated on this socket. Non-authoritative — the row shows it
-// only while genuinely 'preparing', and contentHash still gates the content itself.
-function handleSharePrepareProgressFrame(socket, msg) {
-  const { profileKey, spaceId, shareId, relPath, bytes, total, eta } = msg
-  if (typeof profileKey !== 'string' || typeof spaceId !== 'string') return
-  if (typeof shareId !== 'string' || typeof relPath !== 'string') return
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
-  const key = shareId === LOOSE_SHARE_ID ? '/' + relPath : shareDecoKey(shareId, relPath)
-  // The owner finished (or abandoned) the hash. Decorations are cleared only by this frame, so
-  // without it the bar sits at ~100% and repaints stale on the next re-hash of the same path. It
-  // carries no numbers to validate, and clears at most a cosmetic bar a progress frame repaints.
-  if (msg.done === true) {
-    // Phase-scoped: this key is SHARED with our own download of the same file, and a re-publish
-    // restarts that download the moment the materialized hash replicates — a `done` landing just
-    // after it must not take down a live download bar.
-    ipcRef.emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', done: true })
-    return
-  }
-  // Wire numbers are peer-controlled: drop anything non-finite / out of range so a bad frame
-  // can't reach the renderer as a NaN bar (width:'NaN%' / aria-valuenow=NaN).
-  if (!Number.isFinite(bytes) || !Number.isFinite(total) || total <= 0 || bytes < 0 || bytes > total) return
-  // null/absent = the owner is still warming up its estimate ("Estimating…"); preserve it. Any
-  // other value is a peer-controlled number, so clamp non-finite/non-positive to 0.
-  const safeEta = eta == null ? null : (Number.isFinite(eta) && eta > 0 ? eta : 0)
-  ipcRef.emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', bytes, total, speed: 0, eta: safeEta })
-}
-
-function resolveSpaceIdForTopic(topicHex) {
-  for (const [spaceId, topic] of spaceTopics) if (topic === topicHex) return spaceId
-  return null
-}
-
 // === Liveness queries, membership frames & network status ===
 
 // Online peers in a space (presence lease, not socket liveness) — the display liveness that
@@ -1903,7 +1653,6 @@ async function destroySwarm() {
     held.bee.close().catch(() => {})
   }
   profileBeeAppendListeners.clear()
-  pendingAdmitInflight.clear()
   bannedNoiseKeys.clear()
   rateLimiter?.clear()
   rateLimiter = null
@@ -1921,7 +1670,7 @@ async function destroySwarm() {
   pendingLeaves.clear()
   lastLeaveAckedKeys.clear()
   pendingCancels.clear()
-  readmitInflight.clear()
+  resetDeferredAdmission()
   lastReconnectAt = 0
   bootedAt = 0
   corruptionDiagnosed = false
