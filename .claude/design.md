@@ -279,7 +279,14 @@ Three variants only:
 
 Base: `rounded-xl font-headline font-bold transition-all active:scale-95 disabled:opacity-50`.
 Sizes: `sm` (`px-5 py-2.5 text-sm`, default), `lg` (`h-14 px-5 text-lg`).
-Optional leading icon at `size={20}`. `fullWidth` available.
+Optional leading icon at `size={20}`. `fullWidth` available; `ref` and
+`ariaDescribedBy` pass through for focus management and field wiring.
+
+**Never hand-roll these classes.** Settings/list action buttons ("Change folder",
+"Export", "Load more", "Clear filters", nav "Send feedback") are all
+`variant="secondary"` + `className="shrink-0"`, not a local copy of the class
+string — four screens once kept their own `ACTION_BUTTON` constant, and the copy
+that lost its `bg-*` pair is exactly how an unfilled Cancel button shipped.
 
 ### Icon button — `primitives/IconButton.tsx`
 `w-10 h-10 rounded-full hover:bg-surface-container-high`. Requires `ariaLabel`;
@@ -327,8 +334,12 @@ react-aria `useDialog` + `<FocusScope contain restoreFocus autoFocus>`;
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
 - Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`); body
-  `px-10 pb-10 space-y-{4–8}`; footer either a single full-width `lg` button or
-  Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
+  `px-10 pb-10 space-y-{4–8}`. Three footer shapes:
+  1. A single full-width `lg` button.
+  2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
+  3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)
+     at default `sm` size, the action carrying a trailing `arrow_forward`.
+     Used by Add Folder / Mirror Folder and their shared scan-preview step.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
 - Progress modals (Leave / Reclaim / Clear cache) animate through

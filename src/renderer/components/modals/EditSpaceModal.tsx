@@ -15,8 +15,6 @@ interface EditSpaceModalProps {
   onClose: () => void
 }
 
-const ACTION_BUTTON = 'shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
-
 // The download-folder block makes this the tallest modal in the app; without a cap and an
 // inner scroller the Save button falls outside an overflow-hidden panel (the backdrop wrapper
 // cannot scroll) once the user zooms in.
@@ -136,15 +134,15 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
             </p>
             <div className="flex items-center gap-3">
               <FilePath path={effectiveFolder} className="flex-1 text-sm text-accent" />
-              <button
+              <Button
                 ref={browseRef}
-                type="button"
+                variant="secondary"
                 onClick={handleBrowse}
-                aria-describedby="edit-space-folder-label edit-space-folder-desc"
-                className={ACTION_BUTTON}
+                ariaDescribedBy="edit-space-folder-label edit-space-folder-desc"
+                className="shrink-0"
               >
                 {t('storageSettings.changeFolder')}
-              </button>
+              </Button>
             </div>
             <div className="flex items-center min-h-5">
               {isOverridden && (

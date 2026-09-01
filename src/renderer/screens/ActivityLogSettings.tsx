@@ -22,8 +22,6 @@ interface AuditExport {
   entries: AuditEntry[]
 }
 
-const ACTION_BUTTON = 'shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
-
 export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSettingsProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -171,9 +169,9 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
                 <p className="font-semibold text-accent">{t('activityLogSettings.exportTitle')}</p>
                 <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.exportDesc')}</p>
               </div>
-              <button type="button" onClick={() => void handleExport()} disabled={busy} className={`${ACTION_BUTTON} disabled:opacity-50`}>
+              <Button variant="secondary" onClick={() => void handleExport()} disabled={busy} className="shrink-0">
                 {t('activityLogSettings.exportAction')}
-              </button>
+              </Button>
             </div>
             {status && <p role="status" aria-live="polite" className="mt-3 text-xs text-on-surface-variant">{status}</p>}
           </section>

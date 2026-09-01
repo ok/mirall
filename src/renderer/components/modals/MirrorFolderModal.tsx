@@ -241,13 +241,9 @@ function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, vali
         </div>
 
         <div className="pt-2 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container active:scale-95 transition-all"
-          >
+          <Button variant="secondary" onClick={onClose}>
             {t('actions.cancel')}
-          </button>
+          </Button>
           <Button onClick={onNext} disabled={!canProceed || previewLoading}>
             {previewLoading ? t('scanPreview.computing') : t('mirrorFolder.next')}
             <Icon name="arrow_forward" size={16} />
