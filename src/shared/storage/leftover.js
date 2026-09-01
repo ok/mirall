@@ -352,28 +352,38 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress } = {}
   return { purged, freedEstimate }
 }
 
-// A departed peer's profile core is only leftover if that peer appears in no
-// other active space. No compaction here: leave already compacts in
-// purgeSpaceDrive, and a profile bee is a few KB reclaimed on the next pass.
+// The cores a member brought with them: their profile bee, and the one catalog they advertise per
+// space. ownCatalog is a single bee per (owner, space), published into both the member record and
+// their share records, so this one key covers their loose files and folders alike.
+function peerCoreKeys(member) {
+  return [member?.publicKey, readCatalogKey(member).keyHex].filter((k) => k && HEX64.test(k))
+}
+
+// A departed peer's cores are only leftover if that peer appears in no other active space. No
+// compaction here: leave already compacts in purgeSpaceDrive, and these are metadata bees worth
+// a few KB, reclaimed on the next pass.
 export async function forgetUnreferencedPeerCores(removedMembers) {
   const store = getStore()
   const db = store.storage.db
   const stillReferenced = new Set()
   for (const space of await listSpaces()) {
+    // A peer we share ANOTHER space with keeps both cores — the catalog key is per (member,
+    // space), so a member dropped from one space can still be advertising in the next.
     for (const member of (space.members || [])) {
-      if (member.publicKey && HEX64.test(member.publicKey)) stillReferenced.add(dkOfKey(member.publicKey))
+      for (const keyHex of peerCoreKeys(member)) stillReferenced.add(dkOfKey(keyHex))
     }
   }
   let purged = 0
   for (const member of (removedMembers || [])) {
-    if (!member.publicKey || !HEX64.test(member.publicKey)) continue
-    const dk = dkOfKey(member.publicKey)
-    if (stillReferenced.has(dk)) continue
-    try {
-      await purgeCoreDk(store, db, dk)
-      purged++
-    } catch (err) {
-      log.debug('peer profile purge skip:', err.message)
+    for (const keyHex of peerCoreKeys(member)) {
+      const dk = dkOfKey(keyHex)
+      if (stillReferenced.has(dk)) continue
+      try {
+        await purgeCoreDk(store, db, dk)
+        purged++
+      } catch (err) {
+        log.debug('peer core purge skip:', err.message)
+      }
     }
   }
   return { purged }
