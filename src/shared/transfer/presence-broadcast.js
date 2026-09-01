@@ -35,7 +35,7 @@ export function stopPresenceHeartbeat() {
 
 // Heartbeat: advertise our own liveness per space to the peers in it. The recipient leases
 // us for PRESENCE_TTL_MS from when it receives this — we can't extend our own lease.
-function broadcastPresence() {
+export function broadcastPresence() {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {
@@ -103,7 +103,7 @@ export function broadcastShareIndexProgress(spaceId, payload) {
 // it names no file and gates no content, so the worst a bad frame can do is a wrong number in a
 // notice. Its own validator: the prepare frame's requires total > 0 and bytes within it, which a
 // queue summary does not satisfy.
-function handleShareIndexProgressFrame(socket, msg) {
+export function handleShareIndexProgressFrame(socket, msg) {
   const { profileKey, spaceId, shareId, adding, bytesQueued } = msg
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string' || typeof shareId !== 'string') return
   if (!socketToPeers.get(socket)?.has(profileKey)) return
@@ -123,7 +123,7 @@ function handleShareIndexProgressFrame(socket, msg) {
 // authenticated on this socket (same guard as the leave frame) — so presence can't be
 // spoofed for a peer we never handshaked. The TTL is ours; any sender-claimed expiry is
 // ignored.
-function handlePresenceFrame(socket, msg) {
+export function handlePresenceFrame(socket, msg) {
   const kind = presenceFrameKind(msg)
   if (kind === 'ignore') return
   const { profileKey, spaceTopic } = msg
@@ -153,7 +153,7 @@ function handlePresenceFrame(socket, msg) {
 // Re-surface a peer's indexing progress to our renderer. Same anti-spoof guard as presence/leave:
 // accept only from an identity authenticated on this socket. Non-authoritative — the row shows it
 // only while genuinely 'preparing', and contentHash still gates the content itself.
-function handleSharePrepareProgressFrame(socket, msg) {
+export function handleSharePrepareProgressFrame(socket, msg) {
   const { profileKey, spaceId, shareId, relPath, bytes, total, eta } = msg
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string') return
   if (typeof shareId !== 'string' || typeof relPath !== 'string') return
@@ -178,7 +178,7 @@ function handleSharePrepareProgressFrame(socket, msg) {
   getIpc().emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', bytes, total, speed: 0, eta: safeEta })
 }
 
-function resolveSpaceIdForTopic(topicHex) {
+export function resolveSpaceIdForTopic(topicHex) {
   for (const [spaceId, topic] of spaceTopics) if (topic === topicHex) return spaceId
   return null
 }
