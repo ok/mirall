@@ -623,15 +623,11 @@
     "appStorage": "App Storage",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
-    "reclaimAction": "Free up space",
     "appStorageDesc": "Space Mirall uses on this device to share and sync your files. It never keeps a second copy of your files.",
     "sharingIndex": "Shared-file index",
     "sharingIndexDesc": "Compact maps of the files you share (never the file contents). Freed automatically when you stop sharing a file.",
     "appDatabase": "App database",
-    "appDatabaseDesc": "Your spaces, members, and sync history.",
-    "reclaimRunning": "Freeing up space…",
-    "reclaimDone": "Freed {{size}}.",
-    "reclaimNone": "Storage is already optimized."
+    "appDatabaseDesc": "Your spaces, members, and sync history."
   },
   "aboutSettings": {
     "documentation": "Documentation",

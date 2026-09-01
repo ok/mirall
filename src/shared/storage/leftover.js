@@ -49,6 +49,17 @@ async function addBeeCore(set, bee) {
   set.add(hex(bee.core.discoveryKey))
 }
 
+// For a bee this function opened purely to read its discovery key. Shared handles — the live
+// profile bee, the cached own catalog — go through addBeeCore instead: they belong to their
+// owners, and closing one here would pull it out from under everything still using it.
+async function addAndCloseBeeCore(set, bee) {
+  try {
+    await addBeeCore(set, bee)
+  } finally {
+    try { await bee.close() } catch {}
+  }
+}
+
 // Own drives are loaded and local, so reading their blobs core key is cheap and
 // reliable. Bounded only as defence; never opens a drive by key.
 async function addLocalDriveCores(set, drive) {
@@ -84,12 +95,28 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
 // discovery key; peer blobs cores only when the drive is already warmed in
 // memory (an un-warmed peer's blobs core stays out of the purge set, which is
 // safe because nothing here purges non-bee cores anyway).
+// Every core a current member is entitled to keep. The member record's OWN catalog key matters as
+// much as the ones on their share records: localPeerCatalogKeys streams share/<space>/ only, and a
+// peer sharing nothing but LOOSE files publishes their catalog at loosecat*/<space> instead — so
+// without this arm a live peer's catalog scans as an orphan and is purged while they are still a
+// member.
+async function addMemberCores(wanted, member, spaceId) {
+  // The member's drive metadata core (deterministic discovery key). Overlay opens no peer drive,
+  // so there is no cached blobs core to add here.
+  if (member.driveKey && HEX64.test(member.driveKey)) wanted.add(dkOfKey(member.driveKey))
+  if (!member.publicKey || !HEX64.test(member.publicKey)) return
+  wanted.add(dkOfKey(member.publicKey))
+  const memberCatalog = readCatalogKey(member).keyHex
+  if (memberCatalog && HEX64.test(memberCatalog)) wanted.add(dkOfKey(memberCatalog))
+  for (const ck of await localPeerCatalogKeys(member.publicKey, spaceId)) wanted.add(dkOfKey(ck))
+}
+
 export async function buildWantedKeys() {
   const wanted = new Set()
 
   for (const { names, open } of WANTED_BEE_GROUPS) {
     for (const name of names) {
-      try { await addBeeCore(wanted, open(name)) } catch (err) {
+      try { await addAndCloseBeeCore(wanted, open(name)) } catch (err) {
         log.warn('wanted system bee failed:', name, err.message)
       }
     }
@@ -123,17 +150,7 @@ export async function buildWantedKeys() {
       log.warn('wanted own catalog failed:', space.spaceId, err.message)
     }
 
-    for (const member of (space.members || [])) {
-      if (member.driveKey && HEX64.test(member.driveKey)) {
-        // The member's drive metadata core (deterministic discovery key). Overlay
-        // opens no peer drive, so there is no cached blobs core to add here.
-        wanted.add(dkOfKey(member.driveKey))
-      }
-      if (member.publicKey && HEX64.test(member.publicKey)) {
-        wanted.add(dkOfKey(member.publicKey))
-        for (const ck of await localPeerCatalogKeys(member.publicKey, space.spaceId)) wanted.add(dkOfKey(ck))
-      }
-    }
+    for (const member of (space.members || [])) await addMemberCores(wanted, member, space.spaceId)
   }
   // A drive we could not open is not in `wanted` and would scan as an orphan, so the caller is
   // told to withhold the drive category rather than reclaim a space's own storage.
@@ -174,11 +191,16 @@ function probeDrive(store, dkHex, key, encryptionKey = null) {
   return drive
 }
 
+// Both cache keys: probeDrive files an SCK-encrypted probe under `<dk>:enc`, and since v1.7.0
+// that is the common shape — looking up the bare key alone left the handle open across the
+// RocksDB delete this exists to prevent.
 async function closeProbe(dkHex) {
-  const drive = probeDrives.get(dkHex)
-  if (!drive) return
-  probeDrives.delete(dkHex)
-  try { await drive.close() } catch {}
+  for (const cacheKey of [dkHex, dkHex + ':enc']) {
+    const drive = probeDrives.get(cacheKey)
+    if (!drive) continue
+    probeDrives.delete(cacheKey)
+    try { await drive.close() } catch {}
+  }
 }
 
 // Classify one non-wanted core, each step bounded so a core advertising blocks
@@ -283,6 +305,7 @@ export async function classifyLeftovers() {
     catalogs: { count: catalogs.length, bytes: sum(catalogs), keys: catalogs },
     orphanDrives: { count: orphanDrives.length, bytes: sum(orphanDrives), keys: orphanDrives },
     totalBytes: sum(profiles) + sum(catalogs) + sum(orphanDrives),
+    withheldDrives: !!wanted.unopenedDrive,
   }
 }
 
@@ -301,7 +324,7 @@ function purgeTargets(scan, allowed) {
   return [...new Set(dks)]
 }
 
-export async function purgeLeftovers({ categories = PURGEABLE, onProgress } = {}) {
+export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true } = {}) {
   const store = getStore()
   const db = store.storage.db
   const scan = await classifyLeftovers()
@@ -322,36 +345,49 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress } = {}
       log.debug('leftover purge skip:', dkHex.slice(0, 12), err.message)
     }
   }
-  if (purged > 0) {
+  // Tombstoning the cores is what makes the leave effective; the compaction only returns the
+  // bytes. A boot-path caller passes compact:false rather than block startup on a full-range
+  // pass — space-leave.js defers it for the same reason.
+  if (purged > 0 && compact) {
     if (onProgress) onProgress('compacting', { done: purged, total: dks.length })
     await compactStore()
   }
   const freedEstimate = allowed.reduce((n, c) => n + (scan[c]?.bytes || 0), 0)
-  return { purged, freedEstimate }
+  return { purged, freedEstimate, withheldDrives: scan.withheldDrives }
 }
 
-// A departed peer's profile core is only leftover if that peer appears in no
-// other active space. No compaction here: leave already compacts in
-// purgeSpaceDrive, and a profile bee is a few KB reclaimed on the next pass.
+// The cores a member brought with them: their profile bee, and the one catalog they advertise per
+// space. ownCatalog is a single bee per (owner, space), published into both the member record and
+// their share records, so this one key covers their loose files and folders alike.
+function peerCoreKeys(member) {
+  return [member?.publicKey, readCatalogKey(member).keyHex].filter((k) => k && HEX64.test(k))
+}
+
+// A departed peer's cores are only leftover if that peer appears in no other active space. No
+// compaction here: leave already compacts in purgeSpaceDrive, and these are metadata bees worth
+// a few KB, reclaimed on the next pass.
 export async function forgetUnreferencedPeerCores(removedMembers) {
   const store = getStore()
   const db = store.storage.db
   const stillReferenced = new Set()
   for (const space of await listSpaces()) {
+    // A peer we share ANOTHER space with keeps both cores — the catalog key is per (member,
+    // space), so a member dropped from one space can still be advertising in the next.
     for (const member of (space.members || [])) {
-      if (member.publicKey && HEX64.test(member.publicKey)) stillReferenced.add(dkOfKey(member.publicKey))
+      for (const keyHex of peerCoreKeys(member)) stillReferenced.add(dkOfKey(keyHex))
     }
   }
   let purged = 0
   for (const member of (removedMembers || [])) {
-    if (!member.publicKey || !HEX64.test(member.publicKey)) continue
-    const dk = dkOfKey(member.publicKey)
-    if (stillReferenced.has(dk)) continue
-    try {
-      await purgeCoreDk(store, db, dk)
-      purged++
-    } catch (err) {
-      log.debug('peer profile purge skip:', err.message)
+    for (const keyHex of peerCoreKeys(member)) {
+      const dk = dkOfKey(keyHex)
+      if (stillReferenced.has(dk)) continue
+      try {
+        await purgeCoreDk(store, db, dk)
+        purged++
+      } catch (err) {
+        log.debug('peer core purge skip:', err.message)
+      }
     }
   }
   return { purged }

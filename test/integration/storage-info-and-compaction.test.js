@@ -6,11 +6,14 @@ import { getStore } from '../../src/shared/core/store.js'
 import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { getStorageInfo, freeSpace } from '../../src/shared/storage/storage.js'
+import { getStorageInfo } from '../../src/shared/storage/storage.js'
+import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
-// REGRESSION (FIX-148: storage numbers were a residual that hid real usage, and the
-// old "Clean up" relabeled bytes instead of freeing them / could delete the index).
-test('getStorageInfo reports measured categories; free-space reclaims and keeps the index', async (t) => {
+// REGRESSION (FIX-148: storage numbers were a residual that hid real usage, and the old
+// "Clean up" relabeled bytes instead of freeing them / could delete the index). The action is
+// gone; compaction now runs on the sweeps tick, and the guarantee it has to keep is unchanged —
+// it must shrink the index and must never drop a chunk map that is still served.
+test('getStorageInfo reports measured categories; compaction shrinks the index and keeps served maps', async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   const abs = path.join(mountPath, 'churn.bin')
   let liveHash = null
@@ -28,15 +31,15 @@ test('getStorageInfo reports measured categories; free-space reclaims and keeps 
   t.absent('otherBytes' in info, 'the residual otherBytes field is gone')
 
   const before = await getStorageInfo()
-  const res = await freeSpace()
-  t.is(typeof res.freedBytes, 'number', 'free-space reports freed bytes')
-  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives free-space')
+  t.ok((await compactOverlayIndex()).compacted, 'compaction ran')
+  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives compaction')
   const after = await getStorageInfo()
   t.ok(after.indexBytes < before.indexBytes, `index shrank (before=${before.indexBytes} after=${after.indexBytes})`)
 
-  // A second free-space on a now-clean index must be a no-op: no churn, no growth.
-  await freeSpace()
+  // A second pass on a now-clean index must be a no-op: no churn, no growth. It runs on a timer
+  // now, so "idempotent" stopped being a nicety.
+  await compactOverlayIndex()
   const after2 = await getStorageInfo()
-  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives a second free-space')
-  t.is(after2.indexBytes, after.indexBytes, 'a second free-space does not grow the clean index')
+  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives a second pass')
+  t.is(after2.indexBytes, after.indexBytes, 'a second pass does not grow the clean index')
 })
