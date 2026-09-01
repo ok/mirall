@@ -49,6 +49,17 @@ async function addBeeCore(set, bee) {
   set.add(hex(bee.core.discoveryKey))
 }
 
+// For a bee this function opened purely to read its discovery key. Shared handles — the live
+// profile bee, the cached own catalog — go through addBeeCore instead: they belong to their
+// owners, and closing one here would pull it out from under everything still using it.
+async function addAndCloseBeeCore(set, bee) {
+  try {
+    await addBeeCore(set, bee)
+  } finally {
+    try { await bee.close() } catch {}
+  }
+}
+
 // Own drives are loaded and local, so reading their blobs core key is cheap and
 // reliable. Bounded only as defence; never opens a drive by key.
 async function addLocalDriveCores(set, drive) {
@@ -84,12 +95,28 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
 // discovery key; peer blobs cores only when the drive is already warmed in
 // memory (an un-warmed peer's blobs core stays out of the purge set, which is
 // safe because nothing here purges non-bee cores anyway).
+// Every core a current member is entitled to keep. The member record's OWN catalog key matters as
+// much as the ones on their share records: localPeerCatalogKeys streams share/<space>/ only, and a
+// peer sharing nothing but LOOSE files publishes their catalog at loosecat*/<space> instead — so
+// without this arm a live peer's catalog scans as an orphan and is purged while they are still a
+// member.
+async function addMemberCores(wanted, member, spaceId) {
+  // The member's drive metadata core (deterministic discovery key). Overlay opens no peer drive,
+  // so there is no cached blobs core to add here.
+  if (member.driveKey && HEX64.test(member.driveKey)) wanted.add(dkOfKey(member.driveKey))
+  if (!member.publicKey || !HEX64.test(member.publicKey)) return
+  wanted.add(dkOfKey(member.publicKey))
+  const memberCatalog = readCatalogKey(member).keyHex
+  if (memberCatalog && HEX64.test(memberCatalog)) wanted.add(dkOfKey(memberCatalog))
+  for (const ck of await localPeerCatalogKeys(member.publicKey, spaceId)) wanted.add(dkOfKey(ck))
+}
+
 export async function buildWantedKeys() {
   const wanted = new Set()
 
   for (const { names, open } of WANTED_BEE_GROUPS) {
     for (const name of names) {
-      try { await addBeeCore(wanted, open(name)) } catch (err) {
+      try { await addAndCloseBeeCore(wanted, open(name)) } catch (err) {
         log.warn('wanted system bee failed:', name, err.message)
       }
     }
@@ -123,17 +150,7 @@ export async function buildWantedKeys() {
       log.warn('wanted own catalog failed:', space.spaceId, err.message)
     }
 
-    for (const member of (space.members || [])) {
-      if (member.driveKey && HEX64.test(member.driveKey)) {
-        // The member's drive metadata core (deterministic discovery key). Overlay
-        // opens no peer drive, so there is no cached blobs core to add here.
-        wanted.add(dkOfKey(member.driveKey))
-      }
-      if (member.publicKey && HEX64.test(member.publicKey)) {
-        wanted.add(dkOfKey(member.publicKey))
-        for (const ck of await localPeerCatalogKeys(member.publicKey, space.spaceId)) wanted.add(dkOfKey(ck))
-      }
-    }
+    for (const member of (space.members || [])) await addMemberCores(wanted, member, space.spaceId)
   }
   // A drive we could not open is not in `wanted` and would scan as an orphan, so the caller is
   // told to withhold the drive category rather than reclaim a space's own storage.
@@ -174,11 +191,16 @@ function probeDrive(store, dkHex, key, encryptionKey = null) {
   return drive
 }
 
+// Both cache keys: probeDrive files an SCK-encrypted probe under `<dk>:enc`, and since v1.7.0
+// that is the common shape — looking up the bare key alone left the handle open across the
+// RocksDB delete this exists to prevent.
 async function closeProbe(dkHex) {
-  const drive = probeDrives.get(dkHex)
-  if (!drive) return
-  probeDrives.delete(dkHex)
-  try { await drive.close() } catch {}
+  for (const cacheKey of [dkHex, dkHex + ':enc']) {
+    const drive = probeDrives.get(cacheKey)
+    if (!drive) continue
+    probeDrives.delete(cacheKey)
+    try { await drive.close() } catch {}
+  }
 }
 
 // Classify one non-wanted core, each step bounded so a core advertising blocks
