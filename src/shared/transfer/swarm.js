@@ -51,6 +51,7 @@ import { Subsystem } from '../core/subsystem.js'
 import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT_SETTLE_MS, LIVENESS_FAILURES_FOR_OFFLINE } from '../core/reachability.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, resetRegistries } from './swarm-registries.js'
 
 const log = createLogger('swarm')
 
@@ -101,10 +102,6 @@ let presenceTimer = null
 
 let swarm
 let ipcRef
-const connectedPeers = new Map()  // profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey> }
-const socketToPeers = new Map()   // socket → Set<profileKey>  (reverse index for disconnect lookup)
-const spaceTopics = new Map()
-const spaceDiscoveries = new Map() // spaceId → PeerDiscovery (kept so reconnectAll can refresh)
 const leavingSpaces = new Set()         // spaceIds whose teardown is in flight
 const leaveAcks = new Map()             // spaceId (we are leaving) → Set<profileKeyHex> of co-members that applied our leave
 
@@ -116,13 +113,6 @@ let membershipControlHandler = null     // membership:* frames (join request / g
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
 let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
 const profileBeeAppendListeners = new Map()  // profileKey hex → { bee, listener } — the ONE held bee per peer
-const socketMsgHandlers = new Map()     // socket → Protomux msgHandler (for sending handshakes to existing connections)
-const pendingRequesters = new Map()     // profileKey → socket (a pending joiner has no drive/handshake yet, so track its socket to grant later)
-// Every identity frame a peer sends carries its bound ed25519 signer key; remember it per
-// profileKey so a membership:grant can always be sealed to a CURRENTLY-CONNECTED joiner —
-// independent of the fragile join-request-record lifecycle (which loses it across leave/rejoin
-// churn). A grant only reaches a connected joiner, so its signer key is always here.
-const boundSignerKeys = new Map()       // profileKey → signerKey hex
 const pendingAdmitInflight = new Set()  // 'spaceId:joinerKey' currently being admitted via reconcile
 const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
 let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
@@ -1879,6 +1869,7 @@ async function destroySwarm() {
     convergenceTimer = null
   }
   convergenceTicking = false
+  resetRegistries()
   announceLedger.clear()
   deficitTicks.clear()
   lastRefreshAt.clear()
@@ -1904,11 +1895,6 @@ async function destroySwarm() {
   canaryInFlight = null
   browserOnlineHint = true
   localBindings.clear()
-  boundSignerKeys.clear()
-  spaceTopics.clear()
-  spaceDiscoveries.clear()
-  connectedPeers.clear()
-  socketToPeers.clear()
   leaveAcks.clear()
   // Close the one held bee per peer, not just the map: each carries a live session and an
   // append listener.
@@ -1917,8 +1903,6 @@ async function destroySwarm() {
     held.bee.close().catch(() => {})
   }
   profileBeeAppendListeners.clear()
-  socketMsgHandlers.clear()
-  pendingRequesters.clear()
   pendingAdmitInflight.clear()
   bannedNoiseKeys.clear()
   rateLimiter?.clear()
