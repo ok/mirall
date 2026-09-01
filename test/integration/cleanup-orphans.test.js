@@ -1,7 +1,13 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import Hyperdrive from 'hyperdrive'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, offlineMemberRegistry } from '../helpers/store.js'
+import { createBee } from '../../src/shared/core/store.js'
+import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { createFakeIpc } from '../helpers/fake-ipc.js'
+import { boot } from '../../src/worker/boot.js'
+
+const quiet = { debug () {}, info () {}, warn () {}, error () {} }
 import { getStore } from '../../src/shared/core/store.js'
 import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
@@ -43,4 +49,29 @@ test('REGRESSION (FIX-2): cleanup does not purge a member’s peer drive', async
 
   t.ok(await coreInStore(metaDk), 'peer meta core preserved after cleanup')
   t.ok(await coreInStore(blobsDk), 'peer blobs core preserved after cleanup')
+})
+
+// The sweep used to run only after a drive-load failure, so on a healthy install nothing ever
+// collected a departed peer's metadata. It is unconditional now — and boot is the only trigger
+// left, so a regression to the old gate would be silent.
+test('boot runs the leftover sweep on a healthy store, not only after a drive-load failure', async (t) => {
+  const ctx = await freshPeer(t)
+  await createSpace('Aurora')
+
+  const stray = createBee('past-peer-catalog-sim')
+  await stray.ready()
+  await stray.put('file/share-1/a.txt', { size: 10, mtime: 1 })
+  const strayDk = stray.core.discoveryKey
+  await stray.close()
+  t.ok(await coreInStore(strayDk), 'precondition: the stray catalog is on disk')
+
+  const config = getRuntimeConfig()
+  await ctx.root.close()
+  const second = await boot(config, {
+    ipc: createFakeIpc().ipc, log: quiet, swarm: false,
+    masterSecret: ctx.masterSecret, memberRegistry: offlineMemberRegistry,
+  })
+  t.teardown(() => second.close())
+
+  t.absent(await coreInStore(strayDk), 'the boot sweep collected it with no drive-load failure')
 })

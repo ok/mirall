@@ -305,6 +305,7 @@ export async function classifyLeftovers() {
     catalogs: { count: catalogs.length, bytes: sum(catalogs), keys: catalogs },
     orphanDrives: { count: orphanDrives.length, bytes: sum(orphanDrives), keys: orphanDrives },
     totalBytes: sum(profiles) + sum(catalogs) + sum(orphanDrives),
+    withheldDrives: !!wanted.unopenedDrive,
   }
 }
 
@@ -323,7 +324,7 @@ function purgeTargets(scan, allowed) {
   return [...new Set(dks)]
 }
 
-export async function purgeLeftovers({ categories = PURGEABLE, onProgress } = {}) {
+export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true } = {}) {
   const store = getStore()
   const db = store.storage.db
   const scan = await classifyLeftovers()
@@ -344,12 +345,15 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress } = {}
       log.debug('leftover purge skip:', dkHex.slice(0, 12), err.message)
     }
   }
-  if (purged > 0) {
+  // Tombstoning the cores is what makes the leave effective; the compaction only returns the
+  // bytes. A boot-path caller passes compact:false rather than block startup on a full-range
+  // pass — space-leave.js defers it for the same reason.
+  if (purged > 0 && compact) {
     if (onProgress) onProgress('compacting', { done: purged, total: dks.length })
     await compactStore()
   }
   const freedEstimate = allowed.reduce((n, c) => n + (scan[c]?.bytes || 0), 0)
-  return { purged, freedEstimate }
+  return { purged, freedEstimate, withheldDrives: scan.withheldDrives }
 }
 
 // The cores a member brought with them: their profile bee, and the one catalog they advertise per

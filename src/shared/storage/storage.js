@@ -7,6 +7,8 @@ import { createLogger } from '../core/logger.js'
 import { listSpaces, getDrive } from '../spaces/space.js'
 import { getStoragePath } from '../core/store.js'
 import { purgeLeftovers } from './leftover.js'
+import { shouldReclaimOrphanDrives, markOrphanDrivesReclaimed } from './legacy-orphan-drives.js'
+import { compactStore } from '../transfer/swarm.js'
 
 const log = createLogger('storage')
 
@@ -108,13 +110,27 @@ export async function getSpaceCacheBytes(spaceId) {
   }
 }
 
-// Boot-time / maintenance sweep. Prunes only leftover peer metadata (profile and
-// catalog bee cores no longer tied to any active space) — never system bees,
-// active drives, or any raw blob/drive core, so it can never delete live peer
-// content. Orphan-drive reclamation is deliberately excluded here: it can free
-// gigabytes, so it is user-driven (with a preview), not silent at boot.
+// Boot sweep. Prunes leftover peer metadata (profile and catalog bee cores no longer tied to any
+// active space) — never system bees, active drives, or any raw blob/drive core.
+//
+// Orphan drives ride along exactly once, on the first boot after upgrading past the copy-based
+// content path (see legacy-orphan-drives.js). That is the only category that can free gigabytes,
+// so it is also the only one worth a compaction: metadata tombstones are collected by whatever
+// compaction happens next, while blocking every boot on a full-range pass is not acceptable.
 export async function cleanupOrphanedData() {
-  const { purged } = await purgeLeftovers({ categories: ['profiles', 'catalogs'] })
+  const withDrives = await shouldReclaimOrphanDrives()
+  const categories = withDrives ? ['profiles', 'catalogs', 'orphanDrives'] : ['profiles', 'catalogs']
+  const { purged, withheldDrives } = await purgeLeftovers({ categories, compact: false })
   log.info('leftover metadata cleanup done, pruned', purged, 'cores')
+  // A scan that withheld the drive category looked away on purpose — a space drive had not opened
+  // — so spending the single pass here would strand those bytes for good. Retry on a later boot.
+  if (withDrives && !withheldDrives) {
+    await markOrphanDrivesReclaimed(purged)
+    // Awaited, not deferred: a compaction left running behind a short-lived process races the
+    // store's close, and RocksDB does not survive that politely.
+    if (purged > 0) {
+      try { await compactStore() } catch (err) { log.warn('reclaim compaction failed:', err.message) }
+    }
+  }
   return { purged }
 }
