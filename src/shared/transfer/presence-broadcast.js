@@ -16,6 +16,7 @@ import { connectedPeers, socketToPeers, spaceTopics, socketMsgHandlers } from '.
 
 let presence = null
 let membersPoke = null
+let log = null
 let presenceTimer = null
 let getSwarm = () => null
 let getIpc = () => null
@@ -25,8 +26,23 @@ let getIpc = () => null
 export function initPresenceBroadcast(deps) {
   presence = deps.presence
   membersPoke = deps.membersPoke
+  log = deps.log
   getSwarm = deps.getSwarm
   getIpc = deps.getIpc
+}
+
+const PRESENCE_HEARTBEAT_MS = 5000
+
+// The interval lives with the timer variable, not with initSwarm: broadcastDeparture has to stop
+// the heartbeat before it sends (a beat landing after the departure re-marks us online on the
+// receiver and undoes it), and it can only stop a timer this module actually holds.
+export function startPresenceHeartbeat() {
+  if (presenceTimer) return
+  presenceTimer = setInterval(() => {
+    try { broadcastPresence() } catch (err) { log.debug('presence heartbeat failed:', err.message) }
+    presence.prune()
+  }, PRESENCE_HEARTBEAT_MS)
+  presenceTimer.unref?.()
 }
 
 export function stopPresenceHeartbeat() {

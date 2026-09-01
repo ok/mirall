@@ -53,7 +53,7 @@ import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, resetRegistries } from './swarm-registries.js'
 import {
-  initPresenceBroadcast, stopPresenceHeartbeat, broadcastPresence, resolveSpaceIdForTopic,
+  initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic,
   handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame,
 } from './presence-broadcast.js'
 // Re-exported so swarm.js stays the public address for these: worker/main.js and the overlay
@@ -79,7 +79,6 @@ const membersPoke = makeKeyedCoalescer(
 // (where to send); presence is the liveness display source. Marked on handshake, refreshed
 // by heartbeats, cleared on disconnect, expired by TTL (catches a silently-dead socket).
 const PRESENCE_TTL_MS = 15000
-const PRESENCE_HEARTBEAT_MS = 5000
 // On silent-death lease expiry, re-emit so the roster + file availability re-derive (a peer that
 // goes quiet without a clean disconnect would otherwise stay "online" until an unrelated refresh).
 // files-updated is already coalesced downstream into event:reconcile by the hint bus.
@@ -110,7 +109,6 @@ function auditPeerLost(peerKey, spaceId, displayName = null) {
 function peerName(space, peerKey) {
   return (space?.members || []).find((m) => m.publicKey === peerKey)?.displayName || null
 }
-let presenceTimer = null
 
 let swarm
 let ipcRef
@@ -188,7 +186,7 @@ initDeferredAdmission({
   getIpc: () => ipcRef,
 })
 
-initPresenceBroadcast({ presence, membersPoke, getSwarm: () => swarm, getIpc: () => ipcRef })
+initPresenceBroadcast({ presence, membersPoke, log, getSwarm: () => swarm, getIpc: () => ipcRef })
 
 const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => ipcRef })
 
@@ -237,11 +235,7 @@ function initSwarm(_ipc) {
   bootedAt = Date.now()
   log.info('initialized')
 
-  presenceTimer = setInterval(() => {
-    try { broadcastPresence() } catch (err) { log.debug('presence heartbeat failed:', err.message) }
-    presence.prune()
-  }, PRESENCE_HEARTBEAT_MS)
-  presenceTimer.unref?.()
+  startPresenceHeartbeat()
   startConvergenceTick()
 
   swarm.on('update', scheduleStatusEmit)
@@ -1610,10 +1604,7 @@ async function destroySwarm() {
     statusEmitTimer = null
   }
   resetNetworkWatch()
-  if (presenceTimer) {
-    clearInterval(presenceTimer)
-    presenceTimer = null
-  }
+  stopPresenceHeartbeat()
   if (convergenceTimer) {
     clearInterval(convergenceTimer)
     convergenceTimer = null
