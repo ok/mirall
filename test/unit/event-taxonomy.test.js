@@ -95,7 +95,12 @@ test('no non-poke event accidentally fans a reconcile hint', (t) => {
 // silent (both worker call sites emit next to the clear).
 test('REGRESSION: the creator-divergence clear transition is never silent', (t) => {
   const read = (rel) => readFileSync(path.join(SRC, rel), 'utf8')
-  const emitRe = /ipc(Ref)?\.emit\(\s*['"`]event:membership-creator-divergence/
+  // Matches the three shapes the emit takes across the two files: `ipc.emit`, `ipcRef.emit`, and the
+  // accessor form `getIpc()?.emit` the extracted gates use (the handle is null until the worker
+  // wires it, so it is read at emit time). This guard is TEXTUAL: it proves an emit is written next
+  // to the clear, not that it executes — `no-undef` on the data layer is what catches an unbound
+  // identifier, after a version of this shipped where the emit threw and this test still passed.
+  const emitRe = /(ipc(Ref)?|getIpc\(\)\??)\.?\??\.emit\(\s*['"`]event:membership-creator-divergence/
   // Assert EVERY clearCreatorDivergence call site emits nearby — not just that one match exists —
   // so adding a new silent clear site fails the guard.
   const eachClearEmits = (rel) => {
@@ -108,6 +113,7 @@ test('REGRESSION: the creator-divergence clear transition is never silent', (t) 
     })
     t.ok(sites > 0, `${rel}: has a divergence clear site`)
   }
-  eachClearEmits('shared/transfer/swarm.js')
+  // The admission gates moved out of swarm.js; the guard follows the call site, not the file.
+  eachClearEmits('shared/transfer/admission-gates.js')
   eachClearEmits('worker/main.js')
 })
