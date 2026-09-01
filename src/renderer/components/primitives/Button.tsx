@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import type { MouseEvent, ReactNode, Ref } from 'react'
 import Icon, { type IconName } from './Icon.js'
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger'
@@ -15,6 +15,8 @@ interface ButtonProps {
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void
   className?: string
   ariaLabel?: string
+  ariaDescribedBy?: string
+  ref?: Ref<HTMLButtonElement>
 }
 
 // Per-variant color / elevation / focus-ring / hover. Layout is shared in `base` below.
@@ -41,6 +43,8 @@ export default function Button({
   onClick,
   className,
   ariaLabel,
+  ariaDescribedBy,
+  ref,
 }: ButtonProps) {
   const base = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed'
   const sizeClasses = size === 'lg' ? 'h-14 px-5 text-lg' : 'px-5 py-2.5 text-sm'
@@ -48,10 +52,12 @@ export default function Button({
   const extra = className ? ` ${className}` : ''
   return (
     <button
+      ref={ref}
       type={type}
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       className={`${base} ${variantClasses[variant]} ${sizeClasses}${widthClass}${extra}`}
     >
       {icon && <Icon name={icon} filled={iconFilled} size={20} />}

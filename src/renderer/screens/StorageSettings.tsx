@@ -11,6 +11,7 @@ import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
 import Icon from '../components/primitives/Icon.js'
+import Button from '../components/primitives/Button.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 
@@ -27,8 +28,6 @@ interface StorageInfo {
 interface StorageSettingsProps {
   onBack: () => void
 }
-
-const ACTION_BUTTON = 'shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
 
 function StorageTotal({ info }: { info: StorageInfo }) {
   const label = formatSize(info.totalDiskUsage)
@@ -73,9 +72,9 @@ function StorageBreakdown({ info, freeing, freedBytes, onFreeSpace }: { info: St
       <Category heading={t('storageSettings.appDatabase')} desc={t('storageSettings.appDatabaseDesc')} bytes={info.dbBytes} />
       <div className="flex items-center justify-between gap-4 pt-3 border-t border-outline-variant/40">
         <p role="status" aria-live="polite" className="text-xs text-on-surface-variant min-w-0">{status}</p>
-        <button type="button" onClick={onFreeSpace} disabled={freeing} className={`${ACTION_BUTTON} disabled:opacity-50 disabled:pointer-events-none`}>
+        <Button variant="secondary" onClick={onFreeSpace} disabled={freeing} className="shrink-0">
           {t('storageSettings.reclaimAction')}
-        </button>
+        </Button>
       </div>
     </>
   )
@@ -188,9 +187,9 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                 ) : (
                   <p className="flex-1 min-w-0 truncate text-sm text-on-surface-variant">{t('storageSettings.calculating')}</p>
                 )}
-                <button type="button" onClick={handleBrowseFolder} className={ACTION_BUTTON}>
+                <Button variant="secondary" onClick={handleBrowseFolder} className="shrink-0">
                   {t('storageSettings.changeFolder')}
-                </button>
+                </Button>
               </div>
               {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
                   new one was refused. Order matters for a screen reader: the rejection is what

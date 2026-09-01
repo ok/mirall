@@ -74,14 +74,9 @@ export default function ScanPreviewModal({
         />
 
         <div className="flex justify-end gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container active:scale-95 transition-all disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
             {t('actions.cancel')}
-          </button>
+          </Button>
           <Button onClick={handleConfirm} disabled={busy || overLimit}>
             {primaryLabel}
           </Button>

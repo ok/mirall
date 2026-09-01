@@ -5,6 +5,7 @@ import UpdateBanner from './UpdateBanner.js'
 import type { Profile, UpdateInfo } from '../../types.js'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import Icon from '../primitives/Icon.js'
+import Button from '../primitives/Button.js'
 import IconButton from '../primitives/IconButton.js'
 import Avatar from '../primitives/Avatar.js'
 import Logo from '../primitives/Logo.js'
@@ -42,13 +43,9 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
             </button>
           </div>
           <div className="flex items-center gap-4 ml-auto" style={{ WebkitAppRegion: 'no-drag' }}>
-            <button
-              onClick={onFeedbackClick}
-              className="flex items-center gap-2 bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-            >
-              <Icon name="feedback" size={20} />
+            <Button variant="secondary" icon="feedback" onClick={onFeedbackClick}>
               {t('topnav.feedback')}
-            </button>
+            </Button>
             <IconButton
               icon="settings"
               iconFilled

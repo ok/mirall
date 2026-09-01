@@ -6,6 +6,7 @@ import { actorInitials, avatarKind, denialReasonKey, groupByDay, metaParts, rowB
 import { AUDIT_KINDS } from '../auditKinds.js'
 import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
+import Button from '../components/primitives/Button.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
@@ -16,7 +17,6 @@ interface ActivityLogProps {
   initialFilters?: Partial<AuditFilters>
 }
 
-const ACTION_BUTTON = 'shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-2.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
 const DAY_RANGES = [7, 30, 90]
 
 function timeOf(ts: number): string {
@@ -294,9 +294,9 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                 <p className="font-semibold text-accent mb-1">{t(`activityLog.${empty.key}Title`)}</p>
                 <p className="text-sm text-on-surface-variant mb-5">{t(`activityLog.${empty.key}Desc`)}</p>
                 {active && (
-                  <button type="button" onClick={clearAll} className={ACTION_BUTTON}>
+                  <Button variant="secondary" onClick={clearAll} className="shrink-0">
                     {t('activityLog.clearFilters')}
-                  </button>
+                  </Button>
                 )}
               </div>
             ) : (
@@ -325,9 +325,9 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                 </div>
                 {hasMore && (
                   <div className="px-6 py-4 border-t border-outline-variant/40 flex justify-center">
-                    <button type="button" onClick={() => void loadMore()} disabled={loadingMore} className={`${ACTION_BUTTON} disabled:opacity-50`}>
+                    <Button variant="secondary" onClick={() => void loadMore()} disabled={loadingMore} className="shrink-0">
                       {loadingMore ? t('activityLog.loading') : t('activityLog.loadMore')}
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
