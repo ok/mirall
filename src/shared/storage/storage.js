@@ -1,12 +1,15 @@
-// Storage accounting + reclaim behind the Storage screen: measure the store's disk
-// footprint (per-space drives, overlay index, database remainder) and run the
-// cleanup passes — a boot-time metadata sweep and the user-driven free-space action.
+// Storage accounting behind the Storage screen: measure the store's disk footprint (per-space
+// drives, overlay index, database remainder), plus the boot-time metadata sweep. Reclaim is no
+// longer user-driven — the overlay copies no file bytes into the store, so there was nothing
+// left for a "free up space" action to free.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
 import { listSpaces, getDrive } from '../spaces/space.js'
 import { getStoragePath } from '../core/store.js'
 import { purgeLeftovers } from './leftover.js'
+import { shouldReclaimOrphanDrives, markOrphanDrivesReclaimed } from './legacy-orphan-drives.js'
+import { compactStore } from '../transfer/swarm.js'
 
 const log = createLogger('storage')
 
@@ -75,23 +78,6 @@ export async function getStorageInfo() {
   }
 }
 
-// One-click reclaim for the Storage screen: rebuild the overlay index without dead
-// chunk maps and purge orphaned peer metadata, then report the disk actually freed.
-// Non-destructive — only unreferenced data is dropped.
-export async function freeSpace() {
-  const before = getDirSize(getStoragePath())
-  let changed = false
-  try {
-    const { compactOverlayIndex } = await import('../transfer/backends/overlay/overlay-backend.js')
-    if ((await compactOverlayIndex()).compacted) changed = true
-  } catch (err) { log.warn('index compaction failed:', err.message) }
-  try { if ((await purgeLeftovers()).purged > 0) changed = true } catch (err) { log.warn('leftover purge failed:', err.message) }
-  // Nothing reclaimed → the store is unchanged; skip the second full-tree stat walk.
-  if (!changed) return { freedBytes: 0 }
-  const after = getDirSize(getStoragePath())
-  return { freedBytes: Math.max(0, before - after) }
-}
-
 async function readDriveBytes(drive) {
   await drive.ready()
   return drive.core.byteLength
@@ -108,13 +94,27 @@ export async function getSpaceCacheBytes(spaceId) {
   }
 }
 
-// Boot-time / maintenance sweep. Prunes only leftover peer metadata (profile and
-// catalog bee cores no longer tied to any active space) — never system bees,
-// active drives, or any raw blob/drive core, so it can never delete live peer
-// content. Orphan-drive reclamation is deliberately excluded here: it can free
-// gigabytes, so it is user-driven (with a preview), not silent at boot.
+// Boot sweep. Prunes leftover peer metadata (profile and catalog bee cores no longer tied to any
+// active space) — never system bees, active drives, or any raw blob/drive core.
+//
+// Orphan drives ride along exactly once, on the first boot after upgrading past the copy-based
+// content path (see legacy-orphan-drives.js). That is the only category that can free gigabytes,
+// so it is also the only one worth a compaction: metadata tombstones are collected by whatever
+// compaction happens next, while blocking every boot on a full-range pass is not acceptable.
 export async function cleanupOrphanedData() {
-  const { purged } = await purgeLeftovers({ categories: ['profiles', 'catalogs'] })
+  const withDrives = await shouldReclaimOrphanDrives()
+  const categories = withDrives ? ['profiles', 'catalogs', 'orphanDrives'] : ['profiles', 'catalogs']
+  const { purged, withheldDrives } = await purgeLeftovers({ categories, compact: false })
   log.info('leftover metadata cleanup done, pruned', purged, 'cores')
+  // A scan that withheld the drive category looked away on purpose — a space drive had not opened
+  // — so spending the single pass here would strand those bytes for good. Retry on a later boot.
+  if (withDrives && !withheldDrives) {
+    await markOrphanDrivesReclaimed(purged)
+    // Awaited, not deferred: a compaction left running behind a short-lived process races the
+    // store's close, and RocksDB does not survive that politely.
+    if (purged > 0) {
+      try { await compactStore() } catch (err) { log.warn('reclaim compaction failed:', err.message) }
+    }
+  }
   return { purged }
 }

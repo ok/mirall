@@ -187,11 +187,10 @@ export async function boot(bootstrap, {
 
     const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
     const { store, auditLog, drives, didMigrateMetadata } = tier
-    if (drives.load.hadFailure) {
-      try { await cleanupOrphanedData() } catch (err) {
-        log.warn('orphan cleanup after drive-load failure failed:', err.message)
-      }
-    }
+    // A space whose drive did not open keeps every core it owns; the leftover sweep below reads
+    // the same condition itself (buildWantedKeys' unopenedDrive) and withholds accordingly, so
+    // this is a diagnostic, not a gate.
+    if (drives.load.hadFailure) log.warn('a space drive did not load this boot — its cores stay untouched until it opens')
     await ensureMembershipManifestCap()
     await ensureSharesCap()
     await ensureFolderMirrorsCap()
@@ -210,6 +209,11 @@ export async function boot(bootstrap, {
         if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p)
       },
     }))
+    // AFTER the content migrations and the overlay start, both load-bearing: migrateCatalogsToEncrypted
+    // still needs the pre-encryption plaintext catalog it copies from (a sweep ahead of it would
+    // classify that core as a stray catalog and delete it), and getOverlayLocalDiscoveryKeys returns
+    // [] while the overlay is down, which would leave the index cores out of the wanted set.
+    // compact:false — tombstoning is what collects them; a full-range compaction must not block boot.
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,
@@ -289,6 +293,18 @@ export async function boot(bootstrap, {
     // The three periodic backstops start last, so nothing they sweep is still opening.
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
+
+    // LAST, once every subsystem is constructed — not interleaved with their startup. The sweep
+    // opens the own catalog and each drive's blobs to build its wanted set, and doing that while
+    // the publish and owned-folder subsystems are still coming up leaves an owner that boots,
+    // answers IPC, and then never serves: a peer's parked download waits forever. This is also the
+    // only context the scan was ever exercised in before — the retired action ran it from a fully
+    // started app. It must still land after the content migrations and the overlay start, which
+    // running last satisfies: migrateCatalogsToEncrypted needs the plaintext catalog it copies
+    // from, and getOverlayLocalDiscoveryKeys returns [] while the overlay is down.
+    try { await cleanupOrphanedData() } catch (err) {
+      log.warn('leftover metadata cleanup failed:', err.message)
+    }
 
     return {
       close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces,

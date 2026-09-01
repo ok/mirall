@@ -134,9 +134,9 @@ import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { pathFromMount } from '../shared/transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
-import { getStorageInfo, freeSpace } from '../shared/storage/storage.js'
+import { getStorageInfo } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
-import { classifyLeftovers, forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
+import { forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { deriveChannel } from '../shared/core/channel.js'
@@ -1565,16 +1565,6 @@ ipc.handle('feedback:send', async (msg) => {
 })
 
 ipc.handle('storage:info', async () => await getStorageInfo())
-
-ipc.handle('storage:leftover-scan', async () => await classifyLeftovers())
-
-ipc.handle('storage:free-space', async () => {
-  const res = await freeSpace()
-  // Reclaim spans every space; emit per-space so each open file view re-derives (a spaceId-less
-  // poke matches no scoped consumer under the reconcile model).
-  for (const s of await listSpaces()) ipc.emit('event:files-updated', { spaceId: s.spaceId })
-  return res
-})
 
 ipc.handle('settings:set-download-folder', async (msg) => {
   // Same mount-overlap rejection as a per-space folder: the global root is the effective root

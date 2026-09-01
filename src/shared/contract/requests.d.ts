@@ -86,9 +86,7 @@ export type RequestName =
   | 'space:toggle-favorite'
   | 'space:update'
   | 'spaces:list'
-  | 'storage:free-space'
   | 'storage:info'
-  | 'storage:leftover-scan'
 
 export type ArgType = 'string' | 'number' | 'boolean' | 'array' | 'spaceId' | 'shareId' | 'path'
 export interface ArgRule { type: ArgType; optional?: boolean; max?: number }

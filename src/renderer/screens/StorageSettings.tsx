@@ -1,12 +1,11 @@
-// Storage settings: download-folder picker, app-storage usage breakdown, and a reclaim-space action.
-import { useState, useEffect, useCallback, useRef } from 'react'
+// Storage settings: download-folder picker and the app-storage usage breakdown.
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
 import { mountErrorI18nKey } from '../errorMessages.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
-import { refetchQuery } from '../store/query-store.js'
 import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
@@ -59,23 +58,12 @@ function Category({ heading, desc, bytes }: { heading: string; desc: string; byt
   )
 }
 
-function StorageBreakdown({ info, freeing, freedBytes, onFreeSpace }: { info: StorageInfo; freeing: boolean; freedBytes: number | null; onFreeSpace: () => void }) {
+function StorageBreakdown({ info }: { info: StorageInfo }) {
   const { t } = useTranslation()
-  const status = freeing
-    ? t('storageSettings.reclaimRunning')
-    : freedBytes === null ? ''
-      : freedBytes > 0 ? t('storageSettings.reclaimDone', { size: formatSize(freedBytes) })
-        : t('storageSettings.reclaimNone')
   return (
     <>
       <Category heading={t('storageSettings.sharingIndex')} desc={t('storageSettings.sharingIndexDesc')} bytes={info.indexBytes} />
       <Category heading={t('storageSettings.appDatabase')} desc={t('storageSettings.appDatabaseDesc')} bytes={info.dbBytes} />
-      <div className="flex items-center justify-between gap-4 pt-3 border-t border-outline-variant/40">
-        <p role="status" aria-live="polite" className="text-xs text-on-surface-variant min-w-0">{status}</p>
-        <Button variant="secondary" onClick={onFreeSpace} disabled={freeing} className="shrink-0">
-          {t('storageSettings.reclaimAction')}
-        </Button>
-      </div>
     </>
   )
 }
@@ -94,9 +82,6 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const [folderError, setFolderError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
-  const [freeing, setFreeing] = useState(false)
-  const [freedBytes, setFreedBytes] = useState<number | null>(null)
-  const freeingRef = useRef(false)
 
   // storage:info is a cross-space disk aggregate, so it watches the file, share and share-file
   // scopes without pinning a spaceId — a hint for any space matches (scopeMatches only compares an
@@ -104,26 +89,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   // in bursts, and this read walks the store.
   const { data: info, loading } = useQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
 
-  const refreshInfo = useCallback(() => {
-    return refetchQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES).catch(() => {})
-  }, [])
-
   const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
-
-  const handleFreeSpace = useCallback(async () => {
-    if (freeingRef.current) return
-    freeingRef.current = true
-    setFreeing(true)
-    setFreedBytes(null)
-    try {
-      const res = await request('storage:free-space', {}, 0) as { freedBytes: number }
-      setFreedBytes(res.freedBytes)
-      await refreshInfo()
-    } finally {
-      setFreeing(false)
-      freeingRef.current = false
-    }
-  }, [refreshInfo])
 
   useEffect(() => {
     let cancelled = false
@@ -224,7 +190,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                   </button>
                   {detailsOpen && (
                     <div id="appstorage-breakdown" className="px-6 pb-6 pt-2 space-y-4">
-                      <StorageBreakdown info={info} freeing={freeing} freedBytes={freedBytes} onFreeSpace={handleFreeSpace} />
+                      <StorageBreakdown info={info} />
                     </div>
                   )}
                 </>

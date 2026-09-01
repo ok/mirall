@@ -3,12 +3,13 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import Hyperdrive from 'hyperdrive'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, freshDurableWithIdentity } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { createSpace, getDrive, listSpaces } from '../../src/shared/spaces/space.js'
 import { initDownloads, addFile } from '../../src/shared/transfer/files.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
+import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
 async function coreInStore (dkHex) {
   let found = false
@@ -61,4 +62,39 @@ test('orphan drive remnant is reclaimed; active drives and system bees kept', as
   t.ok(await coreInStore(keepMetaDk), 'active space drive preserved')
   t.ok(await coreInStore(profileDk), 'profile bee preserved')
   t.ok((await listSpaces()).some((s) => s.spaceId === keep.spaceId), 'active space registry intact')
+})
+
+// The user-driven reclaim that used to free these is gone. A drive holding blobs cannot be created
+// any more, so the remaining ones are pre-overlay residue and get one flag-guarded pass — never a
+// recurring sweep, because this is the category that can free gigabytes.
+test('the boot sweep reclaims an orphan drive once, then stops widening', async (t) => {
+  // The durable tier only: boot() runs this sweep itself, so a full freshPeer would arrive with
+  // the one-shot flag already spent and the assertions below would grade a no-op.
+  await freshDurableWithIdentity(t)
+  const keep = await createSpace('Keep')
+
+  const staleDrive = new Hyperdrive(getStore().namespace('stale-space-drive'))
+  await staleDrive.ready()
+  await staleDrive.put('/big.bin', Buffer.alloc(64 * 1024, 7))
+  const staleMetaDk = b4a.toString(staleDrive.core.discoveryKey, 'hex')
+  const staleBlobs = await staleDrive.getBlobs()
+  const staleBlobsDk = b4a.toString(staleBlobs.core.discoveryKey, 'hex')
+  await staleDrive.close()
+
+  const keepMetaDk = b4a.toString(getDrive(keep.spaceId).core.discoveryKey, 'hex')
+
+  await cleanupOrphanedData()
+  t.absent(await coreInStore(staleMetaDk), 'stale drive meta reclaimed on the widened pass')
+  t.absent(await coreInStore(staleBlobsDk), 'stale drive blobs reclaimed')
+  t.ok(await coreInStore(keepMetaDk), 'the active space drive is untouched')
+
+  // A second orphan planted after the flag is spent must survive: the sweep is metadata-only now.
+  const later = new Hyperdrive(getStore().namespace('later-space-drive'))
+  await later.ready()
+  await later.put('/also.bin', Buffer.alloc(4096, 3))
+  const laterDk = b4a.toString(later.core.discoveryKey, 'hex')
+  await later.close()
+
+  await cleanupOrphanedData()
+  t.ok(await coreInStore(laterDk), 'the drive category is not swept again')
 })
