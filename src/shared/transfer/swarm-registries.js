@@ -10,6 +10,7 @@
 // Exported bindings, not accessors: a Map's identity never changes, so importers mutate contents
 // through a stable reference. resetRegistries() is what a teardown calls instead of clearing each
 // one by hand — the reason destroySwarm knew about all of them.
+import { createAnnounceLedger } from './announce-ledger.js'
 
 // profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey> }
 export const connectedPeers = new Map()
@@ -29,7 +30,12 @@ export const pendingRequesters = new Map()
 // across leave/rejoin churn). A grant only ever reaches a connected joiner, so its key is always here.
 export const boundSignerKeys = new Map()
 
-const ALL = [connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys]
+// Which identity frames went out on which socket and still await their implicit ack. Same test as
+// the Maps above — the handshake records into it, disconnect prunes it, the outbound handshake
+// stamps it and the convergence tick drains it — so it is nobody's private state either.
+export const announceLedger = createAnnounceLedger()
+
+const ALL = [connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger]
 
 export function resetRegistries() {
   for (const m of ALL) m.clear()

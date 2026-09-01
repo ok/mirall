@@ -18,11 +18,9 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import {
-  getProfileKey, getProfile, openProfileBee, revokeApproval, adoptVouchees, getIdentitySigner, } from '../spaces/profile.js'
+  getProfileKey, getProfile, openProfileBee, getIdentitySigner, } from '../spaces/profile.js'
 import {
-  getDrive, getSpace, upsertMember, removeMember, listSpaces,
-  listJoinRequests, getJoinRequestDriveKey, clearJoinRequest,
-  ownLooseCatalogPublish, persistLeftTombstone,
+  getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
 import { getRuntimeConfig, getUpgradeKey, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
@@ -31,27 +29,22 @@ import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
-import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape, leaveFrameBound } from './handshake-guard.js'
-import { createAnnounceLedger, escalationDue, announceStatus } from './announce-ledger.js'
-import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, contentPlaneHasPeer, getContentPlaneStatus, getContentSwarm } from './content-swarm.js'
+import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
+import { joinContentTopic, leaveContentTopic, refreshContentDiscoveries, destroyContentPeerSockets, getContentPlaneStatus, getContentSwarm } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
-import { takeIncompleteListSpaces, clearListDeficits } from './list-deficits.js'
-import { LOOSE_SHARE_ID } from './transfer-id.js'
-import { shareDecoKey } from './decoration-key.js'
-import { record } from '../audit/audit-log.js'
+import { clearListDeficits } from './list-deficits.js'
 import { observePeerProfile } from '../audit/peer-watch.js'
-import { observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft, resetNetworkWatch } from '../audit/network-watch.js'
+import { observeReachability, peerLost, peerLostMeta, peerSeen, resetNetworkWatch } from '../audit/network-watch.js'
 import { sealSck } from './sck-seal.js'
 import { sanitizeAvatar } from '../identity-limits.js'
-import { markLeft, rosterDeficits, recomputeMemberView, scheduleCapture, captureDeficits } from '../spaces/member-registry.js'
-import { createPresence, presenceFrameKind } from '../state/presence.js'
+import { createPresence } from '../state/presence.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { classify, stabilise, routableAddressKind, CANARY, BLOCKED_DWELL_MS, NAT_SETTLE_MS, LIVENESS_FAILURES_FOR_OFFLINE } from '../core/reachability.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
-import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, resetRegistries } from './swarm-registries.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries } from './swarm-registries.js'
 import {
   initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic,
   handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame,
@@ -60,10 +53,29 @@ import {
 // backend import them from here.
 export { broadcastDeparture, broadcastSharePrepareProgress, broadcastShareIndexProgress } from './presence-broadcast.js'
 import {
-  initDeferredAdmission, resetDeferredAdmission, reconcilePendingRequester,
+  initDeferredAdmission, resetDeferredAdmission,
   reconcilePendingRequestersForApprover, emitPeerSharesUpdated,
 } from './deferred-admission.js'
-export { readmitConnectedMembers, emitSharesUpdated } from './deferred-admission.js'
+export { readmitConnectedMembers, emitSharesUpdated, reconcilePendingRequester } from './deferred-admission.js'
+import {
+  initLeaveProtocol, resetLeaveProtocol,
+  handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck,
+  sendPendingLeaveFrames, sendPendingCancelFrames,
+} from './leave-protocol.js'
+// Every one of these has callers in worker/main.js or worker/ipc/space-leave.js, so swarm.js stays
+// their public address.
+export {
+  markSpaceLeaving, unmarkSpaceLeaving, isSpaceLeaving,
+  configurePendingLeaves, registerPendingLeave, unregisterPendingLeave, hasPendingLeave,
+  joinPendingLeaveTopic, leavePendingLeaveTopic, sendLeaveFrameToConnectedPeers,
+  leaveAcksSatisfied, awaitLeaveAcks, takeLeaveAckedKeys,
+  configurePendingCancels, registerPendingCancel, hasPendingCancel,
+  joinPendingCancelTopic, leavePendingCancelTopic, sendPendingCancelToConnected,
+} from './leave-protocol.js'
+import {
+  initConvergenceTick, resetConvergenceTick, startConvergenceTick, forgetSpaceConvergence,
+} from './convergence-tick.js'
+export { rescueStalledTransfers } from './convergence-tick.js'
 
 const log = createLogger('swarm')
 
@@ -112,18 +124,12 @@ function peerName(space, peerKey) {
 
 let swarm
 let ipcRef
-const leavingSpaces = new Set()         // spaceIds whose teardown is in flight
-const leaveAcks = new Map()             // spaceId (we are leaving) → Set<profileKeyHex> of co-members that applied our leave
-
-export function markSpaceLeaving(spaceId) { leavingSpaces.add(spaceId) }
-export function unmarkSpaceLeaving(spaceId) { leavingSpaces.delete(spaceId) }
-export function isSpaceLeaving(spaceId) { return leavingSpaces.has(spaceId) }
 let overlayReconnectHook = null         // notified when an overlay-content owner (re)connects, so paused/interrupted overlay downloads (loose + folder) resume
 let membershipControlHandler = null     // membership:* frames (join request / grant / deny) routed to the worker
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
+let stalledOwnersHook = null            // worker-supplied probe: which owners are we waiting on?
 let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
 const profileBeeAppendListeners = new Map()  // profileKey hex → { bee, listener } — the ONE held bee per peer
-const pendingAdmitInflight = new Set()  // 'spaceId:joinerKey' currently being admitted via reconcile
 const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
 let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
 let frameLimiter = null                 // general per-socket budget charged for EVERY frame type
@@ -133,12 +139,6 @@ function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
 export function getDroppedFrameCounters() { return { ...droppedFrames } }
 // Unsettled identity-frame announcements per (socket, space), drained by the convergence
 // tick — the level-triggered resend that heals a dropped handshake/membership:request.
-const announceLedger = createAnnounceLedger()
-let convergenceTimer = null
-let convergenceTicking = false          // re-entrancy guard: the tick is async, setInterval isn't
-const deficitTicks = new Map()          // spaceId → consecutive ticks with a roster deficit
-const lastRefreshAt = new Map()         // spaceId → last escalation (discovery.refresh) time
-const escalationsSpent = new Map()      // spaceId → discovery.refreshes spent on the current deficit
 let testDrop = null                     // test-only inbound identity-frame drop window
 
 let dhtReady = false
@@ -187,6 +187,21 @@ initDeferredAdmission({
 })
 
 initPresenceBroadcast({ presence, membersPoke, log, getSwarm: () => swarm, getIpc: () => ipcRef })
+initLeaveProtocol({
+  presence,
+  log,
+  getLocalBinding: (...a) => getLocalBinding(...a),
+  getRevokeServesHook: () => revokeServesForSpaceHook,
+  getSwarm: () => swarm,
+  getIpc: () => ipcRef,
+})
+initConvergenceTick({
+  log,
+  sendSingleHandshake: (...a) => sendSingleHandshake(...a),
+  getStalledOwners: () => stalledOwnersHook,
+  getSwarm: () => swarm,
+  getIpc: () => ipcRef,
+})
 
 const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => ipcRef })
 
@@ -770,332 +785,6 @@ function handleDisconnect(socket) {
 
 // Captured before the teardown drops the member from the roster: the audit row has to stay
 // readable once the record is gone.
-function memberSnapshot (space, publicKey) {
-  return {
-    spaceName: space?.name ?? null,
-    memberName: (space?.members || []).find((m) => m.publicKey === publicKey)?.displayName ?? null,
-  }
-}
-
-function recordMemberLeft (spaceId, profileKey, snapshot) {
-  record('member.left', {
-    actor: { type: 'peer', key: profileKey, name: snapshot.memberName },
-    space: { id: spaceId, name: snapshot.spaceName },
-    target: { kind: 'member', id: profileKey, name: snapshot.memberName },
-  })
-}
-
-// === Leave protocol ===
-
-async function handleLeaveFrame(socket, peerInfo, msg) {
-  const { spaceId, profileKey } = msg
-  if (!spaceId || !profileKey) return
-
-  // Our own teardown destroys the sockets that clear the auth index, so an inbound
-  // frame for a space we're leaving races into the rejection below — drop it quietly.
-  if (leavingSpaces.has(spaceId)) return
-
-  // Accept iff the sender proves it controls profileKey on THIS connection: the fast path is the
-  // per-socket auth index; the robust path is the frame's identity binding, which survives the
-  // teardown/reconnect race that clears or has-not-yet-populated that index. Additive — the binding
-  // proof is strictly stronger than the index, so a third party still cannot evict a member.
-  const onSocket = socketToPeers.get(socket)?.has(profileKey) || false
-  if (!onSocket && !leaveFrameBound(peerInfo, msg)) {
-    log.warn('leave frame rejected — sender not authenticated on socket and no valid binding')
-    return
-  }
-
-  const space = await getSpace(spaceId)
-  if (!space?.members) return
-
-  // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
-  // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
-  // could never be recovered. The leaver is connected right now, which is the best window there is
-  // to read that record. When it is unreadable, apply NOTHING: the replication-driven path retries
-  // once the departure record lands, which is strictly better than tombstoning here while our vouch
-  // still stands (a tombstone would suppress every retry).
-  if (!(await adoptVouchees(spaceId, profileKey))) {
-    log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
-    return
-  }
-
-  // After the deferral above, so a leave we did not apply records nothing.
-  const leftSnapshot = memberSnapshot(space, profileKey)
-
-  // Tombstone the leaver FIRST so the member-view fold can't re-add them from their stale
-  // still-active record (their del-record may not replicate before they disconnect). Set
-  // before removeMember so any in-flight re-derive already subtracts them. Persist it so the
-  // subtraction survives a restart, incl. the creator/root where revokeApproval is a no-op.
-  // msg.ts is untrusted wire data used as the durable self-clear stamp — reject a non-finite /
-  // non-positive value (a negative would make tombstoneActive false and re-add the leaver). It is
-  // the leaver's own clock, same as the member/<S>.ts a rejoin writes, so the comparison stays
-  // single-clock in the common path.
-  const leaveTs = (typeof msg.ts === 'number' && Number.isFinite(msg.ts) && msg.ts > 0) ? msg.ts : Date.now()
-  markLeft(spaceId, profileKey, leaveTs)
-  let durablyApplied = true
-  try { await persistLeftTombstone(spaceId, profileKey, leaveTs) } catch (err) {
-    durablyApplied = false
-    log.warn('persist leave tombstone failed:', err.message)
-  }
-
-  // Revoke our own approval so a later rejoin needs fresh approval, not a silent re-admit off the
-  // surviving grow-only record. Unconditional + idempotent: a leaver already pruned by the fold (or a
-  // duplicate frame) must still lose our vouch. No-op for the creator (we hold no approval for the
-  // root). Safe to unroot the leaver here — its vouchees were adopted above.
-  try { await revokeApproval(spaceId, profileKey) } catch (err) {
-    durablyApplied = false
-    log.warn('approval revoke on leave failed:', err.message)
-  }
-
-  // Ack the leaver over its own socket so it can stop waiting (awaitLeaveAcks) — but ONLY once the
-  // durable tombstone + revoke actually landed, since that is exactly what the ack attests. A
-  // swallowed durable failure must not resolve the wait early; the leaver falls back to the cap.
-  const selfKey = getProfileKey()
-  if (durablyApplied && selfKey) {
-    try { socketMsgHandlers.get(socket)?.send(JSON.stringify({ type: 'leave-ack', spaceId, profileKey: b4a.toString(selfKey, 'hex') })) } catch {}
-  }
-
-  const removed = await removeMember(spaceId, profileKey)
-  if (!removed) return
-  log.info('peer left space (leave frame):', profileKey.slice(0, 12) + '...', '→', spaceId)
-
-  presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
-  peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
-
-  const peer = connectedPeers.get(profileKey)
-  if (peer) {
-    peer.spaces.delete(spaceId)
-    peer.looseCatalogKeys?.delete(spaceId)
-    if (peer.spaces.size === 0) {
-      connectedPeers.delete(profileKey)
-      const set = socketToPeers.get(peer.socket)
-      if (set) {
-        set.delete(profileKey)
-        if (set.size === 0) socketToPeers.delete(peer.socket)
-      }
-      // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
-      // share any space with must lose that socket too, or we keep serving it bulk bytes.
-      try { destroyContentPeerSockets(profileKey) } catch {}
-    }
-  }
-  // Their leave revokes our serve grants for this space: the grant is cached per (peer, path) at
-  // request time and re-checked against that cache only, so a membership change has to invalidate
-  // it actively — otherwise an in-flight transfer keeps streaming to a peer no longer entitled.
-  revokeServesForSpaceHook?.(spaceId, profileKey)
-
-  recordMemberLeft(spaceId, profileKey, leftSnapshot)
-
-  ipcRef.emit('event:member-left', { spaceId, publicKey: profileKey })
-  ipcRef.emit('event:files-updated', { spaceId })
-}
-
-// ── pending outbound leaves (leave-while-alone recovery) ────────────────────────
-// spaceId → { topic, ts }. A leave that provably reached no member is re-announced on
-// every new connection until a co-member acks its durable apply. Seeded from the
-// pendingleave/ markers at boot (the space record itself is already purged); the worker
-// injects onApplied to clear the marker + leave the topic. ts is the ORIGINAL leave
-// stamp so a genuine later rejoin (strictly newer member/<S> ts) always outranks the
-// replayed tombstone on co-members.
-const pendingLeaves = new Map()
-const pendingLeaveFramesSent = new WeakMap()   // socket → Set<spaceId> (ack eligibility for the record-less space)
-let onPendingLeaveApplied = null
-
-export function configurePendingLeaves(onApplied) { onPendingLeaveApplied = onApplied }
-
-export function registerPendingLeave(spaceId, topicHex, ts) {
-  pendingLeaves.set(spaceId, { topic: topicHex, ts })
-}
-
-export function unregisterPendingLeave(spaceId) { pendingLeaves.delete(spaceId) }
-
-export function hasPendingLeave(spaceId) { return pendingLeaves.has(spaceId) }
-
-// Join/leave the topic of a PURGED space (both leave-replay and cancel-replay need this — the
-// space record is gone, so joinSpaceTopic can't read it). Return whether they acted, for logging.
-function joinPurgedSpaceTopic(spaceId, topicHex) {
-  if (!swarm || spaceDiscoveries.has(spaceId)) return false
-  spaceTopics.set(spaceId, topicHex)
-  spaceDiscoveries.set(spaceId, swarm.join(b4a.from(topicHex, 'hex'), { server: true, client: true }))
-  return true
-}
-
-async function leavePurgedSpaceTopic(spaceId) {
-  const topicHex = spaceTopics.get(spaceId)
-  if (!topicHex) return false
-  try { await swarm.leave(b4a.from(topicHex, 'hex')) } catch {}
-  spaceTopics.delete(spaceId)
-  spaceDiscoveries.delete(spaceId)
-  return true
-}
-
-export function joinPendingLeaveTopic(spaceId, topicHex) {
-  if (joinPurgedSpaceTopic(spaceId, topicHex)) log.info('joined topic for pending-leave replay:', spaceId)
-}
-
-export async function leavePendingLeaveTopic(spaceId) {
-  if (await leavePurgedSpaceTopic(spaceId)) log.info('left pending-leave topic:', spaceId)
-}
-
-function sendPendingLeaveFrames(socket, msgHandler) {
-  if (pendingLeaves.size === 0) return
-  const profileKey = getProfileKey()
-  if (!profileKey) return
-  const profileKeyHex = b4a.toString(profileKey, 'hex')
-  let sent = pendingLeaveFramesSent.get(socket)
-  if (!sent) pendingLeaveFramesSent.set(socket, (sent = new Set()))
-  for (const [spaceId, { ts }] of pendingLeaves) {
-    sent.add(spaceId)
-    try {
-      msgHandler.send(JSON.stringify({ type: 'leave', spaceId, profileKey: profileKeyHex, ts, ...(getLocalBinding() || {}) }))
-    } catch (err) {
-      log.debug('pending-leave frame send failed:', err.message)
-    }
-  }
-}
-
-export function sendLeaveFrameToConnectedPeers(spaceId) {
-  if (socketMsgHandlers.size === 0) return
-  const profileKey = getProfileKey()
-  if (!profileKey) return
-  const profileKeyHex = b4a.toString(profileKey, 'hex')
-  leaveAcks.set(spaceId, new Set())   // collect co-member acks BEFORE the frames go out (no missed-ack race)
-  const payload = JSON.stringify({
-    type: 'leave',
-    spaceId,
-    profileKey: profileKeyHex,
-    ts: Date.now(),
-    ...(getLocalBinding() || {}),
-  })
-  for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(payload) } catch (err) {
-      log.warn('leave frame send failed:', err.message)
-    }
-  }
-}
-
-export function leaveAcksSatisfied(expectedKeys, receivedSet) {
-  for (const k of expectedKeys) if (!receivedSet.has(k)) return false
-  return true
-}
-
-// Wait (bounded) for the connected members of a space to confirm they applied our leave — an
-// observed signal that the load-bearing revokeApproval ran on our approvers before we tear
-// down. Resolves early on full coverage; falls back to the cap for peers on older releases
-// (which never ack) or a straggler. No connected members ⇒ nothing to wait for.
-export async function awaitLeaveAcks(spaceId, { capMs = 2000, pollMs = 50, floorMs = 0 } = {}) {
-  const received = leaveAcks.get(spaceId)
-  const expected = new Set(getConnectedPeers(spaceId))
-  try {
-    if (!received || expected.size === 0) return true
-    const start = Date.now()
-    for (;;) {
-      const elapsed = Date.now() - start
-      // Hold at least floorMs even once every ack lands: an ack proves the co-member ran its
-      // revoke, but NOT that it pulled our `del member/<S>` block (authored just before the frame)
-      // so it can re-host the departure to members offline at leave time. The floor preserves a
-      // replication window for that block.
-      if (elapsed >= floorMs && leaveAcksSatisfied(expected, received)) return true
-      if (elapsed >= capMs) return false
-      await new Promise((r) => setTimeout(r, pollMs))
-    }
-  } finally {
-    // Snapshot the acked keys before dropping the ledger, so the pending-leave arm decision can
-    // ask "which members provably applied the leave" — the boolean return conflates that with
-    // "nobody was connected" (vacuous true), which would skip the marker exactly when a member
-    // dropped mid-leave.
-    if (received) lastLeaveAckedKeys.set(spaceId, new Set(received))
-    leaveAcks.delete(spaceId)
-  }
-}
-
-// spaceId → Set<keyHex> of members that acked our most recent leave (populated by awaitLeaveAcks).
-const lastLeaveAckedKeys = new Map()
-export function takeLeaveAckedKeys(spaceId) {
-  const set = lastLeaveAckedKeys.get(spaceId)
-  lastLeaveAckedKeys.delete(spaceId)
-  return set || new Set()
-}
-
-function handleLeaveAckFrame(socket, msg) {
-  const { spaceId, profileKey } = msg
-  if (!spaceId || !profileKey) return
-  // A pending-leave replay ack arrives on a socket with no live handshake for the purged
-  // space (we no longer handshake it), so the strict rule below would drop it. Accept it
-  // from a socket this pending frame went out on: the Noise session pins the counterparty,
-  // and the worst a false ack does is stop the re-announce — the pre-marker behavior.
-  if (pendingLeaves.has(spaceId) && pendingLeaveFramesSent.get(socket)?.has(spaceId)) {
-    pendingLeaves.delete(spaceId)
-    log.info('pending leave acked — clearing marker:', spaceId)
-    Promise.resolve(onPendingLeaveApplied?.(spaceId)).catch((err) => log.debug('pending-leave clear failed:', err.message))
-  }
-  // Only count an ack from a peer that authenticated as this profileKey on this socket, so a peer
-  // can't forge acks for other members and collapse the leaver's flush wait early.
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
-  leaveAcks.get(spaceId)?.add(profileKey)
-}
-
-// ── pending outbound cancels (withdraw-a-request delivery) ──────────────────────
-// A withdrawing pending joiner must reach at least one member showing its request; that member
-// writes a durable denied tombstone which replicates to the rest. Re-announced on every new
-// connection until an applied ack lands. In-memory: cleared on restart.
-const pendingCancels = new Map()   // spaceId → { topic, joinerKey, attempts }
-const pendingCancelFramesSent = new WeakMap()   // socket → Set<spaceId> (ack eligibility)
-// Bound the replay so an abandoned withdrawal to an always-offline space can't hold the topic for
-// the whole session; a member reached before the cap converges it, past it we give up (a member
-// offline the entire time keeps the stale request — the documented in-memory-only residual).
-const MAX_CANCEL_ATTEMPTS = 30
-let onPendingCancelApplied = null
-
-export function configurePendingCancels(onApplied) { onPendingCancelApplied = onApplied }
-
-export function registerPendingCancel(spaceId, topicHex, joinerKey) {
-  pendingCancels.set(spaceId, { topic: topicHex, joinerKey, attempts: 0 })
-}
-
-export function hasPendingCancel(spaceId) { return pendingCancels.has(spaceId) }
-
-export function joinPendingCancelTopic(spaceId, topicHex) { joinPurgedSpaceTopic(spaceId, topicHex) }
-export async function leavePendingCancelTopic(spaceId) { await leavePurgedSpaceTopic(spaceId) }
-
-function sendPendingCancelFrames(socket, msgHandler) {
-  if (pendingCancels.size === 0) return
-  let sent = pendingCancelFramesSent.get(socket)
-  if (!sent) pendingCancelFramesSent.set(socket, (sent = new Set()))
-  for (const [spaceId, pc] of pendingCancels) {
-    try { msgHandler.send(JSON.stringify({ type: 'membership:cancel', spaceTopic: pc.topic, joinerKey: pc.joinerKey })) } catch { continue }
-    sent.add(spaceId)
-    if (++pc.attempts >= MAX_CANCEL_ATTEMPTS) {
-      pendingCancels.delete(spaceId)
-      leavePurgedSpaceTopic(spaceId).catch((err) => log.debug('pending-cancel give-up leave failed:', err.message))
-    }
-  }
-}
-
-// Initial send of a freshly-registered cancel on every current connection. Goes through
-// sendPendingCancelFrames (not broadcastMembershipCancel) so ack eligibility is recorded per socket
-// — otherwise a member acking over the existing connection would be rejected by handleMembershipCancelAck.
-export function sendPendingCancelToConnected() {
-  for (const [socket, handler] of socketMsgHandlers) sendPendingCancelFrames(socket, handler)
-}
-
-// A member acked our cancel with applied:true (it wrote the converging tombstone) on a socket we
-// actually sent the cancel on — stop replaying and drop the topic. The socket + frame-sent check
-// mirrors handleLeaveAckFrame: a peer that never received our cancel can't clear it.
-function handleMembershipCancelAck(socket, msg) {
-  if (!msg.applied || typeof msg.spaceTopic !== 'string') return
-  for (const [spaceId, pc] of pendingCancels) {
-    if (pc.topic !== msg.spaceTopic) continue
-    if (!pendingCancelFramesSent.get(socket)?.has(spaceId)) return
-    pendingCancels.delete(spaceId)
-    Promise.resolve(onPendingCancelApplied?.(spaceId)).catch((err) => log.debug('pending-cancel clear failed:', err.message))
-    return
-  }
-}
-
-// Membership removal is the member-set fold's job (member-registry): a peer drops from the
-// set when their replicated `del member/S` (leave) lands, and stays an offline member
-// otherwise. This layer deliberately never prunes membership on disconnect — admission is
-// separate from membership display, and a dead socket says nothing about membership.
 
 // === Topics, outbound handshakes & space cleanup ===
 
@@ -1205,179 +894,6 @@ export async function broadcastProfileUpdate() {
   }
 }
 
-// === Convergence tick ===
-
-// Re-send identity frames whose implicit ack never arrived. Settled means: for a member
-// space, some identity on that socket is admitted to it (their reciprocal proved the round
-// trip); for a pending space, the grant/deny flipped the status. A space that is leaving,
-// left, or only held as a pending-leave replay topic (no record) has nothing to announce.
-async function drainAnnounceLedger() {
-  if (socketMsgHandlers.size === 0) return
-  // Resolve per-space status only for the spaces actually in the ledger — a converged client
-  // with an empty ledger does no bee reads at all.
-  const pending = announceLedger.spaceIds()
-  if (pending.size === 0) return
-  const cfg = getConvergenceConfig()
-  const status = new Map()
-  for (const spaceId of pending) {
-    if (!spaceTopics.has(spaceId) || isSpaceLeaving(spaceId)) continue
-    // announceStatus distinguishes "present but statusless" (owner-created / v1 → 'active',
-    // a real member space) from "gone" (null → settled). Conflating them killed the owner's heal.
-    status.set(spaceId, announceStatus(await getSpace(spaceId)))
-  }
-  const isSettled = (socket, spaceId, kind) => {
-    const st = status.get(spaceId)
-    if (!st) return true
-    if (kind === 'request') return st !== 'pending'
-    for (const k of socketToPeers.get(socket) || []) {
-      if (connectedPeers.get(k)?.spaces.has(spaceId)) return true
-    }
-    return false
-  }
-  const due = announceLedger.due({
-    now: Date.now(),
-    baseMs: cfg.announceBaseMs,
-    capMs: cfg.announceCapMs,
-    maxAttempts: cfg.announceMaxAttempts,
-    isSettled,
-  })
-  for (const { socketId: socket, spaceId } of due) {
-    const handler = socketMsgHandlers.get(socket)
-    const topic = spaceTopics.get(spaceId)
-    // A dead socket (disconnected during a prior await) leaves zombie ledger entries the pure
-    // due() can't see socketMsgHandlers to prune — forget it here so its bucket evaporates.
-    if (!handler) { announceLedger.forgetSocket(socket); continue }
-    if (!topic) continue
-    log.debug('re-announcing space', spaceId)
-    await sendSingleHandshake(socket, handler, spaceId, topic)
-  }
-}
-
-// One slow, global, deficit-gated pass — the level-triggered re-drive an app restart used
-// to be: re-send unacked identity frames, re-fold rosters whose considered records haven't
-// replicated (escalating a persistent deficit to a throttled discovery refresh — fresh
-// connections mean fresh replication streams), and re-poke listings that gave up on a peer
-// catalog under the read budget. A converged, quiet swarm does nothing here.
-async function runConvergenceTick() {
-  await drainAnnounceLedger()
-  const cfg = getConvergenceConfig()
-  const deficits = rosterDeficits()
-  for (const spaceId of spaceTopics.keys()) {
-    if (!deficits.has(spaceId) || isSpaceLeaving(spaceId)) {
-      // Deficit cleared: reset all per-space escalation state so a LATER deficit (a new member
-      // not yet replicated) gets a fresh escalation budget.
-      deficitTicks.delete(spaceId)
-      lastRefreshAt.delete(spaceId)
-      escalationsSpent.delete(spaceId)
-      continue
-    }
-    const ticks = (deficitTicks.get(spaceId) || 0) + 1
-    deficitTicks.set(spaceId, ticks)
-    recomputeMemberView(spaceId)
-    const spent = escalationsSpent.get(spaceId) || 0
-    const due = spent < cfg.convergenceMaxEscalations && escalationDue({
-      ticks,
-      escalateTicks: cfg.convergenceEscalateTicks,
-      lastRefreshAt: lastRefreshAt.get(spaceId) || 0,
-      minMs: cfg.convergenceRefreshMinMs,
-      now: Date.now(),
-    })
-    if (due) {
-      lastRefreshAt.set(spaceId, Date.now())
-      escalationsSpent.set(spaceId, spent + 1)
-      log.info('convergence refresh — roster deficit persisted', ticks, 'ticks for', spaceId)
-      const discovery = spaceDiscoveries.get(spaceId)
-      if (discovery) {
-        try {
-          discovery.refresh({ client: true, server: true }).catch((err) => log.debug('convergence refresh failed:', spaceId, err.message))
-        } catch (err) {
-          log.debug('convergence refresh failed:', spaceId, err.message)
-        }
-      }
-    }
-  }
-  for (const spaceId of takeIncompleteListSpaces()) {
-    if (spaceTopics.has(spaceId) && !isSpaceLeaving(spaceId)) ipcRef?.emit('event:files-updated', { spaceId })
-  }
-  // Re-attempt incomplete peer-bee captures: a capture that raced a starved or
-  // short-lived session heals here on a later one. Throttled per key inside the
-  // scheduler; retired keys (complete or past the sweep cap) never come back.
-  for (const key of await captureDeficits()) scheduleCapture(key)
-  try { await rescueStalledTransfers() } catch (err) { log.debug('stalled-transfer rescue failed:', err.message) }
-}
-
-// Hyperswarm stops re-dialing a peer whose connections keep dying young: a link that drops inside
-// its prove-yourself window never resets the peer's attempt counter, and after the fourth such
-// close the peer loses its retry timer altogether — the next automatic dial is a topic re-lookup
-// ten minutes out. The escalation above cannot save us: it is gated on a ROSTER deficit, and a
-// two-peer space whose roster is fully replicated never has one, so a download can sit dead while
-// the swarm believes it is converged.
-//
-// A pending download whose owner we hold no socket for is exactly that state, and a discovery
-// refresh is the one lever that clears it (rediscovering a peer resets its attempts). Both planes
-// need it: the bulk plane carries the bytes, but the control plane carries the presence lease the
-// download's resume gate reads — rescuing only one leaves the transfer gated behind the other.
-// Refresh eagerly at first — a flapping link brings the peer back within a second or two, and every
-// cycle we sit out is a cycle the transfer makes no progress. But an owner who is simply offline
-// would then have us re-announce forever, so each fruitless attempt backs the next one off, up to a
-// quiet ceiling. Any attempt that finds every owner reachable resets it.
-const STALL_RESCUE_MIN_MS = 10_000
-const STALL_RESCUE_MAX_MS = 300_000
-let stalledOwnersHook = null
-let lastStallRescueAt = 0
-let stallRescueBackoffMs = STALL_RESCUE_MIN_MS
-let stallRescueInFlight = false
-
-
-export async function rescueStalledTransfers() {
-  if (!swarm || !stalledOwnersHook || stallRescueInFlight) return false
-
-  stallRescueInFlight = true
-  try {
-    const contentActive = getContentPlaneStatus().active
-    let controlDown = false
-    let contentDown = false
-    for (const ownerKey of await stalledOwnersHook()) {
-      if (!connectedPeers.has(ownerKey)) controlDown = true
-      if (contentActive && !contentPlaneHasPeer(ownerKey)) contentDown = true
-    }
-    if (!controlDown && !contentDown) {
-      stallRescueBackoffMs = STALL_RESCUE_MIN_MS // everyone we are waiting on is reachable
-      return false
-    }
-    if (Date.now() - lastStallRescueAt < stallRescueBackoffMs) return false
-
-    lastStallRescueAt = Date.now()
-    stallRescueBackoffMs = Math.min(stallRescueBackoffMs * 2, STALL_RESCUE_MAX_MS)
-    log.info('stalled transfer — refreshing discovery:', controlDown ? 'control' : '', contentDown ? 'content' : '')
-    if (controlDown) {
-      for (const [spaceId, discovery] of spaceDiscoveries) {
-        try { await discovery.refresh({ client: true, server: true }) } catch (err) { log.debug('stall refresh failed for', spaceId, err.message) }
-      }
-    }
-    if (contentDown) await refreshContentDiscoveries()
-    return true
-  } finally {
-    stallRescueInFlight = false
-  }
-}
-
-function startConvergenceTick() {
-  if (convergenceTimer) return
-  const { convergenceTickMs } = getConvergenceConfig()
-  if (!convergenceTickMs) return
-  convergenceTimer = setInterval(() => {
-    // The tick is async and setInterval doesn't await it — skip a fire that lands while the
-    // previous run is still in flight, so overlapping runs can't double-send or double-count.
-    if (convergenceTicking) return
-    convergenceTicking = true
-    runConvergenceTick()
-      .catch((err) => log.debug('convergence tick failed:', err.message))
-      .finally(() => { convergenceTicking = false })
-  }, convergenceTickMs)
-  convergenceTimer.unref?.()
-}
-
 export async function leaveSpaceTopic(spaceId) {
   const space = await getSpace(spaceId)
   if (!space) return
@@ -1386,12 +902,9 @@ export async function leaveSpaceTopic(spaceId) {
   spaceTopics.delete(spaceId)
   spaceDiscoveries.delete(spaceId)
   try { await leaveContentTopic(spaceId) } catch {} // no-op unless the content plane is active
-  // The tick's cleanup only visits current spaceTopics, so a left space's escalation state
-  // would dangle (and mistime escalation on a same-space rejoin) — drop it here. The announce
-  // ledger self-prunes the left space on its next drain (status resolves null → settled).
-  deficitTicks.delete(spaceId)
-  lastRefreshAt.delete(spaceId)
-  escalationsSpent.delete(spaceId)
+  // The announce ledger self-prunes the left space on its next drain (status resolves null →
+  // settled); the tick's per-space escalation state has to be dropped explicitly.
+  forgetSpaceConvergence(spaceId)
   log.info('left topic for space', spaceId)
   scheduleStatusEmit()
 }
@@ -1605,16 +1118,8 @@ async function destroySwarm() {
   }
   resetNetworkWatch()
   stopPresenceHeartbeat()
-  if (convergenceTimer) {
-    clearInterval(convergenceTimer)
-    convergenceTimer = null
-  }
-  convergenceTicking = false
+  resetConvergenceTick()
   resetRegistries()
-  announceLedger.clear()
-  deficitTicks.clear()
-  lastRefreshAt.clear()
-  escalationsSpent.clear()
   clearListDeficits()
   testDrop = null
   presence.clearAll()
@@ -1636,7 +1141,6 @@ async function destroySwarm() {
   canaryInFlight = null
   browserOnlineHint = true
   localBindings.clear()
-  leaveAcks.clear()
   // Close the one held bee per peer, not just the map: each carries a live session and an
   // append listener.
   for (const held of profileBeeAppendListeners.values()) {
@@ -1650,24 +1154,16 @@ async function destroySwarm() {
   frameLimiter = null
   membersPoke.reset()
   ipcRef = null
-  leavingSpaces.clear()
   overlayReconnectHook = null
   membershipControlHandler = null
   connectionAttachHook = null
   revokeServesForSpaceHook = null
   stalledOwnersHook = null
-  onPendingLeaveApplied = null
-  onPendingCancelApplied = null
-  pendingLeaves.clear()
-  lastLeaveAckedKeys.clear()
-  pendingCancels.clear()
+  resetLeaveProtocol()
   resetDeferredAdmission()
   lastReconnectAt = 0
   bootedAt = 0
   corruptionDiagnosed = false
-  lastStallRescueAt = 0
-  stallRescueBackoffMs = STALL_RESCUE_MIN_MS
-  stallRescueInFlight = false
   relaySelections = 0
   try {
     await swarm.destroy()
