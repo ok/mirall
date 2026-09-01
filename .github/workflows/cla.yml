@@ -37,7 +37,7 @@ jobs:
           # PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_SIGNATURES_TOKEN }}
         with:
           path-to-signatures: 'signatures/cla.json'
-          path-to-document: 'https://github.com/ok/mirall-app/blob/main/CLA.md'
+          path-to-document: 'https://github.com/ok/mirall/blob/main/CLA.md'
           branch: 'cla-signatures'
           # `renovate-bot` is the identity our self-hosted Renovate actually
           # commits as: renovatebot/github-action signs commits as

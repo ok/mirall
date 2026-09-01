@@ -17,11 +17,11 @@
   ·
   <a href="https://mirall.app/changelog">Changelog</a>
   ·
-  <a href="https://github.com/ok/mirall-app/issues">Report a bug</a>
+  <a href="https://github.com/ok/mirall/issues">Report a bug</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ok/mirall-app/actions/workflows/test.yml"><img src="https://github.com/ok/mirall-app/actions/workflows/test.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/ok/mirall/actions/workflows/test.yml"><img src="https://github.com/ok/mirall/actions/workflows/test.yml/badge.svg" alt="CI status"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-555" alt="Platforms: macOS, Windows, Linux">
 </p>
@@ -138,7 +138,7 @@ Step-by-step guides live in the [documentation](https://mirall.app/docs).
 Prerequisites: [Node.js](https://nodejs.org) 22+.
 
 ```bash
-git clone https://github.com/ok/mirall-app.git
+git clone https://github.com/ok/mirall.git
 cd mirall-app
 npm ci
 npm start        # build + launch the app (updates disabled)
