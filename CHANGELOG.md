@@ -10,48 +10,67 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
-## v1.9.1
-### 2026-08-28
+## v1.10.0
+### 2026-09-01
 
-Folder and single-file sharing now go through one publish queue, so a
-large index stays out of everyone's way and the file you just added is
-always first in line.
+Reliability and performance fixes across sharing, syncing and transfers,
+plus control over a folder that is still being read. Spaces made before
+v1.7.0 are no longer supported — see Changed.
 
 #### Added
 
-- **Adding files never waits behind a big index.** Each space has its own
-  queue with a bounded number of files hashing at once: a large folder
-  in one space no longer stalls a small one in another, files are hashed
-  smallest-first so members see something early, and a file you drop
-  into a shared folder — or share on its own — starts at once even while
-  an index is running. A folder is read once per file, not once per
-  event.
+- **Pause or stop a folder that is still being read.** A folder you
+  share now offers Pause and Stop beside the count of what is left to
+  read, and a paused folder says so and offers Resume.
+
+#### Changed
+
+- **Spaces made before v1.7.0 are no longer supported.** Every space
+  Mirall creates or joins is encrypted now, and a space older than that
+  release cannot be upgraded to it. Such a space is marked unsupported
+  rather than left half-working: it stays visible, but you cannot share
+  into it or invite anyone to it.
 
 #### Fixed
 
-- **A file added while its folder was still indexing stays shared.** It
-  used to be published on the spot and then removed by the index that had
-  started before it, so members saw it appear and vanish until the next
-  six-hourly pass.
-- **A copied-in file the watcher missed is shared within seconds.** macOS
-  can drop the event for a burst of new files; Mirall now re-checks with a
-  short backoff instead of leaving the file for the six-hourly pass.
-- **Renaming a file only by case keeps one entry, not two.** On macOS and
-  Windows the old name stayed shared beside the new one indefinitely.
-- **A rewrite that kept a file's size and date is picked up.** The daily
-  deep check noticed the change and then skipped the publish.
-- **Files deleted while Mirall was closed are removed in one step.** The
-  next start used to send members one update per deleted file.
-- **Removing or moving a folder during its index leaves nothing behind.**
-  A cancelled index no longer records itself as finished, and the folder
-  it was cancelled for is not re-armed.
-- **Cancelling a single file that is still "Adding" works on the first
-  click.** Adding it again while the cancel unwinds shares it, and
-  unsharing it during a long hash waits for the hash instead of racing
-  it.
-- **Switching spaces no longer flashes "nothing shared yet".** A space
-  holding only folder shares looked empty for a moment while its lists
-  loaded; they are now kept across visits.
+- **Some added files, renames and edits could go missing or double up.**
+  A file added during an index, one the watcher missed, a rename that
+  only changed case, and an edit that kept the file's size and date were
+  each dropped, duplicated, or held back until the next six-hourly pass.
+- **A file you add while a big folder is indexing no longer waits for
+  it.** Each space hashes its own queue, smallest files first, so a file
+  you drop in starts at once even while an index is running.
+- **A space or file list that came up empty now loads.** Members you
+  share many spaces with could be cut off after a reconnect, and a few
+  offline members could stop the file list loading at all. Lists no
+  longer flash "nothing shared yet" on the way in.
+- **What a folder is still adding is reported properly, on both sides.**
+  Your own view could stay empty for minutes on a large file, and
+  members saw only the two or three files being hashed at that moment; a
+  folder now names all the files and bytes it still has to read, on both
+  screens. Indexing is no longer counted or labelled as a download, the
+  bar no longer sits at full as though the file had finished, and
+  removing a folder no longer reports its files as being added.
+- **An action cut short leaves less behind, and a stall gets noticed.** A
+  cancelled or finished transfer could come back to life, a file could
+  sit on "Adding" for good, unsharing could leave the share offered, and
+  transfers running at quit never reached the Activity Log, and the disk
+  space a space you had left went on using was never reclaimed. An error
+  behind the scenes could leave Mirall quietly stuck with everything
+  still on screen, and a folder you mirror could stop syncing until the
+  next restart. Both are now spotted and picked back up on their own.
+- **Mirall asks less of your computer during transfers and in big
+  folders.** Sending a file and keeping a mirrored folder in sync did
+  work that grew with the folder, a reconnect started every waiting
+  download at once, a running transfer redrew the whole list every
+  second, opening a large folder read the same records thousands of
+  times, and a listing you had navigated away from still ran to the end.
+  All are bounded now, your own downloads go first, and a file row keeps
+  up with its own progress and errors.
+- **A session left running for days no longer gets heavier.** What
+  Mirall held on to for the members it had met and the files it was
+  serving kept growing, so a long session ended up slower than a fresh
+  start.
 
 
 ## v1.9.0

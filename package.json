@@ -1,7 +1,7 @@
 {
   "name": "mirall",
   "productName": "Mirall",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Secure large file transfer. No cloud. No accounts.",
   "license": "AGPL-3.0-or-later",
   "author": "Oliver Kohl",
