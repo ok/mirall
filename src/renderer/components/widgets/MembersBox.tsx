@@ -3,6 +3,7 @@ import type { SpaceMember } from '../../types.js'
 import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import MemberCard from '../cards/MemberCard.js'
 import Avatar from '../primitives/Avatar.js'
+import TextButton from '../primitives/TextButton.js'
 import { summarizeMembers } from '../../memberSummary.js'
 import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
 
@@ -42,19 +43,14 @@ export default function MembersBox({ spaceId, members }: MembersBoxProps) {
               <MemberCard key={member.publicKey} member={member} />
             ))}
           </div>
-          <div className="pt-4 shrink-0">
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              aria-expanded={true}
-              className="text-secondary font-bold rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-            >
+          <div className="pt-4 shrink-0 flex justify-end">
+            <TextButton onClick={() => setExpanded(false)} ariaExpanded={true}>
               {t('space.showFewerMembers')}
-            </button>
+            </TextButton>
           </div>
         </>
       ) : (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center">
             {stack.map((member, i) => (
               <span
@@ -81,14 +77,9 @@ export default function MembersBox({ spaceId, members }: MembersBoxProps) {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            aria-expanded={false}
-            className="ml-auto text-secondary font-bold rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-          >
+          <TextButton onClick={() => setExpanded(true)} ariaExpanded={false}>
             {t('space.showAllMembers')}
-          </button>
+          </TextButton>
         </div>
       )}
     </CollapsibleCard>

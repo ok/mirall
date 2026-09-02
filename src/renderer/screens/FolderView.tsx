@@ -492,9 +492,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
             isYou={isYou}
             selfProfile={profile}
             selfPublicKey={profile?.publicKey ?? ''}
-            roleDescription={t(share.role === 'browse'
-              ? 'folder.browseDescription'
-              : share.role === 'mirrored' ? 'folder.mirroredDescription' : 'folder.mineDescription')}
           />
           {info && (
             <FolderStatsCard

@@ -16,6 +16,7 @@ const fmtPhase = (label, p) => {
   if (!p) return `      ${label}: (not measured)`
   return `      ${label}: rows=${p.memberRows} col(h=${p.colHeight} bottom=${p.colBottom}) ` +
     `card(h=${p.cardHeight} bottom=${p.cardBottom}) gapBelow=${p.gapBelow} ` +
+    `tailGap=${p.tailGap} colOverflow=${p.colOverflow} ` +
     `scroll(client=${p.scrollClientH} content=${p.scrollContentH} overflow=${p.scrollOverflow})`
 }
 

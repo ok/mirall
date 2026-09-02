@@ -36,6 +36,8 @@ interface PhaseMetrics {
   cardHeight: number
   cardBottom: number
   gapBelow: number
+  tailGap: number
+  colOverflow: boolean
   scrollClientH: number
   scrollContentH: number
   scrollOverflow: boolean
@@ -115,6 +117,11 @@ function measure(card: HTMLElement): PhaseMetrics {
   const region = scrollRegion(card)
   const scrollClientH = region ? region.clientHeight : 0
   const scrollContentH = region ? region.scrollHeight : 0
+  // Leftover space in a flex column collects after the LAST child, so the slack that says
+  // "the expanded card is not stretching" has to be measured at the column's tail, not below
+  // this card — Members is no longer the bottom tile (Space Storage sits under it).
+  const tail = col.lastElementChild as HTMLElement | null
+  const tailGap = tail ? Math.round(colR.bottom - tail.getBoundingClientRect().bottom) : -1
   return {
     memberRows: memberRowCount(card),
     colHeight: Math.round(colR.height),
@@ -122,6 +129,8 @@ function measure(card: HTMLElement): PhaseMetrics {
     cardHeight: Math.round(cardR.height),
     cardBottom: Math.round(cardR.bottom),
     gapBelow: Math.round(colR.bottom - cardR.bottom),
+    tailGap,
+    colOverflow: col.scrollHeight > col.clientHeight + 1,
     scrollClientH,
     scrollContentH,
     scrollOverflow: scrollContentH > scrollClientH + 1,
@@ -186,11 +195,12 @@ async function run() {
   await sleep(150)
   const many = measure(card)
 
-  // Few members: the expanded card must NOT stretch to the column bottom — there
-  // must be real empty space below it, and the list must not be scrolling.
-  const fewOk = few.gapBelow > 48 && few.scrollOverflow === false
-  // Many members: the card caps at the column and the list scrolls internally.
-  const manyOk = many.scrollOverflow === true && many.gapBelow <= 48
+  // Few members: the expanded card must NOT stretch — the column keeps real slack at its
+  // tail and the list is not scrolling.
+  const fewOk = few.tailGap > 48 && few.scrollOverflow === false && few.colOverflow === false
+  // Many members: the card absorbs that slack (the column now ends flush) and pays for it by
+  // scrolling internally, without pushing the tiles below it out of the column.
+  const manyOk = many.scrollOverflow === true && many.tailGap <= 48 && many.colOverflow === false
 
   window.__results = {
     innerHeight: window.innerHeight,

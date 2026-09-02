@@ -2,7 +2,11 @@
 // fake bridge's space:mirrors) and asserts the stacked facepile renders a capped avatar stack + "+N"
 // overflow chip, encodes each peer's sync state as a ring colour (synced/syncing-pulse/paused —
 // never opacity), shows the heading, and carries an accessible name listing the mirrors and their
-// states — the a11y + colour contract can't be measured without a real AX tree + CSS.
+// states — the a11y + colour contract can't be measured without a real AX tree + CSS. It also pins
+// the sidebar rule: a right-hand tile states, it does not explain, so the card carries no
+// `leading-relaxed` body copy (the role blurb that used to sit under the mirror list), and its
+// "Show all" toggle is flush with the card's right content edge — where the Members tile puts it —
+// rather than stacked in the eyebrow column, where it wore the eyebrows' colour and weight.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
@@ -20,6 +24,11 @@ interface HarnessResults {
   hasSyncingPulse: boolean
   hasPausedRing: boolean
   hasOpacity: boolean
+  hasBodyCopy: boolean
+  toggleRightGap: number
+  toggleIndent: number
+  headerExpanded: string
+  headerCount: string
 }
 
 declare global {
@@ -64,6 +73,7 @@ function publishError(error: string): void {
   window.__results = {
     pass: false, error, heading: '', ariaLabel: '', avatarCount: -1, overflowText: '',
     hasSyncedRing: false, hasSyncingPulse: false, hasPausedRing: false, hasOpacity: false,
+    hasBodyCopy: true, toggleRightGap: -1, toggleIndent: -1, headerExpanded: '', headerCount: '',
   }
 }
 
@@ -76,7 +86,13 @@ async function run(): Promise<void> {
   }
   if (!facepile) return publishError('FolderPeopleCard facepile never rendered')
 
-  const heading = (document.querySelector('#host h3')?.textContent ?? '').trim()
+  const header = document.querySelector('#host h3 button') as HTMLButtonElement | null
+  const headerSpans = header ? Array.from(header.querySelectorAll('span')) : []
+  const heading = (headerSpans[0]?.textContent ?? '').trim()
+  const headerExpanded = header?.getAttribute('aria-expanded') ?? ''
+  // OWNER_PK mirrors its own share in this fixture, so 6 mirror rows must still count 6 people —
+  // the owner is counted once, not twice.
+  const headerCount = (headerSpans[1]?.textContent ?? '').trim()
   const ariaLabel = facepile.getAttribute('aria-label') ?? ''
   const children = Array.from(facepile.children)
   const lastText = (children[children.length - 1]?.textContent ?? '').trim()
@@ -87,12 +103,29 @@ async function run(): Promise<void> {
   const hasSyncingPulse = !!document.querySelector('#host .avatar-ring-syncing-active')
   const hasPausedRing = !!document.querySelector('#host .avatar-ring-paused')
   const hasOpacity = !!document.querySelector('#host .opacity-50')
+  const hasBodyCopy = !!document.querySelector('#host p.leading-relaxed')
+
+  // The card's own 32px padding (p-8) is the content edge. The toggle carries a focus-ring gutter
+  // (`-m-1 p-1`), so its border box overhangs its glyphs by 4px — measure the TEXT, which is what
+  // the eye lines up, via a Range over the label rather than the button's rect.
+  const card = document.querySelector('#host > div') as HTMLElement | null
+  const toggle = Array.from(document.querySelectorAll<HTMLButtonElement>('#host button'))
+    .find((b) => (b.textContent ?? '').trim() === i18n.t('space.showAllMembers')) ?? null
+  const eyebrow = document.querySelector('#host p.uppercase') as HTMLElement | null
+  if (!card || !toggle || !eyebrow) return publishError('card, toggle or eyebrow not found')
+  const range = document.createRange()
+  range.selectNodeContents(toggle)
+  const label = range.getBoundingClientRect()
+  const toggleRightGap = card.getBoundingClientRect().right - 32 - label.right
+  const toggleIndent = label.left - eyebrow.getBoundingClientRect().left
 
   window.__results = {
     pass:
       heading === i18n.t('folder.peopleHeading') &&
       avatarCount === 5 && overflowText === '+1' &&
-      hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity,
+      hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity && !hasBodyCopy &&
+      Math.abs(toggleRightGap) <= 1 && toggleIndent > 20 &&
+      headerExpanded === 'true' && headerCount === '6',
     error: null,
     heading,
     ariaLabel,
@@ -102,6 +135,11 @@ async function run(): Promise<void> {
     hasSyncingPulse,
     hasPausedRing,
     hasOpacity,
+    hasBodyCopy,
+    toggleRightGap,
+    toggleIndent,
+    headerExpanded,
+    headerCount,
   }
 }
 

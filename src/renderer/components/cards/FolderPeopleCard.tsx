@@ -4,8 +4,10 @@
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Avatar from '../primitives/Avatar.js'
-import Icon from '../primitives/Icon.js'
+import CollapsibleCard from '../primitives/CollapsibleCard.js'
+import TextButton from '../primitives/TextButton.js'
 import { useSpaceMirrors } from '../../hooks/useSpaceMirrors.js'
+import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
 import type { MirrorParticipant, Profile, SpaceMember } from '../../types.js'
 
 const STACK_MAX = 5
@@ -28,7 +30,6 @@ interface FolderPeopleCardProps {
   isYou: boolean
   selfProfile: Profile | null
   selfPublicKey: string
-  roleDescription: string
 }
 
 // The avatar ring encodes the peer's sync state: green when fully merged, amber when paused, and a
@@ -101,9 +102,9 @@ function FolderPeopleCard({
   isYou,
   selfProfile,
   selfPublicKey,
-  roleDescription,
 }: FolderPeopleCardProps) {
   const { t } = useTranslation()
+  const [open, setOpen] = useSpaceCardState(spaceId, 'folderPeopleOpen')
   const [expanded, setExpanded] = useState(false)
   const mirrors = useSpaceMirrors(spaceId, shareId)
 
@@ -133,13 +134,19 @@ function FolderPeopleCard({
   const namesLabel = t('folder.mirroredByNames', { names: resolved.map((r) => `${r.name} — ${stateLabel(r.state)}`).join(', ') })
   const asList = expanded || resolved.length === 1
 
-  return (
-    <div className="bg-surface-container-low rounded-2xl p-8">
-      <h3 className="text-xl font-headline font-bold text-accent mb-6 flex items-center gap-2">
-        <Icon name="group" className="text-secondary" />
-        {t('folder.peopleHeading')}
-      </h3>
+  // The owner is a person too, so the header count is the whole tile: owner + everyone mirroring.
+  // Guarded against an owner who also appears in the mirror list rather than assuming they can't.
+  const ownerKey = isYou ? selfPublicKey : (owner?.publicKey ?? '')
+  const peopleCount = 1 + resolved.filter((r) => r.key !== ownerKey).length
 
+  return (
+    <CollapsibleCard
+      icon="group"
+      title={t('folder.peopleHeading')}
+      count={peopleCount}
+      open={open}
+      onOpenChange={setOpen}
+    >
       <p className="text-xs font-bold uppercase tracking-wide text-secondary mb-3">{t('folder.ownerEyebrow')}</p>
       <OwnerRow
         name={isYou ? (selfProfile?.displayName || t('avatar.unknown')) : (owner?.displayName || t('avatar.unknown'))}
@@ -162,27 +169,21 @@ function FolderPeopleCard({
           ) : (
             <MirrorStack mirrorers={resolved} label={namesLabel} />
           )}
+          {/* The per-state counts and the toggle share one baseline row, so the toggle sits at the
+              card's right edge in both states — the same place the Members tile puts it. Stacked at
+              the left it landed in the eyebrows' column wearing the eyebrows' colour and weight,
+              and read as a third heading rather than as the one thing here you can press. */}
           {resolved.length > 1 && (
-            <>
-              <p className="text-xs text-on-surface-variant mt-3">{summary}</p>
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                aria-expanded={expanded}
-                className="mt-3 text-secondary font-bold text-sm rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-              >
+            <div className="mt-3 flex items-baseline justify-between gap-3">
+              <p className="text-xs text-on-surface-variant">{summary}</p>
+              <TextButton onClick={() => setExpanded((v) => !v)} ariaExpanded={expanded}>
                 {expanded ? t('space.showFewerMembers') : t('space.showAllMembers')}
-              </button>
-            </>
+              </TextButton>
+            </div>
           )}
         </>
       )}
-
-      {/* What this role means, in readable text. It used to live here as body copy; a title on a
-          16px glyph is not a substitute — there is nothing to hover on a touch screen and nothing
-          to activate with a keyboard. */}
-      <p className="text-xs text-on-surface-variant leading-relaxed mt-6">{roleDescription}</p>
-    </div>
+    </CollapsibleCard>
   )
 }
 

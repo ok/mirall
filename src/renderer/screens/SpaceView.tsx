@@ -533,10 +533,13 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
               />
             </div>
           )}
+          {/* People above size, the same order the folder screen's sidebar uses. Members is the
+              one that folds and the one that grows, so it takes the flexible slot; Storage is a
+              fixed three-line statement and sits under it. */}
+          <MembersBox spaceId={spaceId} members={members} />
           <div className="shrink-0">
             <StorageIndicator spaceId={spaceId} />
           </div>
-          <MembersBox spaceId={spaceId} members={members} />
         </div>
 
         <DropOverlay active={dragActive} kind={dragKind} fileCount={fileCount} folderName={folderName} />
