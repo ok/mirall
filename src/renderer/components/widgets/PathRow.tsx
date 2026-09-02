@@ -35,7 +35,7 @@ export default function PathRow({ path, placeholder, actionLabel, onAction, aria
           type="button"
           onClick={onAction}
           aria-describedby={ariaDescribedBy}
-          className="shrink-0 bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
         >
           {actionLabel ?? t('addFolder.browseHint')}
         </button>

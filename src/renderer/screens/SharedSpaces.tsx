@@ -51,7 +51,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
               className={`px-6 py-2.5 rounded-full font-medium transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
                 filter === f
                   ? 'bg-primary text-on-primary shadow-lg shadow-primary/10'
-                  : 'bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high'
+                  : 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover'
               }`}
             >
               {f === 'all' ? t('spaces.tabAll') : t('spaces.tabFavorites')}

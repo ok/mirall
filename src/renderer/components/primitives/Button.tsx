@@ -20,14 +20,21 @@ interface ButtonProps {
 }
 
 // Per-variant color / elevation / focus-ring / hover. Layout is shared in `base` below.
+//
+// Every variant names its hover colour; none of them blends. `hover:opacity-90` looked like a
+// darkening but is really "mix 10% of whatever is behind me", so it darkened the orange in dark
+// mode and LIGHTENED the plum in light mode (+9.3 L*), while the neutral swapped tokens and dropped
+// to within 2.8 L* of the page it sits on — a button dissolving into its own background. The tokens
+// step by a fixed perceptual amount instead: primary ~7 L*, neutral ~3-4 L*, always downwards, and
+// the neutral stays clear of the page.
 // `secondary` is the neutral surface style shared with the top-nav "Send feedback" button and
 // the filter chips, used for cancel / dismiss actions.
 // `danger` is the tonal destructive style used for every destructive action (in-page
 // triggers and modal confirmations alike): it rests in the soft error-container fill and
 // hovers to a slightly shifted shade of the same red rather than jumping to a neutral color.
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30',
-  secondary: 'bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container focus-visible:ring-secondary/30',
+  primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover focus-visible:ring-secondary/30',
+  secondary: 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover focus-visible:ring-secondary/30',
   danger: 'bg-error-container text-on-error-container hover:bg-error-container-hover focus-visible:ring-error/30',
 }
 

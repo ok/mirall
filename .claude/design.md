@@ -83,7 +83,8 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 | `success` / `on-success` | `#c1ecc4` / `#0c4d20` | The green "it's on your device" state — shared-by-you + downloaded |
 | `info` / `on-info` | `#d6e6f5` / `#1f4a78` | The blue "busy" state — transferring (downloading / verifying) or indexing (preparing / adding) |
 | `online` / `offline` | `#0d8b80` / `#a0a4ac` | Member presence |
-| `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk |
+| `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk. **Solid chips only** |
+| `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — the read-only notice, the work strip's paused band |
 | `error` | `#ba1a1a` | Hard error text/icon |
 | `error-container` / `on-error-container` | `#ffdad6` / `#93000a` | Danger button rest, error toast/badge |
 | `error-container-hover` | `#f5c8c4` | Danger button hover |
@@ -136,6 +137,21 @@ controls) matches. Persistence lives in `config.json` (`appearance.theme`) via
 `src/renderer/config-client.ts`; the legacy `mirall:theme` localStorage key is
 read once for migration then deleted. `assets/theme-bootstrap.js` applies the
 stored theme before React mounts to avoid a flash.
+
+### A status surface pairs with its own foreground
+
+`on-{status}` is the foreground for the **solid** chip, and nothing else. A tinted status surface
+takes the `-container` pair: `bg-warning-container text-on-warning-container`, exactly as
+`error-container` / `on-error-container` already worked. Two places had drifted from this, both
+using a `bg-warning/20` alpha tint: the work strip paired it with `on-surface` (readable, but a
+different rule from every other status surface), and the mirror modal's read-only notice paired it
+with `on-warning` — a near-black glyph, which over the blended tint measured **1.92:1** in dark
+mode, below the 3:1 floor for non-text contrast. The container pair is 7.79:1 dark and 6.83:1
+light. Note this is why "make it lighter" is not the fix on its own: in light mode the readable
+direction is *darker*, and only a token pair can say that.
+
+`info` still carries a `bg-info/20` tint against `on-surface`. It reads acceptably, but it is the
+same drift and wants the same treatment when someone next touches it.
 
 ### Adding a new semantic token (two edits, not one)
 
@@ -289,19 +305,41 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 
 ### Buttons — `primitives/Button.tsx`
 Three variants only:
-- **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90`
-- **`secondary`** — neutral surface (`bg-surface-container-high` →
-  `hover:bg-surface-container-highest`; dark is `-highest` → `surface-container`).
+- **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover`
+- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`.
   Shared with the nav "Send feedback" button and used for Cancel/dismiss.
 
-**Hover always darkens, in both themes.** Dark mode's ramp is not monotonic —
-`surface-container-high` (`#5c6068`) is *lighter* than `-highest` (`#393f4a`) — so the
-mirrored "one tier up" that reads correctly in light mode jumped the secondary button to a
-much lighter grey on hover while primary went darker. The dark hover is
-`surface-container` (`#2e323a`) instead. Same rule for the `ActionMenu` neutral trigger and
-`PathRow`'s button, which carry the same pair. (A transparent control that *lifts* into a
-visible surface on hover — `IconButton`, list rows — is the opposite pattern and still
-brightens.)
+**Every variant names its hover colour; none of them blends.** `hover:opacity-90` reads as
+"darken" but means "mix in 10% of whatever is behind me", so its size and even its *direction*
+depend on the backdrop: it darkened the orange by 5.1 L\* in dark mode and **lightened** the plum
+by 9.3 L\* in light mode. Meanwhile the neutral swapped ramp tokens and landed 2.8 L\* from the
+page it sits on, so the button dissolved into its own background on hover — which reads as "too
+dark" even though the step was the same size as primary's.
+
+The hover tokens step by a fixed perceptual amount, always downwards, and the neutral keeps its
+distance from the page:
+
+| | base → hover | ΔL\* | clears the page by |
+|---|---|---|---|
+| primary, dark | `#fd9c42` → `#e28c3b` | −7.0 | — |
+| neutral, dark | `#393f4a` → `#353b45` | −2.0 | 6.8 L\* |
+| primary, light | `#33253b` → `#241a2a` | −6.1 | — |
+| neutral, light | `#eae8e4` → `#e4e2de` | −2.1 | 7.6 L\* |
+
+**The neutral base is one token, not a `dark:` variant, and that is load-bearing.** A
+`dark:bg-…` utility compiles to `.dark\:bg-x:is(.dark *)` — specificity (0,2,0), the same as a
+`hover:` utility — so the two are decided by source order, and the dark base happened to come
+later: the hover simply never applied in dark mode. The old code only worked because
+`dark:hover:…` is a *combined* variant at (0,3,0). `surface-control` flips per theme instead, so
+the base is (0,1,0) and hover always wins. Prefer a theme-flipping token over a `dark:` variant on
+anything that also has interactive states.
+
+The neutral's step is deliberately much the smaller one — about a third of primary's. It starts
+only ~8 L\* above the page, so a primary-sized step reads as the button dissolving rather than
+responding; ~2 L\* is enough to acknowledge the pointer on a surface that quiet. Same tokens for
+the `ActionMenu` triggers, `PathRow`'s button, and the All/Favorites tabs on the spaces list,
+which are filled neutral chips and not the *lift* pattern below. (A transparent control that *lifts* into a visible
+surface on hover — `IconButton`, list rows — is the opposite pattern and still brightens.)
 - **`danger`** — tonal `bg-error-container text-on-error-container` →
   `hover:bg-error-container-hover` (stays in the red family, never jumps to neutral).
 
