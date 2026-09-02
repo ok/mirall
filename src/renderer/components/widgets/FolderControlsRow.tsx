@@ -1,6 +1,9 @@
-// The listing's own controls, pinned directly above the first file row and outside the scroll pane.
-// It never moves and never disappears — a strip appearing above it must not take the filter with
-// it, which is also what keeps focus alive when a scan starts under the user's hands.
+// The listing's own controls, pinned directly above the first file row as the scroll pane's sticky
+// first child. It never moves and never disappears — a strip appearing above it must not take the
+// filter with it, which is also what keeps focus alive when a scan starts under the user's hands.
+// Living INSIDE the pane is what aligns it: it shares the rows' content box, so its right edge
+// lands on theirs without anyone needing to know how wide a scrollbar is. The spacing below it
+// belongs to the sticky wrapper, which must stay opaque all the way down to the first row.
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
@@ -35,7 +38,7 @@ export default function FolderControlsRow({
   }
 
   return (
-    <div className="flex items-center gap-3 mb-3 shrink-0">
+    <div className="flex items-center gap-3 shrink-0">
       <div className="relative flex-1 min-w-0">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
           <Icon name="search" size={18} />

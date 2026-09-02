@@ -31,7 +31,6 @@ import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '..
 import { useOwnedMount } from '../hooks/useFolderMount.js'
 import { useIndexProgress } from '../hooks/useIndexProgress.js'
 import { deriveIndexSummary } from '../indexSummary.js'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { FileTreeNode } from '../types.js'
@@ -65,7 +64,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // exactly when the listing was truncated.
   const listingTruncated = !loading && !error && !!info && info.truncated
   const { mount: foreignMount, status: foreignStatus } = useForeignMount(spaceId, share.role === 'mirrored' ? share.id : '')
-  const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [filter, setFilter] = useState('')
@@ -381,15 +379,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
           1fr track. The rings now paint into the page gutter and the column gap, which are empty. */}
       <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
         <div className="flex flex-col min-w-0 min-h-0">
-          <FolderControlsRow
-            value={filter}
-            onChange={setFilter}
-            matched={matched}
-            total={filterableTotal}
-            expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
-            onToggleExpand={() => (anyExpanded ? collapseAll() : expandAll([...expanded, ...allFolderPaths]))}
-            showExpand={allFolderPaths.length > 0}
-          />
           {/* `relative` establishes a positioning context for this scroll pane.
               Without it, the absolutely-positioned `sr-only` status spans inside
               the rows (e.g. the "syncing"/"preparing" spinner text) have no
@@ -400,15 +389,32 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
               entered/left transfer states during a download. Containing them
               here keeps the document pinned to the viewport. */}
           <div
-            ref={filesRef}
             /* A scroll pane clips both axes, and the rows sit flush against it, so a focused row
                lost its ring on all four sides. The 4px of interior room is cancelled by an equal
-               negative margin: the clip box grows, the rows do not move, so nothing has to be
-               re-aligned against the tiles on the right. `pr-4` is the shared scrollbar gutter —
-               the same 16px the tiles column uses, so both bars sit off their content by an equal
-               margin. */
-            className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
+               negative margin: the clip box grows, the rows do not move. `pr-4` is the shared
+               scrollbar gutter, the same 16px the tiles column uses.
+               `scrollbar-gutter: stable` reserves the bar's strip whether or not it is showing, so
+               a filter that drops the list below the scroll threshold no longer widens every row
+               under the user's hands — which is also what let the conditional padding, and the
+               ResizeObserver behind it, go away. */
+            className="relative flex-1 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 pr-4"
           >
+            {/* Sticky, not fixed above the pane: inside it the row shares the rows' content box,
+                so its right edge lands on theirs. `top-0`, not `top-1`, because Chromium measures
+                the sticky inset from the scrollport INCLUDING this pane's `pt-1` — so `top-0`
+                already parks it exactly where it rests, and `top-1` made it drop 4px the moment it
+                stuck. It stays opaque down to the first row so nothing shows through beneath. */}
+            <div className="sticky top-0 z-10 bg-surface pb-3">
+              <FolderControlsRow
+                value={filter}
+                onChange={setFilter}
+                matched={matched}
+                total={filterableTotal}
+                expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
+                onToggleExpand={() => (anyExpanded ? collapseAll() : expandAll([...expanded, ...allFolderPaths]))}
+                showExpand={allFolderPaths.length > 0}
+              />
+            </div>
             {loading ? (
               <LoadingFiles label={t('folder.loading')} />
             ) : error ? (
@@ -467,7 +473,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
         {/* `pr-4`: the same scrollbar gutter the list uses. Without it the tiles butt straight
             against their own scrollbar while the list sits 16px off its own. */}
-        <div className="space-y-6 min-h-0 overflow-y-auto scrollbar-thin pr-4 pb-1">
+        <div className="space-y-6 min-h-0 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pr-4 pb-1">
           <FolderPeopleCard
             spaceId={spaceId}
             shareId={share.id}

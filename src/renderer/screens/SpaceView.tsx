@@ -10,7 +10,6 @@ import { useMembers } from '../hooks/useMembers.js'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useShares, type ShareWithRole } from '../hooks/useShares.js'
 import { useProfile } from '../hooks/useProfile.js'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useDragShare } from '../hooks/useDragShare.js'
 import DropZone from '../components/widgets/DropZone.js'
 import DropOverlay from '../components/widgets/DropOverlay.js'
@@ -83,7 +82,6 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const [shareToDelete, setShareToDelete] = useState<ShareWithRole | null>(null)
   const [shareToMirror, setShareToMirror] = useState<ShareWithRole | null>(null)
   const [busy, setBusy] = useState<Set<string>>(new Set())
-  const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { dragKind, fileCount, folderName, dragActive, dragHandlers } = useDragShare({
     onFiles: addFiles,
@@ -388,15 +386,16 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         {...(isLegacy ? {} : dragHandlers)}
       >
         <div
-          ref={filesRef}
           /* `relative` makes this pane the containing block for the `sr-only` spans inside the
              rows (a file's full name, via FileName). They are `position: absolute`, so without it
              they resolve against the grid above — which no longer clips anything — and a row
              below the fold drops its 1px span past the viewport bottom, growing the DOCUMENT into
              an OS scrollbar down the whole window. FolderView's pane carries it for the same
              reason. The 4px of interior room is for a focused card's ring, cancelled by an equal
-             negative margin so no card moves; `pr-4` is the shared scrollbar gutter. */
-          className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
+             negative margin so no card moves; `pr-4` is the shared scrollbar gutter, and
+             `scrollbar-gutter: stable` reserves the bar's strip so the cards keep their width
+             whether or not it is showing. */
+          className="relative overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8"
         >
           {showSpaceEmptyState(pane) ? (
             <div className="flex flex-col min-h-[24rem] mt-12">
