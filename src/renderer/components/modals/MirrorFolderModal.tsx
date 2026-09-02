@@ -218,9 +218,9 @@ function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, vali
           )}
         </div>
 
-        <div className="bg-warning/20 rounded-xl p-3.5 flex items-start gap-3">
-          <Icon name="lock" size={18} className="text-on-warning shrink-0 mt-0.5" />
-          <p className="text-xs text-on-surface leading-relaxed">
+        <div className="bg-warning-container rounded-xl p-3.5 flex items-start gap-3">
+          <Icon name="lock" size={18} className="text-on-warning-container shrink-0 mt-0.5" />
+          <p className="text-xs text-on-warning-container leading-relaxed">
             {t('mirrorFolder.readOnlyWarning', { owner: ownerName })}
           </p>
         </div>

@@ -16,14 +16,14 @@ interface FolderWorkStripProps {
 
 const TONE: Record<StripTone, string> = {
   error: 'bg-error-container text-on-error-container',
-  warning: 'bg-warning/20 text-on-surface',
+  warning: 'bg-warning-container text-on-warning-container',
   info: 'bg-info/20 text-on-surface',
   neutral: 'bg-surface-container-low text-on-surface-variant',
 }
 
 const ICON_TONE: Record<StripTone, string> = {
   error: '',
-  warning: 'text-warning',
+  warning: '',
   info: 'text-on-info animate-pulse',
   neutral: '',
 }
