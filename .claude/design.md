@@ -195,10 +195,18 @@ plain Tailwind sizes + `font-headline`:
   and equal to the `pt-8` top / `pb-8` bottom breathing room (consistent 32px
   on all four sides).
 - **Scrollbar gutter: `pr-4` (16px)** between a scroll pane's content and its own scrollbar —
-  every pane, so two side-by-side panes sit off their bars by the same margin. Note `.scrollbar-thin`
-  is `scrollbar-width: auto` (not thin, despite the name) and sets `scrollbar-color`, which opts
-  Chromium out of overlay scrollbars — so the bar always takes real layout width, and a controls row
-  *outside* the pane runs wider than the rows inside it.
+  every pane, so two side-by-side panes sit off their bars by the same margin. `.scrollbar-thin` is
+  `scrollbar-width: thin` (11px here) and sets `scrollbar-color`, which opts Chromium out of
+  overlay scrollbars, so the bar always takes real layout width.
+- **`[scrollbar-gutter:stable]` on a pane whose content crosses the scroll threshold.** It reserves
+  the bar's strip whether or not the bar shows, so a filter that shortens a list no longer widens
+  every row. `useHasVerticalOverflow` is the older, hand-built substitute — a `ResizeObserver` per
+  pane whose only job is `hasOverflow ? 'pr-4' : ''` — still wired into 14 other screens.
+- **A control that must line up with a scrolling list belongs INSIDE the pane**, sticky, not
+  floating above it: there it shares the rows' content box and needs to know nothing about
+  scrollbar widths. `FolderView`'s filter row is `sticky top-0 z-10 bg-surface pb-3` — `top-0`
+  because Chromium measures the inset from the scrollport *including* the pane's own padding.
+  `npm run test:layout:geometry` pins both edges and the stick.
 - **Every scroll pane is `relative`.** `sr-only` is `position: absolute`, and an absolutely
   positioned box is clipped only from its *containing block* upwards — not by a scroll pane it
   merely sits inside in the DOM. An unpositioned pane therefore lets the `sr-only` spans of rows
@@ -285,7 +293,7 @@ ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against
 off, and an `overflow-y-auto` pane clips *both* axes. Where a list or a column has to clip, give it
 that room as padding and cancel it with an equal negative margin, so nothing moves:
 `-mx-1 -mt-1 pl-1 pt-1` on the pane (see `FolderView.tsx`, `SpaceView.tsx`).
-`npm run test:layout:focusring` measures the invariant against the real screen.
+`npm run test:layout:geometry` measures the invariant against the real screen.
 
 ### Buttons — `primitives/Button.tsx`
 Three variants only:
