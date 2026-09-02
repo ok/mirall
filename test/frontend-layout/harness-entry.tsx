@@ -11,6 +11,7 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import FolderView from './../../src/renderer/screens/FolderView.js'
+import { offenders, positioned, bodyChildren, containerMetrics, documentScrollable } from './document-overflow.js'
 
 const f = (window as unknown as { __fake: { SPACE_ID: string; SHARE_ID: string; OWNER_PK: string; files: Array<{ relPath: string; size: number }> } }).__fake
 const emit = (window as unknown as { __fakeEmit: (o: Record<string, unknown>) => void }).__fakeEmit
@@ -38,110 +39,8 @@ createRoot(container).render(
 
 // --- measurement -----------------------------------------------------------
 
-interface Offender { tag: string; cls: string; top: number; bottom: number; height: number; clipped: boolean; pos: string }
-
-// Is anything between `el` and <html> clipping it (so it can't contribute to the
-// DOCUMENT scroll height)? Rows in the list's `overflow-y-auto` pane are clipped.
-function clippedByAncestor(el: Element): boolean {
-  let p = el.parentElement
-  while (p && p !== document.documentElement) {
-    const s = getComputedStyle(p)
-    if (s.overflowY !== 'visible' || s.overflowX !== 'visible') return true
-    p = p.parentElement
-  }
-  return false
-}
-
-// Capture every element whose bottom escapes the viewport, annotated with
-// whether it's clipped and its position — so the real (non-clipped, non-fixed)
-// contributor stands out.
-function offenders(ih: number): Offender[] {
-  const out: Offender[] = []
-  for (const el of Array.from(document.querySelectorAll('body *'))) {
-    const r = el.getBoundingClientRect()
-    if (r.height > 0 && r.bottom > ih + 1) {
-      const pos = getComputedStyle(el).position
-      out.push({
-        tag: el.tagName.toLowerCase(),
-        cls: String((el as HTMLElement).className || '').slice(0, 70),
-        top: Math.round(r.top),
-        bottom: Math.round(r.bottom),
-        height: Math.round(r.height),
-        clipped: clippedByAncestor(el),
-        pos,
-      })
-    }
-  }
-  // The real document-overflow contributors: not clipped, not fixed. Surface
-  // those first, then any others for context.
-  out.sort((a, b) => {
-    const aReal = !a.clipped && a.pos !== 'fixed'
-    const bReal = !b.clipped && b.pos !== 'fixed'
-    if (aReal !== bReal) return aReal ? -1 : 1
-    return b.bottom - a.bottom
-  })
-  return out.slice(0, 16)
-}
-
-// Every positioned (absolute/fixed/sticky) element, plus body's direct children
-// — to catch a portal/overlay whose containing block is the ICB (<html>) and so
-// inflates documentElement.scrollHeight without showing up in body.scrollHeight.
-function positioned() {
-  const out: Array<Record<string, unknown>> = []
-  for (const el of Array.from(document.querySelectorAll('body, body *'))) {
-    const s = getComputedStyle(el)
-    if (s.position === 'absolute' || s.position === 'fixed' || s.position === 'sticky') {
-      const r = el.getBoundingClientRect()
-      out.push({
-        tag: el.tagName.toLowerCase(), pos: s.position,
-        cls: String((el as HTMLElement).className || '').slice(0, 70),
-        top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height),
-        cssTop: s.top, cssBottom: s.bottom, cssHeight: s.height,
-        parent: el.parentElement?.tagName.toLowerCase() ?? '',
-      })
-    }
-  }
-  return out
-}
-
-function bodyChildren() {
-  return Array.from(document.body.children).map((el) => {
-    const r = el.getBoundingClientRect()
-    return { tag: el.tagName.toLowerCase(), cls: String((el as HTMLElement).className || '').slice(0, 70), top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height) }
-  })
-}
-
-function containerMetrics() {
-  const pick = (sel: string) => {
-    const el = document.querySelector(sel) as HTMLElement | null
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    const s = getComputedStyle(el)
-    return { sel, top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), scrollH: el.scrollHeight, clientH: el.clientHeight, overflowY: s.overflowY, pt: s.paddingTop }
-  }
-  return {
-    html: { scrollH: document.documentElement.scrollHeight, clientH: document.documentElement.clientHeight },
-    body: pick('body'),
-    root: pick('#root > div'),
-    main: pick('main'),
-    screen: pick('main > div > div'),
-  }
-}
-
 function fileRowCount(): number {
   return document.querySelectorAll('p.truncate').length
-}
-
-// The user-visible symptom: can the whole document be scrolled (revealing the
-// empty space below)? This is what `overflow:hidden` OR a containing-context fix
-// both resolve — and unlike raw scrollHeight it reflects the actual OS scrollbar.
-function documentScrollable(): boolean {
-  const el = document.scrollingElement || document.documentElement
-  const before = el.scrollTop
-  el.scrollTop = 100000
-  const can = el.scrollTop > 0
-  el.scrollTop = before
-  return can
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))

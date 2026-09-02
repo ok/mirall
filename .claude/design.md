@@ -199,6 +199,13 @@ plain Tailwind sizes + `font-headline`:
   is `scrollbar-width: auto` (not thin, despite the name) and sets `scrollbar-color`, which opts
   Chromium out of overlay scrollbars — so the bar always takes real layout width, and a controls row
   *outside* the pane runs wider than the rows inside it.
+- **Every scroll pane is `relative`.** `sr-only` is `position: absolute`, and an absolutely
+  positioned box is clipped only from its *containing block* upwards — not by a scroll pane it
+  merely sits inside in the DOM. An unpositioned pane therefore lets the `sr-only` spans of rows
+  below the fold resolve against whatever is positioned above it (or the `<html>` block) and grow
+  the **document**, which paints an OS scrollbar down the side of the window over a shell that is
+  exactly `100vh`. Both `FolderView` and `SpaceView` carry it on their list pane;
+  `npm run test:layout` and `npm run test:layout:spaceoverflow` measure it.
 - **Dominant spacing increments:** `gap-4` and `gap-6` (flex/grid),
   `space-y-6`, `space-y-10` (between settings sections), `p-5` (card rows),
   `p-6` (toggles, section cards), `p-8` (large cards).

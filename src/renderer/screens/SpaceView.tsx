@@ -389,9 +389,14 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       >
         <div
           ref={filesRef}
-          /* 4px of interior room for a focused card's ring, cancelled by an equal negative margin
-             so no card moves; `pr-4` is the shared scrollbar gutter. Same shape as FolderView. */
-          className={`overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
+          /* `relative` makes this pane the containing block for the `sr-only` spans inside the
+             rows (a file's full name, via FileName). They are `position: absolute`, so without it
+             they resolve against the grid above — which no longer clips anything — and a row
+             below the fold drops its 1px span past the viewport bottom, growing the DOCUMENT into
+             an OS scrollbar down the whole window. FolderView's pane carries it for the same
+             reason. The 4px of interior room is for a focused card's ring, cancelled by an equal
+             negative margin so no card moves; `pr-4` is the shared scrollbar gutter. */
+          className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
         >
           {showSpaceEmptyState(pane) ? (
             <div className="flex flex-col min-h-[24rem] mt-12">

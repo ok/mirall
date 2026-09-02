@@ -95,4 +95,9 @@ await build({
   entryPoints: [path.join(HERE, 'harness-truncation-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-truncation.js'),
 })
+await build({
+  ...common,
+  entryPoints: [path.join(HERE, 'harness-spaceoverflow-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-spaceoverflow.js'),
+})
 console.error('[build] harness bundled')
