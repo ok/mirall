@@ -166,6 +166,7 @@ export function useRegisterCommand(cmd: Command, deps: DependencyList): void {
       labelParams: cmd.labelParams,
       group: cmd.group,
       accelerator: cmd.accelerator ?? acceleratorFor(cmd.id),
+      hiddenInPalette: cmd.hiddenInPalette,
       when: cmd.when ? (ctx) => (cmdRef.current.when ? cmdRef.current.when(ctx) : true) : undefined,
       run: (ctx) => cmdRef.current.run(ctx),
     }
