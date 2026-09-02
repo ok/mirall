@@ -354,6 +354,28 @@ Optional leading icon at `size={20}`. `fullWidth` available; `ref` and
 string — four screens once kept their own `ACTION_BUTTON` constant, and the copy
 that lost its `bg-*` pair is exactly how an unfilled Cancel button shipped.
 
+### Text button — `primitives/TextButton.tsx`
+The low-emphasis action: `text-sm font-bold text-secondary hover:underline`, no fill, no
+border. For the places a filled `Button` would outweigh what it does — the "Show all /
+Show fewer" toggles in the 300px sidebar tiles, where a `px-5 py-2.5` pill would dominate
+the roster it reveals.
+
+`-m-1 p-1 rounded-lg` is the focus-ring gutter: the padding gives the ring room off the
+glyphs, the equal negative margin takes it back, so the label occupies exactly the box it
+would with no padding and nothing around it shifts.
+
+**Right-align it from the parent** (`justify-end` / `justify-between`), never with
+`ml-auto` on the button — `ml-auto` and `-m-1` set the same property and stylesheet order,
+not class order, decides the winner.
+
+**A sidebar toggle sits at the card's right content edge, in every state.** Left-aligned it
+lands in the eyebrow column (`text-xs font-bold uppercase text-secondary`) wearing the same
+amber and weight, and reads as another heading rather than the one pressable thing in the
+tile. `npm run test:layout:mirrorers` measures the flush right edge on the People tile.
+
+Still hand-rolled elsewhere: Activity Log's "Clear all" (`font-semibold`, its own padding)
+and `widgets/DocsLink.tsx` (an anchor with leading/trailing glyphs, not this primitive).
+
 ### Icon button — `primitives/IconButton.tsx`
 `w-10 h-10 rounded-full hover:bg-surface-container-high`. Requires `ariaLabel`;
 icon defaults to `text-accent`.
@@ -517,13 +539,30 @@ while the ETA is still warming up (no stable rate yet). Indeterminate renders a
 "Estimating…" string). Determinate mode keeps `aria-valuenow` + the width fill.
 
 ### Collapsible card — `primitives/CollapsibleCard.tsx`
-`bg-surface-container-low rounded-2xl p-8`; header button carrying the standard
-disclosure chevron (below). Open by default, and uncontrolled unless the caller passes
-`open` + `onOpenChange`. The SpaceView sidebar cards do pass them: **Space Storage** and
-**Members** keep their fold per space for the session (`hooks/useSpaceCardState.ts`), as
-does the Members card's avatar-stack-vs-list choice, so leaving a space and coming back
-restores what you left. The two are independent — a collapsed Members card still holds an
-expanded list underneath — and a space you have not touched opens at the defaults.
+`bg-surface-container-low rounded-2xl p-8`; header is a disclosure button carrying the
+standard chevron (below), wrapped in a real `<h3>` — a card that folds must not drop out
+of the heading order, and its non-folding siblings all title themselves with an `<h3>`.
+Open by default, and uncontrolled unless the caller passes `open` + `onOpenChange`.
+
+**Which sidebar tiles fold, and why.** The rule is by kind, not by screen:
+
+| | Folder view | Space view |
+|---|---|---|
+| **People** — folds, header count | `cards/FolderPeopleCard.tsx` | `widgets/MembersBox.tsx` |
+| **Size** — never folds | `cards/FolderStatsCard.tsx` | `widgets/StorageIndicator.tsx` |
+
+The size tile can't fold because `FolderStatsCard`'s top-right corner is taken by the
+status badge, which is exactly where the chevron would go; Space Storage gave up its fold
+to match rather than leave one of the pair odd. The people tile is the one worth folding —
+it is the tall one, and its roster is the part you dismiss once you've read it.
+
+Both people tiles keep their fold per space for the session
+(`hooks/useSpaceCardState.ts`), as does the Members card's avatar-stack-vs-list choice, so
+leaving and coming back restores what you left. Fold and stack-vs-list are independent — a
+collapsed Members card still holds an expanded list underneath — and a space you have not
+touched opens at the defaults. The People fold is keyed per **space**, not per folder: the
+store is pruned against the live space list, so a shareId key would read as a dead space
+and be swept.
 
 ### Disclosure chevron (expand / collapse affordance)
 Every expand/collapse control — `CollapsibleCard`, the `NetworkStatus` sections, the
