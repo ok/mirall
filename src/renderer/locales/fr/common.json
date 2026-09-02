@@ -599,6 +599,12 @@
     "addFavorite": "Ajouter cet espace aux favoris",
     "removeFavorite": "Retirer cet espace des favoris",
     "manageStorage": "Gérer le stockage de cet espace",
+    "folderOpen": "Ouvrir le dossier {{name}}",
+    "folderLocate": "Localiser le dossier {{name}}",
+    "folderPause": "Suspendre la synchronisation de {{name}}",
+    "folderResume": "Reprendre la synchronisation de {{name}}",
+    "folderMirror": "Mettre {{name}} en miroir sur le disque",
+    "folderEdit": "Modifier le dossier {{name}}",
     "whatsNew": "Quoi de neuf",
     "sendFeedback": "Envoyer un commentaire",
     "openDocs": "Ouvrir la documentation"

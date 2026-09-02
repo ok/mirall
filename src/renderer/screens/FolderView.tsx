@@ -32,6 +32,7 @@ import { useOwnedMount } from '../hooks/useFolderMount.js'
 import { useIndexProgress } from '../hooks/useIndexProgress.js'
 import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { FileTreeNode } from '../types.js'
@@ -266,6 +267,21 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   }
 
   const paused = isYou ? indexPaused : !foreignEnabled
+  // The same acts the header offers, reachable from the command palette while this folder is on
+  // screen. Deliberately not the destructive pair: Delete and Unmount are gated on work that is
+  // still running, and an Enter keypress in a search field is the wrong place to confirm either.
+  useFolderCommands({
+    name: share.name,
+    role: share.role,
+    paused,
+    sourceMissing,
+    canMirror: !!onMirror,
+    onOpen: handleRevealFolder,
+    onLocate: handleLocate,
+    onSetPaused: (next) => { void setPaused(next) },
+    onMirror: () => onMirror?.(share),
+    onEdit: () => setShowEdit(true),
+  })
   // Destructive entries are disabled while the folder is working — not the trigger, because Pause
   // lives in this menu and is the one control you reach for while it runs.
   const destructive: ActionMenuItemConfig = isYou
