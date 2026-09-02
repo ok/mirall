@@ -404,9 +404,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
             /* A scroll pane clips both axes, and the rows sit flush against it, so a focused row
                lost its ring on all four sides. The 4px of interior room is cancelled by an equal
                negative margin: the clip box grows, the rows do not move, so nothing has to be
-               re-aligned against the tiles on the right. `pr-4` is the scrollbar gutter (see
-               design.md §4) — the same 16px the tiles column uses, so both bars sit off their
-               content by an equal margin. */
+               re-aligned against the tiles on the right. `pr-4` is the shared scrollbar gutter —
+               the same 16px the tiles column uses, so both bars sit off their content by an equal
+               margin. */
             className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
           >
             {loading ? (
