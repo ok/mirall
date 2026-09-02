@@ -83,3 +83,48 @@ test('a path field on a settings screen is filled a step below its card', (t) =>
     }
   }
 })
+
+// The `fill` prop is only worth anything while the two ramp steps it chooses between stay
+// visibly apart. They are adjacent tokens and the gap is small by design, so a future palette
+// nudge could quietly close it — and the failure is silent: a field that renders as a flat
+// rectangle of its own background, which is exactly what converting Storage settings would have
+// shipped had the default been kept.
+const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+const lum = (hex) => {
+  const m = hex.replace('#', '')
+  return 0.2126 * lin(parseInt(m.slice(0, 2), 16)) +
+         0.7152 * lin(parseInt(m.slice(2, 4), 16)) +
+         0.0722 * lin(parseInt(m.slice(4, 6), 16))
+}
+// CIE L*: a perceptual scale, unlike a contrast ratio. Two large adjacent fills are not text, so
+// WCAG's 3:1 says nothing useful about them — both pairs sit near 1.1:1 and read fine.
+const lstar = (hex) => { const y = lum(hex); return y > 216 / 24389 ? 116 * Math.cbrt(y) - 16 : y * 24389 / 27 }
+
+const css = readFileSync(path.resolve(RENDERER, 'styles/tailwind.css'), 'utf8')
+const tokensFor = (selector) => {
+  const start = css.indexOf(selector + ' {')
+  const block = css.slice(start, css.indexOf('}', start))
+  const out = {}
+  for (const m of block.matchAll(/--(color-[\w-]+):\s*(#[0-9a-fA-F]{6})/g)) out[m[1]] = m[2]
+  return out
+}
+
+// design.md's own step unit for neutral surfaces ("neutral ~3-4 L*"). Light is the tighter of the
+// two themes at 4.11 and lands right on it; dark has 6.15 to give.
+const NEUTRAL_STEP = 3
+
+test('the path field separates from its ground in BOTH themes', (t) => {
+  for (const theme of [':root', '.dark']) {
+    const k = tokensFor(theme)
+    const low = k['color-surface-container-low']
+    const lowest = k['color-surface-container-lowest']
+    const control = k['color-surface-control']
+    const gap = Math.abs(lstar(lowest) - lstar(low))
+    t.ok(gap >= NEUTRAL_STEP, `${theme}: the two fills are ${gap.toFixed(2)} L* apart`)
+    // And the button has to stay off both of them — it sits beside the field on either ground.
+    for (const [name, fill] of [['low', low], ['lowest', lowest]]) {
+      const d = Math.abs(lstar(control) - lstar(fill))
+      t.ok(d >= NEUTRAL_STEP, `${theme}: the button is ${d.toFixed(2)} L* off the ${name} fill`)
+    }
+  }
+})
