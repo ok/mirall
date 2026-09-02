@@ -380,12 +380,18 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         </div>
       ) : (
       <div
-        className="relative flex-1 overflow-hidden grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
+        /* No `overflow-hidden`: ShareCard's click target is an `absolute inset-0` overlay whose
+           `focus-visible:ring-2` paints outside the card, and the cards sit flush against this box.
+           `min-h-0` is what constrains the height; the drop overlay is inset from this same
+           positioned ancestor, so its bounds are unchanged. */
+        className="relative flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
         {...(isLegacy ? {} : dragHandlers)}
       >
         <div
           ref={filesRef}
-          className={`overflow-y-auto scrollbar-thin min-h-0 pb-4 space-y-8${filesOverflow ? ' pr-4' : ''}`}
+          /* 4px of interior room for a focused card's ring, cancelled by an equal negative margin
+             so no card moves; `pr-4` is the shared scrollbar gutter. Same shape as FolderView. */
+          className={`overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
         >
           {showSpaceEmptyState(pane) ? (
             <div className="flex flex-col min-h-[24rem] mt-12">

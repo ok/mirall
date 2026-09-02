@@ -28,7 +28,7 @@ export default async function s25 ({ runDir, bootstrap }) {
       await B.waitText('Reports', 60000)
       await B.mirrorShare(mirrorDir)
       await B.click({ name: 'Open Reports' })
-      await B.waitText('Files in this folder', 15000)
+      await B.waitText('People', 15000)
     })
     await r.ok('pausing the mirror shows a paused indication in the folder', async () => {
       await B.pauseMirror()

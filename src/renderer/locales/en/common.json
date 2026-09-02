@@ -198,12 +198,18 @@
     "nameInvalid": "Name can't contain slashes, control characters, or be empty."
   },
   "folder": {
-    "filesInFolder": "Files in this folder",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} files",
     "fileCountAndSize_one": "{{count}} file · {{size}}",
     "fileCountAndSize_other": "{{count}} files · {{size}}",
     "collapseAll": "Collapse all",
+    "filterPlaceholder": "Filter files…",
+    "filterLabel": "Filter files in this folder",
+    "filterCount": "{{shown}} of {{total}}",
+    "filterClear": "Clear filter",
+    "filterEmptyTitle": "No files match “{{term}}”",
+    "filterEmptyHint_one": "Try fewer characters, or clear the filter to see the {{count}} file in this folder.",
+    "filterEmptyHint_other": "Try fewer characters, or clear the filter to see all {{count}} files.",
     "expandAll": "Expand all",
     "onDeviceCount_one": "{{count}} on your device",
     "onDeviceCount_other": "{{count}} on your device",
@@ -222,9 +228,12 @@
     "indexingQueuedSize": "{{size}} to read",
     "indexScanning": "Looking for files to add…",
     "indexPause": "Pause",
-    "indexStop": "Stop",
     "indexResume": "Resume",
     "indexPausedBanner": "Adding files is paused. Resume to finish adding this folder.",
+    "syncingSummaryPeer_one": "Syncing {{count}} file from {{owner}}",
+    "syncingSummaryPeer_other": "Syncing {{count}} files from {{owner}}",
+    "syncingFetchSize": "{{size}} to fetch",
+    "syncingAnnounce": "Syncing files from {{owner}}",
     "subfolderCount_one": "contains {{count}} subfolder",
     "subfolderCount_other": "contains {{count}} subfolders",
     "loading": "Loading files",
@@ -241,8 +250,6 @@
     "sourceMissingBanner": "Source folder moved or unavailable. Members still see the last synced version; changes won't sync until you locate it.",
     "overLimitListing": "This folder has {{total}} files, above the {{limit}}-file limit. All files are still syncing, but only the first {{shown}} are listed.",
     "emptyHintMissing": "Mirall can't find this folder's source on disk. Locate it to resume syncing, or delete the share.",
-    "folderSize": "Folder size",
-    "mirroredByHeading": "Mirrored by",
     "mirroredByNames": "Mirrored by {{names}}",
     "mirrorStateSynced": "Synced",
     "mirrorStateSyncing": "Syncing…",
@@ -250,7 +257,17 @@
     "paused": "Paused",
     "mirrorPausedBanner": "Syncing is paused — files won't update until you resume the mirror.",
     "syncPausedToast": "Folder sync paused — {{reason}}",
-    "mirrorPausedToast": "Folder mirror paused — {{reason}}"
+    "mirrorPausedToast": "Folder mirror paused — {{reason}}",
+    "peopleHeading": "People",
+    "ownerEyebrow": "Owner",
+    "mirroringEyebrow": "Mirroring · {{count}}",
+    "folderHeading": "Folder",
+    "statusUpToDate": "Up to date",
+    "statusSyncing": "Syncing",
+    "statusAdding": "Adding",
+    "statusPaused": "Paused",
+    "statusMissing": "Missing",
+    "statusBrowseOnly": "Browse only"
   },
   "share": {
     "badgeMine": "Shared by you",
@@ -263,16 +280,19 @@
     "browseFiles": "Browse Files",
     "mirrorToDisk": "Mirror to Disk…",
     "deleteFolder": "Delete Folder",
-    "pauseMirror": "Pause Mirror",
-    "resumeMirror": "Resume Mirror",
-    "changeMirrorLocation": "Change Mirror Location…",
     "unmountMirror": "Unmount Mirror",
     "moreActions": "More",
+    "pauseSyncing": "Pause syncing",
+    "resumeSyncing": "Resume syncing",
+    "editFolder": "Edit Folder…",
+    "notWhileSyncing": "Not while this folder is syncing",
     "mountPointGone": "Folder is missing on disk",
     "mountPointGoneHint": "Source folder moved or unavailable — members see the last synced version",
     "locateFolder": "Locate folder…",
     "openFolder": "Open {{name}}",
     "locateSuccess": "Reconnected \"{{name}}\" to its new location",
+    "renameSuccess": "Renamed to “{{name}}”",
+    "mirrorLocationSuccess": "Mirror now stored in the new location",
     "fileCountAndSize_one": "{{count}} file · {{size}}",
     "fileCountAndSize_other": "{{count}} files · {{size}}"
   },
@@ -334,6 +354,7 @@
     "online": "Online",
     "offline": "Offline",
     "unknown": "Unknown Member",
+    "you": "You",
     "approve": "Approve",
     "deny": "Deny",
     "approveNamed": "Approve {{name}}",
@@ -684,7 +705,8 @@
     "etaSecondsLeft": "{{value}}s left",
     "etaMinutesLeft": "{{minutes}}m {{seconds}}s left",
     "etaHoursLeft": "{{hours}}h {{minutes}}m left",
-    "etaEstimating": "Estimating…"
+    "etaEstimating": "Estimating…",
+    "progressUnknown": "In progress, remaining time unknown"
   },
   "connectivity": {
     "online": "Online",
@@ -956,7 +978,9 @@
       "network.at_risk": "Connections to many people will fail on this network",
       "network.restored": "Connection restored",
       "network.peer_lost": "{{actor}} went offline",
-      "network.peer_back": "{{actor}} is back online"
+      "network.peer_back": "{{actor}} is back online",
+      "share.renamed": "You renamed the folder {{target}}",
+      "mirror.relocated": "You moved the mirror of {{target}}"
     },
     "kindLabel": {
       "space.created": "space created",
@@ -997,7 +1021,9 @@
       "network.at_risk": "connection at risk",
       "network.restored": "connection restored",
       "network.peer_lost": "member went offline",
-      "network.peer_back": "member back online"
+      "network.peer_back": "member back online",
+      "share.renamed": "folder renamed",
+      "mirror.relocated": "mirror moved"
     },
     "metaFiles_one": "{{formatted}} file",
     "metaFiles_other": "{{formatted}} files",
@@ -1113,5 +1139,20 @@
     "saved": "Diagnostics file saved.",
     "verboseOn": "Detailed logging is on. Reproduce the problem, then save the file.",
     "previewIntroRaw": "Identifying details are INCLUDED. This is exactly what will be saved."
+  },
+  "editFolder": {
+    "title": "Edit Folder",
+    "descOwner": "Rename this folder. Members see the new name; the folder on your disk keeps its own.",
+    "descMirror": "Change where this mirror is stored on disk.",
+    "nameLabel": "Folder name",
+    "namePlaceholder": "Folder name",
+    "nameOwnedBy": "{{owner}} owns this folder, so only they can rename it.",
+    "sourceLabel": "Source folder",
+    "sourceDesc": "Where the files live on your disk. Point Mirall at a new location and matching files are recognised — nothing is uploaded again.",
+    "sourceFixed": "Where the files live on your disk. Mirall re-points this for you if the folder ever goes missing.",
+    "mirrorLabel": "Mirror location",
+    "mirrorDesc": "Where this mirror is stored. Files already at the new location are recognised; anything missing is fetched again.",
+    "nameError": "Couldn’t rename this folder: {{error}}",
+    "locationError": "Couldn’t change the location: {{error}}"
   }
 }

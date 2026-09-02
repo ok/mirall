@@ -194,6 +194,11 @@ plain Tailwind sizes + `font-headline`:
   `TopNav` and `UpdateBanner` bars so their content aligns with the screens,
   and equal to the `pt-8` top / `pb-8` bottom breathing room (consistent 32px
   on all four sides).
+- **Scrollbar gutter: `pr-4` (16px)** between a scroll pane's content and its own scrollbar —
+  every pane, so two side-by-side panes sit off their bars by the same margin. Note `.scrollbar-thin`
+  is `scrollbar-width: auto` (not thin, despite the name) and sets `scrollbar-color`, which opts
+  Chromium out of overlay scrollbars — so the bar always takes real layout width, and a controls row
+  *outside* the pane runs wider than the rows inside it.
 - **Dominant spacing increments:** `gap-4` and `gap-6` (flex/grid),
   `space-y-6`, `space-y-10` (between settings sections), `p-5` (card rows),
   `p-6` (toggles, section cards), `p-8` (large cards).
@@ -230,7 +235,7 @@ card uses `rounded-2xl` (1.5rem), and modal panels sit one step above at
 | Radius | Applied to |
 |---|---|
 | `rounded-xl` (0.75rem) | Buttons, inputs, file/share cards, section cards, command-palette rows |
-| `rounded-2xl` (1.5rem) | SpaceCard, DropZone, CollapsibleCard, Onboarding card, FolderView sidebar info cards (owner + folder-size), CreateSpace preview card |
+| `rounded-2xl` (1.5rem) | SpaceCard, DropZone, CollapsibleCard, Onboarding card, FolderView sidebar tiles (People + Folder), CreateSpace preview card |
 | `rounded-3xl` (2rem) | Modal panels (Modal default + per-modal overrides, command palette, shortcuts) |
 | `rounded-full` | Avatars, badges, pills, toggle, segmented control, icon buttons |
 
@@ -268,12 +273,28 @@ Every interactive control uses the
 universal focus ring `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30`
 (danger uses `ring-error/30`) and `active:scale-95` press feedback unless noted.
 
+The ring is painted **outside** the border box, so it needs 2px of clearance inside every clipping
+ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against a control shaves it
+off, and an `overflow-y-auto` pane clips *both* axes. Where a list or a column has to clip, give it
+that room as padding and cancel it with an equal negative margin, so nothing moves:
+`-mx-1 -mt-1 pl-1 pt-1` on the pane (see `FolderView.tsx`, `SpaceView.tsx`).
+`npm run test:layout:focusring` measures the invariant against the real screen.
+
 ### Buttons — `primitives/Button.tsx`
 Three variants only:
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90`
 - **`secondary`** — neutral surface (`bg-surface-container-high` →
-  `hover:bg-surface-container-highest`; dark inverts one tier). Shared with the
-  nav "Send feedback" button and used for Cancel/dismiss.
+  `hover:bg-surface-container-highest`; dark is `-highest` → `surface-container`).
+  Shared with the nav "Send feedback" button and used for Cancel/dismiss.
+
+**Hover always darkens, in both themes.** Dark mode's ramp is not monotonic —
+`surface-container-high` (`#5c6068`) is *lighter* than `-highest` (`#393f4a`) — so the
+mirrored "one tier up" that reads correctly in light mode jumped the secondary button to a
+much lighter grey on hover while primary went darker. The dark hover is
+`surface-container` (`#2e323a`) instead. Same rule for the `ActionMenu` neutral trigger and
+`PathRow`'s button, which carry the same pair. (A transparent control that *lifts* into a
+visible surface on hover — `IconButton`, list rows — is the opposite pattern and still
+brightens.)
 - **`danger`** — tonal `bg-error-container text-on-error-container` →
   `hover:bg-error-container-hover` (stays in the red family, never jumps to neutral).
 
@@ -325,6 +346,18 @@ No dedicated primitive — inputs are styled inline and consistently:
 `bg-surface-container-lowest` (or `-low`), `border-none rounded-xl px-4/5 py-4`,
 focus via the universal ring (a **ring**, not a border). See `screens/Onboarding.tsx`,
 `keyboard/CommandPalette.tsx`.
+
+### Path field — `widgets/PathRow.tsx`
+One filesystem path in a modal, always the same shape: the path in a filled
+`bg-surface-container-low px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates and
+carries the full path for assistive tech), with an optional button beside it that re-picks it.
+`FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
+segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
+once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
+folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it. Omit
+`onAction` for a display-only row — the field stays and the **absent button** is what says the path
+is fixed. Used by Add Folder, Mirror to Disk and Edit Folder. `EditSpaceModal` still renders the
+older bare-text form; converting it needs ref forwarding for its focus-managed Browse button.
 
 ### Modal — `primitives/Modal.tsx`
 react-aria `useDialog` + `<FocusScope contain restoreFocus autoFocus>`;
@@ -407,6 +440,21 @@ waiting on that hash, and neither is a transfer — the folder roll-up counts th
 ⚪ `bg-surface-container-highest` (passive / not-here / **all folder roles** — `mine`/`browse`/`mirrored` —
 and `available`/`owner-offline`/`unavailable`). Roles carry meaning by label, not color.
 The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by pills.
+
+### Folder screen bands — `screens/FolderView.tsx`
+Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
+- **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned
+  and a mirrored folder (browse has the primary alone). No owner avatar: the People tile names them.
+- **Work strip** (`widgets/FolderWorkStrip.tsx`) — a full-width band *outside* the scroll pane,
+  present only while the folder is working, paused or broken, so its height returns to the file pane
+  when it clears. One tone per condition (`bg-info/20` busy, `bg-warning/20` paused,
+  `bg-error-container` broken, `bg-surface-container-low` informational) and at most one verb.
+- **Controls row** (`widgets/FolderControlsRow.tsx`) — pinned directly above the first file row and
+  never scrolling with it: the filter field (count and clear *inside* the field) plus Expand all.
+- **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
+  `cards/FolderStatsCard.tsx` (size, file count, and a status pill top-right drawn from the same
+  five-token `statusBadge.js` palette the file rows use). Neither carries an action — the only
+  control in either is People's *Show all*, which reveals more of the same status.
 
 ### Progress bar — `primitives/ProgressBar.tsx`
 `h-1.5 bg-progress-track rounded-full` track, `bg-on-info` fill, `transition-all

@@ -25,7 +25,6 @@ interface ShareCardProps {
   onUnmount?: (share: ShareWithRole) => void
   onPauseMirror?: (share: ShareWithRole) => void
   onResumeMirror?: (share: ShareWithRole) => void
-  onChangeMirrorLocation?: (share: ShareWithRole) => void
   onOpenInFinder?: (share: ShareWithRole) => void
   onLocate?: (share: ShareWithRole) => void
 }
@@ -62,7 +61,6 @@ function ShareCard({
   onUnmount,
   onPauseMirror,
   onResumeMirror,
-  onChangeMirrorLocation,
   onOpenInFinder,
   onLocate,
 }: ShareCardProps) {
@@ -93,9 +91,8 @@ function ShareCard({
     if (share.role === 'mirrored') {
       if (onOpenInFinder) items.push({ id: 'open-finder', label: t('share.openInFinder'), icon: 'folder_open', onAction: () => onOpenInFinder(share) })
       const enabled = share.mirrorEnabled !== false
-      if (enabled && onPauseMirror) items.push({ id: 'pause', label: t('share.pauseMirror'), icon: 'pause', onAction: () => onPauseMirror(share) })
-      if (!enabled && onResumeMirror) items.push({ id: 'resume', label: t('share.resumeMirror'), icon: 'play_arrow', onAction: () => onResumeMirror(share) })
-      if (onChangeMirrorLocation) items.push({ id: 'change-location', label: t('share.changeMirrorLocation'), icon: 'edit', onAction: () => onChangeMirrorLocation(share) })
+      if (enabled && onPauseMirror) items.push({ id: 'pause', label: t('share.pauseSyncing'), icon: 'pause', onAction: () => onPauseMirror(share) })
+      if (!enabled && onResumeMirror) items.push({ id: 'resume', label: t('share.resumeSyncing'), icon: 'play_arrow', onAction: () => onResumeMirror(share) })
       if (onUnmount) items.push({ id: 'unmount', label: t('share.unmountMirror'), icon: 'close', variant: 'danger', onAction: () => onUnmount(share) })
       return items
     }

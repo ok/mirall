@@ -69,6 +69,10 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
     const role = roleFor(s, myPublicKey, mirrored)
     return {
       ...s,
+      // One resolution point for the whole renderer: `name` is what people read, and the immutable
+      // on-disk name the worker keys drive paths with stays where the worker put it. Anything that
+      // must round-trip the real name reads `s.name` off the raw record instead.
+      name: s.displayName || s.name,
       role,
       mirrorEnabled: role === 'mirrored' ? mirrored.get(s.id) ?? true : undefined,
       mountStatus: role === 'mine' ? ownedStatus.get(s.id) : undefined,

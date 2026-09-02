@@ -109,7 +109,10 @@ export type ShareRole = 'mine' | 'browse' | 'mirrored'
 export interface Share {
   id: string
   type: ShareType
+  /** The immutable on-disk folder name. Also the first segment of the consumer drive path, so it
+   *  keys download claims and pending transfers — never rewrite it. `displayName` is the label. */
   name: string
+  displayName?: string
   owner: string
   spaceId: string
   createdAt: number

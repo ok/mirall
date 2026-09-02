@@ -174,12 +174,18 @@
     "nameInvalid": "Der Name darf keine Schrägstriche oder Steuerzeichen enthalten und nicht leer sein."
   },
   "folder": {
-    "filesInFolder": "Dateien in diesem Ordner",
     "fileCount_one": "{{count}} Datei",
     "fileCount_other": "{{count}} Dateien",
     "fileCountAndSize_one": "{{count}} Datei · {{size}}",
     "fileCountAndSize_other": "{{count}} Dateien · {{size}}",
     "collapseAll": "Alle einklappen",
+    "filterPlaceholder": "Dateien filtern…",
+    "filterLabel": "Dateien in diesem Ordner filtern",
+    "filterCount": "{{shown}} von {{total}}",
+    "filterClear": "Filter löschen",
+    "filterEmptyTitle": "Keine Dateien passen zu „{{term}}“",
+    "filterEmptyHint_one": "Versuche es mit weniger Zeichen oder lösche den Filter, um die {{count}} Datei in diesem Ordner zu sehen.",
+    "filterEmptyHint_other": "Versuche es mit weniger Zeichen oder lösche den Filter, um alle {{count}} Dateien zu sehen.",
     "expandAll": "Alle ausklappen",
     "onDeviceCount_one": "{{count}} auf deinem Gerät",
     "onDeviceCount_other": "{{count}} auf deinem Gerät",
@@ -198,9 +204,12 @@
     "indexingQueuedSize": "{{size}} zu lesen",
     "indexScanning": "Es wird nach Dateien zum Hinzufügen gesucht…",
     "indexPause": "Pausieren",
-    "indexStop": "Stoppen",
     "indexResume": "Fortsetzen",
     "indexPausedBanner": "Das Hinzufügen von Dateien ist pausiert. Setze es fort, um diesen Ordner fertig hinzuzufügen.",
+    "syncingSummaryPeer_one": "{{count}} Datei wird von {{owner}} synchronisiert",
+    "syncingSummaryPeer_other": "{{count}} Dateien werden von {{owner}} synchronisiert",
+    "syncingFetchSize": "{{size}} zu laden",
+    "syncingAnnounce": "Dateien werden von {{owner}} synchronisiert",
     "subfolderCount_one": "enthält {{count}} Unterordner",
     "subfolderCount_other": "enthält {{count}} Unterordner",
     "loading": "Lade Dateien",
@@ -217,8 +226,6 @@
     "sourceMissingBanner": "Quellordner verschoben oder nicht verfügbar. Andere sehen weiterhin den zuletzt synchronisierten Stand; Änderungen werden erst synchronisiert, wenn du ihn wiederfindest.",
     "overLimitListing": "Dieser Ordner enthält {{total}} Dateien und liegt damit über dem Limit von {{limit}} Dateien. Alle Dateien werden weiterhin synchronisiert, aufgelistet werden aber nur die ersten {{shown}}.",
     "emptyHintMissing": "Mirall findet den Quellordner auf der Festplatte nicht. Suche ihn, um die Synchronisierung fortzusetzen, oder entferne die Freigabe.",
-    "folderSize": "Ordnergröße",
-    "mirroredByHeading": "Gespiegelt von",
     "mirroredByNames": "Gespiegelt von {{names}}",
     "mirrorStateSynced": "Synchronisiert",
     "mirrorStateSyncing": "Wird synchronisiert…",
@@ -226,7 +233,17 @@
     "paused": "Pausiert",
     "mirrorPausedBanner": "Die Synchronisierung ist pausiert — Dateien werden erst aktualisiert, wenn du die Spiegelung fortsetzt.",
     "syncPausedToast": "Ordner-Synchronisierung pausiert – {{reason}}",
-    "mirrorPausedToast": "Ordner-Spiegelung pausiert – {{reason}}"
+    "mirrorPausedToast": "Ordner-Spiegelung pausiert – {{reason}}",
+    "peopleHeading": "Personen",
+    "ownerEyebrow": "Eigentümer",
+    "mirroringEyebrow": "Spiegelt · {{count}}",
+    "folderHeading": "Ordner",
+    "statusUpToDate": "Aktuell",
+    "statusSyncing": "Sync läuft",
+    "statusAdding": "Wird hinzugefügt",
+    "statusPaused": "Pausiert",
+    "statusMissing": "Fehlt",
+    "statusBrowseOnly": "Nur ansehen"
   },
   "share": {
     "badgeMine": "Von dir geteilt",
@@ -239,15 +256,18 @@
     "browseFiles": "Dateien durchsuchen",
     "mirrorToDisk": "Auf Festplatte spiegeln…",
     "deleteFolder": "Ordner löschen",
-    "pauseMirror": "Spiegelung pausieren",
-    "resumeMirror": "Spiegelung fortsetzen",
-    "changeMirrorLocation": "Spiegel-Ort ändern…",
     "unmountMirror": "Spiegelung aufheben",
     "moreActions": "Mehr",
+    "pauseSyncing": "Synchronisierung pausieren",
+    "resumeSyncing": "Synchronisierung fortsetzen",
+    "editFolder": "Ordner bearbeiten…",
+    "notWhileSyncing": "Nicht während dieser Ordner synchronisiert",
     "mountPointGone": "Ordner auf der Festplatte fehlt",
     "mountPointGoneHint": "Quellordner verschoben oder nicht verfügbar – andere sehen den zuletzt synchronisierten Stand",
     "locateFolder": "Ordner suchen…",
     "locateSuccess": "„{{name}}“ mit dem neuen Speicherort verbunden",
+    "renameSuccess": "Umbenannt in „{{name}}“",
+    "mirrorLocationSuccess": "Die Spiegelung liegt jetzt am neuen Ort",
     "fileCountAndSize_one": "{{count}} Datei · {{size}}",
     "fileCountAndSize_other": "{{count}} Dateien · {{size}}",
     "openFolder": "{{name}} öffnen"
@@ -310,6 +330,7 @@
     "online": "Online",
     "offline": "Offline",
     "unknown": "Unbekanntes Mitglied",
+    "you": "Du",
     "approve": "Annehmen",
     "deny": "Ablehnen",
     "approveNamed": "{{name}} annehmen",
@@ -660,7 +681,8 @@
     "etaSecondsLeft": "{{value}} Sek. übrig",
     "etaMinutesLeft": "{{minutes}} Min. {{seconds}} Sek. übrig",
     "etaHoursLeft": "{{hours}} Std. {{minutes}} Min. übrig",
-    "etaEstimating": "Wird geschätzt…"
+    "etaEstimating": "Wird geschätzt…",
+    "progressUnknown": "Läuft, verbleibende Zeit unbekannt"
   },
   "connectivity": {
     "online": "Online",
@@ -956,7 +978,9 @@
       "network.at_risk": "Verbindungen zu vielen Personen schlagen in diesem Netzwerk fehl",
       "network.restored": "Verbindung wiederhergestellt",
       "network.peer_lost": "{{actor}} ist offline gegangen",
-      "network.peer_back": "{{actor}} ist wieder online"
+      "network.peer_back": "{{actor}} ist wieder online",
+      "share.renamed": "Du hast den Ordner {{target}} umbenannt",
+      "mirror.relocated": "Du hast die Spiegelung von {{target}} verschoben"
     },
     "kindLabel": {
       "space.created": "Raum erstellt",
@@ -997,7 +1021,9 @@
       "network.at_risk": "Verbindung gefährdet",
       "network.restored": "Verbindung wiederhergestellt",
       "network.peer_lost": "Mitglied offline gegangen",
-      "network.peer_back": "Mitglied wieder online"
+      "network.peer_back": "Mitglied wieder online",
+      "share.renamed": "Ordner umbenannt",
+      "mirror.relocated": "Spiegelung verschoben"
     },
     "metaFiles_one": "{{formatted}} Datei",
     "metaFiles_other": "{{formatted}} Dateien",
@@ -1113,5 +1139,20 @@
     "saved": "Diagnosedatei gespeichert.",
     "verboseOn": "Ausführliche Protokollierung ist aktiv. Wiederhole das Problem und speichere dann die Datei.",
     "previewIntroRaw": "Identifizierende Angaben sind ENTHALTEN. Genau das wird gespeichert."
+  },
+  "editFolder": {
+    "title": "Ordner bearbeiten",
+    "descOwner": "Benenne diesen Ordner um. Andere sehen den neuen Namen; der Ordner auf deiner Festplatte behält seinen.",
+    "descMirror": "Ändere, wo diese Spiegelung auf der Festplatte liegt.",
+    "nameLabel": "Ordnername",
+    "namePlaceholder": "Ordnername",
+    "nameOwnedBy": "{{owner}} gehört dieser Ordner, daher kann nur {{owner}} ihn umbenennen.",
+    "sourceLabel": "Quellordner",
+    "sourceDesc": "Wo die Dateien auf deiner Festplatte liegen. Zeige Mirall einen neuen Ort und passende Dateien werden erkannt — nichts wird erneut hochgeladen.",
+    "sourceFixed": "Wo die Dateien auf deiner Festplatte liegen. Mirall passt das für dich an, falls der Ordner einmal fehlt.",
+    "mirrorLabel": "Ort der Spiegelung",
+    "mirrorDesc": "Wo diese Spiegelung gespeichert wird. Dateien, die am neuen Ort bereits liegen, werden erkannt; alles Fehlende wird erneut geladen.",
+    "nameError": "Ordner konnte nicht umbenannt werden: {{error}}",
+    "locationError": "Der Ort konnte nicht geändert werden: {{error}}"
   }
 }

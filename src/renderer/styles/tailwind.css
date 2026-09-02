@@ -237,7 +237,16 @@ button:disabled,
   animation: avatar-issue-pulse 2.4s ease-in-out infinite;
 }
 
-/* Mirror sync-state rings (MirroredByWidget): synced = success/green, paused = warning/amber,
+/* The folder filter is an <input type="search"> for the semantics, not for Chromium's own clear
+   glyph — the field already carries a labelled Clear button, and the native one is unlabelled,
+   unreachable by keyboard and sits on top of it. */
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Mirror sync-state rings (FolderPeopleCard): synced = success/green, paused = warning/amber,
    syncing = info/blue (pulsing while the peer is online and actively pulling, static otherwise). */
 .avatar-ring-synced {
   box-shadow: 0 0 0 2px var(--color-success);

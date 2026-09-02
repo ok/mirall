@@ -44,7 +44,10 @@ function splitSegments (relPath) {
 
 const cmpName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 
-function rollup (children) {
+// Exported as rollupNodes so a filtered tree can re-derive the aggregates for a folder whose
+// children it pruned: the counts, the size and the status pills a folder row prints all describe
+// the children it actually has.
+export function rollupNodes (children) {
   let fileCount = 0
   let totalBytes = 0
   let folderCount = 0
@@ -73,7 +76,7 @@ function finalize (folder) {
   const folders = [...folder._folders.values()].map(finalize).sort((a, b) => cmpName(a.name, b.name))
   const filesSorted = folder._files.sort((a, b) => cmpName(a.name, b.name))
   folder.children = [...folders, ...filesSorted]
-  Object.assign(folder, rollup(folder.children))
+  Object.assign(folder, rollupNodes(folder.children))
   delete folder._folders
   delete folder._files
   return folder

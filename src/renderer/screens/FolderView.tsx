@@ -1,6 +1,7 @@
-// Folder-share screen: the share's file listing as a collapsible folder tree with
-// per-file transfer status/progress, mirror controls, and who-is-downloading indicators.
-import { useState, useEffect, useMemo, useRef } from 'react'
+// Folder-share screen. One skeleton for all three roles: header (one primary + More), a work strip
+// band that exists only while the folder is doing something, a controls row pinned on the listing,
+// and two read-only tiles. Tiles state, the header acts, the strip acts for now.
+import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
 import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
@@ -12,13 +13,19 @@ import Icon from '../components/primitives/Icon.js'
 import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
-import Avatar, { type AvatarSize } from '../components/primitives/Avatar.js'
 import FolderTree from '../components/widgets/FolderTree.js'
+import FolderWorkStrip from '../components/widgets/FolderWorkStrip.js'
+import FolderControlsRow from '../components/widgets/FolderControlsRow.js'
 import LoadingFiles from '../components/widgets/LoadingFiles.js'
 import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
-import MirroredByWidget from '../components/cards/MirroredByWidget.js'
-import { formatSize } from '../utils.js'
+import EditFolderModal from '../components/modals/EditFolderModal.js'
+import FolderPeopleCard from '../components/cards/FolderPeopleCard.js'
+import FolderStatsCard from '../components/cards/FolderStatsCard.js'
 import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
+import { filterTree } from '../folderFilter.js'
+import { deriveStrips } from '../folderStrips.js'
+import { deriveFolderStatus } from '../folderStatus.js'
+import { deriveMirrorSync } from '../mirrorSync.js'
 import { request } from '../ipc.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useOwnedMount } from '../hooks/useFolderMount.js'
@@ -27,7 +34,7 @@ import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
-import type { Profile, SpaceMember, FileTreeNode } from '../types.js'
+import type { FileTreeNode } from '../types.js'
 
 interface FolderViewProps {
   spaceId: string
@@ -35,20 +42,10 @@ interface FolderViewProps {
   onBack: () => void
   onMirror?: (share: ShareWithRole) => void
   onUnmounted?: () => void
+  onRenamed?: (name: string) => void
 }
 
-function resolveOwner(owner: SpaceMember | null, isYou: boolean, selfProfile: Profile | null) {
-  if (isYou && selfProfile) return { avatar: selfProfile.avatar, displayName: selfProfile.displayName }
-  if (owner) return { avatar: owner.avatar ?? null, displayName: owner.displayName }
-  return { avatar: null as string | null, displayName: null as string | null }
-}
-
-function OwnerHeaderAvatar({ owner, isYou, selfProfile, size }: { owner: SpaceMember | null; isYou: boolean; selfProfile: Profile | null; size: AvatarSize | number }) {
-  const resolved = resolveOwner(owner, isYou, selfProfile)
-  return <Avatar src={resolved.avatar} displayName={resolved.displayName} size={size} />
-}
-
-export default function FolderView({ spaceId, share, onBack, onMirror, onUnmounted }: FolderViewProps) {
+export default function FolderView({ spaceId, share, onBack, onMirror, onUnmounted, onRenamed }: FolderViewProps) {
   const { t } = useTranslation()
   const toast = useToast()
   const { profile } = useProfile()
@@ -70,13 +67,43 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const { mount: foreignMount, status: foreignStatus } = useForeignMount(spaceId, share.role === 'mirrored' ? share.id : '')
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [showDelete, setShowDelete] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [filter, setFilter] = useState('')
 
   // The tree is derived from the flat file list; expansion state is separate and keyed by
   // stable folder paths, so it survives every rebuild (incl. live progress ticks).
   const tree = useMemo<FileTreeNode[]>(() => buildFileTree(files), [files])
-  const { isExpanded, toggle, expandAll, collapseAll, hasStored } = useTreeExpansion(share.id)
-  const allFolderPaths = useMemo<string[]>(() => collectFolderPaths(tree), [tree])
+  const { expanded, isExpanded, toggle, expandAll, collapseAll, hasStored } = useTreeExpansion(share.id)
+  // Filtering a 5,000-row tree on every keystroke is two O(n) walks — cheap — but the RENDER of
+  // what comes back is not, so the typed value stays responsive while the tree lags a frame.
+  const deferredFilter = useDeferredValue(filter)
+  const { nodes: visibleTree, matched, revealPaths } = useMemo(() => filterTree(tree, deferredFilter), [tree, deferredFilter])
+  const allFolderPaths = useMemo<string[]>(() => collectFolderPaths(visibleTree), [visibleTree])
   const anyExpanded = allFolderPaths.some(isExpanded)
+  // Expansion has exactly one home — the session store — so a disclosure button always toggles what
+  // it says it toggles. A reveal writes THROUGH it, and the pre-filter set is snapshotted, so
+  // clearing the filter puts back what the user had. An override read on top of the store would
+  // have made every chevron under a filter a no-op whose aria-expanded never changed.
+  const expandedRef = useRef(expanded)
+  expandedRef.current = expanded
+  const preFilterRef = useRef<Set<string> | null>(null)
+  const revealedForRef = useRef<string | null>(null)
+  useEffect(() => {
+    const term = deferredFilter.trim()
+    if (!term) {
+      const snapshot = preFilterRef.current
+      preFilterRef.current = null
+      revealedForRef.current = null
+      if (snapshot) expandAll([...snapshot])
+      return
+    }
+    if (!preFilterRef.current) preFilterRef.current = new Set(expandedRef.current)
+    // Once per term, not once per rebuild: the tree is rebuilt on every progress tick, and
+    // re-applying the reveal each time would undo a branch the user collapsed under the filter.
+    if (!revealPaths || revealedForRef.current === term) return
+    revealedForRef.current = term
+    expandAll([...new Set([...preFilterRef.current, ...revealPaths])])
+  }, [deferredFilter, revealPaths, expandAll])
   // Seed the default (top-level folders open) once, only if nothing was set this session.
   const seededRef = useRef(false)
   useEffect(() => {
@@ -92,19 +119,80 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // mountRootAvailable disk check) on every mount-status event — the useShares projection covers
   // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
   // first render before derive() resolves).
-  const { status: ownedStatus, indexPaused, scanning } = useOwnedMount(spaceId, isYou ? share.id : '')
+  const { status: ownedStatus, indexPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
   // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
-  // `live` is what stops a peer's count outliving its owner: they send no closing frame when they
-  // drop, so the hook drops the value rather than merely hiding it. It also guarantees `owner` is
-  // resolved before the notice can be active, so the sentence always has a name in it.
-  const indexing = deriveIndexSummary(useIndexProgress(spaceId, share.id, {
+  const indexProgress = useIndexProgress(spaceId, share.id, {
     own: isYou,
     ownerKey: share.owner,
     live: isYou || (owner != null && owner.online !== false),
-  }), { indexPaused, scanning })
+  })
+  // Memoised on its inputs: deriveIndexSummary returns a fresh object every call, and an unstable
+  // `indexing` would make every downstream useMemo that depends on it miss on every render.
+  const indexing = useMemo(
+    () => deriveIndexSummary(indexProgress, { indexPaused, scanning }),
+    [indexProgress, indexPaused, scanning],
+  )
   const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
+  const mirrorSync = useMemo(
+    () => (share.role === 'mirrored' ? deriveMirrorSync(files, { truncated: listingTruncated, enabled: foreignEnabled }) : null),
+    [share.role, files, listingTruncated, foreignEnabled],
+  )
+  const ownerName = isYou
+    ? (profile?.displayName || t('avatar.unknown'))
+    : (owner?.displayName || t('avatar.unknown'))
+
+  const strips = useMemo(() => deriveStrips({
+    role: share.role,
+    isYou,
+    loading,
+    error: !!error,
+    sourceMissing,
+    indexing,
+    foreignEnabled,
+    mirrorSync,
+    ownerOnline: owner?.online !== false,
+    listing: listingTruncated && info
+      ? { truncated: true, shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length }
+      : null,
+  }), [share.role, isYou, loading, error, sourceMissing, indexing, foreignEnabled, mirrorSync, owner, listingTruncated, info, files.length])
+
+  const overLimit = strips.find((strip) => strip.id === 'over-limit') ?? null
+  const working = strips.find((strip) => strip.id === 'working') ?? null
+  const peerWorking = strips.find((strip) => strip.id === 'peer-indexing') ?? null
+  // One count-free sentence for "work started / work ended", so it is announced twice rather than
+  // twice a second. It is the ONLY announcement of a working folder: the strip carrying the numbers
+  // is deliberately not a live region, and the tile does not repeat what the strip says. Derived
+  // from the strips themselves so the two can never disagree — a paused mirror whose rows have not
+  // settled yet must not announce that it is syncing.
+  const workAnnouncement = working?.data?.kind === 'indexing'
+    ? t('folder.indexingAnnounce')
+    : working?.data?.kind === 'mirroring'
+      ? t('folder.syncingAnnounce', { owner: ownerName })
+      : peerWorking
+        ? t('folder.indexingAnnouncePeer', { owner: ownerName })
+        : ''
+
+  const folderStatus = deriveFolderStatus({
+    role: share.role,
+    sourceMissing,
+    indexPaused,
+    mirrorEnabled: foreignEnabled,
+    indexing: indexing.active,
+    // Same rule the strip applies: with the owner away nothing is being fetched, so the tile must
+    // not read "Syncing" beside a strip that says they are offline.
+    mirrorSyncing: !!mirrorSync?.active && owner?.online !== false,
+  })
+  // A count only a mirror can report honestly: an owner holds every file by definition, and a
+  // browser holds none, so the qualifier would be noise in both.
+  const onDeviceCount = share.role === 'mirrored' && !listingTruncated ? (mirrorSync?.onDevice ?? null) : null
+  // Only OUR OWN running work gates the destructive entry, and only while it is not paused. A
+  // mirror's sync is the owner's doing and can last as long as they keep adding files — disabling
+  // Unmount for its duration would leave the user with a dead control while the same action still
+  // works from the folder card on the space screen.
+  const busy = isYou && indexing.active && !indexing.paused
+  const filterableTotal = listingTruncated ? files.length : (info?.fileCount ?? files.length)
 
   async function handleRevealFolder() {
     try {
@@ -134,35 +222,12 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     }
   }
 
-  async function handlePauseResume() {
+  // One handler behind both surfaces (the strip and the menu), so no state can exist in one and
+  // not the other. Which durable flag it writes is the only thing the role changes.
+  async function setPaused(paused: boolean) {
     try {
-      await setForeignMountEnabled(spaceId, share.id, !foreignEnabled)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function handlePauseIndex() {
-    try {
-      await request('owned-folder:pause-index', { spaceId, shareId: share.id })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  // Stop, not Pause: the queue is dropped but the normal reconcile cadence stays armed and picks
-  // the folder back up on its own.
-  async function handleStopIndex() {
-    try {
-      await request('owned-folder:cancel-index', { spaceId, shareId: share.id })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  async function handleResumeIndex() {
-    try {
-      await request('owned-folder:resume-index', { spaceId, shareId: share.id })
+      if (isYou) await request(paused ? 'owned-folder:pause-index' : 'owned-folder:resume-index', { spaceId, shareId: share.id })
+      else await setForeignMountEnabled(spaceId, share.id, !paused)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
@@ -177,73 +242,91 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     }
   }
 
-  const mirroredMenuItems: ActionMenuItemConfig[] = [
-    foreignEnabled
-      ? { id: 'pause', label: t('share.pauseMirror'), icon: 'pause', onAction: handlePauseResume }
-      : { id: 'resume', label: t('share.resumeMirror'), icon: 'play_arrow', onAction: handlePauseResume },
-    { id: 'unmount', label: t('share.unmountMirror'), icon: 'close', variant: 'danger', onAction: handleUnmount },
+  async function handleRename(name: string) {
+    await request('share:rename', { spaceId, shareId: share.id, name })
+    // `share` is a frozen navigation snapshot, so the header would keep the old name until the
+    // user left the screen and came back. The router owns that state; hand the new name up.
+    onRenamed?.(name)
+    toast.success(t('share.renameSuccess', { name }))
+  }
+
+  async function handleRelocate(mountPath: string) {
+    if (isYou) {
+      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath })
+      toast.success(t('share.locateSuccess', { name: share.name }))
+      return
+    }
+    await request('foreign-folder:relocate', { spaceId, shareId: share.id, mountPath })
+    toast.success(t('share.mirrorLocationSuccess'))
+  }
+
+  function handleStripAction(action: 'locate' | 'resume' | 'pause') {
+    if (action === 'locate') void handleLocate()
+    else void setPaused(action === 'pause')
+  }
+
+  const paused = isYou ? indexPaused : !foreignEnabled
+  // Destructive entries are disabled while the folder is working — not the trigger, because Pause
+  // lives in this menu and is the one control you reach for while it runs.
+  const destructive: ActionMenuItemConfig = isYou
+    ? {
+      id: 'delete',
+      label: t('share.deleteFolder'),
+      icon: 'delete',
+      variant: 'danger',
+      disabled: busy,
+      hint: busy ? t('share.notWhileSyncing') : undefined,
+      onAction: () => setShowDelete(true),
+    }
+    : {
+      id: 'unmount',
+      label: t('share.unmountMirror'),
+      icon: 'close',
+      variant: 'danger',
+      disabled: busy,
+      hint: busy ? t('share.notWhileSyncing') : undefined,
+      onAction: handleUnmount,
+    }
+  const menuItems: ActionMenuItemConfig[] = [
+    paused
+      ? { id: 'resume', label: t('share.resumeSyncing'), icon: 'play_arrow', onAction: () => void setPaused(false) }
+      : { id: 'pause', label: t('share.pauseSyncing'), icon: 'pause', onAction: () => void setPaused(true) },
+    { id: 'edit', label: t('share.editFolder'), icon: 'edit', onAction: () => setShowEdit(true) },
+    destructive,
   ]
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
       <div className="shrink-0 pt-8 pb-4">
-        <div className="flex items-start gap-4 mb-2">
+        <div className="flex items-start gap-4">
           <IconButton
             icon="arrow_back"
             onClick={onBack}
             ariaLabel={t('actions.back')}
             className="mt-1 shrink-0"
           />
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <OwnerHeaderAvatar owner={owner} isYou={isYou} selfProfile={profile} size={52} />
-            <div className="min-w-0">
-              <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
-                {share.name}
-              </h1>
-              <p className="text-xs font-bold text-secondary tracking-wide uppercase mt-1 flex items-center gap-1.5 flex-wrap">
-                <span>
-                  {isYou
-                    ? t('share.sharedByYou')
-                    : t('share.ownedBy', { name: owner?.displayName ?? '?' })}
-                  {space ? ' · ' + t('space.in', { name: space.name }) : null}
-                  {share.role === 'mirrored'
-                    ? ' · ' + t('share.badgeMirrored') + ' · ' + (foreignEnabled ? t('share.readOnly') : t('folder.paused'))
-                    : null}
-                </span>
-                {share.role === 'mirrored' && (
-                  <button
-                    type="button"
-                    title={t('folder.mirroredDescription')}
-                    aria-label={t('folder.mirroredDescription')}
-                    className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface-container-highest text-accent hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-                  >
-                    <Icon name="info" size={10} />
-                  </button>
-                )}
-              </p>
-            </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
+              {share.name}
+            </h1>
+            <p className="text-xs font-bold text-secondary tracking-wide uppercase mt-1">
+              {isYou
+                ? t('share.sharedByYou')
+                : t('share.ownedBy', { name: owner?.displayName || t('avatar.unknown') })}
+              {space ? ' · ' + t('space.in', { name: space.name }) : null}
+              {share.role === 'mirrored'
+                ? ' · ' + t('share.badgeMirrored') + ' · ' + (foreignEnabled ? t('share.readOnly') : t('folder.paused'))
+                : null}
+            </p>
           </div>
           <div className="flex gap-3 mt-2 shrink-0">
-            {share.role === 'browse' && onMirror && (
-              <Button icon="folder_download" onClick={() => onMirror(share)}>
-                {t('share.mirrorToDisk')}
-              </Button>
-            )}
-
-            {share.role === 'mirrored' && (
-              <>
-                <Button icon="folder_open" onClick={handleRevealFolder}>
-                  {t('share.openInFinder')}
+            {share.role === 'browse' ? (
+              onMirror && (
+                <Button icon="folder_download" onClick={() => onMirror(share)}>
+                  {t('share.mirrorToDisk')}
                 </Button>
-                <ActionMenu
-                  label={t('share.moreActions')}
-                  items={mirroredMenuItems}
-                  ariaLabel={t('share.moreActions')}
-                />
-              </>
-            )}
-
-            {share.role === 'mine' && (
+              )
+            ) : (
               <>
                 {sourceMissing ? (
                   <Button icon="folder_open" onClick={handleLocate}>
@@ -254,37 +337,59 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                     {t('share.openInFinder')}
                   </Button>
                 )}
-                <Button variant="danger" icon="delete" onClick={() => setShowDelete(true)}>
-                  {t('share.deleteFolder')}
-                </Button>
+                <ActionMenu
+                  label={t('share.moreActions')}
+                  items={menuItems}
+                  ariaLabel={t('share.moreActions')}
+                />
               </>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8">
-        <div className="overflow-hidden flex flex-col min-h-0">
-          <div className="flex items-center justify-between gap-3 mb-4 shrink-0 flex-wrap">
-            <div className="flex items-baseline gap-3">
-              <h2 className="text-2xl font-headline font-bold text-accent">
-                {t('folder.filesInFolder')}
-              </h2>
-              {info && (
-                <span className="text-sm font-label text-secondary font-bold">
-                  {t('folder.fileCountAndSize', { count: info.fileCount, size: formatSize(info.totalBytes) })}
-                </span>
-              )}
-            </div>
-            {allFolderPaths.length > 0 && (
-              <Button
-                variant="secondary"
-                onClick={() => (anyExpanded ? collapseAll() : expandAll(allFolderPaths))}
-              >
-                {anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
-              </Button>
-            )}
-          </div>
+      {/* The strips are a band, not a reserved slot: no strip, no height. Outside the scroll pane,
+          so folder state can never scroll away from the folder it describes.
+          The container itself is ALWAYS mounted because the over-limit notice below needs a live
+          region that pre-exists: a role=status added to the DOM already-populated is not reliably
+          announced. It is `absolute` while empty, so it still costs no height. */}
+      <div className={`shrink-0 space-y-2${strips.length > 0 ? ' pb-4' : ''}`}>
+        {strips.filter((strip) => strip.id !== 'over-limit').map((strip) => (
+          <FolderWorkStrip key={strip.id} strip={strip} ownerName={ownerName} onAction={handleStripAction} />
+        ))}
+        <div
+          role="status"
+          aria-live="polite"
+          className={overLimit ? '' : 'sr-only'}
+        >
+          {overLimit ? <FolderWorkStrip strip={overLimit} ownerName={ownerName} onAction={handleStripAction} /> : null}
+        </div>
+      </div>
+
+      {/* The counts in the working strip change about twice a second, so it is deliberately NOT a
+          live region — ProgressBar makes the same call for the same reason. This carries a
+          count-free sentence instead, announced once when the scan starts and once when it ends. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {workAnnouncement}
+      </div>
+
+      {/* No `overflow-hidden` on either box: a `focus-visible:ring-2` is painted OUTSIDE the border
+          box, so any clipper flush against a focusable control shaves the ring off — which is what
+          ate the filter field's left edge and Expand all's right edge. `min-h-0` is what actually
+          constrains the height here, and `min-w-0` keeps the automatic minimum size that
+          `overflow-hidden` was silently providing, so a long file name still can't stretch the
+          1fr track. The rings now paint into the page gutter and the column gap, which are empty. */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
+        <div className="flex flex-col min-w-0 min-h-0">
+          <FolderControlsRow
+            value={filter}
+            onChange={setFilter}
+            matched={matched}
+            total={filterableTotal}
+            expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
+            onToggleExpand={() => (anyExpanded ? collapseAll() : expandAll([...expanded, ...allFolderPaths]))}
+            showExpand={allFolderPaths.length > 0}
+          />
           {/* `relative` establishes a positioning context for this scroll pane.
               Without it, the absolutely-positioned `sr-only` status spans inside
               the rows (e.g. the "syncing"/"preparing" spinner text) have no
@@ -296,87 +401,14 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
               here keeps the document pinned to the viewport. */}
           <div
             ref={filesRef}
-            className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 pb-4${filesOverflow ? ' pr-4' : ''}`}
+            /* A scroll pane clips both axes, and the rows sit flush against it, so a focused row
+               lost its ring on all four sides. The 4px of interior room is cancelled by an equal
+               negative margin: the clip box grows, the rows do not move, so nothing has to be
+               re-aligned against the tiles on the right. `pr-4` is the shared scrollbar gutter —
+               the same 16px the tiles column uses, so both bars sit off their content by an equal
+               margin. */
+            className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
           >
-            {share.role === 'mirrored' && !foreignEnabled && !loading && (
-              <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-warning/20 text-on-surface text-sm">
-                <Icon name="pause" size={16} className="text-warning shrink-0" />
-                <span>{t('folder.mirrorPausedBanner')}</span>
-              </div>
-            )}
-            {!isYou && owner && owner.online === false && !loading && !error && (
-              <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-surface-container-low text-on-surface-variant text-sm">
-                <Icon name="cloud" size={16} className="text-on-surface-variant shrink-0" />
-                <span>{t('folder.offlineBanner', { owner: owner.displayName })}</span>
-              </div>
-            )}
-            {sourceMissing && !loading && (
-              <div role="alert" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-error-container text-on-error-container text-sm">
-                <Icon name="warning" size={16} className="shrink-0" />
-                <span>{t('folder.sourceMissingBanner')}</span>
-              </div>
-            )}
-            {isYou && indexing.paused && !loading && !error && (
-              <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-warning/20 text-on-surface text-sm">
-                <Icon name="pause" size={16} className="text-warning shrink-0" />
-                <span className="flex-1">{t('folder.indexPausedBanner')}</span>
-                <Button variant="secondary" icon="play_arrow" onClick={handleResumeIndex}>
-                  {t('folder.indexResume')}
-                </Button>
-              </div>
-            )}
-            {/* Always-present live region so the scan notice is ANNOUNCED when it appears — same
-                reason as the over-limit region below. Counts the SCAN (scheduler queue depth), not
-                the rows on screen: FolderTree's "N adding" badge counts rows, and a file that is
-                only queued has no row yet, which is exactly the gap this closes. */}
-            {indexing.active && !indexing.paused && !loading && !error && (
-              <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-info/20 text-on-surface text-sm">
-                <Icon name="update" size={16} className="text-on-info shrink-0 animate-pulse" />
-                <span className="flex-1">
-                  {indexing.scanning
-                    ? t('folder.indexScanning')
-                    : isYou
-                      ? t('folder.indexingSummary', { count: indexing.files })
-                      : t('folder.indexingSummaryPeer', { count: indexing.files, owner: owner?.displayName ?? '?' })}
-                  {indexing.bytesQueued > 0 ? ' · ' + t('folder.indexingQueuedSize', { size: formatSize(indexing.bytesQueued) }) : ''}
-                </span>
-                {/* Owner only: a member watching someone else's scan has nothing to pause. */}
-                {isYou && (
-                  <>
-                    <Button variant="secondary" icon="pause" onClick={handlePauseIndex}>
-                      {t('folder.indexPause')}
-                    </Button>
-                    <Button variant="secondary" icon="stop" onClick={handleStopIndex}>
-                      {t('folder.indexStop')}
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-            {/* The counts above change about twice a second for the length of the scan, so they are
-                deliberately NOT in a live region — ProgressBar makes the same call for the same
-                reason. This one carries a count-free sentence, so it is announced once when the
-                scan starts and once when it ends, while the numbers stay browsable as text. */}
-            <div role="status" aria-live="polite" className="sr-only">
-              {indexing.active && !indexing.paused && !loading && !error
-                ? (isYou ? t('folder.indexingAnnounce') : t('folder.indexingAnnouncePeer', { owner: owner?.displayName ?? '?' }))
-                : ''}
-            </div>
-            {/* Always-present live region so the "first N of M" notice is ANNOUNCED when it
-                appears — a role=status region added to the DOM already-populated is not
-                reliably announced by screen readers, so it must pre-exist (empty) and update. */}
-            <div
-              role="status"
-              aria-live="polite"
-              className={listingTruncated ? 'flex items-center gap-2 mb-4 px-4 py-2 rounded-lg bg-surface-container-low text-on-surface-variant text-sm' : 'sr-only'}
-            >
-              {listingTruncated && info ? (
-                <>
-                  <Icon name="folder" size={16} className="text-on-surface-variant shrink-0" />
-                  <span>{t('folder.overLimitListing', { shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length })}</span>
-                </>
-              ) : null}
-            </div>
             {loading ? (
               <LoadingFiles label={t('folder.loading')} />
             ) : error ? (
@@ -402,10 +434,19 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                         : t('folder.emptyHintOther', { owner: owner?.displayName ?? '?' })}
                 </p>
               </div>
+            ) : visibleTree.length === 0 ? (
+              <div className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                <h2 className="text-2xl font-headline font-bold text-accent mb-3">
+                  {t('folder.filterEmptyTitle', { term: deferredFilter.trim() })}
+                </h2>
+                <p className="text-on-surface-variant max-w-md leading-relaxed">
+                  {t('folder.filterEmptyHint', { count: filterableTotal })}
+                </p>
+              </div>
             ) : (
               <div className="space-y-2">
                 <FolderTree
-                  nodes={tree}
+                  nodes={visibleTree}
                   isExpanded={isExpanded}
                   onToggle={toggle}
                   isOwn={isYou}
@@ -424,45 +465,28 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
           </div>
         </div>
 
-        <div className="space-y-6 min-h-0 overflow-hidden pt-12">
-          <div className="bg-surface-container-low rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <OwnerHeaderAvatar owner={owner} isYou={isYou} selfProfile={profile} size="md" />
-              <div className="min-w-0">
-                <p className="font-bold text-accent">
-                  {isYou ? t('share.sharedByYou') : owner?.displayName ?? '?'}
-                </p>
-                {!isYou && (
-                  <p className="text-xs text-on-surface-variant">
-                    {owner?.online !== false ? t('member.online') : t('member.offline')}
-                  </p>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              {share.role === 'browse'
-                ? t('folder.browseDescription')
-                : share.role === 'mirrored'
-                  ? t('folder.mirroredDescription')
-                  : t('folder.mineDescription')}
-            </p>
-          </div>
-
-          {isYou && <MirroredByWidget spaceId={spaceId} shareId={share.id} members={members} />}
-
+        {/* `pr-4`: the same scrollbar gutter the list uses. Without it the tiles butt straight
+            against their own scrollbar while the list sits 16px off its own. */}
+        <div className="space-y-6 min-h-0 overflow-y-auto scrollbar-thin pr-4 pb-1">
+          <FolderPeopleCard
+            spaceId={spaceId}
+            shareId={share.id}
+            members={members}
+            owner={owner}
+            isYou={isYou}
+            selfProfile={profile}
+            selfPublicKey={profile?.publicKey ?? ''}
+            roleDescription={t(share.role === 'browse'
+              ? 'folder.browseDescription'
+              : share.role === 'mirrored' ? 'folder.mirroredDescription' : 'folder.mineDescription')}
+          />
           {info && (
-            <div className="bg-surface-container-low p-8 rounded-2xl">
-              <h3 className="text-xl font-headline font-bold text-accent mb-6 flex items-center gap-2">
-                <Icon name="folder" className="text-secondary" />
-                {t('folder.folderSize')}
-              </h3>
-              <div className="text-5xl font-headline font-extrabold text-accent tracking-tighter leading-none">
-                {formatSize(info.totalBytes)}
-              </div>
-              <p className="mt-2 text-sm font-medium text-on-surface-variant">
-                {t('folder.fileCount', { count: info.fileCount })}
-              </p>
-            </div>
+            <FolderStatsCard
+              totalBytes={info.totalBytes}
+              fileCount={info.fileCount}
+              onDevice={onDeviceCount}
+              status={folderStatus}
+            />
           )}
         </div>
       </div>
@@ -478,6 +502,19 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
           setShowDelete(false)
         }}
       />
+
+      {showEdit && (
+        <EditFolderModal
+          isOwner={isYou}
+          canRelocate={!isYou || sourceMissing}
+          name={share.name}
+          ownerName={ownerName}
+          mountPath={isYou ? ownedPath : (foreignMount?.mountPath ?? null)}
+          onRename={handleRename}
+          onRelocate={handleRelocate}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
     </div>
   )
 }

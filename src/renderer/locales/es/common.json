@@ -174,12 +174,18 @@
     "nameInvalid": "El nombre no puede contener barras, caracteres de control ni estar vacío."
   },
   "folder": {
-    "filesInFolder": "Archivos en esta carpeta",
     "fileCount_one": "{{count}} archivo",
     "fileCount_other": "{{count}} archivos",
     "fileCountAndSize_one": "{{count}} archivo · {{size}}",
     "fileCountAndSize_other": "{{count}} archivos · {{size}}",
     "collapseAll": "Contraer todo",
+    "filterPlaceholder": "Filtrar archivos…",
+    "filterLabel": "Filtrar archivos de esta carpeta",
+    "filterCount": "{{shown}} de {{total}}",
+    "filterClear": "Borrar filtro",
+    "filterEmptyTitle": "Ningún archivo coincide con «{{term}}»",
+    "filterEmptyHint_one": "Prueba con menos caracteres o borra el filtro para ver el {{count}} archivo de esta carpeta.",
+    "filterEmptyHint_other": "Prueba con menos caracteres o borra el filtro para ver los {{count}} archivos.",
     "expandAll": "Expandir todo",
     "onDeviceCount_one": "{{count}} en tu dispositivo",
     "onDeviceCount_other": "{{count}} en tu dispositivo",
@@ -198,9 +204,12 @@
     "indexingQueuedSize": "{{size}} por leer",
     "indexScanning": "Buscando archivos para añadir…",
     "indexPause": "Pausar",
-    "indexStop": "Detener",
     "indexResume": "Reanudar",
     "indexPausedBanner": "La adición de archivos está en pausa. Reanúdala para terminar de añadir esta carpeta.",
+    "syncingSummaryPeer_one": "Sincronizando {{count}} archivo de {{owner}}",
+    "syncingSummaryPeer_other": "Sincronizando {{count}} archivos de {{owner}}",
+    "syncingFetchSize": "{{size}} por descargar",
+    "syncingAnnounce": "Sincronizando archivos de {{owner}}",
     "subfolderCount_one": "contiene {{count}} subcarpeta",
     "subfolderCount_other": "contiene {{count}} subcarpetas",
     "loading": "Cargando archivos",
@@ -217,8 +226,6 @@
     "sourceMissingBanner": "Carpeta de origen movida o no disponible. Los miembros siguen viendo la última versión sincronizada; los cambios no se sincronizarán hasta que la localices.",
     "overLimitListing": "Esta carpeta tiene {{total}} archivos, por encima del límite de {{limit}}. Todos los archivos se siguen sincronizando, pero solo se listan los primeros {{shown}}.",
     "emptyHintMissing": "Mirall no encuentra la carpeta de origen en el disco. Localízala para reanudar la sincronización o elimina el recurso compartido.",
-    "folderSize": "Tamaño de la carpeta",
-    "mirroredByHeading": "Replicado por",
     "mirroredByNames": "Replicado por {{names}}",
     "mirrorStateSynced": "Sincronizado",
     "mirrorStateSyncing": "Sincronizando…",
@@ -226,7 +233,17 @@
     "paused": "En pausa",
     "mirrorPausedBanner": "La sincronización está en pausa: los archivos no se actualizarán hasta que reanudes la copia.",
     "syncPausedToast": "Sincronización de carpeta en pausa: {{reason}}",
-    "mirrorPausedToast": "Réplica de carpeta en pausa: {{reason}}"
+    "mirrorPausedToast": "Réplica de carpeta en pausa: {{reason}}",
+    "peopleHeading": "Personas",
+    "ownerEyebrow": "Propietario",
+    "mirroringEyebrow": "Replicando · {{count}}",
+    "folderHeading": "Carpeta",
+    "statusUpToDate": "Al día",
+    "statusSyncing": "Sincronizando",
+    "statusAdding": "Añadiendo",
+    "statusPaused": "En pausa",
+    "statusMissing": "No encontrada",
+    "statusBrowseOnly": "Solo explorar"
   },
   "share": {
     "badgeMine": "Compartido por ti",
@@ -239,15 +256,18 @@
     "browseFiles": "Examinar archivos",
     "mirrorToDisk": "Replicar en disco…",
     "deleteFolder": "Eliminar carpeta",
-    "pauseMirror": "Pausar réplica",
-    "resumeMirror": "Reanudar réplica",
-    "changeMirrorLocation": "Cambiar ubicación de la réplica…",
     "unmountMirror": "Desmontar réplica",
     "moreActions": "Más",
+    "pauseSyncing": "Pausar sincronización",
+    "resumeSyncing": "Reanudar sincronización",
+    "editFolder": "Editar carpeta…",
+    "notWhileSyncing": "No mientras esta carpeta se sincroniza",
     "mountPointGone": "Falta la carpeta en el disco",
     "mountPointGoneHint": "Carpeta de origen movida o no disponible: los miembros ven la última versión sincronizada",
     "locateFolder": "Localizar carpeta…",
     "locateSuccess": "«{{name}}» reconectada a su nueva ubicación",
+    "renameSuccess": "Renombrada a «{{name}}»",
+    "mirrorLocationSuccess": "La réplica ahora se guarda en la nueva ubicación",
     "fileCountAndSize_one": "{{count}} archivo · {{size}}",
     "fileCountAndSize_other": "{{count}} archivos · {{size}}",
     "openFolder": "Abrir {{name}}"
@@ -310,6 +330,7 @@
     "online": "En línea",
     "offline": "Desconectado",
     "unknown": "Miembro desconocido",
+    "you": "Tú",
     "approve": "Aprobar",
     "deny": "Rechazar",
     "approveNamed": "Aprobar a {{name}}",
@@ -660,7 +681,8 @@
     "etaSecondsLeft": "{{value}} s restantes",
     "etaMinutesLeft": "{{minutes}} min {{seconds}} s restantes",
     "etaHoursLeft": "{{hours}} h {{minutes}} min restantes",
-    "etaEstimating": "Calculando…"
+    "etaEstimating": "Calculando…",
+    "progressUnknown": "En curso, tiempo restante desconocido"
   },
   "connectivity": {
     "online": "En línea",
@@ -956,7 +978,9 @@
       "network.at_risk": "Las conexiones con muchas personas fallarán en esta red",
       "network.restored": "Conexión restablecida",
       "network.peer_lost": "{{actor}} se desconectó",
-      "network.peer_back": "{{actor}} está de nuevo en línea"
+      "network.peer_back": "{{actor}} está de nuevo en línea",
+      "share.renamed": "Renombraste la carpeta {{target}}",
+      "mirror.relocated": "Moviste la réplica de {{target}}"
     },
     "kindLabel": {
       "space.created": "espacio creado",
@@ -997,7 +1021,9 @@
       "network.at_risk": "conexión en riesgo",
       "network.restored": "conexión restablecida",
       "network.peer_lost": "miembro desconectado",
-      "network.peer_back": "miembro de nuevo en línea"
+      "network.peer_back": "miembro de nuevo en línea",
+      "share.renamed": "carpeta renombrada",
+      "mirror.relocated": "réplica movida"
     },
     "metaFiles_one": "{{formatted}} archivo",
     "metaFiles_other": "{{formatted}} archivos",
@@ -1113,5 +1139,20 @@
     "saved": "Archivo de diagnóstico guardado.",
     "verboseOn": "El registro detallado está activo. Reproduce el problema y luego guarda el archivo.",
     "previewIntroRaw": "Los datos identificativos SÍ se incluyen. Esto es exactamente lo que se guardará."
+  },
+  "editFolder": {
+    "title": "Editar carpeta",
+    "descOwner": "Renombra esta carpeta. Los miembros verán el nuevo nombre; la carpeta de tu disco conserva el suyo.",
+    "descMirror": "Cambia dónde se guarda esta réplica en el disco.",
+    "nameLabel": "Nombre de la carpeta",
+    "namePlaceholder": "Nombre de la carpeta",
+    "nameOwnedBy": "{{owner}} es el propietario de esta carpeta, así que solo esa persona puede renombrarla.",
+    "sourceLabel": "Carpeta de origen",
+    "sourceDesc": "Dónde están los archivos en tu disco. Indica una nueva ubicación y los archivos coincidentes se reconocen: no se vuelve a subir nada.",
+    "sourceFixed": "Dónde están los archivos en tu disco. Mirall lo reajusta por ti si alguna vez falta la carpeta.",
+    "mirrorLabel": "Ubicación de la réplica",
+    "mirrorDesc": "Dónde se guarda esta réplica. Los archivos que ya estén en la nueva ubicación se reconocen; lo que falte se descarga de nuevo.",
+    "nameError": "No se pudo renombrar la carpeta: {{error}}",
+    "locationError": "No se pudo cambiar la ubicación: {{error}}"
   }
 }

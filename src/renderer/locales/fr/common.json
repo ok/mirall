@@ -174,12 +174,18 @@
     "nameInvalid": "Le nom ne peut pas contenir de barres obliques, de caractères de contrôle, ni être vide."
   },
   "folder": {
-    "filesInFolder": "Fichiers dans ce dossier",
     "fileCount_one": "{{count}} fichier",
     "fileCount_other": "{{count}} fichiers",
     "fileCountAndSize_one": "{{count}} fichier · {{size}}",
     "fileCountAndSize_other": "{{count}} fichiers · {{size}}",
     "collapseAll": "Tout réduire",
+    "filterPlaceholder": "Filtrer les fichiers…",
+    "filterLabel": "Filtrer les fichiers de ce dossier",
+    "filterCount": "{{shown}} sur {{total}}",
+    "filterClear": "Effacer le filtre",
+    "filterEmptyTitle": "Aucun fichier ne correspond à « {{term}} »",
+    "filterEmptyHint_one": "Essayez avec moins de caractères, ou effacez le filtre pour voir le {{count}} fichier de ce dossier.",
+    "filterEmptyHint_other": "Essayez avec moins de caractères, ou effacez le filtre pour voir les {{count}} fichiers.",
     "expandAll": "Tout développer",
     "onDeviceCount_one": "{{count}} sur votre appareil",
     "onDeviceCount_other": "{{count}} sur votre appareil",
@@ -198,9 +204,12 @@
     "indexingQueuedSize": "{{size}} à lire",
     "indexScanning": "Recherche de fichiers à ajouter…",
     "indexPause": "Suspendre",
-    "indexStop": "Arrêter",
     "indexResume": "Reprendre",
     "indexPausedBanner": "L'ajout de fichiers est suspendu. Reprenez pour terminer l'ajout de ce dossier.",
+    "syncingSummaryPeer_one": "Synchronisation de {{count}} fichier depuis {{owner}}",
+    "syncingSummaryPeer_other": "Synchronisation de {{count}} fichiers depuis {{owner}}",
+    "syncingFetchSize": "{{size}} à télécharger",
+    "syncingAnnounce": "Synchronisation des fichiers depuis {{owner}}",
     "subfolderCount_one": "contient {{count}} sous-dossier",
     "subfolderCount_other": "contient {{count}} sous-dossiers",
     "loading": "Chargement des fichiers",
@@ -217,8 +226,6 @@
     "sourceMissingBanner": "Dossier source déplacé ou indisponible. Les membres voient toujours la dernière version synchronisée ; les changements ne se synchroniseront pas tant que vous ne l'aurez pas localisé.",
     "overLimitListing": "Ce dossier contient {{total}} fichiers, au-delà de la limite de {{limit}} fichiers. Tous les fichiers continuent d’être synchronisés, mais seuls les {{shown}} premiers sont listés.",
     "emptyHintMissing": "Mirall ne trouve pas le dossier source sur le disque. Localisez-le pour reprendre la synchronisation, ou supprimez le partage.",
-    "folderSize": "Taille du dossier",
-    "mirroredByHeading": "Mis en miroir par",
     "mirroredByNames": "Mis en miroir par {{names}}",
     "mirrorStateSynced": "Synchronisé",
     "mirrorStateSyncing": "Synchronisation…",
@@ -226,7 +233,17 @@
     "paused": "En pause",
     "mirrorPausedBanner": "La synchronisation est en pause — les fichiers ne seront pas mis à jour tant que vous n'aurez pas repris la copie.",
     "syncPausedToast": "Synchronisation du dossier suspendue — {{reason}}",
-    "mirrorPausedToast": "Miroir du dossier suspendu — {{reason}}"
+    "mirrorPausedToast": "Miroir du dossier suspendu — {{reason}}",
+    "peopleHeading": "Personnes",
+    "ownerEyebrow": "Propriétaire",
+    "mirroringEyebrow": "En miroir · {{count}}",
+    "folderHeading": "Dossier",
+    "statusUpToDate": "À jour",
+    "statusSyncing": "Synchronisation",
+    "statusAdding": "Ajout",
+    "statusPaused": "En pause",
+    "statusMissing": "Introuvable",
+    "statusBrowseOnly": "Consultation"
   },
   "share": {
     "badgeMine": "Partagé par vous",
@@ -239,15 +256,18 @@
     "browseFiles": "Parcourir les fichiers",
     "mirrorToDisk": "Mettre en miroir sur le disque…",
     "deleteFolder": "Supprimer le dossier",
-    "pauseMirror": "Suspendre le miroir",
-    "resumeMirror": "Reprendre le miroir",
-    "changeMirrorLocation": "Changer l'emplacement du miroir…",
     "unmountMirror": "Démonter le miroir",
     "moreActions": "Plus",
+    "pauseSyncing": "Suspendre la synchronisation",
+    "resumeSyncing": "Reprendre la synchronisation",
+    "editFolder": "Modifier le dossier…",
+    "notWhileSyncing": "Pas pendant la synchronisation de ce dossier",
     "mountPointGone": "Le dossier est introuvable sur le disque",
     "mountPointGoneHint": "Dossier source déplacé ou indisponible — les membres voient la dernière version synchronisée",
     "locateFolder": "Localiser le dossier…",
     "locateSuccess": "« {{name}} » reconnecté à son nouvel emplacement",
+    "renameSuccess": "Renommé en « {{name}} »",
+    "mirrorLocationSuccess": "Le miroir est maintenant stocké au nouvel emplacement",
     "fileCountAndSize_one": "{{count}} fichier · {{size}}",
     "fileCountAndSize_other": "{{count}} fichiers · {{size}}",
     "openFolder": "Ouvrir {{name}}"
@@ -310,6 +330,7 @@
     "online": "En ligne",
     "offline": "Hors ligne",
     "unknown": "Membre inconnu",
+    "you": "Vous",
     "approve": "Approuver",
     "deny": "Refuser",
     "approveNamed": "Approuver {{name}}",
@@ -660,7 +681,8 @@
     "etaSecondsLeft": "{{value}} s restantes",
     "etaMinutesLeft": "{{minutes}} min {{seconds}} s restantes",
     "etaHoursLeft": "{{hours}} h {{minutes}} min restantes",
-    "etaEstimating": "Estimation…"
+    "etaEstimating": "Estimation…",
+    "progressUnknown": "En cours, temps restant inconnu"
   },
   "connectivity": {
     "online": "En ligne",
@@ -956,7 +978,9 @@
       "network.at_risk": "Les connexions à de nombreuses personnes échoueront sur ce réseau",
       "network.restored": "Connexion rétablie",
       "network.peer_lost": "{{actor}} s’est déconnecté",
-      "network.peer_back": "{{actor}} est de nouveau en ligne"
+      "network.peer_back": "{{actor}} est de nouveau en ligne",
+      "share.renamed": "Vous avez renommé le dossier {{target}}",
+      "mirror.relocated": "Vous avez déplacé le miroir de {{target}}"
     },
     "kindLabel": {
       "space.created": "espace créé",
@@ -997,7 +1021,9 @@
       "network.at_risk": "connexion à risque",
       "network.restored": "connexion rétablie",
       "network.peer_lost": "membre déconnecté",
-      "network.peer_back": "membre de nouveau en ligne"
+      "network.peer_back": "membre de nouveau en ligne",
+      "share.renamed": "dossier renommé",
+      "mirror.relocated": "miroir déplacé"
     },
     "metaFiles_one": "{{formatted}} fichier",
     "metaFiles_other": "{{formatted}} fichiers",
@@ -1113,5 +1139,20 @@
     "saved": "Fichier de diagnostic enregistré.",
     "verboseOn": "La journalisation détaillée est active. Reproduisez le problème, puis enregistrez le fichier.",
     "previewIntroRaw": "Les données identifiantes SONT incluses. C’est exactement ce qui sera enregistré."
+  },
+  "editFolder": {
+    "title": "Modifier le dossier",
+    "descOwner": "Renommez ce dossier. Les membres verront le nouveau nom ; le dossier sur votre disque garde le sien.",
+    "descMirror": "Changez l’emplacement de stockage de ce miroir sur le disque.",
+    "nameLabel": "Nom du dossier",
+    "namePlaceholder": "Nom du dossier",
+    "nameOwnedBy": "{{owner}} est propriétaire de ce dossier : seul lui peut le renommer.",
+    "sourceLabel": "Dossier source",
+    "sourceDesc": "Où les fichiers se trouvent sur votre disque. Indiquez un nouvel emplacement et les fichiers identiques sont reconnus — rien n’est réenvoyé.",
+    "sourceFixed": "Où les fichiers se trouvent sur votre disque. Mirall le réajuste pour vous si le dossier venait à manquer.",
+    "mirrorLabel": "Emplacement du miroir",
+    "mirrorDesc": "Où ce miroir est stocké. Les fichiers déjà présents au nouvel emplacement sont reconnus ; ce qui manque est retéléchargé.",
+    "nameError": "Impossible de renommer ce dossier : {{error}}",
+    "locationError": "Impossible de changer l’emplacement : {{error}}"
   }
 }

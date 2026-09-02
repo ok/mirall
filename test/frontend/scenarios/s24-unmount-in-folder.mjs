@@ -31,12 +31,12 @@ export default async function s24 ({ runDir, bootstrap }) {
     })
     await r.ok('B opens the mirrored folder', async () => {
       await B.click({ name: 'Open Reports' })
-      await B.waitText('Files in this folder', 15000)
+      await B.waitText('People', 15000)
     })
     await r.ok('unmounting from the folder stays in the folder as a browse share', async () => {
       await B.unmountShare()
       await waitFor(
-        async () => (await B.hasText('Files in this folder')) && (await B.hasText('Mirror to Disk')),
+        async () => (await B.hasText('People')) && (await B.hasText('Mirror to Disk')),
         15000,
         'stayed in folder view, reverted to browse',
       )

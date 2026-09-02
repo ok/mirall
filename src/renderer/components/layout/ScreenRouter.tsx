@@ -81,6 +81,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
             }, 0)
           }}
           onUnmounted={() => nav.setSelectedShare((s) => (s ? { ...s, role: 'browse', mirrorEnabled: undefined, mountStatus: undefined } : s))}
+          onRenamed={(name) => nav.setSelectedShare((s) => (s ? { ...s, name } : s))}
         />
       ) : null
     case 'settings':

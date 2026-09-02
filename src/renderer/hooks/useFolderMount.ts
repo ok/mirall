@@ -30,9 +30,10 @@ export interface OwnedMountState {
   indexPaused: boolean
   /** The scan is walking the disk. It fills no queue, so nothing else can report that phase. */
   scanning: boolean
+  mountPath: string | null
 }
 
-const NO_OWNED_MOUNT: OwnedMountState = { status: null, indexPaused: false, scanning: false }
+const NO_OWNED_MOUNT: OwnedMountState = { status: null, indexPaused: false, scanning: false, mountPath: null }
 
 export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
   const [state, setState] = useState<OwnedMountState>(NO_OWNED_MOUNT)
@@ -52,6 +53,7 @@ export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState
           status: unhealthyOwnedStatus(m),
           indexPaused: !!m?.indexPaused,
           scanning: m?.status === 'scanning',
+          mountPath: m?.mountPath ?? null,
         })
       }).catch(() => {})
     }

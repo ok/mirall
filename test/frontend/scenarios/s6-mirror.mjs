@@ -39,15 +39,15 @@ export default async function s6({ runDir, bootstrap }) {
     // on-disk figures that don't drop promptly under rocksdb). Here we verify
     // the user-facing unmount outcome: the share reverts Mirrored -> Browse.
     // Pause/resume are new controls on the mirrored card. The menu offers
-    // "Pause Mirror" only while enabled and "Resume Mirror" only while paused,
+    // "Pause syncing" only while enabled and "Resume syncing" only while paused,
     // so pausing then resuming in sequence (each click resolves its labelled
     // control) proves the paused state surfaced and round-tripped. Backend
     // enabled/status transitions are asserted in test/integration/foreign-toggle.
     await r.ok('pause then resume the mirror (card shows a Paused badge)', async () => {
-      await B.pauseMirror()                       // "Pause Mirror" must be present & clickable
+      await B.pauseMirror()                       // "Pause syncing" must be present & clickable
       await B.waitText('Paused', 10000)            // the card badge reflects the paused state
       await B.shot('s6-B-paused', runDir)
-      await B.resumeMirror()                       // "Resume Mirror" only exists once paused
+      await B.resumeMirror()                       // "Resume syncing" only exists once paused
       await waitFor(async () => !(await B.hasText('Paused')), 10000, 'paused badge cleared on resume')
     })
     await r.ok('unmount reverts the share to Browse', async () => {

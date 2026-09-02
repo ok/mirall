@@ -1,13 +1,13 @@
-// Real-Chromium harness for the "mirrored by" sidebar widget. Mounts the REAL <MirroredByWidget>
-// (fed by the fake bridge's space:mirrors) and asserts the stacked facepile renders a capped avatar
-// stack + "+N" overflow chip, encodes each peer's sync state as a ring colour (synced/synced-pulse/
-// paused — never opacity), shows the heading, and carries an accessible name listing the mirrors and
-// their states — the a11y + colour contract can't be measured without a real AX tree + CSS.
+// Real-Chromium harness for the People sidebar tile. Mounts the REAL <FolderPeopleCard> (fed by the
+// fake bridge's space:mirrors) and asserts the stacked facepile renders a capped avatar stack + "+N"
+// overflow chip, encodes each peer's sync state as a ring colour (synced/syncing-pulse/paused —
+// never opacity), shows the heading, and carries an accessible name listing the mirrors and their
+// states — the a11y + colour contract can't be measured without a real AX tree + CSS.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
-import MirroredByWidget from './../../src/renderer/components/cards/MirroredByWidget.js'
-import type { MirrorParticipant, SpaceMember } from './../../src/renderer/types.js'
+import FolderPeopleCard from './../../src/renderer/components/cards/FolderPeopleCard.js'
+import type { MirrorParticipant, Profile, SpaceMember } from './../../src/renderer/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -37,11 +37,23 @@ window.__HARNESS_CFG = {
   mirrors: KEYS.map((k, i): MirrorParticipant => ({ mirrorer: k, shareId: SHARE_ID, state: STATES[i], mountedAt: 0 })),
 }
 const members: SpaceMember[] = KEYS.map((k, i) => ({ publicKey: k, driveKey: 'd'.repeat(64), displayName: 'Peer ' + i, online: true }))
+// A self key that mirrors nothing, so every row is a named peer rather than "You" — the stack cap
+// and the ring colours are what this harness measures.
+const SELF_PK = 'self-key'
+const selfProfile: Profile = { displayName: 'Me', avatar: null, publicKey: SELF_PK }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8" style={{ width: 320 }}>
     <div id="host">
-      <MirroredByWidget spaceId={SPACE_ID} shareId={SHARE_ID} members={members} />
+      <FolderPeopleCard
+        spaceId={SPACE_ID}
+        shareId={SHARE_ID}
+        members={members}
+        owner={members[0]}
+        isYou={false}
+        selfProfile={selfProfile}
+        selfPublicKey={SELF_PK}
+      />
     </div>
   </div>,
 )
@@ -62,7 +74,7 @@ async function run(): Promise<void> {
     await sleep(50)
     facepile = document.querySelector('#host [role="img"]')
   }
-  if (!facepile) return publishError('MirroredByWidget facepile never rendered')
+  if (!facepile) return publishError('FolderPeopleCard facepile never rendered')
 
   const heading = (document.querySelector('#host h3')?.textContent ?? '').trim()
   const ariaLabel = facepile.getAttribute('aria-label') ?? ''
@@ -78,7 +90,7 @@ async function run(): Promise<void> {
 
   window.__results = {
     pass:
-      heading === i18n.t('folder.mirroredByHeading') &&
+      heading === i18n.t('folder.peopleHeading') &&
       avatarCount === 5 && overflowText === '+1' &&
       hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity,
     error: null,
