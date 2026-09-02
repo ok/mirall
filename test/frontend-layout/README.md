@@ -92,6 +92,24 @@ rows below the fold resolved against the **grid** instead. Removing that grid's
 clip them, and two 1px spans grew the document by 171px — an OS scrollbar down
 the side of the window. Fix: `relative` on the pane, as FolderView already does.
 
+## Space-screen sticky headers (`npm run test:layout:stickyheader`)
+
+Mounts the **real** `<SpaceView>` with both sections overflowing, scrolls the
+list so rows pass behind the pinned "Folders Shared" / "Files Shared" headers,
+and asserts each pinned header sits flush on the scrollport — no band above it
+in which a row stays visible — while the topmost control still has `ring-2`'s
+room at rest.
+
+### What it caught
+
+A 4px slice of the card scrolling behind "Folders Shared" stayed visible above
+the heading, so the list looked cut off mid-row. Chromium pins a `sticky top-0`
+box at the scrollport top **plus the scroll container's own `padding-top`**, and
+the pane carried `pt-1` (with a cancelling `-mt-1`) as room for a focused card's
+ring — 4px the header could never cover. That ring room was dead weight there:
+the first control sits 52px down, below the header's own bottom padding. Fix:
+drop the pane's top padding; the horizontal `-mx-1 pl-1 pr-1` room stays.
+
 ## Run
 
 ```
@@ -100,6 +118,7 @@ npm run test:layout:members      # SpaceView Members-panel sizing scenario
 npm run test:layout:peerdownload # Peer-download serve-UI (meta clip + % fallback)
 npm run test:layout:filecard     # FileCard error-state height + toast width cap
 npm run test:layout:spaceoverflow # SpaceView document-overflow scenario
+npm run test:layout:stickyheader # SpaceView pinned section-header coverage
 node test/frontend-layout/run.mjs --no-build          # reuse the existing bundle
 node test/frontend-layout/run-members.mjs --no-build   # reuse the existing bundle
 ```
