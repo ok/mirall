@@ -27,5 +27,7 @@
   "shareFileLimit": "Le cartelle condivise sono limitate a 5.000 file. Scegli una cartella più piccola oppure suddividila in più condivisioni.",
   "downloadFolderOverlapsMount": "Questa cartella si sovrappone a una cartella che condividi o replichi. I download finirebbero pubblicati ai tuoi peer: scegli un'altra cartella.",
   "downloadFolderInvalid": "Mirall non può usare questa cartella. Potrebbe essere stata spostata o rimossa, oppure Mirall non può scriverci.",
-  "spaceUnsupported": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato."
+  "spaceUnsupported": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato.",
+  "shareNameInvalid": "Questo nome non è utilizzabile. Provane uno più corto e senza barre.",
+  "shareNameCollision": "Un’altra cartella in questo spazio usa già questo nome."
 }

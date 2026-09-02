@@ -174,12 +174,18 @@
     "nameInvalid": "Il nome non può contenere barre, caratteri di controllo o essere vuoto."
   },
   "folder": {
-    "filesInFolder": "File in questa cartella",
     "fileCount_one": "{{count}} file",
     "fileCount_other": "{{count}} file",
     "fileCountAndSize_one": "{{count}} file · {{size}}",
     "fileCountAndSize_other": "{{count}} file · {{size}}",
     "collapseAll": "Comprimi tutto",
+    "filterPlaceholder": "Filtra i file…",
+    "filterLabel": "Filtra i file in questa cartella",
+    "filterCount": "{{shown}} di {{total}}",
+    "filterClear": "Cancella filtro",
+    "filterEmptyTitle": "Nessun file corrisponde a «{{term}}»",
+    "filterEmptyHint_one": "Prova con meno caratteri oppure cancella il filtro per vedere il {{count}} file in questa cartella.",
+    "filterEmptyHint_other": "Prova con meno caratteri oppure cancella il filtro per vedere tutti i {{count}} file.",
     "expandAll": "Espandi tutto",
     "onDeviceCount_one": "{{count}} sul tuo dispositivo",
     "onDeviceCount_other": "{{count}} sul tuo dispositivo",
@@ -198,9 +204,12 @@
     "indexingQueuedSize": "{{size}} da leggere",
     "indexScanning": "Ricerca di file da aggiungere…",
     "indexPause": "Sospendi",
-    "indexStop": "Interrompi",
     "indexResume": "Riprendi",
     "indexPausedBanner": "L'aggiunta di file è sospesa. Riprendi per completare l'aggiunta di questa cartella.",
+    "syncingSummaryPeer_one": "Sincronizzazione di {{count}} file da {{owner}}",
+    "syncingSummaryPeer_other": "Sincronizzazione di {{count}} file da {{owner}}",
+    "syncingFetchSize": "{{size}} da scaricare",
+    "syncingAnnounce": "Sincronizzazione dei file da {{owner}}",
     "subfolderCount_one": "contiene {{count}} sottocartella",
     "subfolderCount_other": "contiene {{count}} sottocartelle",
     "loading": "Caricamento dei file",
@@ -217,8 +226,6 @@
     "sourceMissingBanner": "Cartella di origine spostata o non disponibile. Gli altri vedono ancora l'ultima versione sincronizzata; le modifiche non si sincronizzeranno finché non la individui.",
     "overLimitListing": "Questa cartella contiene {{total}} file, oltre il limite di {{limit}} file. Tutti i file continuano a essere sincronizzati, ma vengono elencati solo i primi {{shown}}.",
     "emptyHintMissing": "Mirall non trova la cartella di origine sul disco. Individuala per riprendere la sincronizzazione oppure elimina la condivisione.",
-    "folderSize": "Dimensione della cartella",
-    "mirroredByHeading": "Replicato da",
     "mirroredByNames": "Replicato da {{names}}",
     "mirrorStateSynced": "Sincronizzato",
     "mirrorStateSyncing": "Sincronizzazione…",
@@ -226,7 +233,17 @@
     "paused": "In pausa",
     "mirrorPausedBanner": "La sincronizzazione è in pausa: i file non verranno aggiornati finché non riprendi la copia.",
     "syncPausedToast": "Sincronizzazione della cartella in pausa — {{reason}}",
-    "mirrorPausedToast": "Mirror della cartella in pausa — {{reason}}"
+    "mirrorPausedToast": "Mirror della cartella in pausa — {{reason}}",
+    "peopleHeading": "Persone",
+    "ownerEyebrow": "Proprietario",
+    "mirroringEyebrow": "Replica · {{count}}",
+    "folderHeading": "Cartella",
+    "statusUpToDate": "Aggiornata",
+    "statusSyncing": "Sincronizzazione",
+    "statusAdding": "Aggiunta",
+    "statusPaused": "In pausa",
+    "statusMissing": "Mancante",
+    "statusBrowseOnly": "Solo sfoglia"
   },
   "share": {
     "badgeMine": "Condiviso da te",
@@ -239,15 +256,18 @@
     "browseFiles": "Sfoglia i file",
     "mirrorToDisk": "Replica sul disco…",
     "deleteFolder": "Elimina cartella",
-    "pauseMirror": "Sospendi replica",
-    "resumeMirror": "Riprendi replica",
-    "changeMirrorLocation": "Cambia posizione della replica…",
     "unmountMirror": "Smonta replica",
     "moreActions": "Altro",
+    "pauseSyncing": "Sospendi sincronizzazione",
+    "resumeSyncing": "Riprendi sincronizzazione",
+    "editFolder": "Modifica cartella…",
+    "notWhileSyncing": "Non mentre questa cartella è in sincronizzazione",
     "mountPointGone": "La cartella non è più presente sul disco",
     "mountPointGoneHint": "Cartella di origine spostata o non disponibile: gli altri vedono l'ultima versione sincronizzata",
     "locateFolder": "Individua cartella…",
     "locateSuccess": "«{{name}}» ricollegata alla nuova posizione",
+    "renameSuccess": "Rinominata in «{{name}}»",
+    "mirrorLocationSuccess": "La replica è ora salvata nella nuova posizione",
     "fileCountAndSize_one": "{{count}} file · {{size}}",
     "fileCountAndSize_other": "{{count}} file · {{size}}",
     "openFolder": "Apri {{name}}"
@@ -310,6 +330,7 @@
     "online": "Online",
     "offline": "Offline",
     "unknown": "Membro sconosciuto",
+    "you": "Tu",
     "approve": "Approva",
     "deny": "Rifiuta",
     "approveNamed": "Approva {{name}}",
@@ -660,7 +681,8 @@
     "etaSecondsLeft": "{{value}} s rimanenti",
     "etaMinutesLeft": "{{minutes}} min {{seconds}} s rimanenti",
     "etaHoursLeft": "{{hours}} h {{minutes}} min rimanenti",
-    "etaEstimating": "Stima in corso…"
+    "etaEstimating": "Stima in corso…",
+    "progressUnknown": "In corso, tempo rimanente sconosciuto"
   },
   "connectivity": {
     "online": "Online",
@@ -956,7 +978,9 @@
       "network.at_risk": "Le connessioni a molte persone falliranno su questa rete",
       "network.restored": "Connessione ripristinata",
       "network.peer_lost": "{{actor}} è andato offline",
-      "network.peer_back": "{{actor}} è di nuovo online"
+      "network.peer_back": "{{actor}} è di nuovo online",
+      "share.renamed": "Hai rinominato la cartella {{target}}",
+      "mirror.relocated": "Hai spostato la replica di {{target}}"
     },
     "kindLabel": {
       "space.created": "spazio creato",
@@ -997,7 +1021,9 @@
       "network.at_risk": "connessione a rischio",
       "network.restored": "connessione ripristinata",
       "network.peer_lost": "membro andato offline",
-      "network.peer_back": "membro di nuovo online"
+      "network.peer_back": "membro di nuovo online",
+      "share.renamed": "cartella rinominata",
+      "mirror.relocated": "replica spostata"
     },
     "metaFiles_one": "{{formatted}} file",
     "metaFiles_other": "{{formatted}} file",
@@ -1113,5 +1139,20 @@
     "saved": "File di diagnostica salvato.",
     "verboseOn": "La registrazione dettagliata è attiva. Riproduci il problema, poi salva il file.",
     "previewIntroRaw": "I dati identificativi SONO inclusi. È esattamente ciò che verrà salvato."
+  },
+  "editFolder": {
+    "title": "Modifica cartella",
+    "descOwner": "Rinomina questa cartella. Gli altri vedranno il nuovo nome; la cartella sul tuo disco mantiene il suo.",
+    "descMirror": "Cambia dove viene salvata questa replica sul disco.",
+    "nameLabel": "Nome della cartella",
+    "namePlaceholder": "Nome della cartella",
+    "nameOwnedBy": "{{owner}} è il proprietario di questa cartella, quindi solo lui può rinominarla.",
+    "sourceLabel": "Cartella di origine",
+    "sourceDesc": "Dove si trovano i file sul tuo disco. Indica una nuova posizione e i file corrispondenti vengono riconosciuti: non viene caricato nulla di nuovo.",
+    "sourceFixed": "Dove si trovano i file sul tuo disco. Mirall lo riadatta al posto tuo se la cartella dovesse mancare.",
+    "mirrorLabel": "Posizione della replica",
+    "mirrorDesc": "Dove viene salvata questa replica. I file già presenti nella nuova posizione vengono riconosciuti; ciò che manca viene scaricato di nuovo.",
+    "nameError": "Impossibile rinominare la cartella: {{error}}",
+    "locationError": "Impossibile cambiare la posizione: {{error}}"
   }
 }

@@ -44,6 +44,10 @@ const MOUNT_ERROR_I18N_KEY_BY_CODE: Record<string, string> = {
   DOWNLOAD_FOLDER_INVALID: 'downloadFolderInvalid',
   // share:create refuses a pre-encryption space, and the add-folder modal reads this map.
   SPACE_UNSUPPORTED: 'spaceUnsupported',
+  // share:rename's two rejections. Their messages are worker-side English literals, so an
+  // unmapped code ships untranslated text into the Edit Folder modal.
+  SHARE_NAME_INVALID: 'shareNameInvalid',
+  SHARE_NAME_COLLISION: 'shareNameCollision',
 }
 
 export function mountErrorI18nKey(code: string | null | undefined): string | null {

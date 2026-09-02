@@ -2,13 +2,13 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
-import { allText } from '../tree.mjs'
+import { allText, flatten } from '../tree.mjs'
 import { workDir } from '../paths.mjs'
 
 // #145 gave the owner a notice for the files an index still has queued, with no way to act on it.
-// It now carries Pause and Stop, and a paused folder says so and offers Resume. The two are not the
-// same thing: Stop drops the queue and lets the ordinary reconcile cadence pick the folder back up,
-// Pause records a durable intent that survives a restart and clears only on Resume.
+// It now carries Pause, and a paused folder says so and offers Resume — one verb, because a folder
+// is either running or the user paused it. Pause records a durable intent that survives a restart
+// and clears only on Resume, which is what the restart step here proves.
 //
 // Eight 256 MB files, dropped in AFTER the mount, so the index outlasts a menu-free click by a wide
 // margin — a smaller batch hashes before the click lands and the paused path never runs. The
@@ -38,7 +38,7 @@ export default async function s121 ({ runDir }) {
       await A.shot('s121-A-indexing', runDir)
     })
 
-    await r.ok('the notice offers Pause and Stop, and Pause says so', async () => {
+    await r.ok('the notice offers Pause, and the folder says so once paused', async () => {
       // Addressable by role+name IS the accessibility proof: a control the AX tree cannot name is
       // an a11y gap in the control, not a gap in the test.
       await A.click({ role: 'button', name: 'Pause' })
@@ -72,18 +72,14 @@ export default async function s121 ({ runDir }) {
       await A.shot('s121-A-resumed', runDir)
     })
 
-    await r.ok('Stop clears the queue without recording a pause', async () => {
-      await A.click({ role: 'button', name: 'Stop' })
-      await waitFor(async () => {
-        const text = allText(await A.snap())
-        // Stopped, not paused: no queue notice AND no paused notice. The folder is still shared,
-        // so anchor positively on the folder screen rather than on a bare negative, which would
-        // also pass on a crashed window or an empty AX tree.
-        return /files in this folder/i.test(text) &&
-          !/adding \d+ files? to this folder/i.test(text) &&
-          !/adding files is paused/i.test(text)
-      }, 90000, 'the notice clears and the folder does not read as paused')
-      await A.shot('s121-A-stopped', runDir)
+    await r.ok('pausing again survives, and there is no second verb to reach for', async () => {
+      // Straight back to paused rather than waiting out a multi-GB drain: the drain is s120's job,
+      // and a five-minute wait here would be a five-minute wait on a machine, not a test.
+      await A.click({ role: 'button', name: 'Pause' })
+      await A.waitText('Adding files is paused', 60000)
+      const buttons = flatten(await A.snap()).filter((n) => n.role === 'button')
+      assert(!buttons.some((b) => /^stop$/i.test(b.label)), 'no Stop control exists in either role')
+      await A.shot('s121-A-paused-again', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }

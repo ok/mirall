@@ -27,5 +27,7 @@
   "shareFileLimit": "Freigegebene Ordner sind auf 5.000 Dateien begrenzt. Wähle einen kleineren Ordner oder teile ihn auf mehrere Freigaben auf.",
   "downloadFolderOverlapsMount": "Dieser Ordner überschneidet sich mit einem geteilten oder gespiegelten Ordner. Downloads darin würden an deine Peers veröffentlicht — wähle einen anderen Ordner.",
   "downloadFolderInvalid": "Mirall kann diesen Ordner nicht verwenden. Er wurde möglicherweise verschoben oder entfernt, oder Mirall kann nicht hineinschreiben.",
-  "spaceUnsupported": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden."
+  "spaceUnsupported": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden.",
+  "shareNameInvalid": "Dieser Name ist nicht verwendbar. Versuche einen kürzeren ohne Schrägstriche.",
+  "shareNameCollision": "Ein anderer Ordner in diesem Space nutzt diesen Namen bereits."
 }

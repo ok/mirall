@@ -7,6 +7,10 @@ interface DownloadProgressLaneProps {
   eta?: string
   bytes?: string
   indeterminate?: boolean
+  /** Accessible-only stand-in for the missing aria-valuenow. An indeterminate bar with nothing
+      visible to say (work whose remaining time is unknowable, not merely still warming up) would
+      otherwise expose neither valuenow nor valuetext, leaving a screen reader nothing to read. */
+  indeterminateText?: string
   showPct?: boolean
 }
 
@@ -14,9 +18,10 @@ interface DownloadProgressLaneProps {
 // paused, and the bare percentage while verifying (showPct) — where there is no speed/ETA/bytes
 // to show and the scan still wants a concrete number. These tokens never co-occur. No aria-live:
 // at the ~250ms cadence it would spam screen readers, so aria-valuenow/valuetext carry the state
-// instead. While indeterminate (ETA warmup) the bar runs an indeterminate sweep and drops
-// aria-valuenow per the ARIA progressbar contract. Animation respects reduced motion.
-export default function DownloadProgressLane({ value, label, speed, eta, bytes, indeterminate, showPct }: DownloadProgressLaneProps) {
+// instead. While indeterminate the bar runs an indeterminate sweep and drops aria-valuenow per
+// the ARIA progressbar contract, so the valuetext falls back to `indeterminateText` for a caller
+// that shows no ETA at all. Animation respects reduced motion.
+export default function DownloadProgressLane({ value, label, speed, eta, bytes, indeterminate, indeterminateText, showPct }: DownloadProgressLaneProps) {
   const pct = Math.min(100, Math.max(0, Math.round(value) || 0))
   const speedTok = speed || undefined
   const etaTok = eta || undefined
@@ -41,7 +46,7 @@ export default function DownloadProgressLane({ value, label, speed, eta, bytes, 
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={indeterminate ? undefined : pct}
-        aria-valuetext={indeterminate ? etaTok : valueText}
+        aria-valuetext={indeterminate ? (etaTok ?? indeterminateText) : valueText}
         className="relative h-1.5 w-full bg-progress-track rounded-full overflow-hidden"
       >
         {indeterminate ? (

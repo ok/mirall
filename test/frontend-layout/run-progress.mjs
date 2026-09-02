@@ -15,6 +15,7 @@ console.log('\n──────── DownloadProgressLane ARIA harness ──
 console.log(`indeterminate: no aria-valuenow = ${out.indNoValueNow}, sweep = ${out.indHasSweep}, valuetext = "${out.indValueText}"`)
 console.log(`determinate  : aria-valuenow = ${out.detValueNow}, sweep = ${out.detHasSweep}, valuetext = "${out.detValueText}"`)
 console.log(`verifying    : aria-valuenow = ${out.verValueNow}, visible meta = "${out.verMetaText}"`)
+console.log(`unmeasurable : no aria-valuenow = ${out.unmNoValueNow}, sweep = ${out.unmHasSweep}, visible meta = "${out.unmMetaText}", valuetext = "${out.unmValueText}"`)
 console.log(`resolveEta   : null="${out.mapNull}"  0="${out.mapZero}"  undefined="${out.mapUndefined}"  >0="${out.mapPositive}"  stalled="${out.mapStalled}"  live="${out.mapLive}"`)
 console.log(`etaFromRate  : complete="${out.rateComplete}"  idle="${out.rateIdle}"  live="${out.rateLive}"`)
 

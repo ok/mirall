@@ -7,6 +7,7 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
+import i18n from './../../src/renderer/i18n.js'
 import DownloadProgressLane from './../../src/renderer/components/widgets/DownloadProgressLane.js'
 import { resolveEta, etaFromRate } from './../../src/renderer/utils.js'
 
@@ -23,6 +24,10 @@ interface HarnessResults {
   detValueText: string
   verValueNow: number | null
   verMetaText: string
+  unmNoValueNow: boolean
+  unmHasSweep: boolean
+  unmValueText: string
+  unmMetaText: string
   mapNull: string
   mapZero: string
   mapUndefined: string
@@ -44,6 +49,7 @@ declare global {
 const container = document.getElementById('root') as HTMLElement
 const warm = resolveEta(null)
 const settled = resolveEta(11100)
+const unknownText = i18n.t('format.progressUnknown')
 
 createRoot(container).render(
   <div style={{ width: 220 }}>
@@ -55,6 +61,11 @@ createRoot(container).render(
     </div>
     <div data-test="ver">
       <DownloadProgressLane value={73} label="Verifying" showPct />
+    </div>
+    {/* The folder work strip's case: indeterminate with NO eta, because this lane never resolves
+        one — the meta line stays empty and the accessible value has to come from elsewhere. */}
+    <div data-test="unm">
+      <DownloadProgressLane value={0} label="Indexing progress" indeterminate indeterminateText={unknownText} />
     </div>
   </div>,
 )
@@ -75,6 +86,8 @@ setTimeout(() => {
     const det = readBar('[data-test="det"]')
     const ver = readBar('[data-test="ver"]')
     const verMeta = (document.querySelector('[data-test="ver"] p') as HTMLElement)?.textContent ?? ''
+    const unm = readBar('[data-test="unm"]')
+    const unmMeta = (document.querySelector('[data-test="unm"] p') as HTMLElement)?.textContent ?? ''
     const results: HarnessResults = {
       error: null,
       estimatingText: warm.etaText,
@@ -87,6 +100,10 @@ setTimeout(() => {
       detValueText: det.valueText,
       verValueNow: ver.valueNow !== null ? Number(ver.valueNow) : null,
       verMetaText: verMeta,
+      unmNoValueNow: unm.valueNow === null,
+      unmHasSweep: unm.sweep,
+      unmValueText: unm.valueText,
+      unmMetaText: unmMeta,
       mapNull: warm.etaText,
       mapZero: resolveEta(0).etaText,
       mapUndefined: resolveEta(undefined).etaText,
@@ -115,6 +132,12 @@ setTimeout(() => {
       // (not only in aria-valuetext), since there's no speed/ETA to show.
       results.verValueNow === 73 &&
       results.verMetaText.includes('73%') &&
+      // Unmeasurable work: nothing visible, but never a bar with neither valuenow nor valuetext.
+      results.unmNoValueNow &&
+      results.unmHasSweep &&
+      results.unmMetaText.trim() === '' &&
+      results.unmValueText.length > 0 &&
+      results.unmValueText !== 'format.progressUnknown' &&
       results.mapZero === '' &&
       results.mapUndefined === '' &&
       results.mapPositive.length > 0 &&

@@ -618,13 +618,13 @@ export class Instance {
   async pauseMirror() {
     await this.click({ name: 'More', last: true })
     await new Promise((r) => setTimeout(r, POLL_MS))
-    await this.click({ name: 'Pause Mirror' })
+    await this.click({ name: 'Pause syncing' })
   }
 
   async resumeMirror() {
     await this.click({ name: 'More', last: true })
     await new Promise((r) => setTimeout(r, POLL_MS))
-    await this.click({ name: 'Resume Mirror' })
+    await this.click({ name: 'Resume syncing' })
   }
 
   // Open a share's FolderView from the space view (the card's "Open <name>"
@@ -632,7 +632,9 @@ export class Instance {
   // nested file shows as a "sub/dir/file.txt" row.
   async openFolder(name) {
     await this.click({ name: 'Open ' + name })
-    await this.waitText('Files in this folder', 15000)
+    // The People tile is the one thing every role renders immediately — the file list may still be
+    // loading and the Folder tile waits on its totals.
+    await this.waitText('People', 15000)
   }
 
   // From space-view: More → Manage Storage → StorageSettings. "Manage Storage"
