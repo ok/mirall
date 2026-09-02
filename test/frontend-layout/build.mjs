@@ -87,8 +87,8 @@ await build({
 })
 await build({
   ...common,
-  entryPoints: [path.join(HERE, 'harness-focusring-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-focusring.js'),
+  entryPoints: [path.join(HERE, 'harness-geometry-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-geometry.js'),
 })
 await build({
   ...common,

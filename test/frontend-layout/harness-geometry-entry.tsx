@@ -1,8 +1,13 @@
-// Focus-ring clearance harness (LOCAL/dev-machine only — spawns a real Electron GUI process, like
-// the agent-desktop frontend suite). Mounts the REAL <FolderView> inside the REAL app-shell
-// wrappers and checks a geometric invariant the eye caught before any test did: a focusable
-// control that is fully visible must have at least `ring-2`'s worth of room inside EVERY clipping
-// ancestor, or its focus ring is shaved off by a scroll pane / an `overflow-hidden` wrapper.
+// Folder-screen geometry harness (LOCAL/dev-machine only — spawns a real Electron GUI process,
+// like the agent-desktop frontend suite). Mounts the REAL <FolderView> inside the REAL app-shell
+// wrappers and checks two invariants the eye caught before any test did:
+//
+//   1. A focusable control that is fully visible has at least `ring-2`'s worth of room inside
+//      EVERY clipping ancestor, or its focus ring is shaved off by a scroll pane or an
+//      `overflow-hidden` wrapper.
+//   2. The filter row and the file rows share a right edge. They only do while the row lives
+//      INSIDE the scroll pane: moved back outside it, the row spans the full column while the
+//      rows stop short of the scrollbar and its gutter, and the column's right edge goes ragged.
 //
 // Geometry only: `focus-visible:ring-2` is a box-shadow painted OUTSIDE the border box, so the
 // room either exists or it doesn't — the ring never has to paint, and nothing has to fake
@@ -112,12 +117,37 @@ function run() {
       }
     }
 
+    // The filter row's own right edge against the first file row's. Equal by construction while
+    // both share the pane's content box; 27px apart the moment the row moves back outside it.
+    const expand = controls.find((el) => el.tagName === 'BUTTON' && /expand|collapse/i.test(el.textContent ?? ''))
+    const firstRow = controls.find((el) => el.className.includes('w-full text-left'))
+    const ragged = expand && firstRow
+      ? Math.round((firstRow.getBoundingClientRect().right - expand.getBoundingClientRect().right) * 10) / 10
+      : null
+
+    // And it has to hold that edge while the list moves under it. Scrolled 400px down, the row
+    // must still sit at the top of the scrollport rather than travelling away with the rows.
+    const pane = document.querySelector<HTMLElement>('main div[class*="overflow-y-auto"]')
+    const sticky = document.querySelector<HTMLElement>('main div[class*="sticky"]')
+    let stuckBy: number | null = null
+    if (pane && sticky) {
+      pane.scrollTop = 400
+      void pane.offsetHeight
+      stuckBy = Math.round((sticky.getBoundingClientRect().top - pane.getBoundingClientRect().top) * 10) / 10
+      pane.scrollTop = 0
+    }
+
     ;(window as unknown as { __results: unknown }).__results = {
       ring: RING,
       checked,
       skipped,
       offenders: offenders.slice(0, 12),
-      pass: offenders.length === 0,
+      ragged,
+      stuckBy,
+      pass: offenders.length === 0
+        && ragged !== null && Math.abs(ragged) <= 1
+        // 4px is the pane's own pt-1 of ring clearance; anything larger means it scrolled away.
+        && stuckBy !== null && stuckBy <= 5,
     }
   }
   tick()
