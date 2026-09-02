@@ -11,20 +11,52 @@ changes do not appear here.
 
 
 ## v1.10.0
-### 2026-09-01
+### 2026-09-02
 
 Reliability and performance fixes across sharing, syncing and transfers,
-plus control over a folder that is still being read. Spaces made before
-v1.7.0 are no longer supported — see Changed.
+plus a rebuilt folder screen — one screen now, for the folders you share
+and the ones you mirror. Spaces made before v1.7.0 are no longer
+supported — see Changed.
 
 #### Added
 
-- **Pause or stop a folder that is still being read.** A folder you
-  share now offers Pause and Stop beside the count of what is left to
-  read, and a paused folder says so and offers Resume.
+- **One folder screen, whether you share the folder or mirror it.** The
+  two used to show different things in different places. They are now
+  the same screen — same tiles, same file list, same buttons where you
+  left them — and only what you are allowed to do changes with your
+  role.
+- **See who has the folder, and how each of them is doing.** A People
+  tile names the owner and everyone mirroring the folder, with a ring
+  around each face for in sync, still syncing, or paused, and the same
+  thing spelled out in text beside it. Until now only a folder's owner
+  could see any of this; now everyone does.
+- **The folder itself, at a glance.** Its size, how many files, how many
+  of them are on your device, and a badge for what it is doing right
+  now: up to date, adding, syncing, paused, missing, or browse-only.
+- **Filter a long folder.** A box above the file list narrows it as you
+  type, says how many of the total matched, and clears in one click. It
+  stays put while the folder works, so what you typed is never pushed
+  off the screen.
+- **One band tells you what the folder is doing.** Adding files,
+  syncing, paused, owner offline, source missing — it says which, counts
+  down what is left, and carries the one button that helps: Pause,
+  Resume or Locate.
+- **Rename a folder you share.** Edit Folder, in the header menu, gives
+  it a new name for everyone who has it, while the folder on your own
+  disk keeps the name you gave it there.
+- **Keep a mirrored folder somewhere else on your disk.** Edit Folder on
+  a folder you mirror moves it — onto another drive, say. Files already
+  at the new location are recognised and not downloaded a second time;
+  only what is missing is fetched.
 
 #### Changed
 
+- **Free up space is gone; Mirall keeps its own storage in order.** The
+  action had little left to reclaim, and it could remove a file list it
+  should have kept. What it did that still mattered happens on its own
+  now: a member who leaves takes their leftovers with them, and Mirall
+  tidies up as it starts. The Storage screen still shows what is using
+  space.
 - **Spaces made before v1.7.0 are no longer supported.** Every space
   Mirall creates or joins is encrypted now, and a space older than that
   release cannot be upgraded to it. Such a space is marked unsupported
@@ -53,7 +85,7 @@ v1.7.0 are no longer supported — see Changed.
   removing a folder no longer reports its files as being added.
 - **An action cut short leaves less behind, and a stall gets noticed.** A
   cancelled or finished transfer could come back to life, a file could
-  sit on "Adding" for good, unsharing could leave the share offered, and
+  sit on "Adding" for good, unsharing could leave the share offered,
   transfers running at quit never reached the Activity Log, and the disk
   space a space you had left went on using was never reclaimed. An error
   behind the scenes could leave Mirall quietly stuck with everything
