@@ -408,7 +408,7 @@ input[type='search']::-webkit-search-decoration {
  * Width is `auto` (default OS width): the standard property only offers
  * auto / thin / none, and `thin` renders too narrow on macOS. */
 .scrollbar-thin {
-  scrollbar-width: auto;
+  scrollbar-width: thin;
   scrollbar-color: var(--color-surface-container-high) transparent;
 }
 
