@@ -10,7 +10,7 @@ import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
 import Icon from '../components/primitives/Icon.js'
-import Button from '../components/primitives/Button.js'
+import PathRow from '../components/widgets/PathRow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 
@@ -146,17 +146,17 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
           <section>
             <SectionHeading>{t('storageSettings.downloadFolder')}</SectionHeading>
             <div className="bg-surface-container-low rounded-xl p-6">
-              <p className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
-              <div className="flex items-center gap-3">
-                {downloadFolder ? (
-                  <FilePath path={downloadFolder} className="flex-1 text-sm text-accent" />
-                ) : (
-                  <p className="flex-1 min-w-0 truncate text-sm text-on-surface-variant">{t('storageSettings.calculating')}</p>
-                )}
-                <Button variant="secondary" onClick={handleBrowseFolder} className="shrink-0">
-                  {t('storageSettings.changeFolder')}
-                </Button>
-              </div>
+              <p id="storage-download-folder-desc" className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
+              {/* The same row Add Folder, Mirror to Disk, Edit Folder and Edit Space show — a path
+                  is a path, whichever screen you are on. `lowest` because this card is itself
+                  `surface-container-low`, which the field's default fill would vanish into. */}
+              <PathRow
+                path={downloadFolder || null}
+                placeholder={t('storageSettings.calculating')}
+                onAction={handleBrowseFolder}
+                ariaDescribedBy="storage-download-folder-desc"
+                fill="lowest"
+              />
               {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
                   new one was refused. Order matters for a screen reader: the rejection is what
                   just happened and what the user can act on, so it is announced first. */}

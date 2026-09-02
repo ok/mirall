@@ -88,7 +88,7 @@ export default async function s109 ({ runDir, bootstrap }) {
     await r.ok('choosing a working folder clears the toast and the warning', async () => {
       // The Browse click is handed to nativeChoosePath as the trigger rather than fired here,
       // so a swallowed one is re-fired instead of timing out on a panel that never opens.
-      await B.nativeChoosePath(rescueDl, { trigger: () => B.click({ role: 'button', name: 'Change…' }) })
+      await B.nativeChoosePath(rescueDl, { trigger: () => B.click({ role: 'button', name: 'Change' }) })
       await pause(1200)
       assert(await B.hasText(rescueDl), 'the new folder is shown')
       await waitFor(async () => !(await B.hasText('This folder is currently unavailable')), 20000,

@@ -348,11 +348,15 @@ Sizes: `sm` (`px-5 py-2.5 text-sm`, default), `lg` (`h-14 px-5 text-lg`).
 Optional leading icon at `size={20}`. `fullWidth` available; `ref` and
 `ariaDescribedBy` pass through for focus management and field wiring.
 
-**Never hand-roll these classes.** Settings/list action buttons ("Change folder",
-"Export", "Load more", "Clear filters", nav "Send feedback") are all
-`variant="secondary"` + `className="shrink-0"`, not a local copy of the class
-string — four screens once kept their own `ACTION_BUTTON` constant, and the copy
-that lost its `bg-*` pair is exactly how an unfilled Cancel button shipped.
+**Never hand-roll these classes.** Settings/list action buttons ("Export", "Load
+more", "Clear filters", nav "Send feedback") are all `variant="secondary"` +
+`className="shrink-0"`, not a local copy of the class string — four screens once
+kept their own `ACTION_BUTTON` constant, and the copy that lost its `bg-*` pair is
+exactly how an unfilled Cancel button shipped. The one deliberate exception is
+`PathRow`'s button: it wears the same `surface-control` pair but is sized to the
+48px field beside it (`py-3.5`, not `sm`'s `py-2.5`) and carries `text-accent`, so
+it belongs to the path field rather than to this primitive. Re-picking a path is
+that control's job — never a bare `secondary` button next to a line of text.
 
 ### Text button — `primitives/TextButton.tsx`
 The low-emphasis action: `text-sm font-bold text-secondary hover:underline`, no fill, no
@@ -415,16 +419,32 @@ focus via the universal ring (a **ring**, not a border). See `screens/Onboarding
 `keyboard/CommandPalette.tsx`.
 
 ### Path field — `widgets/PathRow.tsx`
-One filesystem path in a modal, always the same shape: the path in a filled
-`bg-surface-container-low px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates and
-carries the full path for assistive tech), with an optional button beside it that re-picks it.
+**Every** filesystem path the user can act on, in a modal or on a settings screen, always the same
+shape: the path in a filled `px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates
+and carries the full path for assistive tech), with an optional button beside it that re-picks it.
+Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings. There is no
+second form — a bare line of path text next to a `secondary` button is the drift this replaced, and
+it read as a different kind of thing depending on which door you came through.
+
 `FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
 segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
 once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
-folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it. Omit
-`onAction` for a display-only row — the field stays and the **absent button** is what says the path
-is fixed. Used by Add Folder, Mirror to Disk and Edit Folder. `EditSpaceModal` still renders the
-older bare-text form; converting it needs ref forwarding for its focus-managed Browse button.
+folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it.
+
+- **The label follows the state, not the caller.** No path yet → `pathField.browse` ("Browse…");
+  a path in the field → `actions.change` ("Change"). Callers used to pass it and had picked four
+  different strings for the one action. `actionLabel` overrides, and nothing currently needs to.
+- **`fill` picks the ramp step**, because the ground differs: `low` (default) sits on a modal
+  panel, which is `surface-container-lowest`. A settings card is itself `surface-container-low` —
+  same token, same hex in both themes — so a row inside one passes `fill="lowest"` or the field
+  disappears into the card. Same relationship `NetworkSettings`' number input already has.
+- **Omit `onAction` for a display-only row** — the field stays and the **absent button** is what
+  says the path is fixed. That is how Edit Folder shows a healthy owned source, which must not be
+  re-pointed outside the Locate flow.
+- `actionRef` forwards to the button, for `EditSpaceModal`, which hands focus back to it after
+  "Use default folder" unmounts itself.
+- Pass `ariaDescribedBy` with the ids of the field's label and description: the button's own name
+  is just the verb, so on its own it announces as a bare "Change".
 
 ### Modal — `primitives/Modal.tsx`
 react-aria `useDialog` + `<FocusScope contain restoreFocus autoFocus>`;

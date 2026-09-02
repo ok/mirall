@@ -9,7 +9,6 @@ interface DeleteFolderShareModalProps {
   isOpen: boolean
   folderName: string
   spaceName: string
-  mountPath: string | null
   onClose: () => void
   onDelete: () => void | Promise<void>
 }
@@ -18,7 +17,6 @@ export default function DeleteFolderShareModal({
   isOpen,
   folderName,
   spaceName,
-  mountPath,
   onClose,
   onDelete,
 }: DeleteFolderShareModalProps) {
@@ -56,11 +54,6 @@ export default function DeleteFolderShareModal({
         <p className="text-on-surface-variant font-medium">
           {t('deleteFolder.body', { space: spaceName })}
         </p>
-        {mountPath && (
-          <p className="text-xs text-on-surface-variant px-1">
-            {t('deleteFolder.filesStay', { path: mountPath })}
-          </p>
-        )}
 
         <div className="pt-2 flex gap-4">
           <Button

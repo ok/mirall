@@ -155,7 +155,6 @@
   "deleteFolder": {
     "title": "Eliminare «{{name}}»?",
     "body": "I membri di {{space}} non vedranno più questa cartella.",
-    "filesStay": "I file in {{path}} restano sul tuo disco.",
     "action": "Elimina cartella",
     "deleting": "Eliminazione…"
   },
@@ -163,8 +162,6 @@
     "title": "Aggiungi cartella",
     "description": "I file in questa cartella saranno visibili a tutti i membri di {{space}}.",
     "pathLabel": "Cartella sul tuo disco",
-    "browseHint": "Sfoglia…",
-    "browsePlaceholder": "Seleziona posizione…",
     "nameLabel": "Nome della condivisione",
     "nameHelp": "Come appare questa cartella agli altri membri.",
     "next": "Avanti: anteprima",
@@ -172,6 +169,10 @@
     "creating": "Aggiunta della cartella…",
     "nameCollision": "Una cartella con questo nome esiste già in questo spazio.",
     "nameInvalid": "Il nome non può contenere barre, caratteri di controllo o essere vuoto."
+  },
+  "pathField": {
+    "browse": "Sfoglia…",
+    "placeholder": "Seleziona posizione…"
   },
   "folder": {
     "fileCount_one": "{{count}} file",
@@ -616,7 +617,6 @@
     "intro": "Visualizza e gestisci l'utilizzo dei dati di Mirall su questo dispositivo.",
     "downloadFolder": "Cartella download",
     "downloadFolderDesc": "Dove Mirall salva i file scaricati dai membri del tuo spazio.",
-    "changeFolder": "Cambia…",
     "appStorageDesc": "Spazio che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file. Non conserva mai una seconda copia dei tuoi file.",
     "sharingIndex": "Indice dei file condivisi",
     "sharingIndexDesc": "Mappe compatte dei file che condividi (mai il contenuto). Liberate automaticamente quando smetti di condividere un file.",

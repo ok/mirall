@@ -155,7 +155,6 @@
   "deleteFolder": {
     "title": "¿Eliminar «{{name}}»?",
     "body": "Los miembros de {{space}} ya no verán esta carpeta.",
-    "filesStay": "Los archivos en {{path}} permanecerán en tu disco.",
     "action": "Eliminar carpeta",
     "deleting": "Eliminando…"
   },
@@ -163,8 +162,6 @@
     "title": "Añadir carpeta",
     "description": "Los archivos de esta carpeta serán visibles para todos los miembros de {{space}}.",
     "pathLabel": "Carpeta en tu disco",
-    "browseHint": "Examinar…",
-    "browsePlaceholder": "Selecciona una ubicación…",
     "nameLabel": "Nombre del recurso compartido",
     "nameHelp": "Cómo aparece esta carpeta para los demás miembros.",
     "next": "Siguiente: vista previa",
@@ -172,6 +169,10 @@
     "creating": "Añadiendo carpeta…",
     "nameCollision": "Ya existe una carpeta con este nombre en este espacio.",
     "nameInvalid": "El nombre no puede contener barras, caracteres de control ni estar vacío."
+  },
+  "pathField": {
+    "browse": "Examinar…",
+    "placeholder": "Selecciona una ubicación…"
   },
   "folder": {
     "fileCount_one": "{{count}} archivo",
@@ -616,7 +617,6 @@
     "intro": "Consulta y gestiona el uso de datos de Mirall en este dispositivo.",
     "downloadFolder": "Carpeta de descargas",
     "downloadFolderDesc": "Dónde guarda Mirall los archivos descargados de los miembros de tu espacio.",
-    "changeFolder": "Cambiar…",
     "appStorageDesc": "Espacio que Mirall usa en este dispositivo para compartir y sincronizar tus archivos. Nunca guarda una segunda copia de tus archivos.",
     "sharingIndex": "Índice de archivos compartidos",
     "sharingIndexDesc": "Mapas compactos de los archivos que compartes (nunca su contenido). Se liberan automáticamente cuando dejas de compartir un archivo.",

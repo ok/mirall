@@ -211,8 +211,10 @@ function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, vali
         </div>
 
         <div className="space-y-3">
-          <label className="font-headline text-sm font-bold text-accent px-1">{t('mirrorFolder.pathLabel')}</label>
-          <PathRow path={mountPath} onAction={onBrowse} />
+          <span id="mirror-folder-path-label" className="block font-headline text-sm font-bold text-accent px-1">
+            {t('mirrorFolder.pathLabel')}
+          </span>
+          <PathRow path={mountPath} onAction={onBrowse} ariaDescribedBy="mirror-folder-path-label" />
           {validationError && (
             <p role="alert" className="text-xs text-error px-1">{validationError}</p>
           )}

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
 import { mountErrorI18nKey } from '../../errorMessages.js'
 import IconPicker from '../widgets/IconPicker.js'
-import FilePath from '../widgets/FilePath.js'
+import PathRow from '../widgets/PathRow.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
@@ -132,18 +132,14 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
             <p id="edit-space-folder-desc" className="text-sm text-on-surface-variant px-1">
               {t('editSpace.downloadFolderDesc')}
             </p>
-            <div className="flex items-center gap-3">
-              <FilePath path={effectiveFolder} className="flex-1 text-sm text-accent" />
-              <Button
-                ref={browseRef}
-                variant="secondary"
-                onClick={handleBrowse}
-                ariaDescribedBy="edit-space-folder-label edit-space-folder-desc"
-                className="shrink-0"
-              >
-                {t('storageSettings.changeFolder')}
-              </Button>
-            </div>
+            {/* The same row Add Folder, Mirror to Disk, Edit Folder and Storage settings show — a
+                path is a path, whichever door you came through. */}
+            <PathRow
+              path={effectiveFolder || null}
+              onAction={handleBrowse}
+              ariaDescribedBy="edit-space-folder-label edit-space-folder-desc"
+              actionRef={browseRef}
+            />
             <div className="flex items-center min-h-5">
               {isOverridden && (
                 <button

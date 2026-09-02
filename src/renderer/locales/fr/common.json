@@ -155,7 +155,6 @@
   "deleteFolder": {
     "title": "Supprimer « {{name}} » ?",
     "body": "Les membres de {{space}} ne verront plus ce dossier.",
-    "filesStay": "Les fichiers dans {{path}} restent sur votre disque.",
     "action": "Supprimer le dossier",
     "deleting": "Suppression…"
   },
@@ -163,8 +162,6 @@
     "title": "Ajouter un dossier",
     "description": "Les fichiers de ce dossier seront visibles par tous les membres de {{space}}.",
     "pathLabel": "Dossier sur votre disque",
-    "browseHint": "Parcourir…",
-    "browsePlaceholder": "Choisir un emplacement…",
     "nameLabel": "Nom du partage",
     "nameHelp": "Sous quel nom ce dossier apparaît aux autres membres.",
     "next": "Suivant : aperçu",
@@ -172,6 +169,10 @@
     "creating": "Ajout du dossier…",
     "nameCollision": "Un dossier portant ce nom existe déjà dans cet espace.",
     "nameInvalid": "Le nom ne peut pas contenir de barres obliques, de caractères de contrôle, ni être vide."
+  },
+  "pathField": {
+    "browse": "Parcourir…",
+    "placeholder": "Choisir un emplacement…"
   },
   "folder": {
     "fileCount_one": "{{count}} fichier",
@@ -616,7 +617,6 @@
     "intro": "Voir et gérer l'utilisation des données Mirall sur cet appareil.",
     "downloadFolder": "Dossier de téléchargement",
     "downloadFolderDesc": "Emplacement où Mirall enregistre les fichiers téléchargés depuis les membres de votre espace.",
-    "changeFolder": "Modifier…",
     "appStorageDesc": "Espace utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers. Il ne conserve jamais une seconde copie de vos fichiers.",
     "sharingIndex": "Index des fichiers partagés",
     "sharingIndexDesc": "Cartes compactes des fichiers que vous partagez (jamais leur contenu). Libérées automatiquement lorsque vous cessez de partager un fichier.",

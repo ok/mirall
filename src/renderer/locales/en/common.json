@@ -179,7 +179,6 @@
   "deleteFolder": {
     "title": "Delete “{{name}}”?",
     "body": "Members of {{space}} will no longer see this folder.",
-    "filesStay": "Files in {{path}} stay on your disk.",
     "action": "Delete Folder",
     "deleting": "Deleting…"
   },
@@ -187,8 +186,6 @@
     "title": "Add Folder",
     "description": "Files in this folder will be visible to all members of {{space}}.",
     "pathLabel": "Folder on your disk",
-    "browseHint": "Browse…",
-    "browsePlaceholder": "Select location…",
     "nameLabel": "Share name",
     "nameHelp": "How this folder appears to other members.",
     "next": "Next: Preview",
@@ -196,6 +193,10 @@
     "creating": "Adding Folder…",
     "nameCollision": "A folder with this name already exists in this space.",
     "nameInvalid": "Name can't contain slashes, control characters, or be empty."
+  },
+  "pathField": {
+    "browse": "Browse…",
+    "placeholder": "Select location…"
   },
   "folder": {
     "fileCount_one": "{{count}} file",
@@ -640,7 +641,6 @@
     "intro": "View and manage Mirall data usage on this device.",
     "downloadFolder": "Download Folder",
     "downloadFolderDesc": "Where Mirall saves files downloaded from your space members.",
-    "changeFolder": "Change…",
     "folderError": "Could not set folder: {{error}}",
     "folderUnavailable": "This folder is currently unavailable. It may have been moved, deleted, or is on a disconnected drive — downloads will fail until you reconnect it or choose another folder.",
     "calculating": "Calculating storage...",

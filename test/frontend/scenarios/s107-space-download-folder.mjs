@@ -70,7 +70,7 @@ export default async function s107 ({ runDir, bootstrap }) {
 
     await r.ok('picking a folder then closing discards the change', async () => {
       await openEditModal()
-      await B.click({ name: 'Change…' })
+      await B.click({ name: 'Change' })
       await B.nativeChoosePath(spaceDl)
       await pause(600)
       assert(await B.hasText(spaceDl), 'the picked path is staged in the modal')
@@ -82,7 +82,7 @@ export default async function s107 ({ runDir, bootstrap }) {
 
     await r.ok('saving a new folder flips the downloaded row back to available', async () => {
       await openEditModal()
-      await B.click({ name: 'Change…' })
+      await B.click({ name: 'Change' })
       await B.nativeChoosePath(spaceDl)
       await pause(600)
       await saveModal()
@@ -127,7 +127,7 @@ export default async function s107 ({ runDir, bootstrap }) {
     // scope — so pointing the space back at the folder restores it with no re-download.
     await r.ok('pointing the space back at the folder restores it with no re-download', async () => {
       await openEditModal()
-      await B.click({ name: 'Change…' })
+      await B.click({ name: 'Change' })
       await B.nativeChoosePath(otherDl)
       await pause(600)
       await saveModal()
@@ -138,7 +138,7 @@ export default async function s107 ({ runDir, bootstrap }) {
       await B.waitText('Archive', 20000)
 
       await openEditModal()
-      await B.click({ name: 'Change…' })
+      await B.click({ name: 'Change' })
       await B.nativeChoosePath(spaceDl)
       await pause(600)
       await saveModal()
