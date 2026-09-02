@@ -171,7 +171,7 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
         <button
           onClick={handleSave}
           disabled={!displayName.trim() || saving}
-          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
         >
           {saving ? t('actions.saving') : t('actions.save')}
         </button>

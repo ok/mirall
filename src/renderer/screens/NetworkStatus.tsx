@@ -203,7 +203,7 @@ function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled,
             onClick={onReconnect}
             disabled={reconnecting || reconnectThrottled}
             aria-label={t('networkStatus.reconnect')}
-            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
           >
             {reconnecting ? t('networkStatus.reconnecting') : t('networkStatus.reconnect')}
           </button>

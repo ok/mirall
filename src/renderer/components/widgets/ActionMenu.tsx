@@ -219,8 +219,8 @@ export default function ActionMenu({ label, icon, items, triggerVariant, ariaLab
   const triggerClass = isSubtle
     ? `w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${isPressed ? 'scale-95' : ''}`
     : triggerVariant === 'neutral'
-      ? `${labelledBase} bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container ${isPressed ? 'scale-95' : ''}`
-      : `${labelledBase} bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 ${isPressed ? 'scale-95' : ''}`
+      ? `${labelledBase} bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-hover ${isPressed ? 'scale-95' : ''}`
+      : `${labelledBase} bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover ${isPressed ? 'scale-95' : ''}`
 
   return (
     <div className="relative">
