@@ -42,7 +42,8 @@
   --color-surface-container: #efeeea;
   --color-surface-container-low: #f5f3ef;
   --color-surface-container-high: #eae8e4;
-  --color-surface-container-hover: #e4e2de;
+  --color-surface-control: #eae8e4;
+  --color-surface-control-hover: #e4e2de;
   --color-surface-container-highest: #e4e2de;
   --color-surface-container-lowest: #ffffff;
   --color-surface-variant: #e4e2de;
@@ -117,7 +118,8 @@
   --color-surface-container: #2e323a;
   --color-surface-container-low: #2e3239;
   --color-surface-container-high: #5c6068;
-  --color-surface-container-hover: #353b45;
+  --color-surface-control: #393f4a;
+  --color-surface-control-hover: #353b45;
   --color-surface-container-highest: #393f4a;
   --color-surface-container-lowest: #21252b;
   --color-surface-variant: #333842;

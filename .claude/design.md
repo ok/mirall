@@ -306,9 +306,8 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 ### Buttons — `primitives/Button.tsx`
 Three variants only:
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover`
-- **`secondary`** — neutral surface (`bg-surface-container-high`, dark `-highest`) →
-  `hover:bg-surface-container-hover`. Shared with the nav "Send feedback" button and used for
-  Cancel/dismiss.
+- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`.
+  Shared with the nav "Send feedback" button and used for Cancel/dismiss.
 
 **Every variant names its hover colour; none of them blends.** `hover:opacity-90` reads as
 "darken" but means "mix in 10% of whatever is behind me", so its size and even its *direction*
@@ -326,6 +325,14 @@ distance from the page:
 | neutral, dark | `#393f4a` → `#353b45` | −2.0 | 6.8 L\* |
 | primary, light | `#33253b` → `#241a2a` | −6.1 | — |
 | neutral, light | `#eae8e4` → `#e4e2de` | −2.1 | 7.6 L\* |
+
+**The neutral base is one token, not a `dark:` variant, and that is load-bearing.** A
+`dark:bg-…` utility compiles to `.dark\:bg-x:is(.dark *)` — specificity (0,2,0), the same as a
+`hover:` utility — so the two are decided by source order, and the dark base happened to come
+later: the hover simply never applied in dark mode. The old code only worked because
+`dark:hover:…` is a *combined* variant at (0,3,0). `surface-control` flips per theme instead, so
+the base is (0,1,0) and hover always wins. Prefer a theme-flipping token over a `dark:` variant on
+anything that also has interactive states.
 
 The neutral's step is deliberately much the smaller one — about a third of primary's. It starts
 only ~8 L\* above the page, so a primary-sized step reads as the button dissolving rather than
