@@ -7,7 +7,7 @@ import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
 import Avatar from '../primitives/Avatar.js'
-import FilePath from '../widgets/FilePath.js'
+import PathRow from '../widgets/PathRow.js'
 import FilenameTitle from '../widgets/FilenameTitle.js'
 import ScanPreviewModal from './ScanPreviewModal.js'
 import { validateForeignMount, previewForeignMount, cancelForeignPreview, createForeignMount } from '../../hooks/useForeignMount.js'
@@ -212,22 +212,7 @@ function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, vali
 
         <div className="space-y-3">
           <label className="font-headline text-sm font-bold text-accent px-1">{t('mirrorFolder.pathLabel')}</label>
-          <div className="flex items-center gap-3">
-            <div className="flex-grow flex items-center bg-surface-container-low px-5 py-3.5 rounded-xl min-w-0">
-              {mountPath ? (
-                <FilePath path={mountPath} className="flex-1 text-sm text-accent font-medium" />
-              ) : (
-                <span className="text-sm text-outline/70 italic">{t('addFolder.browsePlaceholder')}</span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onBrowse}
-              className="bg-surface-container-high dark:bg-surface-container-highest text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-container-highest dark:hover:bg-surface-container-high active:scale-95 transition-all"
-            >
-              {t('addFolder.browseHint')}
-            </button>
-          </div>
+          <PathRow path={mountPath} onAction={onBrowse} />
           {validationError && (
             <p role="alert" className="text-xs text-error px-1">{validationError}</p>
           )}
