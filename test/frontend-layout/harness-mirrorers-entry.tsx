@@ -2,7 +2,9 @@
 // fake bridge's space:mirrors) and asserts the stacked facepile renders a capped avatar stack + "+N"
 // overflow chip, encodes each peer's sync state as a ring colour (synced/syncing-pulse/paused —
 // never opacity), shows the heading, and carries an accessible name listing the mirrors and their
-// states — the a11y + colour contract can't be measured without a real AX tree + CSS.
+// states — the a11y + colour contract can't be measured without a real AX tree + CSS. It also pins
+// the sidebar rule: a right-hand tile states, it does not explain, so the card carries no
+// `leading-relaxed` body copy (the role blurb that used to sit under the mirror list).
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
@@ -20,6 +22,7 @@ interface HarnessResults {
   hasSyncingPulse: boolean
   hasPausedRing: boolean
   hasOpacity: boolean
+  hasBodyCopy: boolean
 }
 
 declare global {
@@ -64,6 +67,7 @@ function publishError(error: string): void {
   window.__results = {
     pass: false, error, heading: '', ariaLabel: '', avatarCount: -1, overflowText: '',
     hasSyncedRing: false, hasSyncingPulse: false, hasPausedRing: false, hasOpacity: false,
+    hasBodyCopy: true,
   }
 }
 
@@ -87,12 +91,13 @@ async function run(): Promise<void> {
   const hasSyncingPulse = !!document.querySelector('#host .avatar-ring-syncing-active')
   const hasPausedRing = !!document.querySelector('#host .avatar-ring-paused')
   const hasOpacity = !!document.querySelector('#host .opacity-50')
+  const hasBodyCopy = !!document.querySelector('#host p.leading-relaxed')
 
   window.__results = {
     pass:
       heading === i18n.t('folder.peopleHeading') &&
       avatarCount === 5 && overflowText === '+1' &&
-      hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity,
+      hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity && !hasBodyCopy,
     error: null,
     heading,
     ariaLabel,
@@ -102,6 +107,7 @@ async function run(): Promise<void> {
     hasSyncingPulse,
     hasPausedRing,
     hasOpacity,
+    hasBodyCopy,
   }
 }
 

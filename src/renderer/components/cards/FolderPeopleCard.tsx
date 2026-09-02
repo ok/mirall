@@ -28,7 +28,6 @@ interface FolderPeopleCardProps {
   isYou: boolean
   selfProfile: Profile | null
   selfPublicKey: string
-  roleDescription: string
 }
 
 // The avatar ring encodes the peer's sync state: green when fully merged, amber when paused, and a
@@ -101,7 +100,6 @@ function FolderPeopleCard({
   isYou,
   selfProfile,
   selfPublicKey,
-  roleDescription,
 }: FolderPeopleCardProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -177,11 +175,6 @@ function FolderPeopleCard({
           )}
         </>
       )}
-
-      {/* What this role means, in readable text. It used to live here as body copy; a title on a
-          16px glyph is not a substitute — there is nothing to hover on a touch screen and nothing
-          to activate with a keyboard. */}
-      <p className="text-xs text-on-surface-variant leading-relaxed mt-6">{roleDescription}</p>
     </div>
   )
 }
