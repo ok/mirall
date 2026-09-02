@@ -623,6 +623,12 @@
     "addFavorite": "Add this space to Favorites",
     "removeFavorite": "Remove this space from Favorites",
     "manageStorage": "Manage storage for this space",
+    "folderOpen": "Open folder {{name}}",
+    "folderLocate": "Locate folder {{name}}",
+    "folderPause": "Pause syncing {{name}}",
+    "folderResume": "Resume syncing {{name}}",
+    "folderMirror": "Mirror {{name}} to disk",
+    "folderEdit": "Edit folder {{name}}",
     "whatsNew": "What's new",
     "sendFeedback": "Send feedback",
     "openDocs": "Open documentation"

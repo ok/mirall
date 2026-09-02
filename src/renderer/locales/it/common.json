@@ -599,6 +599,12 @@
     "addFavorite": "Aggiungi questo spazio ai preferiti",
     "removeFavorite": "Rimuovi questo spazio dai preferiti",
     "manageStorage": "Gestisci l'archiviazione di questo spazio",
+    "folderOpen": "Apri cartella {{name}}",
+    "folderLocate": "Individua cartella {{name}}",
+    "folderPause": "Sospendi sincronizzazione di {{name}}",
+    "folderResume": "Riprendi sincronizzazione di {{name}}",
+    "folderMirror": "Replica {{name}} sul disco",
+    "folderEdit": "Modifica cartella {{name}}",
     "whatsNew": "Novità",
     "sendFeedback": "Invia feedback",
     "openDocs": "Apri la documentazione"

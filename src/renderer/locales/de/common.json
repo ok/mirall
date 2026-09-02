@@ -599,6 +599,12 @@
     "addFavorite": "Diesen Space zu Favoriten hinzufügen",
     "removeFavorite": "Diesen Space aus Favoriten entfernen",
     "manageStorage": "Speicher dieses Space verwalten",
+    "folderOpen": "Ordner {{name}} öffnen",
+    "folderLocate": "Ordner {{name}} suchen",
+    "folderPause": "Synchronisierung von {{name}} pausieren",
+    "folderResume": "Synchronisierung von {{name}} fortsetzen",
+    "folderMirror": "{{name}} auf Festplatte spiegeln",
+    "folderEdit": "Ordner {{name}} bearbeiten",
     "whatsNew": "Was ist neu",
     "sendFeedback": "Feedback senden",
     "openDocs": "Dokumentation öffnen"
