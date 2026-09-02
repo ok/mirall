@@ -57,6 +57,8 @@ const EXPECTED_KINDS = {
 // EXPECTED ∪ UNTRIGGERABLE covers the whole table exactly.
 const UNTRIGGERABLE = {
   'membership.denied': 'needs a join that is refused — covered in audit-attribution.test.js',
+  'share.renamed': 'the owner renames a folder — covered in folder-edit.test.js',
+  'mirror.relocated': 'a member moves its mirror on disk — covered in folder-edit.test.js',
   // The APPROVER deliberately does not record an arrival: membership.approved already tells that
   // story, and a second row seconds later is noise. It takes a third peer who did not approve —
   // the co-member case in audit-attribution.test.js.

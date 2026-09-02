@@ -180,6 +180,7 @@ import {
   startForeignLoop,
   setForeignEnabled,
   unmountForeignFolder,
+  relocateForeignFolder,
 } from '../shared/folders/foreign-folders.js'
 import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
@@ -738,6 +739,43 @@ ipc.handle('share:create', async (msg) => {
   return share
 })
 
+// Rename an owned folder — the LABEL, in a field of its own. `share.name` is not a label: it is the
+// first segment of the consumer-side drive path ('/<name>/<relPath>'), which keys every download
+// claim, every pending transfer and every reveal target on every member's machine. Rewriting it
+// would silently orphan all of them — downloaded files would revert to remote, re-downloads would
+// write second copies, and in-flight partials could no longer be cancelled. So the immutable key
+// stays put and `displayName` carries what people read; the renderer resolves one from the other.
+ipc.handle('share:rename', async (msg) => {
+  const space = await getSpace(msg.spaceId)
+  if (!space) throw new AppError(ErrorCodes.NOT_FOUND, 'Space not found')
+  const displayName = (msg.name || '').trim()
+  if (!isValidShareName(displayName)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
+
+  const own = await readOwnShares(msg.spaceId)
+  const share = own.find((s) => s.id === msg.shareId)
+  if (!share) throw new AppError(ErrorCodes.NOT_FOUND, 'Share not found')
+  const labelOf = (s) => s.displayName || s.name
+  if (labelOf(share) === displayName) return share
+  if (own.some((s) => s.id !== msg.shareId && labelOf(s) === displayName)) {
+    throw new AppError(ErrorCodes.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
+  }
+
+  const previousName = labelOf(share)
+  // Renaming back to the on-disk name drops the override rather than storing a duplicate of it.
+  const next = { ...share }
+  if (displayName === share.name) delete next.displayName
+  else next.displayName = displayName
+  await publishShare(msg.spaceId, next)
+  record('share.renamed', {
+    actor: selfActor(),
+    space: spaceRef(space),
+    target: { kind: 'share', id: msg.shareId, name: displayName },
+    subject: { previousName },
+  })
+  ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
+  return next
+})
+
 ipc.handle('share:delete', async (msg) => {
   const space = await getSpace(msg.spaceId)
   const share = (await readOwnShares(msg.spaceId)).find((s) => s.id === msg.shareId)
@@ -956,14 +994,9 @@ ipc.handle('owned-folder:index-status', async (msg) => {
   return getIndexStatus(msg.spaceId, msg.shareId)
 })
 
-// Stops the current index; the share stays mounted and watched. The cancelled pass would have
-// recorded 'active' and armed the periodic reconcile on completion — do both here instead.
-ipc.handle('owned-folder:cancel-index', async (msg) => {
-  return await mounts.stopIndex(msg.spaceId, msg.shareId)
-})
-
-// Pause the index: stop the burst AND the cadence, durably. Unlike cancel-index above, nothing
-// resumes this but an explicit resume — that is the whole difference between Stop and Pause.
+// Pause the index: stop the burst AND the cadence, durably. Nothing resumes this but an explicit
+// resume — which is the whole of the vocabulary now that Stop is gone: a folder is running or the
+// user paused it, and ending it for good is Delete Folder.
 ipc.handle('owned-folder:pause-index', async (msg) => {
   return await mounts.pauseIndex(msg.spaceId, msg.shareId)
 })
@@ -1134,6 +1167,27 @@ ipc.handle('foreign-folder:get', async (msg) => {
 
 ipc.handle('foreign-folder:set-enabled', async (msg) => {
   return await setForeignEnabled(msg.spaceId, msg.shareId, !!msg.enabled)
+})
+
+// Re-point a mirror at a new folder on disk. The bytes already written stay where they are — this
+// moves the mount, it does not move files — so the honest reading is: files the user moved with it
+// are recognised on the next pass (materialisation stats the destination and compares the share's
+// hash), and anything missing is fetched again.
+ipc.handle('foreign-folder:relocate', async (msg) => {
+  const mount = await getForeignMount(msg.spaceId, msg.shareId)
+  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId })
+  // Validation normalises the path, so the comparison belongs after it: re-pointing a mount at
+  // where it already is would drop the synced set and re-verify the whole folder for nothing.
+  if (mountPath === mount.mountPath) return { mount, advisories }
+  const next = await relocateForeignFolder(msg.spaceId, msg.shareId, mountPath)
+  record('mirror.relocated', {
+    actor: selfActor(),
+    space: spaceRef(await getSpace(msg.spaceId)),
+    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, mount.ownerKey, msg.shareId) },
+    subject: { mountPath, previousMountPath: mount.mountPath },
+  })
+  return { mount: next, advisories }
 })
 
 ipc.handle('foreign-folder:unmount', async (msg) => {

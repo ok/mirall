@@ -973,6 +973,17 @@ export class ForeignMirrors extends Subsystem {
   }
 }
 
+// Every cache here is keyed by mount PATH in effect, not by path itself: the synced Set records
+// which entries this mount already owns on disk. Both unmount and relocate must drop them — an
+// inherited Set would claim files exist at a path the mount no longer uses.
+function resetForeignSyncState(spaceId, shareId) {
+  const key = loopKey(spaceId, shareId)
+  syncedSets.delete(key)
+  syncDirty.delete(key)
+  mirrorLiveness.delete(key)
+  forgetConverged(key)
+}
+
 export async function unmountForeignFolder(spaceId, shareId) {
   stopForeignLoop(spaceId, shareId, { discardPartial: true })
   // Overlay copies no bytes into a drive (it serves straight from the owner's
@@ -981,14 +992,50 @@ export async function unmountForeignFolder(spaceId, shareId) {
   await deleteForeignMount(spaceId, shareId)
   // The Set's lifetime is the record's: drop it with the record so a re-mount starts from the
   // persisted array again rather than inheriting this mount's ownership.
-  const key = loopKey(spaceId, shareId)
-  syncedSets.delete(key)
-  syncDirty.delete(key)
-  mirrorLiveness.delete(key)
-  forgetConverged(key)
+  resetForeignSyncState(spaceId, shareId)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, 'idle')
   ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
+}
+
+// Move the mount, not the bytes. `discardPartial` is deliberately NOT passed to the stop: a
+// half-written file at the old path is the user's to keep or delete, and deleting it here would
+// destroy data the relocate never promised to touch.
+//
+// Everything that can fail happens BEFORE anything is torn down — same rule as pauseMount and
+// resumeIndex — so a failed write leaves a mount that is still running against its old path rather
+// than one with no loop, no caches and a record that disagrees with both.
+export async function relocateForeignFolder(spaceId, shareId, mountPath) {
+  const mount = await getForeignMount(spaceId, shareId)
+  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+
+  const enabled = mount.enabled !== false
+  // A disabled mount keeps the status it was disabled WITH. Collapsing an auto-pause
+  // ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would take it out of
+  // AUTO_PAUSE_STATUSES and permanently disable the auto-resume that exists to rescue exactly the
+  // mirrors this verb is used on.
+  const status = enabled ? 'scanning' : (mount.status ?? 'paused')
+  // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
+  // putting it back would resurrect an `enabled`/`status` a concurrent pause had already written.
+  const patched = await patchForeignMount(spaceId, shareId, { mountPath, status, syncedPaths: [], renamedPaths: {} })
+  if (!patched) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+
+  stopForeignLoop(spaceId, shareId)
+  resetForeignSyncState(spaceId, shareId)
+  // stopForeignLoop deliberately leaves tickInFlight alone; without this a pass still running
+  // against the OLD path makes every later tick coalesce onto that dead promise, and because a
+  // coalesced call never marks a pass started, the liveness probe reports the mirror healthy.
+  tickInFlight.delete(loopKey(spaceId, shareId))
+  emitStatus(spaceId, shareId, status)
+
+  const next = await getForeignMount(spaceId, shareId)
+  if (enabled && next) {
+    await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
+    await startForeignLoop(next)
+    runMaterializeTick(spaceId, shareId).catch((err) => log.debug('relocate tick failed:', shareId, '-', err.message))
+  }
+  ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
+  return next
 }
 
 export async function setForeignEnabled(spaceId, shareId, enabled) {

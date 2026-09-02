@@ -84,6 +84,11 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
+  'foreign-folder:relocate': { kind: 'command', args: {
+    mountPath: { type: ARG.path, optional: true },
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
   'foreign-folder:unmount': { kind: 'command', args: {
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
@@ -101,10 +106,6 @@ export const REQUESTS = Object.freeze({
   'network:set-relays': { kind: 'command', args: {} },
   'network:status:get': { kind: 'query', args: {} },
   'network:test-relay': { kind: 'command', args: {} },
-  'owned-folder:cancel-index': { kind: 'command', args: {
-    shareId: { type: ARG.shareId, optional: true },
-    spaceId: { type: ARG.spaceId, optional: true },
-  } },
   'owned-folder:cancel-preview': { kind: 'command', args: { previewId: { type: ARG.string, optional: true } } },
   'owned-folder:delete': { kind: 'command', args: {
     shareId: { type: ARG.shareId, optional: true },
@@ -163,6 +164,11 @@ export const REQUESTS = Object.freeze({
   'settings:set-download-folder': { kind: 'command', args: {} },
   'share:create': { kind: 'command', args: { name: { type: ARG.string, optional: true }, spaceId: { type: ARG.spaceId, optional: true } } },
   'share:delete': { kind: 'command', args: {
+    shareId: { type: ARG.shareId, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
+  'share:rename': { kind: 'command', args: {
+    name: { type: ARG.string, optional: true },
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },

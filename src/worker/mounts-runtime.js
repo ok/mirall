@@ -298,22 +298,6 @@ export class MountsRuntime extends Subsystem {
     return { cancelled, paused: true, mountPointGone: gone }
   }
 
-  // Stop: drop the queue and hand the folder back to the ordinary cadence. The counterpart to
-  // pauseIndex, which also disarms that cadence and records a durable intent.
-  async stopIndex(spaceId, shareId) {
-    const cancelled = cancelIndex(spaceId, shareId)
-    const mount = await getOwnedMount(spaceId, shareId)
-    // A Stop on an already-paused index must not un-pause it. Both controls are on screen together,
-    // so a Stop can land in the window before Pause's status event re-renders; writing 'active' and
-    // arming the cadence would leave a healthy badge over a gated index and an interval that can
-    // never do work — the state the boot resume goes out of its way to avoid.
-    if (mount && !mount.indexPaused) {
-      await this.setOwnedStatus(spaceId, shareId, 'active')
-      this.schedulePeriodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore)
-    }
-    return { cancelled }
-  }
-
   // Everything that can fail happens BEFORE the flag is cleared, so a resume that cannot run leaves
   // the pause intact rather than destroying the intent and silently doing nothing. Clearing it
   // still precedes arming the scan, or that scan is declined by the gate resume has not yet lifted.

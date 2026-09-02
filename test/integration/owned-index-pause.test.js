@@ -27,7 +27,7 @@ test('pause records the intent durably, drops the queue and disarms the cadence'
   t.ok(r.paused)
   t.ok((await getOwnedMount(ctx.spaceId, ctx.share.id)).indexPaused, 'the flag is on the record')
   t.is(getIndexStatus(ctx.spaceId, ctx.share.id).adding, 0, 'the queue is drained')
-  t.absent(armed(ctx), 'and the cadence is off — a Stop would have left it armed')
+  t.absent(armed(ctx), 'and the cadence is off — only an explicit resume brings it back')
   t.ok(statuses(ctx).includes('paused'), 'the paused status is announced')
 })
 
@@ -140,17 +140,6 @@ test('REGRESSION (FIX-PAUSE-4): a pause mid-walk stops the pass, not just the qu
   t.alike(await listRelPaths(ctx.share, ctx.spaceId), [], 'and nothing was published')
 })
 
-test('stop re-arms the cadence and records no pause — the difference from pause', async (t) => {
-  const ctx = await setupOwnedShare(t, { files: manyFiles(40) })
-  const mounts = ctx.root.mounts
-  await mounts.stopIndex(ctx.spaceId, ctx.share.id)
-
-  t.ok(armed(ctx), 'Stop lets the normal cadence pick it back up')
-  t.absent((await getOwnedMount(ctx.spaceId, ctx.share.id)).indexPaused, 'and records no pause')
-  const r = await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
-  t.absent(r.skipped, 'a stopped index is not gated')
-})
-
 test('resume does not re-publish what was already published', async (t) => {
   // The property that makes pause worth having: a converged share costs one walk, not a re-index.
   const ctx = await setupOwnedShare(t, { files: manyFiles(20) })
@@ -169,18 +158,6 @@ test('resume does not re-publish what was already published', async (t) => {
 // before Pause's status event re-renders. The cancel-index handler wrote 'active' and armed the
 // cadence unconditionally, leaving a healthy badge over a still-gated index and an interval that
 // could never do work — the state the boot resume goes out of its way to avoid.
-test('REGRESSION (FIX-PAUSE-5): a Stop on a paused index does not un-pause it', async (t) => {
-  const ctx = await setupOwnedShare(t, { files: manyFiles(20) })
-  const mounts = ctx.root.mounts
-  await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
-
-  await mounts.stopIndex(ctx.spaceId, ctx.share.id)
-  const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
-  if (!mount.indexPaused) t.fail('the Stop cleared the durable pause')
-  t.is(mount.status, 'paused', 'and the status still says so')
-  t.absent(armed(ctx), 'no cadence was armed behind the pause')
-})
-
 // REGRESSION (FIX-PAUSE-6): setOwnedStatus is the only emitter of event:owned-folder-mount-status,
 // and useOwnedMount re-derives ONLY on that event. Skipping the emit when the root was missing left
 // the renderer believing the folder was unpaused: the queue drained, the notice vanished, and a
@@ -233,11 +210,11 @@ test('REGRESSION (FIX-PAUSE-8): a deep pass owed from a paused relocate is honou
 // after the walk but during the catalog read (O(catalog), not instant) emptied the queue and was
 // then immediately overwritten by enqueueMany — the same "restarts the moment the read lands"
 // failure the pause half already fixed.
-test('REGRESSION (FIX-PAUSE-9): a Stop mid-read stops the pass too', async (t) => {
+test('REGRESSION (FIX-PAUSE-9): a cancel mid-read stops the pass too', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(12000) })
   let settled = false
   const scan = periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, []).finally(() => { settled = true })
-  // A Stop carries no durable flag, so unlike a pause it bites only once the pass has registered
+  // A cancel carries no durable flag, so unlike a pause it bites only once the pass has registered
   // its abort signal — a couple of bee reads in. The real one arrives an IPC round-trip late;
   // retrying stands in for that without guessing a delay that a loaded machine would invalidate.
   while (!settled) {
@@ -247,7 +224,7 @@ test('REGRESSION (FIX-PAUSE-9): a Stop mid-read stops the pass too', async (t) =
   const r = await scan
 
   t.is(r.totalOnDisk, 0, 'the pass bailed instead of enumerating the whole tree')
-  t.ok(r.cancelled, 'and recorded a cancel, not a pause — a Stop leaves the cadence to resume it')
+  t.ok(r.cancelled, 'and recorded a cancel, not a pause — the cadence picks the folder back up')
   t.absent((await getOwnedMount(ctx.spaceId, ctx.share.id)).indexPaused, 'no pause was recorded')
   t.is(getIndexStatus(ctx.spaceId, ctx.share.id).adding, 0, 'nothing was queued behind it')
 })
@@ -256,7 +233,7 @@ test('REGRESSION (FIX-PAUSE-9): a Stop mid-read stops the pass too', async (t) =
 // but the catalog read that follows it is O(catalog) and had no check at all, so a Stop landing
 // there was overwritten by the enqueueMany that came next. Few files on disk and a large catalog
 // puts the whole abort window in that second half, where the per-file check cannot reach.
-test('REGRESSION (FIX-PAUSE-10): a Stop during the catalog read stops the pass too', async (t) => {
+test('REGRESSION (FIX-PAUSE-10): a cancel during the catalog read stops the pass too', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(3000) })
   await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   for (const name of fileNames(3000).slice(10)) fs.unlinkSync(path.join(ctx.mountPath, name))
