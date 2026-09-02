@@ -154,7 +154,7 @@
   },
   "deleteFolder": {
     "title": "„{{name}}“ löschen?",
-    "body": "Mitglieder von {{space}} sehen diesen Ordner nicht mehr.",
+    "body": "Mitglieder von {{space}} sehen diesen Ordner nicht mehr. Deine Dateien bleiben auf deiner Festplatte.",
     "action": "Ordner löschen",
     "deleting": "Lösche…"
   },

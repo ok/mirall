@@ -178,7 +178,7 @@
   },
   "deleteFolder": {
     "title": "Delete “{{name}}”?",
-    "body": "Members of {{space}} will no longer see this folder.",
+    "body": "Members of {{space}} will no longer see this folder. Your files stay on your disk.",
     "action": "Delete Folder",
     "deleting": "Deleting…"
   },

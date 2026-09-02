@@ -154,7 +154,7 @@
   },
   "deleteFolder": {
     "title": "¿Eliminar «{{name}}»?",
-    "body": "Los miembros de {{space}} ya no verán esta carpeta.",
+    "body": "Los miembros de {{space}} ya no verán esta carpeta. Tus archivos permanecerán en tu disco.",
     "action": "Eliminar carpeta",
     "deleting": "Eliminando…"
   },

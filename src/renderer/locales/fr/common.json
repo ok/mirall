@@ -154,7 +154,7 @@
   },
   "deleteFolder": {
     "title": "Supprimer « {{name}} » ?",
-    "body": "Les membres de {{space}} ne verront plus ce dossier.",
+    "body": "Les membres de {{space}} ne verront plus ce dossier. Vos fichiers restent sur votre disque.",
     "action": "Supprimer le dossier",
     "deleting": "Suppression…"
   },
