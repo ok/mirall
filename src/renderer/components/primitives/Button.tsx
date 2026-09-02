@@ -27,7 +27,7 @@ interface ButtonProps {
 // hovers to a slightly shifted shade of the same red rather than jumping to a neutral color.
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90 focus-visible:ring-secondary/30',
-  secondary: 'bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-high focus-visible:ring-secondary/30',
+  secondary: 'bg-surface-container-high dark:bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container focus-visible:ring-secondary/30',
   danger: 'bg-error-container text-on-error-container hover:bg-error-container-hover focus-visible:ring-error/30',
 }
 
