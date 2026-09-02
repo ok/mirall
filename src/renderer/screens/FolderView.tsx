@@ -508,7 +508,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
         isOpen={showDelete}
         folderName={share.name}
         spaceName={space?.name || ''}
-        mountPath={null}
         onClose={() => setShowDelete(false)}
         onDelete={async () => {
           await handleDelete()

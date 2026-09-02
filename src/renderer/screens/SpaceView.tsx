@@ -596,7 +596,6 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         isOpen={shareToDelete !== null}
         folderName={shareToDelete?.name ?? ''}
         spaceName={space?.name || t('space.fallbackName')}
-        mountPath={null}
         onClose={() => setShareToDelete(null)}
         onDelete={async () => {
           if (!shareToDelete) return

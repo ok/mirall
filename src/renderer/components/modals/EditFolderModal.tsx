@@ -154,7 +154,6 @@ export default function EditFolderModal({
                 is what says whether you can re-point it. */}
             <PathRow
               path={effectivePath}
-              actionLabel={t('actions.change')}
               onAction={canRelocate ? handleBrowse : undefined}
               ariaDescribedBy="edit-folder-path-label edit-folder-path-desc"
             />

@@ -63,8 +63,10 @@ function FolderShareEditStep({ isOpen, spaceName, mountPath, shareName, validati
 
       <div className="px-10 pb-10 space-y-6">
         <div className="space-y-3">
-          <label className="font-headline text-sm font-bold text-accent px-1">{t('addFolder.pathLabel')}</label>
-          <PathRow path={mountPath} onAction={onBrowse} />
+          <span id="add-folder-path-label" className="block font-headline text-sm font-bold text-accent px-1">
+            {t('addFolder.pathLabel')}
+          </span>
+          <PathRow path={mountPath} onAction={onBrowse} ariaDescribedBy="add-folder-path-label" />
           {validationError && (
             <p role="alert" className="text-xs text-error px-1">{validationError}</p>
           )}

@@ -154,8 +154,7 @@
   },
   "deleteFolder": {
     "title": "„{{name}}“ löschen?",
-    "body": "Mitglieder von {{space}} sehen diesen Ordner nicht mehr.",
-    "filesStay": "Dateien in {{path}} bleiben auf deiner Festplatte.",
+    "body": "Mitglieder von {{space}} sehen diesen Ordner nicht mehr. Deine Dateien bleiben auf deiner Festplatte.",
     "action": "Ordner löschen",
     "deleting": "Lösche…"
   },
@@ -163,8 +162,6 @@
     "title": "Ordner hinzufügen",
     "description": "Dateien in diesem Ordner sind für alle Mitglieder von {{space}} sichtbar.",
     "pathLabel": "Ordner auf deiner Festplatte",
-    "browseHint": "Durchsuchen…",
-    "browsePlaceholder": "Ort auswählen…",
     "nameLabel": "Freigabename",
     "nameHelp": "So erscheint dieser Ordner bei anderen Mitgliedern.",
     "next": "Weiter: Vorschau",
@@ -172,6 +169,10 @@
     "creating": "Ordner wird hinzugefügt…",
     "nameCollision": "Ein Ordner mit diesem Namen existiert bereits in diesem Raum.",
     "nameInvalid": "Der Name darf keine Schrägstriche oder Steuerzeichen enthalten und nicht leer sein."
+  },
+  "pathField": {
+    "browse": "Durchsuchen…",
+    "placeholder": "Ort auswählen…"
   },
   "folder": {
     "fileCount_one": "{{count}} Datei",
@@ -616,7 +617,6 @@
     "intro": "Datennutzung auf diesem Gerät anzeigen und verwalten.",
     "downloadFolder": "Download-Ordner",
     "downloadFolderDesc": "Hier speichert Mirall Dateien, die du von Mitgliedern deines Raums lädst.",
-    "changeFolder": "Ändern…",
     "appStorageDesc": "Speicher, den Mirall auf diesem Gerät zum Teilen und Synchronisieren deiner Dateien nutzt. Es wird nie eine zweite Kopie deiner Dateien angelegt.",
     "sharingIndex": "Freigabe-Index",
     "sharingIndexDesc": "Kompakte Verzeichnisse der von dir geteilten Dateien (nie die Dateiinhalte). Wird automatisch freigegeben, wenn du eine Datei nicht mehr teilst.",
