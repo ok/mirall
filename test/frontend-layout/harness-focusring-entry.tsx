@@ -11,6 +11,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
+import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
 import FolderView from './../../src/renderer/screens/FolderView.js'
 
 const RING = 2
@@ -31,7 +32,11 @@ createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="min-h-screen bg-surface">
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
-        <FolderView spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
+        {/* FolderView registers its acts as palette commands while mounted, so it needs the
+            keyboard registry the same way SpaceView's harness does. */}
+        <KeyboardProvider>
+          <FolderView spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
+        </KeyboardProvider>
       </ToastProvider>
     </main>
   </div>,
