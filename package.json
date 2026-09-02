@@ -51,6 +51,7 @@
     "test:layout:indexing": "node test/frontend-layout/run-indexing.mjs",
     "test:layout:memo": "node test/frontend-layout/run-memo.mjs",
     "test:layout:spaceoverflow": "node test/frontend-layout/run-spaceoverflow.mjs",
+    "test:layout:stickyheader": "node test/frontend-layout/run-stickyheader.mjs",
     "test:layout:focusring": "node test/frontend-layout/run-focusring.mjs",
     "test:layout:truncation": "node test/frontend-layout/run-truncation.mjs"
   },

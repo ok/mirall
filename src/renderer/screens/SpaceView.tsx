@@ -395,8 +395,11 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
              below the fold drops its 1px span past the viewport bottom, growing the DOCUMENT into
              an OS scrollbar down the whole window. FolderView's pane carries it for the same
              reason. The 4px of interior room is for a focused card's ring, cancelled by an equal
-             negative margin so no card moves; `pr-4` is the shared scrollbar gutter. */
-          className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
+             negative margin so no card moves; `pr-4` is the shared scrollbar gutter. That room is
+             horizontal only: a `sticky top-0` header pins at the scrollport top PLUS this box's
+             padding-top, so any `pt-*` here leaves a band above the pinned header that scrolled
+             cards stay visible in. FolderView's pane can afford `pt-1` — it has no sticky header. */
+          className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 pl-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
         >
           {showSpaceEmptyState(pane) ? (
             <div className="flex flex-col min-h-[24rem] mt-12">
