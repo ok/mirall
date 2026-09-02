@@ -85,4 +85,9 @@ await build({
   entryPoints: [path.join(HERE, 'harness-memo-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-memo.js'),
 })
+await build({
+  ...common,
+  entryPoints: [path.join(HERE, 'harness-focusring-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-focusring.js'),
+})
 console.error('[build] harness bundled')
