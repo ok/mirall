@@ -284,8 +284,17 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 Three variants only:
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:opacity-90`
 - **`secondary`** — neutral surface (`bg-surface-container-high` →
-  `hover:bg-surface-container-highest`; dark inverts one tier). Shared with the
-  nav "Send feedback" button and used for Cancel/dismiss.
+  `hover:bg-surface-container-highest`; dark is `-highest` → `surface-container`).
+  Shared with the nav "Send feedback" button and used for Cancel/dismiss.
+
+**Hover always darkens, in both themes.** Dark mode's ramp is not monotonic —
+`surface-container-high` (`#5c6068`) is *lighter* than `-highest` (`#393f4a`) — so the
+mirrored "one tier up" that reads correctly in light mode jumped the secondary button to a
+much lighter grey on hover while primary went darker. The dark hover is
+`surface-container` (`#2e323a`) instead. Same rule for the `ActionMenu` neutral trigger and
+`PathRow`'s button, which carry the same pair. (A transparent control that *lifts* into a
+visible surface on hover — `IconButton`, list rows — is the opposite pattern and still
+brightens.)
 - **`danger`** — tonal `bg-error-container text-on-error-container` →
   `hover:bg-error-container-hover` (stays in the red family, never jumps to neutral).
 
@@ -341,7 +350,11 @@ focus via the universal ring (a **ring**, not a border). See `screens/Onboarding
 ### Path field — `widgets/PathRow.tsx`
 One filesystem path in a modal, always the same shape: the path in a filled
 `bg-surface-container-low px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates and
-carries the full path for assistive tech), with an optional button beside it that re-picks it. Omit
+carries the full path for assistive tech), with an optional button beside it that re-picks it.
+`FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
+segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
+once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
+folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it. Omit
 `onAction` for a display-only row — the field stays and the **absent button** is what says the path
 is fixed. Used by Add Folder, Mirror to Disk and Edit Folder. `EditSpaceModal` still renders the
 older bare-text form; converting it needs ref forwarding for its focus-managed Browse button.
