@@ -76,6 +76,22 @@ The failed row rendered the error as an extra `<p>` under the meta line, growing
 the card from 88px to 100px; and the toast capped at 480px, wrapping long
 disk-full messages (which embed file names) to three cramped lines.
 
+## Space-screen document overflow (`npm run test:layout:spaceoverflow`)
+
+The twin of the FolderView scenario above, for `<SpaceView>`. Mounts the **real**
+screen with five folder shares and two loose files — more rows than the pane is
+tall — and asserts the **document** never becomes scrollable, at rest and with the
+list scrolled to its end.
+
+### What it caught
+
+The same bug class as the FolderView scenario, one screen over: the space list
+pane was not `relative`, so the `position:absolute` `sr-only` name spans inside
+rows below the fold resolved against the **grid** instead. Removing that grid's
+`overflow-hidden` (to stop it shaving focus rings off the cards) left nothing to
+clip them, and two 1px spans grew the document by 171px — an OS scrollbar down
+the side of the window. Fix: `relative` on the pane, as FolderView already does.
+
 ## Run
 
 ```
@@ -83,6 +99,7 @@ npm run test:layout              # FolderView document-overflow scenario
 npm run test:layout:members      # SpaceView Members-panel sizing scenario
 npm run test:layout:peerdownload # Peer-download serve-UI (meta clip + % fallback)
 npm run test:layout:filecard     # FileCard error-state height + toast width cap
+npm run test:layout:spaceoverflow # SpaceView document-overflow scenario
 node test/frontend-layout/run.mjs --no-build          # reuse the existing bundle
 node test/frontend-layout/run-members.mjs --no-build   # reuse the existing bundle
 ```

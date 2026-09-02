@@ -36,9 +36,11 @@
     { publicKey: OWNER_PK, driveKey: 'd'.repeat(64), displayName: 'Vhinz', online: true, avatar: null },
     { publicKey: SELF_PK, driveKey: 'e'.repeat(64), displayName: 'You', online: true, avatar: null },
   ]
+  // schemaVersion 2 is what every shipped space carries; without it SpaceView renders the
+  // legacy banner and hides the drop zone, i.e. not the screen users see.
   const space = {
     spaceId: SPACE_ID, name: 'Aurora', icon: 'folder', topic: 't'.repeat(64),
-    created: '2026-01-01', members, favorite: false,
+    created: '2026-01-01', members, favorite: false, schemaVersion: 2,
   }
   const foreignMount = {
     spaceId: SPACE_ID, shareId: SHARE_ID, mountPath: '/tmp/mirror', enabled: true,
@@ -65,8 +67,10 @@
       case 'features:get': return { overlay: false }
       // Routes the full SpaceView mount (members layout harness) needs; the
       // FolderView scenario never calls these, so the empties are inert there.
-      case 'files:list': return []
-      case 'share:list': return []
+      // A harness that wants a populated space screen seeds these two through __HARNESS_CFG;
+      // the scenarios that only need the shell keep the empty listings.
+      case 'files:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.files) || []
+      case 'share:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.shares) || []
       case 'space:storage-summary': return { totalBytes: folderInfo().totalBytes, onDeviceBytes: 0 }
       case 'space:pending-requests': return (window.__HARNESS_CFG && window.__HARNESS_CFG.pendingRequests) || []
       case 'foreign-folder:list-all': return []
@@ -82,7 +86,7 @@
   }
 
   // Expose a driver surface to the harness entry.
-  window.__fake = { SPACE_ID, SHARE_ID, OWNER_PK, files, members }
+  window.__fake = { SPACE_ID, SHARE_ID, OWNER_PK, SELF_PK, files, members }
   window.__fakeEmit = (eventObj) => reply(eventObj)
 
   const noop = () => {}
