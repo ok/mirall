@@ -72,6 +72,26 @@ test('every kind is fully described — category, tier, and copy in every locale
   }
 })
 
+// A sentence is one translatable string interpolated with {{actor}}/{{space}}/{{target}}, and
+// splitSentence renders only the placeholders it finds. So a locale that drops one silently loses
+// that entity from the row — the whole zero-joins-at-render guarantee, defeated by a translation.
+// Pinned against English rather than pairwise, because English is where the copy is authored.
+test('every locale interpolates the same fields as English, per kind', (t) => {
+  const localeDir = path.join(SRC, 'renderer', 'locales')
+  const read = (loc) => JSON.parse(readFileSync(path.join(localeDir, loc, 'common.json'), 'utf8'))
+  const fieldsIn = (sentence) => [...String(sentence).matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort().join(',')
+  const en = read('en').activityLog.kind
+
+  for (const loc of readdirSync(localeDir)) {
+    if (loc === 'en') continue
+    const kinds = read(loc).activityLog.kind
+    for (const kind of Object.keys(KINDS)) {
+      t.is(fieldsIn(kinds[kind]), fieldsIn(en[kind]),
+        loc + '/' + kind + ' interpolates the same fields as English — a dropped one erases that name from the row')
+    }
+  }
+})
+
 test('no locale carries copy for a kind that no longer exists', (t) => {
   const locales = readdirSync(path.join(SRC, 'renderer', 'locales'))
   for (const loc of locales) {

@@ -300,7 +300,12 @@ function fileNameOf(path) {
 // counterpart to the approver's own `membership.approved` row. Extracted so onGrant, already at
 // the complexity ceiling, gains no branches.
 async function recordGrantReceived(spaceId, space, granterKey) {
-  const name = getConnectedMemberMeta(spaceId, granterKey)?.displayName || null
+  // Live handshake meta first, then the persisted roster: the grant can land before the granter's
+  // meta is registered, and a row with no name renders a bare '?' avatar forever (nothing is
+  // joined at render time).
+  const name = getConnectedMemberMeta(spaceId, granterKey)?.displayName
+    || (space?.members || []).find((m) => m.publicKey === granterKey)?.displayName
+    || null
   record('membership.granted', {
     actor: { type: 'peer', key: granterKey || null, name },
     space: spaceRef(await getSpace(spaceId)),
@@ -542,7 +547,11 @@ async function onGrant(msg, ctx = {}) {
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)   // space is now approved → derive its membership
-  await recordGrantReceived(spaceId, space, msg.profileKey)
+  // verdict.granterKey, not msg.profileKey: the grant frame carries `granterKey` (swarm.js
+  // sendMembershipGrant) and has no profileKey at all, so the row used to record a null actor —
+  // a '?' avatar and a sentence with a hole in it. The verdict's copy is the one the identity
+  // binding was checked against, so the attribution is authenticated rather than self-declared.
+  await recordGrantReceived(spaceId, space, verdict.granterKey)
   ipc.emit('event:membership-granted', { spaceId })
 }
 

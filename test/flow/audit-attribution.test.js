@@ -48,6 +48,17 @@ test('a peer join and approval are recorded with the authenticated peer key', { 
   const bRows = await rows(B)
   t.ok(find(bRows, 'space.joined'), 'the joiner recorded joining')
   t.absent(find(bRows, 'membership.approved'), 'the joiner did not author the approval')
+
+  // REGRESSION (FIX-GRANT-ACTOR: the grant frame carries `granterKey`, but onGrant passed
+  // msg.profileKey — a field it has never had. So the actor key was null, the name lookup had
+  // nothing to key on, and the row rendered a '?' avatar over "was granted access" with the
+  // actor missing from its own sentence.)
+  const aKey = (await A.request('profile:get')).publicKey
+  const granted = find(bRows, 'membership.granted')
+  t.ok(granted, 'the joiner recorded the moment access actually arrived')
+  t.is(granted.actor.key, aKey, 'tier B: the granter is the real remote profile key, authenticated on the socket')
+  t.is(granted.actor.name, 'Alice', 'and is named in the row — nothing is joined at render time')
+  t.is(granted.tier, 'B')
 })
 
 test('a denied join is recorded by the decider with a denied outcome', { timeout: 220000 }, async (t) => {

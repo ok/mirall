@@ -951,7 +951,7 @@
       "membership.requested": "{{actor}} möchte beitreten",
       "membership.approved": "Du hast {{target}} zugelassen",
       "membership.denied": "Du hast {{target}} abgelehnt",
-      "membership.granted": "{{actor}} hat Zugriff erhalten",
+      "membership.granted": "{{actor}} hat dir Zugriff auf {{target}} gegeben",
       "membership.approval_revoked": "Deine Zulassung von {{target}} gilt nicht mehr",
       "member.joined": "{{actor}} ist dem Raum beigetreten",
       "member.left": "{{actor}} hat den Raum verlassen",
