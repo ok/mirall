@@ -13,6 +13,8 @@ import { shouldIgnore, DEFAULT_IGNORE, shouldHonorDeletions, relToDriveKey, driv
 // `./foreign-folders.js` import path; the implementation lives in `path-keys.js`.
 export { shouldHonorDeletions }
 import { isOwnerOnline } from '../transfer/swarm.js'
+import { record } from '../audit/audit-log.js'
+import { createIntegritySeen } from './integrity-seen.js'
 import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getResourceCaps } from '../core/runtime-config.js'
@@ -583,6 +585,32 @@ export function classifyMirrorMiss(attempted) {
   return attempted ? 'failed' : 'no-holder'
 }
 
+const integritySeen = createIntegritySeen({
+  onCap: (mountKey, limit) => log.warn('mirror integrity rows capped at', limit, 'for', mountKey,
+    '— further hash mismatches on this mount are logged but not audited until it is remounted'),
+})
+
+// The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
+// sync, and this is not sync bookkeeping: it is a claim about what a member of this space served.
+function recordMirrorIntegrityFailure(mount, share, entry) {
+  if (!integritySeen.admit(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
+  getSpace(mount.spaceId).then((space) => {
+    record('security.integrity_failure', {
+      actor: { type: 'self' },
+      space: { id: mount.spaceId, name: space?.name ?? null },
+      target: { kind: 'file', id: entry.relPath ?? null, name: path.basename(entry.relPath || '') || null },
+      subject: {
+        bytes: entry.size ?? null,
+        ownerKey: mount.ownerKey ?? null,
+        folder: share?.displayName || share?.name || null,
+        shareId: mount.shareId ?? null,
+      },
+      outcome: 'error',
+      code: 'TRANSFER_CHECKSUM',
+    })
+  }).catch((err) => log.debug('mirror integrity audit failed:', err.message))
+}
+
 // Overlay share: the bytes never enter a drive, so the mirror fetches the file by
 // its content hash straight to the mount path (hash-verified by the overlay). No
 // ensureRemote/release handshake — the holder serves on demand, gated by the
@@ -590,11 +618,15 @@ export function classifyMirrorMiss(attempted) {
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
 // classification (full disk / permission / vanished mount); anything else is a
 // logged fetch miss.
-async function handleOverlayMirrorFetchError(mount, entry, err, diag) {
+async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
+  // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
+  // blame a holder for our own full disk.
   if (await pauseMountForIoError(mount, err)) return
   diag.finish('failed')
-  if (err?.code === 'EHASHMISMATCH') log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
-  else log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
+  if (err?.code === 'EHASHMISMATCH') {
+    log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
+    recordMirrorIntegrityFailure(mount, share, entry)
+  } else log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
 }
 
 async function materializeOverlayFile(mount, share, entry, opts = {}) {
@@ -659,7 +691,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
     if (err?.code === 'ECANCELLED') { diag.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, entry, err, diag)
+    await handleOverlayMirrorFetchError(mount, share, entry, err, diag)
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)
@@ -956,7 +988,7 @@ async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
 export class ForeignMirrors extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc') }
   async _open() { initForeignFolders(this.deps.ipc) }
-  async _close() { await stopAllForeignLoops() }
+  async _close() { await stopAllForeignLoops(); integritySeen.clear() }
 
   // Counts, not identifiers: diagnostics:export is user-shareable and redacts peer keys and
   // topics, so space and share ids must not ride along. The probe names the mount in the worker
@@ -986,6 +1018,9 @@ function resetForeignSyncState(spaceId, shareId) {
 
 export async function unmountForeignFolder(spaceId, shareId) {
   stopForeignLoop(spaceId, shareId, { discardPartial: true })
+  // Only here, not in stopForeignLoop: that runs on pause and on a health restart too, and
+  // re-arming there would re-record the same mismatch on every resume.
+  integritySeen.forget(loopKey(spaceId, shareId))
   // Overlay copies no bytes into a drive (it serves straight from the owner's
   // source), so there is no per-share blob cache to reclaim on unmount — the
   // materialized files stay on disk, matching owner-delete behaviour.

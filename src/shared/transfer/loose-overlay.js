@@ -14,7 +14,6 @@ import { markListIncomplete } from './list-deficits.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from './files.js'
 import { getPendingFor, recordPending } from './pending-transfers.js'
 import { reuseDest } from './download-dest.js'
-import { record } from '../audit/audit-log.js'
 import { observePeerCatalog } from '../audit/peer-watch.js'
 import { getDownloadDir } from '../core/paths.js'
 import { listSpaces, getSpace } from '../spaces/space.js'
@@ -395,24 +394,6 @@ async function buildLooseJob (spaceId, member, drivePath, prevPending, entry) {
 // bytes in the renderer's per-key decoration map.
 const deco = (spaceId, key, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key, ...p })
 
-// One row per finished download, at its terminal outcome — never per chunk. An integrity
-// failure is promoted out of the generic failure kind because it is a security signal, not a
-// network one: the bytes a holder served did not match the hash they were advertised under.
-function recordTransferOutcome(job, outcome, errorCode) {
-  const fileName = path.basename(job.relPath || job.path || '')
-  const isIntegrity = errorCode === 'TRANSFER_CHECKSUM' || errorCode === 'EHASHMISMATCH'
-  getSpace(job.spaceId).then((space) => {
-    record(isIntegrity ? 'security.integrity_failure' : outcome === 'ok' ? 'transfer.completed' : 'transfer.failed', {
-      actor: { type: 'self' },
-      space: { id: job.spaceId, name: space?.name ?? null },
-      target: { kind: 'file', id: job.path ?? null, name: fileName || null },
-      subject: { bytes: job.size ?? null, ownerKey: job.ownerKey ?? null },
-      outcome: outcome === 'ok' ? 'ok' : 'error',
-      code: errorCode || null,
-    })
-  }).catch(() => {})
-}
-
 let looseEngine = null
 
 export function setLooseEngine(next) { looseEngine = next }
@@ -431,8 +412,8 @@ export const looseChannel = {
   // remain as signals for notifications; the row's status is re-derived from files:list.
   emitProgress: (job, p) => deco(job.spaceId, job.path, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
   emitVerifying: (job, fraction) => deco(job.spaceId, job.path, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
-  emitError: (job, errorCode) => { ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode }); recordTransferOutcome(job, 'error', errorCode); deco(job.spaceId, job.path, { done: true }) },
-  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); recordTransferOutcome(job, 'ok', null); deco(job.spaceId, job.path, { done: true }) },
+  emitError: (job, errorCode) => { ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode }); deco(job.spaceId, job.path, { done: true }) },
+  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); deco(job.spaceId, job.path, { done: true }) },
   emitCancelled: (spaceId, transferId, pendingKey) => deco(spaceId, pendingKey, { done: true }),
   emitSuperseded: (job) => { ipcRef?.emit('event:transfer-superseded', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, fileName: path.basename(job.relPath) }); deco(job.spaceId, job.path, { bytes: 0, total: job.size, speed: 0, eta: null }) },
   // [mirall] FIX-BW9 — `retrying` means the engine has an automatic retry armed for this row.

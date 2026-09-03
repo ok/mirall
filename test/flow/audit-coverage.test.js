@@ -155,6 +155,15 @@ test('one realistic session produces every expected kind, and nothing else', { t
   await B.until('share:list', { spaceId }, (l) => l.some((s) => s.id === aShare.id), { ms: 60000, every: 500 })
   await B.request('foreign-folder:mount', { spaceId, shareId: aShare.id, ownerKey: aKey, mountPath: mkTmpDir(t) })
   await A.until('audit:list', { limit: 200 }, (p) => kindsOf(p.entries).has('mirror.peer_mirrored'))
+
+  // B downloads a file OUT of A's folder share — the folder-engine counterpart of the loose
+  // download above. Without this the session drives one producer of transfer.completed, which is
+  // how the folder path stayed unrecorded through an "every declared kind has a call site" test.
+  await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: aShare.id, relPath: 'doc.txt' })
+  await B.until('audit:list', { limit: 200 }, (p) => p.entries.some(
+    (e) => e.kind === 'transfer.completed' && e.subject?.folder === 'AliceFolder'
+  ), { ms: 90000, every: 500 })
+
   await B.request('foreign-folder:unmount', { spaceId, shareId: aShare.id })
   await A.until('audit:list', { limit: 200 }, (p) => kindsOf(p.entries).has('mirror.peer_unmirrored'))
 
