@@ -312,7 +312,13 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                     would otherwise stretch the screen without limit as pages are appended. It
                     also makes the day headings pin the way they are meant to — against the list,
                     not the page. */}
-                <div className="max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
+                {/* `relative` makes this pane the containing block for the `sr-only` spans inside
+                    the rows (each row's full sentence). They are `position: absolute`, so without
+                    it they resolve against the initial containing block, the pane cannot clip
+                    them, and a row below the fold drops its span past the viewport bottom —
+                    growing the DOCUMENT into an OS scrollbar. SpaceView and FolderView carry it
+                    on their panes for exactly this. */}
+                <div className="relative max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
                 <ul>
                   {groups.map((group) => (
                     <li key={group.key}>

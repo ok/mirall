@@ -110,6 +110,7 @@ import {
   isDeniedJoiner,
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
+import { displayNameOrNull } from '../shared/spaces/member-identity.js'
 import { ownCatalogPublish, catalogKeyField } from '../shared/shares/share-catalog.js'
 import {
   listFiles,
@@ -283,7 +284,11 @@ function selfActor() {
 function peerActor(space, publicKey) {
   const live = space ? getConnectedMemberMeta(space.spaceId, publicKey) : null
   const persisted = (space?.members || []).find((m) => m.publicKey === publicKey)
-  return { type: 'peer', key: publicKey, name: live?.displayName || persisted?.displayName || null }
+  return {
+    type: 'peer',
+    key: publicKey,
+    name: displayNameOrNull(live?.displayName) || displayNameOrNull(persisted?.displayName) || null,
+  }
 }
 
 function spaceRef(space) {
@@ -299,16 +304,14 @@ function fileNameOf(path) {
 // A peer handed us the space content key — the moment read access was actually granted, and the
 // counterpart to the approver's own `membership.approved` row. Extracted so onGrant, already at
 // the complexity ceiling, gains no branches.
-async function recordGrantReceived(spaceId, space, granterKey) {
-  // Live handshake meta first, then the persisted roster: the grant can land before the granter's
-  // meta is registered, and a row with no name renders a bare '?' avatar forever (nothing is
-  // joined at render time).
-  const name = getConnectedMemberMeta(spaceId, granterKey)?.displayName
-    || (space?.members || []).find((m) => m.publicKey === granterKey)?.displayName
-    || null
+async function recordGrantReceived(spaceId, granterKey) {
+  // One fresh read for all three fields: onGrant's own `space` was loaded before four awaits
+  // (materializeOwnDrive, pinCreatorKey, broadcastProfileUpdate, openMemberView), and the roster
+  // this needs is exactly what those may have just filled in.
+  const space = await getSpace(spaceId)
   record('membership.granted', {
-    actor: { type: 'peer', key: granterKey || null, name },
-    space: spaceRef(await getSpace(spaceId)),
+    actor: peerActor(space, granterKey || null),
+    space: spaceRef(space),
     target: { kind: 'space', id: spaceId, name: space?.name ?? null },
   })
 }
@@ -549,9 +552,14 @@ async function onGrant(msg, ctx = {}) {
   await openMemberView(spaceId)   // space is now approved → derive its membership
   // verdict.granterKey, not msg.profileKey: the grant frame carries `granterKey` (swarm.js
   // sendMembershipGrant) and has no profileKey at all, so the row used to record a null actor —
-  // a '?' avatar and a sentence with a hole in it. The verdict's copy is the one the identity
-  // binding was checked against, so the attribution is authenticated rather than self-declared.
-  await recordGrantReceived(spaceId, space, verdict.granterKey)
+  // a '?' avatar and a sentence with a hole in it.
+  //
+  // How strong that attribution is depends on the same flag `asserted` above is gated on:
+  // checkGrantAssertion verifies granterKey against the socket's identity binding only when
+  // enforcement is ON, and returns it unverified when OFF (the shipped default). It is recorded
+  // either way — the alternative is the '?' row for every user until the flag flips — but the
+  // kind's tier B therefore describes the enforced case, not today's default.
+  await recordGrantReceived(spaceId, verdict.granterKey)
   ipc.emit('event:membership-granted', { spaceId })
 }
 
