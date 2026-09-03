@@ -42,6 +42,23 @@ export class Subsystem extends ReadyResource {
     return { ok: !this.closed && !this.stopping, detail: null }
   }
 
+  // The units this subsystem can recover, identified. Deliberately separate from health(): that is
+  // the redacted report reaching the shareable diagnostics bundle, while these rows carry the space
+  // and share ids the supervisor keys its counters on and names in the worker log. A subsystem with
+  // nothing recoverable returns nothing and is never probed.
+  // Rows: { key, ok, detail, label } — `key` is stable within the subsystem, `label` is log-safe.
+  supervise(_opts) { return [] }
+
+  // Recover one unit: abandon the stalled pass and re-arm it. It never replaces this instance — a
+  // holder that captured the subsystem at construction would be handed a dead one, and for several
+  // subsystems close() means something quite different from "pause".
+  async recover(key) {
+    throw new Error(`${this.name}: no recovery for unit "${key}"`)
+  }
+
+  // Per-subsystem overrides for the supervision policy, or null for the defaults.
+  get supervisionPolicy() { return null }
+
   // A missing collaborator fails at construction — at boot, in the root, with the subsystem's
   // name — instead of as a `hook?.()` that never fires.
   require(...names) {
