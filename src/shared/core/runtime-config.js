@@ -140,6 +140,10 @@ const DEFAULTED = {
   // Foreign-mirror materialize poll cadence. Tests shrink it to assert orphan-mount teardown
   // (owner left → unmount) promptly; production uses the 30s default.
   foreignPollIntervalMs: 30_000,
+  // How often the supervisor asks every subsystem whether its units are still advancing. 60s
+  // matches the cadence the mirror probe ran at, so the two-consecutive-bad rule still acts about
+  // two minutes into a stall. Tests shrink it.
+  supervisionProbeIntervalMs: 60_000,
   // How many mirror ticks may skip the walk before one runs in full regardless. The owner's catalog
   // version cannot see a LOCAL change (a user deleting a mirrored file) and a foreign mount has no
   // filesystem watcher, so this backstop is what repairs it — within 5 min at the 30s poll.
@@ -280,6 +284,10 @@ export function getOverlayServeLimit() {
 
 export function getDeepReconcileEvery() {
   return config.deepReconcileEvery
+}
+
+export function getSupervisionProbeIntervalMs() {
+  return config.supervisionProbeIntervalMs ?? DEFAULTED.supervisionProbeIntervalMs
 }
 
 // A budget that is multiplied by a live count must be finite and non-negative: Infinity yields

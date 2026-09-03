@@ -18,6 +18,8 @@
 //    safe — the fold is deterministic and idempotent, so an extra recompute only costs
 //    a fold, never correctness.
 
+import { stallVerdict } from '../core/stall-verdict.js'
+
 export function createDerivedView ({ fold, onChange, range, onError, debounceMs = 0 } = {}) {
   if (typeof fold !== 'function') throw new Error('createDerivedView: fold is required')
   if (typeof onChange !== 'function') throw new Error('createDerivedView: onChange is required')
@@ -29,6 +31,8 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   let again = false            // a change landed mid-fold → run exactly once more after
   let timer = null             // pending debounce timer (debounceMs > 0)
   let inFlight = null          // the running fold, so close() can wait for the reads it holds
+  let gen = 0                  // bumped by abandon(); a fold from an older generation is inert
+  let liveness = { startedAt: 0, progressAt: 0, completedAt: 0 }
 
   // Coalesce a burst of change signals into one fold and serialize folds so two changes
   // can't run overlapping folds whose results land out of order. If a change arrives while
@@ -51,15 +55,48 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     scheduled = false
     timer = null
     running = true
+    const mine = gen
+    const startedAt = Date.now()
+    liveness = { startedAt, progressAt: startedAt, completedAt: liveness.completedAt }
     try {
       const view = await fold()
-      if (!closed) onChange(view)
+      // Identity-guarded: a fold abandoned by a recovery must not publish a view the fold that
+      // replaced it has already superseded, nor clear that fold's `running` flag below.
+      if (!closed && mine === gen) onChange(view)
     } catch (err) {
-      if (!closed) (onError || noop)(err)
+      if (!closed && mine === gen) (onError || noop)(err)
     } finally {
-      running = false
-      if (again && !closed) { again = false; recompute() }
+      if (mine === gen) {
+        running = false
+        liveness = { startedAt: 0, progressAt: 0, completedAt: Date.now() }
+        if (again && !closed) { again = false; recompute() }
+      }
     }
+  }
+
+  // Bumped by the caller once per unit of work the fold completes. Without it the stall rule would
+  // have to tolerate the worst-case fold — a roster of hundreds of unreachable peers, each read at
+  // its own budget — and a window that generous is a window that never fires.
+  function noteProgress () {
+    if (liveness.startedAt) liveness.progressAt = Date.now()
+  }
+
+  function health ({ now = Date.now(), windowMs }) {
+    return stallVerdict(liveness, { now, windowMs })
+  }
+
+  // Abandon the fold in flight and let the next recompute start a fresh one. NOT close(): that
+  // awaits `inFlight` so the peer reads it holds cannot outlive the store, which for a fold that is
+  // not settling is a promise that never resolves. The generation bump is what makes the abandoned
+  // fold inert rather than merely unawaited.
+  function abandon () {
+    gen += 1
+    running = false
+    scheduled = false
+    again = false
+    if (timer) { clearTimeout(timer); timer = null }
+    inFlight = null
+    liveness = { startedAt: 0, progressAt: 0, completedAt: liveness.completedAt }
   }
 
   // Start watching a source bee (idempotent per key). Each change within `range` —
@@ -90,7 +127,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     watchers.clear()
   }
 
-  return { track, tracking, size, recompute, close }
+  return { track, tracking, size, recompute, close, abandon, noteProgress, health }
 }
 
 function noop () {}

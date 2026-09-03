@@ -933,7 +933,7 @@ export function mirrorHealth({ now = Date.now() } = {}) {
   for (const loop of activeLoops.values()) {
     const key = loopKey(loop.spaceId, loop.shareId)
     const verdict = mirrorVerdict(mirrorLiveness.get(key), { now, pollIntervalMs })
-    rows.push({ spaceId: loop.spaceId, shareId: loop.shareId, ...verdict })
+    rows.push({ key, spaceId: loop.spaceId, shareId: loop.shareId, ...verdict })
   }
   return rows
 }
@@ -1006,7 +1006,7 @@ async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
 // Owns the mirror loops as a set: _open is the module's wiring, _close is the bulk stop the
 // per-mount stopForeignLoop never had a caller for.
 export class ForeignMirrors extends Subsystem {
-  constructor(name, deps) { super(name, deps); this.require('ipc') }
+  constructor(name, deps) { super(name, deps); this.require('ipc'); this.units = new Map() }
   async _open() { initForeignFolders(this.deps.ipc) }
   async _close() { await stopAllForeignLoops(); integritySeen.clear() }
 
@@ -1022,6 +1022,23 @@ export class ForeignMirrors extends Subsystem {
       detail: wedged.length ? wedged.map((mirror) => mirror.detail).join('; ') : null,
       mirrors: { total: mirrors.length, wedged: wedged.length },
     }
+  }
+
+  // One unit per mount with a live loop. A mount without one is not reported: it is paused,
+  // unmounted or gone, none of which a recovery can or should address. The ids are remembered so
+  // recover() needs no key parsing — a share id is opaque and splitting it would be a guess.
+  supervise({ now = Date.now() } = {}) {
+    if (this.closed || this.stopping) return []
+    const rows = mirrorHealth({ now })
+    this.units = new Map(rows.map((row) => [row.key, { spaceId: row.spaceId, shareId: row.shareId }]))
+    return rows.map((row) => ({ key: row.key, ok: row.ok, detail: row.detail, label: row.shareId }))
+  }
+
+  async recover(key) {
+    if (this.stopping) return
+    const unit = this.units.get(key)
+    if (!unit) return
+    await restartForeignLoop(unit.spaceId, unit.shareId)
   }
 }
 

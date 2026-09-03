@@ -10,6 +10,7 @@
 // renderer-facing handlers, the shutdown deadline and `Bare.exit`. boot() and close() never exit
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
+import { Supervisor } from '../shared/core/supervisor.js'
 import { getPeerPresenceDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intent-store.js'
@@ -136,6 +137,7 @@ export async function boot(bootstrap, {
   let durable = null
   let publishService = null
   let overlayBackend = null
+  let supervisor = null
 
   // The reverse of boot, defined BEFORE anything starts and handed to the caller at once. A
   // shutdown can arrive at any point during boot — the pipe closes when Electron main dies, and
@@ -156,6 +158,11 @@ export async function boot(bootstrap, {
   // skip the durable tier outright — including the store's own close, which on the way out is what
   // releases the RocksDB lock, and the ledger flush that records the shutdown's own audit rows.
   async function close({ budgetMs = 1500, durableBudgetMs = 1500 } = {}) {
+    // First, ahead of the flush window below: no subsystem's `stopping` is set until life.close()
+    // runs, so a probe firing in between reads a healthy lifecycle and could re-arm work this
+    // shutdown has already stopped. The lifecycle's reverse close order covers the timer, not a
+    // probe already awaiting a recovery.
+    try { supervisor?.pause() } catch {}
     if (swarm) { try { broadcastDeparture() } catch {} }
     try { abortInFlightPublishes() } catch {}
     try { publishService?.halt() } catch {}
@@ -306,10 +313,16 @@ export async function boot(bootstrap, {
       log.warn('leftover metadata cleanup failed:', err.message)
     }
 
+    // After every subsystem it will supervise, so the lifecycle's reverse close order stops it
+    // FIRST. It reads life.started; the durable tier is deliberately unsupervised — nothing there
+    // has a recoverable unit, and closing a store-backed handle would close every session with it.
+    supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
+
     return {
       close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
+      supervision: () => supervisor?.stats() ?? null,
     }
   }
 }

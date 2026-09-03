@@ -14,14 +14,11 @@ import { listDownloadRoots } from '../shared/core/paths.js'
 import { AppError, ErrorCodes, classifyLocalIoFault } from '../shared/core/errors.js'
 import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
-import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone, mirrorHealth, restartForeignLoop } from '../shared/folders/foreign-folders.js'
+import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
 
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 const MOUNT_PROBE_INTERVAL_MS = 60_000
-// Two consecutive bad probes before acting, so one slow sample cannot restart a working mirror.
-const MIRROR_BAD_PROBES = 2
-const MIRROR_MAX_RESTARTS = 3
 
 
 // The download-root twin of owned-folders' mountRootAvailable, deliberately kept separate: a
@@ -41,10 +38,6 @@ function ownedFaultStatus(code) {
   return code === ErrorCodes.TRANSFER_DISK_FULL ? 'paused-enospc' : 'paused-error'
 }
 
-function mirrorKey(spaceId, shareId) {
-  return spaceId + '/' + shareId
-}
-
 function sameRootSet(a, b) {
   return a.length === b.length && a.every((root, i) => root === b[i])
 }
@@ -60,11 +53,6 @@ export class MountsRuntime extends Subsystem {
     // maintained by the probe loop; a transition is what drives every status event.
     this.lastMountPointStatus = new Map()
     this.unavailableRoots = []
-    // spaceId/shareId → consecutive unhealthy probes, restarts spent, and whether the budget
-    // running out has already been reported.
-    this.mirrorBadProbes = new Map()
-    this.mirrorRestarts = new Map()
-    this.mirrorGaveUp = new Set()
   }
 
   async _open() {
@@ -73,7 +61,6 @@ export class MountsRuntime extends Subsystem {
     this.timers.setInterval(() => {
       this.probeMountPoints().catch((err) => this.log.debug('mount probe failed:', err.message))
       try { this.probeDownloadRoots() } catch (err) { this.log.debug('download-root probe failed:', err.message) }
-      this.probeMirrorLiveness().catch((err) => this.log.debug('mirror liveness probe failed:', err.message))
     }, MOUNT_PROBE_INTERVAL_MS)
   }
 
@@ -153,48 +140,6 @@ export class MountsRuntime extends Subsystem {
       }
     } catch (err) {
       this.log.warn('foreign-folder restart failed:', err.message)
-    }
-  }
-
-  // A mirror whose pass is in flight but no longer advancing is wedged: every later tick coalesces
-  // onto the dead promise, so the folder stops syncing until the app restarts. Restart the loop
-  // rather than the subsystem — ForeignMirrors._open only re-wires the module, it starts no loops.
-  async probeMirrorLiveness() {
-    // The base clears the interval on close, but this probe awaits a restart: a shutdown starting
-    // mid-pass would otherwise re-arm a loop stopAllForeignLoops just stopped.
-    if (this.stopping) return
-    const rows = mirrorHealth()
-    const live = new Set(rows.map((row) => mirrorKey(row.spaceId, row.shareId)))
-    for (const key of this.mirrorBadProbes.keys()) if (!live.has(key)) this.mirrorBadProbes.delete(key)
-    for (const key of this.mirrorRestarts.keys()) if (!live.has(key)) this.mirrorRestarts.delete(key)
-    for (const key of this.mirrorGaveUp) if (!live.has(key)) this.mirrorGaveUp.delete(key)
-
-    for (const row of rows) {
-      const key = mirrorKey(row.spaceId, row.shareId)
-      if (row.ok) { this.mirrorBadProbes.delete(key); continue }
-
-      const bad = (this.mirrorBadProbes.get(key) || 0) + 1
-      this.mirrorBadProbes.set(key, bad)
-      if (bad < MIRROR_BAD_PROBES) continue
-
-      const spent = this.mirrorRestarts.get(key) || 0
-      if (spent >= MIRROR_MAX_RESTARTS) {
-        if (!this.mirrorGaveUp.has(key)) {
-          this.mirrorGaveUp.add(key)
-          this.log.error('mirror still wedged after', MIRROR_MAX_RESTARTS, 'restarts — leaving it down:', row.shareId, '-', row.detail)
-        }
-        continue
-      }
-
-      if (this.stopping) return
-      this.mirrorRestarts.set(key, spent + 1)
-      this.mirrorBadProbes.delete(key)
-      this.log.warn('mirror wedged, restarting its loop:', row.shareId, '-', row.detail)
-      try {
-        await restartForeignLoop(row.spaceId, row.shareId)
-      } catch (err) {
-        this.log.warn('mirror loop restart failed:', row.shareId, '-', err.message)
-      }
     }
   }
 
