@@ -438,4 +438,25 @@ export class MemberViews extends Subsystem {
     // A second boot in one process must not inherit the first boot's closures.
     deps = { ...DEFAULT_DEPS }
   }
+
+  // One unit per open view, keyed by space. Only the worker log ever sees the id.
+  supervise ({ now = Date.now() } = {}) {
+    if (this.closed || this.stopping) return []
+    const rows = []
+    for (const [spaceId, entry] of views) {
+      if (!entry.view?.foldHealth) continue
+      const verdict = entry.view.foldHealth({ now })
+      rows.push({ key: spaceId, ok: verdict.ok, detail: verdict.detail, label: spaceId })
+    }
+    return rows
+  }
+
+  // Re-arms the fold and nothing else. Deliberately NOT closeMemberView + openMemberView: that
+  // path drops the leave tombstones and the prior-membership belief, releases the roster captures,
+  // and awaits a fold that is not settling. Re-seeding the tombstones reads only the DURABLE ones,
+  // so a leave frame whose persist failed would be forgotten and the leaver would come back.
+  async recover (spaceId) {
+    if (this.stopping) return
+    views.get(spaceId)?.view?.restartFold?.()
+  }
 }

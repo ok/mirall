@@ -4,6 +4,7 @@ import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials
 import { foldMembership } from './member-set.js'
 import { createDerivedView } from '../state/derived-view.js'
 import { getResourceCaps } from '../core/runtime-config.js'
+import { peerReadTimeoutMs } from '../core/with-timeout.js'
 import { SHARE_PREFIX } from '../shares/shares.js'
 
 // Transitive discovery + fold. Walks the approval graph FORWARD from the creator (the
@@ -84,6 +85,10 @@ export function viewSignature ({ members, approved, requests, denied, memberTs, 
   return b4a.toString(crypto.hash(b4a.from(canon)), 'hex')
 }
 
+// Twenty per-peer read budgets. Each roster read is bounded on its own, so a fold that has not
+// completed ONE of them in that span is not slow, it is stalled.
+const FOLD_STALL_FACTOR = 20
+
 // Live member-set view for a space: re-derives whenever any roster peer's bee changes —
 // locally OR via replication — and reports the current member set via onMembers. Built on
 // createDerivedView (bursts coalesced, folds serialized). Seeds from creator + self; the
@@ -101,7 +106,12 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
     if (!bee) bees.set(key, bee = openProfileBee(b4a.from(key, 'hex')))
     return bee
   }
-  const readRecord = (key) => readMembershipRecord(key, spaceId)
+  // Every read is individually bounded, but the fold walks the roster SERIALLY, so a space whose
+  // members are all unreachable spends one read budget per member before it settles. The heartbeat
+  // is what separates that legitimately slow fold from one that has stopped advancing.
+  const readRecord = async (key) => {
+    try { return await readMembershipRecord(key, spaceId) } finally { view.noteProgress() }
+  }
 
   // Active follow: an open live download per roster bee so a co-member's approval AND the joiner's
   // own membership record reach us even when that peer never sends us a frame directly (it reached
@@ -206,5 +216,13 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
   if (self && self !== creatorKey) trackKey(self)
   view.recompute()   // initial derive
 
-  return { recompute: view.recompute, trackKey, close }
+  return {
+    recompute: view.recompute,
+    trackKey,
+    close,
+    foldHealth: ({ now = Date.now() } = {}) => view.health({ now, windowMs: peerReadTimeoutMs() * FOLD_STALL_FACTOR }),
+    // Abandon the fold in flight and start a fresh one. Everything else about the view — the bees,
+    // the follows, the watchers — is left alone: the fold is what stalled, not the subscriptions.
+    restartFold: () => { view.abandon(); view.recompute() },
+  }
 }
