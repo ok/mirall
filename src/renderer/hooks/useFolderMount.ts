@@ -27,13 +27,14 @@ export function unhealthyOwnedStatus(m: (OwnedFolderMount & { mountPointMissing?
 // via useShares, but from a subscriber that is actually mounted while FolderView is open.
 export interface OwnedMountState {
   status: string | null
+  lastError: string | null
   indexPaused: boolean
   /** The scan is walking the disk. It fills no queue, so nothing else can report that phase. */
   scanning: boolean
   mountPath: string | null
 }
 
-const NO_OWNED_MOUNT: OwnedMountState = { status: null, indexPaused: false, scanning: false, mountPath: null }
+const NO_OWNED_MOUNT: OwnedMountState = { status: null, lastError: null, indexPaused: false, scanning: false, mountPath: null }
 
 export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
   const [state, setState] = useState<OwnedMountState>(NO_OWNED_MOUNT)
@@ -51,6 +52,7 @@ export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState
         // legitimately outranks it while the source is missing.
         setState({
           status: unhealthyOwnedStatus(m),
+          lastError: m?.lastError ?? null,
           indexPaused: !!m?.indexPaused,
           scanning: m?.status === 'scanning',
           mountPath: m?.mountPath ?? null,

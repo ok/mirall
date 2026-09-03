@@ -23,7 +23,7 @@ import {
 } from './mount-store.js'
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { mountRootAvailable } from './owned-folders.js'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile, makeFetchDiag, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
@@ -205,6 +205,7 @@ function settleMirrorSyncState(mount, allPresent) {
 // The automatic (recoverable) pause statuses. Named once here and consumed by both
 // pauseMountForIoError (the writer) and AUTO_PAUSE_STATUSES (the resume gate), so the two
 // can't drift. A user pause ('paused', via setForeignEnabled) is deliberately not in this set.
+// mount-status-vocabulary.test.js asserts every status written here is one the contract declares.
 const STATUS_MOUNT_GONE = 'mount-point-gone'
 const STATUS_ENOSPC = 'paused-enospc'
 const STATUS_IO_ERROR = 'paused-error'
@@ -213,6 +214,9 @@ const AUTO_PAUSE_STATUSES = new Set([STATUS_MOUNT_GONE, STATUS_ENOSPC, STATUS_IO
 async function pauseMount(mount, status, reason) {
   mount.enabled = false
   mount.status = status
+  // Durable, like the status itself: the reason is what the folder screen names the fault by, and
+  // an event-only reason left the strip generic after every reload.
+  mount.lastError = reason ?? null
   // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed.
   await saveForeignMount({ ...mount, ...syncFields(mount) })
   // Symmetry with the user-pause path (setForeignEnabled(false)): stop the poll loop so an
@@ -221,15 +225,17 @@ async function pauseMount(mount, status, reason) {
   // otherwise overwrite this pause with a trailing status:'active'.
   stopForeignLoop(mount.spaceId, mount.shareId)
   await syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, 'paused'))
-  emitStatus(mount.spaceId, mount.shareId, status, reason ? { reason } : null)
+  emitStatus(mount.spaceId, mount.shareId, status, reason ? { error: reason } : null)
 }
 
-// Classify a local I/O failure and pause the mount accordingly (overlay
-// materializeOverlayFile write path). Returns true if it paused — the caller then
-// stops; false leaves the error for generic handling.
+// Pause the mount for a local I/O failure (overlay materializeOverlayFile write path). Returns
+// true if it paused — the caller then stops; false leaves the error for generic handling. The
+// errno→code decision is shared with the owner side; the code→status decision is ours, because a
+// mirror's pause really does stop its loop.
 async function pauseMountForIoError(mount, err) {
-  if (err?.code === 'ENOSPC') { await pauseMount(mount, STATUS_ENOSPC); return true }
-  if (err?.code === 'EACCES' || err?.code === 'EPERM' || err?.code === 'EROFS') { await pauseMount(mount, STATUS_IO_ERROR, err.message); return true }
+  const fault = classifyLocalIoFault(err)
+  if (fault === ErrorCodes.TRANSFER_DISK_FULL) { await pauseMount(mount, STATUS_ENOSPC, fault); return true }
+  if (fault) { await pauseMount(mount, STATUS_IO_ERROR, fault); return true }
   if (err?.code === 'ENOENT' && !fs.existsSync(mount.mountPath)) { await pauseMount(mount, STATUS_MOUNT_GONE); return true }
   return false
 }

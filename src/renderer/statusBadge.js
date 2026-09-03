@@ -65,6 +65,9 @@ export function badgeStyle (badgeStatus) {
 
 export function roleBadge (role, opts) {
   if (opts && opts.missing) return { classes: STYLES.paused.classes, labelKey: 'share.mountPointGone' }
+  // Above the pause: an auto-paused mirror is paused AND faulted, and "Paused" is the half that
+  // makes it look like the user's own doing.
+  if (opts && opts.fault) return { classes: STYLES.error.classes, labelKey: 'folder.statusFault' }
   if (opts && opts.paused) return { classes: STYLES.paused.classes, labelKey: 'folder.paused' }
   return ROLE_STYLES[role] ?? ROLE_STYLES.browse
 }

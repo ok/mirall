@@ -1,5 +1,6 @@
 {
   "transferDiskFull": "Disk full",
+  "mountFaultUnknown": "Unexpected error",
   "transferPermission": "Permission denied",
   "transferChecksum": "File integrity check failed",
   "transferRemoved": "File no longer shared by owner",

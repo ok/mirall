@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { ErrorCodes, classifyTransferError, isRetryableTransferError, isLocalDestFault } from '../../src/shared/core/errors.js'
+import { ErrorCodes, classifyTransferError, isRetryableTransferError, isLocalDestFault, classifyLocalIoFault } from '../../src/shared/core/errors.js'
 
 test('classifyTransferError maps fs codes', (t) => {
   t.is(classifyTransferError({ code: 'ENOSPC' }), ErrorCodes.TRANSFER_DISK_FULL)
@@ -66,4 +66,24 @@ test('classifyTransferError is unchanged by the destination-fault work', (t) => 
   t.is(classifyTransferError({ code: 'ENOENT' }), ErrorCodes.TRANSFER_NETWORK, 'still network without a probe')
   t.is(classifyTransferError({ code: 'EACCES' }), ErrorCodes.TRANSFER_PERMISSION, 'permission still wins on its own')
   t.is(classifyTransferError({ code: 'ENOSPC' }), ErrorCodes.TRANSFER_DISK_FULL, 'disk-full untouched')
+})
+
+// One classifier for both folder roles. It replaced a second copy on the mirror side and the
+// owner's "collapse everything to one status with err.message in it"; the code it returns is what
+// the renderer translates, which is the whole reason the reason is not a message any more.
+test('classifyLocalIoFault folds the mount faults onto codes the renderer translates', (t) => {
+  t.is(classifyLocalIoFault({ code: 'ENOSPC' }), ErrorCodes.TRANSFER_DISK_FULL)
+  t.is(classifyLocalIoFault({ code: 'EACCES' }), ErrorCodes.TRANSFER_PERMISSION)
+  t.is(classifyLocalIoFault({ code: 'EPERM' }), ErrorCodes.TRANSFER_PERMISSION)
+  t.is(classifyLocalIoFault({ code: 'EROFS' }), ErrorCodes.TRANSFER_PERMISSION, 'a read-only volume is a permission fault')
+})
+
+test('classifyLocalIoFault returns null for anything it cannot name', (t) => {
+  // ENOENT is deliberately unclassified: one file vanishing mid-pass is not a mount fault, and
+  // only the caller can cheaply tell that from a root that went away.
+  t.is(classifyLocalIoFault({ code: 'ENOENT' }), null)
+  t.is(classifyLocalIoFault({ code: 'ECONNRESET' }), null)
+  t.is(classifyLocalIoFault(new Error('no code at all')), null)
+  t.is(classifyLocalIoFault(null), null)
+  t.is(classifyLocalIoFault(undefined), null)
 })

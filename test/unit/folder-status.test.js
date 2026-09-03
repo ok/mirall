@@ -5,6 +5,7 @@ import { badgeStyle } from '../../src/renderer/statusBadge.js'
 const BASE = {
   role: 'mine',
   sourceMissing: false,
+  fault: false,
   indexPaused: false,
   mirrorEnabled: true,
   indexing: false,
@@ -70,4 +71,21 @@ test('every badge names a real style in the shared table', (t) => {
     const status = deriveFolderStatus(input)
     t.ok(badgeStyle(status.badge)?.classes, `${status.labelKey} -> ${status.badge} is a known badge`)
   }
+})
+
+// An auto-paused mirror is enabled === false, so without the fault outranking the pause the tile
+// called a folder stopped by a full disk "Paused" — the user's own doing, as far as it read.
+test('a fault outranks both pauses and reads as an error', (t) => {
+  const owner = deriveFolderStatus({ ...BASE, fault: true, indexPaused: true })
+  t.is(owner.labelKey, 'folder.statusFault')
+  t.is(owner.badge, 'error')
+
+  const mirror = deriveFolderStatus({ ...BASE, role: 'mirrored', fault: true, mirrorEnabled: false })
+  t.is(mirror.labelKey, 'folder.statusFault', 'the same for a mirror, whose fault always looks like a pause')
+  t.ok(badgeStyle(mirror.badge), 'and the badge token exists')
+})
+
+test('a missing source still outranks a fault', (t) => {
+  const status = deriveFolderStatus({ ...BASE, sourceMissing: true, fault: true })
+  t.is(status.labelKey, 'folder.statusMissing', 'the more specific state wins')
 })

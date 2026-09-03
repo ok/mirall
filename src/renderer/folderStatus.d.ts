@@ -3,6 +3,7 @@ import type { BadgeStatus, ShareRole } from './types.js'
 export interface FolderStatusInput {
   role: ShareRole
   sourceMissing: boolean
+  fault: boolean
   indexPaused: boolean
   mirrorEnabled: boolean
   indexing: boolean

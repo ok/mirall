@@ -265,6 +265,10 @@
     "statusAdding": "Adding",
     "statusPaused": "Paused",
     "statusMissing": "Missing",
+    "statusFault": "Problem",
+    "faultRetry": "Try again",
+    "indexFaultBanner": "Some files couldn't be added — {{reason}}. Mirall will keep trying.",
+    "mirrorFaultBanner": "Syncing stopped — {{reason}}. Files won't update until it's fixed.",
     "statusBrowseOnly": "Browse only"
   },
   "share": {

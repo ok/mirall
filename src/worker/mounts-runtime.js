@@ -11,7 +11,7 @@ import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listDownloadRoots } from '../shared/core/paths.js'
-import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { AppError, ErrorCodes, classifyLocalIoFault } from '../shared/core/errors.js'
 import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone, mirrorHealth, restartForeignLoop } from '../shared/folders/foreign-folders.js'
@@ -32,6 +32,13 @@ function rootAvailable(root) {
 
 function readUnavailableRoots() {
   return listDownloadRoots().filter((root) => !rootAvailable(root))
+}
+
+// A classified fault gets its own durable status where one exists, so the folder screen can name
+// the remedy instead of putting an errno in front of the user.
+// mount-status-vocabulary.test.js asserts every status written here is one the contract declares.
+function ownedFaultStatus(code) {
+  return code === ErrorCodes.TRANSFER_DISK_FULL ? 'paused-enospc' : 'paused-error'
 }
 
 function mirrorKey(spaceId, shareId) {
@@ -243,13 +250,39 @@ export class MountsRuntime extends Subsystem {
       // paused-error branch below, which raises an error toast and an unhealthy badge.
       else if (result?.skipped === 'index-paused') await this.setOwnedStatus(spaceId, shareId, 'paused')
       else if (result?.skipped) await this.setOwnedStatus(spaceId, shareId, 'paused-error', result.skipped)
+      // A pass whose items failed on a classified fault is not a healthy scan. The pass resolving
+      // does not mean its files reached the catalog — publish failures are per item — and reading
+      // that resolution as 'active' is what made a full disk invisible to the owner.
+      else if (result?.faultCode) await this.setOwnedStatus(spaceId, shareId, ownedFaultStatus(result.faultCode), result.faultCode)
       else await this.setOwnedStatus(spaceId, shareId, 'active')
       return result
     } catch (err) {
       this.log.warn('owned reconcile failed for', shareId, '-', err.message)
-      await this.setOwnedStatus(spaceId, shareId, 'paused-error', err.message)
+      await this.recordScanFault(spaceId, shareId, err)
       return null
     }
+  }
+
+  // The whole-pass half of the same question: the walk's recursive readdir, the catalog read and
+  // the batch flush all reject with an errno, and every one of them used to reach the user as a
+  // raw message. An unclassified failure keeps its message — an unrecognised error with nothing to
+  // say is worse than a raw one, and the renderer shows it as a generic reason either way.
+  async recordScanFault(spaceId, shareId, err) {
+    const code = classifyLocalIoFault(err)
+    if (code) {
+      await this.setOwnedStatus(spaceId, shareId, ownedFaultStatus(code), code)
+      return
+    }
+    // A root that vanished mid-pass: the probe would notice within its interval anyway, but going
+    // through the gone path now also records the absence the probe reads the RETURN against.
+    if (err?.code === 'ENOENT') {
+      const mount = await getOwnedMount(spaceId, shareId)
+      if (mount && !mountRootAvailable(mount.mountPath)) {
+        await this.handleOwnedMountGone(spaceId, shareId)
+        return
+      }
+    }
+    await this.setOwnedStatus(spaceId, shareId, 'paused-error', err.message)
   }
 
   schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore) {

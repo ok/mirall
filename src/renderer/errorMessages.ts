@@ -22,6 +22,15 @@ export function errorCodeToI18nKey(code: string | null | undefined): string {
   return ERROR_I18N_KEY_BY_CODE[code] ?? 'transferFailed'
 }
 
+// A mount fault reads the same map, with its own fallback: the reason lands mid-sentence in the
+// folder screen's fault strip, where "Transfer failed" would describe the wrong thing. An
+// unclassified fault (or one recorded before this shipped, whose reason is a raw errno message)
+// resolves here rather than putting that message in front of the user.
+export function mountFaultReasonKey(code: string | null | undefined): string {
+  if (!code) return 'mountFaultUnknown'
+  return ERROR_I18N_KEY_BY_CODE[code] ?? 'mountFaultUnknown'
+}
+
 // Mount-validation rejections carry the offending path as their message (e.g.
 // MOUNT_OVERLAPS' message is the overlapping mount path), which is meaningless
 // to the user. Map the code to a plain-language reason; null means "no mapping,

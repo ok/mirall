@@ -10,6 +10,7 @@ import ActionMenu, { type ActionMenuItemConfig } from '../widgets/ActionMenu.js'
 import Badge from '../primitives/Badge.js'
 import Avatar from '../primitives/Avatar.js'
 import { roleBadge } from '../../statusBadge.js'
+import { isMountFault } from '../../mountFault.js'
 import { shareSizeLine } from '../../shareSizeLine.js'
 import { formatSize } from '../../utils.js'
 
@@ -71,7 +72,8 @@ function ShareCard({
   // A paused index is durable state the card must show: without it a folder the user paused looks
   // identical to a healthy one, and there is nothing on this screen to tell them otherwise.
   const indexPaused = isYou && share.mountStatus === 'paused'
-  const badge = roleBadge(share.role, { paused: mirrorPaused || indexPaused, missing: sourceMissing })
+  const fault = isMountFault(isYou ? share.mountStatus : share.mirrorStatus)
+  const badge = roleBadge(share.role, { paused: mirrorPaused || indexPaused, missing: sourceMissing, fault })
 
   const sizeLine = shareSizeLine({
     isYou,

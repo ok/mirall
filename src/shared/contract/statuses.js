@@ -43,3 +43,25 @@ export const SHARE_FILE_STATUS = Object.freeze([
   'paused-offline',
   'error',
 ])
+
+// A mount's durable status, per role. Two vocabularies rather than one: 'idle' is a mirror-only
+// state, and the two roles mean different things by a fault — a mirror's pause stops its loop,
+// while an owner's fault only labels the last pass and the ordinary cadence keeps retrying.
+export const OWNED_MOUNT_STATUS = Object.freeze([
+  'scanning',
+  'active',
+  'paused',
+  'paused-enospc',
+  'paused-error',
+  'mount-point-gone',
+])
+
+export const FOREIGN_MOUNT_STATUS = Object.freeze([
+  'idle',
+  'scanning',
+  'active',
+  'paused',
+  'paused-enospc',
+  'paused-error',
+  'mount-point-gone',
+])

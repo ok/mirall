@@ -241,6 +241,10 @@
     "statusAdding": "Añadiendo",
     "statusPaused": "En pausa",
     "statusMissing": "No encontrada",
+    "statusFault": "Problema",
+    "faultRetry": "Reintentar",
+    "indexFaultBanner": "Algunos archivos no se pudieron añadir: {{reason}}. Mirall seguirá intentándolo.",
+    "mirrorFaultBanner": "La sincronización se ha detenido: {{reason}}. Los archivos no se actualizarán hasta que se solucione.",
     "statusBrowseOnly": "Solo explorar"
   },
   "share": {

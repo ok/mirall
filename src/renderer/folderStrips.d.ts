@@ -1,7 +1,8 @@
 import type { IconName } from './components/primitives/Icon.js'
 import type { ShareRole } from './types.js'
+import type { MountFault } from './mountFault.js'
 
-export type StripId = 'source-missing' | 'paused' | 'working' | 'peer-indexing' | 'owner-offline' | 'over-limit'
+export type StripId = 'source-missing' | 'fault' | 'paused' | 'working' | 'peer-indexing' | 'owner-offline' | 'over-limit'
 export type StripTone = 'error' | 'warning' | 'info' | 'neutral'
 export type StripAction = 'locate' | 'resume' | 'pause' | null
 
@@ -13,6 +14,7 @@ export interface StripData {
   bytes?: number
   indeterminate?: boolean
   pct?: number | null
+  faultCode?: string | null
   shown?: number
   total?: number
   limit?: number
@@ -41,6 +43,7 @@ export interface DeriveStripsInput {
   loading?: boolean
   error?: boolean
   sourceMissing?: boolean
+  fault?: MountFault | null
   indexing?: IndexSummaryLike | null
   foreignEnabled?: boolean
   mirrorSync?: { active: boolean; files: number; bytesRemaining: number; pct: number | null; indeterminate: boolean } | null
