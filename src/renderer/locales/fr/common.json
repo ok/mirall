@@ -98,7 +98,6 @@
     "in": "dans {{name}}",
     "oneWantsToJoin": "{{name}} souhaite rejoindre",
     "creatorDivergenceWarning": "L'identité du propriétaire de cet espace est en conflit : un pair a revendiqué un propriétaire différent de celui enregistré. Les approbations sont suspendues ; vérifiez avec une personne de confiance avant de partager quoi que ce soit de sensible.",
-    "approveBlockedDivergence": "Les approbations sont suspendues tant que le conflit d'identité du propriétaire n'est pas résolu.",
     "nWantToJoin_one": "{{count}} personne souhaite rejoindre",
     "nWantToJoin_other": "{{count}} personnes souhaitent rejoindre",
     "reviewN_one": "Examiner {{count}} demande",

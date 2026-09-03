@@ -17,7 +17,7 @@ import type { ShareWithRole } from '../../hooks/useShares.js'
 import { formatSize } from '../../utils.js'
 import { useToast } from '../toast/useToast.js'
 import { request } from '../../ipc.js'
-import { mountErrorI18nKey } from '../../errorMessages.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface MirrorFolderModalProps {
   isOpen: boolean
@@ -43,8 +43,8 @@ export default function MirrorFolderModal({
   onMounted,
 }: MirrorFolderModalProps) {
   const { t } = useTranslation()
-  const { t: tErr } = useTranslation('errors')
   const toast = useToast()
+  const errorText = useErrorText()
   const [mountPath, setMountPath] = useState('')
   const [info, setInfo] = useState<FolderInfo | null>(null)
   const [validation, setValidation] = useState<MountValidationResult | null>(null)
@@ -78,13 +78,11 @@ export default function MirrorFolderModal({
       (result) => { if (!cancelled) setValidation(result) },
       (err) => {
         if (cancelled) return
-        const code = (err as { code?: string } | null)?.code
-        const key = mountErrorI18nKey(code)
-        setValidationError(key ? tErr(key) : err instanceof Error ? err.message : String(err))
+        setValidationError(errorText(err))
       },
     )
     return () => { cancelled = true }
-  }, [isOpen, mountPath, share.id])
+  }, [isOpen, mountPath, share.id, errorText])
 
   const canProceed = !!validation && !validationError && mountPath.length > 0
 
@@ -101,7 +99,7 @@ export default function MirrorFolderModal({
     } catch (err) {
       const code = (err as { code?: string } | null)?.code
       if (code !== 'PREVIEW_CANCELLED') {
-        toast.error(err instanceof Error ? err.message : String(err))
+        toast.error(errorText(err))
         setStep('edit')
       }
     }
@@ -120,7 +118,7 @@ export default function MirrorFolderModal({
       onMounted()
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     } finally {
       setSubmitting(false)
     }

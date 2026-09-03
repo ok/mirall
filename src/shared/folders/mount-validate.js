@@ -186,7 +186,7 @@ function collectAdvisories(absPath) {
 
 export function validateMountPath(absPath, role, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
-    throw new AppError(ErrorCodes.NOT_FOUND, 'No path provided')
+    throw new AppError(ErrorCodes.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
   const platform = os.platform()
@@ -232,7 +232,7 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
 
 export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
-    throw new AppError(ErrorCodes.NOT_FOUND, 'No path provided')
+    throw new AppError(ErrorCodes.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
   const platform = os.platform()

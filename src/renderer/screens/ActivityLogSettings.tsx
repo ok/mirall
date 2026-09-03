@@ -10,6 +10,7 @@ import SectionHeading from '../components/layout/SectionHeading.js'
 import Modal from '../components/primitives/Modal.js'
 import Button from '../components/primitives/Button.js'
 import IconButton from '../components/primitives/IconButton.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 
 interface ActivityLogSettingsProps {
   onBack: () => void
@@ -24,6 +25,7 @@ interface AuditExport {
 
 export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSettingsProps) {
   const { t } = useTranslation()
+  const errorText = useErrorText()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [config, setConfig] = useState<AuditConfig | null>(null)
   const [stats, setStats] = useState<AuditStats | null>(null)
@@ -61,11 +63,11 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
       URL.revokeObjectURL(url)
       setStatus(t('activityLogSettings.exportDone', { count: payload.entries.length }))
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      setStatus(errorText(err))
     } finally {
       setBusy(false)
     }
-  }, [t])
+  }, [t, errorText])
 
   const handlePurge = useCallback(async () => {
     setBusy(true)

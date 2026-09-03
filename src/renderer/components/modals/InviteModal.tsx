@@ -7,6 +7,7 @@ import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
 import Toggle from '../primitives/Toggle.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 const EXPIRY = [
   { id: '2h', labelKey: 'invite.expiry.2h', ms: 2 * 60 * 60 * 1000 },
@@ -26,24 +27,35 @@ const BADGE_BASE = 'inline-flex items-center leading-none px-3 pt-[7px] pb-[5px]
 
 export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalProps) {
   const { t, i18n } = useTranslation()
+  const errorText = useErrorText()
   const [autoApprove, setAutoApprove] = useState(false)
   const [expiry, setExpiry] = useState<ExpiryId>('2h')
   const [code, setCode] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isOpen) { setAutoApprove(false); setExpiry('2h'); setCode(null); setCreating(false); setCopied(false) }
+    if (!isOpen) { setAutoApprove(false); setExpiry('2h'); setCode(null); setCreating(false); setCopied(false); setError(null) }
   }, [isOpen])
 
   const chosen = EXPIRY.find((e) => e.id === expiry) ?? EXPIRY[0]
   const expiresLabel = new Date(Date.now() + chosen.ms).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })
 
+  // space:invite refuses a pending membership and a pre-encryption space. Unhandled, the rejection
+  // also skipped setCreating(false), so the button stayed disabled on "Creating…" with nothing on
+  // screen saying why.
   async function handleCreate() {
     setCreating(true)
-    const created = await onCreate({ autoApprove, expiresInMs: chosen.ms })
-    setCreating(false)
-    if (created) setCode(created)
+    setError(null)
+    try {
+      const created = await onCreate({ autoApprove, expiresInMs: chosen.ms })
+      if (created) setCode(created)
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setCreating(false)
+    }
   }
 
   function handleCopy() {
@@ -115,6 +127,12 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                 <Icon name="info" size={20} className="text-secondary shrink-0" />
                 <p className="text-sm text-on-surface-variant font-medium">{t('invite.infoText')}</p>
               </div>
+
+              {error && (
+                <div className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
+                  {error}
+                </div>
+              )}
 
               <div className="pt-2">
                 <Button size="lg" fullWidth icon="group_add" disabled={creating} onClick={handleCreate}>

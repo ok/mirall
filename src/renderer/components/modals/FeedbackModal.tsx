@@ -9,6 +9,7 @@ import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface FeedbackModalProps {
   isOpen: boolean
@@ -67,6 +68,7 @@ function FeedbackSentView({ onDone }: { onDone: () => void }) {
 export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
+  const errorText = useErrorText()
   const [comment, setComment] = useState('')
   const [email, setEmail] = useState<string>(loadStoredEmail)
   const [includeScreenshot, setIncludeScreenshot] = useState(false)
@@ -106,7 +108,7 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       if (err instanceof Error && err.message === 'rate_limited') {
         setError(tErr('feedbackRateLimited'))
       } else {
-        setError(err instanceof Error ? err.message : tErr('feedbackFailed'))
+        setError(errorText(err, 'feedbackFailed'))
       }
     } finally {
       setSending(false)

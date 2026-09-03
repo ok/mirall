@@ -98,7 +98,6 @@
     "in": "in {{name}}",
     "oneWantsToJoin": "{{name}} möchte beitreten",
     "creatorDivergenceWarning": "Die Eigentümer-Identität dieses Raums steht im Konflikt — ein Peer hat einen anderen Eigentümer als den hinterlegten behauptet. Freigaben sind pausiert; bestätige dies mit einer vertrauenswürdigen Person, bevor du Vertrauliches teilst.",
-    "approveBlockedDivergence": "Solange der Eigentümer-Konflikt ungelöst ist, sind Genehmigungen pausiert.",
     "nWantToJoin_one": "{{count}} Person möchte beitreten",
     "nWantToJoin_other": "{{count}} Personen möchten beitreten",
     "reviewN_one": "{{count}} Anfrage ansehen",

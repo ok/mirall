@@ -17,14 +17,25 @@ test('no error passes the rows through untouched', (t) => {
 
 // A deleted or access-revoked share must clear the list, or the user keeps browsing a folder that
 // no longer exists.
-test('a terminal code clears the rows and surfaces the message', (t) => {
-  for (const code of ['NOT_FOUND', 'EOWNERSHIP']) {
-    const out = resolveListing(seeded(), err('gone', code))
+//
+// REGRESSION (FIX-CODES-2: the NOT_FOUND split renamed the code this set is keyed on. Missed, a
+// deleted share keeps rendering its last known rows forever, and nothing typechecks these literals.)
+test('REGRESSION (FIX-CODES-2): a terminal code clears the rows and surfaces the error', (t) => {
+  for (const code of ['SHARE_NOT_FOUND', 'EOWNERSHIP']) {
+    const failure = err('gone', code)
+    const out = resolveListing(seeded(), failure)
     t.alike(out.rows, [], `${code} clears the listing`)
     t.is(out.info, null, 'and its header')
-    t.is(out.error, 'gone', 'and says why')
+    t.is(out.error, failure, 'and hands the error on for the screen to localize')
     t.ok(out.terminal)
   }
+})
+
+test('the old catch-all is no longer terminal', (t) => {
+  const fold = seeded()
+  const out = resolveListing(fold, err('gone', 'NOT_FOUND'))
+  t.is(out.rows, fold.rows, 'NOT_FOUND is internal now and says nothing about this share')
+  t.absent(out.terminal)
 })
 
 // REGRESSION (FIX-NEVER-BLANK-STORE: a timeout is a transient read failure, not a statement about
@@ -38,9 +49,10 @@ test('REGRESSION (FIX-NEVER-BLANK-STORE): a transient failure keeps the rows and
 })
 
 test('a transient failure with nothing on screen does surface', (t) => {
-  const out = resolveListing(emptyFold, err('IPC timeout: share:list-files'))
+  const failure = err('IPC timeout: share:list-files')
+  const out = resolveListing(emptyFold, failure)
   t.alike(out.rows, [])
-  t.is(out.error, 'IPC timeout: share:list-files', 'a blank view must explain itself')
+  t.is(out.error, failure, 'a blank view must explain itself')
 })
 
 test('an unknown code is treated as transient', (t) => {

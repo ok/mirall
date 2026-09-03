@@ -2,61 +2,52 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { CODE_NAMES } from '../../src/shared/contract/errors.js'
+import { ERROR_I18N_KEY_BY_CODE, mountFaultReasonKey } from '../../src/renderer/errorMessages.js'
+import { FALLBACK_KEY } from '../../src/renderer/errorText.js'
 
 // REGRESSION (FIX-DLDIR-3: DOWNLOAD_FAILED was a code the download engine emits and the renderer
-// had no mapping for, so it fell through errorCodeToI18nKey's default to the generic "Transfer
-// failed" — which is how an entire class of local-filesystem failures, a deleted or ejected
-// download folder among them, reached the user as a message they could do nothing with).
+// had no mapping for, so it fell through to the generic "Transfer failed" — which is how an entire
+// class of local-filesystem failures, a deleted or ejected download folder among them, reached the
+// user as a message they could do nothing with).
 //
 // The failure mode is silent by construction: an unmapped code does not throw, it renders
-// plausible-looking text. Nothing else catches it — the locale parity guard checks that all five
-// locales agree, not that a code the worker can send has anywhere to land — so these two
-// invariants are what keep the next new code from repeating it.
-//
-// i18n-key-parity.test.js covers en↔locale parity; this file covers worker↔renderer.
+// plausible-looking text. i18n-key-parity.test.js covers en<->locale parity; contract-errors covers
+// worker<->renderer coverage; this file covers renderer<->catalog.
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.resolve(here, '../../src')
 const read = (p) => fs.readFileSync(path.join(SRC, p), 'utf8')
 
-const errorMessagesSrc = read('renderer/errorMessages.ts')
 const enErrors = JSON.parse(read('renderer/locales/en/errors.json'))
-
-// Both maps are plain object literals of `CODE: 'i18nKey',` — parse them out rather than
-// importing, since this is a Node runner and the source is TypeScript.
-function mapEntries (constName) {
-  const start = errorMessagesSrc.indexOf(`const ${constName}`)
-  if (start === -1) return []
-  const body = errorMessagesSrc.slice(start, errorMessagesSrc.indexOf('\n}', start))
-  return [...body.matchAll(/^\s*([A-Z][A-Z0-9_]*):\s*'([^']+)'/gm)].map((m) => [m[1], m[2]])
-}
-
-const transferMap = mapEntries('ERROR_I18N_KEY_BY_CODE')
-const mountMap = mapEntries('MOUNT_ERROR_I18N_KEY_BY_CODE')
-
-test('the renderer error maps were parsed (guards the parser itself)', (t) => {
-  t.ok(transferMap.length >= 8, `found ${transferMap.length} transfer mappings`)
-  t.ok(mountMap.length >= 8, `found ${mountMap.length} mount mappings`)
-})
 
 // A mapping that points at a key no catalog defines renders the raw key string to the user —
 // the same silent-garbage outcome as no mapping at all.
 test('every mapped i18n key exists in the en errors catalog', (t) => {
-  for (const [code, key] of [...transferMap, ...mountMap]) {
+  for (const [code, key] of Object.entries(ERROR_I18N_KEY_BY_CODE)) {
     t.ok(Object.hasOwn(enErrors, key), `${code} → errors.${key} exists`)
   }
 })
 
-// REGRESSION (FIX-DLDIR-3). Derived from the engine source rather than hand-listed, so a code
-// added there in future is covered without anyone remembering to update this test.
+test('the map names no code the contract does not declare', (t) => {
+  const stale = Object.keys(ERROR_I18N_KEY_BY_CODE).filter((c) => !CODE_NAMES.includes(c))
+  t.alike(stale, [], 'mapping for a code that no longer exists')
+})
+
+// Without this the boundary renders the raw key string for every internal or uncoded failure.
+test('the generic fallback has copy', (t) => {
+  t.ok(Object.hasOwn(enErrors, FALLBACK_KEY), `errors.${FALLBACK_KEY} exists`)
+  t.ok(Object.hasOwn(enErrors, 'transferFailed'), 'errors.transferFailed exists')
+})
+
+// Derived from the engine source rather than hand-listed, so a code added there in future is
+// covered without anyone remembering to update this test.
 test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a renderer mapping)', (t) => {
   const engineSrc = read('shared/transfer/backends/overlay/overlay-download.js')
   const emitted = new Set([...engineSrc.matchAll(/ErrorCodes\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]))
   t.ok(emitted.size > 0, 'the engine references error codes at all')
-
-  const mapped = new Set(transferMap.map(([code]) => code))
   for (const code of emitted) {
-    t.ok(mapped.has(code), `${code} is mapped in errorMessages.ts (not silently generic)`)
+    t.ok(code in ERROR_I18N_KEY_BY_CODE, `${code} is mapped in errorMessages.js (not silently generic)`)
   }
 })
 
@@ -64,15 +55,15 @@ test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a render
 // fallback rather than "Transfer failed". An unclassified fault — or a record written before the
 // reason became a code, whose reason is a raw errno message — resolves through it.
 test('the mount-fault reason has a named fallback and a string behind it', (t) => {
-  t.ok(errorMessagesSrc.includes("return 'mountFaultUnknown'"), 'mountFaultReasonKey falls back to a named key')
+  t.is(mountFaultReasonKey(null), 'mountFaultUnknown', 'mountFaultReasonKey falls back to a named key')
+  t.is(mountFaultReasonKey('NO_SUCH_CODE'), 'mountFaultUnknown', 'and so does a code with no mapping')
   t.ok(Object.hasOwn(enErrors, 'mountFaultUnknown'), 'and the key exists in the en errors catalog')
 })
 
 // The owner and the mirror both record these two codes as a mount fault's reason, and the strip
 // renders them through the transfer map — so an unmapped one would silently read as the fallback.
 test('every code a mount fault can record is mapped', (t) => {
-  const mapped = new Set(transferMap.map(([code]) => code))
   for (const code of ['TRANSFER_DISK_FULL', 'TRANSFER_PERMISSION']) {
-    t.ok(mapped.has(code), `${code} is mapped in errorMessages.ts`)
+    t.ok(code in ERROR_I18N_KEY_BY_CODE, `${code} is mapped in errorMessages.js`)
   }
 })

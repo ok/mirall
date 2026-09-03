@@ -1,13 +1,12 @@
 // A space's loose-file listing, read through the query store, plus the optimistic rows a publish
 // shows before the worker has indexed the file.
 import { useState, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 import { request, addFileToSpace } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery } from '../store/query-store.js'
 import { mergeOptimistic } from '../optimisticRows.js'
 import { useToast } from '../components/toast/useToast.js'
-import { errorCodeToI18nKey } from '../errorMessages.js'
+import { useErrorText } from './useErrorText.js'
 import type { FileEntry } from '../types.js'
 
 const EMPTY: FileEntry[] = []
@@ -21,7 +20,7 @@ function filesScopes(spaceId: string) {
 
 export function useFiles(spaceId: string) {
   const toast = useToast()
-  const { t: tErr } = useTranslation('errors')
+  const errorText = useErrorText()
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, FileEntry>>(new Map())
 
   // One leading + one trailing files:list per 750 ms window: a publish emits one files hint per
@@ -38,9 +37,10 @@ export function useFiles(spaceId: string) {
   // Only a genuinely cold space shows "Loading files…". A hint-driven refetch keeps the rows on
   // screen, which is what stops the list collapsing and resetting scroll.
   const loading = data === undefined && fetching
-  // The rows survive a failed read; the message is surfaced beside them and clears on the next
-  // successful one.
-  const error = queryError ? queryError.message : null
+  // The rows survive a failed read. The error is passed on as it arrived rather than as its
+  // message: the screen renders its own generic block for it, and turning it into text is the
+  // translator's job, not this hook's.
+  const error = queryError ?? null
 
   const refresh = useCallback(async () => {
     if (!spaceId) return
@@ -69,8 +69,7 @@ export function useFiles(spaceId: string) {
       try {
         await addFileToSpace(spaceId, file)
       } catch (err) {
-        const code = (err as { code?: string } | null)?.code
-        toast.error(tErr(errorCodeToI18nKey(code)))
+        toast.error(errorText(err, 'transferFailed'))
       } finally {
         setUploadingFiles(prev => {
           const next = new Map(prev)

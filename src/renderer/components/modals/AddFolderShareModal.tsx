@@ -12,8 +12,8 @@ import { validateOwnedMount, previewOwnedMount, cancelOwnedPreview, createShareT
 import { usePreviewFlow } from '../../hooks/usePreviewFlow.js'
 import type { MountValidationResult } from '../../types.js'
 import { useToast } from '../toast/useToast.js'
-import { mountErrorI18nKey } from '../../errorMessages.js'
 import { basename, isValidShareName } from '../../sharePaths.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface AddFolderShareModalProps {
   isOpen: boolean
@@ -113,8 +113,8 @@ export default function AddFolderShareModal({
   onCreated,
 }: AddFolderShareModalProps) {
   const { t } = useTranslation()
-  const { t: tErr } = useTranslation('errors')
   const toast = useToast()
+  const errorText = useErrorText()
   const [mountPath, setMountPath] = useState(initialMountPath)
   const [shareName, setShareName] = useState(basename(initialMountPath))
   const [validation, setValidation] = useState<MountValidationResult | null>(null)
@@ -148,13 +148,11 @@ export default function AddFolderShareModal({
       (result) => { if (!cancelled) setValidation(result) },
       (err) => {
         if (cancelled) return
-        const code = (err as { code?: string } | null)?.code
-        const key = mountErrorI18nKey(code)
-        setValidationError(key ? tErr(key) : err instanceof Error ? err.message : String(err))
+        setValidationError(errorText(err))
       },
     )
     return () => { cancelled = true }
-  }, [isOpen, mountPath])
+  }, [isOpen, mountPath, errorText])
 
   const collision = useMemo(
     () => existingShareNames.some((n) => n === shareName.trim()),
@@ -181,7 +179,7 @@ export default function AddFolderShareModal({
     } catch (err) {
       const code = (err as { code?: string } | null)?.code
       if (code !== 'PREVIEW_CANCELLED') {
-        toast.error(err instanceof Error ? err.message : String(err))
+        toast.error(errorText(err))
         setStep('edit')
       }
     }
@@ -200,7 +198,7 @@ export default function AddFolderShareModal({
       onCreated()
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     } finally {
       setSubmitting(false)
     }

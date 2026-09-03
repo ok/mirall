@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
-import { mountErrorI18nKey } from '../../errorMessages.js'
 import IconPicker from '../widgets/IconPicker.js'
 import PathRow from '../widgets/PathRow.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface EditSpaceModalProps {
   space: Space
@@ -26,7 +26,7 @@ const FOLDER_ERROR_CODES = new Set(['DOWNLOAD_FOLDER_INVALID', 'DOWNLOAD_FOLDER_
 
 export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModalProps) {
   const { t } = useTranslation()
-  const { t: tErr } = useTranslation('errors')
+  const errorText = useErrorText()
   const [name, setName] = useState(space.name)
   const [icon, setIcon] = useState(space.icon)
   const [saving, setSaving] = useState(false)
@@ -45,7 +45,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
       .catch((err) => {
         if (cancelled) return
         setGlobalDefault('')
-        setError(err instanceof Error ? err.message : String(err))
+        setError(errorText(err))
       })
     return () => { cancelled = true }
   }, [])
@@ -84,8 +84,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
       onClose()
     } catch (err) {
       const code = (err as { code?: string } | null)?.code
-      const key = mountErrorI18nKey(code)
-      const detail = key ? tErr(key) : err instanceof Error ? err.message : String(err)
+      const detail = errorText(err)
       setError(code && FOLDER_ERROR_CODES.has(code)
         ? t('editSpace.folderError', { error: detail })
         : t('editSpace.saveError', { error: detail }))

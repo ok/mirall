@@ -679,7 +679,7 @@ Module map: §11.
 
 ### 7.4 Mount validation (`folders/mount-validate.js`)
 
-`validateMountPath(absPath, role, ctx)` **rejects** (codes surfaced via `errorMessages.ts`): system folders (`MOUNT_FORBIDDEN_SYSTEM`), the app's storage dir (`MOUNT_FORBIDDEN_APP_DATA`), cloud-sync roots — Dropbox/OneDrive/iCloud (`MOUNT_FORBIDDEN_CLOUD_SYNC`), Windows reserved names / illegal chars (`MOUNT_FORBIDDEN_WIN_RESERVED`), overlap with an existing mount of the same role (`MOUNT_OVERLAPS`), a foreign mount inside `~/Downloads` (`MOUNT_INSIDE_DOWNLOADS`), non-writable paths (`MOUNT_NOT_WRITABLE`).
+`validateMountPath(absPath, role, ctx)` **rejects** (codes surfaced via `errorMessages.js`): system folders (`MOUNT_FORBIDDEN_SYSTEM`), the app's storage dir (`MOUNT_FORBIDDEN_APP_DATA`), cloud-sync roots — Dropbox/OneDrive/iCloud (`MOUNT_FORBIDDEN_CLOUD_SYNC`), Windows reserved names / illegal chars (`MOUNT_FORBIDDEN_WIN_RESERVED`), overlap with an existing mount of the same role (`MOUNT_OVERLAPS`), a foreign mount inside `~/Downloads` (`MOUNT_INSIDE_DOWNLOADS`), non-writable paths (`MOUNT_NOT_WRITABLE`).
 
 It also returns non-blocking **advisories**: macOS TCC-gated folders (Desktop/Documents), non-`C:` Windows drives that may be removable or network.
 
@@ -1085,7 +1085,9 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
 | `types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) |
 | `sharePaths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
-| `errorMessages.ts` | Backend error codes (incl. `MOUNT_*`) → i18n keys via `mountErrorI18nKey()` |
+| `errorMessages.js` | The one backend-code → i18n-key map |
+| `errorText.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |
+| `hooks/useErrorText.ts` | The React binding for `errorTextFor` |
 | `keyboard/` | `KeyboardProvider` + `registry`, `accelerator` (chord parsing) + `AcceleratorLabel`, `CommandPalette` (`⌘K`), `ShortcutsHint`, `known-commands.ts`. Screens register via `useRegisterCommand` (SpaceView: `⌘U` add files, `⌘⇧U` add folder, `⌘J` join, `⌘⇧L` leave) |
 | `utils.ts` | `formatSize` / `formatSpeed` / `formatEta` / `getFileIcon` / `resizeAvatar` / `fileName` / `gradientForSpaceId` |
 | `platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; dark-mode persistence; bounds restore/track |

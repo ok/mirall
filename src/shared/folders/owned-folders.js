@@ -354,7 +354,7 @@ async function readBothSides(spaceId, shareId, mountPath, ignore) {
 
 async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, deferFresh }) {
   const mount = await getOwnedMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount missing')
+  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount missing')
   // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
   // It is also what makes a pause survive a restart by construction — boot's resume pass, the
   // reconcile timer and the watcher's catch-up all call in through here.

@@ -2,7 +2,8 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { CODES, CODE_NAMES, UNUSED_CODES, EXPECTED_CODES } from '../../src/shared/contract/errors.js'
+import { CODES, CODE_NAMES, UNUSED_CODES, EXPECTED_CODES, INTERNAL_CODES } from '../../src/shared/contract/errors.js'
+import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errorMessages.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
@@ -50,16 +51,20 @@ test('the unused list is honest and only shrinks', (t) => {
   t.ok(UNUSED_CODES.length <= 11, 'no code was added to the unused list')
 })
 
-test('the renderer maps every code a user can see', (t) => {
-  const src = readFileSync(path.join(root, 'src', 'renderer', 'errorMessages.ts'), 'utf8')
-  const mapped = new Set([...src.matchAll(/^\s*([A-Z_]+):/gm)].map((m) => m[1]))
-  const internal = new Set([...UNUSED_CODES, ...EXPECTED_CODES])
-  const unmapped = CODE_NAMES.filter((c) => !mapped.has(c) && !internal.has(c))
-  // Not asserted empty: mapping the rest is a copy change across five locale files, which is its
-  // own piece of work. Pinned as a ratchet so the gap cannot GROW now that the contract makes it
-  // countable — INVITE_INVALID, INVITE_EXPIRED and LEAVE_IN_PROGRESS are in here, and they are why
-  // JoinSpaceModal still shows raw English.
-  t.ok(unmapped.length <= 17, `unmapped user-visible codes: ${unmapped.length} (ratchet: 17)`)
+// REGRESSION (FIX-CODES-1: this was a ratchet at 17 while INVITE_INVALID, INVITE_EXPIRED and
+// LEAVE_IN_PROGRESS sat inside it — which is why JoinSpaceModal showed raw English in every
+// locale. Now that the internal codes are named, the honest assertion is zero.)
+test('REGRESSION (FIX-CODES-1): the renderer maps every code a user can see', (t) => {
+  const internal = new Set([...UNUSED_CODES, ...EXPECTED_CODES, ...INTERNAL_CODES])
+  const unmapped = CODE_NAMES.filter((c) => !(c in ERROR_I18N_KEY_BY_CODE) && !internal.has(c))
+  t.alike(unmapped, [], 'codes a user can reach with no sentence in any language')
+})
+
+// The other direction. A code declared internal renders the generic sentence by design, so copy for
+// one is five locale files of weight that nothing can ever show.
+test('no internal code carries copy', (t) => {
+  const withCopy = INTERNAL_CODES.filter((c) => c in ERROR_I18N_KEY_BY_CODE)
+  t.alike(withCopy, [], 'copy for a code the display boundary never consults')
 })
 
 test('expected codes are declared and are genuinely thrown', (t) => {

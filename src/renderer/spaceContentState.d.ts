@@ -1,7 +1,7 @@
 export interface SpacePaneState {
   filesLoading: boolean
   sharesLoading: boolean
-  filesError: string | null
+  filesError: Error | null
   fileCount: number
   shareCount: number
 }

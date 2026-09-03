@@ -37,9 +37,11 @@ test('accepts an ordinary writable path', (t) => {
   t.ok(Array.isArray(r.advisories), 'returns advisories')
 })
 
-test('rejects empty / non-string input', (t) => {
-  t.is(codeOf(() => validateMountPathSync('', 'owned-folder', [])), ErrorCodes.NOT_FOUND)
-  t.is(codeOf(() => validateMountPathSync(null, 'owned-folder', [])), ErrorCodes.NOT_FOUND)
+// REGRESSION (FIX-CODES-2: this was NOT_FOUND, one code shared by 27 throw sites carrying 13
+// different meanings, all mapped to the picker's "Choose a folder to share.")
+test('REGRESSION (FIX-CODES-2): rejects empty / non-string input with its own code', (t) => {
+  t.is(codeOf(() => validateMountPathSync('', 'owned-folder', [])), ErrorCodes.MOUNT_PATH_MISSING)
+  t.is(codeOf(() => validateMountPathSync(null, 'owned-folder', [])), ErrorCodes.MOUNT_PATH_MISSING)
 })
 
 test('rejects system folders', (t) => {

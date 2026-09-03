@@ -5,9 +5,11 @@ import { request } from '../../ipc.js'
 import DiagnosticsPreviewModal from '../modals/DiagnosticsPreviewModal.js'
 import Toggle from '../primitives/Toggle.js'
 import Button from '../primitives/Button.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 export default function DiagnosticsCard() {
   const { t } = useTranslation()
+  const errorText = useErrorText()
   const [redact, setRedact] = useState(true)
   const [includeLogs, setIncludeLogs] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -54,7 +56,7 @@ export default function DiagnosticsCard() {
       setPreview(null)
       setStatus(t('diagnostics.saved'))
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      setStatus(errorText(err))
     } finally {
       setBusy(false)
     }

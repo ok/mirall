@@ -30,5 +30,20 @@
   "downloadFolderInvalid": "Mirall can't use this folder. It may have been moved or removed, or Mirall can't write to it.",
   "spaceUnsupported": "This space was created by a much older version of Mirall and can no longer be used.",
   "shareNameInvalid": "That name can’t be used. Try a shorter one without slashes.",
-  "shareNameCollision": "Another folder in this space already uses that name."
+  "shareNameCollision": "Another folder in this space already uses that name.",
+  "spaceNotFound": "That space isn't on this device any more.",
+  "shareNotFound": "That folder isn't in this space any more — the owner may have removed it.",
+  "mountNotOnDevice": "This folder isn't set up on this device yet.",
+  "sourceFolderMissing": "Mirall can't find this folder on disk. Locate it, then try again.",
+  "fileNotOnDevice": "This file isn't on this device yet.",
+  "fileSourceMissing": "Mirall lost track of this file on disk, so it isn't shared any more.",
+  "shareModeUnsupported": "This folder was shared in a way this version of Mirall can't open.",
+  "spaceIndexUnavailable": "This space isn't ready yet. Try again in a moment.",
+  "inviteInvalid": "That invite code is not valid.",
+  "inviteExpired": "This invite link has expired. Ask for a new one.",
+  "leaveInProgress": "Mirall is still finishing your last leave of this space. Try again in a moment.",
+  "notAMember": "You can only invite others once you've been approved for this space.",
+  "notApprovedForSpace": "You haven't been approved for this space yet, so you can't share into it.",
+  "unexpected": "Something went wrong. Try again — if it keeps happening, send feedback from Settings.",
+  "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved."
 }

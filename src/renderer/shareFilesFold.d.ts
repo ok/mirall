@@ -30,7 +30,7 @@ export declare function resetFold (): Fold
 export interface ResolvedListing {
   rows: ShareFileEntry[]
   info: FolderInfo | null
-  error: string | null
+  error: (Error & { code?: string }) | null
   terminal: boolean
 }
 

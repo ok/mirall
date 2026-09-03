@@ -30,5 +30,20 @@
   "downloadFolderInvalid": "Mirall kann diesen Ordner nicht verwenden. Er wurde möglicherweise verschoben oder entfernt, oder Mirall kann nicht hineinschreiben.",
   "spaceUnsupported": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden.",
   "shareNameInvalid": "Dieser Name ist nicht verwendbar. Versuche einen kürzeren ohne Schrägstriche.",
-  "shareNameCollision": "Ein anderer Ordner in diesem Space nutzt diesen Namen bereits."
+  "shareNameCollision": "Ein anderer Ordner in diesem Space nutzt diesen Namen bereits.",
+  "spaceNotFound": "Dieser Space ist nicht mehr auf diesem Gerät.",
+  "shareNotFound": "Dieser Ordner ist nicht mehr in diesem Space — der Eigentümer hat ihn möglicherweise entfernt.",
+  "mountNotOnDevice": "Dieser Ordner ist auf diesem Gerät noch nicht eingerichtet.",
+  "sourceFolderMissing": "Mirall findet diesen Ordner nicht auf der Festplatte. Suche ihn und versuche es erneut.",
+  "fileNotOnDevice": "Diese Datei ist noch nicht auf diesem Gerät.",
+  "fileSourceMissing": "Mirall hat diese Datei auf der Festplatte verloren, sie wird daher nicht mehr geteilt.",
+  "shareModeUnsupported": "Dieser Ordner wurde auf eine Art geteilt, die diese Mirall-Version nicht öffnen kann.",
+  "spaceIndexUnavailable": "Dieser Space ist noch nicht bereit. Versuche es gleich noch einmal.",
+  "inviteInvalid": "Dieser Einladungscode ist ungültig.",
+  "inviteExpired": "Dieser Einladungslink ist abgelaufen. Bitte um einen neuen.",
+  "leaveInProgress": "Mirall schließt gerade dein letztes Verlassen dieses Space ab. Versuche es gleich noch einmal.",
+  "notAMember": "Du kannst andere erst einladen, wenn du für diesen Space freigegeben wurdest.",
+  "notApprovedForSpace": "Du wurdest für diesen Space noch nicht freigegeben und kannst daher nichts darin teilen.",
+  "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen.",
+  "approveBlockedDivergence": "Solange der Eigentümer-Konflikt ungelöst ist, sind Genehmigungen pausiert."
 }

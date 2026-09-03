@@ -98,7 +98,6 @@
     "in": "en {{name}}",
     "oneWantsToJoin": "{{name}} quiere unirse",
     "creatorDivergenceWarning": "La identidad del propietario de este espacio está en conflicto: un par afirmó un propietario distinto al registrado. Las aprobaciones están en pausa; verifícalo con alguien de confianza antes de compartir algo sensible.",
-    "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva.",
     "nWantToJoin_one": "{{count}} persona quiere unirse",
     "nWantToJoin_other": "{{count}} personas quieren unirse",
     "reviewN_one": "Revisar {{count}} solicitud",

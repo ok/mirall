@@ -12,6 +12,8 @@ export const CODES = Object.freeze({
   EHASHMISMATCH: 'EHASHMISMATCH',  // adopted from a bare string
   EIO: 'EIO',  // adopted from a bare string
   EOWNERSHIP: 'EOWNERSHIP',
+  FILE_NOT_ON_DEVICE: 'FILE_NOT_ON_DEVICE',
+  FILE_SOURCE_MISSING: 'FILE_SOURCE_MISSING',
   EPATH: 'EPATH',
   INVALID_INVITE: 'INVALID_INVITE',
   INVITE_EXPIRED: 'INVITE_EXPIRED',  // adopted from a bare string
@@ -26,10 +28,12 @@ export const CODES = Object.freeze({
   MOUNT_FORBIDDEN_WIN_RESERVED: 'MOUNT_FORBIDDEN_WIN_RESERVED',
   MOUNT_INSIDE_DOWNLOADS: 'MOUNT_INSIDE_DOWNLOADS',
   MOUNT_INSIDE_SELF: 'MOUNT_INSIDE_SELF',
+  MOUNT_NOT_ON_DEVICE: 'MOUNT_NOT_ON_DEVICE',
   MOUNT_NOT_WRITABLE: 'MOUNT_NOT_WRITABLE',
   MOUNT_OVERLAPS: 'MOUNT_OVERLAPS',
+  MOUNT_PATH_MISSING: 'MOUNT_PATH_MISSING',
   NOT_A_MEMBER: 'NOT_A_MEMBER',  // adopted from a bare string
-  NOT_FOUND: 'NOT_FOUND',
+  NOT_FOUND: 'NOT_FOUND',  // internal only: a record a background loop expected to be there
   OVERLAY_REQUIRED: 'OVERLAY_REQUIRED',
   PEER_NOT_AVAILABLE: 'PEER_NOT_AVAILABLE',
   PREPARE_FAILED: 'PREPARE_FAILED',
@@ -38,9 +42,13 @@ export const CODES = Object.freeze({
   SHARE_FILE_LIMIT: 'SHARE_FILE_LIMIT',
   SHARE_NAME_COLLISION: 'SHARE_NAME_COLLISION',
   SHARE_NAME_INVALID: 'SHARE_NAME_INVALID',
+  SHARE_MODE_UNSUPPORTED: 'SHARE_MODE_UNSUPPORTED',
+  SHARE_NOT_FOUND: 'SHARE_NOT_FOUND',
   SOURCE_CHANGED: 'SOURCE_CHANGED',
   SOURCE_NOT_ON_DISK: 'SOURCE_NOT_ON_DISK',
+  SOURCE_FOLDER_MISSING: 'SOURCE_FOLDER_MISSING',
   SPACE_EXISTS: 'SPACE_EXISTS',
+  SPACE_NOT_FOUND: 'SPACE_NOT_FOUND',
   SPACE_UNSUPPORTED: 'SPACE_UNSUPPORTED',  // created before v1.7.0; no SCK, and no path to one
   TCC_GATED: 'TCC_GATED',  // adopted from a bare string
   TIMEOUT: 'TIMEOUT',
@@ -62,6 +70,23 @@ export const CODE_NAMES = Object.freeze(Object.keys(CODES))
 // Ordinary control flow rather than faults: the user cancelled, or a bounded read gave up as
 // designed. The IPC router logs these at debug so the warn level keeps its meaning.
 export const EXPECTED_CODES = Object.freeze(['ECANCELLED', 'PREVIEW_CANCELLED'])
+
+// Codes that never become a sentence: folded into another code before they could surface
+// (EHASHMISMATCH -> TRANSFER_CHECKSUM, EIO via classifyTransferError), or a bug in our own code
+// rather than something the user did. The renderer shows its generic sentence for these and logs
+// the detail. Listed here so the mapping test can assert ZERO unmapped codes rather than pin a
+// number, and so copy for a code nobody can reach cannot creep back in.
+export const INTERNAL_CODES = Object.freeze([
+  'EHASHMISMATCH',
+  'EIO',
+  'EPATH',
+  'INVALID_ARGUMENT',
+  'NOT_FOUND',
+  'OVERLAY_REQUIRED',
+  'REMOVABLE_OR_NETWORK',
+  'TCC_GATED',
+  'UNKNOWN',
+])
 
 // Declared but thrown nowhere as of 2026-08-30. Kept rather than deleted: several are the
 // vocabulary a planned feature will use, and deleting them would make the parity test pass by

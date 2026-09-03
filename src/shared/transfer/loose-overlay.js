@@ -141,7 +141,7 @@ async function settledWithTail (spaceId, relPath, ticket, absPath) {
   if (outcome.outcome === 'failed' && outcome.error) throw outcome.error
   if (outcome.result?.outcome === 'unlinked') {
     if (absPath && looseSourceFor(absPath, spaceId) === relPath) untrackSource(absPath, spaceId)
-    throw new AppError(ErrorCodes.NOT_FOUND, 'Shared file has no source link')
+    throw new AppError(ErrorCodes.FILE_SOURCE_MISSING, 'Shared file has no source link')
   }
   return outcome
 }

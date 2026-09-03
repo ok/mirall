@@ -262,7 +262,7 @@ export class MountsRuntime extends Subsystem {
   // difference between the two.
   async pauseIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
-    if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     // The flag first: an item enqueued between the cancel and the write must be declined by the
     // publish channel rather than published.
     await setOwnedIndexPaused(spaceId, shareId, true)
@@ -281,10 +281,10 @@ export class MountsRuntime extends Subsystem {
   // still precedes arming the scan, or that scan is declined by the gate resume has not yet lifted.
   async resumeIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
-    if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     if (!mountRootAvailable(mount.mountPath)) {
       await this.handleOwnedMountGone(spaceId, shareId)
-      throw new AppError(ErrorCodes.NOT_FOUND, 'Source folder is missing — locate it before resuming')
+      throw new AppError(ErrorCodes.SOURCE_FOLDER_MISSING, 'Source folder is missing — locate it before resuming')
     }
     await setOwnedIndexPaused(spaceId, shareId, false)
     // A relocate that landed while this was paused recorded a debt: its deep pass never ran, and

@@ -28,13 +28,16 @@ export function resetFold () {
 
 // A gone or access-revoked share is terminal: the rows must be cleared, or a deleted share lingers
 // as a phantom listing. Every other failure — a timeout, a peer that went quiet mid-read — keeps
-// what is on screen, because blanking a folder on a blip is the worse outcome. The message is
+// what is on screen, because blanking a folder on a blip is the worse outcome. The error is
 // surfaced only when there is nothing left to look at.
-const TERMINAL_CODES = new Set(['NOT_FOUND', 'EOWNERSHIP'])
+//
+// The error is returned as it arrived, not as its message: turning it into text needs the
+// translator, and this module stays pure so the never-blank rule is testable without React.
+const TERMINAL_CODES = new Set(['SHARE_NOT_FOUND', 'EOWNERSHIP'])
 
 export function resolveListing (fold, error) {
   const terminal = !!error && TERMINAL_CODES.has(error.code)
-  if (terminal) return { rows: emptyFold.rows, info: null, error: error.message, terminal }
-  const message = error && fold.rows.length === 0 ? error.message : null
-  return { rows: fold.rows, info: fold.info, error: message, terminal }
+  if (terminal) return { rows: emptyFold.rows, info: null, error, terminal }
+  const surfaced = error && fold.rows.length === 0 ? error : null
+  return { rows: fold.rows, info: fold.info, error: surfaced, terminal }
 }

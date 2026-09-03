@@ -39,6 +39,7 @@ import Avatar from '../components/primitives/Avatar.js'
 import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -74,6 +75,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const isLegacy = !!space && space.schemaVersion !== 2
   const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
   const toast = useToast()
+  const errorText = useErrorText()
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showApproval, setShowApproval] = useState(false)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -124,9 +126,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     try {
       await approveMember(spaceId, pk)
     } catch (err) {
-      const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined
-      const message = err instanceof Error ? err.message : String(err)
-      toast.error(code === 'CREATOR_DIVERGENCE_UNRESOLVED' ? t('space.approveBlockedDivergence') : message)
+      toast.error(errorText(err))
     } finally {
       clearBusy(pk)
     }
@@ -138,7 +138,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     try {
       await denyMember(spaceId, pk)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     } finally {
       clearBusy(pk)
     }
@@ -154,9 +154,9 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
       toast.success(t('share.locateSuccess', { name: share.name }))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
-  }, [spaceId, toast, t])
+  }, [spaceId, toast, t, errorText])
 
   const handleOpenShare = useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare])
 
