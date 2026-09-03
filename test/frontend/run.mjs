@@ -125,6 +125,7 @@ import s124 from './scenarios/s124-folder-commands.mjs'
 import s125 from './scenarios/s125-activity-log-folder-download.mjs'
 import s126 from './scenarios/s126-activity-log-granted-actor.mjs'
 import s127 from './scenarios/s127-folder-fault-strip.mjs'
+import s128 from './scenarios/s128-localized-errors.mjs'
 
 const REPO = path.resolve(import.meta.dirname, '../..')
 const runDir = path.join(REPO, 'test/frontend/evidence', new Date().toISOString().replace(/[:.]/g, '-'))
@@ -191,7 +192,7 @@ function pruneAgentDesktopStore() {
   if (stale) console.error(`pruned ${stale} stale agent-desktop snapshot(s)`)
 }
 
-const ALL = { s1, s2, s3, s4, s5, s6, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29, s30, s31, s32, s33, s34, s35, s36, s37, s38, s39, s40, s41, s42, s48, s49, s50, s51, s52, s54, s55, s56, s57, s58, s59, s60, s61, s62, s63, s64, s65, s66, s67, s68, s69, s70, s71, s73, s74, s75, s76, s77, s78, s79, s80, s81, s82, s83, s84, s85, s86, s87, s88, s89, s90, s91, s92, s93, s94, s95, s96, s97, s98, s99, s100, s101, s102, s103, s104, s105, s106, s107, s108, s109, s110, s111, s112, s113, s114, s115, s116, s117, s118, s119, s120, s121, s122, s123, s124, s125, s126, s127 }
+const ALL = { s1, s2, s3, s4, s5, s6, s8, s9, s10, s11, s12, s13, s14, s15, s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29, s30, s31, s32, s33, s34, s35, s36, s37, s38, s39, s40, s41, s42, s48, s49, s50, s51, s52, s54, s55, s56, s57, s58, s59, s60, s61, s62, s63, s64, s65, s66, s67, s68, s69, s70, s71, s73, s74, s75, s76, s77, s78, s79, s80, s81, s82, s83, s84, s85, s86, s87, s88, s89, s90, s91, s92, s93, s94, s95, s96, s97, s98, s99, s100, s101, s102, s103, s104, s105, s106, s107, s108, s109, s110, s111, s112, s113, s114, s115, s116, s117, s118, s119, s120, s121, s122, s123, s124, s125, s126, s127, s128 }
 const pick = args.filter((a) => !a.startsWith('--'))
 const keys = pick.length ? pick : Object.keys(ALL)
 

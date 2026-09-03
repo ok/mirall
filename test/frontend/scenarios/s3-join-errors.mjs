@@ -4,7 +4,9 @@ import { makeReport, waitFor } from '../assert.mjs'
 import { encodeInvite } from '../../../src/shared/invite-envelope.js'
 
 // JoinSpaceModal validation: the Join action is disabled with no code, and a
-// malformed invite code is rejected with an inline error. The code field, Join
+// malformed invite code is rejected with an inline error. The text is the worker's
+// code rendered through the errors catalog, not its English message — s126 pins that
+// in a non-English locale, where the difference is visible. The code field, Join
 // button (disabled state), and the role=alert error region must be addressable.
 // Pressing Enter in the auto-focused code field submits the join just like
 // clicking Join — without the field's keydown handler the keypress is swallowed
@@ -25,7 +27,7 @@ export default async function s3 ({ runDir, bootstrap }) {
     await r.ok('a malformed invite code is rejected with an inline error', async () => {
       await A.type({ role: 'textfield', name: 'Invite Code' }, 'not-a-real-code')
       await A.click({ role: 'button', name: 'Join Space', last: true })
-      await A.waitText('invalid invite', 8000)
+      await A.waitText('not valid', 8000)
       await A.shot('s3-invalid', runDir)
     })
     await r.ok('pressing Enter in the code field submits the join (same inline error)', async () => {
@@ -38,7 +40,7 @@ export default async function s3 ({ runDir, bootstrap }) {
       // keydown handler.
       await A.click({ role: 'textfield', name: 'Invite Code' })
       await A.press('return')
-      await A.waitText('invalid invite', 8000)
+      await A.waitText('not valid', 8000)
     })
     await r.ok('an expired invite link is rejected with an inline error', async () => {
       // Past the 60s joiner-side grace → the local pre-check refuses it (no peer needed). Type the
