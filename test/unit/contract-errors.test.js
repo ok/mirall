@@ -51,7 +51,7 @@ test('the unused list is honest and only shrinks', (t) => {
 })
 
 test('the renderer maps every code a user can see', (t) => {
-  const src = readFileSync(path.join(root, 'src', 'renderer', 'errorMessages.ts'), 'utf8')
+  const src = readFileSync(path.join(root, 'src', 'renderer', 'errorMessages.js'), 'utf8')
   const mapped = new Set([...src.matchAll(/^\s*([A-Z_]+):/gm)].map((m) => m[1]))
   const internal = new Set([...UNUSED_CODES, ...EXPECTED_CODES])
   const unmapped = CODE_NAMES.filter((c) => !mapped.has(c) && !internal.has(c))

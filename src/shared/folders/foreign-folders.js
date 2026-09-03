@@ -1079,7 +1079,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
 // than one with no loop, no caches and a record that disagrees with both.
 export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   const mount = await getForeignMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   const enabled = mount.enabled !== false
   // A disabled mount keeps the status it was disabled WITH. Collapsing an auto-pause
@@ -1090,7 +1090,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
   // putting it back would resurrect an `enabled`/`status` a concurrent pause had already written.
   const patched = await patchForeignMount(spaceId, shareId, { mountPath, status, syncedPaths: [], renamedPaths: {} })
-  if (!patched) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  if (!patched) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   stopForeignLoop(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
@@ -1112,7 +1112,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
 
 export async function setForeignEnabled(spaceId, shareId, enabled) {
   const mount = await getForeignMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const wasEnabled = mount.enabled !== false
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'

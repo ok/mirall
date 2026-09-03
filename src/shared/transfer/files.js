@@ -476,7 +476,7 @@ export function revealLocalPath(target) {
   log.info('reveal requested:', target, '(platform:', platform + ', exists:', exists + ')')
 
   if (!exists && !fs.existsSync(folder)) {
-    throw new AppError(ErrorCodes.NOT_FOUND, 'File is not on this device')
+    throw new AppError(ErrorCodes.FILE_NOT_ON_DEVICE, 'File is not on this device')
   }
 
   const opts = { stdio: 'ignore', detached: true }

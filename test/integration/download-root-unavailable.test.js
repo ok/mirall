@@ -75,7 +75,7 @@ const tick = () => new Promise((r) => setTimeout(r, 60))
 const settle = () => new Promise((r) => setTimeout(r, 400)) // past the 250ms resume coalescer
 
 // Guards every assertion below. The code travels to the renderer as a bare string and is mapped
-// there by literal (errorMessages.ts), so this pins the wire contract — and, less obviously, keeps
+// there by literal (errorMessages.js), so this pins the wire contract — and, less obviously, keeps
 // the rest of this file honest: if the constant were missing, `ErrorCodes.TRANSFER_DEST_UNAVAILABLE`
 // would be undefined and each `t.is(<no error emitted>, undefined)` would pass vacuously.
 test('the destination-unavailable code is the exact string the renderer maps', (t) => {

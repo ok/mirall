@@ -30,5 +30,12 @@
   "downloadFolderInvalid": "Mirall non può usare questa cartella. Potrebbe essere stata spostata o rimossa, oppure Mirall non può scriverci.",
   "spaceUnsupported": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato.",
   "shareNameInvalid": "Questo nome non è utilizzabile. Provane uno più corto e senza barre.",
-  "shareNameCollision": "Un’altra cartella in questo spazio usa già questo nome."
+  "shareNameCollision": "Un’altra cartella in questo spazio usa già questo nome.",
+  "spaceNotFound": "Questo spazio non è più su questo dispositivo.",
+  "shareNotFound": "Questa cartella non è più in questo spazio — il proprietario potrebbe averla rimossa.",
+  "mountNotOnDevice": "Questa cartella non è ancora configurata su questo dispositivo.",
+  "sourceFolderMissing": "Mirall non trova questa cartella sul disco. Individuala e riprova.",
+  "fileNotOnDevice": "Questo file non è ancora su questo dispositivo.",
+  "fileSourceMissing": "Mirall ha perso traccia di questo file sul disco, quindi non è più condiviso.",
+  "shareModeUnsupported": "Questa cartella è stata condivisa in un modo che questa versione di Mirall non può aprire."
 }

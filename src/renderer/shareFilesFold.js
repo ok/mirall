@@ -30,7 +30,7 @@ export function resetFold () {
 // as a phantom listing. Every other failure — a timeout, a peer that went quiet mid-read — keeps
 // what is on screen, because blanking a folder on a blip is the worse outcome. The message is
 // surfaced only when there is nothing left to look at.
-const TERMINAL_CODES = new Set(['NOT_FOUND', 'EOWNERSHIP'])
+const TERMINAL_CODES = new Set(['SHARE_NOT_FOUND', 'EOWNERSHIP'])
 
 export function resolveListing (fold, error) {
   const terminal = !!error && TERMINAL_CODES.has(error.code)

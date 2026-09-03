@@ -714,7 +714,7 @@ const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mira
 
 ipc.handle('share:create', async (msg) => {
   const space = await getSpace(msg.spaceId)
-  if (!space) throw new AppError(ErrorCodes.NOT_FOUND, 'Space not found')
+  if (!space) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
   const name = (msg.name || '').trim()
   if (!isValidShareName(name)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
 
@@ -765,13 +765,13 @@ ipc.handle('share:create', async (msg) => {
 // stays put and `displayName` carries what people read; the renderer resolves one from the other.
 ipc.handle('share:rename', async (msg) => {
   const space = await getSpace(msg.spaceId)
-  if (!space) throw new AppError(ErrorCodes.NOT_FOUND, 'Space not found')
+  if (!space) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
   const displayName = (msg.name || '').trim()
   if (!isValidShareName(displayName)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
 
   const own = await readOwnShares(msg.spaceId)
   const share = own.find((s) => s.id === msg.shareId)
-  if (!share) throw new AppError(ErrorCodes.NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
   const labelOf = (s) => s.displayName || s.name
   if (labelOf(share) === displayName) return share
   if (own.some((s) => s.id !== msg.shareId && labelOf(s) === displayName)) {
@@ -810,7 +810,7 @@ ipc.handle('share:delete', async (msg) => {
 async function loadShareDescriptor(spaceId, ownerKey, shareId) {
   const all = await listSharesForSpace(spaceId)
   const share = all.find((s) => s.id === shareId && s.owner === ownerKey)
-  if (!share) throw new AppError(ErrorCodes.NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
   return share
 }
 
@@ -833,11 +833,11 @@ ipc.handle('share:reveal-folder', async (msg) => {
   let target
   if (isOwn) {
     const ownedMount = await getOwnedMount(msg.spaceId, msg.shareId)
-    if (!ownedMount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    if (!ownedMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     target = ownedMount.mountPath
   } else {
     const foreignMount = await getForeignMount(msg.spaceId, msg.shareId)
-    if (!foreignMount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mirror not mounted')
+    if (!foreignMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
     target = foreignMount.mountPath
   }
   return revealLocalPath(target)
@@ -849,7 +849,7 @@ ipc.handle('share:reveal-file', async (msg) => {
   let target
   if (isOwn) {
     const ownedMount = await getOwnedMount(msg.spaceId, msg.shareId)
-    if (!ownedMount) throw new AppError(ErrorCodes.NOT_FOUND, 'Folder is not mounted on this device')
+    if (!ownedMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     target = pathFromMount(ownedMount.mountPath, msg.relPath)
   } else {
     const foreignMount = await getForeignMount(msg.spaceId, msg.shareId)
@@ -888,7 +888,7 @@ ipc.handle('share:read-file', async (msg) => {
   const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
   const isOwn = share.owner === getLocalPublicKeyHex()
   const backend = getContentBackend(share)
-  if (backend === UNSUPPORTED) throw new AppError(ErrorCodes.NOT_FOUND, 'Share uses an unsupported content mode')
+  if (backend === UNSUPPORTED) throw new AppError(ErrorCodes.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
   // overlay: request the file via the backend (catalog/overlay), not a drive
   if (isOwn) return { ok: true, alreadyOwned: true }
   return await backend.requestDownload(msg.spaceId, share, msg.relPath)
@@ -952,7 +952,7 @@ ipc.handle('owned-folder:validate', async (msg) => {
 ipc.handle('owned-folder:mount', async (msg) => {
   const own = await readOwnShares(msg.spaceId)
   const share = own.find((s) => s.id === msg.shareId)
-  if (!share) throw new AppError(ErrorCodes.NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
 
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
   const ignore = msg.ignore && msg.ignore.length > 0 ? msg.ignore : DEFAULT_IGNORE
@@ -1029,7 +1029,7 @@ ipc.handle('owned-folder:resume-index', async (msg) => {
 // no churn — this is why relocate beats delete-and-re-add for recovery.
 ipc.handle('owned-folder:relocate', async (msg) => {
   const mount = await getOwnedMount(msg.spaceId, msg.shareId)
-  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
 
@@ -1196,7 +1196,7 @@ ipc.handle('foreign-folder:set-enabled', async (msg) => {
 // hash), and anything missing is fetched again.
 ipc.handle('foreign-folder:relocate', async (msg) => {
   const mount = await getForeignMount(msg.spaceId, msg.shareId)
-  if (!mount) throw new AppError(ErrorCodes.NOT_FOUND, 'Mount not found')
+  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId })
   // Validation normalises the path, so the comparison belongs after it: re-pointing a mount at
   // where it already is would drop the synced set and re-verify the whole folder for nothing.

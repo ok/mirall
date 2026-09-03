@@ -18,7 +18,7 @@ test('no error passes the rows through untouched', (t) => {
 // A deleted or access-revoked share must clear the list, or the user keeps browsing a folder that
 // no longer exists.
 test('a terminal code clears the rows and surfaces the message', (t) => {
-  for (const code of ['NOT_FOUND', 'EOWNERSHIP']) {
+  for (const code of ['SHARE_NOT_FOUND', 'EOWNERSHIP']) {
     const out = resolveListing(seeded(), err('gone', code))
     t.alike(out.rows, [], `${code} clears the listing`)
     t.is(out.info, null, 'and its header')
