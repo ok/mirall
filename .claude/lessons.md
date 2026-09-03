@@ -281,3 +281,17 @@ outlives a tick is a bug until proven otherwise.
 **A geometry harness cannot tell you whether something looks right.** The sticky filter row measured perfectly — 0px between its right edge and the rows', 4px from the scrollport top while scrolled, every ring clear — and it still looked broken on screen. Numbers prove alignment, not appearance: they say nothing about a sliver of content showing through a transparent strip, a scrollbar that renders differently at `thin`, or a band whose background does not match what it covers. **A user-facing visual change gets pushed and PR'd only after the user has run it locally and said so.** Green tests are the precondition for asking, not a substitute for the answer.
 
 **A `dark:` base and a `hover:` state have the same specificity, so source order decides.** `dark:bg-x` compiles to `.dark\:bg-x:is(.dark *)` — (0,2,0), identical to `.hover\:bg-y:hover` — and Tailwind emitted the dark base *later*, so the secondary button's hover silently did nothing in dark mode while working fine in light. It had been written `dark:hover:bg-…`, a combined variant at (0,3,0), which is why the original worked and my "simplification" to a single `hover:` utility broke it. The fix is a token that flips per theme (`surface-control`), leaving the base at (0,1,0) so any interactive state outranks it. Reach for a theme-flipping token, not a `dark:` variant, on anything that also has hover/focus/active states — and when a hover "looks too subtle", check the cascade before adjusting the colour.
+
+**chokidar emits no `add` for a file that is unreadable when it would report it.** MEASURED with the
+app's own watcher options (chokidar 4, `awaitWriteFinish`, `alwaysStat`, `usePolling:false`): write a
+file then `chmod 000` it, and the watcher produces **no event at all** — not an `add`, not an
+`error`. A sibling plain file in the same directory reports normally. So an owner's
+permission-fault-on-read is undetectable by the watcher **by construction**; only a scan
+(mount, resume, the periodic reconcile, or a user-driven retry) ever finds it.
+
+Two consequences, both paid for once already:
+1. A UI scenario that induces this fault through the watcher can never pass. Induce it with a scan.
+2. An integration test that stubs the publish call to throw proves the WIRING, never the PREMISE —
+   the double is more cooperative than the real code. When a test asserts on a fault class, drive at
+   least one case with the real condition (a real 000 file), or a scenario built on an impossible
+   lever will be the thing that finds out.
