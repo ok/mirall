@@ -190,3 +190,129 @@ test('a watched bee change schedules a coalesced recompute', async (t) => {
   t.is(folds, 1, 'a replicated/local change triggers a fold')
   await dv.close()
 })
+
+// A recovery abandons the fold in flight rather than awaiting it (close() awaits `inFlight`, so a
+// fold that is not settling can never be closed). Without a generation guard the abandoned fold
+// still runs to completion and then clears the LIVE fold's `running` flag and publishes its own
+// superseded result — un-serialising two folds, which is what the flag exists to prevent.
+test('REGRESSION (FIX-SUP-2a: an abandoned fold cleared the live fold\'s running flag)', async (t) => {
+  let releaseFirst = null
+  let folds = 0
+  const view = createDerivedView({
+    fold: () => {
+      folds += 1
+      if (folds === 1) return new Promise((resolve) => { releaseFirst = () => resolve('stale') })
+      return new Promise(() => {})
+    },
+    onChange: () => {},
+  })
+
+  view.recompute()
+  await tick()
+  t.is(folds, 1)
+
+  view.abandon()
+  view.recompute()
+  await tick()
+  t.is(folds, 2, 'a fresh fold started')
+
+  releaseFirst()
+  await tick()
+
+  view.recompute()
+  await tick()
+  t.is(folds, 2, 'the live fold still holds the lane — the stale settle did not release it')
+  // close() awaits the fold in flight, and this one never settles — abandoning first is exactly
+  // what the recovery path does.
+  view.abandon()
+  await view.close()
+})
+
+test('REGRESSION (FIX-SUP-2b: an abandoned fold published a stale view after the fresh one)', async (t) => {
+  const seen = []
+  let releaseFirst = null
+  let folds = 0
+  const view = createDerivedView({
+    fold: () => {
+      folds += 1
+      if (folds === 1) return new Promise((resolve) => { releaseFirst = () => resolve('stale') })
+      return Promise.resolve('fresh')
+    },
+    onChange: (v) => seen.push(v),
+  })
+
+  view.recompute()
+  await tick()
+  view.abandon()
+  view.recompute()
+  await tick()
+  t.alike(seen, ['fresh'])
+
+  releaseFirst()
+  await tick()
+  t.alike(seen, ['fresh'], 'the abandoned fold published nothing after the fold that replaced it')
+  await view.close()
+})
+
+test('abandon() does not await the fold in flight', async (t) => {
+  const view = createDerivedView({ fold: () => new Promise(() => {}), onChange: () => {} })
+  view.recompute()
+  await tick()
+  view.abandon()
+  t.pass('returned against a promise that never settles')
+  await view.close()
+})
+
+test('an abandoned fold does not fire the trailing recompute it queued', async (t) => {
+  let releaseFirst = null
+  let folds = 0
+  const view = createDerivedView({
+    fold: () => {
+      folds += 1
+      if (folds === 1) return new Promise((resolve) => { releaseFirst = () => resolve(null) })
+      return new Promise(() => {})
+    },
+    onChange: () => {},
+  })
+
+  view.recompute()
+  await tick()
+  view.recompute()
+  t.is(folds, 1, 'the second change is queued as a trailing fold')
+
+  view.abandon()
+  releaseFirst()
+  await tick()
+  t.is(folds, 1, 'the abandoned fold ran no trailing fold of its own')
+  await view.close()
+})
+
+test('health reports idle, advancing and stalled folds', async (t) => {
+  let release = null
+  const view = createDerivedView({
+    fold: () => new Promise((resolve) => { release = resolve }),
+    onChange: () => {},
+  })
+  t.is(view.health({ now: Date.now(), windowMs: 1000 }).ok, true, 'idle between folds')
+
+  view.recompute()
+  await tick()
+  const now = Date.now()
+  t.is(view.health({ now, windowMs: 1000 }).ok, true, 'a fold that just started is healthy')
+  t.is(view.health({ now: now + 5000, windowMs: 1000 }).ok, false, 'no progress past the window is stalled')
+
+  view.noteProgress()
+  t.is(view.health({ now: Date.now() + 500, windowMs: 1000 }).ok, true, 'progress resets the stall clock')
+
+  release(null)
+  await tick()
+  t.is(view.health({ now: Date.now() + 5000, windowMs: 1000 }).ok, true, 'and a settled fold is idle again')
+  await view.close()
+})
+
+test('noteProgress does nothing while no fold is in flight', async (t) => {
+  const view = createDerivedView({ fold: async () => null, onChange: () => {} })
+  view.noteProgress()
+  t.is(view.health({ now: Date.now(), windowMs: 1000 }).ok, true)
+  await view.close()
+})
