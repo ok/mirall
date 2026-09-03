@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
+import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
 
 const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js', 'src/main/loose-file-watchers.js'])
 const { addLooseWatch, removeLooseWatch, stopLooseWatchers } = modules[1]
@@ -20,15 +21,21 @@ const native = () => created.filter((w) => !w.opts.usePolling)
 // stale version kept serving to every peer with no error and no badge. sweepLoosePresence was
 // no backstop: it reclaims files that vanished, not files that merely changed.)
 test('REGRESSION (FIX-PI3-1): a loose file on a network path is polled, and still fans out', (t) => {
-  const { events, onEvent, onError } = arm()
-  addLooseWatch('space-1', '/Volumes/NAS/report.pdf', onEvent, onError)
-  t.is(polling().length, 1, 'the network path is watched by a polling instance')
-  t.is(polling()[0].opts.interval, 5000)
-  polling()[0].emit('change', '/Volumes/NAS/report.pdf')
-  t.is(events.length, 1, 'the edit reached the worker')
-  t.is(events[0].spaceId, 'space-1')
-  t.is(events[0].action, 'change')
-  t.teardown(stopLooseWatchers)
+  // Pinned per case: /Volumes is darwin-only and /mnt is linux-only, so a test that inherits the
+  // machine's platform asserts nothing on the other one.
+  for (const { platform, path, label } of NETWORK_CASES) {
+    withPlatform(platform, () => {
+      const { events, onEvent, onError } = arm()
+      addLooseWatch('space-1', path, onEvent, onError)
+      t.is(polling().length, 1, label + ' is watched by a polling instance')
+      t.is(polling()[0].opts.interval, 5000, label + ' polls every 5s')
+      polling()[0].emit('change', path)
+      t.is(events.length, 1, label + ': the edit reached the worker')
+      t.is(events[0].spaceId, 'space-1')
+      t.is(events[0].action, 'change')
+      stopLooseWatchers()
+    })
+  }
 })
 
 test('a local loose file still uses native events — no polling regression', (t) => {
@@ -44,11 +51,11 @@ test('a local loose file still uses native events — no polling regression', (t
 test('local and network loose files coexist behind one host', (t) => {
   const { events, onEvent, onError } = arm()
   addLooseWatch('space-1', '/Users/me/notes.md', onEvent, onError)
-  addLooseWatch('space-1', '/Volumes/NAS/report.pdf', onEvent, onError)
+  addLooseWatch('space-1', UNC_PATH, onEvent, onError)
   t.is(created.length, 2, 'two instances, one host')
   native()[0].emit('change', '/Users/me/notes.md')
-  polling()[0].emit('change', '/Volumes/NAS/report.pdf')
-  t.alike(events.map((e) => e.absPath), ['/Users/me/notes.md', '/Volumes/NAS/report.pdf'])
+  polling()[0].emit('change', UNC_PATH)
+  t.alike(events.map((e) => e.absPath), ['/Users/me/notes.md', UNC_PATH])
   t.teardown(stopLooseWatchers)
 })
 
@@ -86,8 +93,8 @@ test('removing the last space unwatches the path', (t) => {
 
 test('removing a network path unwatches it on the polling instance', (t) => {
   const { onEvent, onError } = arm()
-  addLooseWatch('space-1', '/Volumes/NAS/report.pdf', onEvent, onError)
-  removeLooseWatch('space-1', '/Volumes/NAS/report.pdf')
+  addLooseWatch('space-1', UNC_PATH, onEvent, onError)
+  removeLooseWatch('space-1', UNC_PATH)
   t.alike(polling()[0].targets, [], 'unwatched on the polling instance')
   t.teardown(stopLooseWatchers)
 })
@@ -113,7 +120,7 @@ test('REGRESSION (FIX-PI3-2): a storm stops the host and clears the watched map'
 test('stopLooseWatchers closes the host and forgets every path', (t) => {
   const { events, onEvent, onError } = arm()
   addLooseWatch('space-1', '/Users/me/notes.md', onEvent, onError)
-  addLooseWatch('space-1', '/Volumes/NAS/report.pdf', onEvent, onError)
+  addLooseWatch('space-1', UNC_PATH, onEvent, onError)
   stopLooseWatchers()
   t.ok(created.every((w) => w.closed), 'both instances closed')
   created[0].emit('change', '/Users/me/notes.md')

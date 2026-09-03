@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
+import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
 
 const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js'])
 const { createWatchHost, looksLikeNetworkPath } = modules[0]
@@ -28,12 +29,18 @@ const native = () => created.filter((w) => !w.opts.usePolling)
 // day it was written; the loose watcher never learned it. The host makes that impossible: a
 // target is routed by the same predicate no matter which caller armed it.)
 test('REGRESSION (FIX-PI3-1): a network path is watched by polling, not native events', (t) => {
-  const { h } = host()
-  h.add('/Volumes/NAS/a.txt')
-  t.is(polling().length, 1, 'a polling instance was created')
-  t.is(polling()[0].opts.interval, 5000, 'and it polls every 5s')
-  t.is(native().length, 0, 'no native instance for a network-only target')
-  t.teardown(() => h.stop())
+  // Pinned per case: /Volumes is darwin-only and /mnt is linux-only, so a test that inherits the
+  // machine's platform asserts nothing on the other one.
+  for (const { platform, path, label } of NETWORK_CASES) {
+    withPlatform(platform, () => {
+      const { h } = host()
+      h.add(path)
+      t.is(polling().length, 1, label + ' is watched by a polling instance')
+      t.is(polling()[0].opts.interval, 5000, label + ' polls every 5s')
+      t.is(native().length, 0, label + ' created no native instance')
+      h.stop()
+    })
+  }
 })
 
 test('a local path never creates a polling instance', (t) => {
@@ -49,11 +56,11 @@ test('a local path never creates a polling instance', (t) => {
 test('one host serves both kinds of target from the same event callback', (t) => {
   const { h, events } = host()
   h.add('/Users/me/a.txt')
-  h.add('/Volumes/NAS/b.txt')
+  h.add(UNC_PATH)
   t.is(created.length, 2, 'two chokidar instances, one host')
   native()[0].emit('change', '/Users/me/a.txt')
-  polling()[0].emit('change', '/Volumes/NAS/b.txt')
-  t.alike(events.map((e) => e.absPath), ['/Users/me/a.txt', '/Volumes/NAS/b.txt'], 'both route to the same onEvent')
+  polling()[0].emit('change', UNC_PATH)
+  t.alike(events.map((e) => e.absPath), ['/Users/me/a.txt', UNC_PATH], 'both route to the same onEvent')
   t.alike(events.map((e) => e.action), ['change', 'change'])
   t.teardown(() => h.stop())
 })
@@ -123,7 +130,7 @@ test('an event arriving after stop() is dropped', (t) => {
 test('stop() closes every instance, and a close throw does not escape', (t) => {
   const { h } = host()
   h.add('/Users/me/a.txt')
-  h.add('/Volumes/NAS/b.txt')
+  h.add(UNC_PATH)
   created[0].closeError = new Error('close failed')
   t.execution(() => h.stop(), 'stop() swallows a close throw')
   t.ok(created[1].closed, 'the second instance was still closed')
@@ -132,8 +139,8 @@ test('stop() closes every instance, and a close throw does not escape', (t) => {
 test('remove() unwatches on the instance that holds the target', (t) => {
   const { h } = host()
   h.add('/Users/me/a.txt')
-  h.add('/Volumes/NAS/b.txt')
-  h.remove('/Volumes/NAS/b.txt')
+  h.add(UNC_PATH)
+  h.remove(UNC_PATH)
   t.alike(native()[0].targets, ['/Users/me/a.txt'], 'the native instance is untouched')
   t.alike(polling()[0].targets, [], 'the polling instance dropped its target')
   t.teardown(() => h.stop())
@@ -141,7 +148,7 @@ test('remove() unwatches on the instance that holds the target', (t) => {
 
 test('remove() before any matching instance exists is a no-op', (t) => {
   const { h } = host()
-  t.execution(() => h.remove('/Volumes/NAS/gone.txt'))
+  t.execution(() => h.remove(UNC_PATH))
   t.is(created.length, 0, 'nothing was constructed just to unwatch')
 })
 
@@ -170,12 +177,7 @@ test('atomic defaults to false, and ignored is omitted when the caller has none'
 })
 
 test('looksLikeNetworkPath across the three platforms', (t) => {
-  const real = process.platform
-  const asPlatform = (p, fn) => {
-    Object.defineProperty(process, 'platform', { value: p, configurable: true })
-    try { fn() } finally { Object.defineProperty(process, 'platform', { value: real, configurable: true }) }
-  }
-  t.teardown(() => Object.defineProperty(process, 'platform', { value: real, configurable: true }))
+  const asPlatform = withPlatform
 
   asPlatform('win32', () => {
     t.ok(looksLikeNetworkPath('\\\\server\\share\\a.txt'), 'UNC')
