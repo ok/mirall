@@ -1067,8 +1067,11 @@ async function handleMainRequest(command, args, worker) {
           if (debug) console.error('loose fs-event write failed:', err.message)
         }
       },
+      // Not behind `debug`: console.warn feeds the log ring unconditionally, and the
+      // error-storm message is the one signal saying this file stopped syncing and will not
+      // resume on its own. Behind the flag it never reaches a user's diagnostics bundle.
       (err) => {
-        if (debug) console.warn('loose watcher error', args.absPath, '-', err.message)
+        console.warn('loose watcher error', args.absPath, '-', err.message)
       },
     )
     return
@@ -1088,8 +1091,10 @@ async function handleMainRequest(command, args, worker) {
           if (debug) console.error('fs-event write failed:', err.message)
         }
       },
+      // See the loose-file callback above: the storm message must reach the log ring on a
+      // release build, or the report it explains is unreproducible.
       (err) => {
-        if (debug) console.warn('watcher error', args.shareId, '-', err.message)
+        console.warn('watcher error', args.shareId, '-', err.message)
       },
     )
     return
@@ -1114,7 +1119,7 @@ ipcMain.handle('owned-folder:start-watcher', (_evt, { shareId, mountPath, ignore
       }
     },
     (err) => {
-      if (debug) console.warn('owned-folder watcher error', shareId, '-', err.message)
+      console.warn('owned-folder watcher error', shareId, '-', err.message)
     },
   )
   return { ok: true }
