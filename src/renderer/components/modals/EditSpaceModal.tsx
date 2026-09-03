@@ -32,7 +32,9 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const [saving, setSaving] = useState(false)
   // undefined = untouched, null = reset to the global default, string = new override.
   const [folderEdit, setFolderEdit] = useState<string | null | undefined>(undefined)
-  const [globalDefault, setGlobalDefault] = useState('')
+  // null until the read lands. A space always resolves to SOME folder — its own override or the
+  // global default — so an unresolved read is a path still loading, not the absence of one.
+  const [globalDefault, setGlobalDefault] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const browseRef = useRef<HTMLButtonElement>(null)
 
@@ -40,13 +42,19 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
     let cancelled = false
     window.bridge.getDownloadFolder()
       .then((folder) => { if (!cancelled) setGlobalDefault(folder) })
-      .catch(() => {})
+      .catch((err) => {
+        if (cancelled) return
+        setGlobalDefault('')
+        setError(err instanceof Error ? err.message : String(err))
+      })
     return () => { cancelled = true }
   }, [])
 
-  const effectiveFolder = folderEdit === undefined
-    ? (space.downloadFolder ?? globalDefault)
-    : (folderEdit ?? globalDefault)
+  // Only the fallback to the global default can be pending; a picked folder or the space's own
+  // override is already in hand.
+  const ownFolder = folderEdit === undefined ? space.downloadFolder : folderEdit
+  const awaitingDefault = !ownFolder && globalDefault === null
+  const effectiveFolder = ownFolder ?? globalDefault ?? ''
   const isOverridden = folderEdit === undefined ? !!space.downloadFolder : folderEdit !== null
 
   const hasChanges = name.trim() !== space.name || icon !== space.icon || folderEdit !== undefined
@@ -136,6 +144,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
                 path is a path, whichever door you came through. */}
             <PathRow
               path={effectiveFolder || null}
+              loading={awaitingDefault}
               onAction={handleBrowse}
               ariaDescribedBy="edit-space-folder-label edit-space-folder-desc"
               actionRef={browseRef}

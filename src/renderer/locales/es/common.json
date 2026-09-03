@@ -172,6 +172,7 @@
   },
   "pathField": {
     "browse": "Examinar…",
+    "loading": "Cargando…",
     "placeholder": "Selecciona una ubicación…"
   },
   "folder": {

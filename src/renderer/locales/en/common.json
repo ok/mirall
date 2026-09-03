@@ -196,6 +196,7 @@
   },
   "pathField": {
     "browse": "Browse…",
+    "loading": "Loading…",
     "placeholder": "Select location…"
   },
   "folder": {

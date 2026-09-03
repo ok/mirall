@@ -6,8 +6,12 @@ interface PathRowProps {
   path: string | null
   /** Shown in place of the path when there is none yet. Defaults to the pick-a-location hint. */
   placeholder?: string
-  /** Overrides the label. Leave unset — the default already says the right verb for the state. */
-  actionLabel?: string
+  /**
+   * A path exists but its text has not arrived yet. Distinct from having none: the field says so
+   * instead of offering a first pick, and the button already reads as a re-pick, so the label does
+   * not flip once the read lands.
+   */
+  loading?: boolean
   /** Omit for a display-only row — the field keeps its shape, the button is absent. */
   onAction?: () => void
   ariaDescribedBy?: string
@@ -37,9 +41,13 @@ const FILL = {
 // way, and the button's presence is what says whether you can change it.
 //
 // The label follows the state rather than the caller: nothing picked yet is a first pick
-// ("Browse…"), a path already in the field is a re-pick ("Change"). Callers used to choose, and
-// chose four different strings for the one action.
-export default function PathRow({ path, placeholder, actionLabel, onAction, ariaDescribedBy, actionRef, fill = 'low' }: PathRowProps) {
+// ("Browse…"), a path already in the field — or one still loading — is a re-pick ("Change").
+// Callers used to choose, and chose four different strings for the one action.
+//
+// The placeholder is muted TEXT, not an outline: `outline` is the badge/dropzone border token and
+// fails AA against every fill in both themes (2.5:1 and worse in dark), which is what a field
+// showing its hint as its only content was rendering.
+export default function PathRow({ path, placeholder, loading = false, onAction, ariaDescribedBy, actionRef, fill = 'low' }: PathRowProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center gap-3">
@@ -47,7 +55,9 @@ export default function PathRow({ path, placeholder, actionLabel, onAction, aria
         {path ? (
           <FilePath path={path} className="flex-1 text-sm text-accent font-medium" />
         ) : (
-          <span className="text-sm text-outline/70 italic">{placeholder ?? t('pathField.placeholder')}</span>
+          <span className="text-sm text-on-surface-variant italic">
+            {loading ? t('pathField.loading') : placeholder ?? t('pathField.placeholder')}
+          </span>
         )}
       </div>
       {onAction && (
@@ -58,7 +68,7 @@ export default function PathRow({ path, placeholder, actionLabel, onAction, aria
           aria-describedby={ariaDescribedBy}
           className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
         >
-          {actionLabel ?? (path ? t('actions.change') : t('pathField.browse'))}
+          {path || loading ? t('actions.change') : t('pathField.browse')}
         </button>
       )}
     </div>
