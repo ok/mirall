@@ -2,34 +2,14 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { createRequire } from 'module'
-import { EventEmitter } from 'events'
+import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
 
-const require = createRequire(import.meta.url)
 const here = dirname(fileURLToPath(import.meta.url))
 
-// Inject a fake chokidar so the watcher's event routing is driven synchronously (real fsevents
-// timing + awaitWriteFinish make an fs-watch test flaky/slow). Each fake watcher is an
-// EventEmitter we can emit on directly to simulate an add/change/unlink.
-const created = []
-const fakeChokidar = {
-  watch () {
-    const w = new EventEmitter()
-    w.close = () => {}
-    created.push(w)
-    return w
-  },
-}
-const chokidarPath = require.resolve('chokidar')
-const prevChokidar = require.cache[chokidarPath]
-require.cache[chokidarPath] = { id: chokidarPath, filename: chokidarPath, loaded: true, exports: fakeChokidar }
-const modPath = require.resolve('../../src/main/owned-folder-watchers.js')
-delete require.cache[modPath]
-const { startWatcher, stopWatcher, stopAllWatchers } = require(modPath)
-// Restore the real chokidar in the shared require cache — the module already captured the fake,
-// so nothing else in a shared test process is affected.
-if (prevChokidar) require.cache[chokidarPath] = prevChokidar
-else delete require.cache[chokidarPath]
+// chokidar is stubbed (see the helper) so the watcher's event routing is driven synchronously:
+// real fsevents timing plus awaitWriteFinish makes an fs-watch test slow and flaky.
+const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js', 'src/main/owned-folder-watchers.js'])
+const { startWatcher, stopWatcher, stopAllWatchers } = modules[1]
 
 // REGRESSION (G3): after a worker "respawn" (a second startWatcher for the SAME shareId with a
 // NEW callback), fs events must route to the NEW callback. Before the fix the has()-guard

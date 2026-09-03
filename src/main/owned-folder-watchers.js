@@ -1,10 +1,13 @@
-// Recursive chokidar watchers over owned-folder mounts, one per share. They
-// live in Electron main because the Bare worker has no recursive filesystem
-// watch; add/change/unlink events are forwarded to the worker, which publishes
-// the changes into the share catalog. Network-looking mounts fall back to
-// polling, and a watcher that storms errors is stopped rather than left spinning.
-const chokidar = require('chokidar')
+// Recursive watchers over owned-folder mounts, one per share. They live in Electron main
+// because the Bare worker has no recursive filesystem watch; add/change/unlink events are
+// forwarded to the worker, which publishes the changes into the share catalog.
+//
+// Everything chokidar-shaped — the option bag, polling for network mounts, the error-storm
+// cut-off — belongs to watch-host.js and is shared with loose-file-watchers.js. A share needs
+// its own host rather than a shared one because `ignored` is a per-instance chokidar option
+// and each share's ignore patterns differ.
 const path = require('node:path')
+const { createWatchHost } = require('./watch-host.js')
 
 const watchers = new Map()
 let emitEvent = null
@@ -26,14 +29,6 @@ function defaultIgnore(name, ignorePatterns) {
   return false
 }
 
-function looksLikeNetworkPath(p) {
-  if (!p) return false
-  if (p.startsWith('\\\\')) return true
-  if (process.platform === 'darwin' && p.startsWith('/Volumes/')) return true
-  if (process.platform === 'linux' && (p.startsWith('/mnt/') || p.startsWith('/media/'))) return true
-  return false
-}
-
 function startWatcher(shareId, mountPath, ignorePatterns, onEvent, onError) {
   // Re-point BEFORE the has()-guard: on a worker respawn the new worker re-issues
   // start-watcher for a shareId whose chokidar watcher is still alive; without this the
@@ -47,48 +42,29 @@ function startWatcher(shareId, mountPath, ignorePatterns, onEvent, onError) {
     if (!rel) return false
     return defaultIgnore(rel.split(path.sep).join('/'), ignorePatterns)
   }
-
-  const usePolling = looksLikeNetworkPath(mountPath)
-  const watcher = chokidar.watch(mountPath, {
-    ignoreInitial: true,
-    awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 100 },
+  // atomic:false — the retire executor re-confirms presence (publish-runner's
+  // fileExactlyPresent) and the periodic reconcile re-derives the truth, so coalescing an
+  // unlink+add into a `change` would hide a genuine delete-then-create of a different file.
+  // The loose side sets true for the opposite reason; see loose-file-watchers.js.
+  const host = createWatchHost({
+    label: shareId,
     atomic: false,
     ignored: ignoreFn,
-    followSymlinks: false,
-    usePolling,
-    interval: usePolling ? 5000 : undefined,
-    alwaysStat: true,
+    onEvent: ({ action, absPath }) => {
+      const rel = path.relative(mountPath, absPath).split(path.sep).join('/')
+      emitEvent?.({ shareId, action, relPath: rel, absPath })
+    },
+    onError: (err) => emitError?.(err),
+    onStorm: () => { watchers.delete(shareId) },
   })
-
-  const errorWindow = []
-  const handler = (action) => (abs) => {
-    const rel = path.relative(mountPath, abs).split(path.sep).join('/')
-    emitEvent?.({ shareId, action, relPath: rel, absPath: abs })
-  }
-  watcher.on('add', handler('add'))
-  watcher.on('change', handler('change'))
-  watcher.on('unlink', handler('unlink'))
-
-  watcher.on('error', (err) => {
-    emitError?.(err)
-    const now = Date.now()
-    errorWindow.push(now)
-    while (errorWindow.length && now - errorWindow[0] > 10_000) errorWindow.shift()
-    if (errorWindow.length > 5) {
-      stopWatcher(shareId)
-      emitError?.(new Error('error-storm: watcher stopped for ' + shareId))
-    }
-  })
-
-  watchers.set(shareId, { watcher, mountPath })
+  host.add(mountPath)
+  watchers.set(shareId, { host, mountPath })
 }
 
 function stopWatcher(shareId) {
   const entry = watchers.get(shareId)
   if (!entry) return
-  try { entry.watcher.close() } catch (err) {
-    console.warn('watcher.close failed for', shareId, '-', err.message)
-  }
+  entry.host.stop()
   watchers.delete(shareId)
 }
 

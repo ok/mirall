@@ -42,6 +42,19 @@ export const moduleLevelTimerRestrictions = [{
   message: 'No module-level timers — arm it in a Subsystem _open so close() can clear it.',
 }]
 
+// Mechanism invariant: chokidar's options are per-INSTANCE, not per-path, and its sharp edges —
+// native events never reach a network mount, an erroring watcher spins forever — were learned
+// once on the owned-folder watcher and never carried to the loose-file watcher, so a file shared
+// from /Volumes, /mnt, /media or a UNC path silently stopped re-publishing. src/main/watch-host.js
+// is now the single owner of every chokidar decision; a second `require('chokidar')` is exactly how
+// that divergence would come back. Exported so test/unit/watch-host-single-owner.test.js enforces
+// the same grammar through eslint's parser.
+const chokidarMessage = 'Only src/main/watch-host.js may load chokidar — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
+export const chokidarSingleOwnerRestrictions = [
+  { selector: "CallExpression[callee.name='require'][arguments.0.value='chokidar']", message: chokidarMessage },
+  { selector: "ImportDeclaration[source.value='chokidar']", message: chokidarMessage },
+]
+
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
   // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
@@ -94,6 +107,16 @@ export default [
       sourceType: 'commonjs',
       globals: { ...globals.node, ...globals.browser },
     },
-    rules: { ...unusedVars, ...complexityBudget },
+    rules: {
+      ...unusedVars,
+      ...complexityBudget,
+      'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
+    },
+  },
+
+  // The one module the rule above exists to protect.
+  {
+    files: ['src/main/watch-host.js'],
+    rules: { 'no-restricted-syntax': 'off' },
   },
 ]

@@ -42,6 +42,8 @@ Compact, actionable rules distilled from real debugging — gotchas, root causes
 
 Testing/a11y **discipline** — the layers, the change-type→coverage matrix, the a11y bar, and frontend scenario authoring (file-sizing, offline-edge, async-probe waits, split-text `sr-only`, timeout-vs-absent) — lives in `testing.md`. Dep-bump baseline-diffing lives in `dependency-updates.md`. Only debugging tactics that aren't reference material stay here:
 
+**A unit test asserting platform-conditional behavior must pin `process.platform`.** CI runs Linux and development happens on macOS, so a test built around `/Volumes/NAS/x` asserted the right thing locally and the *opposite* thing on CI — `looksLikeNetworkPath` is deliberately platform-scoped (`/Volumes` darwin-only, `/mnt`+`/media` linux-only, UNC everywhere). The failure is silent in the worst way: the file's own predicate table test already stubbed the platform and documented the asymmetry, while the routing tests next to it inherited the machine's. Pin it per case (`withPlatform(name, fn)` in `test/helpers/with-platform.js`) and use the UNC form wherever the test is about something else; verify by re-running under `NODE_OPTIONS="--import file://…"` with `process.platform` redefined, and check the assert COUNT matches across both — an unpinned case silently asserts less rather than failing.
+
 **Never blanket-replace `console.log/warn/error` in a brittle test** — the runner emits its own TAP through them, so a blanket stub both miscounts (inflated by exactly the number of prior asserts) and swallows the failure diagnostic. Capture by discriminating on the code-under-test's own prefix/tag; forward everything else to the saved real console.
 
 ## UI copy
