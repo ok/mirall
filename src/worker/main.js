@@ -1718,7 +1718,12 @@ ipc.handle('diagnostics:export', async (msg) => {
     counters: getDiagnosticCounters(),
     requestFailures: getRequestFailureCounters(),
     requestMetrics: getRequestMetrics(),
-    health: health.snapshot({ queueDepth: getQueueDepth(), subsystems: root?.health() || [], inFlightRequests: getInFlightCount() }),
+    health: health.snapshot({
+      queueDepth: getQueueDepth(),
+      subsystems: root?.health() || [],
+      supervision: root?.supervision() || null,
+      inFlightRequests: getInFlightCount(),
+    }),
     peerSamples: getPeerSamples(),
   }, msg?.redact !== false)
 })
