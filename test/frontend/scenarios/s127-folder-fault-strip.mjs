@@ -12,10 +12,12 @@ import { workDir } from '../paths.mjs'
 // publish that fails is counted per item and the pass still resolved, which settled the folder to
 // 'active'.)
 //
-// The fault is induced through the genuine path: an unreadable file inside the shared folder. The
-// watcher publishes it, the read fails EACCES, and the catch-up pass that follows settles the
-// mount. Nothing here forces a status — this is the whole chain, which is why it belongs at this
-// layer rather than as a rendered-given-state check.
+// The fault is induced the only way it can be: a file the app cannot read, found by a SCAN.
+// MEASURED (chokidar 4, the app's own watcher options): a file that is unreadable when the
+// watcher would report it produces no add event at all — no event, no error, silently dropped.
+// So this fault class never reaches the watcher, and the scan is not a shortcut here but the
+// genuine path. That is also why the strip carries a retry: nothing else re-runs a scan inside
+// six hours.
 export default async function s127 ({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -24,22 +26,21 @@ export default async function s127 ({ runDir }) {
   const ownDir = path.join(workDir('own-'), 'Reports')
   mkdirSync(ownDir, { recursive: true })
   writeFileSync(path.join(ownDir, 'q1.txt'), 'numbers')
-  const secret = path.join(ownDir, 'sealed.txt')
+  const sealed = path.join(ownDir, 'sealed.txt')
+  writeFileSync(sealed, 'cannot read this')
+  chmodSync(sealed, 0o000)
 
   try {
-    await r.ok('A shares "Reports" and it settles healthy', async () => {
+    await r.ok('A shares a folder holding one file it cannot read', async () => {
       await A.launch()
       await A.createSpaceOnly('Aurora')
       await A.addOwnedFolder(ownDir)
       await A.waitText('Reports', 60000)
       await A.openFolder('Reports')
       await A.waitText('q1.txt', 20000)
-      assert(!(await A.hasText('Problem')), 'precondition: a healthy folder shows no fault')
     })
 
-    await r.ok('a file it cannot read surfaces the fault, named in plain language', async () => {
-      writeFileSync(secret, 'cannot read this')
-      chmodSync(secret, 0o000)
+    await r.ok('the fault is named in plain language, never as an errno', async () => {
       await waitFor(async () => {
         const text = allText(await A.snap())
         return /couldn't be added/i.test(text) && /permission denied/i.test(text)
@@ -66,10 +67,10 @@ export default async function s127 ({ runDir }) {
     })
 
     await r.ok('fixing the file and pressing the verb clears it', async () => {
-      chmodSync(secret, 0o644)
-      // The strip's own verb, not a Pause/Resume detour: it runs a full pass, and the pass that
-      // succeeds is the recovery. Nothing else would clear it here — the mount-point probe only
-      // fires on a path that came back, and this path never went away.
+      chmodSync(sealed, 0o644)
+      // The strip's own verb runs a full pass, and the pass that succeeds is the recovery. Nothing
+      // else would clear it here — the mount-point probe only fires on a path that came back, and
+      // this path never went away.
       await A.click({ role: 'button', name: 'Try again' })
       await waitFor(async () => {
         const text = allText(await A.snap())

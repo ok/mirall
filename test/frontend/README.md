@@ -65,7 +65,7 @@ Owner-side filesystem operations — adding, editing, deleting, moving, or copyi
 | s9 | `s9-folder-lifecycle.mjs` | Delete an owned folder via card menu + confirm → tombstone disappears for the peer. |
 | s12 | `s12-add-folder-validation.mjs` | AddFolder validation: name-collision error and invalid-name error each block "Next: Preview". |
 | s23 | `s23-relocate.mjs` | Source folder moved on disk → "missing on disk" state → Locate re-points the share ("Reconnected"). |
-| s127 | `s127-folder-fault-strip.mjs` | **REGRESSION (FIX-PI12)** an unreadable file in the shared folder surfaces the fault strip ("couldn't be added — Permission denied", never the errno); it survives a restart, carries a Try again, and clears when that verb runs a clean pass. |
+| s127 | `s127-folder-fault-strip.mjs` | **REGRESSION (FIX-PI12)** sharing a folder holding an unreadable file surfaces the fault strip ("couldn't be added — Permission denied", never the errno); it survives a restart, carries a Try again, and clears when that verb runs a clean pass. Induced by a SCAN, not the watcher: **measured** — chokidar emits no add at all for a file that is unreadable when it would report it. |
 
 ### H. Mirroring — peer side
 | ID | File | Covers |

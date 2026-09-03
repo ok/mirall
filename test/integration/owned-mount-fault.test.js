@@ -64,6 +64,28 @@ test('an unclassified publish failure is not a mount fault', async (t) => {
   t.is(mount.status, 'active', 'pausing a folder on an error nobody can act on would be worse than the log line')
 })
 
+// The stubs above prove the wiring; this proves the PREMISE. A file the app genuinely cannot read
+// is the fault this feature exists for, and nothing else in the suite drives the real publish path
+// with one — which is how a UI scenario built on an impossible lever got as far as being run.
+test('a genuinely unreadable file faults the mount through the real publish path', async (t) => {
+  const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
+  const sealed = path.join(ctx.mountPath, 'sealed.txt')
+  fs.writeFileSync(sealed, 'cannot read this')
+  fs.chmodSync(sealed, 0o000)
+  t.teardown(() => { try { fs.chmodSync(sealed, 0o644) } catch {} })
+
+  const result = await ctx.root.mounts.settleScanStatus(
+    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    ctx.spaceId, ctx.share.id,
+  )
+  t.is(result.uploaded, 1, 'the readable file still published — one bad file is not a bad folder')
+  t.is(result.failed, 1)
+
+  const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(mount.status, 'paused-error')
+  t.is(mount.lastError, ErrorCodes.TRANSFER_PERMISSION, 'classified from the real errno, not a double')
+})
+
 test('REGRESSION (FIX-PI12-2: a classified whole-pass failure records the code, never err.message)', async (t) => {
   const ctx = await setupOwnedShare(t)
   const err = errno('ENOSPC', "ENOSPC: no space left on device, write '/Users/someone/Docs/x.tmp'")
