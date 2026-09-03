@@ -153,6 +153,32 @@ test('a faulted owned folder returns to active on the next clean pass, with its 
   t.is(mount.lastError, null, 'and it clears the reason with it')
 })
 
+test('REGRESSION (FIX-PI12-3: a pass that declined to run does not consume the pending fault)', async (t) => {
+  const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
+  failPublishWith(t, errno('ENOSPC', 'full'))
+  fs.writeFileSync(path.join(ctx.mountPath, 'c.txt'), 'cc')
+  const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
+  await onFsEvent(ctx.spaceId, ctx.share.id, 'add', 'c.txt', path.join(ctx.mountPath, 'c.txt'))
+
+  // A pause declines the next pass before it walks. The fault it would have reported was observed
+  // by the watcher item above and is still unreported, so it must survive rather than die with the
+  // pass that never ran.
+  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: true })
+  await ctx.root.mounts.settleScanStatus(
+    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    ctx.spaceId, ctx.share.id,
+  )
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'precondition: the pass declined')
+
+  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: false })
+  await ctx.root.mounts.settleScanStatus(
+    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    ctx.spaceId, ctx.share.id,
+  )
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused-enospc',
+    'the pass that actually settles is the one that reports it')
+})
+
 test('a fault recorded by a watcher item between passes is not lost', async (t) => {
   const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
   await ctx.root.mounts.settleScanStatus(

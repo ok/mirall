@@ -14,8 +14,12 @@ function sourceMissingStrip (input) {
 // A local fault the user can name: a full disk, a folder that stopped being readable. It outranks
 // the paused strip because an auto-paused mirror IS enabled === false — so a mirror stopped by a
 // full disk used to render "Paused" with a Resume that re-paused it on the next tick, which told
-// the user they had paused it themselves. The owner keeps no verb: nothing was stopped, the
-// ordinary cadence retries, and a button that only re-runs what is already re-running is noise.
+// the user they had paused it themselves.
+//
+// Both roles carry the retry. An owner's fault is not a stop — the cadence still runs — but that
+// cadence is six-hourly, so after freeing the disk the only thing that would clear the strip is a
+// file event the user has no reason to produce. The verb re-runs the pass, which either clears the
+// fault or records it again.
 function faultStrip (input) {
   if (!input.fault) return null
   return {
@@ -23,7 +27,7 @@ function faultStrip (input) {
     tone: 'error',
     icon: 'warning',
     live: 'alert',
-    action: input.role === 'mirrored' ? 'resume' : null,
+    action: 'resume',
     data: { role: input.role, faultCode: input.fault.code ?? null },
   }
 }

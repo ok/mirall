@@ -48,9 +48,9 @@ export default async function s127 ({ runDir }) {
       await A.shot('s127-fault', runDir)
     })
 
-    await r.ok('the fault carries no verb for an owner, because nothing was stopped', async () => {
+    await r.ok('the fault carries a retry, and the tile agrees with the strip', async () => {
       const buttons = flatten(await A.snap()).filter((n) => n.role === 'button')
-      assert(!buttons.some((b) => /^try again$/i.test(b.label)), 'the retry belongs to a mirror, whose loop really did stop')
+      assert(buttons.some((b) => /^try again$/i.test(b.label)), 'the owner cadence is six-hourly, so the strip carries the verb')
       assert(await A.hasText('Problem'), 'the tile pill reports it too, so the space screen agrees')
     })
 
@@ -65,14 +65,12 @@ export default async function s127 ({ runDir }) {
       await A.shot('s127-fault-after-restart', runDir)
     })
 
-    await r.ok('fixing the file clears it on the next pass', async () => {
+    await r.ok('fixing the file and pressing the verb clears it', async () => {
       chmodSync(secret, 0o644)
-      // Pause + Resume rather than waiting out the six-hour cadence: Resume runs a full pass, and
-      // the pass that succeeds is the recovery. There is no other recovery path — the mount-point
-      // probe only fires on a path that came back, and this path never went away.
-      await A.click({ role: 'button', name: 'Pause' })
-      await A.waitText('Adding files is paused', 60000)
-      await A.click({ role: 'button', name: 'Resume' })
+      // The strip's own verb, not a Pause/Resume detour: it runs a full pass, and the pass that
+      // succeeds is the recovery. Nothing else would clear it here — the mount-point probe only
+      // fires on a path that came back, and this path never went away.
+      await A.click({ role: 'button', name: 'Try again' })
       await waitFor(async () => {
         const text = allText(await A.snap())
         return !/couldn't be added/i.test(text) && !/permission denied/i.test(text)

@@ -243,7 +243,7 @@
     "statusMissing": "Mancante",
     "statusFault": "Problema",
     "faultRetry": "Riprova",
-    "indexFaultBanner": "Alcuni file non sono stati aggiunti — {{reason}}. Mirall continuerà a provare.",
+    "indexFaultBanner": "Alcuni file non sono stati aggiunti — {{reason}}.",
     "mirrorFaultBanner": "La sincronizzazione si è interrotta — {{reason}}. I file non verranno aggiornati finché non è risolto.",
     "statusBrowseOnly": "Solo sfoglia"
   },

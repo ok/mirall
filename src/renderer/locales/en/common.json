@@ -267,7 +267,7 @@
     "statusMissing": "Missing",
     "statusFault": "Problem",
     "faultRetry": "Try again",
-    "indexFaultBanner": "Some files couldn't be added — {{reason}}. Mirall will keep trying.",
+    "indexFaultBanner": "Some files couldn't be added — {{reason}}.",
     "mirrorFaultBanner": "Syncing stopped — {{reason}}. Files won't update until it's fixed.",
     "statusBrowseOnly": "Browse only"
   },

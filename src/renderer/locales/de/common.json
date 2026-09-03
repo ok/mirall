@@ -243,7 +243,7 @@
     "statusMissing": "Fehlt",
     "statusFault": "Problem",
     "faultRetry": "Erneut versuchen",
-    "indexFaultBanner": "Einige Dateien konnten nicht hinzugefügt werden – {{reason}}. Mirall versucht es weiter.",
+    "indexFaultBanner": "Einige Dateien konnten nicht hinzugefügt werden – {{reason}}.",
     "mirrorFaultBanner": "Die Synchronisierung wurde gestoppt – {{reason}}. Dateien werden erst aktualisiert, wenn das behoben ist.",
     "statusBrowseOnly": "Nur ansehen"
   },

@@ -182,6 +182,7 @@ import {
   setForeignEnabled,
   unmountForeignFolder,
   relocateForeignFolder,
+  recordMirrorScanFault,
 } from '../shared/folders/foreign-folders.js'
 import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
@@ -1163,9 +1164,12 @@ ipc.handle('foreign-folder:mount', async (msg) => {
   // Start the poll loop regardless of the initial scan's outcome: a scan that rejects must still
   // leave a running loop so the record re-derives from 'syncing' instead of stranding there.
   initialMaterializeScan(mount)
-    .catch((err) => {
+    .catch(async (err) => {
       log.warn('mirror initial scan failed:', err.message)
-      ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: 'paused-error', error: err.message })
+      // Through the shared recorder: the message went out on a field the renderer now reads as an
+      // error code, and it wrote nothing durable, so a reload showed a mirror still "scanning".
+      await recordMirrorScanFault(msg.spaceId, msg.shareId, err)
+        .catch((e) => log.debug('mirror scan fault record failed:', msg.shareId, '-', e.message))
     })
     .finally(() => { startForeignLoop(mount) })
 

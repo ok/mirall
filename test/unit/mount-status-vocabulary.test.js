@@ -21,6 +21,9 @@ const STATUS_SHAPED = /'(idle|active|scanning|paused|paused-[a-z]+|mount-point-g
 const WRITERS = [
   'shared/folders/foreign-folders.js',
   'worker/mounts-runtime.js',
+  // Writes owned statuses directly (mount, relocate) and emits a mirror one, so leaving it out
+  // made the promise above narrower than it reads.
+  'worker/main.js',
   'renderer/mountFault.js',
 ]
 

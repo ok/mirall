@@ -114,12 +114,13 @@ test('the over-limit strip carries the numbers it reports', (t) => {
 // The fault strip: the only surface either role has for a durable local fault. Before it, the
 // owner's fault had none at all (its status was written and read by nothing) and the mirror's
 // rendered as the plain paused strip with a Resume that re-paused it on the next tick.
-test('a faulted owner gets the fault strip, an alert, and no verb', (t) => {
+test('a faulted owner gets the fault strip, an alert, and a retry', (t) => {
   const strips = deriveStrips({ ...OWNER, fault: { status: 'paused-enospc', code: 'TRANSFER_DISK_FULL' } })
   t.alike(ids(strips), ['fault'])
   t.is(strips[0].tone, 'error')
   t.is(strips[0].live, 'alert', 'a folder that stopped syncing must be announced')
-  t.is(strips[0].action, null, 'nothing was stopped, so there is nothing to resume')
+  // The owner's cadence is six-hourly, so without a verb the strip outlives the fix by hours.
+  t.is(strips[0].action, 'resume', 'the retry re-runs the pass that settles the status')
   t.is(strips[0].data.faultCode, 'TRANSFER_DISK_FULL', 'the reason travels as a code, not a message')
 })
 

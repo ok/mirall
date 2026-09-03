@@ -240,6 +240,17 @@ async function pauseMountForIoError(mount, err) {
   return false
 }
 
+// A mirror's INITIAL scan failing is not a pause: the poll loop still starts, and the next
+// successful tick clears this. So it records the fault without touching `enabled` — which is what
+// keeps it out of AUTO_PAUSE_STATUSES' resume gate.
+export async function recordMirrorScanFault(spaceId, shareId, err) {
+  const code = classifyLocalIoFault(err)
+  const status = code === ErrorCodes.TRANSFER_DISK_FULL ? STATUS_ENOSPC : STATUS_IO_ERROR
+  await patchForeignMount(spaceId, shareId, { status, lastError: code })
+  emitStatus(spaceId, shareId, status, { error: code })
+  return status
+}
+
 export function isAutoPaused(mount) {
   return !!mount && mount.enabled === false && AUTO_PAUSE_STATUSES.has(mount.status)
 }
@@ -761,6 +772,9 @@ async function initialMaterializeScanCatalog(mount, share) {
   await patchForeignMount(mount.spaceId, mount.shareId, {
     ...syncFields(mount),
     status: 'active',
+    // A pass that got through clears the reason with the status: a stale one would name the next
+    // fault that records none.
+    lastError: null,
     ...(complete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
   })
   syncDirty.delete(key)
@@ -1085,6 +1099,7 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   const wasEnabled = mount.enabled !== false
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'
+  if (enabled) mount.lastError = null
   await saveForeignMount({ ...mount, ...syncFields(mount) })
   if (enabled) {
     await startForeignLoop(mount)

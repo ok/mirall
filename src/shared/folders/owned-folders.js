@@ -417,10 +417,13 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 // then partial and its status must not be recorded) — or with { skipped } when the diff could not run.
 export async function initialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   const r = await reconcileShare(spaceId, shareId, mountPath, ignore, opts)
-  if (r.skipped) { takePassFault(spaceId, shareId); return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 } }
+  // A pass that declined to run reports no fault and CONSUMES none: the fault it would have
+  // carried was observed by something else and is still unreported, so it waits for a pass that
+  // actually settles rather than dying with this one.
+  if (r.skipped) return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 }
   // A diff aborted mid-walk enqueued nothing, so there is no drain to park on and no tally to
   // collect — falling through would read the missing tally as a clean finish and record 'active'.
-  if (r.cancelled) { takePassFault(spaceId, shareId); return { cancelled: true, uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0, deferred: 0 } }
+  if (r.cancelled) return { cancelled: true, uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0, deferred: 0 }
   const t = await sched().whenDrained(spaceId, shareId)
   await settleCatalog(spaceId)
   const faultCode = takePassFault(spaceId, shareId)
