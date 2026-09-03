@@ -2,7 +2,9 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errorMessages.js'
+import { CODE_NAMES } from '../../src/shared/contract/errors.js'
+import { ERROR_I18N_KEY_BY_CODE, mountFaultReasonKey } from '../../src/renderer/errorMessages.js'
+import { FALLBACK_KEY } from '../../src/renderer/errorText.js'
 
 // REGRESSION (FIX-DLDIR-3: DOWNLOAD_FAILED was a code the download engine emits and the renderer
 // had no mapping for, so it fell through to the generic "Transfer failed" — which is how an entire
@@ -27,6 +29,17 @@ test('every mapped i18n key exists in the en errors catalog', (t) => {
   }
 })
 
+test('the map names no code the contract does not declare', (t) => {
+  const stale = Object.keys(ERROR_I18N_KEY_BY_CODE).filter((c) => !CODE_NAMES.includes(c))
+  t.alike(stale, [], 'mapping for a code that no longer exists')
+})
+
+// Without this the boundary renders the raw key string for every internal or uncoded failure.
+test('the generic fallback has copy', (t) => {
+  t.ok(Object.hasOwn(enErrors, FALLBACK_KEY), `errors.${FALLBACK_KEY} exists`)
+  t.ok(Object.hasOwn(enErrors, 'transferFailed'), 'errors.transferFailed exists')
+})
+
 // Derived from the engine source rather than hand-listed, so a code added there in future is
 // covered without anyone remembering to update this test.
 test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a renderer mapping)', (t) => {
@@ -42,15 +55,15 @@ test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a render
 // fallback rather than "Transfer failed". An unclassified fault — or a record written before the
 // reason became a code, whose reason is a raw errno message — resolves through it.
 test('the mount-fault reason has a named fallback and a string behind it', (t) => {
-  t.ok(errorMessagesSrc.includes("return 'mountFaultUnknown'"), 'mountFaultReasonKey falls back to a named key')
+  t.is(mountFaultReasonKey(null), 'mountFaultUnknown', 'mountFaultReasonKey falls back to a named key')
+  t.is(mountFaultReasonKey('NO_SUCH_CODE'), 'mountFaultUnknown', 'and so does a code with no mapping')
   t.ok(Object.hasOwn(enErrors, 'mountFaultUnknown'), 'and the key exists in the en errors catalog')
 })
 
 // The owner and the mirror both record these two codes as a mount fault's reason, and the strip
 // renders them through the transfer map — so an unmapped one would silently read as the fallback.
 test('every code a mount fault can record is mapped', (t) => {
-  const mapped = new Set(transferMap.map(([code]) => code))
   for (const code of ['TRANSFER_DISK_FULL', 'TRANSFER_PERMISSION']) {
-    t.ok(mapped.has(code), `${code} is mapped in errorMessages.ts`)
+    t.ok(code in ERROR_I18N_KEY_BY_CODE, `${code} is mapped in errorMessages.js`)
   }
 })

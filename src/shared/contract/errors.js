@@ -71,6 +71,23 @@ export const CODE_NAMES = Object.freeze(Object.keys(CODES))
 // designed. The IPC router logs these at debug so the warn level keeps its meaning.
 export const EXPECTED_CODES = Object.freeze(['ECANCELLED', 'PREVIEW_CANCELLED'])
 
+// Codes that never become a sentence: folded into another code before they could surface
+// (EHASHMISMATCH -> TRANSFER_CHECKSUM, EIO via classifyTransferError), or a bug in our own code
+// rather than something the user did. The renderer shows its generic sentence for these and logs
+// the detail. Listed here so the mapping test can assert ZERO unmapped codes rather than pin a
+// number, and so copy for a code nobody can reach cannot creep back in.
+export const INTERNAL_CODES = Object.freeze([
+  'EHASHMISMATCH',
+  'EIO',
+  'EPATH',
+  'INVALID_ARGUMENT',
+  'NOT_FOUND',
+  'OVERLAY_REQUIRED',
+  'REMOVABLE_OR_NETWORK',
+  'TCC_GATED',
+  'UNKNOWN',
+])
+
 // Declared but thrown nowhere as of 2026-08-30. Kept rather than deleted: several are the
 // vocabulary a planned feature will use, and deleting them would make the parity test pass by
 // shrinking the contract instead of fixing the code. The test asserts this list only shrinks.
