@@ -122,7 +122,6 @@
     "in": "in {{name}}",
     "oneWantsToJoin": "{{name}} wants to join",
     "creatorDivergenceWarning": "The owner identity for this space is in conflict — a peer asserted a different owner than the one on record. Approvals are paused; verify with someone you trust before sharing anything sensitive.",
-    "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved.",
     "nWantToJoin_one": "{{count}} person wants to join",
     "nWantToJoin_other": "{{count}} people want to join",
     "reviewN_one": "Review {{count}} request",

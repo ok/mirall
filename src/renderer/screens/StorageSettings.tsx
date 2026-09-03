@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
-import { mountErrorI18nKey } from '../errorMessages.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
 import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
@@ -13,6 +12,7 @@ import Icon from '../components/primitives/Icon.js'
 import PathRow from '../components/widgets/PathRow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 
 // Module-level so the entry's scope list is one array, not a fresh literal per render.
 const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }]
@@ -77,7 +77,7 @@ function samePath(a: string, b: string) {
 
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
-  const { t: tErr } = useTranslation('errors')
+  const errorText = useErrorText()
   // null until the read lands: the field says it is loading rather than offering a first pick
   // for a folder that always exists.
   const [downloadFolder, setDownloadFolder] = useState<string | null>(null)
@@ -102,7 +102,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       .catch((err) => {
         if (cancelled) return
         setDownloadFolder('')
-        setFolderError(err instanceof Error ? err.message : String(err))
+        setFolderError(errorText(err))
       })
     return () => { cancelled = true }
   }, [])
@@ -121,10 +121,9 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
       await refreshRootStatus()
     } catch (err) {
-      const key = mountErrorI18nKey((err as { code?: string } | null)?.code)
-      setFolderError(key ? tErr(key) : err instanceof Error ? err.message : String(err))
+      setFolderError(errorText(err))
     }
-  }, [tErr, refreshRootStatus])
+  }, [refreshRootStatus, errorText])
 
   // This screen shows the GLOBAL root; `unavailableRoots` also carries per-space overrides, so
   // match rather than test for a non-empty list. The two strings reach us by different routes —

@@ -44,5 +44,6 @@
   "leaveInProgress": "Mirall todavía está terminando tu última salida de este espacio. Inténtalo de nuevo en un momento.",
   "notAMember": "Solo puedes invitar a otros cuando tengas la aprobación en este espacio.",
   "notApprovedForSpace": "Todavía no tienes la aprobación en este espacio, así que no puedes compartir en él.",
-  "unexpected": "Algo ha ido mal. Inténtalo de nuevo — si sigue ocurriendo, envía tus comentarios desde Ajustes."
+  "unexpected": "Algo ha ido mal. Inténtalo de nuevo — si sigue ocurriendo, envía tus comentarios desde Ajustes.",
+  "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva."
 }

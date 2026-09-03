@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { request, subscribe } from '../ipc.js'
 import { Scope, scopeMatches } from '../scope.js'
 import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types.js'
+import { useErrorText } from './useErrorText.js'
 
 // Sized against the list's visible window (~8-10 rows) rather than the query budget: a page much
 // larger than the viewport turns "Load more" into a scroll marathon instead of a step.
@@ -33,6 +34,7 @@ interface ReconcileMessage {
 // term typed in any locale can be turned into a kind filter the worker understands. The stored
 // search blob is proper nouns only and stays locale-neutral.
 export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
+  const errorText = useErrorText()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,11 +62,11 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
       setError(null)
     } catch (err) {
       if (run !== runRef.current) return
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       if (run === runRef.current) setLoading(false)
     }
-  }, [query])
+  }, [query, errorText])
 
   // A partial page is normal under a filter (the worker walks a bounded budget), so "there is
   // more" is the cursor being non-null — never entries.length < PAGE_SIZE.
@@ -78,11 +80,11 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
       setEntries((prev) => [...prev, ...page.entries])
       setCursor(page.nextCursor)
     } catch (err) {
-      if (run === runRef.current) setError(err instanceof Error ? err.message : String(err))
+      if (run === runRef.current) setError(errorText(err))
     } finally {
       if (run === runRef.current) setLoadingMore(false)
     }
-  }, [cursor, loadingMore, query])
+  }, [cursor, loadingMore, query, errorText])
 
   useEffect(() => { void reload() }, [reload])
 

@@ -37,6 +37,7 @@ import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { FileTreeNode } from '../types.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 
 interface FolderViewProps {
   spaceId: string
@@ -50,6 +51,7 @@ interface FolderViewProps {
 export default function FolderView({ spaceId, share, onBack, onMirror, onUnmounted, onRenamed }: FolderViewProps) {
   const { t } = useTranslation()
   const toast = useToast()
+  const errorText = useErrorText()
   const { profile } = useProfile()
   const { members } = useMembers(spaceId)
   const { getDownloadSummary } = usePeerDownloads(spaceId)
@@ -216,7 +218,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     try {
       await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
   }
 
@@ -227,7 +229,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
       await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
       toast.success(t('share.locateSuccess', { name: share.name }))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
   }
 
@@ -236,7 +238,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
       await request('owned-folder:delete', { spaceId, shareId: share.id })
       onBack()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
   }
 
@@ -247,7 +249,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
       if (isYou) await request(paused ? 'owned-folder:pause-index' : 'owned-folder:resume-index', { spaceId, shareId: share.id })
       else await setForeignMountEnabled(spaceId, share.id, !paused)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
   }
 
@@ -256,7 +258,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
       await unmountForeignMount(spaceId, share.id)
       onUnmounted?.()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(errorText(err))
     }
   }
 
@@ -450,7 +452,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                   <Icon name="warning" size={32} className="text-error" />
                   <h2 className="text-2xl font-headline font-bold text-accent">{t('folder.unavailable')}</h2>
                 </div>
-                <p className="text-on-surface-variant max-w-md leading-relaxed">{error}</p>
+                <p className="text-on-surface-variant max-w-md leading-relaxed">{errorText(error)}</p>
               </div>
             ) : files.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">

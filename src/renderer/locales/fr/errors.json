@@ -44,5 +44,6 @@
   "leaveInProgress": "Mirall termine encore votre dernier départ de cet espace. Réessayez dans un instant.",
   "notAMember": "Vous pouvez inviter d'autres personnes une fois votre adhésion approuvée dans cet espace.",
   "notApprovedForSpace": "Votre adhésion à cet espace n'est pas encore approuvée, vous ne pouvez donc rien y partager.",
-  "unexpected": "Une erreur s'est produite. Réessayez — si cela persiste, envoyez un commentaire depuis les Réglages."
+  "unexpected": "Une erreur s'est produite. Réessayez — si cela persiste, envoyez un commentaire depuis les Réglages.",
+  "approveBlockedDivergence": "Les approbations sont suspendues tant que le conflit d'identité du propriétaire n'est pas résolu."
 }

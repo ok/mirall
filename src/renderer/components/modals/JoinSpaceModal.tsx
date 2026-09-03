@@ -8,6 +8,7 @@ import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface JoinSpaceModalProps {
   isOpen: boolean
@@ -20,7 +21,7 @@ interface JoinSpaceModalProps {
 
 export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClose, onJoin, onJoined }: JoinSpaceModalProps) {
   const { t } = useTranslation()
-  const { t: tErr } = useTranslation('errors')
+  const errorText = useErrorText()
   const [inviteCode, setInviteCode] = useState(initialCode ?? '')
   const [name, setName] = useState(initialName ?? '')
   const [joining, setJoining] = useState(false)
@@ -66,7 +67,7 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
       onClose()
       onJoined?.(space)
     } catch (err) {
-      setError(err instanceof Error ? err.message : tErr('joinFailed'))
+      setError(errorText(err))
     } finally {
       setJoining(false)
     }

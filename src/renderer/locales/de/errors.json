@@ -44,5 +44,6 @@
   "leaveInProgress": "Mirall schließt gerade dein letztes Verlassen dieses Space ab. Versuche es gleich noch einmal.",
   "notAMember": "Du kannst andere erst einladen, wenn du für diesen Space freigegeben wurdest.",
   "notApprovedForSpace": "Du wurdest für diesen Space noch nicht freigegeben und kannst daher nichts darin teilen.",
-  "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen."
+  "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen.",
+  "approveBlockedDivergence": "Solange der Eigentümer-Konflikt ungelöst ist, sind Genehmigungen pausiert."
 }

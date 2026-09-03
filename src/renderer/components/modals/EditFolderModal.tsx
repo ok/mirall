@@ -4,12 +4,12 @@
 // untouched.
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mountErrorI18nKey } from '../../errorMessages.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
 import PathRow from '../widgets/PathRow.js'
+import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface EditFolderModalProps {
   isOwner: boolean
@@ -28,17 +28,6 @@ interface EditFolderModalProps {
 
 const PANEL = 'glass-modal w-full max-w-xl max-h-[85vh] rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative flex flex-col'
 
-// The worker's rejections carry English literals (an invalid name, a colliding one, a rejected
-// path), so a raw message would ship untranslated. Fall back to it only when there is no mapping.
-function useReason() {
-  const { t: tErr } = useTranslation('errors')
-  return (err: unknown): string => {
-    const key = mountErrorI18nKey((err as { code?: string } | null)?.code)
-    if (key) return tErr(key)
-    return err instanceof Error ? err.message : String(err)
-  }
-}
-
 export default function EditFolderModal({
   isOwner,
   canRelocate,
@@ -50,7 +39,7 @@ export default function EditFolderModal({
   onClose,
 }: EditFolderModalProps) {
   const { t } = useTranslation()
-  const reasonFor = useReason()
+  const reasonFor = useErrorText()
   const [draftName, setDraftName] = useState(name)
   const [draftPath, setDraftPath] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)

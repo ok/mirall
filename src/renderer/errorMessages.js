@@ -45,6 +45,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   LEAVE_IN_PROGRESS: 'leaveInProgress',
   NOT_A_MEMBER: 'notAMember',
   EOWNERSHIP: 'notApprovedForSpace',
+  CREATOR_DIVERGENCE_UNRESOLVED: 'approveBlockedDivergence',
 }
 
 export function errorI18nKey (code, fallbackKey) {
@@ -56,14 +57,6 @@ export function errorI18nKey (code, fallbackKey) {
 // so the generic sentence would be less specific, not more.
 export function errorCodeToI18nKey (code) {
   return errorI18nKey(code, 'transferFailed')
-}
-
-// Mount-validation rejections carry the offending path as their message, which is meaningless to
-// the user. null means "no mapping, fall back to the raw message" — the display boundary replaces
-// this shape wholesale.
-export function mountErrorI18nKey (code) {
-  if (!code) return null
-  return ERROR_I18N_KEY_BY_CODE[code] ?? null
 }
 
 // A mount fault reads the same map with its own fallback: the reason lands mid-sentence in the
