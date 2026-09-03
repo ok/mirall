@@ -11,7 +11,29 @@ function sourceMissingStrip (input) {
   return { id: 'source-missing', tone: 'error', icon: 'warning', live: 'alert', action: 'locate', data: null }
 }
 
+// A local fault the user can name: a full disk, a folder that stopped being readable. It outranks
+// the paused strip because an auto-paused mirror IS enabled === false — so a mirror stopped by a
+// full disk used to render "Paused" with a Resume that re-paused it on the next tick, which told
+// the user they had paused it themselves.
+//
+// Both roles carry the retry. An owner's fault is not a stop — the cadence still runs — but that
+// cadence is six-hourly, so after freeing the disk the only thing that would clear the strip is a
+// file event the user has no reason to produce. The verb re-runs the pass, which either clears the
+// fault or records it again.
+function faultStrip (input) {
+  if (!input.fault) return null
+  return {
+    id: 'fault',
+    tone: 'error',
+    icon: 'warning',
+    live: 'alert',
+    action: 'resume',
+    data: { role: input.role, faultCode: input.fault.code ?? null },
+  }
+}
+
 function isPaused (input) {
+  if (input.fault) return false
   if (input.isYou) return !!input.indexing?.paused
   return input.role === 'mirrored' && input.foreignEnabled === false
 }
@@ -84,13 +106,14 @@ function overLimitStrip (input) {
 
 // Precedence, top to bottom. A folder can be in several of these at once — offline AND over the
 // cap is ordinary — so this is a filter over builders, not a switch.
-const BUILDERS = [sourceMissingStrip, pausedStrip, workingStrip, peerIndexingStrip, ownerOfflineStrip, overLimitStrip]
+const BUILDERS = [sourceMissingStrip, faultStrip, pausedStrip, workingStrip, peerIndexingStrip, ownerOfflineStrip, overLimitStrip]
 
-// A failed listing does not clear a durable local fault, and those are the two the user can act on
-// from this screen: a paused mirror still needs its Resume and a missing source still needs its
-// Locate. The banners these replace were gated on `!loading` alone for exactly that reason. The
-// rest describe the listing, which is what failed, so they go.
-const SURVIVES_ERROR = new Set(['source-missing', 'paused'])
+// A failed listing does not clear a durable local fault, and those are the ones the user can act on
+// from this screen: a paused mirror still needs its Resume, a missing source still needs its
+// Locate, and a folder stopped by a full disk still needs to say so. The banners these replace
+// were gated on `!loading` alone for exactly that reason. The rest describe the listing, which is
+// what failed, so they go.
+const SURVIVES_ERROR = new Set(['source-missing', 'fault', 'paused'])
 
 export function deriveStrips (input) {
   if (input.loading) return []

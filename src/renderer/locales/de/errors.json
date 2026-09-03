@@ -1,5 +1,6 @@
 {
   "transferDiskFull": "Speicher voll",
+  "mountFaultUnknown": "Unerwarteter Fehler",
   "transferPermission": "Zugriff verweigert",
   "transferChecksum": "Integritätsprüfung fehlgeschlagen",
   "transferRemoved": "Vom Eigentümer nicht mehr geteilt",

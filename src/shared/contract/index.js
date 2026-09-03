@@ -6,6 +6,6 @@ export { CODES, CODE_NAMES, EXPECTED_CODES, UNUSED_CODES, INVALID_ARGUMENT } fro
 export { ARG, REQUESTS, REQUEST_NAMES, UNREFERENCED_REQUESTS } from './requests.js'
 export { EVENTS, EVENT_NAMES } from './events.js'
 export { AVATAR_MAX_BYTES, NAME_MAX, IPC_MAX_FRAME_BYTES } from './limits.js'
-export { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS } from './statuses.js'
+export { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS, OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from './statuses.js'
 export { WORKER_EXIT_UNSTABLE } from './exit-codes.js'
 export { FRAME, CONTROL_FRAMES } from './frames.js'

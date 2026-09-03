@@ -1,5 +1,6 @@
 {
   "transferDiskFull": "Disque plein",
+  "mountFaultUnknown": "Erreur inattendue",
   "transferPermission": "Autorisation refusée",
   "transferChecksum": "Échec du contrôle d'intégrité du fichier",
   "transferRemoved": "Fichier n'est plus partagé par le propriétaire",

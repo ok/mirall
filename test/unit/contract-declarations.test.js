@@ -64,9 +64,12 @@ test('the declared status tuples match the runtime arrays exactly', (t) => {
   for (const m of dts.matchAll(/export declare const ([A-Z_]+): readonly \[([^\]]+)\]/g)) {
     declared[m[1]] = [...m[2].matchAll(/'([a-z-]+)'/g)].map((x) => x[1])
   }
-  const runtime = { FILE_STATUS: contract.FILE_STATUS, BADGE_STATUS: contract.BADGE_STATUS, SHARE_FILE_STATUS: contract.SHARE_FILE_STATUS }
-  for (const [name, values] of Object.entries(runtime)) {
-    t.alike(declared[name], [...values], `${name} declaration matches its implementation`)
+  // Derived from the declarations rather than a hand-listed set, so a tuple added to the contract
+  // is compared without anyone remembering to add it here.
+  t.ok(Object.keys(declared).length >= 5, 'the declaration parse found the tuples')
+  for (const [name, values] of Object.entries(declared)) {
+    t.ok(Array.isArray(contract[name]), `${name} is declared as a tuple and exists at runtime`)
+    t.alike(values, [...(contract[name] ?? [])], `${name} declaration matches its implementation`)
   }
 })
 

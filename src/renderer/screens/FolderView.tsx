@@ -24,6 +24,7 @@ import FolderStatsCard from '../components/cards/FolderStatsCard.js'
 import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
 import { filterTree } from '../folderFilter.js'
 import { deriveStrips } from '../folderStrips.js'
+import { mountFault } from '../mountFault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
 import { deriveMirrorSync } from '../mirrorSync.js'
 import { request } from '../ipc.js'
@@ -120,7 +121,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // mountRootAvailable disk check) on every mount-status event — the useShares projection covers
   // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
   // first render before derive() resolves).
-  const { status: ownedStatus, indexPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
+  const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, indexPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
   // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
@@ -135,7 +136,21 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     () => deriveIndexSummary(indexProgress, { indexPaused, scanning }),
     [indexProgress, indexPaused, scanning],
   )
-  const sourceMissing = isYou && (ownedStatus ?? share.mountStatus) === 'mount-point-gone'
+  // `share` is a frozen navigation snapshot, so it is the FIRST-PAINT fallback only: once the live
+  // read has landed it wins outright, including when it says "healthy". Reading `ownedStatus ??
+  // share.mountStatus` instead meant a folder entered while faulted could never clear on screen —
+  // the hook returns null for a healthy mount, and the stale snapshot filled the hole back in.
+  const ownedMountStatus = ownedLoaded ? ownedStatus : (share.mountStatus ?? null)
+  const sourceMissing = isYou && ownedMountStatus === 'mount-point-gone'
+  // The durable local fault, from whichever role owns this folder. Both statuses were recorded
+  // before this screen could show them: every other consumer compares mount.status against
+  // 'mount-point-gone' or 'paused' only, so a full disk had nowhere to appear once its toast went.
+  const fault = useMemo(
+    () => (isYou
+      ? mountFault(ownedMountStatus, ownedError)
+      : mountFault(foreignStatus ?? foreignMount?.status, foreignMount?.lastError)),
+    [isYou, ownedMountStatus, ownedError, foreignStatus, foreignMount],
+  )
   const mirrorSync = useMemo(
     () => (share.role === 'mirrored' ? deriveMirrorSync(files, { truncated: listingTruncated, enabled: foreignEnabled }) : null),
     [share.role, files, listingTruncated, foreignEnabled],
@@ -150,6 +165,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     loading,
     error: !!error,
     sourceMissing,
+    fault,
     indexing,
     foreignEnabled,
     mirrorSync,
@@ -157,7 +173,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     listing: listingTruncated && info
       ? { truncated: true, shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length }
       : null,
-  }), [share.role, isYou, loading, error, sourceMissing, indexing, foreignEnabled, mirrorSync, owner, listingTruncated, info, files.length])
+  }), [share.role, isYou, loading, error, sourceMissing, fault, indexing, foreignEnabled, mirrorSync, owner, listingTruncated, info, files.length])
 
   const overLimit = strips.find((strip) => strip.id === 'over-limit') ?? null
   const working = strips.find((strip) => strip.id === 'working') ?? null
@@ -178,6 +194,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const folderStatus = deriveFolderStatus({
     role: share.role,
     sourceMissing,
+    fault: !!fault,
     indexPaused,
     mirrorEnabled: foreignEnabled,
     indexing: indexing.active,

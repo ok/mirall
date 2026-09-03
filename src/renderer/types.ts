@@ -1,4 +1,4 @@
-import type { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS } from '../shared/contract/statuses.js'
+import type { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS, OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../shared/contract/statuses.js'
 export interface Profile {
   displayName: string
   avatar: string | null
@@ -119,7 +119,7 @@ export interface Share {
   deletedAt?: number
 }
 
-export type OwnedMountStatus = 'scanning' | 'active' | 'paused' | 'paused-error' | 'mount-point-gone'
+export type OwnedMountStatus = (typeof OWNED_MOUNT_STATUS)[number]
 
 export interface OwnedFolderMount {
   spaceId: string
@@ -133,14 +133,7 @@ export interface OwnedFolderMount {
   indexPaused?: boolean
 }
 
-export type ForeignMountStatus =
-  | 'idle'
-  | 'scanning'
-  | 'active'
-  | 'paused'
-  | 'paused-enospc'
-  | 'paused-error'
-  | 'mount-point-gone'
+export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUS)[number]
 
 export interface ForeignFolderMount {
   spaceId: string
@@ -150,6 +143,7 @@ export interface ForeignFolderMount {
   attachedAt: number
   initialScanCompletedAt?: number
   status?: ForeignMountStatus
+  lastError?: string | null
 }
 
 export type ShareFileStatus = (typeof SHARE_FILE_STATUS)[number]

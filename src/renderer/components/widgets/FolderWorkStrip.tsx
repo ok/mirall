@@ -6,6 +6,7 @@ import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
 import DownloadProgressLane from './DownloadProgressLane.js'
 import { formatSize } from '../../utils.js'
+import { mountFaultReasonKey } from '../../errorMessages.js'
 import type { FolderStrip, StripAction, StripData, StripTone } from '../../folderStrips.js'
 
 interface FolderWorkStripProps {
@@ -34,6 +35,10 @@ const ACTION_LABEL = {
   pause: 'folder.indexPause',
 } as const
 
+// The one strip whose verb is not what the action is called elsewhere: on a fault the mirror was
+// stopped by the disk, not by the user, so "Resume" would confirm a pause they never made.
+const FAULT_ACTION_LABEL = 'folder.faultRetry'
+
 const ACTION_ICON = {
   locate: 'folder_open',
   resume: 'play_arrow',
@@ -59,7 +64,7 @@ function workSentence(t: Translate, data: StripData, ownerName: string): string 
   return head + ' · ' + t(sizeKey, { size: formatSize(data.bytes) })
 }
 
-function sentenceFor(t: Translate, strip: FolderStrip, ownerName: string): string {
+function sentenceFor(t: Translate, tErr: Translate, strip: FolderStrip, ownerName: string): string {
   const data = strip.data
   switch (strip.id) {
     case 'source-missing':
@@ -70,6 +75,10 @@ function sentenceFor(t: Translate, strip: FolderStrip, ownerName: string): strin
       return t('folder.overLimitListing', { shown: data?.shown ?? 0, total: data?.total ?? 0, limit: data?.limit ?? 0 })
     case 'paused':
       return data?.role === 'mirrored' ? t('folder.mirrorPausedBanner') : t('folder.indexPausedBanner')
+    case 'fault':
+      return t(data?.role === 'mirrored' ? 'folder.mirrorFaultBanner' : 'folder.indexFaultBanner', {
+        reason: tErr(mountFaultReasonKey(data?.faultCode)),
+      })
     default:
       return workSentence(t, data ?? {}, ownerName)
   }
@@ -85,18 +94,19 @@ function liveRole(strip: FolderStrip): 'alert' | 'status' | undefined {
   return undefined
 }
 
-function StripActionButton({ action, onAction }: { action: StripAction; onAction: (action: 'locate' | 'resume' | 'pause') => void }) {
+function StripActionButton({ action, labelKey, onAction }: { action: StripAction; labelKey?: string; onAction: (action: 'locate' | 'resume' | 'pause') => void }) {
   const { t } = useTranslation()
   if (!action) return null
   return (
     <Button variant="secondary" icon={ACTION_ICON[action]} onClick={() => onAction(action)}>
-      {t(ACTION_LABEL[action])}
+      {t(labelKey ?? ACTION_LABEL[action])}
     </Button>
   )
 }
 
 export default function FolderWorkStrip({ strip, ownerName, onAction }: FolderWorkStripProps) {
   const { t } = useTranslation()
+  const { t: tErr } = useTranslation('errors')
   const data = strip.data
   const showLane = strip.id === 'working' && !data?.scanning
   const indeterminate = data?.indeterminate ?? true
@@ -108,7 +118,7 @@ export default function FolderWorkStrip({ strip, ownerName, onAction }: FolderWo
           reflow would be visible. The informational ones run to 130 characters and wrap, as they
           did before — an ellipsised "Source folder moved or unavailable…" hides the instruction. */}
       <span className={`flex-1 min-w-0${strip.id === 'working' || strip.id === 'peer-indexing' ? ' truncate' : ''}`}>
-        {sentenceFor(t, strip, ownerName)}
+        {sentenceFor(t, tErr, strip, ownerName)}
       </span>
       {showLane && (
         <span className="basis-40 shrink-0">
@@ -128,7 +138,7 @@ export default function FolderWorkStrip({ strip, ownerName, onAction }: FolderWo
           />
         </span>
       )}
-      <StripActionButton action={strip.action} onAction={onAction} />
+      <StripActionButton action={strip.action} labelKey={strip.id === 'fault' ? FAULT_ACTION_LABEL : undefined} onAction={onAction} />
     </div>
   )
 }

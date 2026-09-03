@@ -32,6 +32,24 @@ export function classifyTransferError(err) {
   return ErrorCodes.TRANSFER_NETWORK
 }
 
+// A local filesystem fault that stops a mount doing its job, folded onto the transfer codes the
+// renderer already translates. Both folder roles fail the same way — an owner reading its source,
+// a mirror writing its destination — and both used to report the raw errno message. The errno
+// alone decides it, so this stays free of any fs import: whether a root actually vanished is the
+// caller's question, because only it knows which path to stat.
+const LOCAL_IO_FAULT_BY_ERRNO = Object.freeze({
+  ENOSPC: ErrorCodes.TRANSFER_DISK_FULL,
+  EACCES: ErrorCodes.TRANSFER_PERMISSION,
+  EPERM: ErrorCodes.TRANSFER_PERMISSION,
+  EROFS: ErrorCodes.TRANSFER_PERMISSION,
+})
+
+// null means "not a fault this classifies" — the caller then falls through to its generic handling
+// rather than pausing a mount on something transient.
+export function classifyLocalIoFault(err) {
+  return LOCAL_IO_FAULT_BY_ERRNO[err?.code] ?? null
+}
+
 // Local-filesystem failures that a download folder which has been deleted, ejected, replaced by
 // a file, or served off a dropped network mount can produce. The errno ALONE never settles it —
 // the same codes arise from ordinary transient faults — so a caller must confirm by probing the

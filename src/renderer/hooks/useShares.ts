@@ -25,6 +25,7 @@ export interface ShareWithRole extends Share {
   role: ShareRole
   mirrorEnabled?: boolean
   mountStatus?: string
+  mirrorStatus?: string
 }
 
 type OwnedMountRow = OwnedFolderMount & { mountPointMissing?: boolean }
@@ -51,10 +52,15 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
   const foreign = useQuery<ForeignFolderMount[]>('foreign-folder:list-all', {}, ANY_SHARES)
   const owned = useQuery<OwnedMountRow[]>('owned-folder:list-all', {}, ANY_SHARES)
 
-  const { mirrored, ownedStatus } = useMemo(() => {
+  const { mirrored, mirrorStatus, ownedStatus } = useMemo(() => {
     const mmap = new Map<string, boolean>()
+    // The mirror's own durable status, not just its enabled flag: an auto-paused mirror reads as
+    // disabled, so without this the card cannot tell a user pause from a fault.
+    const smap = new Map<string, string>()
     for (const m of foreign.data ?? NO_FOREIGN) {
-      if (m.spaceId === spaceId) mmap.set(m.shareId, m.enabled !== false)
+      if (m.spaceId !== spaceId) continue
+      mmap.set(m.shareId, m.enabled !== false)
+      if (m.status) smap.set(m.shareId, m.status)
     }
     const omap = new Map<string, string>()
     for (const m of owned.data ?? NO_OWNED) {
@@ -62,7 +68,7 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
       const bad = unhealthyOwnedStatus(m)
       if (bad) omap.set(m.shareId, bad)
     }
-    return { mirrored: mmap, ownedStatus: omap }
+    return { mirrored: mmap, mirrorStatus: smap, ownedStatus: omap }
   }, [foreign.data, owned.data, spaceId])
 
   const withRole: ShareWithRole[] = useMemo(() => (shares.data ?? NO_SHARES).map((s) => {
@@ -75,9 +81,10 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
       name: s.displayName || s.name,
       role,
       mirrorEnabled: role === 'mirrored' ? mirrored.get(s.id) ?? true : undefined,
+      mirrorStatus: role === 'mirrored' ? mirrorStatus.get(s.id) : undefined,
       mountStatus: role === 'mine' ? ownedStatus.get(s.id) : undefined,
     }
-  }), [shares.data, myPublicKey, mirrored, ownedStatus])
+  }), [shares.data, myPublicKey, mirrored, mirrorStatus, ownedStatus])
 
   // All three reads gate it, as the pre-store refresh() did with Promise.all: with share:list alone,
   // a warm listing could paint before foreign-folder:list-all arrived, roleFor would see an empty

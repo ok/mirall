@@ -110,3 +110,44 @@ test('the over-limit strip carries the numbers it reports', (t) => {
   t.is(strips[0].data.total, 8431)
   t.is(strips[0].live, 'status')
 })
+
+// The fault strip: the only surface either role has for a durable local fault. Before it, the
+// owner's fault had none at all (its status was written and read by nothing) and the mirror's
+// rendered as the plain paused strip with a Resume that re-paused it on the next tick.
+test('a faulted owner gets the fault strip, an alert, and a retry', (t) => {
+  const strips = deriveStrips({ ...OWNER, fault: { status: 'paused-enospc', code: 'TRANSFER_DISK_FULL' } })
+  t.alike(ids(strips), ['fault'])
+  t.is(strips[0].tone, 'error')
+  t.is(strips[0].live, 'alert', 'a folder that stopped syncing must be announced')
+  // The owner's cadence is six-hourly, so without a verb the strip outlives the fix by hours.
+  t.is(strips[0].action, 'resume', 'the retry re-runs the pass that settles the status')
+  t.is(strips[0].data.faultCode, 'TRANSFER_DISK_FULL', 'the reason travels as a code, not a message')
+})
+
+test('a faulted mirror gets the fault strip INSTEAD of the paused one, carrying a retry', (t) => {
+  const strips = deriveStrips({ ...MIRROR, foreignEnabled: false, fault: { status: 'paused-enospc', code: 'TRANSFER_DISK_FULL' } })
+  t.alike(ids(strips), ['fault'], 'two strips for one condition would contradict each other')
+  t.is(strips[0].action, 'resume', 'the mirror really was stopped, so a retry is honest')
+})
+
+test('a user pause is still a pause', (t) => {
+  t.alike(ids(deriveStrips({ ...MIRROR, foreignEnabled: false })), ['paused'])
+  t.alike(ids(deriveStrips({ ...OWNER, indexing: { ...IDLE_INDEX, paused: true } })), ['paused'])
+})
+
+test('a fault outranks a missing source nowhere, and survives a failed listing', (t) => {
+  const fault = { status: 'paused-error', code: 'TRANSFER_PERMISSION' }
+  t.alike(ids(deriveStrips({ ...OWNER, sourceMissing: true, fault })), ['source-missing', 'fault'],
+    'the source-missing strip carries the Locate, so it stays on top')
+  t.alike(ids(deriveStrips({ ...OWNER, error: true, fault })), ['fault'],
+    'a listing that failed to load does not clear a durable local fault')
+})
+
+test('a faulted owner can still be working — the fault describes the last pass, not the queue', (t) => {
+  const strips = deriveStrips({
+    ...OWNER,
+    fault: { status: 'paused-enospc', code: 'TRANSFER_DISK_FULL' },
+    indexing: { ...IDLE_INDEX, active: true, files: 3 },
+  })
+  t.alike(ids(strips), ['fault', 'working'])
+})

@@ -59,3 +59,20 @@ test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a render
     t.ok(mapped.has(code), `${code} is mapped in errorMessages.ts (not silently generic)`)
   }
 })
+
+// A mount fault's reason lands mid-sentence in the folder screen's fault strip, so it has its own
+// fallback rather than "Transfer failed". An unclassified fault — or a record written before the
+// reason became a code, whose reason is a raw errno message — resolves through it.
+test('the mount-fault reason has a named fallback and a string behind it', (t) => {
+  t.ok(errorMessagesSrc.includes("return 'mountFaultUnknown'"), 'mountFaultReasonKey falls back to a named key')
+  t.ok(Object.hasOwn(enErrors, 'mountFaultUnknown'), 'and the key exists in the en errors catalog')
+})
+
+// The owner and the mirror both record these two codes as a mount fault's reason, and the strip
+// renders them through the transfer map — so an unmapped one would silently read as the fallback.
+test('every code a mount fault can record is mapped', (t) => {
+  const mapped = new Set(transferMap.map(([code]) => code))
+  for (const code of ['TRANSFER_DISK_FULL', 'TRANSFER_PERMISSION']) {
+    t.ok(mapped.has(code), `${code} is mapped in errorMessages.ts`)
+  }
+})

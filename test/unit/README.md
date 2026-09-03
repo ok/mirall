@@ -31,7 +31,9 @@ Pure-logic tests of `src/shared/*` and `src/renderer/*` helpers — **no I/O, no
 ### D. Transfer-error classification
 | File | Scenarios |
 |------|-----------|
-| `errors.test.js` | `classifyTransferError`: fs codes (`ENOSPC`→disk-full, `EACCES`/`EPERM`→permission); message substrings, case-insensitive (checksum / signature / "block not available" / "not found"); falls back to `NETWORK`; tolerates `null`/`undefined`/missing message; `code` beats `message`. `isRetryableTransferError` true only for `NETWORK`. |
+| `errors.test.js` | `classifyLocalIoFault`: ENOSPC → disk-full, EACCES/EPERM/EROFS → permission, `null` for ENOENT and anything unnamed (one classifier for both folder roles). `classifyTransferError`: fs codes (`ENOSPC`→disk-full, `EACCES`/`EPERM`→permission); message substrings, case-insensitive (checksum / signature / "block not available" / "not found"); falls back to `NETWORK`; tolerates `null`/`undefined`/missing message; `code` beats `message`. `isRetryableTransferError` true only for `NETWORK`. |
+| `mount-fault.test.js` | `isMountFault` / `mountFault`: the two fault statuses and nothing else; a missing source and a user pause are not faults; the reason travels as a code; a fault with no recorded reason still names itself where the status can (`paused-enospc` → `TRANSFER_DISK_FULL`); both statuses exist in both roles' contract vocabularies. |
+| `mount-status-vocabulary.test.js` | Source-scanned ratchet: every status-shaped literal in `foreign-folders.js`, `mounts-runtime.js` and `mountFault.js` is one `OWNED_MOUNT_STATUS`/`FOREIGN_MOUNT_STATUS` declares — the drift that let the mirror write `paused-enospc` while the owned union had never heard of it. |
 
 ### E. Publish loop-prevention (echo-guard)
 | File | Scenarios |

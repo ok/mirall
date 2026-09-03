@@ -241,6 +241,10 @@
     "statusAdding": "Ajout",
     "statusPaused": "En pause",
     "statusMissing": "Introuvable",
+    "statusFault": "Problème",
+    "faultRetry": "Réessayer",
+    "indexFaultBanner": "Certains fichiers n'ont pas pu être ajoutés — {{reason}}.",
+    "mirrorFaultBanner": "La synchronisation s'est arrêtée — {{reason}}. Les fichiers ne seront pas mis à jour tant que ce n'est pas résolu.",
     "statusBrowseOnly": "Consultation"
   },
   "share": {

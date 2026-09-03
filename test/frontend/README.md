@@ -65,6 +65,7 @@ Owner-side filesystem operations — adding, editing, deleting, moving, or copyi
 | s9 | `s9-folder-lifecycle.mjs` | Delete an owned folder via card menu + confirm → tombstone disappears for the peer. |
 | s12 | `s12-add-folder-validation.mjs` | AddFolder validation: name-collision error and invalid-name error each block "Next: Preview". |
 | s23 | `s23-relocate.mjs` | Source folder moved on disk → "missing on disk" state → Locate re-points the share ("Reconnected"). |
+| s127 | `s127-folder-fault-strip.mjs` | **REGRESSION (FIX-PI12)** an unreadable file in the shared folder surfaces the fault strip ("couldn't be added — Permission denied", never the errno); it survives a restart, carries a Try again, and clears when that verb runs a clean pass. |
 
 ### H. Mirroring — peer side
 | ID | File | Covers |
@@ -116,4 +117,4 @@ Some guarantees are deliberately proven at a lower layer, or need a harness addi
 | **Same-named folders from two owners** disambiguate | `test/integration/share-registry` (per-owner name uniqueness; dedupe by `owner:id`). Not UI-drivable — two identically-named cards expose ambiguous `Open <name>` selectors. |
 | **Fully empty top-level folder** share | Not yet covered: the scan-preview modal omits the "Upload" line at 0 files, which the `addOwnedFolder` helper waits on (would need a preview-helper tweak). s40 covers the empty-*subfolder* case. |
 | **Owner returns → mirror catches up** | `test/flow/{offline-transfer,resume-transfer,foreign-sync}`. The harness `kill()` wipes the store, so suspend/relaunch isn't available; s41 covers offline *detection*. |
-| **Mirror error states** (`paused-enospc`, `paused-error`) | Backend (`applyChange` pause paths). Hard to induce in the UI; a scenario would only confirm the badge given a forced state. |
+| **Mirror error states** (`paused-enospc`, `paused-error`) | Backend (`applyChange` pause paths) + `test/unit/folder-strips` for the strip the two statuses now render. The OWNER half of the same surface is real end-to-end coverage (s127); the mirror half is not, because inducing a destination EACCES mid-materialize means chmod-ing the very directory the tick walks, so which call fails first is timing. |

@@ -6,7 +6,7 @@
 import path from 'bare-path'
 import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
 import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './mount-store.js'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createCoalescingRunner } from '../core/coalescing-runner.js'
@@ -64,6 +64,30 @@ const CATCHUP_BACKOFF_MAX_MS = 60000
 const SCAN_SETTLE_MS = 2000
 
 const shareCache = new Map()
+
+// The worst classified I/O fault seen since the last pass settled, per (space, share). Every item
+// that failed used to be counted by the scheduler and then dropped, so a pass whose every publish
+// hit a full disk still resolved as a clean scan and settled the mount to 'active'. A full disk
+// outranks a permission fault: it is the one that stops the whole device rather than one subtree.
+// Drained by whichever pass settles next rather than cleared when one starts — a watcher item that
+// failed between passes is the live case, and clearing at the start would throw exactly that away.
+const passFaults = new Map()
+const faultKey = (spaceId, shareId) => spaceId + '\0' + shareId
+
+function recordPassFault(spaceId, shareId, err) {
+  const code = classifyLocalIoFault(err)
+  if (!code) return
+  const key = faultKey(spaceId, shareId)
+  if (passFaults.get(key) === ErrorCodes.TRANSFER_DISK_FULL) return
+  passFaults.set(key, code)
+}
+
+function takePassFault(spaceId, shareId) {
+  const key = faultKey(spaceId, shareId)
+  const code = passFaults.get(key) ?? null
+  passFaults.delete(key)
+  return code
+}
 
 async function loadShareForMount(mount) {
   const { readOwnShares } = await import('../shares/shares.js')
@@ -158,6 +182,7 @@ registerPublishChannel('folder', {
   retire(item, { share }, { catalog }) {
     return getContentBackend(share).publishDelete(item.spaceId, share, item.relPath, { catalog })
   },
+  onPublishFailed: (item, _ctx, err) => recordPassFault(item.spaceId, item.shareId, err),
   onProgress: (spaceId, shareId) => progress.poke(spaceId, shareId),
   onDrained: (spaceId, shareId) => {
     progress.flush(spaceId, shareId)
@@ -392,15 +417,20 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 // then partial and its status must not be recorded) — or with { skipped } when the diff could not run.
 export async function initialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   const r = await reconcileShare(spaceId, shareId, mountPath, ignore, opts)
+  // A pass that declined to run reports no fault and CONSUMES none: the fault it would have
+  // carried was observed by something else and is still unreported, so it waits for a pass that
+  // actually settles rather than dying with this one.
   if (r.skipped) return { skipped: r.skipped, uploaded: 0, deleted: 0, totalOnDisk: 0 }
   // A diff aborted mid-walk enqueued nothing, so there is no drain to park on and no tally to
   // collect — falling through would read the missing tally as a clean finish and record 'active'.
   if (r.cancelled) return { cancelled: true, uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0, deferred: 0 }
   const t = await sched().whenDrained(spaceId, shareId)
   await settleCatalog(spaceId)
+  const faultCode = takePassFault(spaceId, shareId)
   return {
     uploaded: t?.uploaded ?? 0, deleted: t?.deleted ?? 0, failed: t?.failed ?? 0,
     totalOnDisk: r.totalOnDisk, deferred: r.deferred ?? 0,
+    ...(faultCode ? { faultCode } : {}),
     ...(t?.cancelled ? { cancelled: true } : {}),
   }
 }
@@ -532,6 +562,7 @@ export class OwnedFolders extends Subsystem {
     // The scheduler reference is left in place: PublishService closes after this subsystem and
     // drains its executors, whose settling items still poke the callbacks above.
     progress.reset()
+    passFaults.clear()
     shareCache.clear()
   }
 }
