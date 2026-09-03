@@ -57,13 +57,45 @@ test('every path the user can re-pick goes through PathRow', (t) => {
 
 test('the path button label is derived, never passed', (t) => {
   // Four strings once said the one thing — "Browse…", "Change", "Change…", "Change folder" — one
-  // per caller. PathRow now derives it from whether there is a path yet, so a caller that passes
-  // its own is re-opening that drift.
-  t.ok(/actionLabel \?\? \(path \? t\('actions\.change'\) : t\('pathField\.browse'\)\)/.test(pathRow),
+  // per caller. PathRow derives it from whether there is a path, so a caller that passes its own is
+  // re-opening that drift. The override that replaced those four was itself unreachable: this test
+  // forbade every caller from passing it, so the prop existed only to be refused.
+  t.ok(/path \|\| loading \? t\('actions\.change'\) : t\('pathField\.browse'\)/.test(pathRow),
     'PathRow derives the label from the presence of a path')
+  t.absent(/actionLabel/.test(pathRow), 'and keeps no override for a caller to reach for')
   for (const f of files) {
     if (f.rel === 'components/widgets/PathRow.tsx') continue
     t.absent(/<PathRow[^>]*actionLabel/s.test(f.src), `${f.rel} must not override the path button label`)
+  }
+})
+
+// REGRESSION (FIX-PATHFIELD-1: the field rendered its only content in `outline`, a border token
+// that fails AA against every fill in both themes — 2.63:1 light and 1.90:1 dark at 70% opacity).
+test('the path field placeholder is muted TEXT, not a border colour', (t) => {
+  const placeholder = pathRow.slice(pathRow.indexOf('<span className="text-sm'))
+  t.absent(/text-outline/.test(placeholder), 'outline is the badge/dropzone border token, not a text one')
+  t.ok(/text-on-surface-variant/.test(placeholder), 'muted secondary text is the token design.md assigns')
+})
+
+// A path that is still loading is not a path the user has yet to pick. Conflating them showed the
+// first-pick affordance — "Select location…" plus "Browse…" — for a folder that always exists, and
+// flipped the button label once the read landed.
+test('a path still loading is a third state, not an absent path', (t) => {
+  t.ok(/loading \? t\('pathField\.loading'\)/.test(pathRow), 'the field says it is loading')
+  t.ok(/loading\?: boolean/.test(pathRow), 'and the state is declared, not inferred from an empty string')
+  for (const rel of ['screens/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
+    const src = files.find((f) => f.rel === rel).src
+    t.ok(/<PathRow[^>]*loading=/s.test(src), `${rel} resolves its folder asynchronously and must say so`)
+  }
+})
+
+// Both reads fell back to a folder that always exists, so a swallowed failure left the row
+// describing a state that would never end.
+test('a failed download-folder read is surfaced, never swallowed', (t) => {
+  for (const rel of ['screens/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
+    const src = files.find((f) => f.rel === rel).src
+    const read = src.slice(src.indexOf('window.bridge.getDownloadFolder()'))
+    t.absent(/^\s*\.catch\(\(\) => \{\}\)/m.test(read.slice(0, 600)), `${rel} must not swallow the read`)
   }
 })
 

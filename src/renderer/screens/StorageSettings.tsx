@@ -78,7 +78,9 @@ function samePath(a: string, b: string) {
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
-  const [downloadFolder, setDownloadFolder] = useState<string>('')
+  // null until the read lands: the field says it is loading rather than offering a first pick
+  // for a folder that always exists.
+  const [downloadFolder, setDownloadFolder] = useState<string | null>(null)
   const [folderError, setFolderError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
@@ -95,7 +97,13 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
     let cancelled = false
     window.bridge.getDownloadFolder()
       .then((folder) => { if (!cancelled) setDownloadFolder(folder) })
-      .catch(() => {})
+      // Swallowed, this left the row claiming to be loading for the rest of the session. Say it,
+      // and drop out of the loading state so the row offers the pick that would fix it.
+      .catch((err) => {
+        if (cancelled) return
+        setDownloadFolder('')
+        setFolderError(err instanceof Error ? err.message : String(err))
+      })
     return () => { cancelled = true }
   }, [])
 
@@ -123,8 +131,10 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   // main stores the path the picker returned, the worker stores its own resolved + NFC-normalized
   // copy — so compare them normalized instead of raw, or a folder with an umlaut in its name
   // silently fails to match and the warning never shows.
-  const folderUnavailable = downloadFolder.length > 0
-    && unavailableRoots.some((root) => samePath(root, downloadFolder))
+  // Not yet read is not "unavailable": the warning stays down until there is a folder to test.
+  const knownFolder = downloadFolder ?? ''
+  const folderUnavailable = knownFolder.length > 0
+    && unavailableRoots.some((root) => samePath(root, knownFolder))
 
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -152,7 +162,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                   `surface-container-low`, which the field's default fill would vanish into. */}
               <PathRow
                 path={downloadFolder || null}
-                placeholder={t('storageSettings.calculating')}
+                loading={downloadFolder === null}
                 onAction={handleBrowseFolder}
                 ariaDescribedBy="storage-download-folder-desc"
                 fill="lowest"

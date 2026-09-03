@@ -172,6 +172,7 @@
   },
   "pathField": {
     "browse": "Sfoglia…",
+    "loading": "Caricamento…",
     "placeholder": "Seleziona posizione…"
   },
   "folder": {

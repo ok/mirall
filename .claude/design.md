@@ -432,8 +432,18 @@ once the first freezes at zero width Chromium leaves the rest overflowing, which
 folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it.
 
 - **The label follows the state, not the caller.** No path yet → `pathField.browse` ("Browse…");
-  a path in the field → `actions.change` ("Change"). Callers used to pass it and had picked four
-  different strings for the one action. `actionLabel` overrides, and nothing currently needs to.
+  a path in the field, **or one still loading** → `actions.change` ("Change"). Callers used to pass
+  it and had picked four different strings for the one action. There is no override: the one that
+  replaced those four was forbidden to every caller by the same test that introduced it.
+- **`loading` is a third state, not an empty path.** A download folder always resolves to
+  something — a space's override, else the global default — so a read still in flight is a path
+  whose text has not arrived, not the absence of one. Conflating them offered a first pick for a
+  folder that already exists and flipped the button label when the read landed. The field says
+  `pathField.loading` and the button already reads "Change".
+- **The placeholder is `text-on-surface-variant`, never `text-outline`.** `outline` is the
+  badge/dropzone *border* token; as the field's only content it measures 2.63:1 (light) and 1.90:1
+  (dark) at 70% opacity, well under the 4.5:1 AA floor. The muted-text token clears it in both
+  themes (8.4–12:1), and italic is what still reads it as a hint.
 - **`fill` picks the ramp step**, because the ground differs: `low` (default) sits on a modal
   panel, which is `surface-container-lowest`. A settings card is itself `surface-container-low` —
   same token, same hex in both themes — so a row inside one passes `fill="lowest"` or the field
