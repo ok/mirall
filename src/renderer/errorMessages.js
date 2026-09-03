@@ -39,6 +39,12 @@ export const ERROR_I18N_KEY_BY_CODE = {
   SHARE_NOT_FOUND: 'shareNotFound',
   SHARE_MODE_UNSUPPORTED: 'shareModeUnsupported',
   SPACE_UNSUPPORTED: 'spaceUnsupported',
+  DRIVE_NOT_FOUND: 'spaceIndexUnavailable',
+  INVITE_INVALID: 'inviteInvalid',
+  INVITE_EXPIRED: 'inviteExpired',
+  LEAVE_IN_PROGRESS: 'leaveInProgress',
+  NOT_A_MEMBER: 'notAMember',
+  EOWNERSHIP: 'notApprovedForSpace',
 }
 
 export function errorI18nKey (code, fallbackKey) {

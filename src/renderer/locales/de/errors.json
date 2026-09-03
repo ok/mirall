@@ -37,5 +37,12 @@
   "sourceFolderMissing": "Mirall findet diesen Ordner nicht auf der Festplatte. Suche ihn und versuche es erneut.",
   "fileNotOnDevice": "Diese Datei ist noch nicht auf diesem Gerät.",
   "fileSourceMissing": "Mirall hat diese Datei auf der Festplatte verloren, sie wird daher nicht mehr geteilt.",
-  "shareModeUnsupported": "Dieser Ordner wurde auf eine Art geteilt, die diese Mirall-Version nicht öffnen kann."
+  "shareModeUnsupported": "Dieser Ordner wurde auf eine Art geteilt, die diese Mirall-Version nicht öffnen kann.",
+  "spaceIndexUnavailable": "Dieser Space ist noch nicht bereit. Versuche es gleich noch einmal.",
+  "inviteInvalid": "Dieser Einladungscode ist ungültig.",
+  "inviteExpired": "Dieser Einladungslink ist abgelaufen. Bitte um einen neuen.",
+  "leaveInProgress": "Mirall schließt gerade dein letztes Verlassen dieses Space ab. Versuche es gleich noch einmal.",
+  "notAMember": "Du kannst andere erst einladen, wenn du für diesen Space freigegeben wurdest.",
+  "notApprovedForSpace": "Du wurdest für diesen Space noch nicht freigegeben und kannst daher nichts darin teilen.",
+  "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen."
 }

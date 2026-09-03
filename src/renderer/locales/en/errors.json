@@ -37,5 +37,12 @@
   "sourceFolderMissing": "Mirall can't find this folder on disk. Locate it, then try again.",
   "fileNotOnDevice": "This file isn't on this device yet.",
   "fileSourceMissing": "Mirall lost track of this file on disk, so it isn't shared any more.",
-  "shareModeUnsupported": "This folder was shared in a way this version of Mirall can't open."
+  "shareModeUnsupported": "This folder was shared in a way this version of Mirall can't open.",
+  "spaceIndexUnavailable": "This space isn't ready yet. Try again in a moment.",
+  "inviteInvalid": "That invite code is not valid.",
+  "inviteExpired": "This invite link has expired. Ask for a new one.",
+  "leaveInProgress": "Mirall is still finishing your last leave of this space. Try again in a moment.",
+  "notAMember": "You can only invite others once you've been approved for this space.",
+  "notApprovedForSpace": "You haven't been approved for this space yet, so you can't share into it.",
+  "unexpected": "Something went wrong. Try again — if it keeps happening, send feedback from Settings."
 }

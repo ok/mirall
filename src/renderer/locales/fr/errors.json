@@ -37,5 +37,12 @@
   "sourceFolderMissing": "Mirall ne trouve pas ce dossier sur le disque. Localisez-le, puis réessayez.",
   "fileNotOnDevice": "Ce fichier n'est pas encore sur cet appareil.",
   "fileSourceMissing": "Mirall a perdu la trace de ce fichier sur le disque ; il n'est donc plus partagé.",
-  "shareModeUnsupported": "Ce dossier a été partagé d'une manière que cette version de Mirall ne peut pas ouvrir."
+  "shareModeUnsupported": "Ce dossier a été partagé d'une manière que cette version de Mirall ne peut pas ouvrir.",
+  "spaceIndexUnavailable": "Cet espace n'est pas encore prêt. Réessayez dans un instant.",
+  "inviteInvalid": "Ce code d'invitation n'est pas valide.",
+  "inviteExpired": "Ce lien d'invitation a expiré. Demandez-en un nouveau.",
+  "leaveInProgress": "Mirall termine encore votre dernier départ de cet espace. Réessayez dans un instant.",
+  "notAMember": "Vous pouvez inviter d'autres personnes une fois votre adhésion approuvée dans cet espace.",
+  "notApprovedForSpace": "Votre adhésion à cet espace n'est pas encore approuvée, vous ne pouvez donc rien y partager.",
+  "unexpected": "Une erreur s'est produite. Réessayez — si cela persiste, envoyez un commentaire depuis les Réglages."
 }
