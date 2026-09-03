@@ -951,7 +951,7 @@
       "membership.requested": "{{actor}} demande à rejoindre",
       "membership.approved": "Vous avez approuvé {{target}}",
       "membership.denied": "Vous avez refusé {{target}}",
-      "membership.granted": "{{actor}} a obtenu l'accès",
+      "membership.granted": "{{actor}} vous a donné accès à {{target}}",
       "membership.approval_revoked": "Votre approbation de {{target}} ne s'applique plus",
       "member.joined": "{{actor}} a rejoint l'espace",
       "member.left": "{{actor}} a quitté l'espace",

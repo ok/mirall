@@ -69,12 +69,19 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
               one undifferentiated line. Emphasis is weight + the accent colour, the app's
               existing in-body emphasis; a highlight fill would collide with the status palette's
               five fixed meanings. */}
+          {/* One logical string = one accessible node. The emphasis above splits the sentence
+              across spans, which macOS surfaces as separate AXStaticText leaves — VoiceOver then
+              reads "Alice", "gave you access to", "Aurora" as three fragments. The whole sentence
+              is exposed once for assistive tech, and the visible pieces are hidden from it. */}
           <p className="text-sm text-on-surface-variant min-w-0">
-            {splitSentence(t(sentenceKey(entry), sentinelValues()), sentenceValues(entry)).map((seg, i) => (
-              seg.field
-                ? <span key={i} className="font-semibold text-accent">{seg.value}</span>
-                : <span key={i}>{seg.text}</span>
-            ))}
+            <span className="sr-only">{t(sentenceKey(entry), sentenceValues(entry))}</span>
+            <span aria-hidden="true">
+              {splitSentence(t(sentenceKey(entry), sentinelValues()), sentenceValues(entry)).map((seg, i) => (
+                seg.field
+                  ? <span key={i} className="font-semibold text-accent">{seg.value}</span>
+                  : <span key={i}>{seg.text}</span>
+              ))}
+            </span>
           </p>
           {badge && (
             <span className={`inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline shrink-0 ${badgeClasses}`}>
@@ -305,7 +312,13 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                     would otherwise stretch the screen without limit as pages are appended. It
                     also makes the day headings pin the way they are meant to — against the list,
                     not the page. */}
-                <div className="max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
+                {/* `relative` makes this pane the containing block for the `sr-only` spans inside
+                    the rows (each row's full sentence). They are `position: absolute`, so without
+                    it they resolve against the initial containing block, the pane cannot clip
+                    them, and a row below the fold drops its span past the viewport bottom —
+                    growing the DOCUMENT into an OS scrollbar. SpaceView and FolderView carry it
+                    on their panes for exactly this. */}
+                <div className="relative max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
                 <ul>
                   {groups.map((group) => (
                     <li key={group.key}>

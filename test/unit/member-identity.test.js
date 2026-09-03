@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { mergeMemberIdentity } from '../../src/shared/spaces/member-identity.js'
+import { mergeMemberIdentity, displayNameOrNull, UNKNOWN_NAME } from '../../src/shared/spaces/member-identity.js'
 
 const K = 'a'.repeat(64)
 const DK = 'd'.repeat(64)
@@ -56,4 +56,21 @@ test('no change → changed=false (skips the write+emit)', (t) => {
     publicKey: K, meta: { displayName: 'Steve', avatar: 'data:steve', driveKey: DK }, profile: null, held,
   })
   t.absent(changed)
+})
+
+// An audit row snapshots the name at write time and never joins at render, so the placeholder this
+// module mints must not reach one — it would pin a fake, untranslated name forever, where null
+// degrades to the correlatable short key instead.
+test('displayNameOrNull refuses the placeholder this module mints', (t) => {
+  t.is(displayNameOrNull('Steve'), 'Steve')
+  t.is(displayNameOrNull(UNKNOWN_NAME), null, 'the placeholder is not a name')
+  t.is(displayNameOrNull(null), null)
+  t.is(displayNameOrNull(undefined), null)
+  t.is(displayNameOrNull(''), null)
+})
+
+test('the placeholder it refuses is the one mergeMemberIdentity writes', (t) => {
+  const { entry } = mergeMemberIdentity({ publicKey: K, meta: null, profile: null, held: null })
+  t.is(entry.displayName, UNKNOWN_NAME, 'one constant, so the two cannot drift apart')
+  t.is(displayNameOrNull(entry.displayName), null)
 })

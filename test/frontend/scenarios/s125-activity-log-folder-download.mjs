@@ -47,14 +47,16 @@ export default async function s125 ({ runDir, bootstrap }) {
       await B.shot('s125-folder-download-row', runDir)
     })
 
-    // The C4 change, and the only part of this a user can see. One logical string per accessible
-    // node: the folder name must be its own AX text leaf, not a fragment of a joined meta string.
+    // The folder segment on the meta line is the only part of the audit change a user can see.
     await r.ok('the row names the folder as well as the space', async () => {
-      const nodes = flatten(await B.snap())
-      assert(nodes.some((n) => n.name === 'Aurora' || n.value === 'Aurora'), 'the space is named on the row')
+      // Assert the DOWNLOAD row's own meta line, not merely that the string exists somewhere:
+      // 'Brand Assets' also appears in the "Alice shared the folder Brand Assets" row above, so a
+      // bare substring search passes even when the segment under test is missing entirely.
+      const nodes = flatten(await B.snap()).map((n) => n.name || n.value || '')
+      assert(nodes.some((n) => n.includes('You downloaded logo.txt')), 'the download row names the file')
       assert(
-        nodes.some((n) => n.name === 'Brand Assets' || n.value === 'Brand Assets'),
-        'the folder is named on the row, as one accessible node — without it a folder row reads exactly like a loose one'
+        nodes.some((n) => n.startsWith('Aurora · Brand Assets')),
+        'and its meta line names the space AND the folder — without the folder a folder row reads exactly like a loose one'
       )
     })
 
