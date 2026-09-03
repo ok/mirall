@@ -7,6 +7,7 @@
 import { Subsystem } from '../../../core/subsystem.js'
 import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-config.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'
+import { drainTransferAudit } from '../../transfer-audit.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import {
@@ -73,6 +74,10 @@ export class OverlayBackend extends Subsystem {
     this.folderEngine?.drainAdmission()
     this.looseEngine?.drainAdmission()
     await teardownOverlay()
+    // After the teardown, which settles the in-flight fetches that produce these rows, and before
+    // the durable tier closes the audit bee: boot.js starts the audit log in `durable` and this
+    // subsystem in `life`, so `life` is always torn down first.
+    await drainTransferAudit()
     this.overlay = null
     setFolderEngine(null)
     setLooseEngine(null)

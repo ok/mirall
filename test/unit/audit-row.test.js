@@ -134,6 +134,23 @@ test("REGRESSION (FIX-META-I18N: the meta line's file count is translatable)", (
   for (const part of parts) t.ok(part.key || typeof part.text === 'string', 'every part is resolvable')
 })
 
+test('a folder-file transfer names its folder, between the space and the size', (t) => {
+  const parts = metaParts(row({
+    kind: 'transfer.completed',
+    subject: { folder: 'Brand Assets', bytes: 2411724, ownerKey: 'abc', shareId: 'sh1' },
+  }))
+  t.alike(parts.map((p) => p.text), ['Design Team', 'Brand Assets', formatBytes(2411724)])
+})
+
+test('a loose-file transfer renders no folder segment', (t) => {
+  const parts = metaParts(row({ kind: 'transfer.completed', subject: { folder: null, bytes: 1024 } }))
+  t.alike(parts.map((p) => p.text), ['Design Team', formatBytes(1024)])
+})
+
+test('an empty folder name renders nothing rather than an empty segment', (t) => {
+  t.alike(metaParts(row({ subject: { folder: '' } })), [{ text: 'Design Team' }])
+})
+
 test('meta line omits absent detail rather than printing empties', (t) => {
   t.alike(metaParts(row({ space: null, subject: null })), [])
   t.alike(metaParts(row({ subject: { bytes: null, fileCount: null } })), [{ text: 'Design Team' }])

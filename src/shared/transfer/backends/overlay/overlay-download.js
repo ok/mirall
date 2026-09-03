@@ -15,6 +15,7 @@ import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,
 } from '../../pending-transfers.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
+import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
@@ -129,6 +130,17 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       log.warn('could not persist the transfer error — auto-resume is suppressed only until restart:', job.relPath, code, '-', err.message)
     }
   }
+
+  // The single terminal-failure exit. Every failing path lands here so the audit row cannot
+  // depend on which channel is driving — the divergence that left folder-share downloads
+  // unrecorded for the whole life of the Activity Log. `recordTerminal` stays at its own call
+  // sites: three of the four await it and the supersede-restart deliberately does not.
+  function failTerminal (job, code) {
+    recordTransferOutcome(job, 'error', code)
+    channel.emitError(job, code)
+    channel.emitUpdated(job.spaceId)
+  }
+
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
   // transferId -> { dry, bytes, timer } for a stall being retried. `dry` counts CONSECUTIVE
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
@@ -281,8 +293,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     else if (code === ErrorCodes.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
     else log.debug('overlay fetch failed:', job.relPath, '-', r.code)
     await recordTerminal(job, code)
-    channel.emitError(job, code)
-    channel.emitUpdated(job.spaceId)
+    failTerminal(job, code)
   }
 
   // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish
@@ -388,6 +399,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       log.warn('could not clear the pending row of a completed download:', job.relPath, '-', err.message)
     }
     channel.emitUpdated(job.spaceId)
+    recordTransferOutcome(job, 'ok', null)
     channel.emitComplete(job, job.finalPath)
   }
 
@@ -451,8 +463,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
         registry.delete(transferId)
         log.warn('overlay download refused — download folder unavailable:', path.dirname(job.finalPath))
         await recordTerminal(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
-        channel.emitError(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
-        channel.emitUpdated(job.spaceId)
+        failTerminal(job, ErrorCodes.TRANSFER_DEST_UNAVAILABLE)
         return { queued: true }
       }
 
@@ -465,8 +476,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
         registry.delete(transferId)
         log.warn('overlay download refused — not enough free disk space:', job.relPath, 'needs', job.size, 'bytes')
         await recordTerminal(job, ErrorCodes.TRANSFER_DISK_FULL)
-        channel.emitError(job, ErrorCodes.TRANSFER_DISK_FULL)
-        channel.emitUpdated(job.spaceId)
+        failTerminal(job, ErrorCodes.TRANSFER_DISK_FULL)
         return { queued: true }
       }
 
@@ -611,8 +621,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       (res) => { if (res && res.queued) channel.emitPaused?.(job, pauseReasonFor(job)) },
       (err) => {
         log.debug('overlay supersede-restart failed:', err.message)
-        channel.emitError(job, ErrorCodes.DOWNLOAD_FAILED)
-        channel.emitUpdated(job.spaceId)
+        failTerminal(job, ErrorCodes.DOWNLOAD_FAILED)
       },
     )
   }

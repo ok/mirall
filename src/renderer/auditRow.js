@@ -186,6 +186,9 @@ export function metaParts(entry) {
   const parts = []
   if (entry.space?.name) parts.push({ text: entry.space.name })
   const subject = entry.subject || {}
+  // Which folder a transferred file came from. A proper noun like the space name, so it is pushed
+  // as text and needs no catalogue entry; null on a loose file, which renders no segment.
+  if (typeof subject.folder === 'string' && subject.folder) parts.push({ text: subject.folder })
   if (Number.isFinite(subject.fileCount)) {
     const files = formatCount(subject.fileCount)
     if (files !== null) {

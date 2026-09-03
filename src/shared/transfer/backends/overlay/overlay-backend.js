@@ -509,6 +509,7 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
     if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
     engine().supersede(transferId, {
       spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
+      folderName: folderLabel(share),
       transferId,
       contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
       ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
@@ -532,6 +533,11 @@ async function peerEntry(spaceId, share, relPath) {
 // (parity with the loose path's per-space path keys). The renderer merges it at render, gated on
 // the worker-derived status, so a lingering entry after a missed `done` stays invisible.
 const shareDeco = (job, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId: job.spaceId, key: shareDecoKey(job.shareId, job.relPath), ...p })
+
+// The label share:rename writes, carried on the job so the engine's audit row can name the folder
+// without a join — a row outlives the share it describes. Null when the owner's descriptor is
+// unreadable (offline), which is still worth recording.
+const folderLabel = (share) => share?.displayName || share?.name || null
 
 let folderEngine = null
 
@@ -593,6 +599,7 @@ export const folderChannel = {
       removed: false, seq: state.seq,
       job: {
         spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId, ...catalogKeyField(keyHex, encrypted),
+        folderName: folderLabel(share),
         transferId: transferIdFor(spaceId, row.shareId, row.relPath),
         contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
         ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
@@ -622,6 +629,7 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
   return engine().start({
     express: true,
     spaceId, pendingKey: drivePath, path: drivePath, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
+    folderName: folderLabel(share),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
     ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
