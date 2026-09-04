@@ -36,3 +36,16 @@ export function republishDecision (inflightHash, state, sourceSeq) {
   if (inflightHash == null || state.contentHash === inflightHash) return 'drop'
   return 'restart'
 }
+
+// The whole ladder an active slot is put through when its owner's catalog appends: the
+// re-publish classification first, then the plain hash-change check for everything it left
+// as 'continue'. Both consumer channels reconcile their slots with this one rule.
+//
+//   'drop' | 'pending' — as republishDecision
+//   'restart'          — supersede the slot from byte 0
+//   'keep'             — nothing changed under this slot
+export function activeSlotAction (inflightHash, state, sourceSeq) {
+  const decision = republishDecision(inflightHash, state, sourceSeq)
+  if (decision !== 'continue') return decision
+  return supersedeDecision(inflightHash, state?.contentHash) === 'restart' ? 'restart' : 'keep'
+}
