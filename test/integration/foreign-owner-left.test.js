@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
 import { generateShareId } from '../../src/shared/shares/shares.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
@@ -23,7 +23,7 @@ test('REGRESSION (FIX-4): the materialize loop unmounts a mirror once its owner 
 
   // The owner is a member; we hold a foreign mount for its (unreadable — no live bee) share.
   await updateMembers(spaceId, [{ publicKey: ownerKey, driveKey: null, displayName: 'Owner' }])
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey, mountPath: ctx.tmpDir('mirror'),
     enabled: true, status: 'active', syncedPaths: [], renamedPaths: {},
   })

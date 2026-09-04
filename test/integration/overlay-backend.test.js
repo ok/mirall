@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
@@ -43,7 +43,7 @@ async function setup (t, { files = {} } = {}) {
   }
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount')
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
   for (const [rel, contents] of Object.entries(files)) {
     const abs = path.join(mountPath, ...rel.split('/'))
     fs.mkdirSync(path.dirname(abs), { recursive: true })

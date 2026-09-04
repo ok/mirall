@@ -161,7 +161,7 @@ import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { boot } from './boot.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
-import { saveOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import {
   handleFsEventFromMain,
@@ -184,7 +184,7 @@ import {
   relocateForeignFolder,
   recordMirrorScanFault,
 } from '../shared/folders/foreign-folders.js'
-import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
+import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -973,7 +973,7 @@ ipc.handle('owned-folder:mount', async (msg) => {
     ignore,
     createdAt: Date.now(),
   }
-  await saveOwnedMount(mount)
+  await createOwnedMount(mount)
   // Seed the probe baseline so the first mount-point tick doesn't read this brand-new mount as a
   // gone→present transition (which would otherwise run against an unseeded key).
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, mountRootAvailable(mountPath))
@@ -1041,8 +1041,11 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
   const previousMountPath = mount.mountPath
+  // By patch, not by writing back the whole `mount` this handler read at the top: validateMountPath
+  // runs in between and a concurrent probe or scan settle can have persisted a status against the
+  // record since, which a stale whole-object write would silently drop.
+  await patchOwnedMount(msg.spaceId, msg.shareId, { mountPath })
   mount.mountPath = mountPath
-  await saveOwnedMount(mount)
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
   await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? 'paused' : 'scanning')

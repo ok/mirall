@@ -2,6 +2,7 @@
 // backs which share (a "mount"), on both the owned and the foreign/mirror side,
 // plus per-mount sync state (enabled, status, syncedPaths, renamedPaths).
 import { createLocalBee, storeEpoch } from '../core/store.js'
+import { createRecordWriter } from '../core/bee-writer.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 
@@ -12,6 +13,14 @@ const FOREIGN_PREFIX = 'foreign-folder-mount/'
 
 let bee
 let beeStore = -1
+
+// The ONLY write path for a mount record — create, read-modify-write and delete alike, serialized
+// per key. The read-merge helpers below each narrowed their clobber window with a fresh read; this
+// closes it. The delete goes through it too, or an unmount landing mid-mutation would be undone by
+// that mutation's write.
+const records = createRecordWriter({ bee: () => bee, log })
+
+const mutateOwned = (spaceId, shareId, apply) => records.mutate(ownedKey(spaceId, shareId), apply)
 
 export async function initMounts() {
   if (bee && beeStore === storeEpoch() && !bee.core.closed) return
@@ -29,8 +38,10 @@ function foreignKey(spaceId, shareId) {
   return FOREIGN_PREFIX + spaceId + '/' + shareId
 }
 
-export async function saveOwnedMount(mount) {
-  await bee.put(ownedKey(mount.spaceId, mount.shareId), mount)
+// The first write of a record that does not exist yet. Deliberately not a merge: a create cannot go
+// through mutate(), which refuses a missing record.
+export async function createOwnedMount(mount) {
+  await records.put(ownedKey(mount.spaceId, mount.shareId), mount)
 }
 
 export async function getOwnedMount(spaceId, shareId) {
@@ -39,53 +50,36 @@ export async function getOwnedMount(spaceId, shareId) {
 }
 
 export async function deleteOwnedMount(spaceId, shareId) {
-  await bee.del(ownedKey(spaceId, shareId))
+  await records.del(ownedKey(spaceId, shareId))
 }
 
 // Durable status for an owned mount (mirrors the foreign mount.status field): the boot
 // loop and probe read/write it so a scan failure survives a restart instead of living
 // only in a transient renderer event. No-op when the mount record is gone (unmounted).
-export async function setOwnedMountStatus(spaceId, shareId, status, lastError = null) {
-  const key = ownedKey(spaceId, shareId)
-  const entry = await bee.get(key)
-  if (!entry?.value) return false
-  if (entry.value.status === status && (entry.value.lastError ?? null) === lastError) return true
-  await bee.put(key, { ...entry.value, status, lastError })
-  return true
+export function setOwnedMountStatus(spaceId, shareId, status, lastError = null) {
+  return mutateOwned(spaceId, shareId, (m) =>
+    (m.status === status && (m.lastError ?? null) === lastError) ? null : { ...m, status, lastError })
 }
 
 // Durable user intent: this folder's index is paused until an explicit resume. A FIELD, not a
 // status, because four writers overwrite status (a scan settle, the mount-gone path, mount,
-// relocate) and a pause recorded only there is lost at the next settle. Read-merge for the same
-// reason as below. No-op (false) when the record is gone.
-export async function setOwnedIndexPaused(spaceId, shareId, paused) {
-  const key = ownedKey(spaceId, shareId)
-  const entry = await bee.get(key)
-  if (!entry?.value) return false
-  if (!!entry.value.indexPaused === !!paused) return true
-  await bee.put(key, { ...entry.value, indexPaused: !!paused })
-  return true
+// relocate) and a pause recorded only there is lost at the next settle. No-op (false) when the
+// record is gone.
+export function setOwnedIndexPaused(spaceId, shareId, paused) {
+  return mutateOwned(spaceId, shareId, (m) =>
+    (!!m.indexPaused === !!paused) ? null : { ...m, indexPaused: !!paused })
 }
 
-// Patch an owned mount's bookkeeping through a fresh read-merge, for the same reason
-// patchForeignMount exists: a whole-object write-back would clobber whatever a concurrent scan
-// settle or probe persisted meanwhile. No-op (false) when the record is gone.
-export async function patchOwnedMount(spaceId, shareId, patch) {
-  const key = ownedKey(spaceId, shareId)
-  const entry = await bee.get(key)
-  if (!entry?.value) return false
-  await bee.put(key, { ...entry.value, ...patch })
-  return true
+// Patch an owned mount's bookkeeping. No-op (false) when the record is gone.
+export function patchOwnedMount(spaceId, shareId, patch) {
+  return mutateOwned(spaceId, shareId, (m) => ({ ...m, ...patch }))
 }
 
-// Stamp lastScanCompletedAt via a fresh read-merge rather than writing back a whole mount
-// object captured before a minutes-long scan — that stale write-back would clobber a
-// status/mountPath a concurrent probe or relocate persisted mid-scan. No-op if unmounted.
-export async function touchOwnedMountScan(spaceId, shareId) {
-  const key = ownedKey(spaceId, shareId)
-  const entry = await bee.get(key)
-  if (!entry?.value) return
-  await bee.put(key, { ...entry.value, lastScanCompletedAt: Date.now() })
+// Stamp lastScanCompletedAt from the record as it is NOW, never from a whole mount object captured
+// before a minutes-long scan — that stale write-back would clobber a status/mountPath a concurrent
+// probe or relocate persisted mid-scan. No-op if unmounted.
+export function touchOwnedMountScan(spaceId, shareId) {
+  return mutateOwned(spaceId, shareId, (m) => ({ ...m, lastScanCompletedAt: Date.now() }))
 }
 
 export async function listOwnedMounts() {
@@ -96,20 +90,21 @@ export async function listOwnedMounts() {
   return out
 }
 
-export async function saveForeignMount(mount) {
-  await bee.put(foreignKey(mount.spaceId, mount.shareId), mount)
+// The first write of a mirror record. See createOwnedMount.
+export async function createForeignMount(mount) {
+  await records.put(foreignKey(mount.spaceId, mount.shareId), mount)
 }
 
-// Patch a foreign mount's sync bookkeeping through a fresh read-merge, never a whole-object
-// write-back: the object a materialize pass holds was loaded before a possibly hours-long pass,
-// so writing it back would clobber a pause / status / enabled flag persisted meanwhile — or
-// resurrect a record unmount already deleted. No-op (false) when the record is gone.
-export async function patchForeignMount(spaceId, shareId, patch) {
-  const key = foreignKey(spaceId, shareId)
-  const entry = await bee.get(key)
-  if (!entry?.value) return false
-  await bee.put(key, { ...entry.value, ...patch })
-  return true
+// Derive a mirror record's next value from the record as it is NOW, never from a whole object a
+// caller has been holding: the object a materialize pass holds was loaded before a possibly
+// hours-long pass, so writing it back would clobber a pause / status / enabled flag persisted
+// meanwhile. No-op (false) when the record is gone.
+export function mutateForeignMount(spaceId, shareId, apply) {
+  return records.mutate(foreignKey(spaceId, shareId), apply)
+}
+
+export function patchForeignMount(spaceId, shareId, patch) {
+  return mutateForeignMount(spaceId, shareId, (m) => ({ ...m, ...patch }))
 }
 
 export async function getForeignMount(spaceId, shareId) {
@@ -118,7 +113,7 @@ export async function getForeignMount(spaceId, shareId) {
 }
 
 export async function deleteForeignMount(spaceId, shareId) {
-  await bee.del(foreignKey(spaceId, shareId))
+  await records.del(foreignKey(spaceId, shareId))
 }
 
 export async function listForeignMounts() {

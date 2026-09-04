@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { materializeCatalogFile, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
 
 // src/shared/folders/ contained ZERO record( calls: a mirror holder serving bytes that fail their
@@ -40,7 +40,7 @@ async function setup (t) {
     spaceId: space.spaceId, shareId: SHARE, ownerKey: OWNER,
     mountPath, enabled: true, status: 'active', syncedPaths: [],
   }
-  await saveForeignMount(mount)
+  await createForeignMount(mount)
   const share = { id: SHARE, name: 'Brand Assets', owner: OWNER, spaceId: space.spaceId }
   return { ctx, space, mount, share, mountPath }
 }
@@ -155,7 +155,7 @@ test('unmounting re-arms the memo — a remount is a fresh session', async (t) =
   await materializeCatalogFile(mount, share, entry())
   await quiet()
   await unmountForeignFolder(mount.spaceId, mount.shareId)
-  await saveForeignMount(mount)
+  await createForeignMount(mount)
   await materializeCatalogFile(mount, share, entry())
   await quiet()
 
