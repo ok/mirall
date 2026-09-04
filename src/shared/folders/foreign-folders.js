@@ -36,13 +36,6 @@ import { createMirrorLoops } from './mirror-loop.js'
 import { createMirrorState, localRelOf } from './mirror-state.js'
 import { shouldWalk } from './mirror-walk.js'
 
-// Kept on this module so the worker and the existing tests keep their `./foreign-folders.js`
-// import path while the implementations live where they belong: the deletion gate in
-// `path-keys.js`, the preview in `foreign-preview.js`, and the on-disk path a renamed entry was
-// materialized as in `mirror-state.js` (share-listing must resolve it the way the engine wrote it).
-export { shouldHonorDeletions, localRelOf }
-export { previewMaterializeScan } from './foreign-preview.js'
-
 const log = createLogger('foreign-folders')
 
 // The loop engine. Everything mount-specific stays here; the interval, the one-pass-at-a-time

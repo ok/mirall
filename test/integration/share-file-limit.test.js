@@ -3,8 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import {
-  initialPublishScan, previewInitialPublishScan, periodicReconcile, onFsEvent, countFolderFiles,
+  initialPublishScan, periodicReconcile, onFsEvent, countFolderFiles,
 } from '../../src/shared/folders/owned-folders.js'
+import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
