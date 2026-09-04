@@ -7,7 +7,7 @@ import {
   pathsOverlap, pathContains, overlapAllowed,
   DEFAULT_IGNORE, shouldIgnore,
   shouldHonorDeletions,
-  splitFileName, nextFreeName,
+  splitFileName, nextFreeName, conflictCopyName,
   systemRootViolation, personalRootViolation, isWindowsReservedName, firstWinReservedSegment, cloudSyncHint,
 } from '../../src/shared/folders/path-keys.js'
 
@@ -342,4 +342,18 @@ test('REGRESSION (MIR-23): content-backend serve path rejects the read PoC keys'
   t.ok(relKeyEscapes('../../../../etc/passwd'), 'the serve PoC read key is rejected')
   t.ok(relKeyEscapes('..\\..\\Windows\\System32\\drivers\\etc\\hosts'), 'Windows-separator traversal rejected')
   t.absent(relKeyEscapes('reports/q3.pdf'), 'a legitimate advertised file is accepted')
+})
+
+// D2: the name a mirrored file's local edit is moved aside to before the owner's version is
+// written back over the canonical path.
+test('conflictCopyName preserves the extension and steps aside on collision', (t) => {
+  const free = () => false
+  t.is(conflictCopyName('note.txt', free), 'note (conflicted copy).txt')
+  t.is(conflictCopyName('archive.tar.gz', free), 'archive.tar (conflicted copy).gz', 'splits like path.extname')
+  t.is(conflictCopyName('LICENSE', free), 'LICENSE (conflicted copy)', 'no extension, no stray dot')
+  t.is(conflictCopyName('.bashrc', free), '.bashrc (conflicted copy)', 'a dotfile is a name, not an extension')
+
+  const taken = new Set(['note (conflicted copy).txt'])
+  t.is(conflictCopyName('note.txt', (n) => taken.has(n)), 'note (conflicted copy) (1).txt',
+    'a second conflict does not clobber the first')
 })

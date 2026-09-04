@@ -208,6 +208,15 @@ export function nextFreeName (fileName, isTaken) {
   return candidate
 }
 
+// The name a mirrored file's LOCAL edit is moved aside to before the owner's version is written
+// back over the canonical path. A mirror is owner-authoritative — the owner's bytes belong at the
+// natural name — but that does not require destroying what the user wrote. Same shape as every
+// other file manager's conflict copy, and `nextFreeName` handles the second and third collision.
+export function conflictCopyName (fileName, isTaken) {
+  const { base, ext } = splitFileName(fileName)
+  return nextFreeName(`${base} (conflicted copy)${ext}`, isTaken)
+}
+
 // ─── mount path rejection rules ───────────────────────────────────────────────
 export const SYSTEM_FOLDERS = {
   darwin: ['/System', '/usr', '/bin', '/sbin', '/Library/Apple', '/private/var'],
