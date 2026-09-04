@@ -6,10 +6,10 @@
 // record, and a peer's name needs that peer online or replicated — so a row holding only ids
 // would render raw hex forever. Hence a name snapshot on every participant, taken at write time.
 import { isKnownKind, categoryOf, tierOf } from '../contract/audit-kinds.js'
+import { NAME_MAX } from '../contract/limits.js'
 
 export const SCHEMA_VERSION = 1
 
-const NAME_MAX = 80
 const SEARCH_MAX = 300
 const CODE_MAX = 64
 const OUTCOMES = ['ok', 'denied', 'error']
