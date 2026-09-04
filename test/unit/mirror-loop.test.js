@@ -26,6 +26,25 @@ test('a tick arriving mid-pass coalesces into exactly one follow-up', async (t) 
   t.is(started, 2, 'and produced exactly ONE follow-up, not three')
 })
 
+// REGRESSION (FIX-MIRROR-ADOPT: an adopted pass — the boot materialize scan — was tracked without a
+// ctx, and the settle read `dirty.delete(key) && ctx`. That CONSUMED the coalesced follow-up and
+// then dropped it, so a resume or a catalog change landing during the initial scan did nothing at
+// all and the mirror sat idle until the next poll interval.)
+test('REGRESSION (FIX-MIRROR-ADOPT): a tick arriving during an adopted pass still runs after it', async (t) => {
+  let started = 0
+  const gate = deferred()
+  const loops = createMirrorLoops({ ...NEVER(), runPass: async () => { started++ } })
+
+  const adopted = loops.adopt('k', gate.promise, { spaceId: 'sp', shareId: 'sh' })
+  loops.tick('k', { spaceId: 'sp', shareId: 'sh' })
+  t.is(started, 0, 'the request joined the adopted pass rather than starting a second one')
+
+  gate.resolve()
+  await adopted
+  await settle()
+  t.is(started, 1, 'and ran once the adopted pass settled')
+})
+
 test('a request arriving mid-pass gets the pass in flight, not a fresh one', async (t) => {
   const gate = deferred()
   const loops = createMirrorLoops({ ...NEVER(), runPass: async () => { await gate.promise } })

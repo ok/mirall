@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import path from 'path'
 import * as contract from '../../src/shared/contract/index.js'
 
@@ -36,6 +36,32 @@ test('REGRESSION (FIX-CONTRACT-DRIFT): every declared export exists at runtime',
 
   for (const name of declared) t.ok(name in contract, `${name} is declared but not exported at runtime`)
   for (const name of Object.keys(contract)) t.ok(declared.has(name), `${name} is exported but not declared`)
+})
+
+// index.js re-exports most of the package but not all of it, and the check above only reaches what
+// it re-exports — so mount-fault.d.ts declared a vocabulary nothing compared against its runtime,
+// while its own header said the opposite. Per FILE, against the module it declares: a fourth
+// AUTO_PAUSE_STATUSES entry would otherwise have reached the renderer's union silently.
+test('every declaration file matches the module it declares', async (t) => {
+  const files = readdirSync(dir).filter((f) => f.endsWith('.d.ts') && f !== 'index.d.ts')
+  t.ok(files.length >= 10, `found ${files.length} declaration files`)
+
+  for (const file of files) {
+    const dts = readFileSync(path.join(dir, file), 'utf8')
+    const mod = await import(pathToFileURL(path.join(dir, file.replace(/\.d\.ts$/, '.js'))).href)
+
+    const declared = [...dts.matchAll(/^export declare (?:const|function) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1])
+    for (const name of declared) t.ok(name in mod, `${file}: ${name} is declared but not exported at runtime`)
+    for (const name of Object.keys(mod)) t.ok(declared.includes(name), `${file}: ${name} is exported but not declared`)
+
+    // Tuples get an exact comparison for the same reason the status tuples do below: types.ts
+    // derives unions with (typeof X)[number], so a drifted tuple does not mistype a value — it
+    // changes which strings the renderer's exhaustive switches accept.
+    for (const m of dts.matchAll(/^export declare const ([A-Za-z_$][\w$]*): readonly \[([^\]]+)\]/gm)) {
+      const values = [...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1])
+      t.alike(values, [...(mod[m[1]] ?? [])], `${file}: ${m[1]} declaration matches its implementation`)
+    }
+  }
 })
 
 test('every vocabulary is frozen', (t) => {
