@@ -62,6 +62,20 @@ export const chokidarSingleOwnerRestrictions = [
   { selector: "ImportDeclaration[source.value='chokidar']", message: chokidarMessage },
 ]
 
+// Presentation invariant: one byte size means one string. src/renderer/formatSize.js owns the
+// decimal (SI) ladder because the divisor and the labels have to agree — a binary 1024 divisor
+// under KB/MB/GB labels reads ~7-10% below what the OS shows for the same file. auditRow.js grew a
+// second ladder that did exactly that, so the Activity Log printed every size ~7.4% low while
+// every other screen printed it right, and a unit test pinned the wrong numbers. A unit-ladder
+// array literal is the shape a re-implementation always takes; naming the array differently
+// changes nothing here. Exported so test/unit/byte-formatter-single-owner.test.js enforces the
+// same grammar through eslint's parser.
+const byteLadderMessage = 'Only src/renderer/formatSize.js may declare a byte-unit ladder — call formatSize so the divisor and the labels stay in one place.'
+export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB', 'TiB'].map((unit) => ({
+  selector: `ArrayExpression > Literal[value='${unit}']`,
+  message: byteLadderMessage,
+}))
+
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
   // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
@@ -82,7 +96,7 @@ export default [
       'jsx-a11y/no-autofocus': 'off',
       'jsx-a11y/label-has-associated-control': ['error', { depth: 3 }],
       'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel', 'region'] }],
-      'no-restricted-syntax': ['error', ...rendererStatusRestrictions],
+      'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions],
       ...complexityBudget,
     },
   },
@@ -125,5 +139,12 @@ export default [
   {
     files: ['src/main/watch-host.js'],
     rules: { 'no-restricted-syntax': 'off' },
+  },
+
+  // The one module the byte-ladder rule exists to protect. The renderer's status invariant still
+  // applies to it, so only the ladder restriction is dropped.
+  {
+    files: ['src/renderer/formatSize.js'],
+    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions] },
   },
 ]

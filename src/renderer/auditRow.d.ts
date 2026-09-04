@@ -42,9 +42,9 @@ export const FIELD_SENTINEL: string
 export const SENTENCE_FIELDS: string[]
 export function sentinelValues(): SentenceValues
 export function splitSentence(rendered: string, values: SentenceValues): SentenceSegment[]
-export function formatBytes(bytes: number): string | null
-export function formatCount(n: number): string | null
-export function metaParts(entry: AuditEntry): MetaPart[]
+export function formatBytes(bytes: number, locale?: string): string | null
+export function formatCount(n: number, locale?: string): string | null
+export function metaParts(entry: AuditEntry, locale?: string): MetaPart[]
 export function dayKey(ts: number, now?: number): string
 export function groupByDay(entries: AuditEntry[], now?: number): DayGroup[]
 
