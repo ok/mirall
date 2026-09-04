@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeerWithIdentity } from '../helpers/store.js'
 import { createSpace, joinSpace, getSpace, forgetSpaceRecord, markSpaceLeavingDurable, resumeInterruptedLeave } from '../../src/shared/spaces/space.js'
 import { markOwnMembership, clearOwnMembership, readMembershipRecord, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveOwnedMount, saveForeignMount, listOwnedMounts, listForeignMounts } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, createForeignMount, listOwnedMounts, listForeignMounts } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 
 // Identity mode + v2 spaces — the production-default shape for leave/teardown paths.
@@ -54,8 +54,8 @@ test('REGRESSION (G4): markOwnMembership on a mid-leave space revives it (proves
 test('REGRESSION (G4): resumeInterruptedLeave drops mount records and tombstones own share ads', async (t) => {
   await freshPeerWithIdentity(t)
   const { spaceId } = await createSpace('Umbra')
-  await saveOwnedMount({ spaceId, shareId: 'sh-own', mountPath: '/tmp/x', enabled: true })
-  await saveForeignMount({ spaceId, shareId: 'sh-for', mountPath: '/tmp/y', enabled: true })
+  await createOwnedMount({ spaceId, shareId: 'sh-own', mountPath: '/tmp/x', enabled: true })
+  await createForeignMount({ spaceId, shareId: 'sh-for', mountPath: '/tmp/y', enabled: true })
   await publishShare(spaceId, { id: 'sh-own', name: 'X' })
   t.is((await readOwnShares(spaceId)).length, 1, 'precondition: live share ad')
 

@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { relocateForeignFolder, stopForeignLoop, isAutoPaused } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -29,7 +29,7 @@ async function setupMirror (t, { enabled = true, status = null } = {}) {
   overlay.fetchFile = async () => null
   const from = ctx.tmpDir('mirror-from')
   const to = ctx.tmpDir('mirror-to')
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath: from,
     enabled, status: status ?? (enabled ? 'active' : 'paused'), attachedAt: Date.now(),
     syncedPaths: ['already.bin'], renamedPaths: { 'clash.bin': 'clash (1).bin' },

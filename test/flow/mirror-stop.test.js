@@ -11,7 +11,7 @@ function countFiles(dir) {
 
 // REGRESSION: unmounting a mirror mid-sync must actually stop the materialize
 // pass. Previously stopForeignLoop only cleared the poll timer, so an in-flight
-// scan over many files ran to completion (and its trailing saveForeignMount even
+// scan over many files ran to completion (and its trailing createForeignMount even
 // recreated the unmounted mount, resuming it on the next launch).
 test('REGRESSION (mirror): unmount mid-sync stops it and does not resurrect the mount',
   { timeout: 150000 }, async (t) => {

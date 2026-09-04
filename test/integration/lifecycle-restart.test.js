@@ -15,7 +15,7 @@ const { freshPeer, offlineMemberRegistry } = await import('../helpers/store.js')
 const { createSpace, listSpaces } = await import('../../src/shared/spaces/space.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
-const { saveOwnedMount, saveForeignMount } = await import('../../src/shared/folders/mount-store.js')
+const { createOwnedMount, createForeignMount } = await import('../../src/shared/folders/mount-store.js')
 const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
 const { startForeignLoop } = await import('../../src/shared/folders/foreign-folders.js')
 const { getStore } = await import('../../src/shared/core/store.js')
@@ -38,7 +38,7 @@ async function ownedShare (ctx) {
   }
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount')
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
   return { space, share, mountPath }
 }
 
@@ -57,7 +57,7 @@ test('REGRESSION (LIFECYCLE-1a): no data-layer interval is armed after the full 
     spaceId: space.spaceId, shareId: 'peer-share', ownerKey: 'f'.repeat(64),
     mountPath: mirrorPath, enabled: true, attachedAt: Date.now(),
   }
-  await saveForeignMount(mirror)
+  await createForeignMount(mirror)
   await startForeignLoop(mirror)                                    // arms the 30 s poll
 
   await ctx.root.close()

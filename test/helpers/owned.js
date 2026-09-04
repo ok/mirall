@@ -4,7 +4,7 @@ import { freshPeer } from './store.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
-import { saveOwnedMount, saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -30,7 +30,7 @@ export async function setupOwnedShare (t, { name = 'Notes', files = null } = {})
   }
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount')
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
   writeFiles(mountPath, files)
   return { ...ctx, spaceId: space.spaceId, share, mountPath }
 }
@@ -93,7 +93,7 @@ export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt'
     attachedAt: Date.now(),
     status: 'scanning',
   }
-  await saveForeignMount(mount)
+  await createForeignMount(mount)
   return { ...ctx, mirrorPath, mount, listing }
 }
 

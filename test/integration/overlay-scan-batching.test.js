@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { ownCatalog, listOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -38,7 +38,7 @@ async function makeShare (ctx, name) {
   }
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount-' + name)
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
   return { spaceId: space.spaceId, share, mountPath }
 }
 

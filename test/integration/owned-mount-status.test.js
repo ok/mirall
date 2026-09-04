@@ -1,7 +1,7 @@
 import test from 'brittle'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { saveOwnedMount, getOwnedMount, listOwnedMounts, setOwnedMountStatus, touchOwnedMountScan } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, listOwnedMounts, setOwnedMountStatus, touchOwnedMountScan } from '../../src/shared/folders/mount-store.js'
 
 async function plantedMount (t) {
   const ctx = await freshPeer(t)
@@ -12,7 +12,7 @@ async function plantedMount (t) {
     ignore: [],
     createdAt: Date.now(),
   }
-  await saveOwnedMount(mount)
+  await createOwnedMount(mount)
   return mount
 }
 
@@ -52,7 +52,7 @@ test('a status write for an unmounted share is a no-op', async (t) => {
   t.absent(await getOwnedMount('space1', 'no-such-share'), 'no record conjured for a deleted mount')
 })
 
-// A minutes-long scan used to end with saveOwnedMount(startOfScanObject), clobbering any
+// A minutes-long scan used to end with createOwnedMount(startOfScanObject), clobbering any
 // status a concurrent probe/relocate persisted mid-scan. touchOwnedMountScan must merge the
 // scan stamp onto the CURRENT record, preserving that fresher status.
 test('REGRESSION (FIX-15: the scan stamp merge preserves a status written mid-scan)', async (t) => {

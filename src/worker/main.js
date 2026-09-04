@@ -161,7 +161,7 @@ import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { boot } from './boot.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
-import { saveOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import {
   handleFsEventFromMain,
@@ -184,7 +184,7 @@ import {
   relocateForeignFolder,
   recordMirrorScanFault,
 } from '../shared/folders/foreign-folders.js'
-import { saveForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
+import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -712,23 +712,27 @@ ipc.handle('share:list', async (msg) => {
 // Shown for every action refused on a pre-encryption space, so the three call sites cannot drift.
 const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mirall and can no longer be used'
 
-ipc.handle('share:create', async (msg) => {
-  const space = await getSpace(msg.spaceId)
+// The share record the space would see, with every refusal already made and nothing written down
+// yet. Split from the publish below because the composed create-and-mount has to record a durable
+// intent naming this share AFTER the last refusal and BEFORE the first replicated write, and the
+// share's id does not exist until here.
+async function prepareOwnedShare(spaceId, name) {
+  const space = await getSpace(spaceId)
   if (!space) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
-  const name = (msg.name || '').trim()
-  if (!isValidShareName(name)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
+  const trimmed = (name || '').trim()
+  if (!isValidShareName(trimmed)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
 
-  const existingOwn = await readOwnShares(msg.spaceId)
-  if (existingOwn.some((s) => s.name === name)) {
+  const existingOwn = await readOwnShares(spaceId)
+  if (existingOwn.some((s) => s.name === trimmed)) {
     throw new AppError(ErrorCodes.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
   }
 
   const share = {
     id: generateShareId(),
     type: 'owned-folder',
-    name,
+    name: trimmed,
     owner: getLocalPublicKeyHex(),
-    spaceId: msg.spaceId,
+    spaceId,
     createdAt: Date.now(),
   }
   // Overlay is the only content backend: serve straight from the source file (no
@@ -741,20 +745,76 @@ ipc.handle('share:create', async (msg) => {
   // A space's catalog is SCK-encrypted; without the SCK (a pending, not-yet-approved member)
   // we can't open our own catalog to advertise into. Refuse cleanly rather than let ownCatalog
   // throw a raw Error out of the IPC handler.
-  if (!getSpaceContentKey(msg.spaceId, space)) {
+  if (!getSpaceContentKey(spaceId, space)) {
     throw new AppError(ErrorCodes.EOWNERSHIP, 'Cannot share into a space you have not been approved for yet')
   }
   share.contentMode = 'overlay'
-  const { keyHex, encrypted } = await ownCatalogPublish(msg.spaceId)
+  const { keyHex, encrypted } = await ownCatalogPublish(spaceId)
   Object.assign(share, catalogKeyField(keyHex, encrypted))
-  await publishShare(msg.spaceId, share)
+  return { share, space }
+}
+
+// The replicated half: the moment this returns, every co-member's view of our profile bee carries
+// the folder.
+async function publishOwnedShare(space, share) {
+  await publishShare(space.spaceId, share)
   record('share.created', {
     actor: selfActor(),
     space: spaceRef(space),
     target: { kind: 'share', id: share.id, name: share.name },
   })
-  ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
+  ipc.emit('event:shares-updated', { spaceId: space.spaceId })
+}
+
+ipc.handle('share:create', async (msg) => {
+  const { share, space } = await prepareOwnedShare(msg.spaceId, msg.name)
+  await publishOwnedShare(space, share)
   return share
+})
+
+// The two writes this runs land in different bees, and the FIRST one replicates: publishOwnedShare
+// puts a row into our profile bee that every co-member reads, while the second sits behind a full
+// disk walk that takes seconds to tens of seconds on a large folder. A crash in between left a
+// folder advertised to the whole space with no mount behind it — and every owner-side pass skips a
+// mount-less share, so nothing here ever noticed and the user had no folder to delete. The
+// compensation used to live in the renderer, which is the one process that cannot be relied on to
+// still be running when it is needed.
+//
+// Recorded first, cleared last; the next boot finishes whatever this did not.
+ipc.handle('share:create-and-mount', async (msg) => {
+  // Both refusal paths run before the intent: a bad path or a name collision is a refusal, not a
+  // half-done flow, and an intent recorded for work that never started is an orphan the boot pass
+  // would act on. The admission gate (the file-count walk) stays inside the mount, i.e. after the
+  // publish — moving it earlier would walk the folder twice, and that walk is the window the intent
+  // now covers.
+  const validated = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: null })
+  const { share, space } = await prepareOwnedShare(msg.spaceId, msg.name)
+
+  const intentId = await intents.beginOrNull('share-create-mount', { spaceId: msg.spaceId, shareId: share.id })
+  try {
+    await publishOwnedShare(space, share)
+    const result = await mountOwnedShare(msg.spaceId, share, validated, msg.ignore)
+    await intents.complete(intentId)
+    return { share, ...result }
+  } catch (err) {
+    // The live compensation, now on the durable side of the crash. If THIS fails the intent stays
+    // and the next boot completes it. Same rows the renderer's compensating share:delete used to
+    // produce, so the activity log still explains a folder that appeared and went away again.
+    try {
+      await tombstoneShare(msg.spaceId, share.id)
+      record('share.deleted', {
+        actor: selfActor(),
+        space: spaceRef(space),
+        target: { kind: 'share', id: share.id, name: share.name },
+      })
+      await intents.complete(intentId)
+    } catch (tombstoneErr) {
+      // The intent is deliberately left standing: this is exactly the state it exists for.
+      log.warn('could not retire a folder whose mount failed — the next boot will:', share.id, '-', tombstoneErr.message)
+    }
+    ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
+    throw err
+  }
 })
 
 // Rename an owned folder — the LABEL, in a field of its own. `share.name` is not a label: it is the
@@ -949,13 +1009,13 @@ ipc.handle('owned-folder:validate', async (msg) => {
   return await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
 })
 
-ipc.handle('owned-folder:mount', async (msg) => {
-  const own = await readOwnShares(msg.spaceId)
-  const share = own.find((s) => s.id === msg.shareId)
-  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
-
-  const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
-  const ignore = msg.ignore && msg.ignore.length > 0 ? msg.ignore : DEFAULT_IGNORE
+// Everything owned-folder:mount does once the share exists and the path has been validated. Takes
+// the validation result rather than the raw path so the composed create-and-mount, which has to
+// validate before the share exists, does not run it twice.
+async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
+  const shareId = share.id
+  const { mountPath, advisories } = validated
+  const ignore = requestedIgnore && requestedIgnore.length > 0 ? requestedIgnore : DEFAULT_IGNORE
 
   // The admission gate. This is the CREATE path (the renderer's add-folder wizard is its only
   // caller) — relocate, the periodic reconcile and the watcher's publishAdd are deliberately NOT
@@ -967,41 +1027,50 @@ ipc.handle('owned-folder:mount', async (msg) => {
   }
 
   const mount = {
-    spaceId: msg.spaceId,
-    shareId: msg.shareId,
+    spaceId,
+    shareId,
     mountPath,
     ignore,
     createdAt: Date.now(),
   }
-  await saveOwnedMount(mount)
+  await createOwnedMount(mount)
   // Seed the probe baseline so the first mount-point tick doesn't read this brand-new mount as a
   // gone→present transition (which would otherwise run against an unseeded key).
-  mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, mountRootAvailable(mountPath))
-  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, 'scanning')
+  mounts.lastMountPointStatus.set('owned-folder:' + shareId, mountRootAvailable(mountPath))
+  await mounts.setOwnedStatus(spaceId, shareId, 'scanning')
 
   ipc.emit('main-request', {
     command: 'owned-folder:start-watcher',
-    args: { shareId: msg.shareId, mountPath, ignore },
+    args: { shareId, mountPath, ignore },
   })
 
-  mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, ignore), msg.spaceId, msg.shareId)
+  mounts.settleScanStatus(initialPublishScan(spaceId, shareId, mountPath, ignore), spaceId, shareId)
     .then(async (result) => {
       // Cancelled mid-index: whoever cancelled (delete, relocate, leave, cancel-index) owns the
       // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.
       if (result?.cancelled) return
-      if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+      if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId, shareId, ...result })
       // One row for the deliberate act, carrying the totals from the initial scan. The recurring
       // reconcile deliberately records nothing — it is machine churn, not a user action.
       record('share.mounted', {
         actor: selfActor(),
-        space: spaceRef(await getSpace(msg.spaceId)),
-        target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+        space: spaceRef(await getSpace(spaceId)),
+        target: { kind: 'share', id: shareId, name: share?.name ?? null },
         subject: { fileCount: result?.totalOnDisk ?? null, uploaded: result?.uploaded ?? null, mountPath },
       })
-      mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, ignore)
+      mounts.schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore)
     })
 
   return { mount, advisories }
+}
+
+ipc.handle('owned-folder:mount', async (msg) => {
+  const own = await readOwnShares(msg.spaceId)
+  const share = own.find((s) => s.id === msg.shareId)
+  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
+
+  const validated = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
+  return await mountOwnedShare(msg.spaceId, share, validated, msg.ignore)
 })
 
 ipc.handle('owned-folder:get', async (msg) => {
@@ -1041,8 +1110,11 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
 
   const previousMountPath = mount.mountPath
+  // By patch, not by writing back the whole `mount` this handler read at the top: validateMountPath
+  // runs in between and a concurrent probe or scan settle can have persisted a status against the
+  // record since, which a stale whole-object write would silently drop.
+  await patchOwnedMount(msg.spaceId, msg.shareId, { mountPath })
   mount.mountPath = mountPath
-  await saveOwnedMount(mount)
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
   await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? 'paused' : 'scanning')
@@ -1051,21 +1123,29 @@ ipc.handle('owned-folder:relocate', async (msg) => {
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
   })
 
-  // Locate Folder is not Resume: a paused index stays paused at its new path, and the deep pass
-  // plus the reconcile timer are the resume's job. The debt is RECORDED rather than dropped —
-  // without deep, the resume's fast diff misses on every fresh mtime and re-advertises each entry
-  // (publishContent advertises with a null hash before re-hashing), which is exactly the mirror
-  // churn the deep pass exists to avoid.
-  if (mount.indexPaused) await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
+  // Relocate diffs by content hash (deep): the new path is typically a moved/copied tree whose
+  // mtimes differ, but identical content must upload nothing so mirror peers see no churn. The fast
+  // size+mtime diff misses on every fresh mtime and re-advertises each entry — and publishContent
+  // advertises with a null hash before re-hashing, so every mirror re-downloads a tree that did not
+  // change.
   //
-  // Relocate diffs by content hash (deep): the new path is typically a moved/copied
-  // tree whose mtimes differ, but identical content must upload nothing so mirror
-  // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
+  // The debt is recorded for BOTH branches, before either pass is armed: the flag is the durable
+  // fact, a running pass is not. Locate Folder is not Resume, so a paused index stays paused at its
+  // new path and owes the deep pass to its eventual resume; an ACTIVE index owes it to the pass
+  // below, which runs in a floating promise — a quit mid-walk used to lose the debt entirely and
+  // let the next boot's fast reconcile re-advertise the whole tree.
+  await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
+
   if (!mount.indexPaused) {
     mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
-      .then((result) => {
+      .then(async (result) => {
         if (result?.cancelled) return
-        if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+        // Cleared only by a pass that actually ran to completion. A cancelled, failed or skipped
+        // pass leaves the debt standing, which is what makes the next runner take it.
+        if (result && !result.skipped) {
+          await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: false })
+          ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+        }
         mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
       })
   }

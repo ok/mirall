@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent, initialPublishScan, periodicReconcile, stopOwnedFolder, cancelIndex, getIndexStatus } from '../../src/shared/folders/owned-folders.js'
-import { saveOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlaySweepPresence, overlayPublishAdd, overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -211,7 +211,7 @@ test('REGRESSION (RELOCATE-STALE-PATH): a stale retire re-resolves the mount at 
   fs.renameSync(mountPath, newPath)
   t.teardown(() => { try { fs.renameSync(newPath, mountPath) } catch {} })
   const mount = await getOwnedMount(spaceId, share.id)
-  await saveOwnedMount({ ...mount, mountPath: newPath })
+  await createOwnedMount({ ...mount, mountPath: newPath })
   await Promise.all([holding, stale])
   t.ok((await listRelPaths(share, spaceId)).includes('keep.bin'), 'present at the current mount path → not retired')
 })
@@ -475,7 +475,7 @@ test('REGRESSION (FIX-INTERACTIVE-SETTLE): a watcher item lands the space batch 
   const other = { id: generateShareId(), type: 'owned-folder', name: 'Other', owner: getLocalPublicKeyHex(), contentMode: 'overlay', catalogKey: await ownCatalogKeyHex(spaceId), createdAt: Date.now() }
   await publishShare(spaceId, other)
   const otherPath = tmpDir('other')
-  await saveOwnedMount({ spaceId, shareId: other.id, mountPath: otherPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId, shareId: other.id, mountPath: otherPath, ignore: [], createdAt: Date.now() })
   t.teardown(() => stopOwnedFolder(spaceId, other.id))
   fs.writeFileSync(path.join(otherPath, 'first.txt'), 'first')
   fs.writeFileSync(path.join(otherPath, 'slow.bin'), 's'.repeat(8192))

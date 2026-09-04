@@ -163,6 +163,12 @@ export const REQUESTS = Object.freeze({
   'settings:set-bandwidth': { kind: 'command', args: {} },
   'settings:set-download-folder': { kind: 'command', args: {} },
   'share:create': { kind: 'command', args: { name: { type: ARG.string, optional: true }, spaceId: { type: ARG.spaceId, optional: true } } },
+  'share:create-and-mount': { kind: 'command', args: {
+    ignore: { type: ARG.array, optional: true },
+    mountPath: { type: ARG.path, optional: true },
+    name: { type: ARG.string, optional: true },
+    spaceId: { type: ARG.spaceId, optional: true },
+  } },
   'share:delete': { kind: 'command', args: {
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },

@@ -9,7 +9,7 @@ import { getStore, openSessionNames } from '../../src/shared/core/store.js'
 import { createSpace, getDrive, listJoinRequests, recordJoinRequest } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { onFsEvent } from '../../src/shared/folders/owned-folders.js'
 import { ownCatalog, advertise, collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { openMemberView } from '../../src/shared/spaces/member-registry.js'
@@ -24,7 +24,7 @@ async function ownedShareWithFile (ctx, name) {
   }
   await publishShare(space.spaceId, share)
   const mountPath = ctx.tmpDir('mount')
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
   const abs = path.join(mountPath, 'one.txt')
   fs.writeFileSync(abs, 'one')
   await onFsEvent(space.spaceId, share.id, 'add', 'one.txt', abs)

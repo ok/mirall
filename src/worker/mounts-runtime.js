@@ -86,7 +86,7 @@ export class MountsRuntime extends Subsystem {
           await this.setOwnedStatus(mount.spaceId, mount.shareId, 'paused')
           continue
         }
-        this.settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
+        this.armCatchUpScan(mount.spaceId, mount.shareId, mount)
         this.schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
       }
     } catch (err) {
@@ -224,6 +224,31 @@ export class MountsRuntime extends Subsystem {
     await this.setOwnedStatus(spaceId, shareId, 'paused-error', err.message)
   }
 
+  // One catch-up pass for an owned mount, honouring any deep-scan debt a relocate left behind: the
+  // tree moved and every mtime is fresh, so only a content-hash diff can tell "already published"
+  // from "changed". Three runners arm this pass — the boot resume, an explicit resume, and the
+  // mount-point probe's return edge — and any of them can be the one that owes it.
+  //
+  // The debt is CLEARED only by a pass that actually completed, the same rule relocate records it
+  // under: the flag is the durable fact and a running pass is not, so a quit mid-pass has to leave
+  // it standing for whoever runs next. Clearing it up front would have cost exactly what recording
+  // it prevents, one boot later.
+  armCatchUpScan(spaceId, shareId, mount) {
+    const deep = !!mount.deepScanOwed
+    const settled = this.settleScanStatus(
+      periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore, { deep }),
+      spaceId, shareId,
+    )
+    if (!deep) return settled
+    return settled.then(async (result) => {
+      if (!result || result.cancelled || result.skipped) return result
+      try { await patchOwnedMount(spaceId, shareId, { deepScanOwed: false }) } catch (err) {
+        this.log.debug('deep-scan debt clear failed, the next pass takes it again:', shareId, '-', err.message)
+      }
+      return result
+    })
+  }
+
   schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore) {
     const key = spaceId + ':' + shareId
     const existing = this.periodicTimers.get(key)
@@ -284,11 +309,10 @@ export class MountsRuntime extends Subsystem {
     // A relocate that landed while this was paused recorded a debt: its deep pass never ran, and
     // the fast diff would re-advertise every entry on the new tree's fresh mtimes.
     const deep = !!mount.deepScanOwed
-    if (deep) await patchOwnedMount(spaceId, shareId, { deepScanOwed: false })
     // Before the pass, not after: on a large folder the walk is minutes, and a badge still reading
     // 'paused' makes the click look ignored.
     await this.setOwnedStatus(spaceId, shareId, 'scanning')
-    this.settleScanStatus(periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore, { deep }), spaceId, shareId)
+    this.armCatchUpScan(spaceId, shareId, mount)
     this.schedulePeriodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore)
     return { resumed: true, deep }
   }
@@ -325,7 +349,7 @@ export class MountsRuntime extends Subsystem {
             await this.setOwnedStatus(mount.spaceId, mount.shareId, 'paused')
             continue
           }
-          this.settleScanStatus(periodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore), mount.spaceId, mount.shareId)
+          this.armCatchUpScan(mount.spaceId, mount.shareId, mount)
           this.schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
         }
         // A plain present tick (neither branch — e.g. the first probe of a freshly-added mount) must

@@ -4,7 +4,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import {
   isAutoPaused, resumeAutoPausedForeignMount, autoPauseForeignMountGone, runMaterializeTick, stopForeignLoop,
@@ -45,7 +45,7 @@ async function setupMirror (t, { fetchImpl } = {}) {
 }
 
 async function planted (spaceId, shareId, mountPath, status) {
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath,
     enabled: false, status, attachedAt: Date.now(), syncedPaths: [],
   })
@@ -125,7 +125,7 @@ test('REGRESSION (G2): a resumed-but-still-faulted mount re-pauses and stays res
 test('REGRESSION (FIX-G3: a vanished path durably auto-pauses an idle mirror)', async (t) => {
   const { ctx, spaceId, shareId, mountPath } = await setupMirror(t)
   fs.mkdirSync(mountPath, { recursive: true })
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath,
     enabled: true, status: 'active', attachedAt: Date.now(), syncedPaths: [],
   })
@@ -142,9 +142,9 @@ test('REGRESSION (FIX-G3: a vanished path durably auto-pauses an idle mirror)', 
   t.absent(await autoPauseForeignMountGone(spaceId, shareId), 'already paused → no-op')
 
   fs.mkdirSync(mountPath, { recursive: true })
-  await saveForeignMount({ ...mount, enabled: false, status: 'paused' })
+  await createForeignMount({ ...mount, enabled: false, status: 'paused' })
   t.absent(await autoPauseForeignMountGone(spaceId, shareId), 'a user pause is never touched')
 
-  await saveForeignMount({ ...mount, enabled: true, status: 'active' })
+  await createForeignMount({ ...mount, enabled: true, status: 'active' })
   t.absent(await autoPauseForeignMountGone(spaceId, shareId), 'a present path is never paused')
 })

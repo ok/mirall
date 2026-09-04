@@ -3,7 +3,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { runMaterializeTick, recordMirrorScanFault, setForeignEnabled } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -52,11 +52,12 @@ async function setupOverlayMirror (t, code) {
   t.teardown(() => { overlay.fetchFile = origFetch })
   overlay.fetchFile = async () => { const e = new Error('disk error'); e.code = code; throw e }
 
-  await saveForeignMount({
-    spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath: ctx.tmpDir('mirror'),
+  const mountPath = ctx.tmpDir('mirror')
+  await createForeignMount({
+    spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath,
     enabled: true, attachedAt: Date.now(), status: 'active', syncedPaths: [],
   })
-  return { ctx, spaceId, shareId }
+  return { ctx, spaceId, shareId, mountPath }
 }
 
 test('REGRESSION (FIX-129): an ENOSPC overlay-mirror fetch pauses the mount (paused-enospc)', async (t) => {
@@ -66,6 +67,25 @@ test('REGRESSION (FIX-129): an ENOSPC overlay-mirror fetch pauses the mount (pau
   t.is(mount.status, 'paused-enospc', 'mount paused with the enospc status')
   t.absent(mount.enabled, 'mount disabled')
   t.ok(statuses(ctx, shareId).includes('paused-enospc'), 'paused-enospc status surfaced')
+})
+
+// REGRESSION (FIX-MIRROR-PAUSE-RENAMES: a pause is the ONLY chance to persist the conflict mapping a
+// pass minted. resolveLocalRelPath records the sibling by mutating the pass-held mount object in
+// memory, and stopForeignLoop bumps the generation immediately after this write — after which
+// state.persist declines. Deriving the sync fields from the record read inside the lock instead of
+// from that object wrote the mapping the pass STARTED with, stranding the sibling on disk with
+// nothing pointing at it, so the next pass minted 'big (2).bin' beside it.)
+test('REGRESSION (FIX-MIRROR-PAUSE-RENAMES): a pause persists the conflict mapping the pass minted', async (t) => {
+  const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'ENOSPC')
+  // The user's own file at the natural name, so the pass has to mint a sibling before it fetches.
+  fs.writeFileSync(mountPath + '/big.bin', 'the users own file')
+
+  await runMaterializeTick(spaceId, shareId)
+
+  const mount = await getForeignMount(spaceId, shareId)
+  t.is(mount.status, 'paused-enospc', 'the pass paused on the disk fault')
+  t.ok(mount.renamedPaths?.['big.bin'], 'and the durable record carries the sibling it had already minted')
+  t.not(mount.renamedPaths['big.bin'], 'big.bin', 'which is a sibling, not the natural name')
 })
 
 test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch pauses the mount (paused-error)', async (t) => {

@@ -13,6 +13,15 @@ const manyFiles = (n) => Object.fromEntries(fileNames(n).map((name) => [name, 'x
 
 const timerKey = (ctx) => ctx.spaceId + ':' + ctx.share.id
 const armed = (ctx) => ctx.root.mounts.periodicTimers.has(timerKey(ctx))
+async function untilDebtClears (ctx, deadlineMs = 5000) {
+  const until = Date.now() + deadlineMs
+  while (Date.now() < until) {
+    if (!(await getOwnedMount(ctx.spaceId, ctx.share.id)).deepScanOwed) return true
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  return false
+}
+
 const statuses = (ctx) => ctx.fake.events
   .filter((e) => e.type === 'event:owned-folder-mount-status' && e.payload?.shareId === ctx.share.id)
   .map((e) => e.payload.status)
@@ -199,7 +208,9 @@ test('REGRESSION (FIX-PAUSE-8): a deep pass owed from a paused relocate is honou
 
   const r = await mounts.resumeIndex(ctx.spaceId, ctx.share.id)
   t.ok(r.deep, 'the resume runs the pass relocate could not')
-  t.absent((await getOwnedMount(ctx.spaceId, ctx.share.id)).deepScanOwed, 'and the debt is cleared, so it runs once')
+  // Cleared by the PASS, not by the call that armed it: a quit mid-pass has to leave the debt
+  // standing for whoever runs next, so the clear lands when the pass completes.
+  t.ok(await untilDebtClears(ctx), 'and the debt is cleared once that pass completes, so it runs once')
 
   const again = await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
     .then(() => mounts.resumeIndex(ctx.spaceId, ctx.share.id))

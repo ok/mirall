@@ -16,7 +16,7 @@ import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
-import { saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { spaceStorageSummary } from '../../src/shared/storage/space-storage.js'
 
 // spaceStorageSummary feeds the space view's storage widget: ONE space-wide
@@ -104,7 +104,7 @@ test('a mirrored share counts only hash-verified files on-device; a stale hash d
     { relPath: 'b.bin', size: 20, contentHash: 'hb' },
     { relPath: 'c.bin', size: 30, contentHash: 'hc' },
   ])
-  await saveForeignMount({
+  await createForeignMount({
     spaceId: ctx.spaceId, shareId, ownerKey, mountPath: ctx.tmpDir('mirror'),
     enabled: true, status: 'active', syncedPaths: [], renamedPaths: {},
   })
@@ -125,7 +125,7 @@ test('summary spans share kinds: owned + mirrored + loose in one number', async 
     { relPath: 'm.bin', size: 40, contentHash: 'hm' },
     { relPath: 'n.bin', size: 60, contentHash: 'hn' },
   ])
-  await saveForeignMount({
+  await createForeignMount({
     spaceId: ctx.spaceId, shareId, ownerKey, mountPath: ctx.tmpDir('mirror'),
     enabled: true, status: 'active', syncedPaths: [], renamedPaths: {},
   })

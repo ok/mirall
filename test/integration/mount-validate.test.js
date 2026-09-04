@@ -5,7 +5,7 @@ import path from 'bare-path'
 import { validateMountPathSync, validateMountPath, validateDownloadFolder, validateDownloadFolderAgainstMounts } from '../../src/shared/folders/mount-validate.js'
 import { setDownloadFolder, setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, hydrateDownloadRoots } from '../../src/shared/core/paths.js'
-import { saveOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
 import { freshPeer } from '../helpers/store.js'
 import { ErrorCodes } from '../../src/shared/core/errors.js'
 
@@ -230,7 +230,7 @@ test('validateDownloadFolderAgainstMounts rejects overlap with a mount, in both 
 
   await freshPeer(t)
   await initMounts()
-  await saveOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
+  await createOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
   t.teardown(() => deleteOwnedMount('sp', 'sh'))
 
   t.is(await asyncCodeOf(validateDownloadFolderAgainstMounts(inside)), ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT,
@@ -276,7 +276,7 @@ test('a rejected download folder is never written to', async (t) => {
 
   await freshPeer(t)
   await initMounts()
-  await saveOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
+  await createOwnedMount({ spaceId: 'sp', shareId: 'sh', mountPath: mount })
   t.teardown(() => deleteOwnedMount('sp', 'sh'))
 
   t.is(await asyncCodeOf(validateDownloadFolderAgainstMounts(inside)), ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT)

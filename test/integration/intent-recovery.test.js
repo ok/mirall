@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshDurable, freshPeer } from '../helpers/store.js'
 import { getIntentsBee } from '../../src/shared/core/intent-store.js'
 import { createIntentLog, INTENT_PREFIX } from '../../src/shared/core/intents.js'
-import { saveOwnedMount, getOwnedMount, saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 
@@ -15,7 +15,7 @@ test('REGRESSION (FIX-INTENT-1): a half-finished owned delete is completed at th
   const ctx = await freshPeer(t)
   const space = await createSpace('Photos')
   const share = await publishShare(space.spaceId, { name: 'Album', id: 'sh-1' })
-  await saveOwnedMount({ spaceId: space.spaceId, shareId: 'sh-1', mountPath: ctx.tmpDir('src') })
+  await createOwnedMount({ spaceId: space.spaceId, shareId: 'sh-1', mountPath: ctx.tmpDir('src') })
 
   // Simulate the crash: the intent is written, the mount record is dropped, and the process dies
   // before the share tombstone lands.
@@ -44,7 +44,7 @@ test('REGRESSION (FIX-INTENT-1): a half-finished owned delete is completed at th
 test('a half-finished foreign unmount is completed at the next boot', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Docs')
-  await saveForeignMount({ spaceId: space.spaceId, shareId: 'sh-2', mountPath: ctx.tmpDir('mirror'), ownerKey: 'a'.repeat(64) })
+  await createForeignMount({ spaceId: space.spaceId, shareId: 'sh-2', mountPath: ctx.tmpDir('mirror'), ownerKey: 'a'.repeat(64) })
 
   const intents = createIntentLog({ bee: getIntentsBee })
   intents.register('foreign-unmount', async () => {})

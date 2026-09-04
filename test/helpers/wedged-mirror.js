@@ -6,7 +6,7 @@ import { freshPeer } from './store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -62,7 +62,7 @@ export async function wedgedMirror (t, {
   }
   overlay.cancelFetch = () => true
 
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath: ctx.tmpDir('mirror'),
     enabled: true, attachedAt: Date.now(), status: 'active', syncedPaths: [],
   })

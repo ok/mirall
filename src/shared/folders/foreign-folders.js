@@ -14,7 +14,7 @@ import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import {
-  getForeignMount, saveForeignMount, deleteForeignMount, patchForeignMount, findForeignMountByShareId,
+  getForeignMount, mutateForeignMount, deleteForeignMount, patchForeignMount, findForeignMountByShareId,
 } from './mount-store.js'
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { mountRootAvailable } from './owned-folders.js'
@@ -113,8 +113,21 @@ async function pauseMount(mount, status, reason) {
   // Durable, like the status itself: the reason is what the folder screen names the fault by, and
   // an event-only reason left the strip generic after every reload.
   mount.lastError = reason ?? null
-  // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed.
-  await saveForeignMount({ ...mount, ...state.syncFields(mount) })
+  // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed. It
+  // is derived from the record as it is NOW rather than from the `mount` object this pass has been
+  // holding, which was read before a pass that can run for hours.
+  await mutateForeignMount(mount.spaceId, mount.shareId, (m) => ({
+    ...m,
+    enabled: false,
+    status,
+    lastError: reason ?? null,
+    // The sync fields come off the PASS-held object, not the record just read: resolveLocalRelPath
+    // mints a collision sibling by mutating `mount.renamedPaths` in memory, and this write is the
+    // only chance to persist it — stopForeignLoop below bumps the generation, after which
+    // state.persist declines. Reading them off `m` would write the mapping the pass started with,
+    // stranding the sibling on disk with nothing pointing at it and minting a fresh one next pass.
+    ...state.syncFields(mount),
+  }))
   // Symmetry with the user-pause path (setForeignEnabled(false)): stop the poll loop so an
   // auto-paused mount doesn't keep a live interval, its in-flight fetch is cancelled, and its
   // generation is bumped — the last point lets an in-progress scan bail before it would
@@ -796,7 +809,13 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'
   if (enabled) mount.lastError = null
-  await saveForeignMount({ ...mount, ...state.syncFields(mount) })
+  await mutateForeignMount(spaceId, shareId, (m) => ({
+    ...m,
+    enabled,
+    status: enabled ? 'active' : 'paused',
+    ...(enabled ? { lastError: null } : {}),
+    ...state.syncFields(m),
+  }))
   if (enabled) {
     await startForeignLoop(mount)
     // Only a genuine resume (was paused) touches the record and re-evaluates now: set 'syncing',

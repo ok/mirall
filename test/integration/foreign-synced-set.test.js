@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { getForeignMount, saveForeignMount } from '../../src/shared/folders/mount-store.js'
+import { getForeignMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { createLocalBee } from '../../src/shared/core/store.js'
 import { initialMaterializeScan, runMaterializeTick, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
 
@@ -86,7 +86,7 @@ test('unmount drops the in-memory ownership with the record', async (t) => {
   await unmountForeignFolder(ctx.spaceId, ctx.share.id)
   t.absent(await getForeignMount(ctx.spaceId, ctx.share.id), 'the record is gone')
 
-  await saveForeignMount({ ...ctx.mount, syncedPaths: [], status: 'scanning' })
+  await createForeignMount({ ...ctx.mount, syncedPaths: [], status: 'scanning' })
   await initialMaterializeScan({ ...ctx.mount, syncedPaths: [] })
   const again = await getForeignMount(ctx.spaceId, ctx.share.id)
   t.ok(again.syncedPaths.includes('k.txt'), 'the re-mount rebuilt ownership from its own scan')

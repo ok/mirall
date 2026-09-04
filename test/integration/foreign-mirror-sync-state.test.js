@@ -4,7 +4,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { publishMirror, readOwnMirrors } from '../../src/shared/folders/mirror-records.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
@@ -52,7 +52,7 @@ async function setupMirror (t, { fetchResult, entries = ONE_FILE } = {}) {
   initForeignFolders(fake.ipc)
 
   await publishMirror(spaceId, shareId, { state: 'syncing' })
-  await saveForeignMount({
+  await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath: ctx.tmpDir('mirror'),
     enabled: true, attachedAt: Date.now(), status: 'active', syncedPaths: [],
   })
