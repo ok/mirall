@@ -19,7 +19,7 @@ import { registerFolderIntents } from '../shared/folders/folder-intents.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../shared/core/unlock-providers.js'
-import { migrateLocalBeesToEncrypted } from '../shared/storage/metadata-migration.js'
+import { runMigrations } from '../shared/storage/migrations.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {
@@ -44,15 +44,12 @@ import {
 import { ContentSwarm } from '../shared/transfer/content-swarm.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
-import { migrateCatalogsToEncrypted } from '../shared/shares/migrate-catalog-encrypt.js'
-import { migrateOverlayIndexToEncrypted } from '../shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MountsBee, listForeignMounts } from '../shared/folders/mount-store.js'
 import { OwnedFolders } from '../shared/folders/owned-folders.js'
 import { PublishService } from '../shared/folders/publish-service.js'
 import { ForeignMirrors } from '../shared/folders/foreign-folders.js'
 import { EchoGuardPurge } from '../shared/folders/echo-guard.js'
 import { cleanupOrphanedData } from '../shared/storage/storage.js'
-import { reclaimLegacyPeerCaches } from '../shared/storage/legacy-peer-cache.js'
 import { AuditLog } from '../shared/audit/audit-runtime.js'
 import { Catalogs } from '../shared/shares/share-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-watch.js'
@@ -86,7 +83,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
     const provider = osKeychainProvider(bootstrap.identityKEK)
     setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
   }
-  const didMigrateMetadata = await migrateLocalBeesToEncrypted()
+  const didMigrateMetadata = (await runMigrations('durable', { log }))['local-bees-encrypt'] === true
   await durable.start(new SpaceKeysVault('space-keys'))
   await durable.start(new ProfileBee('profile'))
   await durable.start(new SpacesBee('spaces'))
@@ -199,7 +196,10 @@ export async function boot(bootstrap, {
     await ensureMembershipManifestCap()
     await ensureSharesCap()
     await ensureFolderMirrorsCap()
-    const didMigrateOverlayIndex = await runContentMigrations(log)
+    // Ordered and positioned by the migration list, not by this call site: both of these must land
+    // BEFORE the initial publish scans and before the overlay backend opens its index.
+    const content = await runMigrations('content', { log })
+    const didMigrateOverlayIndex = content['overlay-index-encrypt']?.migrated === true
 
     // The mount runtime is CONSTRUCTED here and STARTED further down, where its resume loops used to
     // run. That split is what retires the entry's forward reference to a hoisted settleScanStatus:
@@ -321,25 +321,6 @@ export async function boot(bootstrap, {
 
 
 
-// The one-time content migrations, all of which must land BEFORE the initial publish scans
-// and before the overlay backend opens the index. Returns whether the overlay index moved.
-async function runContentMigrations(log) {
-  // One-time migration: encrypt existing plaintext v2 catalogs with the SCK (space content key —
-  // holding it is what grants read access to a space) BEFORE the initial publish scans below, so
-  // the re-advertise repopulates the new encrypted core and the old plaintext core is purged first.
-  try { await migrateCatalogsToEncrypted() } catch (err) {
-    log.warn('catalog SCK-encrypt migration failed:', err.message)
-  }
-  // One-time migration: copy the overlay's plaintext local index into an M-encrypted core
-  // generation and purge the plaintext one, BEFORE the overlay backend opens the index so it
-  // opens the encrypted generation directly.
-  let didMigrateOverlayIndex = false
-  try { didMigrateOverlayIndex = (await migrateOverlayIndexToEncrypted())?.migrated === true } catch (err) {
-    log.warn('overlay-index at-rest migration failed:', err.message)
-  }
-  return didMigrateOverlayIndex
-}
-
 async function resumeInterruptedLeaves(knownSpaces, log) {
   // Finish any leave a prior process interrupted (durable `leaving` marker still present) BEFORE
   // the membership backfill — otherwise markOwnMembership below re-asserts active:true and silently
@@ -418,10 +399,9 @@ async function sweepOrphans(log) {
     log.warn('partial sweep failed:', err.message)
   }
 
-  // One-shot: reclaim peer-download cache cores left behind by the retired eager content
-  // backend (the overlay backend keeps no such cache, and storage:info does not surface them).
-  // Fire-and-forget + flag-guarded so the compaction never blocks boot.
-  reclaimLegacyPeerCaches().catch((err) => log.warn('legacy peer-cache reclaim failed:', err.message))
+  // The background stage: flag-guarded and deliberately NOT awaited, so its compaction never
+  // blocks boot. runMigrations never rejects, so there is nothing here to guard.
+  runMigrations('background', { log })
 
   try {
     cleanupOrphanedJournals(getJournalDir())
