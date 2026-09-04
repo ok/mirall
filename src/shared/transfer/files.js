@@ -468,7 +468,9 @@ export async function revealFile(spaceId, filePath) {
   return revealLocalPath(await resolveRevealTarget(spaceId, filePath))
 }
 
-export function revealLocalPath(target) {
+// missingCode is the caller's, because the same walk backs revealing a file and revealing a folder
+// and "This file isn't on this device yet." is the wrong sentence for a folder.
+export function revealLocalPath(target, missingCode = ErrorCodes.FILE_NOT_ON_DEVICE) {
   const platform = os.platform()
   const exists = fs.existsSync(target)
   const folder = path.dirname(target)
@@ -476,7 +478,7 @@ export function revealLocalPath(target) {
   log.info('reveal requested:', target, '(platform:', platform + ', exists:', exists + ')')
 
   if (!exists && !fs.existsSync(folder)) {
-    throw new AppError(ErrorCodes.FILE_NOT_ON_DEVICE, 'File is not on this device')
+    throw new AppError(missingCode, 'Reveal target is not on this device')
   }
 
   const opts = { stdio: 'ignore', detached: true }

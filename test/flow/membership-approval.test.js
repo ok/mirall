@@ -154,6 +154,9 @@ test('a pending member cannot invite, approve, deny, or rename the space', { tim
   t.is((await B.request('spaces:list')).find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'B is pending')
 
   await t.exception(() => B.request('space:invite', { spaceId: space.spaceId }), /joined|member/i, 'invite refused while pending')
+  // REGRESSION (FIX-INVITE-NULL-1: an unknown space resolved null, which the modal read as success —
+  // the button re-enabled with no code and no reason shown.)
+  await t.exception(() => A.request('space:invite', { spaceId: 'no-such-space' }), /not found/i, 'unknown space rejects')
   t.is(await B.request('space:approve-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), false, 'approve refused (no content key)')
   t.is(await B.request('space:deny-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), false, 'deny refused while pending')
   t.is(await B.request('space:update', { spaceId: space.spaceId, name: 'Hijacked', icon: 'folder' }), null, 'rename refused while pending')

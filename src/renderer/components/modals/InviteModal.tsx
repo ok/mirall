@@ -20,7 +20,7 @@ type ExpiryId = typeof EXPIRY[number]['id']
 interface InviteModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (opts: { autoApprove: boolean; expiresInMs: number }) => Promise<string | null>
+  onCreate: (opts: { autoApprove: boolean; expiresInMs: number }) => Promise<string>
 }
 
 const BADGE_BASE = 'inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline'
@@ -42,15 +42,14 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   const chosen = EXPIRY.find((e) => e.id === expiry) ?? EXPIRY[0]
   const expiresLabel = new Date(Date.now() + chosen.ms).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })
 
-  // space:invite refuses a pending membership and a pre-encryption space. Unhandled, the rejection
-  // also skipped setCreating(false), so the button stayed disabled on "Creating…" with nothing on
-  // screen saying why.
+  // space:invite refuses a pending membership, a pre-encryption space and an unknown space, all as
+  // rejections. Unhandled, the rejection also skipped setCreating(false), so the button stayed
+  // disabled on "Creating…" with nothing on screen saying why.
   async function handleCreate() {
     setCreating(true)
     setError(null)
     try {
-      const created = await onCreate({ autoApprove, expiresInMs: chosen.ms })
-      if (created) setCode(created)
+      setCode(await onCreate({ autoApprove, expiresInMs: chosen.ms }))
     } catch (err) {
       setError(errorText(err))
     } finally {

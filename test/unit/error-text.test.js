@@ -58,3 +58,37 @@ test('no renderer site falls back to a raw error message', (t) => {
   }
   t.alike(offenders, [], 'these files display a raw worker message instead of localized text')
 })
+
+// Runs last: resolving the dev flag caches it for the module's lifetime, so an earlier stub would
+// change what the tests above observe.
+//
+// REGRESSION (FIX-I18N-WARN-1: the warning keyed off key === fallbackKey, so a surface passing a
+// fallback that a code also maps to — useFiles passes 'transferFailed', which DOWNLOAD_FAILED maps
+// to — was told a deliberate mapping was missing. FIX-I18N-WARN-2: window.bridge.isDev() is a
+// synchronous main-process round trip and ran on every fallback-path call, including from inside
+// render.)
+test('REGRESSION (FIX-I18N-WARN-1, FIX-I18N-WARN-2): the dev warning is accurate and reads isDev once', (t) => {
+  const warnings = []
+  const realWarn = console.warn
+  const realWindow = globalThis.window
+  let isDevCalls = 0
+  console.warn = (...args) => warnings.push(args)
+  globalThis.window = { bridge: { isDev: () => { isDevCalls++; return true } } }
+
+  try {
+    t.is(errorTextFor(withCode('x', 'DOWNLOAD_FAILED'), tr, 'transferFailed'), 'T:transferFailed')
+    t.alike(warnings, [], 'a code that IS mapped never warns, even when it resolves to the fallback')
+
+    errorTextFor(withCode('diagnostic', 'EPATH'), tr)
+    errorTextFor(withCode('diagnostic', 'ENOENT_SOMETHING'), tr)
+    t.is(warnings.length, 2, 'an unmapped code still warns')
+
+    errorTextFor(new Error('boom'), tr)
+    t.is(warnings.length, 2, 'an uncoded failure is not a missing mapping')
+
+    t.is(isDevCalls, 1, 'the synchronous bridge call is made once, not once per render')
+  } finally {
+    console.warn = realWarn
+    globalThis.window = realWindow
+  }
+})

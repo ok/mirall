@@ -85,7 +85,7 @@ export function useSpaces() {
   }
 
   async function createInvite(spaceId: string, opts: { autoApprove?: boolean; expiresInMs?: number } = {}) {
-    return await request('space:invite', { spaceId, autoAdmit: !!opts.autoApprove, expiresInMs: opts.expiresInMs }) as string | null
+    return await request('space:invite', { spaceId, autoAdmit: !!opts.autoApprove, expiresInMs: opts.expiresInMs }) as string
   }
 
   async function approveMember(spaceId: string, publicKey: string) {

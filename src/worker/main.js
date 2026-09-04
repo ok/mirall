@@ -840,7 +840,7 @@ ipc.handle('share:reveal-folder', async (msg) => {
     if (!foreignMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
     target = foreignMount.mountPath
   }
-  return revealLocalPath(target)
+  return revealLocalPath(target, ErrorCodes.MOUNT_NOT_ON_DEVICE)
 })
 
 ipc.handle('share:reveal-file', async (msg) => {
@@ -1387,7 +1387,9 @@ ipc.handle('space:join', async (msg) => {
 })
 ipc.handle('space:invite', async (msg) => {
   const space = await getSpace(msg.spaceId)
-  if (!space?.topic) return null
+  // Throw rather than return null: a null resolved as success, so the modal re-enabled its button
+  // with no code and no reason on screen — the same dead end an unhandled rejection used to leave.
+  if (!space?.topic) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
   // Hard block: a member-only capability. While pending we hold no content key, so
   // any invite we minted could never confer read access (the redeemer would stall
   // pending exactly as we do) — but it WOULD leak the space topic to outsiders. Refuse
