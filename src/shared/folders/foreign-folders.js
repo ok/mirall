@@ -197,7 +197,7 @@ export async function applyChange(mount, change) {
 export async function initialMaterializeScan(mount) {
   const key = loopKey(mount.spaceId, mount.shareId)
   state.forgetConverged(key)
-  return await loops.adopt(key, runInitialMaterializeScan(mount))
+  return await loops.adopt(key, runInitialMaterializeScan(mount), { spaceId: mount.spaceId, shareId: mount.shareId })
 }
 
 async function runInitialMaterializeScan(mount) {

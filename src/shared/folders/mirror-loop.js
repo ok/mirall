@@ -26,7 +26,7 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
     if (inFlight.get(key) !== p) return
     inFlight.delete(key)
     liveness.ended(key)
-    if (dirty.delete(key) && ctx) tick(key, ctx).catch(onError)
+    if (dirty.delete(key)) tick(key, ctx).catch(onError)
   }
 
   function track (key, p, ctx) {
@@ -54,8 +54,12 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
 
   // Register a pass started outside `tick` (the unawaited boot scan) so the bulk stop has
   // something to await. It honours the generation itself; the stop can only wait for what it sees.
-  function adopt (key, promise) {
-    return track(key, promise, null)
+  //
+  // It takes the ctx for the same reason `tick` does: a request arriving while the boot scan runs
+  // sets the dirty flag, and without a ctx to run it with, that follow-up was consumed and dropped
+  // — so a resume landing during the initial materialize scan did nothing at all.
+  function adopt (key, promise, ctx) {
+    return track(key, promise, ctx)
   }
 
   function start (key, ctx) {
