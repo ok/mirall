@@ -392,6 +392,31 @@ test('a frame exactly at the cap is accepted, one byte over is refused', async (
   t.is(calls, 1, 'and no handler ran')
 })
 
+// REGRESSION (FIX-R7: the gate only fired while the buffer held NO newline, so whether a frame
+// over the cap was refused depended on whether its terminator happened to land in the same chunk.
+// A frame arriving whole was parsed and dispatched however large it was, and the bound the comment
+// asserted — maxFrameBytes — was really maxFrameBytes plus one chunk.)
+test('REGRESSION (FIX-R7): an oversized frame that arrives with its terminator is refused too', async (t) => {
+  const pipe = fakePipe()
+  resetRequestFailureCounters()
+  t.teardown(() => resetRequestFailureCounters())
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  let calls = 0
+  ipc.handle('echo', () => { calls++; return null })
+  ipc.start()
+
+  // Complete — newline and all — in a single chunk, four times the cap.
+  pipe.feedRaw(JSON.stringify({ id: 'big', type: 'echo', v: 'x'.repeat(4000) }) + '\n')
+  await tick()
+  t.is(calls, 0, 'the handler never ran')
+  t.is(getRequestFailureCounters()['oversized-frame:INVALID_ARGUMENT'], 1, 'and it was refused on size')
+
+  // The frames around it are unaffected: the cap bounds one frame, not the read buffer.
+  pipe.feed({ id: '1', type: 'echo', v: 1 })
+  await tick()
+  t.is(calls, 1, 'a legal frame in the same stream still serves')
+})
+
 test('REGRESSION (FIX-IPC-CAP: the pre-start queue was unbounded)', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxQueuedFrames: 10 })

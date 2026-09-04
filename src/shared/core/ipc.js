@@ -133,25 +133,33 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // exact: 0x0A cannot occur inside a multi-byte UTF-8 sequence, so every complete line is
     // complete UTF-8. It is also the only portable answer here — Bare has no TextDecoder, and its
     // apparent `string_decoder` is a devDependency artefact absent from a production install.
-    buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk])
+    //
+    // `owned` tracks whether `buffer` is memory of ours or still the caller's chunk, which the
+    // pipe is free to reuse once this handler returns. Only an owned buffer may be held across
+    // ticks as-is; copying one that Buffer.concat already allocated is a second full memcpy per
+    // chunk, for every partial frame.
+    let owned = buffer.length !== 0
+    buffer = owned ? Buffer.concat([buffer, chunk]) : chunk
 
     // Resync first: drop bytes until the newline that ends the frame already given up on.
     if (skipping) {
       const nl = buffer.indexOf(NEWLINE)
       if (nl === -1) { buffer = EMPTY; return }
       buffer = Buffer.from(buffer.subarray(nl + 1))
+      owned = true
       skipping = false
     }
 
-    // Refused on SIZE, before the frame is ever materialised as a JSON string — and before any
-    // newline arrives to make it a parse failure instead. The `indexOf` test is what scopes the cap
-    // to ONE FRAME rather than to the read buffer: a chunk carrying many small frames can exceed
-    // the cap in total and every one of them is still legitimate.
+    // A frame with no terminator in sight cannot be waited out: refused here, before it is ever
+    // materialised as a JSON string, and before the read buffer can grow without bound. Every
+    // TERMINATED frame is measured individually in the loop below — scoping the cap to one frame
+    // rather than to the read buffer, which legitimately carries many small frames at once.
     //
-    // Measured in BYTES — the same number the sender computed with Buffer.byteLength. The old
-    // `.length` on a decoded string was UTF-16 code units, deliberately lenient because a
-    // multi-byte frame measured smaller than the sender believed; exact is strictly better, since
-    // no frame the sender considers legal is refused and the memory bound is now the real one.
+    // Measured in BYTES. The old `.length` on a decoded string was UTF-16 code units, so a
+    // multi-byte frame measured smaller than the bytes it actually occupied and the bound did not
+    // hold for the traffic most likely to strain it. Nothing computes a size before writing —
+    // emit/respond/hintBus all write whatever JSON.stringify produced — so this cap is enforced
+    // here alone, and the sender learns of it only through the failure counter.
     if (buffer.length > maxFrameBytes && buffer.indexOf(NEWLINE) === -1) {
       log.warn('oversized frame discarded:', buffer.length, 'bytes exceeds', maxFrameBytes)
       countFailure('oversized-frame', INVALID_ARGUMENT)
@@ -163,9 +171,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // The leftover is committed BEFORE dispatching, so a handler that throws cannot cause the
     // frames after it to be re-read from a stale buffer.
     const lastNl = buffer.lastIndexOf(NEWLINE)
-    // Copied because `buffer` may still BE the caller's chunk, which the pipe is free to reuse
-    // once this handler returns.
-    if (lastNl === -1) { buffer = Buffer.from(buffer); return }
+    if (lastNl === -1) { buffer = owned ? buffer : Buffer.from(buffer); return }
     const complete = buffer
     buffer = lastNl + 1 === complete.length ? EMPTY : Buffer.from(complete.subarray(lastNl + 1))
 
@@ -175,6 +181,14 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       const line = complete.subarray(start, nl)
       start = nl + 1
       if (line.length === 0) continue
+      // The cap, measured on the frame itself. Enforcing it only on the unterminated path above
+      // made refusal depend on whether a frame's terminator happened to land in the same chunk:
+      // the same frame passed or was discarded by chunk boundaries alone.
+      if (line.length > maxFrameBytes) {
+        log.warn('oversized frame discarded:', line.length, 'bytes exceeds', maxFrameBytes)
+        countFailure('oversized-frame', INVALID_ARGUMENT)
+        continue
+      }
       try {
         const msg = JSON.parse(line.toString('utf8'))
         if (msg && msg.type === FRAME.BOOTSTRAP) {

@@ -1,6 +1,14 @@
 import test from 'brittle'
 import { MAIN_REQUEST_MAX_LINE, isControlFrameCandidate, createWorkerFrameReader } from '../../src/main/ipc-frame.js'
 
+function muteWarn (t) {
+  const original = console.warn
+  const lines = []
+  console.warn = (...args) => lines.push(args.join(' '))
+  t.teardown(() => { console.warn = original })
+  return lines
+}
+
 const frameFor = (mountPath) => Buffer.from(JSON.stringify({
   type: 'main-request',
   command: 'owned-folder:start-watcher',
@@ -96,4 +104,45 @@ test('a fresh reader carries no tail from the previous worker', (t) => {
   const frames = fresh.push(frameFor('/fresh'))
   t.is(frames.length, 1)
   t.is(JSON.parse(frames[0]).args.mountPath, '/fresh')
+})
+
+// REGRESSION (FIX-R5: the reader had no resync. An unterminated frame was buffered whole before
+// the size gate could refuse it, so a worker that never writes a newline grew the tail without
+// bound — and every further chunk re-copied all of it, on main's UI thread. The gate's own header
+// has always claimed it keeps a multi-MB frame off that thread.)
+test('REGRESSION (FIX-R5): an unterminated oversized frame is dropped, not accumulated', (t) => {
+  const reader = createWorkerFrameReader()
+  const chunk = Buffer.alloc(64 * 1024, 0x78)
+
+  for (let sent = 0; sent < 4 * 1024 * 1024; sent += chunk.length) {
+    t.absent(reader.push(chunk).length, 'no frame from an unterminated stream')
+  }
+  t.ok(reader.bufferedBytes <= MAIN_REQUEST_MAX_LINE,
+    `the tail stays bounded (${reader.bufferedBytes} bytes held after 4MB)`)
+
+  // And the resync ends at the newline that ends the frame given up on, so the NEXT frame is intact.
+  const frames = reader.push(Buffer.concat([Buffer.from('junk-tail\n'), frameFor('/after')]))
+  t.is(frames.length, 1, 'the frame after the resync is delivered')
+  t.is(JSON.parse(frames[0]).args.mountPath, '/after')
+})
+
+// A control frame refused on size arms no watcher. That is the same silent stop as FIX-H2-1, so it
+// cannot be a quiet drop — while a large listing response, which main is right to skip, must stay
+// quiet or the log ring fills with ordinary traffic.
+test('an oversized control frame is said out loud; an oversized response is not', (t) => {
+  const warnings = muteWarn(t)
+  const reader = createWorkerFrameReader()
+
+  const huge = { type: 'main-request', command: 'owned-folder:start-watcher', args: { shareId: 's1', ignore: ['x'.repeat(MAIN_REQUEST_MAX_LINE)] } }
+  reader.push(Buffer.from(JSON.stringify(huge) + '\n'))
+  t.is(warnings.length, 1, 'the dropped control frame is reported')
+  t.ok(warnings[0].includes('control frame dropped'), warnings[0])
+
+  reader.push(Buffer.from(JSON.stringify({ id: 7, data: { files: 'x'.repeat(MAIN_REQUEST_MAX_LINE) } }) + '\n'))
+  t.is(warnings.length, 1, 'a large response frame is skipped in silence')
+
+  // The frame that trips this is built from a share's own config, so re-arming its watcher
+  // reproduces it exactly. One line per reader — the repeats would evict the log ring they land in.
+  reader.push(Buffer.from(JSON.stringify(huge) + '\n'))
+  t.is(warnings.length, 1, 'and the same drop is not reported twice')
 })
