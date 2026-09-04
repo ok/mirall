@@ -840,7 +840,7 @@ ipc.handle('share:reveal-folder', async (msg) => {
     if (!foreignMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
     target = foreignMount.mountPath
   }
-  return revealLocalPath(target)
+  return revealLocalPath(target, ErrorCodes.MOUNT_NOT_ON_DEVICE)
 })
 
 ipc.handle('share:reveal-file', async (msg) => {

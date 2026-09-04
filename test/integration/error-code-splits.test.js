@@ -31,6 +31,15 @@ test('revealing a file that is not on disk reports FILE_NOT_ON_DEVICE', async (t
   t.is(await codeOf(() => revealLocalPath(missing)), ErrorCodes.FILE_NOT_ON_DEVICE)
 })
 
+// REGRESSION (FIX-REVEAL-FOLDER-1: share:reveal-folder shares this walk with share:reveal-file, so a
+// folder whose mount had been removed from disk was reported as "This file isn't on this device yet.")
+test('the caller chooses what a missing reveal target means', async (t) => {
+  await freshPeer(t)
+  const missing = path.join('/tmp', 'no-such-dir-' + Date.now(), 'folder')
+  t.is(await codeOf(() => revealLocalPath(missing, ErrorCodes.MOUNT_NOT_ON_DEVICE)), ErrorCodes.MOUNT_NOT_ON_DEVICE)
+  t.is(await codeOf(() => revealLocalPath(missing)), ErrorCodes.FILE_NOT_ON_DEVICE, 'the file wording stays the default')
+})
+
 test('adding a file to a space with no drive reports DRIVE_NOT_FOUND', async (t) => {
   const ctx = await freshPeer(t)
   const src = path.join(ctx.tmpDir('src'), 'a.txt')
