@@ -719,6 +719,10 @@ function getWorker(specifier) {
     relayEnabled: readFeatureFlags().relay === true,
     relayMode: config().get('network.relayMode'),
     relays: config().get('network.relays'),
+    // Read at spawn only. getDownloadConcurrency() re-reads it per acquire, so a live push would
+    // take effect without a restart — but there is no setter by design, so a change means editing
+    // config.json and restarting.
+    downloadConcurrency: config().get('network.downloadConcurrency'),
     identityKEK: identityKEKHex,
   }
   worker.write(Buffer.from(JSON.stringify(bootstrap) + '\n'))

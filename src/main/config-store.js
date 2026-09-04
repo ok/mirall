@@ -24,7 +24,10 @@ function defaults() {
     general: { minimizeToTray: true, openAtLogin: false, firstHideNoticeShown: false, appMenuAutoHide: false },
     downloads: { folder: null },
     // Shared group: bandwidth caps and relay configuration both live here.
-    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [] },
+    // downloadConcurrency has no UI on purpose — it is an operator lever and the rollback path
+    // for the shared fetch gate. 0 disables the cap entirely, so a UI would have to offer it as
+    // a named "Unlimited" rather than a raw zero.
+    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [], downloadConcurrency: 3 },
     storage: { cacheBudgetBytes: 0 },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
