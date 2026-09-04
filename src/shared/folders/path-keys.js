@@ -26,6 +26,14 @@ export function driveKeyToSegments (key) {
   return key.split('/')
 }
 
+// Leaf name of a drive key or drive path. Distinct from `path.basename`, which
+// also honours the platform separator: a drive key is POSIX-shaped on every
+// platform, so a Windows `\` inside one is part of the name, not a separator.
+export function driveBaseName (key) {
+  if (typeof key !== 'string') return ''
+  return key.slice(key.lastIndexOf('/') + 1)
+}
+
 // ─── Windows long-path prefix ─────────────────────────────────────────────────
 // Strip a Windows extended-length / device prefix so two paths can be compared in
 // one namespace. Under Bare on Windows, `fs.readdir(root, { recursive: true })`

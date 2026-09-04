@@ -1,13 +1,13 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import url from 'bare-url'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { ErrorCodes } from '../../src/shared/core/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
 
 // REGRESSION (FIX-DLDIR-2: a download folder that had been deleted, ejected, or replaced by a
 // file produced no message the user could act on).
@@ -194,16 +194,24 @@ test('a local-fs failure with the folder still present keeps its own classificat
 // are also emitted as event:transfer-error, which is what drives the toast, the OS notification,
 // and the banner's immediate re-probe. A dest-unavailable failure that stayed off the wire would
 // show the right words on the row and nothing anywhere else — the exact half-fix this pins
-// against. Asserted structurally because the gate lives in the channel, not the engine.
+// against. Behavioural now that the gate is one factory: build the folder channel and watch it.
 test('REGRESSION (FIX-DLDIR-2: the folder-share channel emits transfer-error for a gone folder)', (t) => {
-  const src = fs.readFileSync(
-    path.join(url.fileURLToPath(new URL('../../src/shared/transfer/backends/overlay/overlay-backend.js', import.meta.url))),
-    'utf8',
-  )
-  const gate = src.slice(src.indexOf('emitError: (job, errorCode)'), src.indexOf('emitComplete:'))
-  t.ok(gate.includes('ErrorCodes.TRANSFER_DEST_UNAVAILABLE'), 'the code is in the cross-the-wire set')
-  t.ok(gate.includes('ErrorCodes.TRANSFER_DISK_FULL'), 'alongside disk-full')
-  t.ok(gate.includes('ErrorCodes.TRANSFER_CHECKSUM'), 'and the integrity failure')
+  const emitted = []
+  const channel = createOverlayChannel({
+    diagLabel: 'test', inPlace: false, surfaceAllErrors: false, updatedEvent: 'event:share-files-updated',
+    emit: (name, payload) => emitted.push([name, payload]),
+    decoKeyFor: (job) => job.relPath, decoKeyForRow: () => null,
+  })
+  const job = { transferId: 't', spaceId: 'S', path: '/Vault/a.bin', relPath: 'a.bin', size: 1 }
+  const wired = (code) => {
+    emitted.length = 0
+    channel.emitError(job, code)
+    return emitted.some(([name]) => name === 'event:transfer-error')
+  }
+  t.ok(wired(ErrorCodes.TRANSFER_DEST_UNAVAILABLE), 'the code is in the cross-the-wire set')
+  t.ok(wired(ErrorCodes.TRANSFER_DISK_FULL), 'alongside disk-full')
+  t.ok(wired(ErrorCodes.TRANSFER_CHECKSUM), 'and the integrity failure')
+  t.absent(wired(ErrorCodes.DOWNLOAD_FAILED), 'and nothing else — a generic failure stays on the row')
 })
 
 // === Auto-resume suppression ===

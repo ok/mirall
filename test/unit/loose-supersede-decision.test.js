@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { supersedeDecision, isRepublished, republishDecision } from '../../src/shared/transfer/supersede-decision.js'
+import { supersedeDecision, isRepublished, republishDecision, activeSlotAction } from '../../src/shared/transfer/supersede-decision.js'
 
 // REGRESSION (FIX-REMOVE-1: a remove+re-add — even of identical content, even one never
 // observed as a tombstone — must terminate a download, not auto-resume). isRepublished is the
@@ -81,4 +81,23 @@ test('republishDecision: without a recorded hash, a materialized re-publish drop
   // We cannot prove the content changed, so the remove+re-add rule wins over an eager restart.
   t.is(republishDecision(undefined, { removed: false, seq: S2, contentHash: 'h2' }, S1), 'drop')
   t.is(republishDecision(null, { removed: false, seq: S2, contentHash: 'h2' }, S1), 'drop')
+})
+
+// activeSlotAction is the whole ladder both consumer channels put an active slot through when
+// their owner's catalog appends. Each used to spell it out inline, one `if` per rung.
+test('activeSlotAction: the re-publish verdicts pass straight through', (t) => {
+  t.is(activeSlotAction('h1', { removed: true }, S1), 'drop', 'tombstoned')
+  t.is(activeSlotAction('h1', { removed: false, seq: S2, contentHash: 'h1' }, S1), 'drop', 're-added identical')
+  t.is(activeSlotAction('h1', { removed: false, seq: S2, contentHash: null }, S1), 'pending', 'mid-rehash')
+  t.is(activeSlotAction('h1', { removed: false, seq: S2, contentHash: 'h2' }, S1), 'restart', 're-published new content')
+})
+
+test('activeSlotAction: a plain hash change with no re-publish still restarts', (t) => {
+  t.is(activeSlotAction('h1', { removed: false, seq: S1, contentHash: 'h2' }, S1), 'restart')
+})
+
+test('activeSlotAction: nothing to do is "keep", never a destructive default', (t) => {
+  t.is(activeSlotAction('h1', { removed: false, seq: S1, contentHash: 'h1' }, S1), 'keep', 'unchanged')
+  t.is(activeSlotAction('h1', { removed: false, seq: S1, contentHash: null }, S1), 'keep', 'hash not materialized, no re-publish')
+  t.is(activeSlotAction('h1', null, S1), 'keep', 'an unreadable head decides nothing')
 })

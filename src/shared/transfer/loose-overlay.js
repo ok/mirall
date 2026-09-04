@@ -25,8 +25,10 @@ import { getPublishScheduler, registerPublishChannel } from '../folders/publish-
 import { OP, PRIORITY } from '../folders/work-item.js'
 import { fileStatPresent, statFacts } from '../folders/disk-presence.js'
 import { createLogger } from '../core/logger.js'
-import { supersedeDecision, republishDecision } from './supersede-decision.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
+import { createOverlayChannel } from './backends/overlay/overlay-channel.js'
+import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/overlay-consume.js'
+import { createPresenceSweeper } from './presence-sweeper.js'
 
 const log = createLogger('loose-overlay')
 
@@ -347,23 +349,17 @@ function ensureLooseCatalogWatch (spaceId, member, keyHex, sck) {
 async function reconcileActiveLooseTransfers (spaceId, member) {
   const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member)
   if (!readable) return
-  for (const [transferId, slot] of engine().activeSlots()) {
-    if (slot.spaceId !== spaceId || slot.ownerPublicKey !== member.publicKey) continue
-    const drivePath = slot.pendingKey
-    const inflightHash = slot.contentHash
-    const state = await getPeerEntryState(keyHex, LOOSE_SHARE_ID, rel(drivePath), { sck })
-    const decision = republishDecision(inflightHash, state, slot.sourceSeq)
-    // Tombstoned, or re-added with identical content → terminate; don't silently continue the
-    // old partial. A genuine content change falls through to the supersede below.
-    if (decision === 'drop') { await engine().dropRemoved(spaceId, drivePath, transferId).catch((err) => log.debug('loose active drop-removed failed:', err.message)); continue }
-    // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
-    // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
-    // restarts it on the new content via runReconcile.
-    if (decision === 'pending') { engine().releaseForRepublish(transferId); continue }
-    if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
-    const newJob = await buildLooseJob(spaceId, member, drivePath)
-    if (newJob) engine().supersede(transferId, { ...newJob, prevBytes: 0 }, inflightHash)
-  }
+  await reconcileActiveSlots({
+    engine: engine(),
+    spaceId,
+    log,
+    ownsSlot: (slot) => slot.ownerPublicKey === member.publicKey,
+    entryStateFor: (slot) => getPeerEntryState(keyHex, LOOSE_SHARE_ID, rel(slot.pendingKey), { sck }),
+    buildJob: async (slot) => {
+      const job = await buildLooseJob(spaceId, member, slot.pendingKey)
+      return job ? { ...job, prevBytes: 0 } : null
+    },
+  })
 }
 
 // Loose downloads run on the shared overlay consumer engine (single-flight, real
@@ -403,41 +399,32 @@ function engine() {
   return looseEngine
 }
 
-export const looseChannel = {
+async function resolveLoosePendingRow (spaceId, row) {
+  const space = await getSpace(spaceId)
+  const member = (space?.members || []).find((m) => m.publicKey === row.ownerKey)
+  if (!member) return { removed: false, seq: undefined, job: null }
+  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member, { space })
+  if (!readable) return { removed: false, seq: undefined, job: null }
+  const state = await getPeerEntryState(keyHex, LOOSE_SHARE_ID, row.relPath, { sck })
+  if (state?.removed) return { removed: true, seq: undefined, job: null }
+  const job = state?.contentHash ? await buildLooseJob(spaceId, member, drivePathOf(row.relPath), row, state) : null
+  return { removed: false, seq: state?.seq, job }
+}
+
+export const looseChannel = createOverlayChannel({
   diagLabel: 'loose download',
   inPlace: true,
+  // A loose row has no file list to surface an error inline in, so every code crosses the wire.
+  surfaceAllErrors: true,
+  updatedEvent: 'event:files-updated',
+  emit: (name, payload) => ipcRef?.emit(name, payload),
+  decoKeyFor: (job) => job.path,
+  decoKeyForRow: (_row, pendingKey) => pendingKey,
   ownsPendingRow: (row) => row.inPlace === true && row.shareId === LOOSE_SHARE_ID,
   pendingExtra: (job) => ({ shareId: LOOSE_SHARE_ID, relPath: job.relPath }),
-  // Progress is DECORATION (never status). Lifecycle events (complete/error/paused/superseded)
-  // remain as signals for notifications; the row's status is re-derived from files:list.
-  emitProgress: (job, p) => deco(job.spaceId, job.path, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
-  emitVerifying: (job, fraction) => deco(job.spaceId, job.path, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
-  emitError: (job, errorCode) => { ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode }); deco(job.spaceId, job.path, { done: true }) },
-  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); deco(job.spaceId, job.path, { done: true }) },
-  emitCancelled: (spaceId, transferId, pendingKey) => deco(spaceId, pendingKey, { done: true }),
-  emitSuperseded: (job) => { ipcRef?.emit('event:transfer-superseded', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, fileName: path.basename(job.relPath) }); deco(job.spaceId, job.path, { bytes: 0, total: job.size, speed: 0, eta: null }) },
-  // [mirall] FIX-BW9 — `retrying` means the engine has an automatic retry armed for this row.
-  // The decoration still terminates (a stranded entry samples speed across the whole backoff),
-  // but the notification is withheld: 'event:transfer-paused' raises an OS notification, and one
-  // per attempt would turn a slow transfer into a stream of them.
-  emitPaused: (job, reason, opts) => { if (!opts?.retrying) ipcRef?.emit('event:transfer-paused', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, reason }); deco(job.spaceId, job.path, { done: true }) },
-  emitDecorationDone: (job) => deco(job.spaceId, job.path, { done: true }),
-  emitUpdated: (spaceId) => ipcRef?.emit('event:files-updated', { spaceId }),
   transferIdForRow: (spaceId, row) => looseTransferIdFor(spaceId, row.relPath),
-  resolvePendingRow: async (spaceId, row) => {
-    const space = await getSpace(spaceId)
-    const member = (space?.members || []).find((m) => m.publicKey === row.ownerKey)
-    if (!member) return { removed: false, seq: undefined, job: null }
-    const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member, { space })
-    if (!readable) return { removed: false, seq: undefined, job: null }
-    const state = await getPeerEntryState(keyHex, LOOSE_SHARE_ID, row.relPath, { sck })
-    if (state?.removed) return { removed: true, seq: undefined, job: null }
-    const job = state?.contentHash ? await buildLooseJob(spaceId, member, drivePathOf(row.relPath), row, state) : null
-    return { removed: false, seq: state?.seq, job }
-  },
-  emitRemovedByOwner: (spaceId, pendingKey, row, transferId) =>
-    ipcRef?.emit('event:transfer-removed', { spaceId, transferId, path: pendingKey, fileName: path.basename(row?.relPath || rel(pendingKey)) }),
-}
+  resolvePendingRow: resolveLoosePendingRow,
+})
 
 export function looseHasTransfer (transferId) { return engine().has(transferId) }
 export function looseTransferActive (spaceId, relPath) { return engine().has(looseTransferIdFor(spaceId, relPath)) }
@@ -468,17 +455,8 @@ export function looseCancelTransfer (transferId) { return engine().cancel(transf
 export function looseCancel (spaceId, drivePath) {
   return engine().cancelByKey(spaceId, drivePath, looseTransferIdFor(spaceId, rel(drivePath)))
 }
-// Cancel + discard every in-flight loose download for a space (leave teardown): the
-// engine keeps fetching a started transfer even after its pending row is cleared, so
-// without this the partial is orphaned and a late completion re-writes purged meta rows.
 export async function looseCancelSpace (spaceId) {
-  const ids = []
-  for (const [transferId, slot] of engine().activeSlots()) {
-    if (slot.spaceId === spaceId) ids.push(transferId)
-  }
-  // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
-  // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
-  await Promise.all(ids.map((id) => engine().cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
+  await cancelSpaceOn(engine(), spaceId, log)
 }
 export function resumeLooseForOwner (ownerKey, spaceId) { return engine().resumeForOwner(ownerKey, spaceId) }
 
@@ -535,26 +513,30 @@ async function rehydrateLooseEntry (spaceId, e) {
 // and the retire executor confirms the same way, on the shared lane. Never touches an entry
 // whose publish is queued or running: disk presence decides only for settled entries. Each
 // space's failures stay its own; one failing retire never skips the spaces after it.
-const sweepGone = new Set()
-const goneKey = (spaceId, relPath) => spaceId + '\0' + relPath
+const looseSweeper = createPresenceSweeper({
+  keyOf: ({ spaceId }, e) => spaceId + '\0' + e.relPath,
+  isPending: ({ spaceId }, e) => getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, e.relPath),
+  // No recorded source → a crash inside the tiny advertise→link window or a stranded entry from an
+  // older install (reverted by the boot rehydrate, not the sweep). The sweep only reclaims a
+  // RECORDED source that disappeared from disk.
+  presentAt: async ({ spaceId }, e) => {
+    const src = await getOwnedSourcePath(spaceId, drivePathOf(e.relPath))
+    return src ? fileStatPresent(src) : null
+  },
+  // Collected rather than awaited: the pass proposes every retire it finds and waits for them
+  // together at the end.
+  retire: ({ spaceId, retires }, e) => {
+    retires.push(enqueueLooseRetire(spaceId, e.relPath, PRIORITY.BULK)
+      .catch((err) => log.debug('loose retire failed:', e.relPath, '-', err.message)))
+  },
+})
 
 export async function sweepLoosePresence () {
   const retires = []
   for (const space of await listSpaces()) {
     try {
       for await (const e of listOwnShare(space.spaceId, LOOSE_SHARE_ID)) {
-        const key = goneKey(space.spaceId, e.relPath)
-        if (getPublishScheduler().isPending(space.spaceId, LOOSE_SHARE_ID, e.relPath)) { sweepGone.delete(key); continue }
-        // No recorded source → a crash inside the tiny advertise→link window or a stranded entry
-        // from an older install (reverted by the boot rehydrate, not the sweep). The sweep only
-        // reclaims a RECORDED source that disappeared from disk.
-        const src = await getOwnedSourcePath(space.spaceId, drivePathOf(e.relPath))
-        if (!src) { sweepGone.delete(key); continue }
-        if (fileStatPresent(src)) { sweepGone.delete(key); continue }
-        if (!sweepGone.has(key)) { sweepGone.add(key); continue }
-        sweepGone.delete(key)
-        retires.push(enqueueLooseRetire(space.spaceId, e.relPath, PRIORITY.BULK)
-          .catch((err) => log.debug('loose retire failed:', e.relPath, '-', err.message)))
+        await looseSweeper.consider({ spaceId: space.spaceId, retires }, e)
       }
     } catch (err) {
       log.debug('skip loose presence sweep for space', space.spaceId, '-', err.message)
@@ -566,5 +548,5 @@ export async function sweepLoosePresence () {
 export function resetLooseState () {
   ipcRef = null
   looseSources.clear()
-  sweepGone.clear()
+  looseSweeper.reset()
 }

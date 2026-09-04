@@ -5,7 +5,9 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { saveForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { runMaterializeTick, setForeignEnabled, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
+import { ForeignMirrors, runMaterializeTick, setForeignEnabled, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
+import { createLifecycle } from '../../src/shared/core/subsystem.js'
+import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
@@ -68,6 +70,8 @@ async function setupOverlayMirror (t, { relPath = 'big.bin', contentHash = 'a'.r
   return { spaceId, shareId, contentHash, spy }
 }
 
+const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+
 test('FIX-MIRROR-STOP: unmount after pause tells holders we stopped', async (t) => {
   const { spaceId, shareId, contentHash, spy } = await setupOverlayMirror(t)
 
@@ -106,4 +110,28 @@ test('FIX-MIRROR-STOP: unmounting an idle mirror sends no stray STOP', async (t)
   await unmountForeignFolder(spaceId, shareId)
   t.alike(spy.stopped, [], 'nothing was in flight or paused — nothing to stop')
   t.absent(spy.cancel, 'no fetch to cancel')
+})
+
+test('REGRESSION (FIX-PI7-3: a shutdown leaves no paused hash for the next lifetime)', async (t) => {
+  // stopAllForeignLoops pauses rather than unmounts, so a shutdown is the one path that FILLS the
+  // marker map — and _close cleared everything except that. A marker surviving it makes the next
+  // lifetime broadcast STOPPED for a fetch it never started.
+  const { spaceId, shareId, contentHash, spy } = await setupOverlayMirror(t)
+
+  const tickP = runMaterializeTick(spaceId, shareId)
+  await waitUntil(() => spy.startedHash === contentHash)
+
+  await setForeignEnabled(spaceId, shareId, false)
+  t.is(spy.cancel?.opts?.discardPartial, false, 'the pause kept the partial and remembered the hash')
+  t.alike(spy.stopped, [], 'and told the holder nothing yet')
+
+  const life = createLifecycle({ log: silentLog })
+  const mirrors = await life.start(new ForeignMirrors('mirrors-under-test', { ipc: createFakeIpc().ipc }))
+  mirrors.log = silentLog
+  await life.close()
+
+  await unmountForeignFolder(spaceId, shareId)
+  t.alike(spy.stopped, [], 'the closed subsystem took its markers with it — no STOP from a dead lifetime')
+
+  await tickP
 })

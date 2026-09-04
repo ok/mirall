@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { saveOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { saveOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
@@ -135,6 +135,40 @@ test('REGRESSION (FIX: a folder file is not tombstoned on a single presence-swee
 
   await overlaySweepPresence()
   t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'a second consecutive miss reclaims it')
+})
+
+test('REGRESSION (FIX-PI1-4: an owned-folder file gone from disk is retired through the publish lane)', async (t) => {
+  // The sweep used to write the tombstone itself, bypassing the lane the owner's every other
+  // publish and retire goes through — and with it the runner's own presence re-confirmation, the
+  // space's catalog batch, and the gates below. Index-paused is the one that discriminates: a
+  // direct write does not care about it, a lane item is skipped by it.
+  const ctx = await setup(t, { files: { 'a.txt': 'data' } })
+  const abs = path.join(ctx.mountPath, 'a.txt')
+  await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', abs)
+
+  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: true })
+  fs.unlinkSync(abs)
+  await overlaySweepPresence()
+  await overlaySweepPresence()
+  t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'),
+    'a paused index publishes no deletions — the reclaim went through the lane and the lane declined it')
+
+  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: false })
+  await overlaySweepPresence()
+  await overlaySweepPresence()
+  t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'and once the index resumes, the same lane retires it')
+})
+
+test('the presence sweep writes no catalog tombstone of its own', (t) => {
+  const src = fs.readFileSync(
+    path.join(new URL('../../src/shared/transfer/backends/overlay/overlay-backend.js', import.meta.url).pathname),
+    'utf8',
+  )
+  const start = src.indexOf('const folderSweeper =')
+  const sweep = src.slice(start, src.indexOf('\n}', src.indexOf('export async function overlaySweepPresence')))
+  t.ok(start > 0 && sweep.length > 200, 'the sweep was located — an empty slice would pass every assertion below')
+  t.absent(/catalogTombstone|evictIfUnreferenced/.test(sweep), 'the reclaim is proposed onto the lane, never written here')
+  t.ok(/enqueueRetire/.test(sweep), 'and the proposal is the lane call')
 })
 
 test('FIX: a folder file that reappears between sweeps (atomic save) is never tombstoned', async (t) => {

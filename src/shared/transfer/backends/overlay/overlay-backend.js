@@ -40,7 +40,9 @@ import { pathFromMount } from '../../path-guard.js'
 import { shareDecoKey } from '../../decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
 import { reuseDest } from '../../download-dest.js'
-import { supersedeDecision, republishDecision } from '../../supersede-decision.js'
+import { createOverlayChannel } from './overlay-channel.js'
+import { cancelSpaceOn, reconcileActiveSlots } from './overlay-consume.js'
+import { createPresenceSweeper } from '../../presence-sweeper.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
 import { getDownloadDir } from '../../../core/paths.js'
@@ -128,13 +130,14 @@ export function initContentBackendOverlay(ipc) {
   // every share in the space plus the loose channel, so an append names no single share.
   setOwnCatalogAppendHook((spaceId) => sharesRefresh.touch(spaceId, undefined))
 }
-export function resetContentBackendState() { ipcRef = null; setOwnCatalogAppendHook(null); sharesRefresh.reset(); peerPrepareBroadcast = null; pendingPublishProbe = null; presenceGone.clear(); publishesAborting = false }
+export function resetContentBackendState() { ipcRef = null; setOwnCatalogAppendHook(null); sharesRefresh.reset(); peerPrepareBroadcast = null; publishLane = null; folderSweeper.reset(); publishesAborting = false }
 export function abortInFlightPublishes() { publishesAborting = true }
 export function setSharePrepareBroadcast(fn) { peerPrepareBroadcast = fn }
-// Installed by owned-folders: (spaceId, shareId, relPath) → true while a publish for that path is
-// queued or running, so the presence sweep never reclaims a file whose publish has not started.
-let pendingPublishProbe = null
-export function setPendingPublishProbe(fn) { pendingPublishProbe = fn }
+// The owner's publish lane, installed by owned-folders — which owns the scheduler and imports this
+// module, so the edge cannot run the other way. `isPending` keeps the presence sweep off a path
+// whose publish has not started; `enqueueRetire` is how the sweep proposes a reclaim.
+let publishLane = null
+export function setFolderPublishLane(lane) { publishLane = lane }
 
 // Notified with (spaceId) whenever an owner's catalog appends, so a foreign mirror can
 // materialize the change promptly instead of waiting for its poll. (The catalog is the
@@ -493,29 +496,22 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
   const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return
   const prefix = '/' + share.name + '/'
-  for (const [transferId, slot] of engine().activeSlots()) {
-    if (slot.spaceId !== spaceId || slot.ownerPublicKey !== share.owner || !slot.pendingKey.startsWith(prefix)) continue
-    const relPath = slot.pendingKey.slice(prefix.length)
-    const inflightHash = slot.contentHash
-    const state = await getPeerEntryState(keyHex, share.id, relPath, { sck })
-    const decision = republishDecision(inflightHash, state, slot.sourceSeq)
-    // Tombstoned, or re-added with identical content → terminate; don't silently continue the
-    // old partial. A genuine content change falls through to the supersede below.
-    if (decision === 'drop') { await engine().dropRemoved(spaceId, slot.pendingKey, transferId).catch((err) => log.debug('overlay active drop-removed failed:', err.message)); continue }
-    // Mid-rehash: a new version is advertised, its hash not materialized yet. Park the transfer as
-    // 'preparing' (abort the doomed old-hash fetch, keep the row) — the setMaterializedHash append
-    // restarts it on the new content via runReconcile.
-    if (decision === 'pending') { engine().releaseForRepublish(transferId); continue }
-    if (decision !== 'restart' && supersedeDecision(inflightHash, state?.contentHash) !== 'restart') continue
-    engine().supersede(transferId, {
-      spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath, shareId: share.id, ...catalogKeyField(keyHex, encrypted),
+  const relOf = (slot) => slot.pendingKey.slice(prefix.length)
+  await reconcileActiveSlots({
+    engine: engine(),
+    spaceId,
+    log,
+    ownsSlot: (slot) => slot.ownerPublicKey === share.owner && slot.pendingKey.startsWith(prefix),
+    entryStateFor: (slot) => getPeerEntryState(keyHex, share.id, relOf(slot), { sck }),
+    buildJob: (slot, state, transferId) => ({
+      spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath: relOf(slot), shareId: share.id, ...catalogKeyField(keyHex, encrypted),
       folderName: folderLabel(share),
       transferId,
       contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
-      ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
+      ownerPublicKey: share.owner, verifyKey: share.id + '|' + relOf(slot),
       finalPath: slot.finalPath,
-    }, inflightHash)
-  }
+    }),
+  })
 }
 
 async function peerEntry(spaceId, share, relPath) {
@@ -525,14 +521,9 @@ async function peerEntry(spaceId, share, relPath) {
 }
 
 // Non-mirrored overlay folder downloads run on the shared overlay consumer engine
-// (single-flight, real pause/resume, stop/cancel, auto-resume) — the same engine the
-// space-root loose path uses. This is the folder "channel": share-file-* event names
-// + the catalog/ownerKey/pending-key specifics. The pending row carries catalogKey so
-// reconnect-resume can re-look-up the entry without a share descriptor.
-// Folder-share progress is DECORATION on the unified 'transfer' channel, keyed shareId:relPath
-// (parity with the loose path's per-space path keys). The renderer merges it at render, gated on
-// the worker-derived status, so a lingering entry after a missed `done` stays invisible.
-const shareDeco = (job, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId: job.spaceId, key: shareDecoKey(job.shareId, job.relPath), ...p })
+// (single-flight, real pause/resume, stop/cancel, auto-resume) — the same engine the space-root
+// loose path uses, driven by a channel built from the same factory. The pending row carries
+// catalogKey so reconnect-resume can re-look-up the entry without a share descriptor.
 
 // The label share:rename writes, carried on the job so the engine's audit row can name the folder
 // without a join — a row outlives the share it describes. Null when the owner's descriptor is
@@ -548,68 +539,52 @@ function engine() {
   return folderEngine
 }
 
-export const folderChannel = {
+async function resolveFolderPendingRow(spaceId, row) {
+  // Prefer the owner's CURRENT share record over the persisted row's key: when an owner
+  // migrates its catalog to SCK encryption the catalog key changes (plaintext to encrypted)
+  // and the plaintext core is purged, so a row-only resolve would open the dead core.
+  // Fall back to the row when the descriptor is unreadable (owner offline).
+  const share = await readPeerShareEntry(row.ownerKey, spaceId, row.shareId)
+  const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share || row)
+  if (!readable) return { removed: false, seq: undefined, job: null }
+  const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
+  if (state?.removed) return { removed: true, seq: undefined, job: null }
+  if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null }
+  // Re-anchor to the space's CURRENT download folder: a row pinned before the user re-pointed the
+  // space would otherwise resume into the old one. A re-anchored row starts from zero — its bytes
+  // live in the old folder's partial, which the boot sweep reclaims.
+  const finalPath = reuseDest(row.finalPath, getDownloadDir(spaceId), path.basename(row.relPath))
+  return {
+    removed: false, seq: state.seq,
+    job: {
+      spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId, ...catalogKeyField(keyHex, encrypted),
+      folderName: folderLabel(share),
+      transferId: transferIdFor(spaceId, row.shareId, row.relPath),
+      contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
+      ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
+      finalPath, prevBytes: finalPath === row.finalPath ? row.bytesTransferred : 0,
+    },
+  }
+}
+
+// Folder-share progress is DECORATION on the unified 'transfer' channel, keyed shareId:relPath
+// (parity with the loose path's per-space path keys). The renderer merges it at render, gated on
+// the worker-derived status, so a lingering entry after a missed `done` stays invisible.
+export const folderChannel = createOverlayChannel({
   diagLabel: 'overlay download',
   inPlace: false,
+  // A folder row surfaces its error inline in the file list (Resume retries), so only the codes no
+  // automatic retry can fix cross the wire as a toast + notification.
+  surfaceAllErrors: false,
+  updatedEvent: 'event:share-files-updated',
+  emit: (name, payload) => ipcRef?.emit(name, payload),
+  decoKeyFor: (job) => shareDecoKey(job.shareId, job.relPath),
+  decoKeyForRow: (row) => (row?.shareId && row?.relPath ? shareDecoKey(row.shareId, row.relPath) : null),
   ownsPendingRow: (row) => row.overlayShare === true,
   pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, ...catalogKeyField(job.catalogKeyEnc || job.catalogKey, !!job.catalogKeyEnc) }),
-  emitProgress: (job, p) => shareDeco(job, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
-  emitVerifying: (job, fraction) => shareDeco(job, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
-  // Folder rows surface errors via the list refresh (Resume retries); only the terminal
-  // failures cross the wire — disk-full, an integrity mismatch and an unreachable download
-  // folder need the user's attention (toast + notification) and no automatic retry can fix any
-  // of them. The membership of this set and the auto-resume suppression in overlay-download.js
-  // are the same judgement: a fault the user must clear before a retry can ever succeed.
-  emitError: (job, errorCode) => {
-    if (errorCode === ErrorCodes.TRANSFER_DISK_FULL || errorCode === ErrorCodes.TRANSFER_CHECKSUM
-      || errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE) {
-      ipcRef?.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode })
-    }
-    shareDeco(job, { done: true })
-  },
-  emitComplete: (job, localPath) => { ipcRef?.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }); shareDeco(job, { done: true }) },
-  // The cancel path has no job, but the pending row carries shareId/relPath (pendingExtra) —
-  // emit the terminal done frame so the entry can't resurrect a stale bar when the same key
-  // later re-derives 'downloading' (re-download, or a mirror fetch of the same file).
-  emitCancelled: (spaceId, transferId, pendingKey, row) => {
-    if (row?.shareId && row?.relPath) ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key: shareDecoKey(row.shareId, row.relPath), done: true })
-  },
-  emitPaused: (job) => shareDeco(job, { done: true }),
-  emitDecorationDone: (job) => shareDeco(job, { done: true }),
   transferIdForRow: (spaceId, row) => transferIdFor(spaceId, row.shareId, row.relPath),
-  emitSuperseded: (job) => { ipcRef?.emit('event:transfer-superseded', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, fileName: path.basename(job.relPath) }); shareDeco(job, { bytes: 0, total: job.size, speed: 0, eta: null }) },
-  emitUpdated: (spaceId) => ipcRef?.emit('event:share-files-updated', { spaceId }),
-  resolvePendingRow: async (spaceId, row) => {
-    // Prefer the owner's CURRENT share record over the persisted row's key: when an owner
-    // migrates its catalog to SCK encryption the catalog key changes (plaintext→encrypted)
-    // and the plaintext core is purged, so a row-only resolve would open the dead core.
-    // Fall back to the row when the descriptor is unreadable (owner offline). Mirrors the
-    // loose path, which re-derives from the live member.
-    const share = await readPeerShareEntry(row.ownerKey, spaceId, row.shareId)
-    const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share || row)
-    if (!readable) return { removed: false, seq: undefined, job: null }
-    const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
-    if (state?.removed) return { removed: true, seq: undefined, job: null }
-    if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null }
-    // Re-anchor to the space's CURRENT download folder: a row pinned before the user
-    // re-pointed the space would otherwise resume into the old one. A re-anchored row starts
-    // from zero — its bytes live in the old folder's partial, which the boot sweep reclaims.
-    const finalPath = reuseDest(row.finalPath, getDownloadDir(spaceId), path.basename(row.relPath))
-    return {
-      removed: false, seq: state.seq,
-      job: {
-        spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId, ...catalogKeyField(keyHex, encrypted),
-        folderName: folderLabel(share),
-        transferId: transferIdFor(spaceId, row.shareId, row.relPath),
-        contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
-        ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
-        finalPath, prevBytes: finalPath === row.finalPath ? row.bytesTransferred : 0,
-      },
-    }
-  },
-  emitRemovedByOwner: (spaceId, pendingKey, row, transferId) =>
-    ipcRef?.emit('event:transfer-removed', { spaceId, transferId, path: pendingKey, fileName: path.basename(row?.relPath || pendingKey) }),
-}
+  resolvePendingRow: resolveFolderPendingRow,
+})
 
 // Consumer single-file download: fetch by contentHash straight from a holder and
 // write to the downloads folder. No second copy stored (reSeed:false). When the
@@ -640,17 +615,8 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
 export const overlayPause = (transferId) => engine().pause(transferId)
 export const overlayCancel = (transferId) => engine().cancel(transferId)
 export const overlayCancelByKey = (spaceId, drivePath, transferId) => engine().cancelByKey(spaceId, drivePath, transferId)
-// Cancel + discard every in-flight overlay-folder download for a space (leave teardown):
-// the engine keeps fetching a started transfer even after its pending row is cleared, so
-// without this the partial is orphaned and a late completion re-writes purged meta rows.
 export async function overlayCancelSpace (spaceId) {
-  const ids = []
-  for (const [transferId, slot] of engine().activeSlots()) {
-    if (slot.spaceId === spaceId) ids.push(transferId)
-  }
-  // Per-id best-effort: cancel now throws when the row cannot be cleared, and the leave's own
-  // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
-  await Promise.all(ids.map((id) => engine().cancel(id).catch((err) => log.warn('cancel on leave failed:', id, '-', err.message))))
+  await cancelSpaceOn(engine(), spaceId, log)
 }
 export const resumeOverlayForOwner = (ownerKey, spaceId) => engine().resumeForOwner(ownerKey, spaceId)
 export const overlayHasTransfer = (transferId) => engine().has(transferId)
@@ -706,12 +672,22 @@ export async function rehydrateOwnedFiles() {
   await forEachOwnedOverlayShare(rehydrateShare)
 }
 
-// Confirm-gone-twice (a path must be missing on two consecutive sweeps) so an
-// atomic-save window (editor rename-over / delete+recreate) doesn't transiently
-// tombstone a still-present file — which would cascade the deletion to every
-// mirror peer. Mirrors the loose sweep's sweepGone guard (loose-overlay.js).
-const presenceGone = new Set()
-const presenceGoneKey = (spaceId, shareId, relPath) => spaceId + '\0' + shareId + '\0' + relPath
+const folderSweeper = createPresenceSweeper({
+  keyOf: ({ spaceId, shareId }, entry) => spaceId + '\0' + shareId + '\0' + entry.relPath,
+  isPending: ({ spaceId, shareId }, entry) => !!publishLane?.isPending(spaceId, shareId, entry.relPath),
+  // Exact-name presence, like the retire executor: a following stat would keep a case-only
+  // rename's old key alive forever on a case-folding volume.
+  presentAt: ({ mountPath }, entry) => {
+    try { return fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch { return false }
+  },
+  // Onto the shared publish lane, exactly as the loose sweep retires: the runner re-confirms the
+  // file is really gone, the write joins the space's catalog batch, and the eviction rides with
+  // it. Writing the tombstone here instead skipped all three.
+  retire: ({ spaceId, shareId, retires }, entry) => {
+    const settled = publishLane?.enqueueRetire(spaceId, shareId, entry.relPath)
+    if (settled) retires.push(settled.catch((err) => log.debug('folder retire failed:', entry.relPath, '-', err.message)))
+  },
+})
 
 // Backstop: tombstone catalog entries whose source file vanished but whose
 // chokidar unlink event was missed. Mount-root guarded — a temporarily-
@@ -719,21 +695,12 @@ const presenceGoneKey = (spaceId, shareId, relPath) => spaceId + '\0' + shareId 
 export async function overlaySweepPresence() {
   await forEachOwnedOverlayShare(async (spaceId, shareId, mountPath) => {
     try { if (!fs.statSync(mountPath).isDirectory()) return } catch { return } // root gone → skip
-    let changed = false
+    const retires = []
     for await (const entry of listOwnShare(spaceId, shareId)) {
-      const key = presenceGoneKey(spaceId, shareId, entry.relPath)
-      if (pendingPublishProbe?.(spaceId, shareId, entry.relPath)) { presenceGone.delete(key); continue }
-      // Exact-name presence, like the retire executor: a following stat would keep a case-only
-      // rename's old key alive forever on a case-folding volume.
-      let exists = false
-      try { exists = fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch {}
-      if (exists) { presenceGone.delete(key); continue }
-      if (!presenceGone.has(key)) { presenceGone.add(key); continue } // arm; reclaim only on a 2nd consecutive miss
-      presenceGone.delete(key)
-      await catalogTombstone(spaceId, shareId, entry.relPath)
-      await evictIfUnreferenced(entry.contentHash, spaceId, shareId, entry.relPath)
-      changed = true
+      await folderSweeper.consider({ spaceId, shareId, mountPath, retires }, entry)
     }
-    if (changed) ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
+    if (!retires.length) return
+    await Promise.all(retires)
+    await publishLane?.settle(spaceId)
   })
 }
