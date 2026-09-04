@@ -196,3 +196,15 @@ test('no ipcMain channel duplicates a main-request command', (t) => {
 
   t.alike(channels, [], 'the worker bus is the only way to reach these')
 })
+
+// `mainRequests` is a const, and the worker's data handler closes over it. It used to be declared
+// ~300 lines below getWorker, which works only while every spawn arrives from an ipcMain callback:
+// any synchronously-dispatched spawn added above the declaration turns the first worker frame into
+// a TDZ ReferenceError thrown inside a stream listener, where nothing catches it.
+test('the router is built before the worker handler that closes over it', (t) => {
+  const src = readFileSync(path.join(SRC, 'main', 'main.js'), 'utf8')
+  const router = src.indexOf('const mainRequests = createMainRequestRouter')
+  const reader = src.indexOf('function getWorker')
+  t.ok(router !== -1 && reader !== -1, 'found both')
+  t.ok(router < reader, 'the router is initialised above getWorker')
+})

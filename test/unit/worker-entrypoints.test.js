@@ -66,3 +66,16 @@ test('the renderer names its worker through the contract, not by position', (t) 
   t.absent(/['"`]\/src\/worker\//.test(src), 'no literal specifier is left behind')
   t.is(WORKER_SPECS[0], MAIN_WORKER_SPEC, 'the allowlist is derived from the name')
 })
+
+// preloadAsarCache() walks assets/ with readdirSync and has no catch, so an ENOENT there (a source
+// checkout with no assets/dist) aborted the rest of the function. When preloadEntrypoints ran last,
+// that left the allowlist EMPTY — and since the allowlist is now the only thing pear:startWorker
+// resolves against, main would refuse to spawn its own declared worker.
+test('the allowlist is resolved before anything in boot that can throw', (t) => {
+  const src = readFileSync(path.join(REPO, 'src', 'main', 'main.js'), 'utf8')
+  const body = src.slice(src.indexOf('function preloadAsarCache'))
+  const preload = body.indexOf('preloadEntrypoints(')
+  const walk = body.indexOf('walk(uiRoot)')
+  t.ok(preload !== -1 && walk !== -1, 'found both')
+  t.ok(preload < walk, 'the entrypoints are resolved first')
+})
