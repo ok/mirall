@@ -137,7 +137,67 @@ test('REGRESSION (FIX-R04-2-D3): a failed write restores the previous value', as
   bridge.fail(1, new Error('main refused'))
   await t.exception(write, 'the rejection reaches the caller')
   t.alike(peekMain(CAPS).data, UNLIMITED, 'and the displayed cap is back to what main actually has')
-  t.ok(peekMain(CAPS).error, 'with the failure on the entry')
+  t.is(peekMain(CAPS).error, null, 'the rejection went to the caller, not onto the entry')
+})
+
+// REGRESSION (FIX-WRITE-ERROR-STICKY: a failed write recorded its error on the shared entry, and
+// fetchMain answers a cached entry without clearing it — so nothing ever did. One refused
+// setBandwidth made NetworkSettings show "couldn't save" on every later visit, and a refused
+// setDownloadFolder made EditSpaceModal render an alert for a read of its own that had succeeded.)
+test('REGRESSION (FIX-WRITE-ERROR-STICKY): a failed write leaves no error for the next reader', async (t) => {
+  const bridge = setup(t)
+
+  const load = fetchMain(CAPS)
+  bridge.settle(0, UNLIMITED)
+  await load
+
+  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
+  bridge.fail(1, new Error('main refused'))
+  await t.exception(write)
+
+  // What a remount does: the effect re-reads, and the entry answers from cache.
+  t.alike(await fetchMain(CAPS), UNLIMITED, 'the cached value still answers')
+  t.is(peekMain(CAPS).error, null, 'and the screen has nothing stale to render')
+  t.is(peekMain(CAPS).loading, false, 'nor is it stuck loading')
+})
+
+// The invariant the fix establishes: `error` means "there is no value to show". A read is only
+// ever issued for an entry with no data, so the two can never both be set.
+test('an entry never carries data and an error at once', async (t) => {
+  const bridge = setup(t)
+
+  const failed = fetchMain(FOLDER)
+  bridge.fail(0, new Error('main refused'))
+  await t.exception(failed)
+  t.ok(peekMain(FOLDER).error, 'a failed read with nothing cached reports the error')
+  t.is(peekMain(FOLDER).data, undefined, 'and has no value to show alongside it')
+
+  const retry = fetchMain(FOLDER)
+  bridge.settle(1, '/Users/me/Downloads')
+  await retry
+  t.is(peekMain(FOLDER).error, null, 'a later success clears it')
+  t.is(peekMain(FOLDER).data, '/Users/me/Downloads')
+})
+
+// The seam prefs needs: display the merge, send the patch.
+test('writeMain sends `payload` when it differs from the optimistic value', async (t) => {
+  const bridge = setup(t)
+
+  const write = writeMain(FOLDER, '/Users/me/Merged', { payload: '/Users/me/Patch' })
+  t.is(peekMain(FOLDER).data, '/Users/me/Merged', 'the optimistic paint uses the value')
+  t.ok(bridge.calls.includes('setDownloadFolder:/Users/me/Patch'), 'while main is sent the payload')
+
+  bridge.settle(0, '/Users/me/FromMain')
+  t.is(await write, '/Users/me/FromMain')
+  t.is(peekMain(FOLDER).data, '/Users/me/FromMain', "and main's answer replaces both")
+})
+
+test('payload defaults to the value for a whole-value replace', async (t) => {
+  const bridge = setup(t)
+  const write = writeMain(FOLDER, '/Users/me/Plain')
+  t.ok(bridge.calls.includes('setDownloadFolder:/Users/me/Plain'))
+  bridge.settle(0, '/Users/me/Plain')
+  await write
 })
 
 test('a successful write publishes what main stored, not what was asked for', async (t) => {
