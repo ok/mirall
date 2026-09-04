@@ -7,6 +7,7 @@
 import { Subsystem } from '../../../core/subsystem.js'
 import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-config.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'
+import { resetFetchSlots, drainFetchSlots } from './fetch-slots.js'
 import { drainTransferAudit } from '../../transfer-audit.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
@@ -45,6 +46,9 @@ export class OverlayBackend extends Subsystem {
     // (every entry point checks getOverlay()), and on the kill-switch build the alternative is an
     // engine() that throws out of files:list, space:leave and the transfer handlers.
     initLooseOverlay(this.deps.ipc)
+    // The gate is a module singleton, so unlike the engines it does not die with the previous
+    // lifetime: a slot whose release was lost would shrink the cap for every later open.
+    resetFetchSlots()
     this.folderEngine = createOverlayDownloadEngine(folderChannel)
     this.looseEngine = createOverlayDownloadEngine(looseChannel)
     setFolderEngine(this.folderEngine)
@@ -69,10 +73,10 @@ export class OverlayBackend extends Subsystem {
   async _close() {
     for (const timer of this.resumePending.values()) this.timers.clear(timer)
     this.resumePending.clear()
-    // Before the teardown: a download parked on the admission gate would otherwise hold its
-    // task past the stop deadline waiting for a slot nobody will release.
-    this.folderEngine?.drainAdmission()
-    this.looseEngine?.drainAdmission()
+    // Before the teardown: a download parked on the fetch gate would otherwise hold its task past
+    // the stop deadline waiting for a slot nobody will release. Unscoped — every producer is done
+    // by now, ForeignMirrors having already released its own waiters when it closed ahead of us.
+    drainFetchSlots()
     await teardownOverlay()
     // After the teardown, which settles the in-flight fetches that produce these rows, and before
     // the durable tier closes the audit bee: boot.js starts the audit log in `durable` and this

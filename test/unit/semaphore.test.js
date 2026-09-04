@@ -105,6 +105,58 @@ test('drain resolves every queued waiter and their releases are inert', async (t
   t.is(sem.stats().held, 1, 'the drained releases did not decrement the real holder')
 })
 
+// One gate is now shared by subsystems that close at different times (the mirror closes before the
+// overlay backend), so a close must be able to release its OWN parked callers without releasing
+// work the later subsystem is still guarding.
+test('drain(owner) releases only that owner and leaves the rest queued in order', async (t) => {
+  const sem = createSemaphore({ limit: 1, expressLanes: 0 })
+  await sem.acquire()
+  const mine = sem.acquire({ owner: 'mirror' })
+  const theirs = [sem.acquire({ owner: 'folder' }), sem.acquire({ owner: 'folder' })]
+  t.is(sem.stats().queued, 3)
+
+  sem.drain('mirror')
+  const release = await mine
+  t.is(sem.stats().queued, 2, 'only the mirror waiter was released')
+  release()
+  t.is(sem.stats().held, 1, 'and its release is inert')
+
+  let order = []
+  theirs[0].then(() => order.push(0))
+  theirs[1].then(() => order.push(1))
+  sem.drain()
+  await Promise.all(theirs)
+  t.alike(order, [0, 1], 'the survivors kept their acquire order across the scoped drain')
+})
+
+test('an untagged drain still releases an owner-tagged waiter', async (t) => {
+  const sem = createSemaphore({ limit: 1, expressLanes: 0 })
+  await sem.acquire()
+  const parked = sem.acquire({ owner: 'mirror' })
+  sem.drain()
+  await parked
+  t.is(sem.stats().queued, 0, 'no argument means everyone, tagged or not')
+})
+
+// Two engines each carried one express lane, so the shared gate has to carry two or a click on a
+// loose file would queue behind a click on a folder file.
+test('expressLanes: 2 admits two express acquires over a saturated limit', async (t) => {
+  const sem = createSemaphore({ limit: 1, expressLanes: 2 })
+  await sem.acquire()
+  t.is(sem.stats().held, 1, 'the single bulk slot is taken')
+
+  const admitted = []
+  sem.acquire({ express: true }).then(() => admitted.push('a'))
+  sem.acquire({ express: true }).then(() => admitted.push('b'))
+  await tick()
+  t.is(admitted.length, 2, 'both express lanes are available')
+
+  let third = false
+  sem.acquire({ express: true }).then(() => { third = true })
+  await tick()
+  t.absent(third, 'and the third express caller waits')
+})
+
 test('releasing twice does not double-decrement', async (t) => {
   const sem = createSemaphore({ limit: 2, expressLanes: 0 })
   const a = await sem.acquire()

@@ -157,11 +157,11 @@ test('network defaults to unlimited and self-heals onto a config written before 
 // value — both of which this pins.
 test('the download concurrency default is carried, self-heals and survives a rewrite', (t) => {
   const dir = tmpDir()
-  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 3, 'fresh config gets the default')
+  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 6, 'fresh config gets the default')
 
   writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, network: { downloadKBps: 500 } })
   const healed = new ConfigStore(dir).load()
-  t.is(healed.get('network.downloadConcurrency'), 3, 'a config written before the key existed gains it')
+  t.is(healed.get('network.downloadConcurrency'), 6, 'a config written before the key existed gains it')
   t.is(healed.get('network.downloadKBps'), 500, 'and keeps what that build did set')
 
   // _migrate re-derives only the relay fields; a hand-set cap must not be reset on the next load,
@@ -207,7 +207,7 @@ test('network survives a persist/reload round-trip', (t) => {
   store.flush()
   // Bandwidth, relay and the fetch-gate cap share the `network` group, so the persisted block
   // carries all three.
-  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [], downloadConcurrency: 3 })
+  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [], downloadConcurrency: 6 })
   const reopened = new ConfigStore(dir).load()
   t.is(reopened.get('network.downloadKBps'), 2048)
   t.is(reopened.get('network.uploadKBps'), 256)

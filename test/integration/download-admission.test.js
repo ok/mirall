@@ -6,6 +6,7 @@ import { initPendingTransfers, recordPending } from '../../src/shared/transfer/p
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { resetFetchSlots, drainFetchSlots, fetchSlotStats, FETCH_OWNER_MIRROR, acquireFetchSlot } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
 
 const SPACE = 'space1'
 const OWNER = 'ownerpub'
@@ -32,7 +33,10 @@ async function setup (t, concurrency) {
   await initOverlay()
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, downloadConcurrency: concurrency })
-  t.teardown(async () => { setRuntimeConfig(prev); await teardownOverlay() })
+  // The gate is process-wide now, so each case has to start from an empty one — the per-engine
+  // semaphore it replaced died with the engine the previous test built.
+  resetFetchSlots()
+  t.teardown(async () => { setRuntimeConfig(prev); resetFetchSlots(); await teardownOverlay() })
   return ctx
 }
 
@@ -210,4 +214,62 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
 
   t.is(fetches.started.length, 1, 'the parked job abandoned instead of fetching')
   t.is(engine.admissionStats().queued, 0, 'and nothing is left holding close() open')
+})
+
+// The cap used to be built inside createOverlayDownloadEngine, so the two engines the overlay
+// backend constructs each got their own — a configured 3 was really 6, and no test could see it
+// because every case built one engine.
+test('the cap counts fetches across producers, not per engine', async (t) => {
+  const ctx = await setup(t, 2)
+  const folder = createOverlayDownloadEngine(testChannel())
+  const loose = createOverlayDownloadEngine(testChannel())
+  const fetches = barrierFetch()
+
+  await folder.start(makeJob(ctx, 1))
+  await loose.start(makeJob(ctx, 2))
+  t.ok(await until(() => fetches.started.length === 2), 'both engines got a slot')
+
+  await loose.start(makeJob(ctx, 3))
+  t.ok(await until(() => fetchSlotStats().queued === 1), 'the third is parked on the shared gate')
+  await settle()
+  t.is(fetches.peak, 2, 'two fetches at once across BOTH engines, not two each')
+
+  for (let i = 0; i < 20 && fetches.started.length < 3; i++) { fetches.releaseAll(); await settle() }
+  // A lower bound, not an equality: releasing a barrier settles the fetch, and a settle may re-drive
+  // its own job (a stall retry), which adds a SEQUENTIAL fetch. The invariant this test exists for
+  // is the peak — with a gate per engine it would be 4.
+  t.ok(fetches.started.length >= 3, 'the parked job ran once a slot freed')
+  t.is(fetches.peak, 2, 'and the peak never rose')
+  fetches.releaseAll()
+  await settle()
+})
+
+// Hazard 1, both halves. ForeignMirrors closes BEFORE OverlayBackend (boot.js starts the overlay
+// first), so a mirror parked on the shared gate has to be released by its own close — but an
+// unscoped drain would release the engines' backlog into an overlay that is still live, and those
+// tasks pass their own hasOverlay() guard and start real fetches during shutdown.
+test('draining the mirror at close does not release the engines into a live overlay', async (t) => {
+  const ctx = await setup(t, 1)
+  const engine = createOverlayDownloadEngine(testChannel())
+  const fetches = barrierFetch()
+
+  await engine.start(makeJob(ctx, 1))
+  t.ok(await until(() => fetches.started.length === 1), 'the first holds the only slot')
+  await engine.start(makeJob(ctx, 2))
+  let mirrorResumed = false
+  acquireFetchSlot({ owner: FETCH_OWNER_MIRROR }).then(() => { mirrorResumed = true })
+  t.ok(await until(() => fetchSlotStats().queued === 2), 'an engine job and a mirror pass are parked')
+
+  drainFetchSlots(FETCH_OWNER_MIRROR)
+  await sleep(300)
+
+  t.ok(mirrorResumed, 'the mirror was released so its close is not held to the settle timeout')
+  t.is(fetches.started.length, 1, 'the engine job did NOT start a fetch during shutdown')
+  // Not an exact count: the gate is process-wide, so engines built by earlier cases in this file
+  // can still put a job on it. The claim is that the engine's waiter was not released, which is
+  // what the assertion above measures and this one confirms it is still queued rather than dropped.
+  t.ok(fetchSlotStats().queued >= 1, 'it is still parked, for OverlayBackend._close to drain')
+
+  fetches.releaseAll()
+  await settle()
 })

@@ -25,6 +25,7 @@ import { getContentBackend, hasContentBackend } from '../transfer/content-backen
 import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
 import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
+import { acquireFetchSlot, drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overlay/fetch-slots.js'
 import { createPausedHolders } from '../transfer/backends/overlay/paused-holders.js'
 import { shareDecoKey } from '../transfer/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
@@ -345,6 +346,46 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // decoration key and duplicate the bytes — skip; the next tick lands it after the
   // engine settles.
   if (overlayHasTransfer(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))) return 'missing'
+  const streamKey = loopKey(mount.spaceId, mount.shareId)
+  const releaseSlot = await acquireMirrorSlot(streamKey)
+  try {
+    // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
+    // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
+    // gets the check it needs — a stop landing during the wait above.
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey) })
+  } finally {
+    releaseSlot()
+  }
+}
+
+// A parked pass is in flight as far as pass-liveness is concerned, so mirrorVerdict would condemn
+// it after pollInterval x STALL_FACTOR (10 minutes) and the Supervisor would restart it — churn
+// whose cause is a queue, not a wedge. Stamping progress either side of the wait is not enough:
+// the wait is unbounded and can outlast the window on its own. Heartbeat through it instead, so
+// the verdict measures the fetch rather than the queue. Before this gate the mirror never waited.
+//
+// Never express: a background materialize must not outrank a click. Taken BEFORE the in-flight
+// record, because cancelInflightFetch reads that record — a stop landing while this is parked
+// would ask the vendor layer to cancel a fetch that never started, and would tell the holder we
+// paused a transfer we never began.
+async function acquireMirrorSlot(streamKey) {
+  loops.noteProgress(streamKey)
+  const beat = setInterval(() => loops.noteProgress(streamKey), getResourceCaps().foreignPollIntervalMs)
+  beat.unref?.()
+  try {
+    return await acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR })
+  } finally {
+    clearInterval(beat)
+    loops.noteProgress(streamKey)
+  }
+}
+
+// The gated half of a materialize: everything past the slot owns a chunk scheduler, a watchdog,
+// an fd and a ticker.
+async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen }) {
+  // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
+  if (mirrorStopped(streamKey, gen)) return 'missing'
+  // Read AFTER the wait, not before it: the overlay can be torn down while a pass is parked.
   const overlay = getOverlay()
   if (!overlay) return 'missing'
   await fs.promises.mkdir(path.dirname(abs), { recursive: true })
@@ -352,16 +393,15 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // bytes; ticker.pushTo diffs them.
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
-  const streamKey = loopKey(mount.spaceId, mount.shareId)
   let res
   let attempted = false
   let diag = null
-  activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
-  loops.noteProgress(streamKey)
-  pausedHolders.supersede(streamKey)
-  // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
-  ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+  // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
+    activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
+    pausedHolders.supersede(streamKey)
+    // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
+    ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
     // The overlay scheduler reports CUMULATIVE bytes; the ticker diffs them into speed/ETA.
     ;({ res, attempted, diag } = await runOverlayFetch(overlay, entry.contentHash, {
       label: 'overlay mirror',
@@ -424,7 +464,7 @@ async function initialMaterializeScanCatalog(mount, share) {
     // wrote, or the owner's later delete of that file is never applied.
     state.recordSynced(key, synced, entry.relPath, fresh)
     try {
-      if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
+      if (await materializeCatalogFile(mount, share, entry, { synced, fresh, gen }) === 'missing') allPresent = false
     } catch (err) {
       allPresent = false
       log.debug('catalog initial materialize failed:', entry.relPath, '-', err.message)
@@ -498,7 +538,7 @@ async function materializeOnceCatalog(mount, share) {
     if (mirrorStopped(key, gen)) return
     state.recordSynced(key, synced, entry.relPath, fresh)
     try {
-      if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
+      if (await materializeCatalogFile(mount, share, entry, { synced, fresh, gen }) === 'missing') allPresent = false
     } catch (err) {
       allPresent = false
       log.debug('catalog materialize failed:', entry.relPath, '-', err.message)
@@ -629,7 +669,17 @@ export class ForeignMirrors extends Subsystem {
   // stopAllForeignLoops pauses rather than unmounts, so it is the one path that FILLS
   // pausedHolders. Without the clear the hashes outlive the subsystem that recorded them, and a
   // later open inherits markers for fetches belonging to a previous lifetime.
-  async _close() { await stopAllForeignLoops(); pausedHolders.clear(); integritySeen.clear() }
+  // The scoped drain comes first: a pass parked on the shared fetch gate cannot observe the
+  // generation bump stopAllForeignLoops relies on, and would hold the 1500 ms tier budget open
+  // until the 5000 ms settle timeout. Scoped to FETCH_OWNER_MIRROR because OverlayBackend closes
+  // AFTER us — an unscoped drain would release the two engines' backlog into an overlay that is
+  // still live, and those tasks pass their own hasOverlay() guard.
+  async _close() {
+    drainFetchSlots(FETCH_OWNER_MIRROR)
+    await stopAllForeignLoops()
+    pausedHolders.clear()
+    integritySeen.clear()
+  }
 
   // Counts, not identifiers: diagnostics:export is user-shareable and redacts peer keys and
   // topics, so space and share ids must not ride along. The probe names the mount in the worker

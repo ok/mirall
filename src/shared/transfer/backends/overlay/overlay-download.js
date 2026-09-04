@@ -20,8 +20,7 @@ import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
-import { createSemaphore } from '../../../core/concurrency.js'
-import { getDownloadConcurrency } from '../../../core/runtime-config.js'
+import { acquireFetchSlot, drainFetchSlots, fetchSlotStats } from './fetch-slots.js'
 import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
@@ -147,10 +146,6 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
   // indefinitely while a wedged one gives up.
   const stallRetries = new Map()
-  // Bounds how many fetches own a chunk scheduler, a watchdog, an fd and a ticker at once.
-  // A user-initiated job takes the express lane so a click never queues behind a reconnect backlog.
-  const admission = createSemaphore({ limit: () => getDownloadConcurrency() })
-
   const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerPublicKey))
 
   function has (transferId) { return registry.has(transferId) }
@@ -298,11 +293,12 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   }
 
   // The gated half of a download: everything past this point owns a chunk scheduler, a watchdog,
-  // an fd and a ticker, which is what the admission limit exists to bound. start() has already
-  // reserved the registry slot synchronously, so a queued job still reads as active and a second
-  // trigger cannot start a duplicate fetch while this waits.
+  // an fd and a ticker, which is what the limit exists to bound — and that cost is per fetch, not
+  // per producer, which is why the gate is process-wide (fetch-slots.js) rather than built here.
+  // start() has already reserved the registry slot synchronously, so a queued job still reads as
+  // active and a second trigger cannot start a duplicate fetch while this waits.
   async function runFetchTask (slot, job, transferId) {
-    const releaseSlot = await admission.acquire({ express: !!job.express })
+    const releaseSlot = await acquireFetchSlot({ express: !!job.express })
     try {
       // The wait above is unbounded, so re-check every reason to abandon that the pre-fetch path
       // already checked — the same window recordPending guards against, only wider.
@@ -734,5 +730,5 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)
   }
 
-  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), drainAdmission: () => admission.drain(), admissionStats: () => admission.stats(), _registry: registry, _stallRetries: stallRetries }
+  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), drainAdmission: () => drainFetchSlots(), admissionStats: fetchSlotStats, _registry: registry, _stallRetries: stallRetries }
 }
