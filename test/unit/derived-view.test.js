@@ -316,3 +316,127 @@ test('noteProgress does nothing while no fold is in flight', async (t) => {
   t.is(view.health({ now: Date.now(), windowMs: 1000 }).ok, true)
   await view.close()
 })
+
+// A fake bee that records the range each watch() was opened with and how many were closed, so a
+// multi-range view can be asserted on watcher count rather than on behaviour it cannot fake.
+function recordingBee (log) {
+  return {
+    watch (range) {
+      log.opened.push(range)
+      let release
+      const until = new Promise((r) => { release = r })
+      return {
+        async * [Symbol.asyncIterator] () { await until },
+        async close () { log.closed += 1; release() },
+      }
+    },
+  }
+}
+
+test('ranges opens one watcher per range per tracked bee and close() releases all of them', async (t) => {
+  const log = { opened: [], closed: 0 }
+  const ranges = [
+    { gte: 'a/', lt: 'a0' },
+    { gte: 'b', lte: 'b' },
+    { gte: 'c/', lt: 'c0' },
+  ]
+  const view = createDerivedView({ fold: async () => null, onChange: () => {}, ranges })
+
+  view.track('peer', recordingBee(log))
+  t.is(log.opened.length, 3, 'one watcher per range')
+  t.alike(log.opened, ranges, 'each watcher got its own range, in order')
+  t.is(view.size(), 1, 'the source key counts once, not once per watcher')
+  t.ok(view.tracking('peer'))
+
+  view.track('peer', recordingBee(log))
+  t.is(log.opened.length, 3, 'track is still idempotent per source key')
+
+  await view.close()
+  t.is(log.closed, 3, 'close() released every watcher, not just the first')
+})
+
+test('range and no-range both still open exactly one watcher', async (t) => {
+  const single = { opened: [], closed: 0 }
+  const scoped = createDerivedView({ fold: async () => null, onChange: () => {}, range: { gte: 'a/', lt: 'a0' } })
+  scoped.track('peer', recordingBee(single))
+  t.is(single.opened.length, 1, 'the single-range form is unchanged')
+  t.alike(single.opened[0], { gte: 'a/', lt: 'a0' })
+  await scoped.close()
+  t.is(single.closed, 1)
+
+  const whole = { opened: [], closed: 0 }
+  const unscoped = createDerivedView({ fold: async () => null, onChange: () => {} })
+  unscoped.track('peer', recordingBee(whole))
+  t.is(whole.opened.length, 1, 'omitting both still watches the whole bee')
+  t.is(whole.opened[0], undefined, 'with an undefined range, as before')
+  await unscoped.close()
+  t.is(whole.closed, 1)
+})
+
+test('passing both range and ranges throws rather than silently preferring one', (t) => {
+  t.exception(
+    () => createDerivedView({ fold: async () => null, onChange: () => {}, range: { gte: 'a' }, ranges: [{ gte: 'b' }] }),
+    /pass range or ranges, not both/
+  )
+})
+
+// REGRESSION (REVIEW-8: `ranges ?? [range]` accepted an empty array, which opened NO watcher on any
+// source — the view folded once at boot and never re-derived, with no error and no log. A caller
+// deriving its key families and coming up empty gets a membership set frozen at whatever it was.
+// `null` is the same mistake in the other direction: it takes the ?? fallback and silently reverts
+// to the whole-bee watch the option exists to avoid.)
+test('REGRESSION (REVIEW-8): an empty or null range set is refused, not silently watched', async (t) => {
+  t.exception(
+    () => createDerivedView({ fold: async () => null, onChange: () => {}, ranges: [] }),
+    /ranges must be a non-empty array/,
+  )
+  t.exception(
+    () => createDerivedView({ fold: async () => null, onChange: () => {}, ranges: null }),
+    /ranges must be a non-empty array/,
+  )
+  // Omitting it entirely is still the whole-bee watch, which is what a caller passing neither means.
+  const whole = createDerivedView({ fold: async () => null, onChange: () => {} })
+  t.ok(whole, 'passing neither stays legal')
+  await whole.close()
+})
+
+test('a change inside any of several ranges schedules a fold', async (t) => {
+  let folds = 0
+  const emitters = []
+  const bee = {
+    watch () {
+      let push = null
+      const queue = []
+      emitters.push((v) => { if (push) { push(v); push = null } else queue.push(v) })
+      return {
+        async * [Symbol.asyncIterator] () {
+          for (;;) {
+            if (queue.length) { yield queue.shift(); continue }
+            const v = await new Promise((r) => { push = r })
+            if (v === null) return
+            yield v
+          }
+        },
+        async close () { if (push) { push(null); push = null } },
+      }
+    },
+  }
+  const view = createDerivedView({
+    fold: async () => { folds += 1 },
+    onChange: () => {},
+    ranges: [{ gte: 'a' }, { gte: 'b' }],
+  })
+  view.track('peer', bee)
+  await tick()
+  t.is(folds, 0, 'tracking alone does not fold')
+
+  emitters[1]([{}, {}])
+  await tick()
+  t.is(folds, 1, 'the second range woke the fold')
+
+  emitters[0]([{}, {}])
+  await tick()
+  t.is(folds, 2, 'the first range woke it independently')
+
+  await view.close()
+})

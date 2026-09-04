@@ -16,7 +16,7 @@ import { Subsystem } from '../core/subsystem.js'
 
 const log = createLogger('membership')
 
-const CAP_MEMBERSHIP_MANIFEST = 'caps/membership-manifest'
+export const CAP_MEMBERSHIP_MANIFEST = 'caps/membership-manifest'
 
 let profileBee
 let profileStore = -1
