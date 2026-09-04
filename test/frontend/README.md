@@ -86,6 +86,7 @@ These drive the real *filesystem → chokidar → publish → replicate → mate
 | s30 | `s30-delete-file-in-subfolder.mjs` | Owner deletes a nested file → only it leaves the mirror; its sibling is untouched. |
 | s31 | `s31-edit-and-readonly-revert.mjs` | Owner edit updates content on the mirror; **a local edit of a read-only mirror file is reverted** to the owner's version on the next sync. |
 | s32 | `s32-mirror-keeps-unrelated-file.mjs` | Mirroring into a folder that already holds the user's own file → it survives the initial scan **and** a later owner deletion (only synced files are removable). |
+| s130 | `s130-mirror-name-collision.mjs` | **FIX-MIRROR-RENAME (UI):** mirroring onto a folder holding a file at the *same* leaf name → the owner's copy lands at a sibling, and the folder still counts BOTH files as on-device. The row is asserted through the badge's accessible name, not a whole-window word match. |
 | s33 | `s33-copy-file.mjs` | Owner duplicates a file (same content, new path) → both copies publish and materialize. |
 | s34 | `s34-nested-initial-share.mjs` | Initial share of a realistic nested tree (files across several subfolders) → the whole tree replicates and materializes at the right depths. |
 | s35 | `s35-live-folder-refresh.mjs` | Peer has the FolderView open → an owner add/remove appears/disappears live, without re-navigating. |

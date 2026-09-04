@@ -53,8 +53,11 @@ export function createSemaphore({ limit, expressLanes = 1 } = {}) {
   }
 
   return {
-    acquire({ express = false } = {}) {
-      const w = { express, released: false, resolve: null }
+    // `owner` tags the waiter so a drain can be scoped to one producer. One gate can be shared by
+    // subsystems that close at different times, and releasing all of them at the first close would
+    // start work the later ones are still guarding.
+    acquire({ express = false, owner = null } = {}) {
+      const w = { express, owner, released: false, resolve: null }
       if (roomFor(express)) return Promise.resolve(admit(w))
       return new Promise((resolve) => {
         w.resolve = resolve
@@ -62,10 +65,17 @@ export function createSemaphore({ limit, expressLanes = 1 } = {}) {
       })
     },
     stats: () => ({ held, queued: waiters.length, express: expressHeld }),
-    // Shutdown: hand every queued caller a no-op release so a parked acquire cannot hold close()
-    // past the stop deadline. They resume and find their own cancelled/stopping checks.
-    drain() {
-      while (waiters.length) waiters.shift().resolve(() => {})
+    // Shutdown: hand queued callers a no-op release so a parked acquire cannot hold close() past
+    // the stop deadline. They resume and find their own cancelled/stopping checks. No argument
+    // drains everyone; an owner drains only that producer and leaves the rest queued in order.
+    drain(owner) {
+      const keep = []
+      while (waiters.length) {
+        const w = waiters.shift()
+        if (owner == null || w.owner === owner) w.resolve(() => {})
+        else keep.push(w)
+      }
+      for (const w of keep) waiters.push(w)
     },
   }
 }

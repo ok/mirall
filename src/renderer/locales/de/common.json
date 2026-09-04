@@ -323,7 +323,8 @@
     "sending": "Senden",
     "paused": "Pausiert",
     "downloadersPaused_one": "{{count}} pausiert",
-    "downloadersPaused_other": "{{count}} pausiert"
+    "downloadersPaused_other": "{{count}} pausiert",
+    "rowStatusLabel": "{{name}}: {{status}}"
   },
   "spaceCard": {
     "openSpace": "{{name}} öffnen",

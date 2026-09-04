@@ -20,8 +20,8 @@ import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
-import { createSemaphore } from '../../../core/concurrency.js'
-import { getDownloadConcurrency } from '../../../core/runtime-config.js'
+import { acquireFetchSlot, drainFetchSlots, fetchSlotStats } from './fetch-slots.js'
+import { fetchClaimedBy } from './fetch-claims.js'
 import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
@@ -147,10 +147,6 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
   // indefinitely while a wedged one gives up.
   const stallRetries = new Map()
-  // Bounds how many fetches own a chunk scheduler, a watchdog, an fd and a ticker at once.
-  // A user-initiated job takes the express lane so a click never queues behind a reconnect backlog.
-  const admission = createSemaphore({ limit: () => getDownloadConcurrency() })
-
   const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerPublicKey))
 
   function has (transferId) { return registry.has(transferId) }
@@ -224,9 +220,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     pokeResume(job.ownerPublicKey, job.spaceId)
   }
 
-  // Give up on a retry without a fetch to settle it: the row must still land in a terminal
-  // paused state, or the transfer is left with no event at all — pre-fix, settleFailed always
-  // emitted one, and on the folder channel emitPaused IS the decoration terminator.
+  // Give up on a retry without a fetch to settle it: the row must still land in a terminal paused
+  // state, or the transfer is left with no event at all — emitPaused is what terminates the
+  // decoration, on either channel.
   function settleRetryAsPaused (job) {
     cancelStallRetry(job.transferId)
     channel.emitPaused?.(job, pauseReasonFor(job))
@@ -279,9 +275,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (!r.code) {
       diag.finish('no-holder')
       log.debug('overlay fetch interrupted — holder gone or throttled:', job.relPath, 'at', job.prevBytes || 0, 'bytes')
-      // `retrying` withholds the OS notification only — the paused emit still fires, because on
-      // the folder channel it is nothing BUT the terminal decoration frame, and withholding it
-      // strands a progress bar that then samples across the whole backoff.
+      // `retrying` withholds the OS notification only — the paused emit still fires, because it
+      // also terminates the decoration, and withholding it strands a progress bar that then
+      // samples speed across the whole backoff.
       const retrying = await scheduleStallRetry(job)
       channel.emitPaused?.(job, pauseReasonFor(job), { retrying })
       channel.emitUpdated(job.spaceId)
@@ -297,14 +293,13 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     failTerminal(job, code)
   }
 
-  // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish
-  // may have landed while the bytes were in flight — the fetch's own result is only half the
   // The gated half of a download: everything past this point owns a chunk scheduler, a watchdog,
-  // an fd and a ticker, which is what the admission limit exists to bound. start() has already
-  // reserved the registry slot synchronously, so a queued job still reads as active and a second
-  // trigger cannot start a duplicate fetch while this waits.
+  // an fd and a ticker, which is what the limit exists to bound — and that cost is per fetch, not
+  // per producer, which is why the gate is process-wide (fetch-slots.js) rather than built here.
+  // start() has already reserved the registry slot synchronously, so a queued job still reads as
+  // active and a second trigger cannot start a duplicate fetch while this waits.
   async function runFetchTask (slot, job, transferId) {
-    const releaseSlot = await admission.acquire({ express: !!job.express })
+    const releaseSlot = await acquireFetchSlot({ express: !!job.express })
     try {
       // The wait above is unbounded, so re-check every reason to abandon that the pre-fetch path
       // already checked — the same window recordPending guards against, only wider.
@@ -337,7 +332,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     }
   }
 
-  // story, and which of these applies decides whether the slot is restarted or released.
+  // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish may
+  // have landed while the bytes were in flight — the fetch's own result is only half the story, and
+  // which of these applies decides whether the slot is restarted or released.
   async function settleFetch (transferId, job, r, diag) {
     const s = registry.get(transferId)
     const wasPaused = s?.paused
@@ -417,6 +414,23 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     pausedHashes.supersede(transferId) // a fresh start (resume) supersedes any paused marker
     const existing = registry.get(transferId)
     if (existing) return { transferId, finalPath: existing.finalPath }
+
+    // A producer with no registry of its own — the mirror — may already be fetching this content.
+    // Attach to it rather than starting a second fetch: both write the same decoration key, so the
+    // user sees the bar that is already moving. Refusing outright would leave a click with no
+    // feedback at all. The row is still recorded, so the next reconcile re-drives this destination
+    // once the claim frees (the mirror writes into the mount, not the download folder).
+    const holder = fetchClaimedBy(transferId)
+    if (holder) {
+      await recordPending(job.spaceId, job.pendingKey, {
+        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerPublicKey,
+        finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
+        bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
+      })
+      log.debug('overlay download attached to an in-flight', holder, 'fetch:', job.relPath)
+      channel.emitUpdated(job.spaceId)
+      return { transferId, finalPath: job.finalPath }
+    }
 
     // Reserve the single-flight slot SYNCHRONOUSLY (before any await) so a duplicate
     // trigger can't start a second fetch that collides on the per-hash scheduler.
@@ -734,5 +748,5 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)
   }
 
-  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), drainAdmission: () => admission.drain(), admissionStats: () => admission.stats(), _registry: registry, _stallRetries: stallRetries }
+  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), drainAdmission: () => drainFetchSlots(), admissionStats: fetchSlotStats, _registry: registry, _stallRetries: stallRetries }
 }

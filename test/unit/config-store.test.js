@@ -152,6 +152,31 @@ test('network defaults to unlimited and self-heals onto a config written before 
   t.is(reopened.get('appearance.theme'), 'dark', 'existing values preserved')
 })
 
+// The operator lever for the shared overlay fetch gate. It has no setter and no renderer surface,
+// so the only things that can break it are a missing default and a load that drops a hand-set
+// value — both of which this pins.
+test('the download concurrency default is carried, self-heals and survives a rewrite', (t) => {
+  const dir = tmpDir()
+  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 6, 'fresh config gets the default')
+
+  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, network: { downloadKBps: 500 } })
+  const healed = new ConfigStore(dir).load()
+  t.is(healed.get('network.downloadConcurrency'), 6, 'a config written before the key existed gains it')
+  t.is(healed.get('network.downloadKBps'), 500, 'and keeps what that build did set')
+
+  // _migrate re-derives only the relay fields; a hand-set cap must not be reset on the next load,
+  // and the rollback value (0 = unlimited) must survive exactly, not be coerced to the default.
+  const store = new ConfigStore(dir).load()
+  store.set('network.downloadConcurrency', 0)
+  store.flush()
+  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 0, 'a hand-set 0 survives reload')
+})
+
+test('the download concurrency stays out of the renderer snapshot', (t) => {
+  const snap = new ConfigStore(tmpDir()).load().rendererSnapshot()
+  t.absent('downloadConcurrency' in snap.network, 'no UI by design — exposing it would need an "Unlimited" label for 0')
+})
+
 test('setBandwidth stores non-negative integers and ignores anything else', (t) => {
   const dir = tmpDir()
   const store = new ConfigStore(dir).load()
@@ -180,8 +205,9 @@ test('network survives a persist/reload round-trip', (t) => {
   const store = new ConfigStore(dir).load()
   store.setBandwidth({ downloadKBps: 2048, uploadKBps: 256 })
   store.flush()
-  // Bandwidth and relay share the `network` group, so the persisted block carries both.
-  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [] })
+  // Bandwidth, relay and the fetch-gate cap share the `network` group, so the persisted block
+  // carries all three.
+  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [], downloadConcurrency: 6 })
   const reopened = new ConfigStore(dir).load()
   t.is(reopened.get('network.downloadKBps'), 2048)
   t.is(reopened.get('network.uploadKBps'), 256)

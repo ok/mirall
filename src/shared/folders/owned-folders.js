@@ -25,10 +25,6 @@ import { registerPublishChannel, settleCatalog } from './publish-service.js'
 
 export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
 
-// Re-exported so the worker and the existing tests keep their `./owned-folders.js` import path;
-// the implementation lives in `owned-preview.js`.
-export { previewInitialPublishScan } from './owned-preview.js'
-
 const log = createLogger('owned-folders')
 
 let ipcRef = null

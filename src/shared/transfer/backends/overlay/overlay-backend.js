@@ -685,7 +685,15 @@ const folderSweeper = createPresenceSweeper({
   // it. Writing the tombstone here instead skipped all three.
   retire: ({ spaceId, shareId, retires }, entry) => {
     const settled = publishLane?.enqueueRetire(spaceId, shareId, entry.relPath)
-    if (settled) retires.push(settled.catch((err) => log.debug('folder retire failed:', entry.relPath, '-', err.message)))
+    // The lane's ticket RESOLVES with a settlement and never rejects — work-item.js's deferred has
+    // no reject path — so a .catch here could not fire, and a failed retire was dropped in silence.
+    // The loose twin may catch because settledWithTail rethrows for it; this one has to read the
+    // outcome. (A cancel is the user stopping it, not a failure.)
+    if (settled) {
+      retires.push(settled.then((s) => {
+        if (s?.outcome === 'failed') log.debug('folder retire failed:', entry.relPath, '-', s.error?.message || 'the publish runner refused it')
+      }))
+    }
   },
 })
 

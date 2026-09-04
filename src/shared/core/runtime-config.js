@@ -63,9 +63,12 @@ const DEFAULTED = {
   // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. The scheduler
   // clamps to >= 1.
   publishConcurrency: 2,
-  // Concurrent overlay downloads. A reconnect can have hundreds of pending rows and each running
-  // fetch owns a chunk scheduler, a watchdog, an fd and a progress ticker. 0 disables the gate.
-  downloadConcurrency: 3,
+  // Concurrent overlay downloads across the WHOLE process — both engines and every mirror draw on
+  // one gate. A reconnect can have hundreds of pending rows and each running fetch owns a chunk
+  // scheduler, a watchdog, an fd and a progress ticker. 6, not 3: the cap used to be built per
+  // engine, so two engines meant six bulk slots, and 6 keeps that ceiling while bringing the
+  // mirrors — previously uncounted, one fetch each — inside it. 0 disables the gate.
+  downloadConcurrency: 6,
   // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
   // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
   peerCatalogCacheLimit: 64,

@@ -166,7 +166,6 @@ import { validateMountPath, validateDownloadFolderAgainstMounts } from '../share
 import {
   handleFsEventFromMain,
   initialPublishScan,
-  previewInitialPublishScan,
   stopOwnedFolder,
   DEFAULT_IGNORE,
   mountRootAvailable,
@@ -175,9 +174,10 @@ import {
 } from '../shared/folders/owned-folders.js'
 
 import { exceedsShareFileLimit, shareFileLimitMessage } from '../shared/folders/share-limits.js'
+import { previewInitialPublishScan } from '../shared/folders/owned-preview.js'
+import { previewMaterializeScan } from '../shared/folders/foreign-preview.js'
 import {
   initialMaterializeScan,
-  previewMaterializeScan,
   startForeignLoop,
   setForeignEnabled,
   unmountForeignFolder,

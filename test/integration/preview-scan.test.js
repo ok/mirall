@@ -2,8 +2,9 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, setupSelfMirror } from '../helpers/owned.js'
-import { initialPublishScan, previewInitialPublishScan } from '../../src/shared/folders/owned-folders.js'
-import { previewMaterializeScan } from '../../src/shared/folders/foreign-folders.js'
+import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
+import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
 // The scan-preview dialogs are the user's last confirmation before bytes move.

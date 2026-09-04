@@ -323,7 +323,8 @@
     "sending": "Invio",
     "paused": "In pausa",
     "downloadersPaused_one": "{{count}} in pausa",
-    "downloadersPaused_other": "{{count}} in pausa"
+    "downloadersPaused_other": "{{count}} in pausa",
+    "rowStatusLabel": "{{name}}: {{status}}"
   },
   "spaceCard": {
     "openSpace": "Apri {{name}}",
