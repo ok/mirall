@@ -313,7 +313,7 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk.
   if (await pauseMountForIoError(mount, err)) return
-  diag.finish('failed')
+  diag?.finish('failed')
   if (err?.code === 'EHASHMISMATCH') {
     log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
     recordMirrorIntegrityFailure(mount, share, entry)
@@ -425,10 +425,14 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
       onTick: () => loops.noteProgress(streamKey),
     }))
   } catch (err) {
+    // The diag rides the rejection, and annotating a rejection is best-effort (runOverlayFetch says
+    // why) — so it can be absent. Dereferencing it blind would replace a real fault, an ENOSPC that
+    // must pause the mount included, with a TypeError out of this handler.
+    const failed = err?.diag ?? null
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
-    if (err?.code === 'ECANCELLED') { err.diag.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, err.diag)
+    if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
+    await handleOverlayMirrorFetchError(mount, share, entry, err, failed)
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)

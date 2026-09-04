@@ -9,6 +9,9 @@
 // still tell the two apart.
 import { makeProgressTicker } from '../../progress-ticker.js'
 import { makeFetchDiag } from './overlay-backend.js'
+import { createLogger } from '../../../core/logger.js'
+
+const log = createLogger('overlay-fetch')
 
 export async function runOverlayFetch (overlay, contentHash, {
   label, relPath, size = 0, destPath, reSeed = false, onProgress, onVerify, onTick,
@@ -26,8 +29,14 @@ export async function runOverlayFetch (overlay, contentHash, {
     })
     return { res, attempted, diag }
   } catch (err) {
-    err.attempted = attempted
-    err.diag = diag
+    // Best-effort: a frozen or primitive rejection makes these assignments throw in strict mode,
+    // and that TypeError would REPLACE the real fault — so a full disk would reach the caller as a
+    // bug in this file instead of the ENOSPC that must pause the mount. The annotation is a
+    // convenience; the fault is not.
+    try {
+      err.attempted = attempted
+      err.diag = diag
+    } catch { log.debug('could not annotate a fetch rejection:', label, relPath) }
     throw err
   }
 }
