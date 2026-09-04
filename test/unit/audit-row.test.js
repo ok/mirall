@@ -4,6 +4,7 @@ import {
   groupByDay, isSystemRow, metaParts, rowBadge, sentenceKey, sentenceValues,
   splitSentence, sentinelValues, systemIcon, emptyStateFor, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/auditRow.js'
+import { formatSize } from '../../src/renderer/formatSize.js'
 
 const row = (over = {}) => ({
   v: 1, seq: 1, ts: Date.now(), tzOffset: 0,
@@ -107,11 +108,25 @@ test('sentence key and values come only from the row', (t) => {
 
 test('byte and count formatting', (t) => {
   t.is(formatBytes(0), '0 B')
-  t.is(formatBytes(1024), '1 KB')
-  t.is(formatBytes(1536), '1.5 KB')
-  t.is(formatBytes(13314398617), '12.4 GB')
+  t.is(formatBytes(1000, 'en'), '1 KB')
+  t.is(formatBytes(1500, 'en'), '1.5 KB')
+  t.is(formatBytes(13314398617, 'en'), '13.3 GB')
   t.is(formatBytes(-1), null)
   t.is(formatCount(5180), (5180).toLocaleString())
+  t.is(formatCount(5180, 'de'), (5180).toLocaleString('de'))
+})
+
+// REGRESSION (FIX-BYTES-1: the Activity Log divided by 1024 under decimal KB/MB/GB labels, so
+// every size it printed sat ~7.4% below the same file on the folder screen — and the assertions
+// above pinned the wrong numbers, so CI defended the discrepancy. The assertion is deliberately a
+// comparison against formatSize rather than a literal: a second literal ladder is how the first
+// one got written.)
+test('REGRESSION (FIX-BYTES-1): the Activity Log agrees with every other screen', (t) => {
+  const ladder = [0, 1, 999, 1000, 1024, 1536, 999999, 1000000, 13314398617, 676209262264, 1e15, 1e18]
+  for (const bytes of ladder) {
+    t.is(formatBytes(bytes, 'en'), formatSize(bytes, 'en'), `${bytes} reads the same on both screens`)
+  }
+  t.is(formatBytes(2411724, 'de'), formatSize(2411724, 'de'), 'and under a non-English locale too')
 })
 
 test('meta line leads with the space and folds in the aggregate totals', (t) => {

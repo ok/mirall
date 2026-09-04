@@ -40,13 +40,13 @@ function selectItems(
 }
 
 function AuditRow({ entry }: { entry: AuditEntry }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const badge = rowBadge(entry)
   // The reason trails the row's own context (space, totals): "DENIED" says something was refused,
   // this says what a reader should do about it — nothing, if we simply had no verified identity yet.
   const reasonKey = denialReasonKey(entry)
   const meta = [
-    ...metaParts(entry).map((part) => (part.key ? t(part.key, part.values) : part.text)),
+    ...metaParts(entry, i18n.language).map((part) => (part.key ? t(part.key, part.values) : part.text)),
     ...(reasonKey ? [t(reasonKey)] : []),
   ].join(' · ')
   const avatar = avatarKind(entry)

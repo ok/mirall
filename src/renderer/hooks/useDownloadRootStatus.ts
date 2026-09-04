@@ -2,7 +2,7 @@
 // network share, or replaced by a file. Drives the app-level banner and the Storage Settings
 // warning, so the user learns the folder is gone instead of reading "Transfer failed" on every
 // download that tries to land there.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { request, subscribe } from '../ipc.js'
 
 interface RootsStatus {
@@ -20,10 +20,16 @@ export function useDownloadRootStatus() {
   // hit the problem again — which is the one moment re-explaining a dismissed (or stack-evicted)
   // toast is warranted.
   const [faultSeq, setFaultSeq] = useState(0)
+  // A transfer failure re-probes on top of the mount read and the worker's own 60s push, so two
+  // probes overlap whenever a download fails during startup. The older verdict landing last would
+  // re-hide a banner the newer one had just raised.
+  const runRef = useRef(0)
 
   const refresh = useCallback(async () => {
+    const run = ++runRef.current
     try {
       const res = await request('downloads:roots-status') as RootsStatus
+      if (run !== runRef.current) return
       setUnavailable(Array.isArray(res?.unavailable) ? res.unavailable : [])
     } catch {
       // A worker that isn't up yet is not evidence the folder is gone — leave the last

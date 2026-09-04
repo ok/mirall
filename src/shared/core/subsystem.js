@@ -100,10 +100,15 @@ export function createLifecycle({ log }) {
           else if (left <= 0) log.warn(subsystem.name, 'close skipped — shutdown budget spent')
           else {
             const timedOut = Symbol('timeout')
+            // Cleared on the way out: the loser of the race stays armed for the rest of the budget
+            // otherwise, so a clean shutdown ends with one pending timeout per subsystem — armed by
+            // the very code whose job was to make sure nothing was.
+            let budget = null
             const race = await Promise.race([
               subsystem.close().then(() => null),
-              new Promise((resolve) => { const t = setTimeout(() => resolve(timedOut), left); t.unref?.() }),
+              new Promise((resolve) => { budget = setTimeout(() => resolve(timedOut), left); budget.unref?.() }),
             ])
+            clearTimeout(budget)
             if (race === timedOut) log.warn(subsystem.name, 'close exceeded the shutdown budget — abandoned')
           }
         } catch (err) { log.warn(subsystem.name, 'close failed:', err.message) }

@@ -1,5 +1,8 @@
-// Every event the worker pushes to the renderer. Emitted names are the source of truth: this list
-// is generated from them, and the taxonomy test fails if an emit site appears that is not here.
+// Every event the worker pushes to the renderer. Emitted names are the source of truth. Nothing in
+// production imports this file: its teeth are test/unit/contract-declarations.test.js, which parses
+// every emit site, every renderer subscription and this list and asserts all three name the same
+// set. The header used to claim the taxonomy test enforced it, which was never true — the taxonomy
+// test compares against its own map — and the two had already drifted by one name.
 export const EVENTS = Object.freeze({
   AUDIT_UPDATED: 'event:audit-updated',
   AWARENESS: 'event:awareness',
@@ -25,6 +28,7 @@ export const EVENTS = Object.freeze({
   OWNED_FOLDER_PREVIEW_PROGRESS: 'event:owned-folder-preview-progress',
   OWNED_FOLDER_SCAN_COMPLETED: 'event:owned-folder-scan-completed',
   PROFILE_NEEDED: 'event:profile-needed',
+  RECONCILE: 'event:reconcile',
   SHARE_FILES_UPDATED: 'event:share-files-updated',
   SHARE_INDEX_PROGRESS: 'event:share-index-progress',
   SHARES_UPDATED: 'event:shares-updated',

@@ -58,16 +58,58 @@ jobs:
         run: |
           files="$(node test/flow-shard.mjs ${{ matrix.shard }} 6)"
           echo "Shard ${{ matrix.shard }}/6:"; echo "$files" | tr ' ' '\n'
+          mkdir -p flake-report/logs
           # Run each file independently so one file's crash can't abort the rest,
           # then retry ONLY the failed files once (a whole-shard retry wasted minutes).
+          # The FIRST attempt's output is kept for anything that failed: a flake that only
+          # reproduces in CI cannot be diagnosed after the fact from a ::warning, and the
+          # warning text itself used to point at diagnostics nothing was saving.
           failed=""
           for f in $files; do
-            npx brittle-node "$f" || failed="$failed $f"
+            log="flake-report/logs/$(echo "$f" | tr '/' '_').log"
+            if npx brittle-node "$f" >"$log" 2>&1; then rm -f "$log"; else cat "$log"; failed="$failed $f"; fi
           done
+          entries=""
+          status=0
           if [ -n "$failed" ]; then
-            echo "::warning title=Flow shard ${{ matrix.shard }} flaked::retried$failed (a pass-on-retry is a residual flake — see the failed attempt's timeout diagnostics)"
-            for f in $failed; do npx brittle-node "$f" || exit 1; done
+            echo "::warning title=Flow shard ${{ matrix.shard }} flaked::retried$failed (a pass-on-retry is a residual flake — the failed attempt's output is in the flake-report artifact)"
+            for f in $failed; do
+              if npx brittle-node "$f"; then passed=true; else passed=false; status=1; fi
+              entries="$entries{\"file\":\"$f\",\"attempts\":2,\"passedOnRetry\":$passed},"
+            done
           fi
+          printf '{"shard":%s,"files":[%s]}\n' "${{ matrix.shard }}" "${entries%,}" > flake-report/flake-${{ matrix.shard }}.json
+          { echo "### Flow shard ${{ matrix.shard }}/6"; if [ -z "$failed" ]; then echo "No retries."; else echo "Retried:$failed"; fi; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flake-report-${{ matrix.shard }}
+          path: flake-report
+          if-no-files-found: ignore
+
+  # A pass-on-retry used to leave a ::warning and nothing else: annotation-only, nothing aggregates
+  # it, so nobody could tell an improving suite from a decaying one. This is the gate for
+  # FLAKINESS, deliberately separate from the shard jobs so a genuine hard failure stays an
+  # immediate shard red and can never be mistaken for a budget overrun.
+  flake-ledger:
+    runs-on: ubuntu-latest
+    needs: flow
+    if: always()
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.20.0'
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: flake-report-*
+          path: flake-reports
+          merge-multiple: true
+      - name: Flake budget
+        run: node scripts/flake-ledger.mjs flake-reports test/flow-flake-budget.json
 
   # Tier 2/3 in-process tests of the real bare-* modules. brittle-bare shells
   # out to a `bare` binary on PATH (provided by the bare-runtime devDep).

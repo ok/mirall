@@ -1,5 +1,5 @@
 // Foreign (mirror) mount state and RPC wrappers (validate/preview/mount/enable/unmount); useForeignMount refreshes on foreign-folder-mount-status events.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { request, subscribe } from '../ipc.js'
 import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types.js'
 
@@ -13,22 +13,28 @@ interface MountStatusEvent {
 export function useForeignMount(spaceId: string, shareId: string) {
   const [mount, setMount] = useState<ForeignFolderMount | null>(null)
   const [status, setStatus] = useState<ForeignMountStatus | null>(null)
+  // Every mount-status transition re-fires refresh and a share switch re-runs the effect, so two
+  // reads are routinely in flight at once. Without a generation the older one can land last and
+  // paint the previous share's mount over the folder the user is actually looking at.
+  const runRef = useRef(0)
 
   const refresh = useCallback(async () => {
     if (!spaceId || !shareId) return
+    const run = ++runRef.current
     const m = (await request('foreign-folder:get', { spaceId, shareId })) as ForeignFolderMount | null
+    if (run !== runRef.current) return
     setMount(m)
     setStatus(m?.status ?? null)
   }, [spaceId, shareId])
 
   useEffect(() => {
-    refresh()
+    void refresh()
     const unsub = subscribe<MountStatusEvent>('event:foreign-folder-mount-status', (msg) => {
       if (msg.spaceId !== spaceId || msg.shareId !== shareId) return
       setStatus(msg.status)
       // Re-read the durable record on EVERY transition (paused states persist too), so
       // `mount` (enabled/status) can never go stale on a missed recovery event.
-      refresh()
+      void refresh()
     })
     return unsub
   }, [refresh, spaceId, shareId])

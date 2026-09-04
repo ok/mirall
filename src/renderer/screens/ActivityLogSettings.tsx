@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
@@ -33,11 +33,18 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
 
+  // The mount read and the post-purge read can overlap — purge is slow enough that a user can
+  // change retention while it runs — and the stats half of the older pair would then re-show the
+  // row count that was just deleted.
+  const runRef = useRef(0)
+
   const refresh = useCallback(async () => {
+    const run = ++runRef.current
     const [nextConfig, nextStats] = await Promise.all([
       request('audit:get-config') as Promise<AuditConfig>,
       request('audit:stats') as Promise<AuditStats>,
     ])
+    if (run !== runRef.current) return
     setConfig(nextConfig)
     setStats(nextStats)
   }, [])

@@ -2,6 +2,10 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { Linter } from 'eslint'
+import tseslint from 'typescript-eslint'
+import noUnguardedAsyncEffect from '../../eslint-rules/no-unguarded-async-effect.js'
+import { unmountOnlyAsyncEffects, outOfOrderAsyncEffects } from '../../eslint.config.mjs'
 import { MAIN_QUERIES, MAIN_QUERY_NAMES } from '../../src/renderer/store/main-queries.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -11,60 +15,112 @@ function walk (dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
-    else if (/\.(ts|tsx)$/.test(name)) out.push(p)
+    // `.js` matters: src/renderer/store/* is the sanctioned implementation of this property and the
+    // predecessor guard never scanned it, so nothing checked that the answer stayed the answer.
+    else if (/\.(js|ts|tsx)$/.test(name)) out.push(p)
   }
   return out
 }
 
-// The four sites where the hand-rolled guard is DELIBERATE, each justified in a comment at the
-// site:
-//   AddFolderShareModal / MirrorFolderModal — point-in-time filesystem probes; a cached verdict
-//     would answer for a path the user has since changed.
-//   FilenameTitle — not a query at all; it guards a document.fonts.ready continuation.
-//   useConnectionStatus — a single provider mounted once with an event feed; cache, dedup and
-//     abort all buy nothing.
-const ALLOWED = Object.freeze({
-  'src/renderer/components/modals/AddFolderShareModal.tsx': 1,
-  'src/renderer/components/modals/MirrorFolderModal.tsx': 1,
-  'src/renderer/components/widgets/FilenameTitle.tsx': 1,
-  'src/renderer/hooks/useConnectionStatus.tsx': 1,
-})
-
-function guardSites () {
-  const found = {}
-  for (const f of walk(path.join(root, 'src', 'renderer'))) {
-    const hits = readFileSync(f, 'utf8').match(/let cancelled = false/g)
-    if (hits) found[path.relative(root, f)] = hits.length
-  }
-  return found
+// Driven with NO allowances — the `allow` option in eslint.config.mjs only keeps CI and the editor
+// quiet about the files below, and cannot hide anything from this scan.
+function verify (linter, source, filename) {
+  return linter.verify(source, {
+    files: ['**/*.{js,ts,tsx}'],
+    languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
+    plugins: { local: { rules: { 'no-unguarded-async-effect': noUnguardedAsyncEffect } } },
+    rules: { 'local/no-unguarded-async-effect': 'error' },
+  }, filename).filter((m) => m.ruleId === 'local/no-unguarded-async-effect')
 }
 
-// A ratchet, not a snapshot: the four below are decisions with reasons written at the site.
-// Nothing may be ADDED without someone noticing, and removing one is a change to that file's
-// reason, which belongs in its own commit together with this table.
-test('REGRESSION (FIX-R04-2): the hand-rolled stale-response guard only shrinks', (t) => {
-  const found = guardSites()
+const wrap = (body, hooks = 'const [x, setX] = useState(null)') => `
+function Component ({ dep }) {
+  ${hooks}
+  ${body}
+  return x
+}
+`
 
-  const unexpected = Object.keys(found).filter((f) => !(f in ALLOWED))
-  t.alike(unexpected, [], 'a new hand-rolled cancel flag was introduced — use useQuery/useMainQuery')
+// REGRESSION (FIX-STALE-2: the predecessor guard matched the TEXT `let cancelled = false` and
+// counted at most four files. Six more hand-rolled guards were spelled `alive`, `active`,
+// `sawFrame` or `runRef` and were invisible to it; six effects had no guard at all and were
+// invisible to it by construction, because absence has no spelling. It reported the property
+// covered while three of those six could paint a superseded response over current state.
+//
+// These fixtures are the grammar itself: what must be caught, and — the half a widened regex could
+// never express — what must stay legal.)
+test('REGRESSION (FIX-STALE-2): an async effect that writes state names its supersession strategy', (t) => {
+  const linter = new Linter()
+  const caught = (body, hooks) => verify(linter, wrap(body, hooks), 'fixture.tsx').length > 0
+  const legal = (body, hooks) => verify(linter, wrap(body, hooks), 'fixture.tsx').map((m) => m.message)
 
-  for (const [file, cap] of Object.entries(ALLOWED)) {
-    t.ok((found[file] ?? 0) <= cap, `${file} has at most ${cap} justified guard(s)`)
-  }
+  t.ok(caught('useEffect(() => { read().then(setX) }, [dep])'), 'a bare .then(setX) is caught')
+  t.ok(caught('useEffect(() => { async function run () { const v = await read(); setX(v) } void run() }, [dep])'),
+    'an await followed by a setter is caught')
+  t.ok(caught(
+    'useEffect(() => { void refresh() }, [refresh])',
+    'const [x, setX] = useState(null)\n  const refresh = useCallback(async () => { const v = await read(); setX(v) }, [dep])',
+  ), 'async work inside a useCallback the effect calls is caught — the shape all three live defects took')
 
-  const total = Object.values(found).reduce((a, b) => a + b, 0)
-  t.ok(total <= 4, `at most four justified guards remain (found ${total})`)
+  t.alike(legal('useEffect(() => { let cancelled = false; read().then((v) => { if (cancelled) return; setX(v) }); return () => { cancelled = true } }, [dep])'),
+    [], 'a cleanup flag spelled `cancelled` is legal')
+  t.alike(legal('useEffect(() => { let alive = true; read().then((v) => { if (!alive) return; setX(v) }); return () => { alive = false } }, [dep])'),
+    [], 'the same flag spelled `alive` is equally legal — the guard is recognised by structure')
+  t.alike(legal('useEffect(() => { let active = true; read().then((v) => { if (!active) return; setX(v) }); return () => { active = false } }, [dep])'),
+    [], 'and spelled `active`')
+  t.alike(legal(
+    'useEffect(() => { const run = ++runRef.current; read().then((v) => { if (run !== runRef.current) return; setX(v) }) }, [dep])',
+    'const [x, setX] = useState(null)\n  const runRef = useRef(0)',
+  ), [], 'a generation ref is legal')
+  t.alike(legal('useEffect(() => { const c = new AbortController(); read(c.signal).then(setX); return () => c.abort() }, [dep])'),
+    [], 'an abort signal is legal')
+  t.alike(legal('useEffect(() => { fetchQuery("x").then(setX) }, [dep])'),
+    [], 'reading through the store, which owns seq and abort, is legal')
+  t.alike(legal('useEffect(() => { async function run () { setX(true); await read() } void run() }, [dep])'),
+    [], 'a setter BEFORE the await is not a race')
+  t.alike(legal('useEffect(() => { async function run () { await read(); subscribe("event:x", (m) => setX(m)) } void run() }, [dep])'),
+    [], 'an event handler registered after an await is a fresh context, not a continuation')
+  t.alike(legal(
+    'useEffect(() => { read().then((el) => setWrapperRef(el)) }, [dep])',
+    'const [x, setX] = useState(null)\n  function setWrapperRef (el) { holder = el }',
+  ), [], 'a plain function whose name merely starts with `set` is not a setter — the binding decides, not the spelling')
 })
 
-// The allowlist is only honest if each entry SAYS why. A file that keeps its flag without a reason
-// is indistinguishable from one nobody got round to migrating.
-test('every allowed guard carries its justification at the site', (t) => {
-  for (const file of Object.keys(ALLOWED)) {
-    const src = readFileSync(path.join(root, file), 'utf8')
-    const idx = src.indexOf('let cancelled = false')
-    t.ok(idx > 0, `${file} still has the guard the allowlist exempts`)
-    const preamble = src.slice(Math.max(0, idx - 700), idx)
-    t.ok(/\/\//.test(preamble), `${file} explains the guard in a comment above it`)
+// A ratchet, not a snapshot: the table lives in eslint.config.mjs so the rule and this scan cannot
+// disagree about what is exempt, and every entry states its reason there.
+test('the renderer has no unguarded async effect outside the exemption table', (t) => {
+  const linter = new Linter()
+  const found = {}
+  for (const f of walk(path.join(root, 'src', 'renderer'))) {
+    const messages = verify(linter, readFileSync(f, 'utf8'), f)
+    if (messages.length) found[path.relative(root, f).split(path.sep).join('/')] = messages.length
+  }
+
+  const table = { ...outOfOrderAsyncEffects, ...unmountOnlyAsyncEffects }
+  const unexpected = Object.keys(found).filter((f) => !(f in table)).sort()
+  t.alike(unexpected, [], 'a new unguarded async effect was introduced — read through useQuery/useMainQuery, or carry a generation ref')
+
+  for (const [file, entry] of Object.entries(table)) {
+    t.ok((found[file] ?? 0) <= entry.effects, `${file} has at most ${entry.effects} exempt effect(s)`)
+  }
+
+  const stale = Object.keys(table).filter((f) => !(f in found)).sort()
+  t.alike(stale, [], 'an exemption outlived the effect it excused — delete the row')
+})
+
+// OUT_OF_ORDER is the whole point of splitting the table. An effect that re-fires can have two
+// reads in flight, and the older one winning is wrong data on screen; there is no reason that makes
+// that acceptable, so the list has no legal contents.
+test('no out-of-order async effect is exempted', (t) => {
+  t.alike(Object.keys(outOfOrderAsyncEffects), [], 'an out-of-order race was allowlisted instead of fixed')
+})
+
+// An exemption is only honest if it SAYS why. A file listed without a reason is indistinguishable
+// from one nobody got round to migrating.
+test('every exemption states its reason', (t) => {
+  for (const [file, entry] of Object.entries({ ...outOfOrderAsyncEffects, ...unmountOnlyAsyncEffects })) {
+    t.is(typeof entry.effects, 'number', `${file} caps how many effects it exempts`)
+    t.ok(typeof entry.why === 'string' && entry.why.length > 40, `${file} explains why it is exempt`)
   }
 })
 

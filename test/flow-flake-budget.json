@@ -1,0 +1,5 @@
+{
+  "_comment": "Pass-on-retry budget for one CI run. maxTotal is the gate: the aggregate only goes down. perFile names the files known to flake, each with a max and a reason, so a repeat offender cannot hide inside the aggregate; a file not listed here is reported by name in the run summary as a candidate for the table. Sized against the suite as it actually behaves today — a budget of zero would be red on arrival and would train people to re-run rather than to look.",
+  "maxTotal": 1,
+  "perFile": {}
+}

@@ -17,7 +17,11 @@ export default async function s125 ({ runDir, bootstrap }) {
 
   const ownDir = path.join(workDir('own-'), 'Brand Assets')
   mkdirSync(ownDir, { recursive: true })
-  writeFileSync(path.join(ownDir, 'logo.txt'), 'the mark'.repeat(64))
+  // 10,000 bytes exactly, chosen so the meta line's size DISCRIMINATES: the Activity Log used to
+  // carry its own ladder that divided by 1024 under decimal KB/MB/GB labels, and at this size that
+  // reads '9.8 KB' where every other screen reads '10 KB'. At the previous 512 bytes both
+  // formatters printed the same string, so the row could not have caught it.
+  writeFileSync(path.join(ownDir, 'logo.txt'), 'the mark'.repeat(1250))
 
   try {
     await r.ok('A shares "Brand Assets"; B sees it', async () => {
@@ -57,6 +61,10 @@ export default async function s125 ({ runDir, bootstrap }) {
       assert(
         nodes.some((n) => n.startsWith('Aurora · Brand Assets')),
         'and its meta line names the space AND the folder — without the folder a folder row reads exactly like a loose one'
+      )
+      assert(
+        nodes.some((n) => n.startsWith('Aurora · Brand Assets · 10 KB')),
+        'and the size agrees with every other screen — 9.8 KB here would mean the log kept its own 1024 divisor under decimal labels'
       )
     })
 

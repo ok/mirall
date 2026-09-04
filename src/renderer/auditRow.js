@@ -4,6 +4,7 @@
 // Every field it reads is snapshotted in the record itself — nothing here joins against live
 // state, because a row routinely outlives the space, share or peer it describes.
 import { formatDuration } from './connectivity.js'
+import { formatSize } from './formatSize.js'
 
 // Which participant a row is "about". `actorLabelKey` distinguishes the three cases the copy
 // has to handle: you did it, a named peer did it, or the app did it on its own.
@@ -144,22 +145,15 @@ export function splitSentence(rendered, values) {
   return segments
 }
 
-const BYTES_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
-
-export function formatBytes(bytes) {
+// One byte size means one string everywhere. This used to carry its own decimal-labelled,
+// binary-divided ladder, so the Activity Log read ~7.4% below every other screen for the same file.
+export function formatBytes(bytes, locale) {
   if (!Number.isFinite(bytes) || bytes < 0) return null
-  let value = bytes
-  let unit = 0
-  while (value >= 1024 && unit < BYTES_UNITS.length - 1) {
-    value /= 1024
-    unit++
-  }
-  const rounded = value >= 100 || unit === 0 ? Math.round(value) : Math.round(value * 10) / 10
-  return rounded + ' ' + BYTES_UNITS[unit]
+  return formatSize(bytes, locale)
 }
 
-export function formatCount(n) {
-  return Number.isFinite(n) ? n.toLocaleString() : null
+export function formatCount(n, locale) {
+  return Number.isFinite(n) ? n.toLocaleString(locale) : null
 }
 
 // Closed set, like DENIAL_REASONS: a cause written by a newer version renders nothing rather than a
@@ -182,7 +176,7 @@ function formatClock(ts) {
 // the kind carries. Returns STRUCTURED parts — `{ key, values }` for anything that needs
 // translating, `{ text }` for a value that is already a proper noun or a formatted number. It used
 // to return finished strings, which is how a hard-coded English ' files' shipped to five locales.
-export function metaParts(entry) {
+export function metaParts(entry, locale) {
   const parts = []
   if (entry.space?.name) parts.push({ text: entry.space.name })
   const subject = entry.subject || {}
@@ -190,13 +184,13 @@ export function metaParts(entry) {
   // as text and needs no catalogue entry; null on a loose file, which renders no segment.
   if (typeof subject.folder === 'string' && subject.folder) parts.push({ text: subject.folder })
   if (Number.isFinite(subject.fileCount)) {
-    const files = formatCount(subject.fileCount)
+    const files = formatCount(subject.fileCount, locale)
     if (files !== null) {
       parts.push({ key: 'activityLog.metaFiles', values: { count: subject.fileCount, formatted: files } })
     }
   }
   if (Number.isFinite(subject.bytes)) {
-    const size = formatBytes(subject.bytes)
+    const size = formatBytes(subject.bytes, locale)
     if (size) parts.push({ text: size })
   }
   if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
