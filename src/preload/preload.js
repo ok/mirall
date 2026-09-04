@@ -97,10 +97,6 @@ contextBridge.exposeInMainWorld('bridge', {
   setBandwidth: (patch) => ipcRenderer.invoke('bandwidth:set', patch),
 
   browseShareFolder: () => ipcRenderer.invoke('share:browseFolder'),
-  startOwnedFolderWatcher: (shareId, mountPath, ignore) =>
-    ipcRenderer.invoke('owned-folder:start-watcher', { shareId, mountPath, ignore }),
-  stopOwnedFolderWatcher: (shareId) =>
-    ipcRenderer.invoke('owned-folder:stop-watcher', { shareId }),
   onZoomChanged: (listener) => {
     const wrap = (_evt, factor) => listener(factor)
     ipcRenderer.on('pear:event:zoom-changed', wrap)

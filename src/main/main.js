@@ -1067,31 +1067,6 @@ const mainRequests = createMainRequestRouter({
   sendToWorker,
 })
 
-ipcMain.handle('owned-folder:start-watcher', (_evt, { shareId, mountPath, ignore }) => {
-  const worker = workers.get('/src/worker/main.js')
-  if (!worker) return { ok: false, reason: 'worker-not-running' }
-  ownedFolderWatchers.startWatcher(
-    shareId,
-    mountPath,
-    ignore || [],
-    (event) => {
-      const frame = JSON.stringify({ type: 'event:owned-folder-fs-event', ...event }) + '\n'
-      try { worker.write(Buffer.from(frame)) } catch (err) {
-        if (debug) console.error('owned-folder fs-event write failed:', err.message)
-      }
-    },
-    (err) => {
-      console.warn('owned-folder watcher error', shareId, '-', err.message)
-    },
-  )
-  return { ok: true }
-})
-
-ipcMain.handle('owned-folder:stop-watcher', (_evt, { shareId }) => {
-  ownedFolderWatchers.stopWatcher(shareId)
-  return { ok: true }
-})
-
 app.on('before-quit', () => {
   try { ownedFolderWatchers.stopAllWatchers() } catch {}
   try { looseFileWatchers.stopLooseWatchers() } catch {}

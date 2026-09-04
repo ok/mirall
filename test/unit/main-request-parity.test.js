@@ -5,6 +5,7 @@ import { createRequire } from 'module'
 import path from 'path'
 import { createMainRequestRouter } from '../../src/main/main-requests.js'
 import { MAIN_REQUEST, MAIN_REQUEST_NAMES } from '../../src/shared/contract/main-requests.js'
+import { parseSource, forEachNode, staticString, calleeName } from '../helpers/ast-scan.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
@@ -142,4 +143,24 @@ test('the contract is reachable from a CommonJS main', (t) => {
   const mod = require('../../src/shared/contract/main-requests.js')
   t.is(mod.MAIN_REQUEST_FRAME, 'main-request')
   t.alike([...mod.MAIN_REQUEST_NAMES].sort(), [...MAIN_REQUEST_NAMES].sort())
+})
+
+// A second copy of the watcher bridge lived directly beneath the router: two ipcMain channels that
+// re-implemented the start/stop arms with their own inlined frame write, their own wording of the
+// same two warnings, and a hard-coded worker specifier. Nothing in src/renderer called them, so the
+// only thing they added was a renderer-reachable way to arm a chokidar watcher on any path — past
+// the bus, past the vocabulary, and past every guard in this file.
+test('no ipcMain channel duplicates a main-request command', (t) => {
+  const file = path.join(SRC, 'main', 'main.js')
+  const { ast, visitorKeys } = parseSource(readFileSync(file, 'utf8'), file)
+
+  const channels = []
+  forEachNode(ast, visitorKeys, (node) => {
+    if (node.type !== 'CallExpression') return
+    if (calleeName(node.callee) !== 'handle') return
+    const name = staticString(node.arguments[0])
+    if (name && MAIN_REQUEST_NAMES.includes(name)) channels.push(name)
+  })
+
+  t.alike(channels, [], 'the worker bus is the only way to reach these')
 })
