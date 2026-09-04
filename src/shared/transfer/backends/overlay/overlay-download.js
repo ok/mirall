@@ -224,9 +224,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     pokeResume(job.ownerPublicKey, job.spaceId)
   }
 
-  // Give up on a retry without a fetch to settle it: the row must still land in a terminal
-  // paused state, or the transfer is left with no event at all — pre-fix, settleFailed always
-  // emitted one, and on the folder channel emitPaused IS the decoration terminator.
+  // Give up on a retry without a fetch to settle it: the row must still land in a terminal paused
+  // state, or the transfer is left with no event at all — emitPaused is what terminates the
+  // decoration, on either channel.
   function settleRetryAsPaused (job) {
     cancelStallRetry(job.transferId)
     channel.emitPaused?.(job, pauseReasonFor(job))
@@ -279,9 +279,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     if (!r.code) {
       diag.finish('no-holder')
       log.debug('overlay fetch interrupted — holder gone or throttled:', job.relPath, 'at', job.prevBytes || 0, 'bytes')
-      // `retrying` withholds the OS notification only — the paused emit still fires, because on
-      // the folder channel it is nothing BUT the terminal decoration frame, and withholding it
-      // strands a progress bar that then samples across the whole backoff.
+      // `retrying` withholds the OS notification only — the paused emit still fires, because it
+      // also terminates the decoration, and withholding it strands a progress bar that then
+      // samples speed across the whole backoff.
       const retrying = await scheduleStallRetry(job)
       channel.emitPaused?.(job, pauseReasonFor(job), { retrying })
       channel.emitUpdated(job.spaceId)
@@ -297,8 +297,6 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     failTerminal(job, code)
   }
 
-  // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish
-  // may have landed while the bytes were in flight — the fetch's own result is only half the
   // The gated half of a download: everything past this point owns a chunk scheduler, a watchdog,
   // an fd and a ticker, which is what the admission limit exists to bound. start() has already
   // reserved the registry slot synchronously, so a queued job still reads as active and a second
@@ -337,7 +335,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     }
   }
 
-  // story, and which of these applies decides whether the slot is restarted or released.
+  // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish may
+  // have landed while the bytes were in flight — the fetch's own result is only half the story, and
+  // which of these applies decides whether the slot is restarted or released.
   async function settleFetch (transferId, job, r, diag) {
     const s = registry.get(transferId)
     const wasPaused = s?.paused
