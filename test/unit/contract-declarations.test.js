@@ -116,3 +116,24 @@ test('the declared RequestName union matches the request rows exactly', (t) => {
   const declared = [...block.matchAll(/\|\s*'([^']+)'/g)].map((m) => m[1]).sort()
   t.alike(declared, Object.keys(contract.REQUESTS).sort(), 'every request row has a declared name and vice versa')
 })
+
+// The decoder grew four fields the renderer's hand-written copy never learned, and a .d.ts that
+// omits a field the decoder emits hands the renderer a type that cannot see it. Derived from the
+// source, so a fifth field fails here rather than in whatever screen reads it.
+test('contract/invite-envelope.d.ts declares every field the decoder can emit', (t) => {
+  const js = readFileSync(path.join(dir, 'invite-envelope.js'), 'utf8')
+  const dts = readFileSync(path.join(dir, 'invite-envelope.d.ts'), 'utf8')
+  // Scoped to the DecodedInvite declaration rather than the whole file: the encode-side field
+  // list names the same fields, so a file-wide substring search passes even when the decoder's
+  // own union has lost one.
+  const after = dts.slice(dts.indexOf('export type DecodedInvite') + 1)
+  const end = after.indexOf('\nexport ')
+  const union = end === -1 ? after : after.slice(0, end)
+  t.ok(union.includes('v: 1'), 'found the DecodedInvite union')
+
+  const emitted = [...js.matchAll(/\bout\.([a-zA-Z]+)\s*=/g)].map((m) => m[1])
+  t.ok(emitted.length >= 8, `the decoder emits ${emitted.length} fields`)
+  for (const field of new Set(emitted)) {
+    t.ok(new RegExp(`\\b${field}\\?*:`).test(union), `DecodedInvite declares ${field}`)
+  }
+})
