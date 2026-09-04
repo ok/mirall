@@ -37,3 +37,38 @@ test('a primitive rejection survives too', async (t) => {
   const err = await rejectionOf('overlay said no')
   t.is(err, 'overlay said no', 'nothing in the instrumentation may swallow or rewrite it')
 })
+
+// Warnings, not the diag object: `INCOMPLETE … gave up` IS the artifact — the one line that closes
+// the `start:` line every fetch logs — and the diag exposes no readable state.
+function captureWarnings (t) {
+  const lines = []
+  const real = console.warn
+  console.warn = (...args) => lines.push(args.join(' '))
+  t.teardown(() => { console.warn = real })
+  return lines
+}
+
+// REGRESSION (FIX-FETCH-DIAG: when the annotation could not land, the diag was dropped rather than
+// settled. Every caller reaches it through `err.diag`, so `diag?.finish('failed')` no-opped and the
+// `start:` line this fetch had already logged never got its terminal `INCOMPLETE … gave up` —
+// losing the give-up record for exactly the frozen-rejection ENOSPC case the annotation guard was
+// added for.)
+test('REGRESSION (FIX-FETCH-DIAG): a rejection that cannot be annotated still closes its diag', async (t) => {
+  const warnings = captureWarnings(t)
+  const frozen = Object.freeze(Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }))
+  const err = await rejectionOf(frozen)
+  t.is(err, frozen, 'the fault still reaches the caller unchanged')
+  t.ok(warnings.some((line) => line.includes('INCOMPLETE') && line.includes('a.txt')),
+    'and the give-up is on the record, because nothing downstream could have reached this diag')
+})
+
+// The other half of the rule, and the reason the fix is conditional rather than a finish() in the
+// catch: when the annotation DID land, the outcome is the caller's to choose. The mirror settles an
+// ECANCELLED as 'paused', which is normal control flow — pre-empting it here would turn every
+// pause and unmount into a logged give-up.
+test('an annotatable rejection is left for its caller to settle', async (t) => {
+  const warnings = captureWarnings(t)
+  const err = await rejectionOf(Object.assign(new Error('holder went away'), { code: 'ECANCELLED' }))
+  t.ok(err.diag, 'the caller got the diag')
+  t.alike(warnings, [], 'and this file did not decide the outcome on its behalf')
+})
