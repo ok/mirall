@@ -214,3 +214,22 @@ test('foreign preview: emits scanning progress and an aborted signal throws PREV
     'an aborted preview rejects',
   )
 })
+
+// The destination count went through a private readdir copy of walkDisk until it was merged away.
+// These two pin the behaviour that copy carried and the shared walk must keep.
+test('foreign preview: an unreadable destination counts zero rather than failing', async (t) => {
+  const ctx = await setupSelfMirror(t)
+  const gone = path.join(ctx.mirrorPath, 'does-not-exist')
+  const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, gone)
+  t.is(preview.existingAtDestination, 0, 'a missing destination is 0, not a throw')
+  t.is(preview.flow, 'mount-foreign-folder', 'and the dialog still gets a result')
+})
+
+test('foreign preview: ignored files do not inflate the destination count', async (t) => {
+  const ctx = await setupSelfMirror(t)
+  fs.writeFileSync(path.join(ctx.mirrorPath, 'real.txt'), 'x')
+  fs.writeFileSync(path.join(ctx.mirrorPath, '.DS_Store'), 'junk')
+  fs.writeFileSync(path.join(ctx.mirrorPath, 'half.mirall.part'), 'junk')
+  const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, ctx.mirrorPath)
+  t.is(preview.existingAtDestination, 1, 'DEFAULT_IGNORE still applies through the shared walk')
+})

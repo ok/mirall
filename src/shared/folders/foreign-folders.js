@@ -6,12 +6,7 @@
 // owner is provably online, so a lagged replica or a user's own files are never wiped.
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { makeProgressTicker } from '../transfer/progress-ticker.js'
-import { shouldIgnore, DEFAULT_IGNORE, shouldHonorDeletions, relToDriveKey, driveKeyToSegments, stripLongPathPrefix, isAbsoluteDriveKey, relKeyEscapes, nextFreeName } from './path-keys.js'
-
-// Re-exported so `test/integration/foreign-del-guard.test.js` keeps its
-// `./foreign-folders.js` import path; the implementation lives in `path-keys.js`.
-export { shouldHonorDeletions }
+import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries } from './path-keys.js'
 import { isOwnerOnline } from '../transfer/swarm.js'
 import { record } from '../audit/audit-log.js'
 import { createIntegritySeen } from './integrity-seen.js'
@@ -24,124 +19,46 @@ import {
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { mountRootAvailable } from './owned-folders.js'
 import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
+import { pathFromMount } from '../transfer/path-guard.js'
+import { faultFromError, statusForFaultCode, isAutoPauseStatus, STATUS_MOUNT_GONE } from './mount-fault.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
-import { overlayHashFile, makeFetchDiag, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
+import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
+import { createPausedHolders } from '../transfer/backends/overlay/paused-holders.js'
 import { shareDecoKey } from '../transfer/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
-import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { markVerified, isVerifiedUnchanged } from '../transfer/files.js'
-import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { mirrorVerdict } from './mirror-health.js'
+import { createMirrorLoops } from './mirror-loop.js'
+import { createMirrorState, localRelOf } from './mirror-state.js'
 import { shouldWalk } from './mirror-walk.js'
-import { mapLimit } from '../core/concurrency.js'
-import { AbortError } from './walk-disk.js'
+
+// Kept on this module so the worker and the existing tests keep their `./foreign-folders.js`
+// import path while the implementations live where they belong: the deletion gate in
+// `path-keys.js`, the preview in `foreign-preview.js`, and the on-disk path a renamed entry was
+// materialized as in `mirror-state.js` (share-listing must resolve it the way the engine wrote it).
+export { shouldHonorDeletions, localRelOf }
+export { previewMaterializeScan } from './foreign-preview.js'
 
 const log = createLogger('foreign-folders')
 
-const activeLoops = new Map()
-// Every in-flight materialize pass — the poll tick AND the initial scan — keyed by loopKey, so
-// the bulk stop has something to await. Declared with activeLoops because initialMaterializeScan,
-// far above its old home, registers into it.
-const tickInFlight = new Map()
-const pendingTicks = new Map()
-// loopKey -> { startedAt, progressAt, completedAt }. progressAt is bumped per file the pass
-// begins fetching, which is what separates a slow scan from a dead one.
-const mirrorLiveness = new Map()
+// The loop engine. Everything mount-specific stays here; the interval, the one-pass-at-a-time
+// serialisation, the cancellation generation and the liveness heartbeat live in mirror-loop.js.
+const loops = createMirrorLoops({
+  intervalMs: () => getResourceCaps().foreignPollIntervalMs,
+  runPass: ({ spaceId, shareId }) => materializeOnce(spaceId, shareId),
+  onStop: (key, { discardPartial = false } = {}) => {
+    cancelInflightFetch(key, discardPartial)
+    state.forgetConverged(key)
+  },
+  onError: (err) => log.debug('materialize tick failed:', err.message),
+})
+const state = createMirrorState({ keyOf: loopKey, isStopped: (key, gen) => loops.stopped(key, gen) })
+
 let ipcRef = null
-
-// The single guarded peer-key -> absolute-path conversion. Every site that turns
-// an owner-controlled drive key into a local path goes through this, so no caller
-// can forget the containment check: the pure segment guard, then an OS-level
-// path.relative belt that catches any escape regardless of separator or encoding.
-function safeMaterializePath (mountPath, relPath) {
-  if (relKeyEscapes(relPath)) {
-    throw new AppError(ErrorCodes.EPATH, `peer file path rejected — unsafe segment escapes the mount folder: ${relPath}`)
-  }
-  const abs = path.join(mountPath, ...driveKeyToSegments(relPath))
-  const rel = path.relative(mountPath, abs)
-  if (rel === '' || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
-    throw new AppError(ErrorCodes.EPATH, `peer file path rejected — resolves outside the mount folder: ${relPath}`)
-  }
-  return abs
-}
-
-// Decide the on-disk relPath for a materialized owner entry, never clobbering a
-// file Mirall did not create, and idempotently so repeated ticks / re-mounts
-// converge on one sibling instead of breeding report (1).pdf, report (2).pdf …
-// Same invariant as download-dest.js::resolveDest — a download must never overwrite
-// the user's own file or adopt another transfer's orphan partial — but path-key
-// aware and persistent (the mapping survives across ticks):
-//  1) an established conflict mapping wins — idempotent across ticks;
-//  2) nothing on disk, or a path we already synced at its natural name -> natural;
-//  3) on-disk bytes already equal the share's hash -> natural (applyChange
-//  hash-skips it; this is what lets unmount->re-mount adopt the prior copy);
-//  4) a genuine pre-existing user file -> a free sibling, recorded in renamedPaths.
-async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf = overlayHashFile, synced = syncedSetFor(mount), fresh = null) {
-  const mapped = mount.renamedPaths?.[ownerKey]
-  if (mapped) return mapped
-
-  const naturalAbs = safeMaterializePath(mount.mountPath, ownerKey)
-  if (!fs.existsSync(naturalAbs) || (synced.has(ownerKey) && !fresh?.has(ownerKey))) return ownerKey
-
-  // hashOf must match how ownerHash was computed: the overlay hasher for overlay shares — else
-  // the adopt-existing-copy check never matches and a collision sibling is minted.
-  //
-  // Deliberately NOT short-circuited by the verified-download record: that record proves some
-  // local path held this content, not that THIS natural path does. Consulting it here adopts a
-  // user's unrelated file at the natural name whenever the mirror had previously written the
-  // same content to a collision sibling — foreign-sync's rename case catches exactly that.
-  if (ownerHash) {
-    try { if (await hashOf(naturalAbs) === ownerHash) return ownerKey } catch {}
-  }
-
-  const segs = driveKeyToSegments(ownerKey)
-  const leaf = segs.pop()
-  const dir = segs.join('/')
-  const isTaken = (name) => {
-    const abs = safeMaterializePath(mount.mountPath, dir ? dir + '/' + name : name)
-    // A candidate is taken by a real file OR an in-flight partial (what
-    // materializeOverlayFile writes), so we never mint a sibling name onto
-    // another transfer's partial.
-    return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX)
-  }
-  const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
-  ;(mount.renamedPaths ||= {})[ownerKey] = localRel
-  syncDirty.add(loopKey(mount.spaceId, mount.shareId))
-  return localRel
-}
-
-// The on-disk relPath an owner key was materialized as (its natural name unless a
-// conflict forced a collision-free sibling).
-function localRelOf (mount, ownerKey) {
-  return mount.renamedPaths?.[ownerKey] || ownerKey
-}
-
-// Drop conflict mappings whose owner key the share no longer carries, so the map
-// can't accumulate stale entries across ticks.
-function pruneRenamedPaths (mount, onDrive) {
-  if (!mount.renamedPaths) return
-  for (const ownerKey of Object.keys(mount.renamedPaths)) {
-    if (onDrive.has(ownerKey)) continue
-    delete mount.renamedPaths[ownerKey]
-    syncDirty.add(loopKey(mount.spaceId, mount.shareId))
-  }
-}
-
-// Drop poisoned peer entries at ingest so they never enter syncedPaths or the
-// materialize batch — one bad key must not abort the tick or DoS the mirror. This
-// guards the catalog source (backend.listPeer).
-function dropUnsafeEntries (entries, sourceLabel) {
-  return entries.filter((e) => {
-    if (relKeyEscapes(e.relPath)) {
-      log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', e.relPath, '(source:', sourceLabel + ')')
-      return false
-    }
-    return true
-  })
-}
 
 export function initForeignFolders(_ipc) {
   ipcRef = _ipc
@@ -154,23 +71,16 @@ function loopKey(spaceId, shareId) {
   return spaceId + ':' + shareId
 }
 
+const APPEND_TICK_DEBOUNCE_MS = 250
+
 // The owner's content changed. Run a materialize tick now (debounced) for each
 // active mirror in that space instead of waiting for the 30s poll, so owner-side
 // edits/deletes reflect on the mirror's disk as promptly as they do in the folder
 // view.
 export function onPeerDriveChanged(spaceId) {
-  for (const loop of activeLoops.values()) {
+  for (const loop of loops.entries()) {
     if (loop.spaceId !== spaceId) continue
-    const key = loopKey(loop.spaceId, loop.shareId)
-    if (pendingTicks.has(key)) continue
-    const timer = setTimeout(() => {
-      pendingTicks.delete(key)
-      runMaterializeTick(loop.spaceId, loop.shareId).catch((err) => {
-        log.debug('append-driven materialize failed:', err.message)
-      })
-    }, 250)
-    timer.unref?.()
-    pendingTicks.set(key, timer)
+    loops.debounce(loop.key, { spaceId: loop.spaceId, shareId: loop.shareId }, APPEND_TICK_DEBOUNCE_MS)
   }
 }
 
@@ -202,15 +112,6 @@ function settleMirrorSyncState(mount, allPresent) {
   return syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, allPresent ? 'synced' : 'syncing'))
 }
 
-// The automatic (recoverable) pause statuses. Named once here and consumed by both
-// pauseMountForIoError (the writer) and AUTO_PAUSE_STATUSES (the resume gate), so the two
-// can't drift. A user pause ('paused', via setForeignEnabled) is deliberately not in this set.
-// mount-status-vocabulary.test.js asserts every status written here is one the contract declares.
-const STATUS_MOUNT_GONE = 'mount-point-gone'
-const STATUS_ENOSPC = 'paused-enospc'
-const STATUS_IO_ERROR = 'paused-error'
-const AUTO_PAUSE_STATUSES = new Set([STATUS_MOUNT_GONE, STATUS_ENOSPC, STATUS_IO_ERROR])
-
 async function pauseMount(mount, status, reason) {
   mount.enabled = false
   mount.status = status
@@ -218,10 +119,10 @@ async function pauseMount(mount, status, reason) {
   // an event-only reason left the strip generic after every reload.
   mount.lastError = reason ?? null
   // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed.
-  await saveForeignMount({ ...mount, ...syncFields(mount) })
+  await saveForeignMount({ ...mount, ...state.syncFields(mount) })
   // Symmetry with the user-pause path (setForeignEnabled(false)): stop the poll loop so an
   // auto-paused mount doesn't keep a live interval, its in-flight fetch is cancelled, and its
-  // cancelGen is bumped — the last point lets an in-progress scan bail before it would
+  // generation is bumped — the last point lets an in-progress scan bail before it would
   // otherwise overwrite this pause with a trailing status:'active'.
   stopForeignLoop(mount.spaceId, mount.shareId)
   await syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, 'paused'))
@@ -230,29 +131,28 @@ async function pauseMount(mount, status, reason) {
 
 // Pause the mount for a local I/O failure (overlay materializeOverlayFile write path). Returns
 // true if it paused — the caller then stops; false leaves the error for generic handling. The
-// errno→code decision is shared with the owner side; the code→status decision is ours, because a
-// mirror's pause really does stop its loop.
+// fault→status decision is shared with the owner side; stopping the loop is ours, because a
+// mirror's pause really does stop it.
 async function pauseMountForIoError(mount, err) {
-  const fault = classifyLocalIoFault(err)
-  if (fault === ErrorCodes.TRANSFER_DISK_FULL) { await pauseMount(mount, STATUS_ENOSPC, fault); return true }
-  if (fault) { await pauseMount(mount, STATUS_IO_ERROR, fault); return true }
+  const fault = faultFromError(err)
+  if (fault) { await pauseMount(mount, fault.status, fault.code); return true }
   if (err?.code === 'ENOENT' && !fs.existsSync(mount.mountPath)) { await pauseMount(mount, STATUS_MOUNT_GONE); return true }
   return false
 }
 
 // A mirror's INITIAL scan failing is not a pause: the poll loop still starts, and the next
 // successful tick clears this. So it records the fault without touching `enabled` — which is what
-// keeps it out of AUTO_PAUSE_STATUSES' resume gate.
+// keeps it out of the auto-pause resume gate.
 export async function recordMirrorScanFault(spaceId, shareId, err) {
   const code = classifyLocalIoFault(err)
-  const status = code === ErrorCodes.TRANSFER_DISK_FULL ? STATUS_ENOSPC : STATUS_IO_ERROR
+  const status = statusForFaultCode(code)
   await patchForeignMount(spaceId, shareId, { status, lastError: code })
   emitStatus(spaceId, shareId, status, { error: code })
   return status
 }
 
 export function isAutoPaused(mount) {
-  return !!mount && mount.enabled === false && AUTO_PAUSE_STATUSES.has(mount.status)
+  return !!mount && mount.enabled === false && isAutoPauseStatus(mount.status)
 }
 
 // Probe-driven twin of pauseMountForIoError for a mount whose local path vanished while the
@@ -280,13 +180,13 @@ export async function resumeAutoPausedForeignMount(spaceId, shareId) {
   return true
 }
 
-// The containment-guarded materialize primitive. safeMaterializePath rejects any
+// The containment-guarded materialize primitive. pathFromMount rejects any
 // owner-controlled relPath that escapes the mount BEFORE any local write/unlink —
 // the path-traversal guard the security suite exercises (foreign-path-containment).
 // Puts are fetched by the overlay path (materializeOverlayFile); this remains the
 // delete primitive used by the catalog deletion reconcile.
 export async function applyChange(mount, change) {
-  const abs = safeMaterializePath(mount.mountPath, change.localRelPath || change.relPath)
+  const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
   if (change.action === 'del') {
     try { await fs.promises.unlink(abs) } catch (err) {
       if (err && err.code !== 'ENOENT') throw err
@@ -297,19 +197,12 @@ export async function applyChange(mount, change) {
 
 // The initial scan is launched unawaited at boot and on a fresh mount, and it walks the whole
 // catalog — so it is exactly the kind of in-flight pass stopAllForeignLoops has to wait for. It
-// honours cancelGen internally (bails between files, re-checks before the trailing persist), but
-// the bulk stop can only WAIT for what it can see, hence the same in-flight map the poll tick uses.
+// honours the generation internally (bails between files, re-checks before the trailing persist),
+// but the bulk stop can only WAIT for what it sees, hence the same in-flight map the poll tick uses.
 export async function initialMaterializeScan(mount) {
   const key = loopKey(mount.spaceId, mount.shareId)
-  forgetConverged(key)
-  const p = runInitialMaterializeScan(mount).finally(() => {
-    if (tickInFlight.get(key) !== p) return
-    tickInFlight.delete(key)
-    markMirrorPassEnded(key)
-  })
-  tickInFlight.set(key, p)
-  markMirrorPassStarted(key)
-  return await p
+  state.forgetConverged(key)
+  return await loops.adopt(key, runInitialMaterializeScan(mount))
 }
 
 async function runInitialMaterializeScan(mount) {
@@ -323,247 +216,33 @@ async function runInitialMaterializeScan(mount) {
   return { skipped: 'no-content-backend' }
 }
 
-const FOREIGN_PREVIEW_CONCURRENCY = 8
-const PREVIEW_PROGRESS_EVERY = 16
-
-// Resolve the peer share and enumerate its files from the overlay catalog.
-// Returns null when the share isn't visible / has no usable content backend.
-async function loadForeignListing(spaceId, ownerKey, shareId) {
-  const { readPeerShares } = await import('../shares/shares.js')
-  const shares = await readPeerShares(ownerKey, spaceId)
-  if (!shares) return null
-  const found = shares.find((s) => s.id === shareId)
-  if (!found) return null
-  const share = { ...found, spaceId, owner: ownerKey }
-  if (!hasContentBackend(share)) return null
-  const backend = getContentBackend(share)
-  const { entries } = await backend.listPeerWithMeta(spaceId, share)
-  return dropUnsafeEntries(entries.map((e) => ({ relPath: e.relPath, size: e.size, hash: e.contentHash })), 'preview')
-}
-
-// Outcome of one remote entry vs the destination, preserving the original loop's
-// semantics: absent -> download (no conflict); present but different -> download +
-// conflict; present and identical -> skip. A size mismatch alone proves a conflict
-// (different bytes can't hash-equal), and a verified-cache hit proves identity, so a
-// content hash is read only for a same-size, uncached file. A non-ENOENT stat error
-// means the file exists but is unreadable -> treat as a conflict.
-async function classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf) {
-  const abs = safeMaterializePath(mountPath, entry.relPath)
-  let stat = null
-  try {
-    stat = await fs.promises.stat(abs)
-  } catch (err) {
-    if (err && err.code === 'ENOENT') return { relPath: entry.relPath, size: entry.size, download: true, conflict: false }
-    return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  }
-  if (!stat.isFile()) return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  if (stat.size !== entry.size) return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  if (entry.hash && await isVerifiedUnchanged(spaceId, shareId + '|' + entry.relPath, entry.hash, entry.size, stat)) {
-    return { relPath: entry.relPath, size: entry.size, download: false }
-  }
-  try {
-    const onDisk = await hashOf(abs)
-    if (entry.hash && onDisk === entry.hash) return { relPath: entry.relPath, size: entry.size, download: false }
-    return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  } catch {
-    return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  }
-}
-
-export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPath, opts = {}) {
-  const { onProgress = null, signal = null, hashOf = overlayHashFile } = opts
-  const checkAborted = () => { if (signal && signal.aborted) throw new AbortError() }
-  const emit = (phase, scanned, total) => { if (onProgress) { try { onProgress({ phase, scanned, total, bytes: 0 }) } catch {} } }
-
-  // Local count (disk) and remote listing (network) are independent — overlap them.
-  emit('enumerating', 0, 0)
-  const [existingAtDestination, entries] = await Promise.all([
-    countFilesAtPath(mountPath),
-    loadForeignListing(spaceId, ownerKey, shareId),
-  ])
-  checkAborted()
-
-  if (!entries) {
-    return { flow: 'mount-foreign-folder', toUpload: 0, toDownload: 0, conflicts: 0, existingAtDestination, totalBytes: 0, perFile: [] }
-  }
-
-  let scanned = 0
-  const results = await mapLimit(entries, FOREIGN_PREVIEW_CONCURRENCY, async (entry) => {
-    checkAborted()
-    const r = await classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf)
-    scanned += 1
-    if (scanned % PREVIEW_PROGRESS_EVERY === 0) emit('scanning', scanned, entries.length)
-    return r
-  })
-  emit('scanning', entries.length, entries.length)
-
-  let toDownload = 0
-  let conflicts = 0
-  let totalBytes = 0
-  const candidates = []
-  for (const r of results) {
-    if (!r.download) continue
-    toDownload += 1
-    if (r.conflict) conflicts += 1
-    totalBytes += r.size
-    if (candidates.length <= PREVIEW_DETAIL_MAX_FILES) candidates.push({ relPath: r.relPath, size: r.size, conflict: !!r.conflict })
-  }
-
-  const detailed = includePerFile(toDownload)
-  return {
-    flow: 'mount-foreign-folder',
-    toUpload: 0,
-    toDownload,
-    conflicts,
-    existingAtDestination,
-    totalBytes,
-    perFile: detailed ? candidates : [],
-    perFileOmitted: !detailed,
-  }
-}
-
-async function countFilesAtPath(target) {
-  try {
-    const entries = await fs.promises.readdir(target, { recursive: true, withFileTypes: true })
-    // Same Windows `\\?\` long-path normalization as walkDisk (walk-disk.js):
-    // strip the extended-length prefix from both sides so a prefixed parentPath
-    // can't make path.relative emit an absolute path and throw the file count off.
-    const cleanTarget = stripLongPathPrefix(target)
-    let count = 0
-    for (const entry of entries) {
-      if (!entry.isFile()) continue
-      const dir = entry.parentPath ?? entry.path ?? target
-      const rel = relToDriveKey(path.relative(cleanTarget, stripLongPathPrefix(path.join(dir, entry.name))), path.sep)
-      if (rel === '..' || rel.startsWith('../') || isAbsoluteDriveKey(rel)) continue
-      // Ignore OS junk / temp files (.DS_Store, Thumbs.db, our own partials, …). The
-      // sync engine never touches them, and counting hidden files the user
-      // can't even see in Finder makes "N files already at the destination"
-      // wrong (a viewed folder always has a hidden .DS_Store).
-      if (!rel || shouldIgnore(rel, DEFAULT_IGNORE)) continue
-      count += 1
-    }
-    return count
-  } catch {
-    return 0
-  }
-}
-
 export async function startForeignLoop(mount) {
-  const key = loopKey(mount.spaceId, mount.shareId)
-  if (activeLoops.has(key)) return
-
-  const timer = setInterval(() => {
-    runMaterializeTick(mount.spaceId, mount.shareId).catch((err) => {
-      log.debug('materialize tick failed:', err.message)
-    })
-  }, getResourceCaps().foreignPollIntervalMs)
-  timer.unref?.()
-  activeLoops.set(key, { timer, spaceId: mount.spaceId, shareId: mount.shareId })
+  loops.start(loopKey(mount.spaceId, mount.shareId), { spaceId: mount.spaceId, shareId: mount.shareId })
 }
 
-const tickDirty = new Set()
-// Bumped by stopForeignLoop (pause / unmount). A long initial scan or poll tick
-// over thousands of files captures the generation at its start and bails between
-// files once it changes — otherwise the pass runs to completion (and its trailing
-// saveForeignMount can even resurrect an unmounted mount).
-const cancelGen = new Map()
 // The file the mirror is fetching right now (one per loopKey — the catalog materialize is
 // strictly sequential): contentHash so stopForeignLoop can abort the in-flight overlay
 // download, relPath so foreignFetchActive can identify the row.
 const activeOverlayFetches = new Map()
-// contentHash a pause left holders showing us paused for, after its in-flight fetch slot was
-// released — lets a later unmount tell the holder we stopped rather than leaving its "who is
-// downloading" row paused until the 5-min sweep. Mirrors overlay-download's pausedHashes.
-const pausedMirrorHashes = new Map()
+// The paused-stop markers this mount left with holders, so a later unmount can still tell them we
+// stopped rather than leaving their "who is downloading" row paused until the 5-min sweep.
+const pausedHolders = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
 // One in-memory Set of synced owner keys per mount — the authoritative copy while the process
 // lives. mount.syncedPaths (the persisted array) is its boot-time seed and durable snapshot,
 // written back only when the Set changed. Membership is asked once per catalog entry per tick,
 // so it must be O(1): the array scan it replaces made a fully-synced tick quadratic. The Set
 // outlives pause/resume (a stopped pass has already written files it must keep owning) and is
 // dropped only on unmount, with the record.
-const syncedSets = new Map() // loopKey -> Set<ownerKey>
-// loopKey -> the owner-catalog version the last CONVERGED pass walked, and how many ticks have
-// skipped since. A converged mirror re-walks only when that version moves or the backstop is due.
-const convergedHeads = new Map()
-const skippedTicks = new Map()
-
-function forgetConverged (key) {
-  convergedHeads.delete(key)
-  skippedTicks.delete(key)
-}
-const syncDirty = new Set()  // loopKeys whose Set / renamedPaths differ from the persisted record
-
-function syncedSetFor (mount) {
-  const key = loopKey(mount.spaceId, mount.shareId)
-  let set = syncedSets.get(key)
-  if (!set) {
-    set = new Set(mount.syncedPaths || [])
-    syncedSets.set(key, set)
-  }
-  return set
-}
-
-// `fresh` collects the keys this pass claimed. Ownership is recorded BEFORE the write lands (so a
-// cancelled pass still owns what it wrote), but the collision check must still see such a path as
-// NOT-yet-ours — otherwise a pre-existing user file at the natural name is adopted instead of
-// getting a sibling. The persisted record and the "did we write this before?" question are two
-// different things, and the pre-fix code kept them apart by reading the persisted array while
-// building a separate list.
-function recordSynced (key, set, ownerKey, fresh) {
-  if (set.has(ownerKey)) return
-  set.add(ownerKey)
-  fresh?.add(ownerKey)
-  syncDirty.add(key)
-}
-
-function forgetSynced (key, set, ownerKey) {
-  if (set.delete(ownerKey)) syncDirty.add(key)
-}
-
-function syncFields (mount) {
-  return { syncedPaths: [...syncedSetFor(mount)], renamedPaths: mount.renamedPaths || {} }
-}
-
-// Persist the sync bookkeeping once per pass, only when it changed, and never from a pass that
-// was cancelled: a pause persists the Set itself, and unmount deleted the record. The old code
-// wrote the whole record on EVERY tick of an owner-online mirror — about 36 B per path, so a
-// converged 5k-file mirror appended ~180 KB to the mounts bee every 30 s.
-async function persistSyncState (mount, key, gen) {
-  if (!syncDirty.has(key) || mirrorStopped(key, gen)) return
-  if (await patchForeignMount(mount.spaceId, mount.shareId, syncFields(mount))) syncDirty.delete(key)
-}
-
-function mirrorGen(key) { return cancelGen.get(key) || 0 }
-
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
 // derivation so a materializing mirror row reports 'downloading'.
 export function foreignFetchActive(spaceId, shareId, relPath) {
   return activeOverlayFetches.get(loopKey(spaceId, shareId))?.relPath === relPath
 }
-function mirrorStopped(key, gen) { return mirrorGen(key) !== gen }
+const mirrorGen = (key) => loops.generationOf(key)
+const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 
-// Serialize ticks per mount: the poll and the append-driven trigger must never
-// run concurrently, or overlapping ticks act on stale drive snapshots and
-// re-materialize files the other just deleted. A request that arrives while a
-// tick runs sets a dirty flag so exactly one follow-up tick runs after it.
 export async function runMaterializeTick(spaceId, shareId) {
-  const key = loopKey(spaceId, shareId)
-  if (tickInFlight.has(key)) {
-    tickDirty.add(key)
-    return tickInFlight.get(key)
-  }
-  const p = materializeOnce(spaceId, shareId).finally(() => {
-    // Identity-guarded, matching initialMaterializeScan: a stale pass settling after a restart
-    // replaced the entry must not delete the LIVE one, which would un-serialise two passes over
-    // the same mount.
-    if (tickInFlight.get(key) !== p) return
-    tickInFlight.delete(key)
-    markMirrorPassEnded(key)
-    if (tickDirty.delete(key)) runMaterializeTick(spaceId, shareId).catch(() => {})
-  })
-  tickInFlight.set(key, p)
-  markMirrorPassStarted(key)
-  return p
+  return await loops.tick(loopKey(spaceId, shareId), { spaceId, shareId })
 }
 
 async function materializeOnce(spaceId, shareId) {
@@ -652,8 +331,8 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.
-  const localRelPath = await resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || syncedSetFor(mount), opts.fresh)
-  const abs = safeMaterializePath(mount.mountPath, localRelPath)
+  const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount), opts.fresh)
+  const abs = pathFromMount(mount.mountPath, localRelPath)
   let onDisk = null
   try { onDisk = await fs.promises.stat(abs) } catch {}
   if (onDisk?.isFile() && entry.contentHash) {
@@ -680,35 +359,35 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // bytes; ticker.pushTo diffs them.
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
-  const ticker = makeProgressTicker(total, ({ bytes, speed, eta }) => {
-    ipcRef?.emit('event:decoration', {
-      channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
-    })
-  })
-  const diag = makeFetchDiag('overlay mirror', entry.relPath, total, entry.contentHash)
-  let attempted = false // set once a chunk scheduler runs — i.e. a holder was found and asked
-  let res
   const streamKey = loopKey(mount.spaceId, mount.shareId)
+  let res
+  let attempted = false
+  let diag = null
   activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
-  markMirrorProgress(streamKey)
-  pausedMirrorHashes.delete(streamKey) // a fresh/resumed fetch supersedes any paused-stop marker
+  loops.noteProgress(streamKey)
+  pausedHolders.supersede(streamKey)
   // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
   ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
   try {
-    res = await overlay.fetchFile(entry.contentHash, {
+    // The overlay scheduler reports CUMULATIVE bytes; the ticker diffs them into speed/ETA.
+    ;({ res, attempted, diag } = await runOverlayFetch(overlay, entry.contentHash, {
+      label: 'overlay mirror',
+      relPath: entry.relPath,
+      size: total,
       destPath: abs,
-      reSeed: false,
-      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); markMirrorProgress(streamKey) },
+      onProgress: ({ bytes, speed, eta }) => ipcRef?.emit('event:decoration', {
+        channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
+      }),
       onVerify: (fraction) => ipcRef?.emit('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: 0, total,
       }),
-      onEnd: (info) => { attempted = true; diag.onEnd(info) },
-    })
+      onTick: () => loops.noteProgress(streamKey),
+    }))
   } catch (err) {
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
-    if (err?.code === 'ECANCELLED') { diag.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, diag)
+    if (err?.code === 'ECANCELLED') { err.diag.finish('paused'); return 'missing' }
+    await handleOverlayMirrorFetchError(mount, share, entry, err, err.diag)
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)
@@ -741,16 +420,16 @@ async function initialMaterializeScanCatalog(mount, share) {
   const gen = mirrorGen(key)
   // Resolved before the first await: a pass cancelled by an unmount must never recreate a
   // re-mounted key's Set from its stale mount object.
-  const synced = syncedSetFor(mount)
+  const synced = state.syncedSetFor(mount)
   const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
-  const entries = dropUnsafeEntries(raw, 'catalog-initial')
+  const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-initial)'))
   let allPresent = true
   for (const entry of entries) {
     if (mirrorStopped(key, gen)) return { stopped: true }
     // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
     // wrote, or the owner's later delete of that file is never applied.
-    recordSynced(key, synced, entry.relPath, fresh)
+    state.recordSynced(key, synced, entry.relPath, fresh)
     try {
       if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
     } catch (err) {
@@ -765,19 +444,19 @@ async function initialMaterializeScanCatalog(mount, share) {
   // complete read is authoritative enough to replace the record, or to stamp the scan done.
   if (complete) {
     const listed = new Set(entries.map((e) => e.relPath))
-    for (const ownerKey of [...synced]) if (!listed.has(ownerKey)) forgetSynced(key, synced, ownerKey)
+    for (const ownerKey of [...synced]) if (!listed.has(ownerKey)) state.forgetSynced(key, synced, ownerKey)
     mount.initialScanCompletedAt = Date.now()
   }
   mount.status = 'active'
   await patchForeignMount(mount.spaceId, mount.shareId, {
-    ...syncFields(mount),
+    ...state.syncFields(mount),
     status: 'active',
     // A pass that got through clears the reason with the status: a stale one would name the next
     // fault that records none.
     lastError: null,
     ...(complete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
   })
-  syncDirty.delete(key)
+  state.markClean(key)
   emitStatus(mount.spaceId, mount.shareId, 'active')
   // Skip the terminal state on an empty or partial listing: at mount the owner's catalog may not
   // have replicated yet, and publishing 'synced' with zero (or truncated) entries would falsely
@@ -795,16 +474,16 @@ async function materializeOnceCatalog(mount, share) {
   // Read BEFORE the listing: an append landing mid-walk leaves the head past the version this pass
   // records, so the next tick walks. A pass only ever converges against the snapshot it walked.
   const version = await getContentBackend(share).catalogVersion?.(mount.spaceId, share) ?? null
-  const skipped = skippedTicks.get(key) || 0
+  const skipped = state.skipped(key)
   const decision = shouldWalk({
     // Only a non-null version is ever stored, so a miss and an unknown both read as null.
-    watermark: convergedHeads.get(key) ?? null,
+    watermark: state.watermark(key),
     version,
     skipped,
     fullWalkEvery: getResourceCaps().foreignFullWalkEvery,
   })
   if (!decision.walk) {
-    skippedTicks.set(key, skipped + 1)
+    state.noteSkipped(key, skipped + 1)
     // No settle: the pass that converged already wrote the terminal state, and by definition
     // nothing has happened since.
     return
@@ -814,17 +493,17 @@ async function materializeOnceCatalog(mount, share) {
   // may re-establish one, so a pass that throws midway — an unlink the OS refuses, a bee put that
   // fails — cannot leave a stale watermark standing over a zeroed skip counter, which would retry
   // the failed work at the backstop's cadence instead of the poll's.
-  forgetConverged(key)
+  state.forgetConverged(key)
 
-  const synced = syncedSetFor(mount)
+  const synced = state.syncedSetFor(mount)
   const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
-  const entries = dropUnsafeEntries(raw, 'catalog-tick')
+  const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-tick)'))
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
   let allPresent = true
   for (const [, entry] of onDrive) {
     if (mirrorStopped(key, gen)) return
-    recordSynced(key, synced, entry.relPath, fresh)
+    state.recordSynced(key, synced, entry.relPath, fresh)
     try {
       if (await materializeCatalogFile(mount, share, entry, { synced, fresh }) === 'missing') allPresent = false
     } catch (err) {
@@ -845,17 +524,17 @@ async function materializeOnceCatalog(mount, share) {
       if (onDrive.has(ownerKey)) continue
       if (relKeyEscapes(ownerKey)) {
         log.warn('refusing to honor a stored sync path that escapes the mount folder — skipping deletion:', ownerKey)
-        forgetSynced(key, synced, ownerKey)
+        state.forgetSynced(key, synced, ownerKey)
         continue
       }
       await applyChange(mount, { action: 'del', relPath: ownerKey, localRelPath: localRelOf(mount, ownerKey) })
-      forgetSynced(key, synced, ownerKey)
+      state.forgetSynced(key, synced, ownerKey)
     }
-    pruneRenamedPaths(mount, onDrive)
+    state.pruneRenamedPaths(mount, onDrive)
   }
   // Once per pass and only when something changed — the old code wrote the whole record on every
   // tick of an owner-online mirror, whether or not anything moved.
-  await persistSyncState(mount, key, gen)
+  await state.persist(mount, key, gen)
   // Nothing left to do: every file present, the listing a full read, and no path still owned that the
   // catalog no longer lists. Every entry in the listing was recorded into `synced` above, so the
   // listing is a subset of the Set and equal sizes prove the two agree — an O(1) test for
@@ -867,7 +546,7 @@ async function materializeOnceCatalog(mount, share) {
   // mirror keeps walking. A cancelled pass proves nothing, and a version we could not read cannot
   // authorise a later skip.
   const converged = allPresent && complete && synced.size === onDrive.size
-  if (converged && version !== null && !mirrorStopped(key, gen)) convergedHeads.set(key, version)
+  if (converged && version !== null && !mirrorStopped(key, gen)) state.setWatermark(key, version)
   // Re-check the generation adjacent to the enqueue (no await between) so a pause/unmount that
   // landed during the deletion-reconcile await above can't be overwritten by this terminal write.
   if (!mirrorStopped(key, gen)) await settleMirrorSyncState(mount, allPresent)
@@ -904,103 +583,49 @@ async function ownerLeftSpace(spaceId, ownerKey) {
   return !space.members.some((m) => m.publicKey === ownerKey)
 }
 
-function markMirrorPassStarted(key) {
-  const at = Date.now()
-  const entry = mirrorLiveness.get(key)
-  if (entry) { entry.startedAt = at; entry.progressAt = at } else {
-    mirrorLiveness.set(key, { startedAt: at, progressAt: at, completedAt: 0 })
-  }
-}
-
-function markMirrorProgress(key) {
-  const entry = mirrorLiveness.get(key)
-  if (entry) entry.progressAt = Date.now()
-}
-
-function markMirrorPassEnded(key) {
-  const entry = mirrorLiveness.get(key)
-  if (!entry) return
-  entry.startedAt = 0
-  entry.progressAt = 0
-  entry.completedAt = Date.now()
-}
-
 // One verdict per mount that has a live loop. A mount with no loop is not reported: it is paused,
 // unmounted or gone, none of which this can or should recover.
 export function mirrorHealth({ now = Date.now() } = {}) {
   const pollIntervalMs = getResourceCaps().foreignPollIntervalMs
-  const rows = []
-  for (const loop of activeLoops.values()) {
-    const key = loopKey(loop.spaceId, loop.shareId)
-    const verdict = mirrorVerdict(mirrorLiveness.get(key), { now, pollIntervalMs })
-    rows.push({ key, spaceId: loop.spaceId, shareId: loop.shareId, ...verdict })
-  }
-  return rows
+  return loops.entries().map((loop) => ({
+    ...loop,
+    ...mirrorVerdict(loops.liveness(loop.key), { now, pollIntervalMs }),
+  }))
 }
 
-// Un-wedge one mirror. stopForeignLoop bumps cancelGen, so a hung pass is generation-invalidated
-// and bails at its next checkpoint without writing; clearing the in-flight entry is the part the
-// stop does NOT do, and without it the fresh interval coalesces straight back onto the dead promise.
+// Un-wedge one mirror: the stop generation-invalidates a hung pass so it bails at its next
+// checkpoint without writing, and the restart drops the dead in-flight promise the stop leaves
+// behind — without that the fresh interval coalesces straight back onto it.
 export async function restartForeignLoop(spaceId, shareId) {
-  const key = loopKey(spaceId, shareId)
-  stopForeignLoop(spaceId, shareId)
-  tickInFlight.delete(key)
-  tickDirty.delete(key)
-  mirrorLiveness.delete(key)
-  forgetConverged(key)
-  await startForeignLoop({ spaceId, shareId })
-  runMaterializeTick(spaceId, shareId).catch((err) => log.debug('materialize tick after restart failed:', err.message))
+  loops.restart(loopKey(spaceId, shareId), { spaceId, shareId })
+    .catch((err) => log.debug('materialize tick after restart failed:', err.message))
 }
 
-export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
-  const key = loopKey(spaceId, shareId)
-  // Invalidate any in-flight scan/tick (it bails at the next file) and abort the
-  // file currently downloading, so pause/unmount stops the sync now — not after
-  // the whole folder finishes materialising.
-  cancelGen.set(key, mirrorGen(key) + 1)
-  // Overlay-catalog in-flight fetch: cancel by content hash. discardPartial:false
-  // (pause) keeps the partial + journal so the next tick resumes; true (unmount)
-  // unlinks it. cancelFetch also tells the holder we paused/stopped, so its
-  // "who is downloading" indicator clears now rather than on the idle sweep. A pause
-  // releases the fetch slot while the holder still shows us paused, so remember the hash
-  // and, on a later unmount with no live fetch, notify the holder we stopped.
+// Abort the file this mount is fetching right now. discardPartial:false (pause) keeps the partial
+// + journal so the next tick resumes; true (unmount) unlinks it. cancelFetch also tells the holder
+// we paused/stopped, so its "who is downloading" indicator clears now rather than on the idle
+// sweep. A pause releases the fetch slot while the holder still shows us paused, so the hash is
+// remembered and a later unmount with no live fetch tells the holder we stopped.
+function cancelInflightFetch(key, discardPartial) {
   const inflight = activeOverlayFetches.get(key)
   if (inflight) {
     try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial }) } catch {}
     activeOverlayFetches.delete(key)
-    if (discardPartial) pausedMirrorHashes.delete(key)
-    else pausedMirrorHashes.set(key, inflight.contentHash)
+    if (discardPartial) pausedHolders.supersede(key)
+    else pausedHolders.remember(key, inflight.contentHash)
   } else if (discardPartial) {
-    const paused = pausedMirrorHashes.get(key)
-    if (paused) { try { getOverlay()?.notifyTransferStopped(paused) } catch {} }
-    pausedMirrorHashes.delete(key)
-  }
-  tickDirty.delete(key)
-  forgetConverged(key)
-  const handle = activeLoops.get(key)
-  if (handle) {
-    clearInterval(handle.timer)
-    activeLoops.delete(key)
-  }
-  const pending = pendingTicks.get(key)
-  if (pending) {
-    clearTimeout(pending)
-    pendingTicks.delete(key)
+    pausedHolders.stop(key)
   }
 }
 
-// Stop every mirror loop. Each stop bumps the loop's generation so a pass mid-iteration bails at
-// its next file; the bounded wait lets that bail land before the caller closes the cores the pass
-// reads. discardPartial stays false — a shutdown is a pause, not an unmount: the partial and its
-// journal are what let the next boot resume instead of refetching.
-async function stopAllForeignLoops({ settleMs = 5000 } = {}) {
-  for (const { spaceId, shareId } of [...activeLoops.values()]) stopForeignLoop(spaceId, shareId)
-  const inFlight = [...tickInFlight.values()]
-  if (inFlight.length === 0) return
-  await Promise.race([
-    Promise.allSettled(inFlight),
-    new Promise((resolve) => { setTimeout(resolve, settleMs).unref?.() }),
-  ])
+export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
+  loops.stop(loopKey(spaceId, shareId), { discardPartial })
+}
+
+// discardPartial stays false — a shutdown is a pause, not an unmount: the partial and its journal
+// are what let the next boot resume instead of refetching.
+function stopAllForeignLoops({ settleMs = 5000 } = {}) {
+  return loops.stopAll({ settleMs })
 }
 
 // Owns the mirror loops as a set: _open is the module's wiring, _close is the bulk stop the
@@ -1047,10 +672,8 @@ export class ForeignMirrors extends Subsystem {
 // inherited Set would claim files exist at a path the mount no longer uses.
 function resetForeignSyncState(spaceId, shareId) {
   const key = loopKey(spaceId, shareId)
-  syncedSets.delete(key)
-  syncDirty.delete(key)
-  mirrorLiveness.delete(key)
-  forgetConverged(key)
+  state.reset(key)
+  loops.forgetLiveness(key)
 }
 
 export async function unmountForeignFolder(spaceId, shareId) {
@@ -1083,8 +706,8 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
 
   const enabled = mount.enabled !== false
   // A disabled mount keeps the status it was disabled WITH. Collapsing an auto-pause
-  // ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would take it out of
-  // AUTO_PAUSE_STATUSES and permanently disable the auto-resume that exists to rescue exactly the
+  // ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would take it out of the
+  // auto-pause set and permanently disable the auto-resume that exists to rescue exactly the
   // mirrors this verb is used on.
   const status = enabled ? 'scanning' : (mount.status ?? 'paused')
   // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
@@ -1094,10 +717,10 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
 
   stopForeignLoop(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
-  // stopForeignLoop deliberately leaves tickInFlight alone; without this a pass still running
-  // against the OLD path makes every later tick coalesce onto that dead promise, and because a
-  // coalesced call never marks a pass started, the liveness probe reports the mirror healthy.
-  tickInFlight.delete(loopKey(spaceId, shareId))
+  // stopForeignLoop deliberately leaves the in-flight pass alone; without this a pass still
+  // running against the OLD path makes every later tick coalesce onto that dead promise, and
+  // because a coalesced call never marks a pass started, the liveness probe reports it healthy.
+  loops.dropInFlight(loopKey(spaceId, shareId))
   emitStatus(spaceId, shareId, status)
 
   const next = await getForeignMount(spaceId, shareId)
@@ -1117,7 +740,7 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'
   if (enabled) mount.lastError = null
-  await saveForeignMount({ ...mount, ...syncFields(mount) })
+  await saveForeignMount({ ...mount, ...state.syncFields(mount) })
   if (enabled) {
     await startForeignLoop(mount)
     // Only a genuine resume (was paused) touches the record and re-evaluates now: set 'syncing',

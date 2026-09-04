@@ -18,7 +18,10 @@
 //    safe — the fold is deterministic and idempotent, so an extra recompute only costs
 //    a fold, never correctness.
 
-import { stallVerdict } from '../core/stall-verdict.js'
+import { createPassLiveness } from '../core/pass-liveness.js'
+
+// One fold at a time, so the keyed bookkeeping carries a single key.
+const FOLD = 'fold'
 
 export function createDerivedView ({ fold, onChange, range, onError, debounceMs = 0 } = {}) {
   if (typeof fold !== 'function') throw new Error('createDerivedView: fold is required')
@@ -32,7 +35,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   let timer = null             // pending debounce timer (debounceMs > 0)
   let inFlight = null          // the running fold, so close() can wait for the reads it holds
   let gen = 0                  // bumped by abandon(); a fold from an older generation is inert
-  let liveness = { startedAt: 0, progressAt: 0, completedAt: 0 }
+  const liveness = createPassLiveness()
 
   // Coalesce a burst of change signals into one fold and serialize folds so two changes
   // can't run overlapping folds whose results land out of order. If a change arrives while
@@ -56,8 +59,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     timer = null
     running = true
     const mine = gen
-    const startedAt = Date.now()
-    liveness = { startedAt, progressAt: startedAt, completedAt: liveness.completedAt }
+    liveness.started(FOLD)
     try {
       const view = await fold()
       // Identity-guarded: a fold abandoned by a recovery must not publish a view the fold that
@@ -68,7 +70,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     } finally {
       if (mine === gen) {
         running = false
-        liveness = { startedAt: 0, progressAt: 0, completedAt: Date.now() }
+        liveness.ended(FOLD)
         if (again && !closed) { again = false; recompute() }
       }
     }
@@ -78,11 +80,11 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   // have to tolerate the worst-case fold — a roster of hundreds of unreachable peers, each read at
   // its own budget — and a window that generous is a window that never fires.
   function noteProgress () {
-    if (liveness.startedAt) liveness.progressAt = Date.now()
+    liveness.progress(FOLD)
   }
 
   function health ({ now = Date.now(), windowMs }) {
-    return stallVerdict(liveness, { now, windowMs })
+    return liveness.verdict(FOLD, { now, windowMs })
   }
 
   // Abandon the fold in flight and let the next recompute start a fresh one. NOT close(): that
@@ -96,7 +98,7 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     again = false
     if (timer) { clearTimeout(timer); timer = null }
     inFlight = null
-    liveness = { startedAt: 0, progressAt: 0, completedAt: liveness.completedAt }
+    liveness.ended(FOLD)
   }
 
   // Start watching a source bee (idempotent per key). Each change within `range` —
