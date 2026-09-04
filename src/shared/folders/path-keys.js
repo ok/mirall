@@ -73,6 +73,17 @@ export function relKeyEscapes (relPath) {
   return false
 }
 
+// Drop poisoned peer entries at ingest so they never reach a materialize batch or a synced
+// record — one bad key must not abort a tick or DoS a mirror. `onDropped` is the caller's logger;
+// this module stays import-free (see the header), so it cannot log for itself.
+export function dropUnsafeEntries (entries, onDropped = () => {}) {
+  return entries.filter((e) => {
+    if (!relKeyEscapes(e.relPath)) return true
+    onDropped(e.relPath)
+    return false
+  })
+}
+
 // ─── share prefix + membership ────────────────────────────────────────────────
 export function sharePrefix (name) {
   return '/' + name + '/'
