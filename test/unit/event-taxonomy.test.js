@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { scopeForEvent } from '../../src/shared/core/ipc.js'
+import { EVENT_NAMES } from '../../src/shared/contract/events.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
@@ -62,6 +63,14 @@ const TAXONOMY = {
   'event:foreign-folder-preview-progress': 'signal',
   'event:state': 'snapshot',
 }
+
+// The two artifacts describe the same vocabulary from two angles — the contract says what exists,
+// the taxonomy says which channel it belongs to — and nothing related them, so they had already
+// drifted by one name (event:reconcile was classified here and missing from the contract) for as
+// long as the contract's own header claimed this test enforced it.
+test('the taxonomy and the contract declare the same events', (t) => {
+  t.alike(Object.keys(TAXONOMY).sort(), [...EVENT_NAMES].sort(), 'every declared event is classified and vice versa')
+})
 
 test('every emitted worker event is classified in the EDA taxonomy', (t) => {
   const emitted = new Set()
