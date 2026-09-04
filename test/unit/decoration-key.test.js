@@ -4,17 +4,25 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { shareDecoKey } from '../../src/shared/transfer/decoration-key.js'
 import { shareDecoKey as rendererShareDecoKey } from '../../src/renderer/decoration-key.js'
+import { shareDecoKey as contractShareDecoKey } from '../../src/shared/contract/decoration-key.js'
 
-// The worker emits folder-share decoration frames under this key; the renderer looks them up
-// with its hand-mirrored copy. Any drift silently drops every folder progress bar.
-test('decoration key: the worker and renderer builders agree', (t) => {
-  for (const [shareId, relPath] of [
-    ['A', 'x.bin'],
-    ['share-1', 'nested/dir/x.bin'],
-    ['B', 'x:y.bin'],
-    ['', ''],
+// The worker emits folder-share decoration frames under this key and the renderer looks them up
+// with it, so any disagreement silently drops every folder progress bar. This used to diff two
+// hand-maintained copies; both sides now re-export the contract package, so the divergence it
+// watched for cannot occur and what is worth guarding is that the twin does not come back.
+test('the worker and renderer builders are the same function', (t) => {
+  t.is(shareDecoKey, contractShareDecoKey, 'the data layer re-exports rather than wraps')
+  t.is(rendererShareDecoKey, contractShareDecoKey, 'the renderer re-exports rather than wraps')
+})
+
+test('the key still keys by share and path', (t) => {
+  for (const [shareId, relPath, expected] of [
+    ['A', 'x.bin', 'A:x.bin'],
+    ['share-1', 'nested/dir/x.bin', 'share-1:nested/dir/x.bin'],
+    ['B', 'x:y.bin', 'B:x:y.bin'],
+    ['', '', ':'],
   ]) {
-    t.is(shareDecoKey(shareId, relPath), rendererShareDecoKey(shareId, relPath), `${shareId}:${relPath}`)
+    t.is(shareDecoKey(shareId, relPath), expected, `${shareId}:${relPath}`)
   }
 })
 
