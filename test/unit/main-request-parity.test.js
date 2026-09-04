@@ -68,14 +68,30 @@ function muteWarn (t) {
 test('REGRESSION (FIX-H3-1): an unknown main-request command is refused loudly, not silently ignored', async (t) => {
   const warnings = muteWarn(t)
   const { calls, deps } = stubDeps()
-  const unknown = []
-  const router = createMainRequestRouter({ ...deps, onUnknown: (c) => unknown.push(c) })
+  const router = createMainRequestRouter(deps)
 
   await router.handle('owned-folder:watch', { shareId: 's1', mountPath: '/tmp/x' })
 
-  t.alike(unknown, ['owned-folder:watch'], 'the unknown command was reported')
+  t.alike(calls, [], 'nothing was done')
+  t.ok(warnings.some((l) => l.includes('owned-folder:watch')), 'and it reaches the log ring unconditionally')
+})
+
+// REGRESSION (FIX-R1: the dispatch table was a plain object literal, so `handlers[command]` walked
+// Object.prototype. 'toString' and 'constructor' found a function there, `!fn` was false, and the
+// call resolved as though routed — the same silent success FIX-H3-1 removed, reintroduced through
+// the lookup. 'valueOf' and '__proto__' instead threw a TypeError main only logs behind `debug`.
+// Command names arrive on the worker pipe, so the table must not have a prototype at all.)
+test('REGRESSION (FIX-R1): a command named after an Object.prototype key is unknown, not routed', async (t) => {
+  const warnings = muteWarn(t)
+  const { calls, deps } = stubDeps()
+  const router = createMainRequestRouter(deps)
+
+  for (const command of ['toString', 'constructor', 'valueOf', '__proto__', 'hasOwnProperty']) {
+    await router.handle(command, { shareId: 's1', mountPath: '/tmp/x' })
+    t.ok(warnings.some((l) => l.includes(command)), `'${command}' is refused out loud`)
+  }
+
   t.alike(calls, [], 'and nothing was done')
-  t.ok(warnings.some((l) => l.includes('owned-folder:watch')), 'it reaches the log ring unconditionally')
 })
 
 test('a known command still reaches its handler', async (t) => {

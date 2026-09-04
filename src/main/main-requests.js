@@ -9,8 +9,18 @@ const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
 // The `else` matters as much as the table. Five `if (command === …) return` blocks with nothing
 // after them meant an unrecognised command was indistinguishable from a handled one: the promise
 // resolved, the caller's .catch never fired, and every owned folder simply stopped re-publishing.
-function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, onUnknown }) {
-  const handlers = {
+// A worker in a retry loop around an unrecognised command would write one warning per frame into
+// the fixed-size log ring and evict the diagnostics around it. The first sighting of a command is
+// the whole signal; the repeats carry nothing. The cap covers the other shape of the same flood, a
+// stream of DISTINCT unknown commands.
+const UNKNOWN_WARN_CAP = 16
+
+function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
+  // Null-prototype, because `command` comes off the worker pipe. With a plain object literal
+  // `handlers['toString']` finds Object.prototype's method, `!fn` is false, and the frame resolves
+  // as though it had been routed — the silent success this bus exists to remove, reintroduced by
+  // the lookup itself. 'valueOf' and '__proto__' were worse: they threw where nothing catches.
+  const handlers = Object.assign(Object.create(null), {
     [MAIN_REQUEST.DOWNLOADS_ROOTS]: async (args) => {
       setDownloadRoots(Array.isArray(args?.roots)
         ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
@@ -48,6 +58,23 @@ function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setD
     [MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER]: async (args) => {
       ownedFolderWatchers.stopWatcher(args.shareId)
     },
+  })
+
+  const warned = new Set()
+  let capReported = false
+
+  function warnUnknown (command) {
+    if (warned.has(command)) return
+    if (warned.size >= UNKNOWN_WARN_CAP) {
+      if (capReported) return
+      capReported = true
+      console.warn('[main-request] too many distinct unknown commands - no longer logging them')
+      return
+    }
+    warned.add(command)
+    // Not behind `debug`, for the same reason as the watcher storm warnings: this line is the
+    // only signal that a watcher was never armed.
+    console.warn('[main-request] unknown command:', command, '- nothing was done')
   }
 
   return {
@@ -56,13 +83,7 @@ function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setD
 
     async handle (command, args, worker) {
       const fn = handlers[command]
-      if (!fn) {
-        onUnknown?.(command)
-        // Not behind `debug`, for the same reason as the watcher storm warnings: this line is the
-        // only signal that a watcher was never armed.
-        console.warn('[main-request] unknown command:', command, '- nothing was done')
-        return
-      }
+      if (!fn) { warnUnknown(command); return }
       await fn(args, worker)
     },
   }
