@@ -33,10 +33,18 @@ export async function runOverlayFetch (overlay, contentHash, {
     // and that TypeError would REPLACE the real fault — so a full disk would reach the caller as a
     // bug in this file instead of the ENOSPC that must pause the mount. The annotation is a
     // convenience; the fault is not.
+    let annotated = false
     try {
       err.attempted = attempted
       err.diag = diag
+      annotated = true
     } catch { log.debug('could not annotate a fetch rejection:', label, relPath) }
+    // Every caller reaches the diag through `err.diag`, so an annotation that could not land does
+    // not just lose the flag — it strands the diag, `diag?.finish('failed')` no-ops, and the
+    // `start:` line this fetch already logged never gets its terminal `INCOMPLETE … gave up`. That
+    // is precisely the frozen-rejection ENOSPC case above, i.e. the one where the give-up matters
+    // most. Nothing downstream can close it, so close it here.
+    if (!annotated) diag.finish('failed')
     throw err
   }
 }
