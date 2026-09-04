@@ -63,6 +63,10 @@ const SCAN_SETTLE_MS = 2000
 // A diff over a large tree is legitimately slow, so the wedge signal is a pass that stats no
 // file for this long — not one that merely takes a while.
 const RECONCILE_STALL_WINDOW_MS = 10 * 60 * 1000
+// How often a phase that iterates without touching the disk (the catalog drain, the diff) bumps the
+// pass heartbeat. Often enough that no phase can go quiet for the stall window, rare enough that the
+// bookkeeping is not itself the cost.
+const LIVENESS_EVERY = 500
 // Tracked on the PASS, not on the coalescing wrapper: a caller that joins a run in flight must
 // not re-stamp its heartbeat and make a stalled pass read as fresh.
 const passLiveness = createPassLiveness()
@@ -351,11 +355,19 @@ async function readBothSides(spaceId, shareId, mountPath, ignore) {
   scanSignals.set(key, signal)
   try {
     const walk = await walkDisk(mountPath, ignore, { signal, onProgress: () => passLiveness.progress(key) })
+    // Every phase after the walk beats too. The walk is the only one that reports per file, so a
+    // pass whose catalog side is the slow half — a large share, a flush window that just closed —
+    // used to go quiet for the whole stall window and be reported as wedged while it was working.
+    passLiveness.progress(key)
     // Commit the space batch first, or this read misses every hash materialized in the last flush
     // window and re-enqueues those files.
     await settleCatalog(spaceId)
+    passLiveness.progress(key)
     const known = new Map()
-    for await (const entry of listOwnShare(spaceId, shareId)) known.set(entry.relPath, entry)
+    for await (const entry of listOwnShare(spaceId, shareId)) {
+      known.set(entry.relPath, entry)
+      if (known.size % LIVENESS_EVERY === 0) passLiveness.progress(key)
+    }
     const bail = await bailIfAborted(spaceId, shareId, signal)
     return bail ? { bail } : { walk, known }
   } catch (err) {
@@ -370,6 +382,7 @@ async function readBothSides(spaceId, shareId, mountPath, ignore) {
 }
 
 async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, deferFresh }) {
+  const key = spaceId + ':' + shareId
   const mount = await getOwnedMount(spaceId, shareId)
   if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount missing')
   // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
@@ -394,12 +407,15 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   const { walk, known, bail } = await readBothSides(spaceId, shareId, mountPath, ignore)
   if (bail) return bail
   const { onDisk, unreadable } = walk
+  passLiveness.progress(key)
 
   sched().beginShare(spaceId, shareId, onDisk.size)
   const specs = []
   const unchanged = []
   let deferred = 0
+  let seen = 0
   for (const [relPath, info] of onDisk) {
+    if (++seen % LIVENESS_EVERY === 0) passLiveness.progress(key)
     // A name no catalog key can carry (a '\' in a POSIX file name) is skipped, never a reason to
     // abort the whole diff.
     if (relKeyEscapes(relPath)) { log.warn('skipping file whose name cannot be a share key:', relPath); continue }
