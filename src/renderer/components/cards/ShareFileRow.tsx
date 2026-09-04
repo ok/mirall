@@ -122,6 +122,10 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
   const showPausedProgressBar = (isPausedInterrupted || isPausedOffline)
     && pausedBytes != null && pausedBytes > 0 && file.size > 0
   const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!transferId })
+  // The badge sits apart from the file name in the row, so on its own it announces a bare state
+  // with nothing tying it to what it describes. Naming it also makes the row's status assertable
+  // by one exact string instead of a whole-window word match.
+  const badgeName = (label: string) => t('file.rowStatusLabel', { name: displayName || file.relPath, status: label })
   const busyLabel = isPublishing ? t('status.publishing') : isPreparing ? t('file.preparing') : t('file.syncing')
 
   // Sender-side download indicator: who is currently pulling this file from us. Only
@@ -160,7 +164,7 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
             <DownloadProgressLane value={verifyPct} label={t('status.verifying')} showPct />
           </div>
           <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} />
+            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
           </div>
         </>
       ) : showIndexProgressBar && file.progress ? (
@@ -174,7 +178,7 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
             />
           </div>
           <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} />
+            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
           </div>
         </>
       ) : showDownloadProgressBar && file.progress ? (
@@ -189,7 +193,7 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
             />
           </div>
           <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} />
+            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
           </div>
         </>
       ) : showPausedProgressBar && pausedBytes != null ? (
@@ -202,7 +206,7 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
             />
           </div>
           <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} />
+            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
           </div>
         </>
       ) : indicatorActive && downloadSummary ? (
@@ -217,13 +221,13 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
             />
           </div>
           <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t('file.sending')} classes="bg-info text-accent" />
+            <Badge label={t('file.sending')} classes="bg-info text-accent" srLabel={badgeName(t('file.sending'))} />
           </div>
         </>
       ) : (
         <div className="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
           {file.verified && <VerifiedCheck label={t('file.verified')} />}
-          <Badge label={t(badge.labelKey)} classes={badge.classes} />
+          <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
         </div>
       )}
       {/* Right edge is actions only; the verified badge is information and sits with
