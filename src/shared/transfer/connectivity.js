@@ -11,6 +11,7 @@ import os from 'bare-os'
 import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
 import { getUpgradeKey } from '../core/runtime-config.js'
+import { createTimers } from '../core/timers.js'
 import { refreshContentDiscoveries, getContentPlaneStatus } from './content-swarm.js'
 import { observeReachability } from '../audit/network-watch.js'
 import {
@@ -26,6 +27,13 @@ let getDroppedFrameCounters = () => ({})
 // Read at call time, not captured: initSwarm and destroySwarm reassign both handles.
 let getSwarm = () => null
 let getIpc = () => null
+
+// One owned set for all six timers below. They interlock — the dwell recheck schedules the status
+// emit, the liveness retry re-arms the liveness loop — so a bulk stop that reaches every one of
+// them is the point: a seventh timer armed through this set is stopped by resetConnectivity
+// without anyone remembering to add a line to it. There is no Subsystem here to hang them off, and
+// createTimers() is usable standalone; a lifecycle class for six timers would be apparatus.
+let timers = createTimers()
 
 export function initConnectivity(deps) {
   log = deps.log
@@ -275,7 +283,7 @@ function readInterfaceKind() {
 function startInterfaceWatch() {
   if (interfaceTimer) return
   interfaceKind = readInterfaceKind()
-  interfaceTimer = setInterval(() => {
+  interfaceTimer = timers.setInterval(() => {
     const next = readInterfaceKind()
     if (next === interfaceKind) return
     // A route reappearing is a fresh start for the probe, not a continuation.
@@ -283,7 +291,6 @@ function startInterfaceWatch() {
     interfaceKind = next
     scheduleStatusEmit()
   }, INTERFACE_POLL_MS)
-  interfaceTimer.unref?.()
 }
 
 const LIVENESS_INTERVAL_MS = 15000
@@ -340,11 +347,10 @@ let livenessRetryTimer = null
 
 function scheduleLivenessRetry() {
   if (livenessRetryTimer) return
-  livenessRetryTimer = setTimeout(() => {
+  livenessRetryTimer = timers.setTimeout(() => {
     livenessRetryTimer = null
     checkLiveness().catch((err) => log.debug('liveness retry failed:', err.message))
   }, LIVENESS_RETRY_MS)
-  livenessRetryTimer.unref?.()
 }
 
 // Lets a network transition the OS *did* notice trigger an immediate re-check instead of
@@ -356,20 +362,18 @@ export async function checkLivenessNow() {
 
 function startLivenessLoop() {
   if (livenessTimer) return
-  livenessTimer = setInterval(() => {
+  livenessTimer = timers.setInterval(() => {
     checkLiveness().catch((err) => log.debug('liveness check failed:', err.message))
   }, LIVENESS_INTERVAL_MS)
-  livenessTimer.unref?.()
 }
 
 function scheduleFirstCanaryProbe() {
   if (firstProbeTimer || spaceTopics.size > 0) return
-  firstProbeTimer = setTimeout(() => {
+  firstProbeTimer = timers.setTimeout(() => {
     firstProbeTimer = null
     if (spaceTopics.size > 0) return
     probeCanary(getUpgradeKey()).catch((err) => log.debug('first canary probe failed:', err.message))
   }, NAT_SETTLE_MS)
-  firstProbeTimer.unref?.()
 }
 
 export async function probeCanary(upgradeKey, { force = false } = {}) {
@@ -516,15 +520,14 @@ export function statusEqual(a, b) {
 let dwellTimer = null
 
 function armDwellRecheck(pending) {
-  if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
+  if (dwellTimer) { timers.clear(dwellTimer); dwellTimer = null }
   if (!pending) return
-  dwellTimer = setTimeout(() => { dwellTimer = null; scheduleStatusEmit() }, BLOCKED_DWELL_MS / 2)
-  dwellTimer.unref?.()
+  dwellTimer = timers.setTimeout(() => { dwellTimer = null; scheduleStatusEmit() }, BLOCKED_DWELL_MS / 2)
 }
 
 export function scheduleStatusEmit() {
   if (statusEmitTimer) return
-  statusEmitTimer = setTimeout(() => {
+  statusEmitTimer = timers.setTimeout(() => {
     statusEmitTimer = null
     if (!getIpc()) return
     const next = getSwarmStatus()
@@ -583,12 +586,19 @@ export async function reconnectAll() {
 
 // What destroySwarm calls instead of clearing sixteen counters and six timers by hand.
 export function resetConnectivity() {
-  if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
-  if (firstProbeTimer) { clearTimeout(firstProbeTimer); firstProbeTimer = null }
-  if (livenessTimer) { clearInterval(livenessTimer); livenessTimer = null }
-  if (interfaceTimer) { clearInterval(interfaceTimer); interfaceTimer = null }
-  if (livenessRetryTimer) { clearTimeout(livenessRetryTimer); livenessRetryTimer = null }
-  if (statusEmitTimer) { clearTimeout(statusEmitTimer); statusEmitTimer = null }
+  // The set, not the six handles: close() disarms every timer armed through it, including one added
+  // later that nobody thought to name here. The handles are still nulled, because the arm sites
+  // guard on them and a stale handle would block the re-arm after a restart. A fresh set replaces
+  // the closed one — destroySwarm and initSwarm cycle within one process, and arming through a
+  // closed set throws.
+  timers.close()
+  timers = createTimers()
+  dwellTimer = null
+  firstProbeTimer = null
+  livenessTimer = null
+  interfaceTimer = null
+  livenessRetryTimer = null
+  statusEmitTimer = null
   dhtReady = false
   readyAt = 0
   announced = false

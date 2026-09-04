@@ -13,7 +13,12 @@ export function makeKeyedCoalescer(fire, { intervalMs = 250, keyOf = (x) => Stri
         open.delete(key)
         if (state.pending) fire(...args)
       }, intervalMs)
-      state.timer?.unref?.()
+      // An injected schedule may decline — the owned timer sets return nothing once their owner has
+      // gone. Without a timer nothing would ever close the window, and every later poke for this
+      // key would be swallowed as "collapsed into a trailing fire" that can never happen. No
+      // window, no coalescing: each poke fires on its own, which is the safe degradation.
+      if (!state.timer) return
+      state.timer.unref?.()
       open.set(key, state)
     },
     flush(...args) {

@@ -9,6 +9,7 @@ import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './m
 import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { liveHandle, ownedScheduler } from '../core/timers.js'
 import { createCoalescingRunner } from '../core/coalescing-runner.js'
 import { createPassLiveness } from '../core/pass-liveness.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
@@ -42,6 +43,13 @@ function sched() {
   if (!scheduler) throw new Error('owned-folders: not started')
   return scheduler
 }
+
+// The live subsystem, so the module-scope functions below can arm through ITS timer set. Every
+// handle they hold outlives the call that armed it, so nothing scoped to the call can clear it —
+// and _close alone is not enough: ReadyResource ends a FAILED _open by running close() without
+// ever calling _close, and a _close that rejects short-circuits the same way. Subsystem clears
+// `this.timers` on both of those paths as well as the ordinary one.
+let subsystem = null
 
 const reconcileTimers = new Map()
 // Diff passes currently reading a mount. A pause or a stop must reach the pass itself, not just the
@@ -138,23 +146,29 @@ function announceIndex(spaceId, shareId) {
 
 // Runs only while some share is scanning, and stops itself the moment none is.
 function armIndexAnnounce() {
-  if (announceTimer || announcing.size === 0) return
-  announceTimer = setInterval(() => {
+  // See startPresenceHeartbeat: a _close that rejects leaves this binding holding a handle its set
+  // has already disarmed, and the guard below would read that as "already armed" forever.
+  announceTimer = liveHandle(subsystem?.timers, announceTimer)
+  if (announceTimer || announcing.size === 0 || !subsystem || subsystem.timers.closed) return
+  announceTimer = subsystem.timers.setInterval(() => {
     for (const [key, at] of announcing) if (!announceIndex(at.spaceId, at.shareId)) announcing.delete(key)
-    if (announcing.size === 0) { clearInterval(announceTimer); announceTimer = null }
+    if (announcing.size === 0) stopIndexAnnounce()
   }, announceMs)
-  announceTimer.unref?.()
 }
 
 export function stopIndexAnnounce() {
-  if (announceTimer) clearInterval(announceTimer)
+  if (announceTimer) subsystem?.timers.clear(announceTimer)
   announceTimer = null
   announcing.clear()
 }
 
 const progress = makeKeyedCoalescer((spaceId, shareId) => {
-  // Tolerant: the publish service drains its executors AFTER this subsystem closes, and each
-  // settling item pokes progress on the way out.
+  // The publish service drains its executors AFTER this subsystem closes, and each settling item
+  // pokes progress on the way out. With no live subsystem there is no timer set to hold the window
+  // open, so every one of those pokes would fire on its own — turning one throttled frame per
+  // 500 ms into one broadcast per drained item, at shutdown, into a swarm being torn down. Nobody
+  // is left to act on index progress by then: the drain is silent.
+  if (!subsystem) return
   const status = scheduler?.statusFor(spaceId, shareId)
   if (!status) return
   ipcRef?.emit('event:owned-folder-index-progress', { spaceId, shareId, ...status })
@@ -164,7 +178,15 @@ const progress = makeKeyedCoalescer((spaceId, shareId) => {
   const key = spaceId + '|' + shareId
   if (status.adding > 0) { announcing.set(key, { spaceId, shareId }); armIndexAnnounce() }
   else announcing.delete(key)
-}, { intervalMs: 500, keyOf: (spaceId, shareId) => spaceId + '|' + shareId })
+}, {
+  intervalMs: 500,
+  keyOf: (spaceId, shareId) => spaceId + '|' + shareId,
+  // The coalescer's trailing timer is the same long-lived handle as the two above, one level down:
+  // it is held in the engine's own map and its only clear is progress.reset(), which a _close that
+  // rejects never reaches. Read lazily, because this is constructed at module load and the
+  // subsystem does not exist yet; before _open there is nothing to coalesce anyway.
+  ...ownedScheduler(() => subsystem?.timers),
+})
 
 registerPublishChannel('folder', {
   async resolve(item) {
@@ -224,11 +246,11 @@ export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = nul
 // pass. The mount is re-read for the re-arm, so a share deleted or relocated meanwhile is not
 // chased with a stale path.
 function scheduleCatchupReconcile(mount, delayMs = POST_EVENT_RECONCILE_MS) {
-  if (stopping) return
+  if (stopping || !subsystem) return
   const { spaceId, shareId } = mount
   const key = spaceId + ':' + shareId
-  clearTimeout(reconcileTimers.get(key))
-  const timer = setTimeout(() => {
+  subsystem.timers.clear(reconcileTimers.get(key))
+  const timer = subsystem.timers.setTimeout(() => {
     reconcileTimers.delete(key)
     if (stopping) return
     const scan = periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, { deferFresh: true })
@@ -245,7 +267,6 @@ function scheduleCatchupReconcile(mount, delayMs = POST_EVENT_RECONCILE_MS) {
     if (settleScanRef) settleScanRef(scan, spaceId, shareId)
     else scan.catch((err) => log.debug('catch-up reconcile failed:', err.message))
   }, delayMs)
-  timer.unref?.()
   reconcileTimers.set(key, timer)
 }
 
@@ -505,7 +526,9 @@ export function cancelIndex(spaceId, shareId) {
 
 export function stopOwnedFolder(spaceId, shareId) {
   const key = spaceId + ':' + shareId
-  clearTimeout(reconcileTimers.get(key))
+  // Tolerant of a closed subsystem: this is a cleanup path that can legally run after it, and the
+  // set has already been emptied by then.
+  subsystem?.timers.clear(reconcileTimers.get(key))
   reconcileTimers.delete(key)
   clearShareGuards(shareId)
   // Tolerant on purpose: this is a cleanup path (leave, unmount, a test teardown) and can legally
@@ -520,6 +543,7 @@ export class OwnedFolders extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc', 'publishService') }
 
   async _open() {
+    subsystem = this
     scheduler = this.deps.publishService.scheduler
     stopping = false
     initOwnedFolders(this.deps.ipc, {
@@ -532,7 +556,7 @@ export class OwnedFolders extends Subsystem {
     stopping = true
     stopIndexAnnounce()
     setFolderPublishLane(null)
-    for (const timer of reconcileTimers.values()) clearTimeout(timer)
+    for (const timer of reconcileTimers.values()) this.timers.clear(timer)
     reconcileTimers.clear()
     for (const signal of scanSignals.values()) signal.aborted = true
     scanSignals.clear()
@@ -550,6 +574,7 @@ export class OwnedFolders extends Subsystem {
     passFaults.clear()
     shareCache.clear()
     passLiveness.clear()
+    subsystem = null
   }
 
   // The mirror side has reported pass liveness since the supervision contract landed; the owner

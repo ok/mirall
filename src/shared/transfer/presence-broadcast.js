@@ -8,6 +8,7 @@
 // keeps swarm.js's public surface intact: it re-exports these names rather than wrapping them.
 import b4a from 'b4a'
 import { getProfileKey } from '../spaces/profile.js'
+import { liveHandle } from '../core/timers.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from './decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
@@ -17,6 +18,10 @@ import { connectedPeers, socketToPeers, spaceTopics, socketMsgHandlers } from '.
 let presence = null
 let membersPoke = null
 let log = null
+// The owning subsystem's timer set, handed in when the heartbeat starts. The handle is a periodic
+// interval that outlives every call, so nothing scoped to a call can clear it; owning it means the
+// Swarm subsystem's close reaches it on every path, including a failed _open.
+let timers = null
 let presenceTimer = null
 let getSwarm = () => null
 let getIpc = () => null
@@ -36,17 +41,22 @@ const PRESENCE_HEARTBEAT_MS = 5000
 // The interval lives with the timer variable, not with initSwarm: broadcastDeparture has to stop
 // the heartbeat before it sends (a beat landing after the departure re-marks us online on the
 // receiver and undoes it), and it can only stop a timer this module actually holds.
-export function startPresenceHeartbeat() {
+export function startPresenceHeartbeat(owner = null) {
+  // Drop a handle whose set has closed BEFORE the already-armed guard reads it: close() disarmed
+  // the interval but cannot reach this binding, so a stale handle here would latch the heartbeat
+  // off — and a module that never advertises presence again looks offline to every peer.
+  presenceTimer = liveHandle(timers, presenceTimer)
   if (presenceTimer) return
-  presenceTimer = setInterval(() => {
+  timers = owner ?? timers
+  if (!timers || timers.closed) return
+  presenceTimer = timers.setInterval(() => {
     try { broadcastPresence() } catch (err) { log.debug('presence heartbeat failed:', err.message) }
     presence.prune()
   }, PRESENCE_HEARTBEAT_MS)
-  presenceTimer.unref?.()
 }
 
 export function stopPresenceHeartbeat() {
-  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null }
+  if (presenceTimer) { timers?.clear(presenceTimer); presenceTimer = null }
 }
 
 // Heartbeat: advertise our own liveness per space to the peers in it. The recipient leases
@@ -70,7 +80,7 @@ export function broadcastPresence() {
 export function broadcastDeparture() {
   // Stop our own heartbeat first: a heartbeat firing later in the shutdown teardown window would
   // re-mark us online on a receiver (mark after clear) and undo this departure.
-  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null }
+  if (presenceTimer) { timers?.clear(presenceTimer); presenceTimer = null }
   if (!getSwarm() || socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {

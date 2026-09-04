@@ -50,6 +50,45 @@ export const moduleLevelTimerRestrictions = [{
   message: 'No timer armed at import — nothing can clear it. Arm it inside a Subsystem _open through this.timers, or inside a function whose module holds a matching clear.',
 }]
 
+// The shape the rule above cannot see, and which slipped past it twelve times: a timer armed
+// INSIDE a function but held in a long-lived handle. The handle outlives every call, so nothing
+// scoped to a call can clear it — the same un-owned timer, wearing a function as a disguise.
+//
+// The storage is not the defect; arming from the GLOBAL is. A module still needs somewhere to keep
+// the handle it re-arms, so the rule targets the assignment: `x Timer = setTimeout(...)` is
+// un-owned, `x Timer = timers.setTimeout(...)` (or `this.timers.`) is owned, and only the first
+// matches. That also means the fix and the rule agree — the twelve migrated sites keep their
+// bindings and stop matching.
+//
+// The name pattern is the camelCase COMPOUND — `announceTimer`, `presenceBeat` — and deliberately
+// not a bare `timer`. A bare local handle inside a function is owned by that function, which
+// clears it on both exits; the compound names are the ones that belong to a module and outlive
+// every call. Three legitimate function-local `timer` variables in the data layer make that
+// distinction load-bearing rather than cosmetic.
+//
+// Known blind spot, stated rather than papered over: this is a naming heuristic, so a module-scope
+// handle called `pending` or `h` slips through. Its job is to stop the thirteenth, not to have
+// found the twelve, and a genuine exception is one inline disable with a reason written next to
+// it.
+const timerHandleMessage = 'This timer handle outlives the call that arms it — arm it through a Subsystem\'s `this.timers` (or a createTimers() the module\'s own reset closes), so one call clears every one of them.'
+export const moduleScopeTimerHandleRestrictions = [
+  {
+    selector: "AssignmentExpression[left.type='Identifier'][left.name=/[a-z0-9]Timer$|[a-z0-9]Beat$/][right.callee.name=/^set(Interval|Timeout)$/]",
+    message: timerHandleMessage,
+  },
+  // The same handle kept on an object rather than in a binding — `this.sweepTimer = setInterval(…)`
+  // is the most natural shape in a Subsystem-based codebase and outlives its call exactly as much.
+  // `this.timers.setTimeout(…)` is unaffected: a member callee has no `callee.name` to match.
+  {
+    selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name=/[a-z0-9]Timer$|[a-z0-9]Beat$/][right.callee.name=/^set(Interval|Timeout)$/]",
+    message: timerHandleMessage,
+  },
+  {
+    selector: "Program > VariableDeclaration > VariableDeclarator[id.name=/[a-z0-9]Timer$|[a-z0-9]Beat$/][init.callee.name=/^set(Interval|Timeout)$/]",
+    message: timerHandleMessage,
+  },
+]
+
 // Mechanism invariant: chokidar's options are per-INSTANCE, not per-path, and its sharp edges —
 // native events never reach a network mount, an erroring watcher spins forever — were learned
 // once on the owned-folder watcher and never carried to the loose-file watcher, so a file shared
@@ -139,7 +178,7 @@ export default [
       'no-undef': 'error',
       ...unusedVars,
       ...complexityBudget,
-      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions],
+      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions],
     },
   },
 

@@ -26,11 +26,15 @@ export class AuditLog extends Subsystem {
     initNetworkWatch({
       emit: () => this.deps.ipc.emit('event:audit-updated', {}),
       peerDwellMs: this.deps.peerDwellMs ?? 0,
+      // The watch's dwell timeouts re-arm themselves, so they belong to this subsystem's set
+      // rather than to the call that happened to start them.
+      timers: this.timers,
     })
   }
 
-  // Symmetric with _open: the watch arms its own dwell timeouts, and the only other caller of
-  // resetNetworkWatch is destroySwarm — which boot({ swarm: false }) never reaches.
+  // Symmetric with _open: the watch arms its dwell timeouts through this subsystem's set, and the
+  // only other caller of resetNetworkWatch is destroySwarm — which boot({ swarm: false }) never
+  // reaches. This clears the two handles; the set itself is closed on every ending by the base.
   async _close() {
     resetNetworkWatch()
     await closeAuditLog()

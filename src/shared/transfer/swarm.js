@@ -129,6 +129,8 @@ function peerName(space, peerKey) {
 }
 
 let swarm
+// The live Swarm subsystem, so the module-scope starts below can arm through ITS timer set.
+let subsystem = null
 let ipcRef
 let overlayReconnectHook = null         // notified when an overlay-content owner (re)connects, so paused/interrupted overlay downloads (loose + folder) resume
 let membershipControlHandler = null     // membership:* frames (join request / grant / deny) routed to the worker
@@ -248,8 +250,12 @@ function initSwarm(_ipc) {
   noteBooted()
   log.info('initialized')
 
-  startPresenceHeartbeat()
-  startConvergenceTick()
+  // Both are periodic ticks that outlive the call arming them, so they hang off the Swarm
+  // subsystem's timer set — which the base closes on every ending, including a failed _open that
+  // never reaches _close. _open is initSwarm's only caller and sets the pointer first, so the
+  // fallback is defensive: an interval nobody can stop is one nobody should start.
+  startPresenceHeartbeat(subsystem?.timers ?? null)
+  startConvergenceTick(subsystem?.timers ?? null)
   attachSwarmWatchers()
 
 
@@ -1198,6 +1204,7 @@ export class Swarm extends Subsystem {
   }
 
   async _open() {
+    subsystem = this
     membershipControlHandler = this.deps.membershipControl
     stalledOwnersHook = this.deps.stalledOwners
     // Exclusive with the content plane: when it is on, the overlay channel rides the content
@@ -1216,6 +1223,7 @@ export class Swarm extends Subsystem {
     // audit rows the durable tier records, and those frames need a live connection.
     this.deps.overlayBackend.detach()
     await destroySwarm()
+    subsystem = null
   }
 
   get dht() { return getSwarmDht() }
