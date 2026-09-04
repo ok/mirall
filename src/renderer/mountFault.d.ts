@@ -1,7 +1,2 @@
-export interface MountFault {
-  status: string
-  code: string | null
-}
-
-export function isMountFault(status: string | null | undefined): boolean
-export function mountFault(status: string | null | undefined, lastError?: string | null): MountFault | null
+export type { MountFault } from '../shared/contract/mount-fault.js'
+export { isMountFault, mountFault } from '../shared/contract/mount-fault.js'

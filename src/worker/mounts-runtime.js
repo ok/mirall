@@ -11,7 +11,8 @@ import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listDownloadRoots } from '../shared/core/paths.js'
-import { AppError, ErrorCodes, classifyLocalIoFault } from '../shared/core/errors.js'
+import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
@@ -29,13 +30,6 @@ function rootAvailable(root) {
 
 function readUnavailableRoots() {
   return listDownloadRoots().filter((root) => !rootAvailable(root))
-}
-
-// A classified fault gets its own durable status where one exists, so the folder screen can name
-// the remedy instead of putting an errno in front of the user.
-// mount-status-vocabulary.test.js asserts every status written here is one the contract declares.
-function ownedFaultStatus(code) {
-  return code === ErrorCodes.TRANSFER_DISK_FULL ? 'paused-enospc' : 'paused-error'
 }
 
 function sameRootSet(a, b) {
@@ -198,7 +192,7 @@ export class MountsRuntime extends Subsystem {
       // A pass whose items failed on a classified fault is not a healthy scan. The pass resolving
       // does not mean its files reached the catalog — publish failures are per item — and reading
       // that resolution as 'active' is what made a full disk invisible to the owner.
-      else if (result?.faultCode) await this.setOwnedStatus(spaceId, shareId, ownedFaultStatus(result.faultCode), result.faultCode)
+      else if (result?.faultCode) await this.setOwnedStatus(spaceId, shareId, statusForFaultCode(result.faultCode), result.faultCode)
       else await this.setOwnedStatus(spaceId, shareId, 'active')
       return result
     } catch (err) {
@@ -213,9 +207,9 @@ export class MountsRuntime extends Subsystem {
   // raw message. An unclassified failure keeps its message — an unrecognised error with nothing to
   // say is worse than a raw one, and the renderer shows it as a generic reason either way.
   async recordScanFault(spaceId, shareId, err) {
-    const code = classifyLocalIoFault(err)
-    if (code) {
-      await this.setOwnedStatus(spaceId, shareId, ownedFaultStatus(code), code)
+    const fault = faultFromError(err)
+    if (fault) {
+      await this.setOwnedStatus(spaceId, shareId, fault.status, fault.code)
       return
     }
     // A root that vanished mid-pass: the probe would notice within its interval anyway, but going

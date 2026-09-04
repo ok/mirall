@@ -7,6 +7,8 @@ import { getDrive } from '../../src/shared/spaces/space.js'
 import { applyChange, initialMaterializeScan } from '../../src/shared/folders/foreign-folders.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { sharePrefix } from '../../src/shared/folders/path-keys.js'
+import { pathFromMount } from '../../src/shared/transfer/path-guard.js'
+import { ErrorCodes } from '../../src/shared/core/errors.js'
 
 // MIR-06: a malicious owner writes a RAW Hyperbee entry under Hyperdrive's
 // SubEncoder('files','utf-8') keyspace (hyperdrive/index.js:16), bypassing the
@@ -41,7 +43,7 @@ test('REGRESSION (MIR-06): a traversal del cannot unlink a file outside the moun
 
   await t.exception(
     applyChange(ctx.mount, { action: 'del', relPath }),
-    /escapes the mount folder|outside the mount folder/,
+    /escapes the share folder|outside the share folder/,
     'applyChange(del) on a traversal relPath throws',
   )
   t.ok(fs.existsSync(victim), 'victim outside the mount survives')
@@ -57,7 +59,7 @@ test('REGRESSION (MIR-06): a traversal put is refused', async (t) => {
 
   await t.exception(
     applyChange(ctx.mount, { action: 'put', relPath, hash: 'deadbeef', mtime: 0, size: 0 }),
-    /escapes the mount folder|outside the mount folder/,
+    /escapes the share folder|outside the share folder/,
     'applyChange(put) on a traversal relPath throws',
   )
   t.absent(fs.existsSync(path.join(outside, 'PWNED')), 'no directory created outside the mount')
@@ -85,4 +87,24 @@ test('a legitimate nested key still materializes after the guard', async (t) => 
   const ctx = await setupSelfMirror(t, { name: 'Docs', files: { 'sub/deep/ok.txt': 'fine' } })
   await initialMaterializeScan(ctx.mount)
   t.ok(fs.existsSync(path.join(ctx.mirrorPath, 'sub', 'deep', 'ok.txt')), 'nested legit file materialized')
+})
+
+// The mirror kept a byte-for-byte copy of this guard until it was merged away. Pin that the two
+// call sites now raise one contract, so a future fork of the message or the code is visible here.
+test('the mirror and the content backend reject an escaping key identically', async (t) => {
+  const ctx = await setupSelfMirror(t, { name: 'Docs', files: { 'real.txt': 'legit' } })
+  const bad = '../escape.txt'
+
+  // Captured by hand: brittle's t.exception asserts, it does not hand back the error, and the
+  // point here is to compare the two errors field by field.
+  let fromMirror = null
+  try { await applyChange(ctx.mount, { action: 'del', relPath: bad }) } catch (err) { fromMirror = err }
+  let fromBackend = null
+  try { pathFromMount(ctx.mirrorPath, bad) } catch (err) { fromBackend = err }
+
+  t.ok(fromMirror, 'the mirror refused it')
+  t.ok(fromBackend, 'and so did the backend')
+  t.is(fromMirror.code, ErrorCodes.EPATH)
+  t.is(fromMirror.code, fromBackend.code, 'one guard, one code')
+  t.is(fromMirror.message, fromBackend.message, 'and one message — the merge did not fork the contract')
 })

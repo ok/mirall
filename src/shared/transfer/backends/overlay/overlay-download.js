@@ -15,6 +15,7 @@ import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,
 } from '../../pending-transfers.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
+import { createPausedHolders } from './paused-holders.js'
 import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
@@ -104,10 +105,10 @@ function discardPartial (finalPath) {
 //        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
 export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = defaultFreeBytes, stallRetry = {}, dirExists = defaultDirExists } = {}) {
   const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
-  // transferId -> contentHash for a paused transfer whose single-flight slot was
-  // released (the fetch IIFE deletes it on settle). Lets a later discard still tell
-  // the holder we stopped, since the registry no longer carries the hash.
-  const pausedHashes = new Map()
+  // Paused-transfer markers whose single-flight slot was released (the fetch IIFE deletes it on
+  // settle). The marker is the user's intent — it outranks every automatic resume — and its hash
+  // lets a later discard still tell the holder we stopped.
+  const pausedHashes = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
   // transferId -> ErrorCode for a terminal failure whose durable write FAILED. The row is the
   // only thing that keeps a checksum / disk-full / dest-unavailable row out of the next
   // level-triggered re-drive; when it cannot be written, this map keeps the verdict for the
@@ -413,7 +414,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   async function start (job) {
     if (!hasOverlay() || !job.contentHash) return { queued: true }
     const { transferId } = job
-    pausedHashes.delete(transferId) // a fresh start (resume) supersedes any paused marker
+    pausedHashes.supersede(transferId) // a fresh start (resume) supersedes any paused marker
     const existing = registry.get(transferId)
     if (existing) return { transferId, finalPath: existing.finalPath }
 
@@ -503,12 +504,12 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     const tr = registry.get(transferId)
     if (!tr) {
       cancelStallRetry(transferId)   // [mirall] FIX-BW9 — a pause during the retry backoff
-      pausedHashes.set(transferId, null)
+      pausedHashes.remember(transferId, null)
       return true
     }
     tr.paused = true
     cancelStallRetry(transferId)
-    pausedHashes.set(transferId, tr.contentHash) // remember the hash so a later discard can signal STOPPED
+    pausedHashes.remember(transferId, tr.contentHash) // remember the hash so a later discard can signal STOPPED
     if (tr.fetching) getOverlay()?.cancelFetch(tr.contentHash, { discardPartial: false })
     return true
   }
@@ -518,7 +519,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // owner that just went offline) would otherwise leave the marker set — and a set marker makes
   // runReconcile skip the row as "manually paused" forever, so no reconnect ever resumes it.
   function clearPauseMarker (transferId) {
-    pausedHashes.delete(transferId)
+    pausedHashes.supersede(transferId)
     terminalCodes.delete(transferId)
     // [mirall] FIX-BW9 — a deliberate Resume/download click starts a fresh retry budget.
     // Inheriting a dry counter from earlier automatic attempts makes the click park after one
@@ -538,8 +539,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     } else {
       // Discarding an already-paused row (its single-flight slot is gone): the holder
       // still shows us paused, so tell it we stopped.
-      const hash = pausedHashes.get(transferId)
-      if (hash) getOverlay()?.notifyTransferStopped(hash)
+      pausedHashes.notify(transferId)
     }
     cancelStallRetry(transferId)
     // Clear the durable row FIRST. Everything after it is destructive and in-memory-only, so a
@@ -553,7 +553,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       channel.emitUpdated(spaceId)
       throw err
     }
-    pausedHashes.delete(transferId)
+    pausedHashes.supersede(transferId)
     const finalPath = pending?.finalPath
     if (finalPath) discardPartial(finalPath)
     terminalCodes.delete(transferId)

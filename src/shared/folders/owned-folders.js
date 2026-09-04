@@ -10,22 +10,24 @@ import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createCoalescingRunner } from '../core/coalescing-runner.js'
-import { getMaxFilesPerShare } from '../core/runtime-config.js'
+import { createPassLiveness } from '../core/pass-liveness.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/share-catalog.js'
-import { overlayHashFile, ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
+import { ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { walkDisk } from './walk-disk.js'
-import { exceedsShareFileLimit } from './share-limits.js'
-import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
-import { relToDriveKey as relToKey, driveKeyToSegments, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
+import { relToDriveKey as relToKey, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
 import { statFacts } from './disk-presence.js'
 import { registerPublishChannel, settleCatalog } from './publish-service.js'
 
 export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
+
+// Re-exported so the worker and the existing tests keep their `./owned-folders.js` import path;
+// the implementation lives in `owned-preview.js`.
+export { previewInitialPublishScan } from './owned-preview.js'
 
 const log = createLogger('owned-folders')
 
@@ -62,6 +64,12 @@ const CATCHUP_BACKOFF_MAX_MS = 60000
 // Longer than chokidar's awaitWriteFinish stabilityThreshold, so a catch-up diff that runs
 // mid-copy leaves the file to the watcher instead of reading it and reverting.
 const SCAN_SETTLE_MS = 2000
+// A diff over a large tree is legitimately slow, so the wedge signal is a pass that stats no
+// file for this long — not one that merely takes a while.
+const RECONCILE_STALL_WINDOW_MS = 10 * 60 * 1000
+// Tracked on the PASS, not on the coalescing wrapper: a caller that joins a run in flight must
+// not re-stamp its heartbeat and make a stalled pass read as fresh.
+const passLiveness = createPassLiveness()
 
 const shareCache = new Map()
 
@@ -294,8 +302,15 @@ const runDiff = createCoalescingRunner({
 })
 
 async function reconcileShare(spaceId, shareId, mountPath, ignore, { deep = false, deferFresh = false } = {}) {
-  return await runDiff(spaceId + ':' + shareId, { mountPath, ignore, deep, deferFresh },
-    (opts) => diffAndEnqueue(spaceId, shareId, opts))
+  const key = spaceId + ':' + shareId
+  return await runDiff(key, { mountPath, ignore, deep, deferFresh }, async (opts) => {
+    passLiveness.started(key)
+    try {
+      return await diffAndEnqueue(spaceId, shareId, opts)
+    } finally {
+      passLiveness.ended(key)
+    }
+  })
 }
 
 // Size+mtime is the "unchanged" signal. A deep pass distrusts mtimes (a relocated tree has fresh
@@ -333,7 +348,7 @@ async function readBothSides(spaceId, shareId, mountPath, ignore) {
   const signal = { aborted: false }
   scanSignals.set(key, signal)
   try {
-    const walk = await walkDisk(mountPath, ignore, { signal })
+    const walk = await walkDisk(mountPath, ignore, { signal, onProgress: () => passLiveness.progress(key) })
     // Commit the space batch first, or this read misses every hash materialized in the last flush
     // window and re-enqueues those files.
     await settleCatalog(spaceId)
@@ -437,63 +452,6 @@ export async function initialPublishScan(spaceId, shareId, mountPath, ignore, op
 
 export const periodicReconcile = initialPublishScan
 
-export async function previewInitialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
-  // Catalog side only matters when re-previewing an existing share (relocate). The
-  // Add-Folder UI passes shareId=null → onCatalog empty → a pure stat-only walk.
-  const onCatalog = new Map()
-  if (shareId) {
-    for await (const entry of listOwnShare(spaceId, shareId)) onCatalog.set(entry.relPath, entry)
-  }
-
-  const { onDisk } = await walkDisk(mountPath, ignore, { onProgress: opts.onProgress, signal: opts.signal })
-
-  let toUpload = 0
-  let conflicts = 0
-  let totalBytes = 0
-  const candidates = []
-  for (const [relPath, info] of onDisk) {
-    const existing = onCatalog.get(relPath)
-    let conflict = false
-    if (existing) {
-      if (existing.size === info.size && existing.mtime === info.mtime) continue
-      if (existing.size !== info.size) {
-        conflict = true
-      } else {
-        // Same size, different mtime: only a content hash can tell a real edit
-        // from a touch. Compare with the overlay hasher (catalog hashes are
-        // leaf/size-prefixed, not plain blake2b).
-        const abs = path.join(mountPath, ...driveKeyToSegments(relPath))
-        let diskHash = null
-        try { diskHash = await overlayHashFile(abs) } catch { diskHash = null }
-        if (diskHash != null && existing.contentHash != null && existing.contentHash === diskHash) continue
-        conflict = true
-      }
-      conflicts += 1
-    }
-    toUpload += 1
-    totalBytes += info.size
-    if (candidates.length <= PREVIEW_DETAIL_MAX_FILES) candidates.push({ relPath, size: info.size, conflict })
-  }
-
-  const detailed = includePerFile(toUpload)
-  // The limit is about how many files the folder HOLDS, not how many this scan would upload —
-  // a re-preview of an existing share uploads only the changed ones.
-  const totalFiles = onDisk.size
-  return {
-    flow: 'add-owned-folder',
-    toUpload,
-    toDownload: 0,
-    conflicts,
-    existingAtDestination: onDisk.size,
-    totalBytes,
-    perFile: detailed ? candidates : [],
-    perFileOmitted: !detailed,
-    totalFiles,
-    fileLimit: getMaxFilesPerShare(),
-    overFileLimit: exceedsShareFileLimit(totalFiles),
-  }
-}
-
 // The count the worker's admission gate reads. Stat-only, and it walks the same way the publish
 // scan does, so the gate can never admit a folder the scan would then find too large.
 export async function countFolderFiles(mountPath, ignore) {
@@ -564,6 +522,23 @@ export class OwnedFolders extends Subsystem {
     progress.reset()
     passFaults.clear()
     shareCache.clear()
+    passLiveness.clear()
+  }
+
+  // The mirror side has reported pass liveness since the supervision contract landed; the owner
+  // side never did, so a diff that never settles read as healthy. Reporting only: a wedged publish
+  // lane has no safe generic restart (an item mid-hash holds an fd), so this surfaces the wedge
+  // and leaves the remedy to an operator. Counts, not identifiers — diagnostics:export is
+  // user-shareable and redacts space and share ids.
+  health() {
+    const open = !this.closed && !this.stopping
+    if (!open) return { ok: false, detail: null }
+    const wedged = passLiveness.stalled({ windowMs: RECONCILE_STALL_WINDOW_MS })
+    return {
+      ok: wedged.length === 0,
+      detail: wedged.length ? `${wedged.length} folder scan(s) not advancing` : null,
+      scans: { wedged: wedged.length },
+    }
   }
 }
 
