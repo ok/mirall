@@ -1123,21 +1123,29 @@ ipc.handle('owned-folder:relocate', async (msg) => {
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
   })
 
-  // Locate Folder is not Resume: a paused index stays paused at its new path, and the deep pass
-  // plus the reconcile timer are the resume's job. The debt is RECORDED rather than dropped —
-  // without deep, the resume's fast diff misses on every fresh mtime and re-advertises each entry
-  // (publishContent advertises with a null hash before re-hashing), which is exactly the mirror
-  // churn the deep pass exists to avoid.
-  if (mount.indexPaused) await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
+  // Relocate diffs by content hash (deep): the new path is typically a moved/copied tree whose
+  // mtimes differ, but identical content must upload nothing so mirror peers see no churn. The fast
+  // size+mtime diff misses on every fresh mtime and re-advertises each entry — and publishContent
+  // advertises with a null hash before re-hashing, so every mirror re-downloads a tree that did not
+  // change.
   //
-  // Relocate diffs by content hash (deep): the new path is typically a moved/copied
-  // tree whose mtimes differ, but identical content must upload nothing so mirror
-  // peers see no churn. The fast size+mtime diff would re-upload on the new mtimes.
+  // The debt is recorded for BOTH branches, before either pass is armed: the flag is the durable
+  // fact, a running pass is not. Locate Folder is not Resume, so a paused index stays paused at its
+  // new path and owes the deep pass to its eventual resume; an ACTIVE index owes it to the pass
+  // below, which runs in a floating promise — a quit mid-walk used to lose the debt entirely and
+  // let the next boot's fast reconcile re-advertise the whole tree.
+  await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
+
   if (!mount.indexPaused) {
     mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
-      .then((result) => {
+      .then(async (result) => {
         if (result?.cancelled) return
-        if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+        // Cleared only by a pass that actually ran to completion. A cancelled, failed or skipped
+        // pass leaves the debt standing, which is what makes the next runner take it.
+        if (result && !result.skipped) {
+          await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: false })
+          ipc.emit('event:owned-folder-scan-completed', { spaceId: msg.spaceId, shareId: msg.shareId, ...result })
+        }
         mounts.schedulePeriodicReconcile(msg.spaceId, msg.shareId, mountPath, mount.ignore)
       })
   }
