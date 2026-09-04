@@ -52,6 +52,9 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
     kinds: kinds && kinds.length ? kinds : null,
   }), [filters.spaceId, filters.categories, filters.actorKey, filters.search, filters.sinceDays, kinds])
 
+  // Deliberately outside the query store: the list ACCUMULATES pages behind a cursor, and the store
+  // holds one value per key with no way to append the next page to it. The runRef below is this
+  // hook's own sequence fence, doing what the store's would if it could hold this shape.
   const reload = useCallback(async () => {
     const run = ++runRef.current
     setLoading(true)

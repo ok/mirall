@@ -12,7 +12,8 @@
 // harnesses are local-only, so CI never catches the drift.
 import { request } from './../../src/renderer/ipc.js'
 import { configureQueryStore } from './../../src/renderer/store/query-store.js'
-import { installReconcileBridge } from './../../src/renderer/store/reconcile.js'
+import { installPushBridges, installReconcileBridge } from './../../src/renderer/store/reconcile.js'
 
 configureQueryStore({ request: (type, params, opts) => request(type, params, undefined, opts) })
 installReconcileBridge()
+installPushBridges()

@@ -1,36 +1,33 @@
 // Owns the local profile and the needs-setup flag; listens for event:profile-needed and saves via profile:set.
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { request, subscribe } from '../ipc.js'
+import { useQuery } from '../store/useQuery.js'
+import { setQueryData } from '../store/query-store.js'
+import { projectProfile } from '../profileGate.js'
 import type { Profile } from '../types.js'
 
+// Three screens call this hook, so the hand-rolled read it replaces was three `profile:get` round
+// trips per session for one fact. Scope-less deliberately: the profile changes only when this app
+// writes it, and saveProfile pushes the new record into the entry rather than re-reading it.
+//
+// The store's `loading` is deliberately not read here — see profileGate.js for why gating the app
+// shell on it turns every re-read into a full remount of the tree.
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [needsSetup, setNeedsSetup] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const { data, error } = useQuery<Profile | null>('profile:get', {}, null)
+  // The worker's own "there is no profile yet" signal, which is not a reconcile poke and has no
+  // scope: it announces a state the read cannot report, because it fires before a read would.
+  const [profileNeeded, setProfileNeeded] = useState(false)
 
-  useEffect(() => {
-    request('profile:get').then((p) => {
-      setProfile(p as Profile | null)
-      setNeedsSetup(!p)
-      setLoading(false)
-    }).catch(() => {
-      setNeedsSetup(true)
-      setLoading(false)
-    })
+  useEffect(() => subscribe('event:profile-needed', () => setProfileNeeded(true)), [])
 
-    const unsub = subscribe('event:profile-needed', () => {
-      setNeedsSetup(true)
-      setLoading(false)
-    })
-    return unsub
+  const saveProfile = useCallback(async ({ displayName, avatar }: { displayName: string; avatar: string | null }) => {
+    const updated = await request('profile:set', { displayName, avatar }) as Profile
+    // Pushed, not refetched: the worker just told us the new record, and every other consumer of
+    // this entry must see it in the same commit rather than one round trip later.
+    setQueryData<Profile | null>('profile:get', {}, updated)
+    setProfileNeeded(false)
+    return updated
   }, [])
 
-  async function saveProfile({ displayName, avatar }: { displayName: string; avatar: string | null }) {
-    const updated = await request('profile:set', { displayName, avatar }) as Profile
-    setProfile(updated)
-    setNeedsSetup(false)
-    return updated
-  }
-
-  return { profile, needsSetup, loading, saveProfile }
+  return { ...projectProfile({ data, error, profileNeeded }), saveProfile }
 }

@@ -34,6 +34,9 @@ interface DetailSnapshot {
 // immediately); progress frames update live; the worker's ledger sweep pushes the
 // authoritative snapshot (empty included), so a missed "peer gone" frame self-corrects
 // without any renderer poll or silence-TTL guessing. Unmount calls detail-unsubscribe.
+// Deliberately outside the query store: this owns an explicit serving:detail-subscribe /
+// serving:detail-unsubscribe RPC pair, and a subscription with a teardown is not a query. The store
+// caches and refetches answers; it has no concept of telling the worker to stop producing them.
 export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownloadPeer[] {
   const [peers, setPeers] = useState<PeerDownloadPeer[]>([])
   const samplersRef = useRef(new Map<string, SpeedSampler>())

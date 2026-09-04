@@ -86,7 +86,6 @@ export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'Ki
 // UNMOUNT_ONLY: the effect has [] deps and one in-flight read, so nothing can supersede it — the
 // only race is a write after unmount, which React tolerates.
 export const unmountOnlyAsyncEffects = Object.freeze({
-  'src/renderer/hooks/useProfile.ts': { effects: 1, why: 'One [] -deps read of the local profile; the live value afterwards arrives on event:profile-needed, not on a re-read.' },
   'src/renderer/hooks/useConnectionStatus.tsx': { effects: 1, why: 'The net.online probe has [] deps and one read; transitions arrive on onNetOnlineChange. (The other effect in this file carries a cleanup flag and is not exempt.)' },
   'src/renderer/screens/Account.tsx': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the screen is open.' },
 })

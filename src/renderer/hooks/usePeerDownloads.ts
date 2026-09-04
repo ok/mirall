@@ -19,6 +19,11 @@ interface SummaryEvent {
 // expire "who is downloading" at the same time.
 export const SERVE_TTL_MS = 35000
 
+// Deliberately outside the query store. `serving:summary-list` is a SEED for the awareness feed
+// below, not a query: no scope invalidates it, no second consumer dedups with it, and its answer is
+// superseded by the first live frame — which is why the seed skips any row already seen live. The
+// guard flag below protects a Map mutation, not a fetched value overwriting a fresher one.
+//
 // Tier 1: the always-on summary of who is downloading each file WE serve in this
 // space (peer set + aggregate bytes). Cheap — one event per file, throttled on the
 // worker. Speed is derived here with the same SpeedSampler the download bar uses.

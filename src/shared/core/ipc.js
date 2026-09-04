@@ -24,8 +24,8 @@ const EMPTY = Buffer.alloc(0)
 // kind, and every hook that re-derives on a hint must have its poke sources mapped here.
 // event:member-joined is deliberately unmapped: it fires pre-persist; members-updated (post-persist)
 // is the poke. Owned/foreign mount-status both map to the shares scope (both persist a durable
-// mount.status the consumer re-derives); useOwnedMount keeps a named subscription for the transient
-// paused-error state, which owned-folder:get doesn't carry.
+// mount.status the consumer re-derives, and the listings they re-read carry lastError, so the
+// transient paused-error state arrives with them — neither consumer needs a named subscription).
 const POKE_SCOPE = {
   'event:files-updated': (p) => (p.spaceId ? Scope.files(p.spaceId) : null),
   'event:shares-updated': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),

@@ -1,17 +1,14 @@
 // Owns the spaces list plus create/join/invite actions; refreshes on event:state, membership reconcile hints, and the grant/deny/divergence events.
 import { useEffect } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { refetchQuery, setQueryData, invalidateKey } from '../store/query-store.js'
+import { refetchQuery, invalidateKey } from '../store/query-store.js'
+import { SPACES_SCOPES } from '../store/scopes.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
 import { pruneSpaceCardState } from './useSpaceCardState.js'
 import { pruneShareCache } from './useShares.js'
 import type { Space } from '../types.js'
-
-// The list spans every space, so it is a wildcard view on the members and join-requests axes: any
-// hint of either kind re-derives it.
-const SPACES_SCOPES = [{ kind: 'members' }, { kind: 'join-requests' }]
 
 const SPACE_SCOPED_REQUESTS = ['members:online', 'space:pending-requests', 'space:storage-summary']
 
@@ -57,20 +54,11 @@ export function useSpaces() {
     await refetchQuery<Space[]>('spaces:list', {}, SPACES_SCOPES).catch(() => {})
   }
 
-  useEffect(() => {
-    refresh()
-    const unsub1 = subscribe('event:state', (msg) => {
-      // A push, not an answer to a fetch: it lands in the same entry so the two cannot disagree.
-      if (msg.spaces) setQueryData('spaces:list', {}, msg.spaces as Space[], SPACES_SCOPES)
-    })
-    // The reconcile subscription is gone: the store holds ONE for the whole app and invalidates by
-    // predicate. membership-granted/denied/divergence stay named events — they are one-shot
-    // user-level signals, not view pokes.
-    const unsub3 = subscribe('event:membership-granted', refresh)
-    const unsub4 = subscribe('event:membership-denied', refresh)
-    const unsub5 = subscribe('event:membership-creator-divergence', refresh)
-    return () => { unsub1(); unsub3(); unsub4(); unsub5() }
-  }, [])
+  // No subscriptions and no mount-time refresh. useQuery already fetches on mount, so refetchQuery
+  // here only abandoned that read to issue a second one — five times over, because five components
+  // call this hook and several are mounted together. The event:state push and the three membership
+  // re-reads moved to installPushBridges, which holds one subscription for the app; `refresh` stays
+  // for the mutations below, where one call really is one user action.
 
   async function createSpace(name: string, icon: string) {
     const space = await request('space:create', { name, icon }) as Space
