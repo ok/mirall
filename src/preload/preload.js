@@ -6,6 +6,13 @@
 // Node, or Electron API leaks past this file by design.
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
+// Main refuses anything else outright (worker-entrypoints.js), so this is a boundary annotation and
+// an earlier, clearer error — not a second security control: preload and main are not separated by
+// a trust boundary. A literal because a sandboxed preload's `require` resolves only Electron
+// builtins and cannot reach src/shared/contract; worker-entrypoints.test.js compares it against
+// the contract.
+const WORKER_SPECS = new Set(['/src/worker/main.js'])
+
 contextBridge.exposeInMainWorld('bridge', {
   pkg: () => ipcRenderer.sendSync('pkg'),
   isDev: () => ipcRenderer.sendSync('app:isDev'),
@@ -40,7 +47,9 @@ contextBridge.exposeInMainWorld('bridge', {
     return () => ipcRenderer.removeListener(channel, wrap)
   },
 
-  startWorker: (specifier) => ipcRenderer.invoke('pear:startWorker', specifier),
+  startWorker: (specifier) => WORKER_SPECS.has(specifier)
+    ? ipcRenderer.invoke('pear:startWorker', specifier)
+    : Promise.reject(new Error('unknown worker specifier: ' + specifier)),
 
   onWorkerIPC: (specifier, listener) => {
     const wrap = (_evt, data) => listener(Buffer.from(data))

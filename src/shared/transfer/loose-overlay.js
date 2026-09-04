@@ -5,6 +5,7 @@
 // The publish/fetch cores live in overlay-backend.js and are shared with folder
 // shares — this module is the loose-specific glue (source map, watch, cap, naming).
 import path from 'bare-path'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../contract/main-requests.js'
 import { getOverlay } from './backends/overlay/overlay-instance.js'
 import { publishContent, broadcastSharePrepare, evictIfUnreferenced, makeServable } from './backends/overlay/overlay-backend.js'
 import {
@@ -61,10 +62,10 @@ const rel = (drivePath) => drivePath.replace(/^\//, '')
 const drivePathOf = (relPath) => '/' + relPath
 
 function armWatch (spaceId, absPath) {
-  ipcRef?.emit('main-request', { command: 'loose-file:watch', args: { spaceId, absPath } })
+  ipcRef?.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.LOOSE_FILE_WATCH, args: { spaceId, absPath } })
 }
 function disarmWatch (spaceId, absPath) {
-  ipcRef?.emit('main-request', { command: 'loose-file:unwatch', args: { spaceId, absPath } })
+  ipcRef?.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.LOOSE_FILE_UNWATCH, args: { spaceId, absPath } })
 }
 
 // Serializes everything that changes what a loose path MEANS — its name, its source link, its

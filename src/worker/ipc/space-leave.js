@@ -3,6 +3,7 @@
 // why the reusable half of this flow (spaces/leave-flow.js, which boot's interrupted-leave pass
 // runs) was written separately and drifted from it. Both now share the step order.
 import { record } from '../../shared/audit/audit-log.js'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { unmountForeignFolder } from '../../shared/folders/foreign-folders.js'
 import { deleteOwnedMount, listForeignMounts, listOwnedMounts } from '../../shared/folders/mount-store.js'
 import { stopOwnedFolder } from '../../shared/folders/owned-folders.js'
@@ -146,7 +147,7 @@ export function registerSpaceLeave(ipc, { log, mounts, selfActor, spaceRef, disc
             for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === msg.spaceId)) {
               mounts.cancelPeriodicReconcile(msg.spaceId, m.shareId)
               stopOwnedFolder(msg.spaceId, m.shareId)
-              ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: m.shareId } })
+              ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: m.shareId } })
               await deleteOwnedMount(msg.spaceId, m.shareId)
             }
             // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and

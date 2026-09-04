@@ -14,6 +14,9 @@ import { createRequestMetrics } from './request-metrics.js'
 
 const log = createLogger('ipc')
 
+const NEWLINE = 0x0A
+const EMPTY = Buffer.alloc(0)
+
 // Fan a coalesced `event:reconcile` out of a POKE so its view re-derives through the level-triggered
 // reconcile channel. The named events stay on the wire as the emit-site API (and as flow-test /
 // debugging observables); the reconcile-driven hooks (useFiles, useShareFiles, useMembers, useShares,
@@ -114,7 +117,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const inFlight = new Map()
   const queued = []
   let ready = false
-  let buffer = ''
+  let buffer = EMPTY
   // After an oversized frame the bytes still arriving belong to the frame being discarded. Without
   // this, the TAIL of that frame is parsed as though it were a fresh one — turning one oversized
   // frame into one forged frame, which is worse than the unbounded buffer it replaces.
@@ -123,13 +126,20 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const bootstrapPromise = new Promise((resolve) => { bootstrapResolve = resolve })
 
   pipe.on('data', (chunk) => {
-    buffer += chunk.toString()
+    // Bytes, not text. `buffer += chunk.toString()` decoded every chunk independently, so a chunk
+    // ending mid-sequence turned the split character into U+FFFD on both halves — and U+FFFD is
+    // legal JSON, so the frame parsed cleanly and the handler ran on a corrupted string (a space
+    // name, a path, a memo, the bootstrap frame's downloadFolder). Splitting on the newline BYTE is
+    // exact: 0x0A cannot occur inside a multi-byte UTF-8 sequence, so every complete line is
+    // complete UTF-8. It is also the only portable answer here — Bare has no TextDecoder, and its
+    // apparent `string_decoder` is a devDependency artefact absent from a production install.
+    buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk])
 
     // Resync first: drop bytes until the newline that ends the frame already given up on.
     if (skipping) {
-      const nl = buffer.indexOf('\n')
-      if (nl === -1) { buffer = ''; return }
-      buffer = buffer.slice(nl + 1)
+      const nl = buffer.indexOf(NEWLINE)
+      if (nl === -1) { buffer = EMPTY; return }
+      buffer = Buffer.from(buffer.subarray(nl + 1))
       skipping = false
     }
 
@@ -138,25 +148,35 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // to ONE FRAME rather than to the read buffer: a chunk carrying many small frames can exceed
     // the cap in total and every one of them is still legitimate.
     //
-    // `.length` is UTF-16 code units, not bytes, so a multi-byte frame is measured smaller than a
-    // sender computing Buffer.byteLength would. That asymmetry is deliberately in the safe
-    // direction: a frame the sender believes is legal is never rejected here. The memory bound
-    // still holds — a string of N code units is O(N) — and for the JSON+base64 traffic this
-    // carries the two are identical anyway.
-    if (buffer.length > maxFrameBytes && buffer.indexOf('\n') === -1) {
+    // Measured in BYTES — the same number the sender computed with Buffer.byteLength. The old
+    // `.length` on a decoded string was UTF-16 code units, deliberately lenient because a
+    // multi-byte frame measured smaller than the sender believed; exact is strictly better, since
+    // no frame the sender considers legal is refused and the memory bound is now the real one.
+    if (buffer.length > maxFrameBytes && buffer.indexOf(NEWLINE) === -1) {
       log.warn('oversized frame discarded:', buffer.length, 'bytes exceeds', maxFrameBytes)
       countFailure('oversized-frame', INVALID_ARGUMENT)
-      buffer = ''
+      buffer = EMPTY
       skipping = true
       return
     }
 
-    const lines = buffer.split('\n')
-    buffer = lines.pop()
-    for (const line of lines) {
-      if (!line) continue
+    // The leftover is committed BEFORE dispatching, so a handler that throws cannot cause the
+    // frames after it to be re-read from a stale buffer.
+    const lastNl = buffer.lastIndexOf(NEWLINE)
+    // Copied because `buffer` may still BE the caller's chunk, which the pipe is free to reuse
+    // once this handler returns.
+    if (lastNl === -1) { buffer = Buffer.from(buffer); return }
+    const complete = buffer
+    buffer = lastNl + 1 === complete.length ? EMPTY : Buffer.from(complete.subarray(lastNl + 1))
+
+    let start = 0
+    while (start <= lastNl) {
+      const nl = complete.indexOf(NEWLINE, start)
+      const line = complete.subarray(start, nl)
+      start = nl + 1
+      if (line.length === 0) continue
       try {
-        const msg = JSON.parse(line)
+        const msg = JSON.parse(line.toString('utf8'))
         if (msg && msg.type === FRAME.BOOTSTRAP) {
           if (bootstrapResolve) {
             bootstrapResolve(msg)
