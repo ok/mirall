@@ -12,6 +12,7 @@ import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listDownloadRoots } from '../shared/core/paths.js'
 import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
@@ -76,8 +77,8 @@ export class MountsRuntime extends Subsystem {
         // The watcher starts even for a paused index: a paused INDEX is not a paused FOLDER. Edits
         // made during the pause are seen, declined by the publish channel, and re-derived from disk
         // by the resume scan — pausing must not silently lose changes.
-        this.deps.ipc.emit('main-request', {
-          command: 'owned-folder:start-watcher',
+        this.deps.ipc.emit(MAIN_REQUEST_FRAME, {
+          command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
           args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
         })
         // The scan would decline itself anyway, but an interval that can never do work reads as a
@@ -166,7 +167,7 @@ export class MountsRuntime extends Subsystem {
     this.lastMountPointStatus.set('owned-folder:' + shareId, false)
     // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
     // mount config are left untouched — a missing root is ambiguous, never a delete.
-    this.deps.ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId } })
+    this.deps.ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId } })
     this.cancelPeriodicReconcile(spaceId, shareId)
     // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
     stopOwnedFolder(spaceId, shareId)
@@ -337,8 +338,8 @@ export class MountsRuntime extends Subsystem {
           // Source folder came back (USB replugged, network mount up, moved back). Resume: restart
           // the watcher, run one catch-up reconcile whose OUTCOME sets the durable status (so a
           // failing re-scan records paused-error, not a fabricated 'active'), and re-arm the timer.
-          this.deps.ipc.emit('main-request', {
-            command: 'owned-folder:start-watcher',
+          this.deps.ipc.emit(MAIN_REQUEST_FRAME, {
+            command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
             args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
           })
           // A path coming back is not the user pressing Resume, so a paused index stays paused —

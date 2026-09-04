@@ -8,6 +8,7 @@ const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeThem
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const { StringDecoder } = require('node:string_decoder')
 const { logRing } = require('./log-ring')
 
 // Custom app:// scheme. Registered as standard+secure so the renderer
@@ -106,7 +107,10 @@ let identityKEKHex = null
 let identityProtection = 'disabled'
 const workers = new Map()
 
-const { isControlFrameCandidate } = require('./ipc-frame.js')
+const { createWorkerFrameReader } = require('./ipc-frame.js')
+const { createMainRequestRouter } = require('./main-requests.js')
+const { preloadEntrypoints, entrypointFor } = require('./worker-entrypoints.js')
+const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 
 let tray = null
 let isQuitting = false
@@ -663,12 +667,7 @@ function validateDownloadFolder(folder) {
 function getWorker(specifier) {
   if (workers.has(specifier)) return workers.get(specifier)
   const p = getPear()
-  // Resolved at boot (preloadAsarCache) so that require.resolve runs while
-  // process.noAsar is still false. Resolving lazily here would race with the
-  // OTA updater's noAsar window and surface as MODULE_NOT_FOUND.
-  let entrypoint = WORKER_ENTRYPOINTS.get(specifier)
-  if (!entrypoint) entrypoint = require.resolve(path.join(__dirname, '..', '..', specifier))
-  const worker = p.run(entrypoint, [])
+  const worker = p.run(entrypointFor(specifier), [])
   // A write racing the worker's death (the before-quit shutdown frame, a
   // relayed renderer frame, a watcher event) fails with an EPIPE that
   // arrives asynchronously as a stream 'error' event — the try/catch around
@@ -739,34 +738,33 @@ function getWorker(specifier) {
   }
   ipcMain.handle('pear:worker:writeIPC:' + specifier, writeHandler)
 
-  let workerBuffer = ''
+  const frames = createWorkerFrameReader()
   worker.on('data', (data) => {
     sendToAll('pear:worker:ipc:' + specifier, data)
-    workerBuffer += data.toString()
-    const lines = workerBuffer.split('\n')
-    workerBuffer = lines.pop() ?? ''
-    for (const line of lines) {
-      // Only worker→main control frames ('main-request') need parsing here; a large
-      // worker→renderer response (already broadcast above) must not be JSON.parsed on
-      // main's UI thread. isControlFrameCandidate gates by size (see ipc-frame.js).
-      if (!isControlFrameCandidate(line)) continue
+    // Only worker→main control frames ('main-request') are parsed here; the reader has already
+    // dropped anything too large to be one, before decoding it (see ipc-frame.js).
+    for (const line of frames.push(data)) {
       let msg
       try { msg = JSON.parse(line) } catch { continue }
-      if (msg && msg.type === 'main-request') {
-        handleMainRequest(msg.command, msg.args || {}, worker).catch((err) => {
+      if (msg && msg.type === MAIN_REQUEST_FRAME) {
+        mainRequests.handle(msg.command, msg.args || {}, worker).catch((err) => {
           if (debug) console.error('main-request failed:', msg.command, err.message)
         })
       }
     }
   })
+  // Streaming decoders: a log line split mid-character would otherwise reach the log ring — the
+  // one artifact used to diagnose exactly this class of bug — with the character mangled.
+  const stdoutDecoder = new StringDecoder('utf8')
+  const stderrDecoder = new StringDecoder('utf8')
   worker.stdout.on('data', (data) => {
-    const text = data.toString()
+    const text = stdoutDecoder.write(data)
     if (debug) process.stdout.write('[worker stdout] ' + text)
     logRing.push('worker', 'log', text)
     sendToAll('pear:worker:stdout:' + specifier, data)
   })
   worker.stderr.on('data', (data) => {
-    const text = data.toString()
+    const text = stderrDecoder.write(data)
     process.stderr.write('[worker stderr] ' + text)
     logRing.push('worker', 'error', text)
     sendToAll('pear:worker:stderr:' + specifier, data)
@@ -1054,60 +1052,20 @@ ipcMain.handle('share:browseFolder', async (evt) => {
 const ownedFolderWatchers = require('./owned-folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
-async function handleMainRequest(command, args, worker) {
-  if (command === 'downloads:roots') {
-    workerDownloadRoots = Array.isArray(args?.roots)
-      ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
-      : []
-    return
-  }
-  if (command === 'loose-file:watch') {
-    looseFileWatchers.addLooseWatch(
-      args.spaceId,
-      args.absPath,
-      (event) => {
-        const frame = JSON.stringify({ type: 'event:loose-file-fs-event', ...event }) + '\n'
-        try { worker.write(Buffer.from(frame)) } catch (err) {
-          if (debug) console.error('loose fs-event write failed:', err.message)
-        }
-      },
-      // Not behind `debug`: console.warn feeds the log ring unconditionally, and the
-      // error-storm message is the one signal saying this file stopped syncing and will not
-      // resume on its own. Behind the flag it never reaches a user's diagnostics bundle.
-      (err) => {
-        console.warn('loose watcher error', args.absPath, '-', err.message)
-      },
-    )
-    return
-  }
-  if (command === 'loose-file:unwatch') {
-    looseFileWatchers.removeLooseWatch(args.spaceId, args.absPath)
-    return
-  }
-  if (command === 'owned-folder:start-watcher') {
-    ownedFolderWatchers.startWatcher(
-      args.shareId,
-      args.mountPath,
-      args.ignore || [],
-      (event) => {
-        const frame = JSON.stringify({ type: 'event:owned-folder-fs-event', ...event }) + '\n'
-        try { worker.write(Buffer.from(frame)) } catch (err) {
-          if (debug) console.error('fs-event write failed:', err.message)
-        }
-      },
-      // See the loose-file callback above: the storm message must reach the log ring on a
-      // release build, or the report it explains is unreproducible.
-      (err) => {
-        console.warn('watcher error', args.shareId, '-', err.message)
-      },
-    )
-    return
-  }
-  if (command === 'owned-folder:stop-watcher') {
-    ownedFolderWatchers.stopWatcher(args.shareId)
-    return
+// A write racing the worker's death (shutdown, a watcher event) fails with an EPIPE; there is no
+// recipient anymore, so the message is moot.
+function sendToWorker(worker, frame) {
+  try { worker.write(Buffer.from(JSON.stringify(frame) + '\n')) } catch (err) {
+    if (debug) console.error('worker frame write failed:', frame.type, '-', err.message)
   }
 }
+
+const mainRequests = createMainRequestRouter({
+  ownedFolderWatchers,
+  looseFileWatchers,
+  setDownloadRoots: (roots) => { workerDownloadRoots = roots },
+  sendToWorker,
+})
 
 ipcMain.handle('owned-folder:start-watcher', (_evt, { shareId, mountPath, ignore }) => {
   const worker = workers.get('/src/worker/main.js')
@@ -1408,7 +1366,6 @@ const APP_PROTOCOL_MIME = {
 // work can start, makes renderer asset loads independent of the noAsar
 // global. Total ui/ payload is ~3 MB → negligible RAM.
 const APP_PROTOCOL_CACHE = new Map()
-const WORKER_ENTRYPOINTS = new Map()
 
 function preloadAsarCache() {
   const uiRoot = path.join(__dirname, '..', '..', 'assets')
@@ -1425,13 +1382,8 @@ function preloadAsarCache() {
   }
   walk(uiRoot)
 
-  // Worker specifiers are repo-rooted ('/src/worker/main.js'); resolve against
-  // the package root (two levels up from this file) so the spec stays stable
-  // regardless of where in src/ this module lives.
   const repoRoot = path.join(__dirname, '..', '..')
-  for (const spec of ['/src/worker/main.js']) {
-    WORKER_ENTRYPOINTS.set(spec, require.resolve(path.join(repoRoot, spec)))
-  }
+  preloadEntrypoints(repoRoot)
 
   // feature-flags.json is asar-internal too: read + cache it here, before
   // getPear opens the updater's noAsar window, so worker bootstrap's flag reads

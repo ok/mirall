@@ -1,8 +1,9 @@
 import type { RequestName } from '../shared/contract/requests.js'
 import { FRAME } from '../shared/contract/frames.js'
+import { WORKER_SPECS } from '../shared/contract/workers.js'
 import { CODES } from '../shared/contract/errors.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
-const WORKER_SPEC = '/src/worker/main.js'
+const WORKER_SPEC = WORKER_SPECS[0]
 
 const ECANCELLED = CODES.ECANCELLED
 
@@ -27,7 +28,9 @@ interface IpcEnvelope {
 import { makeRespawnPolicy } from './workerRespawn.js'
 
 // Mutable: recreated on worker exit so a worker that died mid-multibyte UTF-8 chunk
-// can't leave dangling continuation state that corrupts the next worker's first frame.
+// can't leave dangling continuation state that corrupts the next worker's first frame. Main needs
+// no counterpart reset — its reader lives in the per-worker getWorker() closure and dies with the
+// worker, whereas this decoder is module-level and bound once for the app's lifetime.
 let decoder = new TextDecoder('utf-8')
 const encoder = new TextEncoder()
 

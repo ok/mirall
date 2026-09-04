@@ -23,6 +23,7 @@ function fakePipe () {
   ee.write = (s) => { ee.written.push(s); return true }
   ee.feed = (obj) => ee.emit('data', Buffer.from(JSON.stringify(obj) + '\n'))
   ee.feedRaw = (str) => ee.emit('data', Buffer.from(str))
+  ee.feedBytes = (buf) => ee.emit('data', buf)
   ee.lastMsg = () => JSON.parse(ee.written[ee.written.length - 1])
   return ee
 }
@@ -50,6 +51,49 @@ test('NDJSON frame split across chunks reassembles', async (t) => {
   pipe.feedRaw(frame.slice(6))
   await tick()
   t.is(pipe.lastMsg().data, 'hi')
+})
+
+// REGRESSION (FIX-H2-3: `buffer += chunk.toString()` decoded each chunk independently, so a chunk
+// boundary inside a multi-byte character produced U+FFFD on both halves. U+FFFD is legal JSON, so
+// the frame parsed cleanly and the handler ran on a corrupted string — a space name, a path, a
+// memo, or the bootstrap frame's downloadFolder.)
+test('REGRESSION (FIX-H2-3): a request frame split inside a multi-byte character reaches the handler intact', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('echo', (m) => m.v)
+  ipc.start()
+
+  const frame = Buffer.from(JSON.stringify({ id: '1', type: 'echo', v: 'Müller 项目 📁' }) + '\n')
+  const cut = frame.indexOf(0xC3) + 1
+  pipe.feedBytes(frame.subarray(0, cut))
+  pipe.feedBytes(frame.subarray(cut))
+  await tick()
+
+  t.is(pipe.lastMsg().data, 'Müller 项目 📁', 'no replacement characters crossed the boundary')
+})
+
+// Not red before the fix — the old string reader also refused this one (measured). It guards the
+// byte rewrite itself: the resync now walks bytes, and getting the frame boundary wrong there turns
+// one oversized frame into one FORGED frame, which is worse than the bug being fixed.
+test('the oversized-frame resync survives a split mid-character', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  let calls = 0
+  ipc.handle('echo', (m) => { calls++; return m.v })
+  ipc.start()
+
+  const oversized = Buffer.from('ü'.repeat(2048))
+  pipe.feedBytes(oversized.subarray(0, 1025))
+  pipe.feedBytes(oversized.subarray(1025))
+  await tick()
+  pipe.feedBytes(Buffer.from(JSON.stringify({ id: 'forged', type: 'echo', v: 1 }) + '\n'))
+  await tick()
+  t.is(calls, 0, 'the tail of a discarded frame is never dispatched')
+
+  pipe.feed({ id: '2', type: 'echo', v: 'ü' })
+  await tick()
+  t.is(calls, 1, 'and the reader is live again afterwards')
+  t.is(pipe.lastMsg().data, 'ü')
 })
 
 test('unknown command responds NOT_FOUND', async (t) => {

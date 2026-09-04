@@ -1,0 +1,129 @@
+import test from 'brittle'
+import { readFileSync, readdirSync, statSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
+import path from 'path'
+import { createMainRequestRouter } from '../../src/main/main-requests.js'
+import { MAIN_REQUEST, MAIN_REQUEST_NAMES } from '../../src/shared/contract/main-requests.js'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const SRC = path.join(here, '..', '..', 'src')
+
+function walk (dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name)
+    if (statSync(p).isDirectory()) walk(p, out)
+    else if (/\.(js|ts|tsx)$/.test(name)) out.push(p)
+  }
+  return out
+}
+
+// Both spellings on purpose: a hand-written literal must be found too, or the vocabulary can be
+// bypassed by writing the old string back in.
+const EMIT_RE = /emit\(\s*(?:MAIN_REQUEST_FRAME|['"`]main-request['"`])\s*,\s*\{[\s\S]{0,200}?command:\s*(?:MAIN_REQUEST\.([A-Z_]+)|['"`]([^'"`]+)['"`])/g
+
+function emitSites () {
+  const sites = []
+  for (const file of walk(SRC)) {
+    if (!(file.includes('/worker/') || file.includes('/shared/'))) continue
+    if (file.includes('/shared/contract/')) continue
+    const src = readFileSync(file, 'utf8')
+    for (let m; (m = EMIT_RE.exec(src));) {
+      sites.push({ file, constant: m[1] ?? null, literal: m[2] ?? null })
+    }
+  }
+  return sites
+}
+
+function stubDeps () {
+  const calls = []
+  return {
+    calls,
+    deps: {
+      ownedFolderWatchers: {
+        startWatcher: (...a) => calls.push(['startWatcher', ...a]),
+        stopWatcher: (...a) => calls.push(['stopWatcher', ...a]),
+      },
+      looseFileWatchers: {
+        addLooseWatch: (...a) => calls.push(['addLooseWatch', ...a]),
+        removeLooseWatch: (...a) => calls.push(['removeLooseWatch', ...a]),
+      },
+      setDownloadRoots: (roots) => calls.push(['setDownloadRoots', roots]),
+      sendToWorker: (_worker, frame) => calls.push(['sendToWorker', frame]),
+    },
+  }
+}
+
+function muteWarn (t) {
+  const original = console.warn
+  const lines = []
+  console.warn = (...args) => lines.push(args.join(' '))
+  t.teardown(() => { console.warn = original })
+  return lines
+}
+
+// REGRESSION (FIX-H3-1: handleMainRequest was five `if (command === …) return` blocks with nothing
+// after them, so an unrecognised command resolved undefined and the caller's .catch never fired.
+// A half-finished rename would arm no watcher on any owned folder, on every peer, silently.)
+test('REGRESSION (FIX-H3-1): an unknown main-request command is refused loudly, not silently ignored', async (t) => {
+  const warnings = muteWarn(t)
+  const { calls, deps } = stubDeps()
+  const unknown = []
+  const router = createMainRequestRouter({ ...deps, onUnknown: (c) => unknown.push(c) })
+
+  await router.handle('owned-folder:watch', { shareId: 's1', mountPath: '/tmp/x' })
+
+  t.alike(unknown, ['owned-folder:watch'], 'the unknown command was reported')
+  t.alike(calls, [], 'and nothing was done')
+  t.ok(warnings.some((l) => l.includes('owned-folder:watch')), 'it reaches the log ring unconditionally')
+})
+
+test('a known command still reaches its handler', async (t) => {
+  const { calls, deps } = stubDeps()
+  const router = createMainRequestRouter(deps)
+
+  await router.handle(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' })
+  await router.handle(MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, { shareId: 's1' })
+
+  t.alike(calls.map((c) => c[0]), ['startWatcher', 'stopWatcher'])
+})
+
+test('every main-request command the worker emits is one main handles', (t) => {
+  const router = createMainRequestRouter(stubDeps().deps)
+  const sites = emitSites()
+  t.ok(sites.length >= 11, `found the emit sites (${sites.length})`)
+
+  for (const site of sites) {
+    const name = site.constant ? MAIN_REQUEST[site.constant] : site.literal
+    t.ok(name, `${path.relative(SRC, site.file)}: ${site.constant ?? site.literal} names a command`)
+    t.ok(router.commands.includes(name), `${path.relative(SRC, site.file)}: main routes '${name}'`)
+  }
+})
+
+test('every command main handles is emitted somewhere', (t) => {
+  const router = createMainRequestRouter(stubDeps().deps)
+  const emitted = new Set(emitSites().map((s) => (s.constant ? MAIN_REQUEST[s.constant] : s.literal)))
+  for (const command of router.commands) t.ok(emitted.has(command), `'${command}' is emitted by the worker`)
+})
+
+test('the contract declares exactly the commands main routes', (t) => {
+  const router = createMainRequestRouter(stubDeps().deps)
+  t.alike([...router.commands].sort(), [...MAIN_REQUEST_NAMES].sort())
+})
+
+test('no emit site writes a bare main-request command literal', (t) => {
+  for (const site of emitSites()) {
+    t.is(site.literal, null, `${path.relative(SRC, site.file)} names the command through MAIN_REQUEST`)
+  }
+})
+
+// Main is CommonJS and builds its dispatch table at module-evaluation time, so the vocabulary has to
+// be require()-able. That works because the contract has no top-level await and no imports — a
+// property contract-declarations.test.js already enforces. Pinned here so it fails in CI rather
+// than as ERR_REQUIRE_ESM at a user's first launch.
+test('the contract is reachable from a CommonJS main', (t) => {
+  const require = createRequire(import.meta.url)
+  const mod = require('../../src/shared/contract/main-requests.js')
+  t.is(mod.MAIN_REQUEST_FRAME, 'main-request')
+  t.alike([...mod.MAIN_REQUEST_NAMES].sort(), [...MAIN_REQUEST_NAMES].sort())
+})

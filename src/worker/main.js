@@ -31,6 +31,7 @@ import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { WORKER_EXIT_UNSTABLE } from '../shared/contract/exit-codes.js'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { getContentBackend, UNSUPPORTED } from '../shared/transfer/content-backends.js'
 import {
   getProfile,
@@ -198,7 +199,7 @@ const health = createHealthMonitor()
 // Main authorizes "reveal in folder" against these, and cannot read the space records
 // that hold the per-space overrides, so the set is pushed to it on every change.
 function publishDownloadRoots() {
-  ipc.emit('main-request', { command: 'downloads:roots', args: { roots: listDownloadRoots() } })
+  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.DOWNLOADS_ROOTS, args: { roots: listDownloadRoots() } })
 }
 
 // Dropping a root is a NARROWING of that allowlist, so it has to be published like any other
@@ -1040,8 +1041,8 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
   mounts.lastMountPointStatus.set('owned-folder:' + shareId, mountRootAvailable(mountPath))
   await mounts.setOwnedStatus(spaceId, shareId, 'scanning')
 
-  ipc.emit('main-request', {
-    command: 'owned-folder:start-watcher',
+  ipc.emit(MAIN_REQUEST_FRAME, {
+    command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
     args: { shareId, mountPath, ignore },
   })
 
@@ -1108,7 +1109,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // Queued items carry paths under the old root; the executor re-resolves the mount, but they
   // must not burn slots either.
   stopOwnedFolder(msg.spaceId, msg.shareId)
-  ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
+  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: msg.shareId } })
 
   const previousMountPath = mount.mountPath
   // By patch, not by writing back the whole `mount` this handler read at the top: validateMountPath
@@ -1119,8 +1120,8 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
   await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? 'paused' : 'scanning')
-  ipc.emit('main-request', {
-    command: 'owned-folder:start-watcher',
+  ipc.emit(MAIN_REQUEST_FRAME, {
+    command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
   })
 
@@ -1173,7 +1174,7 @@ ipc.handle('owned-folder:delete', async (msg) => {
 
   mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   stopOwnedFolder(msg.spaceId, msg.shareId)
-  ipc.emit('main-request', { command: 'owned-folder:stop-watcher', args: { shareId: msg.shareId } })
+  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: msg.shareId } })
 
   // Overlay keeps no per-share drive blobs to tombstone — the share record
   // tombstone below retires the catalog from every consumer's view.
