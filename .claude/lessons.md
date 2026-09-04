@@ -301,3 +301,62 @@ Two consequences, both paid for once already:
    the double is more cooperative than the real code. When a test asserts on a fault class, drive at
    least one case with the real condition (a real 000 file), or a scenario built on an impossible
    lever will be the thing that finds out.
+
+
+## The query store's `loading` is not "still booting"
+
+`useQuery`'s `loading` is `entry.promise !== null || !settled` — it means *a read is in
+flight*, and it goes true again on every refetch of an already-settled entry. `app.tsx`
+gates its entire tree on the value `useProfile` returns, so returning the store's flag
+unmounted the whole tree on each re-read; that remounted all three `useProfile` call sites,
+each re-read `profile:get`, and the flag rose again. A real run issued ~13,900 rounds of
+every request in the app and never finished booting.
+
+Nothing below the frontend layer caught it: typecheck, lint, 1,862 unit, 1,028 integration
+and 199 flow tests were all green. A cross-component remount loop is invisible to every one
+of them.
+
+**The rule:** a boot or route gate asks "has an answer ever landed", not "is a read in
+flight" — `data !== undefined || error !== null`. Better, hand the decision to a pure
+projection that is never given `loading`, so the mistake cannot be expressed:
+`src/renderer/profileGate.js`, guarded by `test/unit/profile-gate.test.js`.
+
+
+## A hook that writes shared state amplifies by mount count
+
+Three worker-event subscriptions lived inside the hooks that read them, and every one of
+them wrote the query store: `useDownloadRootStatus` (two mounted consumers) pushed
+`downloads:roots-status`, `useSpaces` (**five** call sites, several mounted together) pushed
+`spaces:list` from `event:state` and re-read it on three membership events, plus a
+mount-time `refetchQuery` that abandoned the read `useQuery` had just issued.
+
+One worker event therefore wrote one entry N times. Each write is a NEW object, so the
+store's `prev.data === next.data` identity check fails and every subscriber re-renders a
+second, third and fourth time for a value that never changed; each event-driven refetch
+abandons the others' in-flight read. None of it is visible in a hook read in isolation —
+the amplification factor is "how many components happen to mount this today", which no
+test at the hook's own layer can see.
+
+**The rule:** a subscription that WRITES shared state is installed once for the app, next
+to the store (`installPushBridges` in `src/renderer/store/reconcile.ts`), never in a hook.
+A hook may subscribe for its own local state — a counter, a toast trigger — because that is
+per-consumer by design. Ratcheted by the `STORE_WRITERS` allowlist in
+`test/unit/renderer-reconcile-subscriptions.test.js`: a new writing site has to be justified
+there.
+
+
+## A guard's `if (handle) return` latches when the handle can die elsewhere
+
+`presenceTimer`, `convergenceTimer` and `announceTimer` are module bindings whose timers are
+owned by a subsystem's `this.timers`. `Subsystem.close()` clears the SET on every ending —
+including a failed `_open` and a `_close` that rejects, neither of which reaches the module's
+own stop function. The binding then still held a disarmed handle, `if (presenceTimer) return`
+read it as "already armed", and the heartbeat was off for the rest of the process: no error,
+no log, and to every peer we simply look offline.
+
+**The rule:** when the thing that clears a handle is not the thing that holds it, drop the
+handle before testing it — `liveHandle(timers, handle)` in `src/shared/core/timers.js`. The
+same asymmetry one level down is why an injected `schedule` must be guarded on the SET rather
+than on the subsystem pointer (`ownedScheduler`): a `_close` that rejects never reaches its
+own `subsystem = null`, so the pointer outlives the timers it points at, and arming against a
+closed set throws from inside a callback nothing catches.
