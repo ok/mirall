@@ -633,7 +633,10 @@ function stopAllForeignLoops({ settleMs = 5000 } = {}) {
 export class ForeignMirrors extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc'); this.units = new Map() }
   async _open() { initForeignFolders(this.deps.ipc) }
-  async _close() { await stopAllForeignLoops(); integritySeen.clear() }
+  // stopAllForeignLoops pauses rather than unmounts, so it is the one path that FILLS
+  // pausedHolders. Without the clear the hashes outlive the subsystem that recorded them, and a
+  // later open inherits markers for fetches belonging to a previous lifetime.
+  async _close() { await stopAllForeignLoops(); pausedHolders.clear(); integritySeen.clear() }
 
   // Counts, not identifiers: diagnostics:export is user-shareable and redacts peer keys and
   // topics, so space and share ids must not ride along. The probe names the mount in the worker
