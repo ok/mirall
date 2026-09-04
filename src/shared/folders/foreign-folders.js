@@ -551,6 +551,16 @@ async function initialMaterializeScanCatalog(mount, share) {
   return {}
 }
 
+// error, not warn: this is the mirror declining to delete the user's files on an implausible
+// listing, and it is the one line that explains a mirror that has stopped tracking deletions.
+// Nothing is forgotten from the synced set, so a later pass re-evaluates rather than losing the
+// fact. Quiet below the floor, where a withheld pass just means the owner was offline.
+function logWithheldDeletions (key, pending, syncedSize, minDeletions) {
+  if (pending <= minDeletions) return
+  log.error('withholding', pending, 'mirror deletions of', syncedSize,
+    'synced paths — the owner catalog shrank implausibly; keeping the local files:', key)
+}
+
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
@@ -598,14 +608,22 @@ async function materializeOnceCatalog(mount, share) {
 
   if (mirrorStopped(key, gen)) return
 
+  // Resolved BEFORE the gate rather than inside the loop: the gate now weighs how MANY files a
+  // pass would remove, which cannot be known one key at a time.
+  const pendingDeletions = [...synced].filter((ownerKey) => !onDrive.has(ownerKey))
+  const caps = getResourceCaps()
   const honorDeletions = shouldHonorDeletions({
     ownerOnline: isOwnerOnline(mount.ownerKey),
     driveCount: onDrive.size,
     listingComplete: complete,
+    syncedCount: synced.size,
+    deletionCount: pendingDeletions.length,
+    minDeletions: caps.minMirrorDeletions,
+    maxDeletionRatio: caps.maxMirrorDeletionRatio,
   })
+  if (!honorDeletions) logWithheldDeletions(key, pendingDeletions.length, synced.size, caps.minMirrorDeletions)
   if (honorDeletions) {
-    for (const ownerKey of [...synced]) {
-      if (onDrive.has(ownerKey)) continue
+    for (const ownerKey of pendingDeletions) {
       if (relKeyEscapes(ownerKey)) {
         log.warn('refusing to honor a stored sync path that escapes the mount folder — skipping deletion:', ownerKey)
         state.forgetSynced(key, synced, ownerKey)

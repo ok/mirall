@@ -72,6 +72,12 @@ const DEFAULTED = {
   // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
   // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
   peerCatalogCacheLimit: 64,
+  // Mirror deletion plausibility gate. The owner-online / non-empty / complete-listing gates
+  // establish that a listing is authoritative, not that it is plausible: a share shrinking 1000 ->
+  // 3 passed all three and unlinked 997 local files. Always honour up to `min` deletions so
+  // ordinary tidying is unaffected; above that never more than `ratio` of what the mirror owns.
+  minMirrorDeletions: 8,
+  maxMirrorDeletionRatio: 0.5,
   // Boot leftover-sweep plausibility cap. The sweep deletes cores irreversibly, so an implausibly
   // large target set is treated as evidence the classification is wrong, not as work to do. Always
   // allow `min`; above that never more than `ratio` of the store, and never more than `max`.
@@ -437,6 +443,8 @@ export function getResourceCaps() {
     avatarMaxBytes: c.maxAvatarBytes,
     deriveDebounceMs: c.deriveDebounceMs,
     foreignPollIntervalMs: c.foreignPollIntervalMs,
+    minMirrorDeletions: c.minMirrorDeletions,
+    maxMirrorDeletionRatio: c.maxMirrorDeletionRatio,
     minSweepPurgeCores: c.minSweepPurgeCores,
     maxSweepPurgeCores: c.maxSweepPurgeCores,
     maxSweepPurgeRatio: c.maxSweepPurgeRatio,
