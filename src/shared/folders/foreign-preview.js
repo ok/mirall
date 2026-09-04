@@ -10,7 +10,7 @@ import { isVerifiedUnchanged } from '../transfer/files.js'
 import { createPreviewTally } from './preview-tally.js'
 import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
-import { AbortError, walkDisk } from './walk-disk.js'
+import { AbortError, countDiskFiles } from './walk-disk.js'
 
 const log = createLogger('foreign-preview')
 
@@ -73,7 +73,7 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
   const [existingAtDestination, entries] = await Promise.all([
     // Caught, not propagated: a preview of an unreadable destination reports zero rather than
     // failing the dialog the user is standing in front of.
-    walkDisk(mountPath, DEFAULT_IGNORE).then((w) => w.onDisk.size).catch(() => 0),
+    countDiskFiles(mountPath, DEFAULT_IGNORE).catch(() => 0),
     loadForeignListing(spaceId, ownerKey, shareId),
   ])
   checkAborted()
