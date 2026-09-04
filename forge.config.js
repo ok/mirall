@@ -140,6 +140,7 @@ let packagerConfig = {
     /\/\.github($|\/)/,
     /^\/test($|\/)/,
     /^\/scripts($|\/)/,
+    /^\/eslint-rules($|\/)/,
     // src/renderer is bundled into assets/dist by esbuild; the .tsx sources
     // don't ship. src/{main,preload,worker,shared} are part of the runtime
     // and must stay.
