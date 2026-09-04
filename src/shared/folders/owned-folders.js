@@ -413,9 +413,11 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   const specs = []
   const unchanged = []
   let deferred = 0
-  let seen = 0
   for (const [relPath, info] of onDisk) {
-    if (++seen % LIVENESS_EVERY === 0) passLiveness.progress(key)
+    // No beat in here, deliberately: this loop never awaits, so on the worker's single thread no
+    // probe can run between its iterations — only the stamps on either side of it are ever read. A
+    // heartbeat here cannot be observed, and one that cannot be observed makes the phase look
+    // covered. The beat that matters is in the ensureServable loop below, which does await.
     // A name no catalog key can carry (a '\' in a POSIX file name) is skipped, never a reason to
     // abort the whole diff.
     if (relKeyEscapes(relPath)) { log.warn('skipping file whose name cannot be a share key:', relPath); continue }
@@ -437,6 +439,13 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   // advertising a hash the serve gate does not hold (a transient registerFile failure) must heal
   // on the next pass, not the next restart.
   for (const [relPath, prev, info] of unchanged) {
+    // Per file, like the walk's own callback: ensureServable is free only while the serve
+    // reference is present, and after a restart the serve map is empty — so every unchanged file
+    // pays a registerFile and this becomes the long pole of the whole pass on a large, fully
+    // synced share. LIVENESS_EVERY throttles the loops where the bookkeeping could itself become
+    // the cost; next to an await on real I/O a Map lookup is free, and throttling here could skip
+    // the entire window on a share with fewer files than the interval.
+    passLiveness.progress(key)
     try { await ensureServable(spaceId, shareId, relPath, pathFromMount(mountPath, relPath), prev.contentHash, info.size) } catch (err) {
       log.debug('ensure servable failed:', relPath, '-', err.message)
     }
