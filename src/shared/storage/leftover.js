@@ -15,6 +15,9 @@ import { compactStore } from '../transfer/swarm.js'
 import { withReadTimeout } from '../core/with-timeout.js'
 import { mapLimit } from '../core/concurrency.js'
 import { classifyBeeKind } from './leftover-classify.js'
+import { decideSweep } from './sweep-decision.js'
+import { recordSweep } from './sweep-journal.js'
+import { getResourceCaps } from '../core/runtime-config.js'
 import { listContentKeys } from '../spaces/space-keys.js'
 
 const log = createLogger('leftover')
@@ -111,50 +114,75 @@ async function addMemberCores(wanted, member, spaceId) {
   for (const ck of await localPeerCatalogKeys(member.publicKey, spaceId)) wanted.add(dkOfKey(ck))
 }
 
-export async function buildWantedKeys() {
+const TIMED_OUT = Symbol('timed-out')
+
+// Every core current state still needs. A GAP means the set is INCOMPLETE — something that should
+// be in it is not — so "outside the set" no longer means "unneeded" and no category may be purged.
+// Each failure below used to log a warning (one did not even do that) and let the sweep proceed on
+// the shorter set, which is how a transient read failure became a permanent delete.
+export async function buildWantedKeys({ openSystemBee = null } = {}) {
   const wanted = new Set()
+  const gaps = []
+  const gap = (stage, detail) => {
+    gaps.push({ stage, detail: String(detail || '') })
+    log.warn('wanted-set gap:', stage, '-', detail)
+  }
 
   for (const { names, open } of WANTED_BEE_GROUPS) {
     for (const name of names) {
-      try { await addAndCloseBeeCore(wanted, open(name)) } catch (err) {
-        log.warn('wanted system bee failed:', name, err.message)
+      try { await addAndCloseBeeCore(wanted, (openSystemBee || open)(name)) } catch (err) {
+        gap('system-bee:' + name, err.message)
       }
     }
   }
+  // Was a bare `catch {}`. The most dangerous gap in this function: the live profile bee's own core,
+  // missing from `wanted`, classifies as 'profile' and is purged — the device's identity bee,
+  // deleted by the sweep that exists to protect it.
   const profile = getProfileBee()
   if (profile) {
-    try { await addBeeCore(wanted, profile) } catch {}
+    try { await addBeeCore(wanted, profile) } catch (err) { gap('profile-bee', err.message) }
+  } else {
+    gap('profile-bee', 'not open')
   }
 
   try {
     const { getOverlayLocalDiscoveryKeys } = await import('../transfer/backends/overlay/overlay-instance.js')
     for (const dk of await getOverlayLocalDiscoveryKeys()) wanted.add(dk)
   } catch (err) {
-    log.warn('wanted overlay cores failed:', err.message)
+    gap('overlay-cores', err.message)
   }
 
-  let unopenedDrive = false
+  // Deliberately NOT wrapped: a listSpaces() throw must propagate and fail the whole scan, which is
+  // already the correct outcome — purgeLeftovers never runs, so nothing is deleted.
   for (const space of await listSpaces()) {
     const drive = getDrive(space.spaceId)
     if (drive) {
-      await withReadTimeout(addLocalDriveCores(wanted, drive), INSPECT_MS, null)
-        .catch((err) => log.warn('wanted own drive failed:', space.spaceId, err.message))
+      // withReadTimeout RESOLVES the sentinel rather than rejecting, so the `.catch` below never
+      // sees a timeout. A drive whose read merely took too long silently contributed nothing to
+      // `wanted` and recorded nothing at all — the purest form of "couldn't read it just now"
+      // reaching the delete.
+      const res = await withReadTimeout(addLocalDriveCores(wanted, drive).then(() => true), INSPECT_MS, TIMED_OUT)
+        .catch((err) => { gap('own-drive:' + space.spaceId, err.message); return null })
+      if (res === TIMED_OUT) gap('own-drive:' + space.spaceId, 'read timed out after ' + INSPECT_MS + 'ms')
     } else if (space.status !== 'pending' && !space.leaving) {
-      // A listed space whose drive is not loaded — a boot open that failed and is being
-      // retried next boot (driveLoadError). Its cores are reachable only through the drive
-      // handle, so they cannot be added to the wanted set here; mark the scan unsafe instead
-      // of letting a sweep reclaim a drive the space still expects to use.
-      unopenedDrive = true
+      // A listed space whose drive is not loaded — a boot open that failed and is being retried
+      // next boot (driveLoadError). Its cores are reachable only through the drive handle, so they
+      // cannot be added here.
+      gap('unopened-drive:' + space.spaceId, 'drive not loaded this boot')
     }
     try { await addBeeCore(wanted, await ownCatalog(space.spaceId)) } catch (err) {
-      log.warn('wanted own catalog failed:', space.spaceId, err.message)
+      gap('own-catalog:' + space.spaceId, err.message)
     }
 
-    for (const member of (space.members || [])) await addMemberCores(wanted, member, space.spaceId)
+    // Wrapped where it never was: a throw here aborts the whole loop, so every space after this one
+    // contributes nothing to `wanted` while still being listed.
+    for (const member of (space.members || [])) {
+      try { await addMemberCores(wanted, member, space.spaceId) } catch (err) {
+        gap('member-cores:' + space.spaceId, err.message)
+      }
+    }
   }
-  // A drive we could not open is not in `wanted` and would scan as an orphan, so the caller is
-  // told to withhold the drive category rather than reclaim a space's own storage.
-  wanted.unopenedDrive = unopenedDrive
+  wanted.gaps = gaps
   return wanted
 }
 
@@ -272,12 +300,14 @@ async function inspectCore(store, dk) {
   return { kind: 'other', bytes: metaBytes }
 }
 
-export async function classifyLeftovers() {
+export async function classifyLeftovers(opts = {}) {
   const store = getStore()
-  const wanted = await buildWantedKeys()
+  const wanted = await buildWantedKeys(opts)
 
   const candidates = []
+  let totalCores = 0
   for await (const dk of store.list()) {
+    totalCores++
     const h = hex(dk)
     if (!wanted.has(h)) candidates.push(h)
   }
@@ -293,19 +323,23 @@ export async function classifyLeftovers() {
   for (const r of inspected) {
     if (r.kind === 'profile') profiles.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
     else if (r.kind === 'catalog') catalogs.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
-    // A drive only counts as an orphan when every space's own drive is loaded. If one failed to
-    // open this boot, its cores look unwanted while the space is still listed and expects to
-    // retry — reclaiming them would destroy the space's storage.
-    else if (r.kind === 'drive' && !wanted.unopenedDrive) orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
+    // No longer filtered here by the unopened-drive flag: an unopened drive is now one gap among
+    // several, and a gap withholds EVERY category in purgeLeftovers. Filtering here would only hide
+    // the finding from the scan's own report, which is the one place it can be diagnosed.
+    else if (r.kind === 'drive') orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
   }
-  if (wanted.unopenedDrive) log.warn('a space drive did not load this session — leaving orphan drives out of the reclaim scan')
+  if (wanted.gaps.length) log.warn('the wanted set is incomplete —', wanted.gaps.map((g) => g.stage).join(', '))
   const sum = (a) => a.reduce((n, r) => n + r.bytes, 0)
   return {
     profiles: { count: profiles.length, bytes: sum(profiles), keys: profiles },
     catalogs: { count: catalogs.length, bytes: sum(catalogs), keys: catalogs },
     orphanDrives: { count: orphanDrives.length, bytes: sum(orphanDrives), keys: orphanDrives },
     totalBytes: sum(profiles) + sum(catalogs) + sum(orphanDrives),
-    withheldDrives: !!wanted.unopenedDrive,
+    totalCores,
+    gaps: wanted.gaps,
+    scanComplete: wanted.gaps.length === 0,
+    // Retained for existing callers; now derived from the same one rule.
+    withheldDrives: wanted.gaps.length > 0,
   }
 }
 
@@ -324,27 +358,52 @@ function purgeTargets(scan, allowed) {
   return [...new Set(dks)]
 }
 
-export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true } = {}) {
+export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true, openSystemBee = null } = {}) {
   const store = getStore()
   const db = store.storage.db
-  const scan = await classifyLeftovers()
+  const scan = await classifyLeftovers({ openSystemBee })
   const allowed = categories.filter((c) => PURGEABLE.includes(c))
-  // Release any open probe handle for a drive about to be purged so its cores
-  // are not held open during the RocksDB delete.
+  const dks = purgeTargets(scan, allowed)
+
+  const decision = decideSweep({
+    gaps: scan.gaps,
+    targetCount: dks.length,
+    totalCores: scan.totalCores,
+    caps: getResourceCaps(),
+  })
+  if (!decision.allow) {
+    // error, not warn: this is the sweep declining to delete user data on incomplete or
+    // implausible evidence, and it is the one line that explains a boot that reclaimed nothing.
+    log.error('leftover sweep refused:', decision.reason, '- targets', dks.length, 'of',
+      scan.totalCores, 'cores, gaps:', scan.gaps.map((g) => g.stage).join(',') || 'none')
+    await recordSweep({
+      refused: decision.reason, targets: dks.length, totalCores: scan.totalCores,
+      gaps: scan.gaps, categories: allowed, purged: 0,
+    })
+    return { purged: 0, freedEstimate: 0, withheldDrives: true, refused: decision.reason }
+  }
+
+  // Released only once the sweep is known to be going ahead: closing them on a refused pass would
+  // drop the cache this module keeps so a scan and a later cleanup do not re-open the same drive.
   if (allowed.includes('orphanDrives')) {
     for (const d of scan.orphanDrives.keys) await closeProbe(d.metaDkHex)
   }
-  const dks = purgeTargets(scan, allowed)
   let purged = 0
+  const purgedDks = []
   for (const dkHex of dks) {
     if (onProgress) onProgress('purging', { done: purged, total: dks.length })
     try {
       await purgeCoreDk(store, db, dkHex)
       purged++
+      purgedDks.push(dkHex)
     } catch (err) {
       log.debug('leftover purge skip:', dkHex.slice(0, 12), err.message)
     }
   }
+  await recordSweep({
+    refused: null, targets: dks.length, totalCores: scan.totalCores,
+    gaps: [], categories: allowed, purged, purgedDks,
+  })
   // Tombstoning the cores is what makes the leave effective; the compaction only returns the
   // bytes. A boot-path caller passes compact:false rather than block startup on a full-range
   // pass — space-leave.js defers it for the same reason.
@@ -353,7 +412,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
     await compactStore()
   }
   const freedEstimate = allowed.reduce((n, c) => n + (scan[c]?.bytes || 0), 0)
-  return { purged, freedEstimate, withheldDrives: scan.withheldDrives }
+  return { purged, freedEstimate, withheldDrives: scan.withheldDrives, refused: null }
 }
 
 // The cores a member brought with them: their profile bee, and the one catalog they advertise per

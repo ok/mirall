@@ -35,7 +35,7 @@ export function verdictHistoryFromAudit(entries = []) {
 // form, is the port 0, did it change, how many dials opened — is answerable without the
 // actual IP, the real keys, or space names.
 export function buildDiagnostics(ctx, redact = true) {
-  const { status, history, env, counters, peerSamples, requestFailures = {}, requestMetrics = {}, health = {} } = ctx
+  const { status, history, env, counters, peerSamples, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [] } = ctx
   const topicAlias = makeAliaser('t')
   const samples = peerSamples.map((peer) => ({
     peer: redact ? shortId(peer.publicKey) : peer.publicKey,
@@ -54,6 +54,18 @@ export function buildDiagnostics(ctx, redact = true) {
     system: { platform: env.platform, release: env.release, arch: env.arch },
 
     verdict: { current: status.reachability, history },
+
+    // The boot leftover sweep: what it deleted, or which gap made it refuse. Counts and gap STAGES
+    // only — a stage is a fixed label like 'own-catalog:<spaceId>', so the space id is aliased and
+    // the purged discovery keys are dropped entirely. This bundle is user-shareable.
+    sweeps: sweeps.map((row) => ({
+      at: row.at,
+      refused: row.refused || null,
+      targets: row.targets,
+      totalCores: row.totalCores,
+      purged: row.purged,
+      gaps: (row.gaps || []).map((g) => (redact ? String(g.stage).split(':')[0] : g.stage)),
+    })),
 
     network: {
       dhtReady: status.dhtReady,

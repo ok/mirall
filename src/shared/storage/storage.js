@@ -104,7 +104,13 @@ export async function getSpaceCacheBytes(spaceId) {
 export async function cleanupOrphanedData() {
   const withDrives = await shouldReclaimOrphanDrives()
   const categories = withDrives ? ['profiles', 'catalogs', 'orphanDrives'] : ['profiles', 'catalogs']
-  const { purged, withheldDrives } = await purgeLeftovers({ categories, compact: false })
+  const { purged, withheldDrives, refused } = await purgeLeftovers({ categories, compact: false })
+  // A refused sweep looked at nothing, so it must not consume the one-shot orphan-drive pass below
+  // — that flag is the only chance this build ever gets to reclaim pre-overlay drive blobs.
+  if (refused) {
+    log.warn('leftover metadata cleanup skipped this boot:', refused)
+    return { purged: 0, refused }
+  }
   log.info('leftover metadata cleanup done, pruned', purged, 'cores')
   // A scan that withheld the drive category looked away on purpose — a space drive had not opened
   // — so spending the single pass here would strand those bytes for good. Retry on a later boot.
@@ -116,5 +122,5 @@ export async function cleanupOrphanedData() {
       try { await compactStore() } catch (err) { log.warn('reclaim compaction failed:', err.message) }
     }
   }
-  return { purged }
+  return { purged, refused: null }
 }

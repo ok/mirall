@@ -72,6 +72,12 @@ const DEFAULTED = {
   // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
   // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
   peerCatalogCacheLimit: 64,
+  // Boot leftover-sweep plausibility cap. The sweep deletes cores irreversibly, so an implausibly
+  // large target set is treated as evidence the classification is wrong, not as work to do. Always
+  // allow `min`; above that never more than `ratio` of the store, and never more than `max`.
+  minSweepPurgeCores: 8,
+  maxSweepPurgeCores: 64,
+  maxSweepPurgeRatio: 0.5,
   // Only topic-MATCHED identity frames charge this lane (the receiver resolves the topic
   // before charging). An honest connection sends one frame per shared space, we reciprocate
   // each, and a name change or ledger re-send can add a third inside one refill window — so
@@ -431,6 +437,9 @@ export function getResourceCaps() {
     avatarMaxBytes: c.maxAvatarBytes,
     deriveDebounceMs: c.deriveDebounceMs,
     foreignPollIntervalMs: c.foreignPollIntervalMs,
+    minSweepPurgeCores: c.minSweepPurgeCores,
+    maxSweepPurgeCores: c.maxSweepPurgeCores,
+    maxSweepPurgeRatio: c.maxSweepPurgeRatio,
     foreignFullWalkEvery: c.foreignFullWalkEvery,
   }
 }
