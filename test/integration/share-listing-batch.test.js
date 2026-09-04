@@ -187,12 +187,15 @@ const PENDING = { none: undefined, partial: { bytesTransferred: 5 }, error: { er
 
 const entryOf = (w) => ({ relPath: 'f.txt', size: 10, contentHash: w.hashed ? 'h1' : null, mtime: 7 })
 const claimedPathFor = (drivePath, rec) => rec?.localPath || '/downloads/' + path.basename(drivePath)
+// A pre-existing user file at the natural name forces the mirror onto a sibling, recorded in
+// mount.renamedPaths. The dimension the matrix was missing, and the one the bug lived in.
+const RENAMED_LEAF = 'f (1).txt'
 
 function baselineRow(w, mountPath) {
   const entry = entryOf(w)
   const out = { pruned: false }
   if (w.mirrored) {
-    const abs = pathFromMount(mountPath, entry.relPath)
+    const abs = pathFromMount(mountPath, w.renamed ? RENAMED_LEAF : entry.relPath)
     if (statSizeOrNull(abs) === entry.size) {
       const verified = !!entry.contentHash && VERIFIED[w.verified] === entry.contentHash
       return { ...out, row: { status: 'synced', localPath: abs, verified } }
@@ -254,7 +257,9 @@ function worldDeps(w, mountPath) {
     getLocalPublicKeyHex: () => 'me',
     isOwnerOnline: () => w.ownerOnline,
     getOwnedMount: async () => null,
-    getForeignMount: async () => (w.mirrored ? { enabled: true, mountPath } : null),
+    getForeignMount: async () => (w.mirrored
+      ? { enabled: true, mountPath, ...(w.renamed ? { renamedPaths: { 'f.txt': RENAMED_LEAF } } : {}) }
+      : null),
     listPendingForSpace: async () => (PENDING[w.pending] ? [{ ...PENDING[w.pending], filePath: drivePath }] : []),
     foreignFetchActive: () => w.fetchActive,
     overlayHasTransfer: () => w.active,
@@ -272,14 +277,16 @@ function matrix() {
   const cells = []
   for (const mirrored of [true, false]) {
     for (const sizeMatch of mirrored ? [true, false] : [false]) {
-      for (const fetchActive of mirrored ? [true, false] : [false]) {
-        for (const claim of mirrored ? ['none'] : Object.keys(CLAIMS)) {
-          for (const verified of Object.keys(VERIFIED)) {
-            for (const hashed of [true, false]) {
-              for (const ownerOnline of [true, false]) {
-                for (const pending of mirrored ? ['none'] : Object.keys(PENDING)) {
-                  for (const active of mirrored ? [false] : [true, false]) {
-                    cells.push({ mirrored, sizeMatch, fetchActive, claim, verified, hashed, ownerOnline, pending, active })
+      for (const renamed of mirrored ? [true, false] : [false]) {
+        for (const fetchActive of mirrored ? [true, false] : [false]) {
+          for (const claim of mirrored ? ['none'] : Object.keys(CLAIMS)) {
+            for (const verified of Object.keys(VERIFIED)) {
+              for (const hashed of [true, false]) {
+                for (const ownerOnline of [true, false]) {
+                  for (const pending of mirrored ? ['none'] : Object.keys(PENDING)) {
+                    for (const active of mirrored ? [false] : [true, false]) {
+                      cells.push({ mirrored, sizeMatch, renamed, fetchActive, claim, verified, hashed, ownerOnline, pending, active })
+                    }
                   }
                 }
               }
@@ -301,6 +308,9 @@ test('every row of the decision space matches the pre-batching rule', async (t) 
   fs.mkdirSync(present, { recursive: true })
   fs.mkdirSync(empty, { recursive: true })
   fs.writeFileSync(path.join(present, 'f.txt'), '0123456789')
+  // Same size as the natural name, or a renamed cell could never be a size match and the new
+  // dimension would prove nothing.
+  fs.writeFileSync(path.join(present, RENAMED_LEAF), '0123456789')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   const cells = matrix()
@@ -328,4 +338,42 @@ test('every row of the decision space matches the pre-batching rule', async (t) 
   }
   t.is(mismatches, 0, 'every combination renders the same row and prunes the same claims')
   t.ok(prunesChecked > 0, 'the matrix actually exercises the pruning branches')
+})
+
+function mirrorDir(t, label, files) {
+  const root = path.join(os.tmpdir(), 'mirall-' + label + '-' + Date.now().toString(36))
+  fs.mkdirSync(root, { recursive: true })
+  for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(root, name), body)
+  t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
+  return root
+}
+
+// REGRESSION (FIX-MIRROR-RENAME: the mirror places a colliding entry at a sibling name and records
+// it in mount.renamedPaths, but the listing derived the local path from the owner key alone. It
+// therefore stat'd a path the mirror never wrote, and a fully-mirrored file rendered as 'remote' —
+// with a download button — for as long as the collision stood.)
+test("REGRESSION (FIX-MIRROR-RENAME): a collision-renamed mirror row is 'synced'", async (t) => {
+  const root = mirrorDir(t, 'renamed', {
+    'f.txt': 'THE USERS OWN FILE, a different length',
+    'f (1).txt': '0123456789',
+  })
+  const deps = countingDeps()
+  deps.getForeignMount = async () => ({ enabled: true, mountPath: root, renamedPaths: { 'f.txt': 'f (1).txt' } })
+
+  const entry = { relPath: 'f.txt', size: 10, contentHash: 'h1', mtime: 0 }
+  const res = await listOverlayShareFiles(SPACE, SHARE, backendFor([entry]), deps)
+
+  t.is(res.entries[0].status, 'synced', 'not remote — the bytes are on disk under the sibling name')
+  t.is(res.entries[0].localPath, path.join(root, 'f (1).txt'), 'and the row points at them')
+})
+
+test('an unrenamed mirror row is unaffected by the mapping lookup', async (t) => {
+  const root = mirrorDir(t, 'unrenamed', { 'f.txt': '0123456789' })
+  const deps = countingDeps()
+  // A mapping that exists but does not cover this entry — the fallback to the owner key.
+  deps.getForeignMount = async () => ({ enabled: true, mountPath: root, renamedPaths: { 'other.txt': 'other (1).txt' } })
+
+  const res = await listOverlayShareFiles(SPACE, SHARE, backendFor([{ relPath: 'f.txt', size: 10, contentHash: 'h1', mtime: 0 }]), deps)
+  t.is(res.entries[0].status, 'synced')
+  t.is(res.entries[0].localPath, path.join(root, 'f.txt'))
 })

@@ -107,3 +107,18 @@ test('REGRESSION (FIX-MIRROR-SET): a pre-existing user file at the natural name 
   t.is(fs.readFileSync(path.join(ctx.mirrorPath, 'report.pdf'), 'utf8'), 'THE USER OWN FILE', 'the user file is untouched')
   t.ok(fs.existsSync(path.join(ctx.mirrorPath, 'report (1).pdf')), 'the owner copy landed beside it as a sibling')
 })
+
+// The listing half of this lives in share-listing-batch.test.js (the renamed matrix dimension);
+// this is the half that proves the mirror really does mint the sibling and record the mapping.
+test('a pre-existing user file forces a sibling, and the mapping is recorded', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'report.pdf': 'owner-bytes' } })
+  fs.writeFileSync(path.join(ctx.mirrorPath, 'report.pdf'), 'the users own file')
+
+  await initialMaterializeScan(ctx.mount)
+
+  const mount = await getForeignMount(ctx.spaceId, ctx.share.id)
+  const localRel = mount.renamedPaths?.['report.pdf']
+  t.ok(localRel && localRel !== 'report.pdf', 'a sibling was minted: ' + localRel)
+  t.is(fs.readFileSync(path.join(ctx.mirrorPath, localRel), 'utf8'), 'owner-bytes', 'owner bytes landed there')
+  t.is(fs.readFileSync(path.join(ctx.mirrorPath, 'report.pdf'), 'utf8'), 'the users own file', "and the user's file is untouched")
+})

@@ -17,7 +17,7 @@ import { getOwnedMount, getForeignMount } from '../folders/mount-store.js'
 import { listPendingForSpace } from '../transfer/pending-transfers.js'
 import { isOwnerOnline } from '../transfer/swarm.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { foreignFetchActive } from '../folders/foreign-folders.js'
+import { foreignFetchActive, localRelOf } from '../folders/foreign-folders.js'
 import { overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
 import {
   claimedPathFor,
@@ -62,7 +62,10 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
   const isVerified = Boolean(entry.contentHash) && verified.get(entry.relPath) === entry.contentHash
 
   if (foreignMount && foreignMount.enabled) {
-    const abs = pathFromMount(foreignMount.mountPath, entry.relPath)
+    // Not entry.relPath: a pre-existing user file at the natural name forces the mirror to
+    // materialize at a collision-free sibling, and stat'ing the natural name then reports a
+    // fully-mirrored file as 'remote'.
+    const abs = pathFromMount(foreignMount.mountPath, localRelOf(foreignMount, entry.relPath))
     if (statSizeOrNull(abs) === entry.size) return { status: 'synced', localPath: abs, verified: isVerified }
     // The mirror loop is pulling this row right now — 'downloading' so FolderView's
     // bar/speed/verify lane (all gated on the status) render during materialization.
