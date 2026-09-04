@@ -166,3 +166,52 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
 
     A.kill()
   })
+
+// REGRESSION (FIX-PI1-1: a folder-share download that stalls raises no notification).
+//
+// The loose channel emitted event:transfer-paused; the folder channel's paused member only painted
+// a decoration, so the renderer's notification dispatcher could never fire for a file inside a
+// shared folder. The user saw a progress bar stop and nothing else. A data-polling assertion cannot
+// catch this — the list converges to 'paused' either way — so the event itself is the assertion.
+test('REGRESSION (FIX-PI1-1: an owner going offline mid-download raises the paused notification)',
+  { timeout: scaled(240000) }, async (t) => {
+    const bootstrap = await localTestnet(t)
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const spaceId = await connectInSpace(t, A, B)
+    const aKey = (await A.request('profile:get')).publicKey
+
+    const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
+    const folder = mkTmpDir(t)
+    // Sized so the transfer outlasts the owner's exit: a file that lands first produces a
+    // completion, not a pause, and the wait below would then expire for the wrong reason.
+    const bytes = patternedBytes(256 * 1024 * 1024, 53)
+    fs.writeFileSync(path.join(folder, 'big.bin'), bytes)
+    const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id)
+    await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
+    await scanDone
+
+    await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
+      (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
+      { ms: 60000 })
+
+    const flowing = new Promise((resolve) => {
+      B.on('event:decoration', (m) => {
+        if (m.channel !== 'transfer' || m.key !== share.id + ':big.bin' || m.done) return
+        if (m.bytes > 0) resolve()
+      })
+    })
+    let completed = false
+    B.on('event:transfer-complete', (m) => { if (m.path === '/Vault/big.bin') completed = true })
+
+    const notified = B.waitFor('event:transfer-paused', (m) => m.path === '/Vault/big.bin', 120000)
+    await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' })
+    await flowing
+    t.absent(completed, 'the transfer is still mid-flight when the owner leaves')
+
+    A.kill()
+    const paused = await notified
+    t.ok(paused, 'the folder-share transfer raised the paused signal the notification dispatcher listens on')
+    t.is(paused.spaceId, spaceId, 'scoped to the space, so the notification can group by it')
+    t.ok(typeof paused.reason === 'string' && paused.reason.length > 0, 'and carries the reason the body is worded from')
+  })

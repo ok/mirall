@@ -13,7 +13,7 @@ import { createCoalescingRunner } from '../core/coalescing-runner.js'
 import { createPassLiveness } from '../core/pass-liveness.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/share-catalog.js'
-import { ensureServable, setPendingPublishProbe } from '../transfer/backends/overlay/overlay-backend.js'
+import { ensureServable, setFolderPublishLane } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { walkDisk } from './walk-disk.js'
@@ -206,9 +206,15 @@ export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = nul
   settleScanRef = settleScan
   broadcastIndexRef = broadcastIndex
   announceMs = indexAnnounceMs
-  // The presence sweep must never reclaim a path whose publish is queued or running. Installed
-  // here rather than by the service, which must not import the backend (import cycle).
-  setPendingPublishProbe((spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false)
+  // The backend's presence sweep proposes reclaims onto this lane rather than writing tombstones
+  // itself. Installed here rather than by the service, which must not import the backend.
+  setFolderPublishLane({
+    isPending: (spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false,
+    enqueueRetire: (spaceId, shareId, relPath) => sched().enqueue({ spaceId, shareId, relPath, op: OP.RETIRE, priority: PRIORITY.BULK }).settled,
+    // A bulk retire writes through the space's catalog batch, so the item settles before the
+    // tombstone is durable. An awaited sweep has to outlast the flush, not the enqueue.
+    settle: (spaceId) => settleCatalog(spaceId),
+  })
 }
 
 // Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
@@ -504,7 +510,7 @@ export class OwnedFolders extends Subsystem {
   async _close() {
     stopping = true
     stopIndexAnnounce()
-    setPendingPublishProbe(null)
+    setFolderPublishLane(null)
     for (const timer of reconcileTimers.values()) clearTimeout(timer)
     reconcileTimers.clear()
     for (const signal of scanSignals.values()) signal.aborted = true
