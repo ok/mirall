@@ -2,6 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { Scope, scopeMatches } from '../../src/shared/contract/scope.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const hookSrc = (name) => readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'hooks', name), 'utf8')
@@ -44,4 +45,35 @@ test('reconcile-driven hooks subscribe the reconcile channel, not the named poke
     }
     for (const e of events) t.absent(subscribes(src, e), `${file} no longer subscribes ${e}`)
   }
+})
+
+const rendererSrc = (...parts) => readFileSync(path.join(here, '..', '..', 'src', 'renderer', ...parts), 'utf8')
+
+// REGRESSION (FIX-PEER-INFO-SCOPE: a view of a PEER's catalog pinned only the share-files scope.
+// For a share this app neither owns nor mirrors, nothing local emits event:share-files-updated —
+// the owner's append reaches us through ensurePeerCatalogWatch, which emits event:files-updated,
+// i.e. the space-wide files scope. scopeMatches requires equal kinds, so the share-files-only view
+// was never invalidated and its cached totals were frozen for the app session.)
+test('REGRESSION (FIX-PEER-INFO-SCOPE): a peer-catalog view lists the files scope too', (t) => {
+  const views = {
+    'components/modals/MirrorFolderModal.tsx': 'share:folder-info',
+    'hooks/useShareFiles.ts': 'share:list-files',
+  }
+  for (const [file, request] of Object.entries(views)) {
+    const src = rendererSrc(...file.split('/'))
+    t.ok(src.includes(request), `${file} still reads ${request}`)
+    const shareScoped = /Scope\.shareFiles\(|kind: 'share-files'/.test(src)
+    const spaceScoped = /Scope\.files\(|kind: 'files'/.test(src)
+    t.ok(shareScoped, `${file} pins the share-files scope`)
+    t.ok(spaceScoped, `${file} ALSO pins the space files scope — a peer append arrives on that one`)
+  }
+})
+
+// The reason both are needed, asserted directly rather than left to the comment above.
+test('a files hint cannot invalidate a share-files view', (t) => {
+  t.absent(
+    scopeMatches(Scope.files('sp1'), Scope.shareFiles('sp1', 'sh1')),
+    'kinds must be equal — a space-wide files poke never reaches a share-files view',
+  )
+  t.ok(scopeMatches(Scope.files('sp1'), Scope.files('sp1')), 'while it does reach a files view')
 })
