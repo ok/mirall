@@ -7,7 +7,7 @@ import {
   pathsOverlap, pathContains, overlapAllowed,
   DEFAULT_IGNORE, shouldIgnore,
   shouldHonorDeletions,
-  splitFileName, nextFreeName,
+  splitFileName, nextFreeName, conflictCopyName,
   systemRootViolation, personalRootViolation, isWindowsReservedName, firstWinReservedSegment, cloudSyncHint,
 } from '../../src/shared/folders/path-keys.js'
 
@@ -342,4 +342,50 @@ test('REGRESSION (MIR-23): content-backend serve path rejects the read PoC keys'
   t.ok(relKeyEscapes('../../../../etc/passwd'), 'the serve PoC read key is rejected')
   t.ok(relKeyEscapes('..\\..\\Windows\\System32\\drivers\\etc\\hosts'), 'Windows-separator traversal rejected')
   t.absent(relKeyEscapes('reports/q3.pdf'), 'a legitimate advertised file is accepted')
+})
+
+// ── D3: mirror deletion MAGNITUDE gate ─────────────────────────────────────────
+// The three gates above ask "is this listing trustworthy?". None of them asks "is it
+// PLAUSIBLE?" — a share going 1000 -> 3 files passed every one of them and unlinked 997 local
+// files with no cap and no trash. A catalog that legitimately shrank by 99% is indistinguishable
+// at this layer from one read against a half-replicated core, and only one of those two readings
+// is recoverable.
+const CAPS = { minDeletions: 8, maxDeletionRatio: 0.5 }
+const gate = (over) => shouldHonorDeletions({ ownerOnline: true, driveCount: 3, listingComplete: true, ...CAPS, ...over })
+
+test('REGRESSION (FIX-D3-1): a mass deletion is refused even when every trust gate passes', (t) => {
+  t.absent(gate({ syncedCount: 1000, deletionCount: 997 }), '997 of 1000 -> implausible, withhold')
+  t.absent(gate({ syncedCount: 1000, deletionCount: 600 }), '600 of 1000 -> over half, withhold')
+})
+
+test('D3: ordinary deletions are unaffected by the magnitude gate', (t) => {
+  t.ok(gate({ syncedCount: 100, deletionCount: 3 }), '3 of 100 -> under the floor')
+  t.ok(gate({ syncedCount: 1000, deletionCount: 400 }), '400 of 1000 -> under half')
+  t.ok(gate({ syncedCount: 8, deletionCount: 8 }), 'a tiny mirror emptying is under the floor')
+  t.ok(gate({ syncedCount: 0, deletionCount: 0 }), 'nothing to delete')
+})
+
+test('D3: the trust gates still dominate the magnitude gate', (t) => {
+  t.absent(gate({ ownerOnline: false, syncedCount: 100, deletionCount: 1 }), 'offline outranks a plausible count')
+  t.absent(gate({ listingComplete: false, syncedCount: 100, deletionCount: 1 }), 'partial drain outranks it too')
+  t.absent(gate({ driveCount: 0, syncedCount: 100, deletionCount: 1 }), 'empty listing outranks it too')
+})
+
+test('D3: the gate defaults are safe when a caller supplies no counts', (t) => {
+  t.ok(shouldHonorDeletions({ ownerOnline: true, driveCount: 3, listingComplete: true }),
+    'an un-migrated caller keeps the old behaviour rather than silently withholding everything')
+})
+
+// D2: the name a mirrored file's local edit is moved aside to before the owner's version is
+// written back over the canonical path.
+test('conflictCopyName preserves the extension and steps aside on collision', (t) => {
+  const free = () => false
+  t.is(conflictCopyName('note.txt', free), 'note (conflicted copy).txt')
+  t.is(conflictCopyName('archive.tar.gz', free), 'archive.tar (conflicted copy).gz', 'splits like path.extname')
+  t.is(conflictCopyName('LICENSE', free), 'LICENSE (conflicted copy)', 'no extension, no stray dot')
+  t.is(conflictCopyName('.bashrc', free), '.bashrc (conflicted copy)', 'a dotfile is a name, not an extension')
+
+  const taken = new Set(['note (conflicted copy).txt'])
+  t.is(conflictCopyName('note.txt', (n) => taken.has(n)), 'note (conflicted copy) (1).txt',
+    'a second conflict does not clobber the first')
 })

@@ -179,8 +179,28 @@ function matchPattern (input, pattern) {
 // out mid-tree returns a PARTIAL, non-empty list — indistinguishable from a real deletion unless
 // completeness is checked, and acting on it deletes files the owner still has. The likelihood of
 // such a drain grows with the file count, so the bigger the folder, the likelier the wrong delete.
-export function shouldHonorDeletions ({ ownerOnline, driveCount, listingComplete }) {
-  return !!ownerOnline && driveCount > 0 && !!listingComplete
+// The three gates above are TRUST gates: they establish that the listing is authoritative. None of
+// them establishes that it is PLAUSIBLE, and those are different questions. A share going from 1000
+// files to 3 passes all three, and the caller then unlinks 997 local files. At this layer a catalog
+// that legitimately shrank by 99% is indistinguishable from one read against a half-replicated
+// core — and only one of those two readings is recoverable, so the tie goes to keeping the files.
+//
+// `minDeletions` is a floor, not a ratio, so ordinary tidying (and a small mirror emptying out) is
+// never withheld. Above it, a pass may never remove more than `maxDeletionRatio` of what the mirror
+// owns. Both are parameters rather than a config read, so this stays a pure function the unit test
+// can drive with its own caps.
+//
+// Defaults keep an un-migrated caller on the old behaviour: passing no counts yields deletionCount
+// 0, which is under any floor. A guard that silently withheld everything the moment a caller forgot
+// an argument would be its own outage.
+export function shouldHonorDeletions ({
+  ownerOnline, driveCount, listingComplete,
+  syncedCount = 0, deletionCount = 0,
+  minDeletions = 8, maxDeletionRatio = 0.5,
+}) {
+  if (!ownerOnline || !(driveCount > 0) || !listingComplete) return false
+  if (deletionCount <= minDeletions) return true
+  return deletionCount <= Math.max(minDeletions, Math.floor(syncedCount * maxDeletionRatio))
 }
 
 // ─── collision-free download/copy naming ──────────────────────────────────────
@@ -206,6 +226,15 @@ export function nextFreeName (fileName, isTaken) {
     n++
   } while (isTaken(candidate))
   return candidate
+}
+
+// The name a mirrored file's LOCAL edit is moved aside to before the owner's version is written
+// back over the canonical path. A mirror is owner-authoritative — the owner's bytes belong at the
+// natural name — but that does not require destroying what the user wrote. Same shape as every
+// other file manager's conflict copy, and `nextFreeName` handles the second and third collision.
+export function conflictCopyName (fileName, isTaken) {
+  const { base, ext } = splitFileName(fileName)
+  return nextFreeName(`${base} (conflicted copy)${ext}`, isTaken)
 }
 
 // ─── mount path rejection rules ───────────────────────────────────────────────

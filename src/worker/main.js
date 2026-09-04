@@ -140,6 +140,7 @@ import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
 import { sendFeedback } from '../shared/telemetry/feedback.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
+import { listRecentSweeps } from '../shared/storage/sweep-journal.js'
 import { deriveChannel } from '../shared/core/channel.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
 import {
@@ -1798,6 +1799,7 @@ ipc.handle('diagnostics:export', async (msg) => {
       arch: os.arch(),
     },
     counters: getDiagnosticCounters(),
+    sweeps: await listRecentSweeps(10),
     requestFailures: getRequestFailureCounters(),
     requestMetrics: getRequestMetrics(),
     health: health.snapshot({

@@ -6,7 +6,7 @@
 // owner is provably online, so a lagged replica or a user's own files are never wiped.
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries } from './path-keys.js'
+import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries, conflictCopyName, driveKeyToSegments } from './path-keys.js'
 import { isOwnerOnline } from '../transfer/swarm.js'
 import { record } from '../audit/audit-log.js'
 import { createIntegritySeen } from './integrity-seen.js'
@@ -20,6 +20,7 @@ import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { mountRootAvailable } from './owned-folders.js'
 import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
 import { pathFromMount } from '../transfer/path-guard.js'
+import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { faultFromError, statusForFaultCode, isAutoPauseStatus, STATUS_MOUNT_GONE } from './mount-fault.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
@@ -30,12 +31,13 @@ import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/backends
 import { createPausedHolders } from '../transfer/backends/overlay/paused-holders.js'
 import { shareDecoKey } from '../transfer/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
-import { markVerified, isVerifiedUnchanged } from '../transfer/files.js'
+import { markVerified, isVerifiedUnchanged, getVerifiedHash } from '../transfer/files.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { mirrorVerdict } from './mirror-health.js'
 import { createMirrorLoops } from './mirror-loop.js'
 import { createMirrorState, localRelOf } from './mirror-state.js'
+import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-ownership.js'
 import { shouldWalk } from './mirror-walk.js'
 
 const log = createLogger('foreign-folders')
@@ -315,6 +317,38 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
   }).catch((err) => log.debug('mirror integrity audit failed:', err.message))
 }
 
+// A mirror is owner-authoritative: the owner's bytes belong at the natural name, and that is what
+// test/flow/mirror-local-edit.test.js pins. What was never intended is the other half of the old
+// behaviour — that the user's bytes were DESTROYED to get there, with no copy, no warning and no
+// audit row.
+//
+// So before the fetch renames over the local file, prove the file is one we delivered. The verified
+// record is that ancestor and `diskHash` is already computed, so the check costs one bee read on a
+// file that was going to be overwritten anyway. Anything we cannot vouch for is moved aside first;
+// the owner's version then lands at the canonical path exactly as before.
+async function preserveLocalEdit (mount, entry, verifyKey, diskHash, abs) {
+  const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey).catch(() => null)
+  if (mayOverwriteInPlace(classifyLocalCopy({ diskHash, ownerHash: entry.contentHash, ancestorHash }))) return
+
+  const segs = driveKeyToSegments(entry.relPath)
+  const leaf = segs.pop()
+  const dir = segs.join('/')
+  const isTaken = (name) => {
+    const candidate = pathFromMount(mount.mountPath, dir ? dir + '/' + name : name)
+    return fs.existsSync(candidate) || fs.existsSync(candidate + PARTIAL_SUFFIX)
+  }
+  const conflictRel = (dir ? dir + '/' : '') + conflictCopyName(leaf, isTaken)
+  try {
+    await fs.promises.rename(abs, pathFromMount(mount.mountPath, conflictRel))
+    log.warn('mirror conflict on', entry.relPath, '- the local copy was not the one we delivered; kept it as', conflictRel)
+  } catch (err) {
+    // Could not move it aside, so do not overwrite it either: leaving the mirror one file stale is
+    // recoverable on the next tick, and destroying the edit is not.
+    log.error('could not preserve a locally-edited mirror file — leaving it untouched:', entry.relPath, '-', err.message)
+    throw new AppError(ErrorCodes.TRANSFER_PERMISSION, 'could not preserve a local edit')
+  }
+}
+
 // Overlay share: the bytes never enter a drive, so the mirror fetches the file by
 // its content hash straight to the mount path (hash-verified by the overlay). No
 // ensureRemote/release handshake — the holder serves on demand, gated by the
@@ -342,13 +376,30 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount), opts.fresh)
   const abs = pathFromMount(mount.mountPath, localRelPath)
   let onDisk = null
-  try { onDisk = await fs.promises.stat(abs) } catch {}
+  // ENOENT is the only stat failure that means "nothing is there, the path is free to write".
+  // Every other one means something IS there that we could not read — and the fetch below renames
+  // over it regardless of whether we could stat it, since rename needs permission on the DIRECTORY,
+  // not the file. Swallowing them all made the preserve step fail open in exactly the case it
+  // exists for: an unreadable local file looked absent and was overwritten without a copy.
+  let unreadable = false
+  try {
+    onDisk = await fs.promises.stat(abs)
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      unreadable = true
+      log.debug('could not stat a mirror path before materializing:', entry.relPath, '-', err.message)
+    }
+  }
+  // Retained past the checks below: it is the evidence the ancestor comparison needs, and hashing
+  // a multi-GB file twice in one pass to re-derive it would undo FIX-MIRROR-REHASH.
+  let diskHash = null
   if (onDisk?.isFile() && entry.contentHash) {
     // Already-mirrored file: the verified record skips the full re-hash the poll
     // would otherwise run over every file each tick; only hash on a cache miss.
     if (await isVerifiedUnchanged(mount.spaceId, verifyKey, entry.contentHash, entry.size, onDisk)) return 'present'
     try {
-      if (await hashOf(abs) === entry.contentHash) {
+      diskHash = await hashOf(abs)
+      if (diskHash === entry.contentHash) {
         await markVerified(mount.spaceId, verifyKey, entry.contentHash)
         return 'present'
       }
@@ -368,7 +419,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
     // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
     // gets the check it needs — a stop landing during the wait above.
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey) })
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
   } finally {
     releaseSlot()
   }
@@ -398,7 +449,7 @@ async function acquireMirrorSlot(streamKey) {
 
 // The gated half of a materialize: everything past the slot owns a chunk scheduler, a watchdog,
 // an fd and a ticker.
-async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen }) {
+async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen, diskHash = null, localExists = false }) {
   // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
   if (mirrorStopped(streamKey, gen)) return 'missing'
   // Read AFTER the wait, not before it: the overlay can be torn down while a pass is parked.
@@ -419,6 +470,13 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   let diag = null
   // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
+    // Move a local edit aside before the fetch renames over it — here, past the gate, rather than
+    // in the caller: every early-out above (a claim the engine holds, a stop landing during the
+    // unbounded slot wait, the overlay torn down) would otherwise have moved the user's file and
+    // then not replaced it, leaving the canonical path empty until a later tick.
+    if (localExists) {
+      try { await preserveLocalEdit(mount, entry, verifyKey, diskHash, abs) } catch { return 'missing' }
+    }
     activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath, transferId })
     pausedHolders.supersede(streamKey)
     // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
@@ -523,6 +581,16 @@ async function initialMaterializeScanCatalog(mount, share) {
   return {}
 }
 
+// error, not warn: this is the mirror declining to delete the user's files on an implausible
+// listing, and it is the one line that explains a mirror that has stopped tracking deletions.
+// Nothing is forgotten from the synced set, so a later pass re-evaluates rather than losing the
+// fact. Quiet below the floor, where a withheld pass just means the owner was offline.
+function logWithheldDeletions (key, pending, syncedSize, minDeletions) {
+  if (pending <= minDeletions) return
+  log.error('withholding', pending, 'mirror deletions of', syncedSize,
+    'synced paths — the owner catalog shrank implausibly; keeping the local files:', key)
+}
+
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
@@ -570,14 +638,22 @@ async function materializeOnceCatalog(mount, share) {
 
   if (mirrorStopped(key, gen)) return
 
+  // Resolved BEFORE the gate rather than inside the loop: the gate now weighs how MANY files a
+  // pass would remove, which cannot be known one key at a time.
+  const pendingDeletions = [...synced].filter((ownerKey) => !onDrive.has(ownerKey))
+  const caps = getResourceCaps()
   const honorDeletions = shouldHonorDeletions({
     ownerOnline: isOwnerOnline(mount.ownerKey),
     driveCount: onDrive.size,
     listingComplete: complete,
+    syncedCount: synced.size,
+    deletionCount: pendingDeletions.length,
+    minDeletions: caps.minMirrorDeletions,
+    maxDeletionRatio: caps.maxMirrorDeletionRatio,
   })
+  if (!honorDeletions) logWithheldDeletions(key, pendingDeletions.length, synced.size, caps.minMirrorDeletions)
   if (honorDeletions) {
-    for (const ownerKey of [...synced]) {
-      if (onDrive.has(ownerKey)) continue
+    for (const ownerKey of pendingDeletions) {
       if (relKeyEscapes(ownerKey)) {
         log.warn('refusing to honor a stored sync path that escapes the mount folder — skipping deletion:', ownerKey)
         state.forgetSynced(key, synced, ownerKey)
