@@ -149,7 +149,8 @@
     "readOnlyWarning": "Lecture seule. Les fichiers que vous modifiez ici seront restaurés à la version de {{owner}} lors de la prochaine synchronisation.",
     "next": "Suivant : aperçu",
     "create": "Démarrer le miroir",
-    "creating": "Démarrage…"
+    "creating": "Démarrage…",
+    "infoUnavailable": "Impossible de lire le contenu de ce dossier auprès de son propriétaire."
   },
   "deleteFolder": {
     "title": "Supprimer « {{name}} » ?",
@@ -722,6 +723,9 @@
     "title": "Réseau",
     "intro": "Limites d'envoi et de téléchargement.",
     "transferLimits": "Limites de transfert",
+    "limitsLoading": "Chargement des limites de transfert…",
+    "limitsUnavailable": "Impossible de lire vos limites de transfert.",
+    "limitSaveFailed": "Impossible d'enregistrer cette limite. La précédente reste appliquée.",
     "download": "Téléchargement",
     "upload": "Envoi",
     "unlimited": "Illimité",

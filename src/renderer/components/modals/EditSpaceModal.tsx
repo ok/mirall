@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
 import IconPicker from '../widgets/IconPicker.js'
@@ -8,6 +8,7 @@ import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
+import { useMainQuery } from '../../store/useMainQuery.js'
 
 interface EditSpaceModalProps {
   space: Space
@@ -32,23 +33,15 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const [saving, setSaving] = useState(false)
   // undefined = untouched, null = reset to the global default, string = new override.
   const [folderEdit, setFolderEdit] = useState<string | null | undefined>(undefined)
-  // null until the read lands. A space always resolves to SOME folder — its own override or the
-  // global default — so an unresolved read is a path still loading, not the absence of one.
-  const [globalDefault, setGlobalDefault] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const browseRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    window.bridge.getDownloadFolder()
-      .then((folder) => { if (!cancelled) setGlobalDefault(folder) })
-      .catch((err) => {
-        if (cancelled) return
-        setGlobalDefault('')
-        setError(errorText(err))
-      })
-    return () => { cancelled = true }
-  }, [])
+  const { data: defaultFolder, error: defaultError } = useMainQuery('main:download-folder')
+  // null until the read lands. A space always resolves to SOME folder — its own override or the
+  // global default — so an unresolved read is a path still loading, not the absence of one. A read
+  // that FAILED resolves to "no default available" instead, or the field would sit on its skeleton.
+  const globalDefault = defaultFolder ?? (defaultError ? '' : null)
+  const shownError = error ?? (defaultError ? errorText(defaultError) : null)
 
   // Only the fallback to the global default can be pending; a picked folder or the space's own
   // override is already in hand.
@@ -166,8 +159,8 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-error" role="alert">{error}</p>
+          {shownError && (
+            <p className="text-sm text-error" role="alert">{shownError}</p>
           )}
 
           <div className="pt-4">

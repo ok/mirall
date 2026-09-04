@@ -78,6 +78,35 @@ export default async function s105 ({ runDir, bootstrap }) {
       await A.waitText('Upload limit in KB/s', 8000)
       await A.shot('s105-persisted', runDir)
     })
+
+    // The cap the screen shows is the cap that was STORED. A below-floor entry is the reachable
+    // way to make those two differ, so the field must end on the clamped value, never on what was
+    // typed — and never on a value no write ever persisted.
+    await r.ok('a clamped write leaves the screen on the stored value, not the typed one', async () => {
+      await A.click({ name: 'Download limit: custom' })
+      await A.waitText('Download limit in KB/s', 8000)
+      await A.type({ name: 'Download limit in KB/s' }, '3')
+      await A.press('return')
+      await waitFor(
+        async () => (await A.nodeValue({ name: 'Download limit in KB/s' })) === '32',
+        8000,
+        'the screen shows what was stored',
+      )
+    })
+
+    // Reopening paints from the shared copy of the caps. Checked with NO wait first: a screen
+    // re-reading from scratch would be sitting on its Unlimited default at this instant, which is
+    // a positive claim about the user's configuration made from no data.
+    await r.ok('reopening shows the stored caps with no Unlimited flash', async () => {
+      await A.click({ name: 'Back' })
+      await A.waitText('Manage your experience', 8000)
+      await A.click({ name: 'Network' })
+      if ((await A.nodeValue({ name: 'Download limit: Unlimited' })) === '1') {
+        throw new Error('the caps flashed back to Unlimited before the cached value painted')
+      }
+      await A.waitText('Transfer limits', 8000)
+      await A.shot('s105-cached-reopen', runDir)
+    })
   } catch {}
   return { pass: r.summary(), instances: [A] }
 }

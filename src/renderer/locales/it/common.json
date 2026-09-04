@@ -149,7 +149,8 @@
     "readOnlyWarning": "Sola lettura. I file modificati qui verranno ripristinati alla versione di {{owner}} alla prossima sincronizzazione.",
     "next": "Avanti: anteprima",
     "create": "Avvia la replica",
-    "creating": "Avvio in corso…"
+    "creating": "Avvio in corso…",
+    "infoUnavailable": "Impossibile leggere il contenuto di questa cartella dal proprietario."
   },
   "deleteFolder": {
     "title": "Eliminare «{{name}}»?",
@@ -722,6 +723,9 @@
     "title": "Rete",
     "intro": "Limiti di caricamento e download.",
     "transferLimits": "Limiti di trasferimento",
+    "limitsLoading": "Caricamento dei limiti di trasferimento…",
+    "limitsUnavailable": "Impossibile leggere i tuoi limiti di trasferimento.",
+    "limitSaveFailed": "Impossibile salvare questo limite. Resta attivo quello precedente.",
     "download": "Download",
     "upload": "Caricamento",
     "unlimited": "Nessun limite",

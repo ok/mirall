@@ -21,6 +21,14 @@ export default async function s15 ({ runDir, bootstrap }) {
       await waitFor(async () => (await A.nodeValue({ name: 'Spacious' })) === '1', 8000, 'Spacious pressed')
       await A.shot('s15-zoom', runDir)
     })
+    // The factor is one app-wide fact, so leaving the screen and coming back must not repaint it
+    // at the 100% default while a fresh read is in flight.
+    await r.ok('the chosen zoom is still shown after leaving and returning', async () => {
+      await A.click({ name: 'Back' })
+      await A.waitText('Manage your experience', 8000)
+      await A.click({ name: 'Appearance' })
+      await waitFor(async () => (await A.nodeValue({ name: 'Spacious' })) === '1', 8000, 'still Spacious')
+    })
     await r.ok('switching language re-renders the UI, then switches back', async () => {
       await A.click({ name: 'Deutsch' })
       await A.waitText('Darstellung', 8000)

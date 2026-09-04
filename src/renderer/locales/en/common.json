@@ -173,7 +173,8 @@
     "readOnlyWarning": "Read-only. Files you edit here will be reverted to {{owner}}'s version on the next sync.",
     "next": "Next: Preview",
     "create": "Start Mirroring",
-    "creating": "Starting…"
+    "creating": "Starting…",
+    "infoUnavailable": "Couldn't read this folder's contents from its owner."
   },
   "deleteFolder": {
     "title": "Delete “{{name}}”?",
@@ -746,6 +747,9 @@
     "title": "Network",
     "intro": "Limits for uploads and downloads.",
     "transferLimits": "Transfer limits",
+    "limitsLoading": "Loading transfer limits…",
+    "limitsUnavailable": "Couldn't read your transfer limits.",
+    "limitSaveFailed": "Couldn't save that limit. The previous one is still in use.",
     "download": "Download",
     "upload": "Upload",
     "unlimited": "Unlimited",

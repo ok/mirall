@@ -6,13 +6,14 @@ import { createRoot } from 'react-dom/client'
 import App from './app.js'
 import { request } from './ipc.js'
 import { configureQueryStore } from './store/query-store.js'
-import { configurePrefsStore } from './store/prefs-store.js'
+import { configureMainStore, installMainPushBridge } from './store/main-store.js'
 import { installReconcileBridge } from './store/reconcile.js'
 
-// Before the first render: the store's transport, and the single reconcile subscription every
-// store-backed view re-derives from.
+// Before the first render: both stores' transports, the single reconcile subscription every
+// worker-backed view re-derives from, and the one subscription per pushing main fact.
 configureQueryStore({ request: (type, params, opts) => request(type, params, undefined, opts) })
-configurePrefsStore({ getPrefs: () => window.bridge.getPrefs(), setPrefs: (patch) => window.bridge.setPrefs(patch) })
+configureMainStore(window.bridge)
+installMainPushBridge()
 installReconcileBridge()
 
 if (__DEV__ && window.bridge?.isDev?.()) {

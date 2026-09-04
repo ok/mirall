@@ -1,6 +1,6 @@
 // Two-step wizard for mirroring a peer's shared folder to a local path: pick and
 // validate the destination, then confirm via the scan preview.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
@@ -16,7 +16,8 @@ import type { MountValidationResult, SpaceMember } from '../../types.js'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 import { formatSize } from '../../utils.js'
 import { useToast } from '../toast/useToast.js'
-import { request } from '../../ipc.js'
+import { useQuery } from '../../store/useQuery.js'
+import { Scope } from '../../scope.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface MirrorFolderModalProps {
@@ -46,7 +47,6 @@ export default function MirrorFolderModal({
   const toast = useToast()
   const errorText = useErrorText()
   const [mountPath, setMountPath] = useState('')
-  const [info, setInfo] = useState<FolderInfo | null>(null)
   const [validation, setValidation] = useState<MountValidationResult | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [step, setStep] = useState<Step>('edit')
@@ -54,6 +54,19 @@ export default function MirrorFolderModal({
   const { preview, progress: previewProgress, loading: previewLoading, run: runPreview, cancel: cancelPreview, reset: resetPreview } = usePreviewFlow(cancelForeignPreview)
   const ownerName = owner?.displayName ?? '?'
 
+  // The folder's file count and byte total change when the owner's catalog does, which is exactly
+  // what the share-files scope announces. This modal is unmounted on close and the read resolves a
+  // PEER's catalog over the network, so the shared copy is what lets a reopen paint the totals it
+  // already has instead of starting from the placeholder again.
+  const infoScopes = useMemo(() => [Scope.shareFiles(share.spaceId, share.id)], [share.spaceId, share.id])
+  const { data: info, error: infoError } = useQuery<FolderInfo>(
+    'share:folder-info',
+    { spaceId: share.spaceId, ownerKey: share.owner, shareId: share.id },
+    infoScopes,
+    { enabled: isOpen },
+  )
+
+  // Form state only: it is genuinely per-open, unlike the folder info above.
   useEffect(() => {
     if (!isOpen) return
     setMountPath('')
@@ -61,14 +74,12 @@ export default function MirrorFolderModal({
     setValidationError(null)
     setStep('edit')
     resetPreview()
-    setInfo(null)
-    let cancelled = false
-    request('share:folder-info', { spaceId: share.spaceId, ownerKey: share.owner, shareId: share.id })
-      .then((data) => { if (!cancelled) setInfo(data as FolderInfo) })
-      .catch(() => { if (!cancelled) setInfo({ fileCount: 0, totalBytes: 0, blobsLength: null }) })
-    return () => { cancelled = true; cancelPreview() }
+    return () => { cancelPreview() }
   }, [isOpen, share.id, share.owner, share.spaceId])
 
+  // Deliberately NOT on the query store — the twin of AddFolderShareModal's owned-mount probe.
+  // This is a point-in-time filesystem check of a path the user is still editing: a cached verdict
+  // would answer for a path they have since changed. The cancel flag stays.
   useEffect(() => {
     if (!isOpen || !mountPath) return
     let cancelled = false
@@ -148,6 +159,7 @@ export default function MirrorFolderModal({
       owner={owner}
       ownerName={ownerName}
       info={info}
+      infoError={infoError}
       mountPath={mountPath}
       validationError={validationError}
       canProceed={canProceed}
@@ -164,7 +176,8 @@ interface MirrorEditStepProps {
   share: ShareWithRole
   owner: SpaceMember | null
   ownerName: string
-  info: FolderInfo | null
+  info: FolderInfo | undefined
+  infoError: Error | null
   mountPath: string
   validationError: string | null
   canProceed: boolean
@@ -174,7 +187,7 @@ interface MirrorEditStepProps {
   onClose: () => void
 }
 
-function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, validationError, canProceed, previewLoading, onBrowse, onNext, onClose }: MirrorEditStepProps) {
+function MirrorEditStep({ isOpen, share, owner, ownerName, info, infoError, mountPath, validationError, canProceed, previewLoading, onBrowse, onNext, onClose }: MirrorEditStepProps) {
   const { t } = useTranslation()
   return (
     <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('mirrorFolder.title', { name: share.name })}>
@@ -198,13 +211,19 @@ function MirrorEditStep({ isOpen, share, owner, ownerName, info, mountPath, vali
           <OwnerChip owner={owner} />
           <div className="min-w-0">
             <p className="font-bold text-accent text-sm truncate">{share.name}</p>
-            <p className="text-xs text-on-surface-variant">
-              {t('mirrorFolder.ownerLine', {
-                count: info?.fileCount ?? 0,
-                size: info ? formatSize(info.totalBytes) : '—',
-                owner: ownerName,
-              })}
-            </p>
+            {/* A failed read is said, not filled in: rendering the fallback totals would put a
+                fabricated measurement of the folder in front of the person about to mirror it. */}
+            {infoError ? (
+              <p role="alert" className="text-xs text-error">{t('mirrorFolder.infoUnavailable')}</p>
+            ) : (
+              <p className="text-xs text-on-surface-variant">
+                {t('mirrorFolder.ownerLine', {
+                  count: info?.fileCount ?? 0,
+                  size: info ? formatSize(info.totalBytes) : '—',
+                  owner: ownerName,
+                })}
+              </p>
+            )}
           </div>
         </div>
 

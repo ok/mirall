@@ -1,10 +1,11 @@
 // Storage settings: download-folder picker and the app-storage usage breakdown.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
 import { formatSize } from '../utils.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
+import { useMainQuery } from '../store/useMainQuery.js'
 import { useDownloadRootStatus } from '../hooks/useDownloadRootStatus.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import FilePath from '../components/widgets/FilePath.js'
@@ -78,9 +79,6 @@ function samePath(a: string, b: string) {
 export default function StorageSettings({ onBack }: StorageSettingsProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
-  // null until the read lands: the field says it is loading rather than offering a first pick
-  // for a folder that always exists.
-  const [downloadFolder, setDownloadFolder] = useState<string | null>(null)
   const [folderError, setFolderError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
@@ -91,21 +89,14 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   // in bursts, and this read walks the store.
   const { data: info, loading } = useQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
 
-  const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
+  const { data: folderData, error: folderReadError, write: writeDownloadFolder } = useMainQuery('main:download-folder')
+  // null until the read lands: the field says it is loading rather than offering a first pick for
+  // a folder that always exists. A read that FAILED is a known-empty folder instead, so the row
+  // drops out of the loading state and offers the pick that would fix it.
+  const downloadFolder = folderData ?? (folderReadError ? '' : null)
+  const shownError = folderError ?? (folderReadError ? errorText(folderReadError) : null)
 
-  useEffect(() => {
-    let cancelled = false
-    window.bridge.getDownloadFolder()
-      .then((folder) => { if (!cancelled) setDownloadFolder(folder) })
-      // Swallowed, this left the row claiming to be loading for the rest of the session. Say it,
-      // and drop out of the loading state so the row offers the pick that would fix it.
-      .catch((err) => {
-        if (cancelled) return
-        setDownloadFolder('')
-        setFolderError(errorText(err))
-      })
-    return () => { cancelled = true }
-  }, [])
+  const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
 
   const handleBrowseFolder = useCallback(async () => {
     setFolderError(null)
@@ -116,14 +107,16 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       // root must not overlap. Persisting in main first would leave a rejected folder in the
       // config, and the next launch would spawn the worker on it with nothing left to check it.
       await request('settings:set-download-folder', { folder: picked })
-      setDownloadFolder(await window.bridge.setDownloadFolder(picked))
+      // Through the store, not into local state: the Edit Space modal reads the same fact for its
+      // global-default fallback and would otherwise keep a copy that disagrees until it remounts.
+      await writeDownloadFolder(picked)
       // The picker only accepts a folder that validated, so the warning below is stale the
       // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
       await refreshRootStatus()
     } catch (err) {
       setFolderError(errorText(err))
     }
-  }, [refreshRootStatus, errorText])
+  }, [refreshRootStatus, errorText, writeDownloadFolder])
 
   // This screen shows the GLOBAL root; `unavailableRoots` also carries per-space overrides, so
   // match rather than test for a non-empty list. The two strings reach us by different routes —
@@ -169,8 +162,8 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
               {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
                   new one was refused. Order matters for a screen reader: the rejection is what
                   just happened and what the user can act on, so it is announced first. */}
-              {folderError && (
-                <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: folderError })}</p>
+              {shownError && (
+                <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: shownError })}</p>
               )}
               {folderUnavailable && (
                 <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderUnavailable')}</p>

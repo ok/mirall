@@ -10,7 +10,7 @@ import type { AppPrefs } from '../global.js'
 // screen onto the store would add a prefs round-trip on every Mac.
 export function usePrefs(opts: { enabled?: boolean } = {}): {
   prefs: AppPrefs | null
-  update: (patch: Partial<AppPrefs>) => Promise<void>
+  update: (patch: Partial<AppPrefs>) => Promise<AppPrefs>
 } {
   const enabled = opts.enabled !== false
   const subscribe = useCallback((notify: () => void) => {

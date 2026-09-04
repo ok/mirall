@@ -9,6 +9,7 @@ import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import RelaySettingsSection from '../components/settings/RelaySettingsSection.js'
 import { isRelayFeatureEnabled } from '../config-client.js'
+import { useMainQuery } from '../store/useMainQuery.js'
 import type { BandwidthLimits } from '../global.js'
 
 interface NetworkSettingsProps {
@@ -155,48 +156,49 @@ function LimitRow({
 export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  const [limits, setLimits] = useState<BandwidthLimits>({ downloadKBps: 0, uploadKBps: 0 })
+  // 0 is a MEANINGFUL cap here (Unlimited), so there is no safe default to render before the read
+  // lands: a placeholder would be a positive claim about the user's configuration made from no
+  // data. undefined until settled, and the section shows its loading line instead.
+  const { data: limits, error: readError, write: writeBandwidth } = useMainQuery('main:bandwidth')
   // Which rows show the number input. Derived from the stored value on load, then owned by
-  // the user: picking Custom must not discard the cap they already have.
+  // the user: picking Custom must not discard the cap they already have — so it seeds once, off
+  // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
+  const seeded = useRef(false)
 
   useEffect(() => {
-    let cancelled = false
-    window.bridge.getBandwidth()
-      .then((stored) => {
-        if (cancelled) return
-        setLimits(stored)
-        setCustom({
-          download: !PRESET_KBPS.includes(stored.downloadKBps),
-          upload: !PRESET_KBPS.includes(stored.uploadKBps),
-        })
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
+    if (seeded.current || !limits) return
+    seeded.current = true
+    setCustom({
+      download: !PRESET_KBPS.includes(limits.downloadKBps),
+      upload: !PRESET_KBPS.includes(limits.uploadKBps),
+    })
+  }, [limits])
 
   const apply = useCallback(async (next: BandwidthLimits) => {
-    setLimits(next)
     try {
-      const persisted = await window.bridge.setBandwidth(next)
+      // The store publishes `next` optimistically, replaces it with what main actually stored
+      // (main clamps a below-floor value), and restores the previous cap if the write fails — so
+      // the screen cannot end up showing a cap that was never persisted.
+      const persisted = await writeBandwidth(next)
       await request('settings:set-bandwidth', { ...persisted })
     } catch {
-      // A failed write leaves the worker on its previous cap; the next change retries.
+      // The store has already rolled the displayed value back; the worker keeps its previous cap.
     }
-  }, [])
+  }, [writeBandwidth])
 
-  const rowProps = (direction: Direction) => {
+  const rowProps = (direction: Direction, current: BandwidthLimits) => {
     const key = direction === 'download' ? 'downloadKBps' : 'uploadKBps'
     return {
       direction,
-      kbps: limits[key],
+      kbps: current[key],
       custom: custom[direction],
       onPreset: (next: number) => {
         setCustom((prev) => ({ ...prev, [direction]: false }))
-        apply({ ...limits, [key]: next })
+        apply({ ...current, [key]: next })
       },
       onCustom: () => setCustom((prev) => ({ ...prev, [direction]: true })),
-      onValue: (next: number) => apply({ ...limits, [key]: next }),
+      onValue: (next: number) => apply({ ...current, [key]: next }),
     }
   }
 
@@ -212,8 +214,22 @@ export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
           <section>
             <SectionHeading>{t('networkSettings.transferLimits')}</SectionHeading>
             <div className="bg-surface-container-low rounded-xl p-6 space-y-6">
-              <LimitRow {...rowProps('download')} />
-              <LimitRow {...rowProps('upload')} />
+              {/* A known cap keeps its controls even when the last write failed — the alert says
+                  what went wrong beside them. Only having NO value at all replaces the rows, and
+                  then never with 0: 0 means Unlimited, so it cannot stand in for "not known". */}
+              {limits ? (
+                <>
+                  <LimitRow {...rowProps('download', limits)} />
+                  <LimitRow {...rowProps('upload', limits)} />
+                  {readError && (
+                    <p role="alert" className="text-sm text-error">{t('networkSettings.limitSaveFailed')}</p>
+                  )}
+                </>
+              ) : readError ? (
+                <p role="alert" className="text-sm text-error">{t('networkSettings.limitsUnavailable')}</p>
+              ) : (
+                <p role="status" className="text-sm text-on-surface-variant">{t('networkSettings.limitsLoading')}</p>
+              )}
               <p className="text-sm text-on-surface-variant leading-relaxed pt-1">
                 {t('networkSettings.scopeNote')}
               </p>

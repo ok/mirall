@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { request, subscribe } from '../ipc.js'
 import { Scope, scopeMatches } from '../scope.js'
+import { useQuery } from '../store/useQuery.js'
 import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types.js'
 import { useErrorText } from './useErrorText.js'
 
@@ -95,26 +96,20 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
   return { entries, loading, loadingMore, error, hasMore: cursor !== null, loadMore, reload }
 }
 
-export function useAuditFacets(refreshKey: number) {
-  const [spaces, setSpaces] = useState<AuditSpaceRef[]>([])
-  const [actors, setActors] = useState<AuditActorRef[]>([])
+// Both come from the LOG, not from spaces:list — a space the user has left keeps its rows and must
+// stay filterable, but its record is gone.
+//
+// Two entries rather than one Promise.all: they re-derive on the same hint but are separately
+// cacheable, and a failure in one no longer blanks the other. Module constants for the empty case,
+// because a fresh [] per render would break memo identity in the filter bar.
+const AUDIT_SCOPES = [Scope.audit()]
+const NO_SPACES: AuditSpaceRef[] = []
+const NO_ACTORS: AuditActorRef[] = []
 
-  useEffect(() => {
-    let cancelled = false
-    // Both come from the LOG, not from spaces:list — a space the user has left keeps its rows
-    // and must stay filterable, but its record is gone.
-    void Promise.all([
-      request('audit:spaces') as Promise<AuditSpaceRef[]>,
-      request('audit:actors') as Promise<AuditActorRef[]>,
-    ]).then(([s, a]) => {
-      if (cancelled) return
-      setSpaces(s)
-      setActors(a)
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [refreshKey])
-
-  return { spaces, actors }
+export function useAuditFacets() {
+  const { data: spaces } = useQuery<AuditSpaceRef[]>('audit:spaces', {}, AUDIT_SCOPES)
+  const { data: actors } = useQuery<AuditActorRef[]>('audit:actors', {}, AUDIT_SCOPES)
+  return { spaces: spaces ?? NO_SPACES, actors: actors ?? NO_ACTORS }
 }
 
 export const AUDIT_CATEGORIES: AuditCategory[] = ['members', 'files', 'folders', 'security', 'network']

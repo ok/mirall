@@ -22,6 +22,8 @@ export default async function s107 ({ runDir, bootstrap }) {
   mkdirSync(spaceDl, { recursive: true })
   const otherDl = workDir('other-dl-')
   mkdirSync(otherDl, { recursive: true })
+  const globalDl = workDir('global-dl-')
+  mkdirSync(globalDl, { recursive: true })
 
   const pause = (ms) => new Promise((res) => setTimeout(res, ms))
 
@@ -147,6 +149,31 @@ export default async function s107 ({ runDir, bootstrap }) {
       assert(!existsSync(path.join(spaceDl, 'notes (1).txt')), 'restored from the surviving claim, not re-fetched')
       assert(!existsSync(path.join(otherDl, 'notes.txt')), 'and nothing was fetched into the folder we passed through')
       await B.shot('s107-B-restored', runDir)
+    })
+
+    // One fact, two screens: the global default the Storage screen writes is the default the
+    // space modal falls back to. They read the same shared copy, so the modal shows the new
+    // folder without a read of its own.
+    await r.ok('a download folder changed in Settings is the default the space modal shows', async () => {
+      // The step above ends inside FolderView; the header menu this needs lives in the space view.
+      await B.click({ name: 'Back' })
+      await B.waitText('Archive', 20000)
+      await openEditModal()
+      await B.click({ name: 'Use default folder' })
+      await pause(300)
+      await saveModal()
+
+      await B.openManageStorage()
+      await B.nativeChoosePath(globalDl, { trigger: () => B.click({ role: 'button', name: 'Change' }) })
+      await waitFor(async () => B.hasText(globalDl), 20000, 'the Storage screen shows the new global folder')
+      await B.click({ name: 'Back' })
+      await B.waitText('Archive', 20000)
+
+      await openEditModal()
+      assert(await B.hasText('Using the default download folder.'), 'the space is still on the default')
+      assert(await B.hasText(globalDl), 'and the default it shows is the one just written')
+      await B.shot('s107-shared-default', runDir)
+      await closeModal()
     })
   } catch {}
   return { pass: r.summary(), instances: [A, B] }

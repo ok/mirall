@@ -149,7 +149,8 @@
     "readOnlyWarning": "Solo lectura. Los archivos que edites aquí se revertirán a la versión de {{owner}} en la próxima sincronización.",
     "next": "Siguiente: vista previa",
     "create": "Empezar a replicar",
-    "creating": "Empezando…"
+    "creating": "Empezando…",
+    "infoUnavailable": "No se pudo leer el contenido de esta carpeta desde su propietario."
   },
   "deleteFolder": {
     "title": "¿Eliminar «{{name}}»?",
@@ -722,6 +723,9 @@
     "title": "Red",
     "intro": "Límites de subida y bajada.",
     "transferLimits": "Límites de transferencia",
+    "limitsLoading": "Cargando los límites de transferencia…",
+    "limitsUnavailable": "No se pudieron leer tus límites de transferencia.",
+    "limitSaveFailed": "No se pudo guardar ese límite. Se sigue aplicando el anterior.",
     "download": "Descarga",
     "upload": "Subida",
     "unlimited": "Sin límite",

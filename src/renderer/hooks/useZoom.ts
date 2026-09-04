@@ -1,5 +1,6 @@
-// UI zoom presets plus a hook syncing the persisted zoom factor with main (getZoom/onZoomChanged/setZoom).
-import { useEffect, useState } from 'react'
+// UI zoom presets plus a hook reading the persisted zoom factor from the main store.
+import { useCallback } from 'react'
+import { useMainQuery } from '../store/useMainQuery.js'
 
 export interface ZoomLevel {
   key: 'compact' | 'cozy' | 'default' | 'spacious'
@@ -21,26 +22,12 @@ export function isSameZoom(a: number, b: number): boolean {
 }
 
 export function useZoom(): { zoom: number; setZoom: (factor: number) => Promise<void> } {
-  const [zoom, setZoomState] = useState(1.0)
-
-  useEffect(() => {
-    let cancelled = false
-    window.bridge.getZoom().then((factor) => {
-      if (!cancelled) setZoomState(factor)
-    })
-    const unsub = window.bridge.onZoomChanged((factor) => {
-      if (!cancelled) setZoomState(factor)
-    })
-    return () => {
-      cancelled = true
-      unsub()
-    }
-  }, [])
-
-  async function setZoom(factor: number): Promise<void> {
-    const applied = await window.bridge.setZoom(factor)
-    setZoomState(applied)
-  }
-
+  // The store carries main's onZoomChanged push, so a factor changed from the menu or a shortcut
+  // lands here without this hook holding a subscription of its own.
+  const { data, write } = useMainQuery('main:zoom')
+  // 1.0 is the app's zoom identity and the factor is applied to the window by main, so a
+  // pre-settle render at 1.0 is correct rather than a placeholder.
+  const zoom = data ?? 1.0
+  const setZoom = useCallback(async (factor: number) => { await write(factor) }, [write])
   return { zoom, setZoom }
 }

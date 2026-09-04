@@ -1,7 +1,8 @@
 import test from 'brittle'
 import {
-  configurePrefsStore, loadPrefs, peekPrefs, subscribePrefs, writePrefs, resetPrefsStore,
+  loadPrefs, peekPrefs, subscribePrefs, writePrefs, resetPrefsStore,
 } from '../../src/renderer/store/prefs-store.js'
+import { configureMainStore } from '../../src/renderer/store/main-store.js'
 
 // A bridge that records every call and lets a test settle each one by hand, so the dedup is
 // asserted structurally rather than by timing — same shape as query-store.test.js's transport.
@@ -23,7 +24,7 @@ const LOADED = { minimizeToTray: true, openAtLogin: false, showMenuBar: true }
 function setup (t) {
   resetPrefsStore()
   const bridge = fakeBridge()
-  configurePrefsStore(bridge)
+  configureMainStore(bridge)
   t.teardown(() => resetPrefsStore())
   return bridge
 }
@@ -86,7 +87,9 @@ test('a write is optimistic, then authoritative', async (t) => {
   await writePrefs({ openAtLogin: true })
   // The optimistic publish paints before the round-trip; the authoritative one confirms it.
   t.alike(seen, [false, true, true], 'load, optimistic, authoritative')
-  t.alike(bridge.setCalls, [{ openAtLogin: true }], 'the patch went to main once')
+  // The MERGED record, not the bare patch: prefs-store folds the patch into the cached value
+  // before handing it to the store, whose write contract is a replace.
+  t.alike(bridge.setCalls, [{ ...LOADED, openAtLogin: true }], 'one write, carrying every pref')
 })
 
 // The React 19 contract for useSyncExternalStore: getSnapshot is compared by identity, so a
@@ -119,7 +122,7 @@ test('unsubscribing the last consumer does not clear the cache', async (t) => {
 test('a failed load leaves the store cold and retryable', async (t) => {
   resetPrefsStore()
   let attempts = 0
-  configurePrefsStore({
+  configureMainStore({
     getPrefs: () => { attempts++; return attempts === 1 ? Promise.reject(new Error('main is not up')) : Promise.resolve(LOADED) },
     setPrefs: (patch) => Promise.resolve({ ...LOADED, ...patch }),
   })
@@ -128,4 +131,22 @@ test('a failed load leaves the store cold and retryable', async (t) => {
   await t.exception(loadPrefs(), 'the rejection reaches the caller')
   t.is(peekPrefs(), null, 'nothing cached')
   t.alike(await loadPrefs(), LOADED, 'a later mount retries rather than being stuck on the dead promise')
+})
+
+test('peekPrefs returns null, not undefined, before the first load', (t) => {
+  setup(t)
+  // usePrefs types prefs as AppPrefs | null and AppearanceSettings branches on it, so undefined
+  // would quietly change the contract of both.
+  t.is(peekPrefs(), null, 'null, not undefined')
+})
+
+test('writePrefs merges a patch rather than replacing the record', async (t) => {
+  const bridge = setup(t)
+  const load = loadPrefs()
+  bridge.settleGet(0, LOADED)
+  await load
+
+  await writePrefs({ openAtLogin: true })
+  t.alike(bridge.setCalls, [{ ...LOADED, openAtLogin: true }], 'the untouched prefs went along')
+  t.alike(peekPrefs(), { ...LOADED, openAtLogin: true }, 'and none of them were dropped')
 })

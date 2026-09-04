@@ -120,7 +120,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
   // the user has since changed. Clear all resets to EMPTY_FILTERS, not to the preset.
   const [filters, setFilters] = useState<AuditFilters>(() => ({ ...EMPTY_FILTERS, ...initialFilters }))
   const searchRef = useRef<HTMLInputElement>(null)
-  const { spaces, actors } = useAuditFacets(0)
+  const { spaces, actors } = useAuditFacets()
 
   // A term typed in the viewer's own language is matched against the TRANSLATED kind labels and
   // sent as a `kinds` filter. The stored search blob holds proper nouns only, so without this a
