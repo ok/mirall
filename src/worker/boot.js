@@ -15,9 +15,7 @@ import { getPeerPresenceDwellMs, isSharePrepareProgressEnabled, getRelayConfig }
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intent-store.js'
 import { createIntentLog } from '../shared/core/intents.js'
-import { deleteOwnedMount } from '../shared/folders/mount-store.js'
-import { tombstoneShare } from '../shared/shares/shares.js'
-import { unmountForeignFolder } from '../shared/folders/foreign-folders.js'
+import { registerFolderIntents } from '../shared/folders/folder-intents.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../shared/core/unlock-providers.js'
@@ -238,13 +236,7 @@ export async function boot(bootstrap, {
     // departures and drops mount records, and a join racing that would re-arm a watcher or a
     // mirror against a space this pass is about to forget.
     const intents = createIntentLog({ bee: getIntentsBee, log })
-    intents.register('owned-delete', async ({ spaceId, shareId }) => {
-      await deleteOwnedMount(spaceId, shareId)
-      await tombstoneShare(spaceId, shareId)
-    })
-    intents.register('foreign-unmount', async ({ spaceId, shareId }) => {
-      await unmountForeignFolder(spaceId, shareId)
-    })
+    registerFolderIntents(intents)
 
     const knownSpaces = await listSpaces()
     await resumeInterruptedLeaves(knownSpaces, log)

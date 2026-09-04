@@ -110,25 +110,19 @@ export function cancelOwnedPreview(previewId: string): void {
   void request('owned-folder:cancel-preview', { previewId }).catch(() => undefined)
 }
 
-export async function createOwnedMount(spaceId: string, shareId: string, mountPath: string, ignore?: string[]) {
-  return (await request('owned-folder:mount', { spaceId, shareId, mountPath, ignore })) as {
-    mount: OwnedFolderMount
-    advisories: { code: string; message: string }[]
-  }
-}
-
+// One worker command, not two IPCs with a compensating delete between them. The compensation used
+// to live here, and a renderer reload or an app quit between the two calls skipped it entirely —
+// leaving a folder advertised to every peer with nothing behind it. The worker now owns both writes
+// and records a durable intent across them, so the next boot finishes what a crash interrupted.
 export async function createShareThenMount(
   spaceId: string,
   name: string,
   mountPath: string,
   ignore?: string[],
 ) {
-  const share = (await request('share:create', { spaceId, name })) as Share
-  try {
-    const result = await createOwnedMount(spaceId, share.id, mountPath, ignore)
-    return { share, ...result }
-  } catch (err) {
-    await request('share:delete', { spaceId, shareId: share.id }).catch(() => undefined)
-    throw err
+  return (await request('share:create-and-mount', { spaceId, name, mountPath, ignore })) as {
+    share: Share
+    mount: OwnedFolderMount
+    advisories: { code: string; message: string }[]
   }
 }

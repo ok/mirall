@@ -64,6 +64,7 @@ export type RequestName =
   | 'settings:set-bandwidth'
   | 'settings:set-download-folder'
   | 'share:create'
+  | 'share:create-and-mount'
   | 'share:delete'
   | 'share:rename'
   | 'share:discard-partial'
