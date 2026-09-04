@@ -87,9 +87,9 @@ test('a write is optimistic, then authoritative', async (t) => {
   await writePrefs({ openAtLogin: true })
   // The optimistic publish paints before the round-trip; the authoritative one confirms it.
   t.alike(seen, [false, true, true], 'load, optimistic, authoritative')
-  // The MERGED record, not the bare patch: prefs-store folds the patch into the cached value
-  // before handing it to the store, whose write contract is a replace.
-  t.alike(bridge.setCalls, [{ ...LOADED, openAtLogin: true }], 'one write, carrying every pref')
+  // The bare PATCH goes over the wire — main owns the merge, because it owns prefs it writes
+  // itself and we would otherwise send a stale copy of them back.
+  t.alike(bridge.setCalls, [{ openAtLogin: true }], 'one write, naming only what changed')
 })
 
 // The React 19 contract for useSyncExternalStore: getSnapshot is compared by identity, so a
@@ -140,13 +140,36 @@ test('peekPrefs returns null, not undefined, before the first load', (t) => {
   t.is(peekPrefs(), null, 'null, not undefined')
 })
 
-test('writePrefs merges a patch rather than replacing the record', async (t) => {
+test('writePrefs shows the merge but sends only the patch', async (t) => {
   const bridge = setup(t)
   const load = loadPrefs()
   bridge.settleGet(0, LOADED)
   await load
 
   await writePrefs({ openAtLogin: true })
-  t.alike(bridge.setCalls, [{ ...LOADED, openAtLogin: true }], 'the untouched prefs went along')
-  t.alike(peekPrefs(), { ...LOADED, openAtLogin: true }, 'and none of them were dropped')
+  t.alike(bridge.setCalls, [{ openAtLogin: true }], 'main is sent the bare patch — it owns the merge')
+  t.alike(peekPrefs(), { ...LOADED, openAtLogin: true }, 'while the screen keeps every pref it showed')
+})
+
+// REGRESSION (FIX-PREFS-CLOBBER: writePrefs sent the renderer's MERGED record. `main:prefs` has no
+// push channel and main flips firstHideNoticeShown itself when it first hides to the tray, so the
+// renderer's cached copy still read false — and the next unrelated toggle wrote that false back
+// over main's true, firing the tray notice a second time.)
+test('REGRESSION (FIX-PREFS-CLOBBER): a write never clobbers a pref main owns', async (t) => {
+  const bridge = setup(t)
+  const load = loadPrefs()
+  // What the renderer read at boot: the notice had not been shown yet.
+  bridge.settleGet(0, { ...LOADED, firstHideNoticeShown: false })
+  await load
+
+  // Main hid to the tray meanwhile and flipped the flag on its own copy. Nothing pushed it here.
+  bridge.setPrefs = (patch) => {
+    t.absent('firstHideNoticeShown' in patch, 'the patch does not name a pref the user did not touch')
+    return Promise.resolve({ ...LOADED, firstHideNoticeShown: true, ...patch })
+  }
+
+  const persisted = await writePrefs({ openAtLogin: true })
+  t.is(persisted.firstHideNoticeShown, true, "main's value survived the write")
+  t.is(peekPrefs().firstHideNoticeShown, true, 'and the cache took main\'s record as authoritative')
+  t.is(peekPrefs().openAtLogin, true, 'while still carrying the change the user made')
 })

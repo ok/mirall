@@ -54,11 +54,16 @@ export default function MirrorFolderModal({
   const { preview, progress: previewProgress, loading: previewLoading, run: runPreview, cancel: cancelPreview, reset: resetPreview } = usePreviewFlow(cancelForeignPreview)
   const ownerName = owner?.displayName ?? '?'
 
-  // The folder's file count and byte total change when the owner's catalog does, which is exactly
-  // what the share-files scope announces. This modal is unmounted on close and the read resolves a
-  // PEER's catalog over the network, so the shared copy is what lets a reopen paint the totals it
-  // already has instead of starting from the placeholder again.
-  const infoScopes = useMemo(() => [Scope.shareFiles(share.spaceId, share.id)], [share.spaceId, share.id])
+  // The folder's file count and byte total change when the owner's catalog does. Two scopes, the
+  // same pair useShareFiles lists: share-files carries our own changes to this share, but an
+  // append to a PEER's catalog — the only thing that moves these totals for a share we neither own
+  // nor mirror — surfaces as event:files-updated, i.e. the space-wide files scope
+  // (ensurePeerCatalogWatch). Pinning share-files alone left the cached totals frozen for the
+  // whole app session, where the pre-cache per-open fetch had refreshed them.
+  const infoScopes = useMemo(
+    () => [Scope.shareFiles(share.spaceId, share.id), Scope.files(share.spaceId)],
+    [share.spaceId, share.id],
+  )
   const { data: info, error: infoError } = useQuery<FolderInfo>(
     'share:folder-info',
     { spaceId: share.spaceId, ownerKey: share.owner, shareId: share.id },

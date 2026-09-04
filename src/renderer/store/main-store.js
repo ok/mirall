@@ -104,7 +104,11 @@ export function fetchMain (name) {
 // Optimistic, then authoritative, then rolled back — visible to every screen at once instead of
 // only the one that issued the write. The rollback is what keeps a failed write from leaving the
 // UI showing a value main never stored.
-export async function writeMain (name, value) {
+//
+// `payload` is what main is SENT when that differs from what the app should show meanwhile: prefs
+// send a bare patch (main merges it into the only authoritative copy) while displaying the merge.
+// It defaults to `value`, which is the case for every fact whose write is a whole-value replace.
+export async function writeMain (name, value, { payload = value } = {}) {
   const spec = specFor(name)
   const entry = entryFor(name)
   const previous = entry.data
@@ -116,15 +120,22 @@ export async function writeMain (name, value) {
   publish(entry)
 
   try {
-    const persisted = await spec.write(bridge, value)
+    const persisted = await spec.write(bridge, payload)
     entry.seq += 1
     entry.data = persisted
     publish(entry)
     return persisted
   } catch (err) {
+    // The rollback restores the last value the app actually read — but the error is deliberately
+    // NOT recorded on the entry. `error` means "there is no value to show, and here is why", which
+    // is how every consumer renders it (`readError`, `folderReadError`, `defaultError`); a write
+    // failure belongs to the caller, and writeMain throws it. Recording it here outlived the
+    // action: fetchMain answers a cached entry without clearing the error, so one failed write
+    // became a permanent banner on that screen AND an alert on every other screen sharing the
+    // entry. Consumers already handle their own write failures (NetworkSettings relies on this
+    // rollback; StorageSettings catches and shows its own message).
     entry.seq += 1
     entry.data = previous
-    entry.error = err
     publish(entry)
     throw err
   }
