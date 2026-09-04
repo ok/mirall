@@ -21,6 +21,7 @@ import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js
 import { republishDecision } from '../../supersede-decision.js'
 import { makeKeyedCoalescer } from '../../../state/coalesce.js'
 import { acquireFetchSlot, drainFetchSlots, fetchSlotStats } from './fetch-slots.js'
+import { fetchClaimedBy } from './fetch-claims.js'
 import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
@@ -413,6 +414,23 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     pausedHashes.supersede(transferId) // a fresh start (resume) supersedes any paused marker
     const existing = registry.get(transferId)
     if (existing) return { transferId, finalPath: existing.finalPath }
+
+    // A producer with no registry of its own — the mirror — may already be fetching this content.
+    // Attach to it rather than starting a second fetch: both write the same decoration key, so the
+    // user sees the bar that is already moving. Refusing outright would leave a click with no
+    // feedback at all. The row is still recorded, so the next reconcile re-drives this destination
+    // once the claim frees (the mirror writes into the mount, not the download folder).
+    const holder = fetchClaimedBy(transferId)
+    if (holder) {
+      await recordPending(job.spaceId, job.pendingKey, {
+        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerPublicKey,
+        finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
+        bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
+      })
+      log.debug('overlay download attached to an in-flight', holder, 'fetch:', job.relPath)
+      channel.emitUpdated(job.spaceId)
+      return { transferId, finalPath: job.finalPath }
+    }
 
     // Reserve the single-flight slot SYNCHRONOUSLY (before any await) so a duplicate
     // trigger can't start a second fetch that collides on the per-hash scheduler.

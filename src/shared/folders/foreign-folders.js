@@ -23,9 +23,10 @@ import { pathFromMount } from '../transfer/path-guard.js'
 import { faultFromError, statusForFaultCode, isAutoPauseStatus, STATUS_MOUNT_GONE } from './mount-fault.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
-import { overlayHashFile, setOverlayCatalogChangeHook, overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile, setOverlayCatalogChangeHook } from '../transfer/backends/overlay/overlay-backend.js'
 import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
 import { acquireFetchSlot, drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overlay/fetch-slots.js'
+import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/backends/overlay/fetch-claims.js'
 import { createPausedHolders } from '../transfer/backends/overlay/paused-holders.js'
 import { shareDecoKey } from '../transfer/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
@@ -341,11 +342,13 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     } catch (err) { log.debug('overlay hash skipped on disk:', err.message) }
   }
   if (!entry.contentHash) return 'missing'
-  // A manual download of the same file may already be in flight on the folder engine
-  // (mounted mid-download): fetching it here too would interleave two producers on one
-  // decoration key and duplicate the bytes — skip; the next tick lands it after the
-  // engine settles.
-  if (overlayHasTransfer(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))) return 'missing'
+  // A manual download of the same file may already be in flight (mounted mid-download): fetching it
+  // here too would interleave two producers on one decoration key and duplicate the bytes. A cheap
+  // early-out so we do not queue for a slot to do it; the claim taken past the gate decides. Another
+  // OWNER only — our own overlapping pass (a tick racing an adopted initial scan) is serialised by
+  // activeOverlayFetches, and refusing it here would change what FIX-R09-2 pins.
+  const claimedBy = fetchClaimedBy(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))
+  if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
   const streamKey = loopKey(mount.spaceId, mount.shareId)
   const releaseSlot = await acquireMirrorSlot(streamKey)
   try {
@@ -393,12 +396,17 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   // bytes; ticker.pushTo diffs them.
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
+  // Taken past the gate, not before it: holding it while queued would make the engine attach to a
+  // fetch that has not started. Whoever holds it owns the decoration key until they release.
+  const transferId = transferIdFor(mount.spaceId, mount.shareId, entry.relPath)
+  const releaseClaim = claimFetch(transferId, FETCH_OWNER_MIRROR)
+  if (!releaseClaim) return 'missing'
   let res
   let attempted = false
   let diag = null
   // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
-    activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath })
+    activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath, transferId })
     pausedHolders.supersede(streamKey)
     // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
     ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
@@ -424,14 +432,12 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)
-    // Every settle (done/miss/error/pause) re-derives the row off the now-cleared fetch slot
-    // and terminally clears the row's decoration — unless a manual download of the same file
-    // started on the folder engine meanwhile (it now owns the decoration key; clearing it here
-    // would blank its live bar).
+    releaseClaim()
+    // Every settle (done/miss/error/pause) re-derives the row off the now-cleared fetch slot and
+    // terminally clears the row's decoration. No probe: the claim above means no other producer
+    // could have taken the key while we held it, so the decoration is ours to clear.
     ipcRef?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
-    if (!overlayHasTransfer(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))) {
-      ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId: mount.spaceId, key: decoKey, done: true })
-    }
+    ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId: mount.spaceId, key: decoKey, done: true })
   }
   // null = nothing fetched: a stall after a holder was asked is a give-up (WARN);
   // never reaching a holder is a benign retry-next-tick (debug).
@@ -644,6 +650,10 @@ function cancelInflightFetch(key, discardPartial) {
   if (inflight) {
     try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial }) } catch {}
     activeOverlayFetches.delete(key)
+    // A cancelled pass may never settle at all — a wedged fetch is exactly what restartForeignLoop
+    // exists to recover — so the claim cannot wait for its finally, or the restart is refused by
+    // the dead claim of the pass it just gave up on.
+    dropFetchClaim(inflight.transferId)
     if (discardPartial) pausedHolders.supersede(key)
     else pausedHolders.remember(key, inflight.contentHash)
   } else if (discardPartial) {

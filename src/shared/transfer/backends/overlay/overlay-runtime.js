@@ -8,6 +8,7 @@ import { Subsystem } from '../../../core/subsystem.js'
 import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-config.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'
 import { resetFetchSlots, drainFetchSlots } from './fetch-slots.js'
+import { registerFetchOwner, resetFetchClaims } from './fetch-claims.js'
 import { drainTransferAudit } from '../../transfer-audit.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
@@ -53,6 +54,12 @@ export class OverlayBackend extends Subsystem {
     this.looseEngine = createOverlayDownloadEngine(looseChannel)
     setFolderEngine(this.folderEngine)
     setLooseEngine(this.looseEngine)
+    // Registered as probes, not copied: each engine's registry already has exactly the lifetime of
+    // its fetch. This is what lets the mirror ask "is ANYONE fetching this" instead of asking the
+    // folder engine alone, which is the wrong question for a loose row.
+    resetFetchClaims()
+    registerFetchOwner('folder', (transferId) => this.folderEngine.has(transferId))
+    registerFetchOwner('loose', (transferId) => this.looseEngine.has(transferId))
     if (isInPlaceFilesEnabled()) {
       rehydrateLooseFiles().catch((err) => this.log.debug('loose rehydrate failed:', err.message))
     }
@@ -85,6 +92,8 @@ export class OverlayBackend extends Subsystem {
     this.overlay = null
     setFolderEngine(null)
     setLooseEngine(null)
+    // Before the engines are dropped: the probes close over them.
+    resetFetchClaims()
     this.folderEngine = null
     this.looseEngine = null
     serveIndex.reset()
