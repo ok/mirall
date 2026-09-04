@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { preloadEntrypoints, entrypointFor } from '../../src/main/worker-entrypoints.js'
-import { WORKER_SPECS } from '../../src/shared/contract/workers.js'
+import { MAIN_WORKER_SPEC, WORKER_SPECS } from '../../src/shared/contract/workers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.join(here, '..', '..')
@@ -15,6 +15,9 @@ const REPO = path.join(here, '..', '..')
 // resolver doubles as the assertion.)
 test('REGRESSION (FIX-H5-1): a specifier outside the allowlist is refused instead of resolved', (t) => {
   const resolved = []
+  // `entrypoints` is module state shared with every other test in this process, and the injected
+  // resolver fills it with paths require.resolve never returned. Put the real ones back.
+  t.teardown(() => preloadEntrypoints(REPO))
   preloadEntrypoints(REPO, (p) => { resolved.push(p); return p })
   const afterPreload = resolved.length
 
@@ -36,6 +39,7 @@ test('REGRESSION (FIX-H5-2): main no longer resolves an arbitrary specifier', (t
 
 test('the allowlist is the contract WORKER_SPECS', (t) => {
   const resolved = []
+  t.teardown(() => preloadEntrypoints(REPO))
   preloadEntrypoints(REPO, (p) => { resolved.push(p); return p })
   t.alike(resolved, WORKER_SPECS.map((spec) => path.join(REPO, spec)))
 })
@@ -50,8 +54,15 @@ test('preload asks only for a declared specifier', (t) => {
   t.alike(specs.sort(), [...WORKER_SPECS].sort(), 'and it matches the contract')
 })
 
-test('the renderer names its worker through the contract', (t) => {
+// The renderer used to take WORKER_SPECS[0]. An allowlist is a set, so position means nothing:
+// adding a second entry ahead of the main worker would have repointed the renderer's entire IPC
+// channel with every gate still green. It names the worker now, and the contract derives the
+// allowlist from that name.
+test('the renderer names its worker through the contract, not by position', (t) => {
   const src = readFileSync(path.join(REPO, 'src', 'renderer', 'ipc.ts'), 'utf8')
-  t.ok(/const WORKER_SPEC = WORKER_SPECS\[0\]/.test(src), 'WORKER_SPEC derives from WORKER_SPECS')
-  t.absent(/'\/src\/worker\//.test(src), 'and no literal specifier is left behind')
+  t.ok(/const WORKER_SPEC = MAIN_WORKER_SPEC/.test(src), 'WORKER_SPEC is the named main worker')
+  t.absent(/WORKER_SPECS\s*\[/.test(src), 'and nothing indexes the allowlist')
+  // Any quote style: the old check only matched single quotes, so a double-quoted literal passed.
+  t.absent(/['"`]\/src\/worker\//.test(src), 'no literal specifier is left behind')
+  t.is(WORKER_SPECS[0], MAIN_WORKER_SPEC, 'the allowlist is derived from the name')
 })

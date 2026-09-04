@@ -1,9 +1,9 @@
 import type { RequestName } from '../shared/contract/requests.js'
 import { FRAME } from '../shared/contract/frames.js'
-import { WORKER_SPECS } from '../shared/contract/workers.js'
+import { MAIN_WORKER_SPEC } from '../shared/contract/workers.js'
 import { CODES } from '../shared/contract/errors.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
-const WORKER_SPEC = WORKER_SPECS[0]
+const WORKER_SPEC = MAIN_WORKER_SPEC
 
 const ECANCELLED = CODES.ECANCELLED
 
@@ -32,6 +32,11 @@ import { makeRespawnPolicy } from './workerRespawn.js'
 // no counterpart reset — its reader lives in the per-worker getWorker() closure and dies with the
 // worker, whereas this decoder is module-level and bound once for the app's lifetime.
 let decoder = new TextDecoder('utf-8')
+// The worker's stdout and stderr are the same class of stream and need the same treatment: decoded
+// per chunk, a log line split mid-character renders as U+FFFD on BOTH halves — in the console
+// artifact this bug class is diagnosed from. One decoder per stream, because they interleave.
+let stdoutDecoder = new TextDecoder('utf-8')
+let stderrDecoder = new TextDecoder('utf-8')
 const encoder = new TextEncoder()
 
 const pending = new Map<number, PendingRequest>()
@@ -136,8 +141,6 @@ function bindHandlers(): void {
   if (handlersBound) return
   handlersBound = true
 
-  const utf8 = new TextDecoder('utf-8')
-
   window.bridge.onWorkerIPC(WORKER_SPEC, (data) => {
     buffer += decoder.decode(data, { stream: true })
     const parts = buffer.split('\n')
@@ -146,11 +149,14 @@ function bindHandlers(): void {
   })
 
   window.bridge.onWorkerStdout(WORKER_SPEC, (data) => {
-    console.log('[worker stdout]', utf8.decode(data).trimEnd())
+    // Empty whenever a chunk ends mid-character — the decoder holds those bytes for the next one.
+    const text = stdoutDecoder.decode(data, { stream: true })
+    if (text) console.log('[worker stdout]', text.trimEnd())
   })
 
   window.bridge.onWorkerStderr(WORKER_SPEC, (data) => {
-    console.error('[worker stderr]', utf8.decode(data).trimEnd())
+    const text = stderrDecoder.decode(data, { stream: true })
+    if (text) console.error('[worker stderr]', text.trimEnd())
   })
 
   window.bridge.onWorkerExit(WORKER_SPEC, onWorkerExit)
@@ -166,6 +172,8 @@ function onWorkerExit(code: number): void {
   workerStarted = false
   buffer = '' // drop any half-frame left by the dead worker
   decoder = new TextDecoder('utf-8')
+  stdoutDecoder = new TextDecoder('utf-8')
+  stderrDecoder = new TextDecoder('utf-8')
   failAllPending('Worker exited with code ' + code)
   scheduleRespawn(code)
 }
