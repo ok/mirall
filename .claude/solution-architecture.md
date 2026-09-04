@@ -113,10 +113,11 @@ Three processes. **Main** owns lifecycle, the BrowserWindow, and all access to `
 10. **Asar spawn shim** — when the bundle is asar-packed (§13), `child_process.spawn` is monkey-patched to rewrite `app.asar/` → `app.asar.unpacked/` in both the executable path and argv. Without it `bare-sidecar`'s `spawn(bareBinary, [workerEntry, …])` ENOTDIRs, because `require.resolve()` returns asar paths and the OS can't walk into the archive. No-op outside packaged builds.
 11. **Custom protocol** — `app.setAsDefaultProtocolClient('mirall')` registers `mirall://` on macOS/Windows; `app.requestSingleInstanceLock()` makes repeat launches focus the running instance. Three paths funnel into `dispatchDeepLink()`: macOS `open-url`, Win/Linux `second-instance` (warm), and a direct argv scan at boot (cold-start URLs are positional, so paparam can't help). `parseDeepLink` (`src/main/deeplink.js`) validates and returns `{kind:'join', code, name?}`; main forwards on the `deeplink` channel, queueing in `pendingDeepLinks[]` until the renderer calls `deeplink:flush`. Linux AppImage installs additionally rewrite `~/.local/share/applications/Mirall.desktop` at launch (`integrateXdgLinux`) to declare the MimeType and an absolute `Exec=`, so xdg-mime can route URLs to a possibly-moved AppImage. §5.2.
 12. **Filesystem watchers** — `chokidar` lives in Electron main, never in the worker, because Bare has no native recursive watch.
-    - `src/main/owned-folder-watchers.js` — per-share recursive watchers. The worker asks main to `owned-folder:start-watcher` / `stop-watcher` (also exposed to the renderer via `bridge.startOwnedFolderWatcher`). `startWatcher(shareId, mountPath, ignore, …)` sets `ignoreInitial: true`, `awaitWriteFinish` (debounced), `followSymlinks: false`, and switches to polling for network-looking paths (`/Volumes/`, `/mnt/`, SMB/NFS). Each `add`/`change`/`unlink` is forwarded to the worker as `event:owned-folder-fs-event { shareId, action, relPath, absPath }`. An error-burst guard stops a watcher that throws ≥5 times in 10 s; `stopAllWatchers()` runs on `before-quit`.
-    - `src/main/loose-file-watchers.js` — watches individual absolute paths for in-place loose-file shares, fanning each event out to every space watching that path.
+    - `src/main/watch-host.js` — **the single owner of chokidar in this process**, which both watcher modules below sit on. chokidar's options are per-*instance*, not per-path, so `usePolling` cannot vary inside one watcher: a host therefore holds up to two instances — native, plus a lazily-created polling one — and routes each target by `looksLikeNetworkPath` (a UNC `\\…` prefix anywhere, `/Volumes/` on macOS, `/mnt/` or `/media/` on Linux). That routing is load-bearing: native filesystem events never reach a network mount, so a watch there emits **nothing at all** and the file silently stops re-publishing — no error, no badge, no log line. The host also owns the error-burst guard (a watcher throwing ≥5 times in 10 s is stopped, since an erroring watcher otherwise spins for the life of the process) and the shared option bag; only `atomic` and `ignored` vary per caller. It exists because those three lessons had been learned once on the owned side and never carried across, and the two option bags had drifted.
+    - `src/main/owned-folder-watchers.js` — per-share recursive roots over the host. The worker asks main to `owned-folder:start-watcher` / `stop-watcher` (also exposed to the renderer via `bridge.startOwnedFolderWatcher`). Watches set `ignoreInitial: true`, `awaitWriteFinish` (debounced) and `followSymlinks: false`. Each `add`/`change`/`unlink` is forwarded to the worker as `event:owned-folder-fs-event { shareId, action, relPath, absPath }`. `stopAllWatchers()` runs on `before-quit`.
+    - `src/main/loose-file-watchers.js` — the scattered set: individual absolute paths for in-place loose-file shares, fanning each event out to every space watching that path.
 
-Main holds **no** application state — no profile, no spaces, no transfers. It is a bridge between OS / pear-runtime / OTA / the filesystem watchers on one side and the renderer + worker on the other.
+Main holds **almost no** application state — no profile, no spaces, no transfers. The one exception is the **reveal allowlist**: `shell:showInFolder` is gated to `os.homedir()` plus the download roots the worker pushes on the `downloads:roots` main-request, and main caches that list in a module-level `workerDownloadRoots` that **nothing clears when the worker exits** — so the roots of a dead worker stay revealable until the process ends. Everything else is a bridge between OS / pear-runtime / OTA / the filesystem watchers on one side and the renderer + worker on the other.
 
 ### Renderer (`src/renderer/` → `assets/dist/`)
 
@@ -144,18 +145,20 @@ Bootstrap:
 1. `createIPC(Bare.IPC)` — buffered NDJSON router on the stdio pipe.
 2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
 3. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
-4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
+4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. *(Cross-references to this inner list are written `§2 boot step N`, to keep them apart from the numbered main-process list above.)* The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
    1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
    3. `ServeLedger`, immediately after `AuditLog` so that on the way out it flushes **before** that bee closes and while the spaces bee it reads is still open.
-   4. `Catalogs` (the own/peer catalog bee caches) → `SpaceDrives` (`loadDrives`; on failure, `cleanupOrphanedData()`) → the three manifest caps → the one-time content migrations.
+   4. `Catalogs` (the own/peer catalog bee caches) → `SpaceDrives` (`loadDrives`) → the three manifest caps → the one-time content migrations. The orphan sweep is **no longer** hung off a `loadDrives` failure — it runs unconditionally at the end of the runtime tier (step 10).
 
    The **runtime** tier is closed first, in reverse of this order:
    5. `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OverlayBackend` (the overlay instance, the serve index and both download engines — constructed here rather than at module level, which is what keeps the package's import cycle free of construction), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
    6. Interrupted-leave resume, then `intents.recover()` — the durable intent log's boot pass (§ below) — then download-root hydration and the membership backfill. Recovery runs after every reconciler has registered and before the swarm, so a topic join cannot re-arm a watcher against a space the pass is about to forget.
    7. `MemberViews` — **before** the swarms, because starting it is what wires the member registry's collaborators, and a handshake that landed while they were still the no-op defaults would read every peer as disconnected. It is also necessarily before the topic joins, so an inbound membership request cannot be handled with an unseeded tombstone set.
    8. `Swarm`, then `ContentSwarm` (which needs the control swarm's DHT node), then `applyRelayConfig()` — a relay installed on the control swarm alone leaves every file byte unrelayed. Every hook the swarm fires is a **constructor dep** (`membershipControl`, `overlayBackend`, `stalledOwners`) declared with `require()`, so a missing one fails at boot with the subsystem's name instead of being a `hook?.()` that never fires. Then the crash-leftover sweeps, the topic joins and the pending-leave replay.
-   9. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune) last.
+   9. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune).
+   10. `cleanupOrphanedData()` — the leftover-metadata sweep, run **after every subsystem is constructed**, not interleaved with their startup: it opens the own catalog and each drive's blobs to build its wanted set, and doing that mid-startup leaves an owner that boots, answers IPC and then never serves. It must also land after the content migrations (which need the plaintext catalog they copy from) and after the overlay start (`getOverlayLocalDiscoveryKeys` returns `[]` while it is down). A failure is logged, never fatal. **This sweep hard-deletes cores** — see §14.
+   11. `Supervisor` **last**, so the lifecycle's reverse close order stops it **first**. It polls every started subsystem's supervisable units and recovers the ones the policy condemns — a *unit* inside a subsystem, never a subsystem: closing one and constructing another hands every holder that captured it a dead instance. Recoveries are narrow and abandon rather than drain, because a recovery broader than the fault is itself the outage (a peer's socket is the single mux carrying every core and transfer for that peer, and a `close()` awaiting a stalled pass never settles). The condemnation rule is **progress, not elapsed time** (`core/stall-verdict.js`): supervised work is a keyed pass with at most one in flight, so a genuinely slow pass over thousands of files would fail any elapsed-time rule — only a pass that is in flight *and* not advancing its heartbeat is stalled. The durable tier is deliberately **unsupervised**: nothing there has a recoverable unit, and closing a store-backed handle would close every session with it. The escalation ladder, each rung handing off to the next: a unit is condemned after `consecutiveBad: 2` probes and recovered at most `maxRecoveries: 3` times (`core/supervision.js`) → a worker producing 10 uncaught errors in 60 s stops trying and **exits for respawn** instead (`core/crash-backstop.js`, latched so escalation fires exactly once) → the renderer's respawn policy (`renderer/workerRespawn.js`) spawns a new worker with backoff, up to 5 retries, giving up after 3 *unstable* lifetimes in 10 min → `permanentlyDown`, where requests fail fast rather than hanging.
 
 5. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
 6. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
@@ -222,9 +225,15 @@ Every bee below uses **utf-8 keys, JSON values**.
 | `avatar` | `"data:image/jpeg;base64,…"` | Optional; resized to 160×160 JPEG client-side (`renderer/utils.ts::resizeAvatar`) |
 | `publicKey` | `"ab3f…"` | Hex of the profile core's public key — **this is the peer identity** |
 | `caps/<name>` | `true` | Capability flag — see below |
-| `member/<spaceId>` | `{ active: true, ts }` | Per-space membership manifest. Presence ⇒ active; absence ⇒ left. Read by peers during reconciliation (`readPeerMembership`). Gated by `caps/membership-manifest` |
-| `observed/<peerKey>/<spaceId>` | `{ ts }` | Witness observation, written when this peer observes another leave. A backup evidence source for receivers who were offline at leave-time. Gated by `caps/leave-observations` |
+| `member/<spaceId>` | `{ active: true, ts }` | **Liveness**, and only this peer ever writes it: `active:true` ⇒ in the space, `active:false` ⇒ departed, absent ⇒ never joined. One half of the OR-Set fold (§6). Gated by `caps/membership-manifest` |
+| `approved/<spaceId>/<joinerKey>` | `{ ts }` | **Authorization** — a vouch this peer authored for a joiner. Grow-only; the only retraction is deleting the row (`revokeApproval`), an edit to the author's own log. The other half of the fold (§6) |
+| `request/<spaceId>/<joinerKey>` | `{ displayName, avatar, ts }` | A join request receipt, replicated so the pending banner appears for every member, not just the peer that happened to be online |
+| `denied/<spaceId>/<joinerKey>` | `{ ts }` | Durable, replicated dismissal of that request (a member's deny, or a withdrawal we saw). Subtracted from the fold LWW against the receipt `ts`, so the banner clears everywhere and stays cleared across restart |
+| `invite/<spaceId>/<inviteId>` | `{ … }` | An invite this user minted — expiry + auto-approve policy, revocable. §5 |
 | `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` | A folder share this user owns. Replicates via the profile bee — that's how peers discover shares. Deletion is a **tombstone** (row kept) so peers distinguish "owner removed it" from "never replicated". Gated by `caps/folder-shares`. §7 |
+| `mirror/<spaceId>/<shareId>` | `{ state:'syncing'\|'synced'\|'paused', ts, unmirroredAt? }` | Written by the peer **mirroring** a share, so the owner and every member can see who mirrors it and how far along — a durable, replicated fact that survives the owner being offline. Removal is a soft tombstone (`unmirroredAt`) so a reader tells "stopped mirroring" from "not replicated yet". Per-key serialized read-modify-write, because mount / pause / tick / unmount all write it. Gated by `caps/folder-mirrors`. §7.3 |
+| `drive/<spaceId>` | `"ab3f…"` | This peer's per-space Hyperdrive key (§3.5) |
+| `loosecat/<spaceId>` / `loosecatEnc/<spaceId>` | `"ab3f…"` | This peer's loose-file catalog key — plaintext and SCK-encrypted variants (§3.7) |
 
 Peers read each other's avatars and manifests through `withPeerBee()`, which opens the remote profile bee by that key, pulls its head, runs the read and **closes the session** — one bounded read, one budget covering both phases, and a session-level timeout so an abandoned read cannot pin the core through a hung batch. Exactly one bee per peer is held open for the process: the holder carrying the `append` listener that drives admission re-evaluation, the share-list refresh and the audit observer. (Before this, every transient read opened a session that was never closed, so nothing was ever reclaimed and every leaked core stayed attached to every replication stream.) Reads are bounded by a 10 s budget for avatars and 1.5 s for the membership read.
 
@@ -243,7 +252,7 @@ Any P2P feature that must distinguish "this peer doesn't publish X" from "this p
 
 **When to skip:** if absence of the data is already unambiguous (avatar ⇒ "no avatar set"), no flag is needed.
 
-Defined today: `caps/membership-manifest`, `caps/leave-observations`, `caps/folder-shares`.
+Defined today: `caps/membership-manifest`, `caps/folder-shares`, `caps/folder-mirrors`.
 
 ### 3.2 Spaces bee (`spaces-meta`) — local only, never replicated
 
@@ -514,7 +523,7 @@ Recovery is **level-triggered** — reconnects and catalog changes re-drive the 
 
 ### 4.6 Startup reconnection
 
-Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record → orphan-core cleanup if any load failed → join all topics. Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
+Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record (before this narrowing, *any* transient open failure — a lock held by a dying instance, disk pressure, a half-written core — deleted the space record outright, with a log line as the only trace) → join all topics. The orphan-core sweep is **not** conditional on a load failure; it runs every boot, after every subsystem is up (§2 boot step 10, §14). Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
 
 ### 4.7 Presence & liveness
 
@@ -617,28 +626,64 @@ Prior-member belief (`entry.prior`, a `Map<key, lastKnownTs>` that also stamps t
 
 ### Membership reconciliation
 
-The persisted `members` array is a high-water mark — handshakes only add. Three triggers run `reconcileMember(spaceId, member)`: on handshake completion (for every *other* persisted member), on a peer's profile-bee `append` (deduped via `profileBeeAppendListeners`, across every shared space), and on worker startup (`scheduleReconcileForAllSpaces()`, after `loadDrives()` and before `joinSpaceTopic`).
+**This replaces an earlier design** in which each peer published witness observations
+(`observed/<leaverPk>/<spaceId>`) and a `reconcileMember` pass evaluated them as second-hand evidence
+that a third party had left. None of that ships: third-party removal is deliberately **not modelled**
+(`member-set.js`), because a claim about someone *else's* membership would need an ordered log to
+decide which of two concurrent claims came first. Membership is instead a **derived** fact —
+recomputed from replicated records — rather than a handshake-time cache anyone patches.
 
-Each pass **short-circuits on live handshake state**: a peer currently in `connectedPeers` for this space is by definition active, so the reconciler returns without any bee reads. This saves work *and* prevents false-prune races where the peer's rejoin write hasn't replicated to us yet, or a witness's stale observation hasn't been cleared.
+**The fold (`spaces/member-set.js`, pure).** `foldMembership(records, creatorKey)` is an order-independent,
+idempotent OR-Set fold over the roster's replicated profile-bee records. It keeps two questions strictly apart:
 
-When the peer is not live, two evidence sources are evaluated:
+| | Question | Record | Who may write it |
+|---|---|---|---|
+| **Authorization** | is `p` in the approval tree rooted at the creator? | `approved/<S>/<joiner>` | the voucher, in their own log — grow-only, retracted only by deleting the row |
+| **Liveness** | does `p` assert membership? | `member/<S> = { active }` | `p` alone |
 
-| Source | Read | Resolution |
-|---|---|---|
-| **Manifest** (the leaver's own bee) | `readPeerMembership(leaverPk, spaceId)` — checks `caps/membership-manifest`, then `member/<spaceId>` | `false` ⇒ prune · `true` ⇒ keep · `null` ⇒ fall through to witnesses |
-| **Witnesses** (any connected peer's bee) | `anyConnectedPeerObserved(leaverPk, spaceId)` — parallel reads of `observed/<leaverPk>/<spaceId>`, gated by `caps/leave-observations` | Any "yes" ⇒ prune · all "no"/`null` ⇒ keep |
+`p` is a member **iff both hold**. Deriving authorization from the member set instead would let a
+departure retroactively invalidate every vouch its author ever wrote — the creator leaving would
+unroot the tree and empty the space. So the creator's key is the permanent **root** of authorization:
+it marks where the chain starts, confers no powers, and leaves the creator subject to liveness like
+everyone else. A vouch authored *after* its author recorded its own departure confers nothing;
+`memberSeq` and `approvalSeqs` are positions in the same append-only log, so that comparison needs no
+clock and no local state. A peer whose bee hasn't replicated yet is simply absent from `records` — it,
+and anyone only it approved, stays out until it arrives, and the next fold self-heals.
 
-The live-state check repeats **once more before the prune commits**, since the reads are async and a handshake may have landed during them. Pruning requires both that the evidence agrees *and* that the peer is still absent from `connectedPeers`.
+The fold returns `.members` (the roster) **and** `.authorized`. Discovery takes `.authorized`, since it
+must open the bees of a departed member's approvees too, or they are never fetched and can never heal.
 
-To keep witness evidence honest, `handleHandshake` clears our own `observed/<peerPk>/<spaceId>` whenever a peer handshakes us for that space — a live handshake proves they reverted whatever leave we witnessed.
+**The tombstone (`spaces/member-registry.js`), and why it is local.** A leaver's `del member/<S>` is
+durable but may not replicate before they disconnect mid-teardown, so a fold would keep reading their
+stale `active:true` and re-add them. Peers we received a **leave frame** from are therefore recorded in
+`lefts` (spaceId → key → `leaveTs`), which the fold subtracts and the handshake gate ignores. It is
+backed by `spaces-meta`, i.e. **local and never replicated** — it is our own record of what we
+observed, not an assertion about a third party, which is exactly the distinction the retired witness
+design lost. It self-clears when the leaver asserts a newer `member/<S>` (`tombstoneActive`), which
+covers the creator/root too, so a genuine rejoin needs no manual reset.
 
-**Why two sources:** the manifest is the leaver's self-declared truth but is unreachable while they're offline. Receiver-side observations are written redundantly by *every* peer that witnessed the leave, so the fact survives the leaver going offline forever. Reads are `caps`-gated so old clients that don't publish observations read as *unknown*, not negative.
+**Fold-observed leaves.** `applyObservedLeaves` mirrors the frame handler for a peer that was in our
+prior-member belief and now reads **`active:false`** — a replicated `del` we can attribute to the peer
+itself. Never a null or unreplicated peer, never a cascade victim. Prior-member belief (`entry.prior`)
+is seeded at view open from the durable roster **and our own authored approvals** — the roster alone
+can lose a vouchee that a fold dropped on a transient null read — and grows with each fold, so the
+observation still fires when the `del` lands before the session's first fold (approver restarted).
+**The revoke comes first and gates the tombstone**: a failed revoke leaves the key unhandled, and since
+the surviving vouch keeps it seeded in `prior` at the next view open, the retry is self-sustaining
+across sessions. `isLeft` guards against double-acting after a received frame.
 
-Pruning is conservative: only a **positive** evidence read deletes from `members`; `null` on both sources ⇒ keep. `reconcileInflight` dedupes concurrent reconciliations of the same `(spaceId, profileKey)`.
+**Peer-bee capture.** Enforcement reads (invite records, member records) must stay answerable after the
+author goes offline, so every followed roster bee is explicitly captured into a local contiguous
+snapshot (`makeCaptureScheduler`) rather than relying on the follow's range download, which a starved
+replication session never delivers. A bee is refcounted across the views that reach it (`captureRefs`),
+so leaving one space doesn't stop capturing a peer shared with another; the convergence tick retries
+deficits under its own throttle.
 
-When the reconciler prunes it **cascades** — writing its own `observed/…` entry. A peer who learns of a leave via a witness becomes a witness, propagating the fact transitively across the mesh.
-
-**Why this isn't timeout-dependent.** The earlier design relied solely on the manifest: receivers had to read the leaver's bee within a 5-second window. With observations the fact is recorded redundantly across every witness, so receivers offline at leave-time learn it from any witness and the leaver need never come back online. The timeouts (5 s bee reads, 500 ms flush in `space:leave`) are now belt-and-braces, not load-bearing.
+**Convergence properties.** Because the fold is pure and order-independent, every replica converges on
+the same set without a linearization step, and a peer offline at leave-time converges as soon as the
+leaver's `member/<S>` record replicates — from the leaver directly, or from any peer already carrying
+it. The remaining gap is §14: while the leaver is offline *and* its record has reached nobody we
+connect to, a departed member lingers in the roster.
 
 ---
 
@@ -667,15 +712,21 @@ Module map: §11.
 3. **Live updates** (`onFsEvent`). `add`/`change` enqueue an interactive `publish`; `unlink` enqueues an interactive `retire`. The executor applies the guards (root must still exist, file confirmed gone — an editor's rename-over fires a raw unlink for a path that is immediately back). `echo-guard` drops events for paths the worker itself just wrote — no upload-of-our-own-download loop. A 2 s-debounced catch-up diff follows quiet periods (macOS fsevents coalescing drops adds); it enqueues only what is missing and leaves a file younger than 2 s with no catalog entry to the watcher's `awaitWriteFinish` rather than reading it mid-copy — and re-arms itself with backoff (2 s → 60 s) while a pass deferred anything, since the deferred file's own add may be the one that was dropped.
 4. **Periodic reconcile.** A recurring timer re-runs the fast stat-only diff to heal what the watcher missed (sleep, dropped events). Every Nth pass (`deepReconcileEvery`, default 4 → ~daily at the 6 h interval) runs **deep**, content-hashing every file to catch an in-place rewrite that preserved size+mtime. Boot and the periodic pass enqueue into the same queue as everything else, so several mounted folders no longer hash concurrently.
 5. **Relocate** (`owned-folder:relocate`). Moves the mount; runs a **deep** reconcile so an identical tree at the new path — whose mtimes typically differ after a move/copy — relocates with zero re-upload and no mirror churn.
-6. **Delete** (`owned-folder:delete`). Stop the watcher, tombstone every entry under the prefix, delete the mount record, tombstone the share record — which cascades to every peer's mirror.
+6. **Delete** (`owned-folder:delete`). Stop the periodic reconcile and the watcher, delete the mount record, tombstone the **share record** — which retires the whole share from every consumer's view and cascades to every peer's mirror. The two writes land in different bees, so the flow is bracketed by an `owned-delete` **durable intent** (§2) and boot finishes an interrupted pair.
+   **It does *not* tombstone the per-file catalog entries under the prefix**, and that is deliberate at the content layer — the overlay keeps no per-share drive blobs, so the share tombstone alone is what consumers act on. The cost is that a deleted share's full file metadata (path, size, mtime, hash per file) stays live in the owner's catalog for the lifetime of the space, and is excluded from the one sweep that could collect it. §14.
 
 ### 7.3 Mirroring (consumer side)
 
 1. **Mirror** (`foreign-folder:mount`). After `mount-validate` passes (foreign mounts additionally reject paths inside `~/Downloads`), save the mount (`enabled:true`) and start the materialize loop.
 2. **Initial materialize** (`initialMaterializeScan`). List the owner's share prefix, download everything to the mount path, recording each delivered path in `syncedPaths`. Pre-existing user files at the destination are left untouched.
 3. **Steady state.** Membership of an already-mirrored path is an in-memory `Set` per mount (seeded from the persisted `syncedPaths` array, which keeps its shape — no migration), so a converged tick is linear in the file count rather than quadratic; a path is claimed *before* its bytes land, so a pass cancelled mid-file still owns what it wrote, while the collision check still treats a path claimed by the current pass as not-yet-ours so a pre-existing user file gets a sibling rather than being adopted. The record is written **once per pass and only when something changed**, through a read-merge patch that cannot clobber a concurrent pause or resurrect an unmounted record. `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). Each tick diffs the catalog and `applyChange`s: `put` fetches by content hash through the overlay into a `.mirall.part`, then renames; `del` unlinks a local file **only if** it is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
-4. **Deletion safety.** `shouldHonorDeletions({ownerOnline, driveCount})` honors owner-side deletions only when the owner is online *and* the listing is non-empty — a lagged or empty replica cannot cascade-wipe a mirror. Mirrors are read-only and idempotent: no per-file retry budget; a failed file just retries next tick.
-5. **Pause / unmount.** `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record, and reclaims cached blobs. Status flows through `event:foreign-folder-mount-status` (`active` / `scanning` / `paused-error` / `paused-enospc` / `mount-point-gone`).
+4. **Deletion safety.** `shouldHonorDeletions({ ownerOnline, driveCount, listingComplete })` honors owner-side deletions only when **all three** hold:
+   - **the owner is online** — the listing is live, not a replica snapshot;
+   - **the listing is non-empty** (`driveCount > 0`) — an all-empty listing is a transient replication gap, never "the owner deleted everything";
+   - **the listing was read to completion** — a catalog drain that timed out mid-tree returns a *partial, non-empty* list, indistinguishable from a real deletion unless completeness is checked. The likelihood of such a drain grows with the file count, so the bigger the folder the likelier the wrong delete.
+
+   All three are boolean gates on *whether* to act; there is deliberately no magnitude check on **how much** is deleted — see §14. Mirrors are otherwise read-only and idempotent: no per-file retry budget; a failed file just retries next tick.
+5. **Pause / unmount.** `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record, and reclaims cached blobs. Status flows through `event:foreign-folder-mount-status`. The tuple is `contract/statuses.js#FOREIGN_MOUNT_STATUS`: `idle` / `scanning` / `active` / `paused` / `paused-enospc` / `paused-error` / `mount-point-gone` (the owned side is the same minus `idle`).
 
 ### 7.4 Mount validation (`folders/mount-validate.js`)
 
@@ -689,7 +740,7 @@ No imports, so it unit-tests on every platform. Exports: `relToDriveKey` (OS pat
 
 ### 7.6 Mount lifecycle & the probe loop
 
-Mounts survive restarts (rehydrated from `mounts-meta`, §2 step 7). The 60 s **mount-probe loop** (§2 step 8) watches every mount's disk path: a USB eject or network-share drop flips the share to `mount-point-gone` and stops its watcher/loop; reappearance restarts it. State lives in the worker's `lastMountPointStatus` and `periodicTimers` maps.
+Mounts survive restarts: `MountsRuntime` (§2 boot step 9) rehydrates both mount kinds from `mounts-meta` and arms the 60 s **mount-probe loop**, which watches every mount's disk path — a USB eject or network-share drop flips the share to `mount-point-gone` and stops its watcher/loop; reappearance restarts it. State is instance state on the subsystem (`lastMountPointStatus`, `periodicTimers`), and the probe rides `this.timers`, so `_close` is the bulk stop — it was previously a module-level map plus a top-level interval with a per-share cancel but no bulk one, and so nothing could stop it.
 
 ### 7.7 Content backend (`overlay`)
 
@@ -843,7 +894,7 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 | `event:awareness` | `{ channel:'serving'\|'serving-detail', spaceId, path, … }` — ephemeral "who is downloading" cross-peer soft-state, re-announced on the ledger sweep, expired by a receiver TTL. Never persisted, never a status source |
 | `event:audit-updated` | `{}` — poke; fans to `Scope.audit()` so the viewer refetches |
 | `event:shares-updated` / `event:share-files-updated` | `{ spaceId }` / `{ spaceId, shareId? }` (shareId absent = space-wide) |
-| `event:owned-folder-mount-status` | `{ spaceId, shareId, status, error? }` — `active` / `scanning` / `paused-error` / `mount-point-gone` |
+| `event:owned-folder-mount-status` | `{ spaceId, shareId, status, error? }` — `OWNED_MOUNT_STATUS`: `scanning` / `active` / `paused` / `paused-enospc` / `paused-error` / `mount-point-gone` |
 | `event:owned-folder-scan-completed` | `{ spaceId, shareId, uploaded, deleted, totalOnDisk }` — not emitted for a cancelled pass |
 | `event:owned-folder-index-progress` | `{ spaceId, shareId, …index-status }` — coalesced (500 ms) while a share's items run; the terminal frame carries the pass's final counts |
 | `event:owned-folder-preview-progress` | `{ previewId, phase, scanned, total, bytes }` |
@@ -851,19 +902,57 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 
 ### React integration
 
-| Hook | Requests | Subscribes to |
+Three small stores sit between the hooks and the two transports. Each is **plain JS with an injected
+transport plus a `.d.ts`**, so it unit-tests under brittle-node like the other renderer modules that
+carry one, and each is bound to React through `useSyncExternalStore` — not a `useState` mirror, since
+the store already holds the value and the hand-rolled module caches this replaced each kept a second
+copy in component state that could disagree with it.
+
+| Store | Transport | Owns | Bound by |
+|---|---|---|---|
+| `store/query-store.js` | worker NDJSON (`ipc.ts`) | fetching, dedup, caching, **scope invalidation**, `AbortController` → `FRAME.CANCEL` | `useQuery(type, params, scopes, opts)` |
+| `store/main-store.js` | `window.bridge` (Electron main) | one shared copy per main-process fact | `useMainQuery` |
+| `store/prefs-store.js` | `window.bridge` | the `AppPrefs` slice of `config.json` | `usePrefs` |
+
+- **One entry per `[type, params]`.** `keyOf` sorts the param keys, so `{a,b}` and `{b,a}` are one
+  entry rather than two. An entry holds a *list* of scopes, because a view may re-derive on several
+  (`useSpaces` watches members and join-requests; `useSpaceStorage` watches files, share-files and shares).
+- **The store owns fetching and invalidation and nothing else.** The never-blank merge and the
+  terminal-vs-transient error policy stay in the hooks: they are per-view decisions — `useShareFiles`
+  keeps its last good rows when a peer read comes back incomplete — and a store that interpreted
+  responses would blank the most-used screen on a blip.
+- **`enabled: false`** is how a hook says "the ids are not ready yet". Without it a falsy `spaceId`
+  would send `space:members` with no `spaceId`, which the contract validator refuses — one
+  `req-invalid` warn and one `INVALID_ARGUMENT` counter per render.
+- **`main-store` is deliberately not the query store.** `useQuery` is typed to `RequestName` — the
+  *worker* contract — and these are Electron **main** calls, so routing them through it would mean
+  either widening `RequestName` to a lie or adding an untyped escape hatch. It is the query store's
+  shape with none of its scope machinery: a main fact changes when this app writes it or when main
+  pushes a new value, and neither is a reconcile hint. It also has no abort — `ipcRenderer.invoke`
+  offers no cancellation channel — but it keeps `seq`, because "the answer in flight is no longer
+  wanted" is still a real state when a write or a push lands mid-read.
+
+| Hook | Requests | Re-derives on |
 |---|---|---|
+| `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `Scope` members + join-requests; `event:state`, `event:membership-granted`/`-denied`/`-creator-divergence` |
+| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `Scope` files + members (coalesced); publish/prepare progress from `useDecorations` |
+| `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `Scope` members + join-requests |
+| `useSpaceMembers(spaceId)` | `space:members` — the full roster behind card facepiles | `Scope` members |
+| `useShares(spaceId, myKey)` | `share:list`, `owned-folder:list-all`, `foreign-folder:list-all` → `ShareWithRole[]` (`mine`/`browse`/`mirrored`) | `Scope` shares |
+| `useShareFiles(…)` | `share:list-files`, `share:folder-info`, `share:read-file`, `share:reveal-file` | `Scope` share-files + files; progress from `useDecorations` |
+| `useSpaceMirrors(spaceId)` | the `mirror/<spaceId>/<shareId>` roster — who mirrors a share and how far (§3.1) | `Scope` shares |
+| `useSpaceStorage(spaceId)` | per-space byte accounting | `Scope` files + share-files + shares |
+| `useAuditLog` | `audit:list` + the facet/config requests | `Scope.audit()` |
+| `useZoom` | main's zoom factor | `main-store` push |
 | `useProfile` | `profile:get`, `profile:set` | `event:profile-needed` |
-| `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `event:state`, `event:reconcile` (members/join-requests), `event:membership-granted`/`-denied`/`-creator-divergence` |
-| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `event:reconcile` (files + members), refreshes coalesced (750 ms leading+trailing); publish/prepare progress from `useDecorations` |
-| `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `event:reconcile` (members + join-requests) |
-| `useSpaceMembers(spaceId)` | `space:members` (module-cached full roster for card facepiles) | `event:reconcile` (members) |
-| `useUpdates` | — (passive: staged update + `dismiss`) | `bridge.onPearEvent('updated')` via `updates.ts` |
-| `useShares(spaceId, myKey)` | `share:list`, `owned-folder:list-all`, `foreign-folder:list-all` → derives `ShareWithRole[]` (`mine`/`browse`/`mirrored`) | `event:reconcile` (shares — owned + foreign mount-status both fan a shares hint) |
-| `useShareFiles(spaceId, ownerKey, shareId, role)` | `share:list-files`, `share:folder-info`, `share:read-file`, `share:reveal-file` | `event:reconcile` (share-files + files); progress from `useDecorations` |
 | `useDecorations(channel, spaceId)` | — | `event:decoration` — merge-by-key progress map, cleared only by `done` |
-| `useOwnedMount` / `useForeignMount` (`hooks/useFolderMount.ts`) | `{owned,foreign}-folder:get` + `validate`/`preview`/`mount`(/`set-enabled`/`unmount`) helpers | `event:{owned,foreign}-folder-mount-status` |
-| `useIpcQuery` | generic `request()` wrapper | — |
+| `useOwnedMount` / `useForeignMount` (`hooks/useFolderMount.ts`) | `{owned,foreign}-folder:get` + `validate`/`preview`/`mount`(/`set-enabled`/`unmount`) | `event:{owned,foreign}-folder-mount-status` |
+| `useUpdates` | — (passive: staged update + `dismiss`) | `bridge.onPearEvent('updated')` via `updates.ts` |
+
+**Migration status:** the folder- and mount-*status* hooks (`useFolderMount`, `useForeignMount`,
+`useIndexProgress`, `useDownloadRootStatus`, the peer-download hooks) still hold hand-rolled
+fetch-and-guard logic and have not moved onto the store. `useIndexProgress` carries the seq fence the
+others want. Treat the store as the destination, not as the current state of every hook. §14.
 
 ### Developer console (`window.mirall`)
 
@@ -985,8 +1074,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/config-store.js` | The single owner of `config.json` — atomic writes, merge-over-defaults, migration seam (§2 step 5) |
 | `src/main/notifications.js` | Native `Notification` IPC + `shell:showInFolder` |
 | `src/main/deeplink.js` | `parseDeepLink(url)` — validates `mirall://join/<code>`, decodes the envelope (dynamic import, since main is CJS) |
-| `src/main/owned-folder-watchers.js` | chokidar watchers for owned-folder shares (§2 step 12, §7) |
-| `src/main/loose-file-watchers.js` | chokidar host for in-place loose-file shares (§2 step 12) |
+| `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
+| `src/main/owned-folder-watchers.js` | Per-share recursive roots over the watch host (§2 step 12, §7) |
+| `src/main/loose-file-watchers.js` | Individual watched paths for in-place loose-file shares, over the same host (§2 step 12) |
 | `src/worker/main.js` | Bare worker entry — wires `Bare.IPC` to `core/ipc.js`, registers the handlers, shuts down on parent disconnect |
 | `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse |
 | `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, durable status, the periodic reconcile timers, the mount + download-root probe |
@@ -995,6 +1085,11 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` factories, and the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` — the overlay instance, the serve index and both download engines as one lifetime; outside the package's import cycle so wiring them together adds no edge to it |
 | `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
+| `src/shared/core/supervisor.js` | `Supervisor` — polls every started subsystem's supervisable units and recovers the condemned ones. Started last so it closes first (§2 boot step 11) |
+| `src/shared/core/supervision.js` | `createSupervisionPolicy()` + `DEFAULT_POLICY` (`consecutiveBad: 2`, `maxRecoveries: 3`) — the condemn/recover/give-up counters. Pure |
+| `src/shared/core/stall-verdict.js` | `stallVerdict(liveness, …)` — progress-not-elapsed-time: only a pass in flight **and** not advancing its heartbeat is stalled. Pure |
+| `src/shared/core/crash-backstop.js` | Installs the pre-first-`await` rejection handler; 10 uncaught errors in 60 s exits the worker for respawn, latched to fire once |
+| `src/shared/core/health.js`, `pass-liveness.js` | The `health()` shape subsystems report and the heartbeat record `stall-verdict` reads |
 | `src/shared/core/intents.js` | `createIntentLog()` — durable intent records + the per-kind reconcilers boot dispatches |
 | `src/shared/core/lru.js` | `createRefCountedLru()` — bounded cache of live handles; an entry with readers is never evicted |
 | `src/shared/contract/` | The vocabulary all three runtimes share — requests, codes, events, limits, statuses, scope, audit kinds. Zero imports, by rule |
@@ -1041,7 +1136,19 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `folders/publish-service.js` | The shared owner-side lane: the scheduler singleton, the per-space catalog batch (`catalogFor` / `settleCatalog` / `closeBatch`), the channel registry (`registerPublishChannel` / `channelFor`), space/global stop. Owned folders and loose files both enqueue here. §7.2 |
 | `folders/publish-runner.js` | The executor: dispatches on the item's share id (`channelFor`) to its channel — `resolve` (mount + root guard + path, or the loose source link), exact-name re-stat before a retire, then the channel's `publish` / `retire`. §7.2 |
 | `core/coalescing-runner.js` | Per-key single-flight with one queued rerun that absorbs every request arriving mid-run; guards the owned-folder diff. |
-| `folders/foreign-folders.js` | Consumer-side sync: `startForeignLoop`/`stopForeignLoop`, `runMaterializeTick` (30 s poll, serialized per mount), `applyChange`, `initialMaterializeScan`, `onPeerDriveChanged`. §7.3 |
+| `folders/foreign-folders.js` | Consumer-side sync engine: `startForeignLoop`/`stopForeignLoop`, `runMaterializeTick` (30 s poll, serialized per mount), `applyChange`, `initialMaterializeScan`, `onPeerDriveChanged`. §7.3 |
+| `folders/mirror-loop.js` | The per-mount loop, with no knowledge of catalogs, hashes or mounts: one interval per key, at most one pass in flight, a dirty flag so a mid-pass request costs exactly one follow-up, a cancellation generation a long pass checks between files, and the liveness heartbeat the supervisor reads |
+| `folders/mirror-walk.js` | Whether a tick must walk at all. Pure — every branch that cannot *prove* nothing changed costs a walk |
+| `folders/mirror-health.js` | The stalled/healthy rule for a loop. Pure, because passes are serialized per mount by handing each later tick the in-flight promise, so a pass that never settles wedges the mount while the interval keeps firing |
+| `folders/mirror-state.js` | What a mirror owns on disk and how far the persisted record has drifted from it — three per-mount pieces that live, die and reset together |
+| `folders/mirror-registry.js` | The merged "who mirrors what" listing for a space: own records plus every **current member's**, each tagged with the mirroring peer (a non-member's record is never read), mirroring `share-registry`'s member fan-out |
+| `folders/mirror-records.js` | The replicated `mirror/<spaceId>/<shareId>` participation rows — who mirrors a share and its sync state, per-key serialized, soft-tombstoned on unmount. §3.1 |
+| `folders/foreign-preview.js`, `owned-preview.js`, `preview-detail.js`, `preview-tally.js` | The pre-mount preview walks and their result shapes. **`foreign-preview.js` re-implements the engine's classification and the two can disagree** (it calls a non-ENOENT stat error a conflict; the engine swallows stat errors and fetches) — §14 |
+| `folders/mount-fault.js` | The worker's import path for the mount-fault vocabulary — the status half comes from `contract/`, this adds the errno half, which needs `core/errors.js` and so cannot live there |
+| `folders/walk-disk.js` | Stat-only recursive walk of a mount root → '/'-separated relative keys ready for catalog comparison (Windows long-path prefixes stripped, ignores applied) |
+| `folders/integrity-seen.js` | One integrity row per `(mount, file, advertised hash)` rather than per retry tick — a mirror re-materializes on the 30 s poll *and* every owner catalog append, so a holder serving bytes that fail their hash would otherwise burn the audit log's per-kind rate budget and collapse real rows into `audit.suppressed` |
+| `folders/share-limits.js` | The one folder-share file-limit rule, read by the preview, the worker's mount gate and the renderer alike, so a folder the gate **admits** always renders in full. §14 |
+| `folders/disk-presence.js` | Exact-name presence re-stat before a retire (a following stat would call a case-only rename or a symlink "present" forever) |
 | `folders/mount-store.js` | `mounts-meta` CRUD for both mount kinds (`saveOwnedMount`, `getForeignMount`, `listOwnedMounts`, `listForeignMounts`, `findOwnedMountByShareId`, …). §3.6 |
 | `folders/mount-validate.js` | `validateMountPath` — reject/advisory rules. §7.4 |
 | `folders/path-keys.js` | Pure cross-platform path math + ignore-globs + mount-safety helpers. §7.5 |
@@ -1061,15 +1168,23 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `transfer/handshake-guard.js` | Verifies the identity binding on every identity-asserting frame (§16) |
 | `transfer/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
 | `transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}`; shared by single-file transfers and folder mirroring |
+| `transfer/backends/overlay/overlay-channel.js` | The consumer-side channel the download engine drives, **built by one factory for both** the loose pseudo-share and a folder share, from the small set of facts that actually differ. Every member the engine calls is derived here, so a policy that holds for one channel holds for the other by construction. The two hand-written bags it replaces had already drifted on the paused event and the error filter — invisibly, since to the compiler they were unrelated objects, which is why a folder transfer that paused raised no notification while the loose one did. Imports no `bare-*`, so it unit-tests under plain Node |
+| `transfer/backends/overlay/overlay-consume.js` | The consumer-side helpers both channels share |
+| `transfer/presence-sweeper.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window (an editor's rename-over, a delete+recreate) cannot transiently tombstone a still-present file — which would cascade the deletion to every mirror peer. One policy, one `Set`, both owned-content sweeps. Pure — the caller supplies the key, probes and retire |
+| `transfer/supersede-decision.js` | The decision ladder both slot reconciles had spelled out inline |
 | `state/presence.js`, `state/hints.js` | Presence leases; coalesced `event:reconcile` hints. §4.7 |
 | `storage/storage.js` | Per-space byte accounting + orphan-core cleanup |
-| `audit/audit-kinds.js` | The closed audit vocabulary + category/tier tables. Pure |
+| `contract/audit-kinds.js` | The closed audit vocabulary + category/tier tables — moved into the contract package, since the renderer reads it too. Pure, zero imports. Note it **excludes per-file folder sync**: the deliberate act is mounting, so the watcher's per-file publishes produce no rows (§14) |
+| `audit/audit-runtime.js` | The audit log as a lifecycle resource — the bee and the connectivity watch open and close together |
 | `audit/audit-record.js` | `buildRecord()` — schema v1, name snapshots, search blob. Pure |
 | `audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
 | `audit/audit-sessions.js` | Folds start/end activity into one row per transfer. Pure |
 | `audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune/purge/export, config, and the peer-bee watermarks. Imports only from `core/` so the instrumentation call sites can't form a cycle |
 | `audit/peer-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, and the bounded history read. No I/O |
 | `audit/peer-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, and the registration-time baseline |
+| `audit/peer-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. The floor is far higher than the device hold-down because a peer reconnect is routine — a restart, a mux re-dial, a lid closing. Pure, clock-injected |
+| `audit/network-episodes.js` | Folds the connectivity verdict into rows. Pure and clock-injected — no store, no timers, no `Date.now()` — so a flap inside the hold-down, a sleep, or an outage spanning a restart all test without a Corestore or a swarm |
+| `audit/network-watch.js` | The I/O half of both trackers: owns the timers, writes the rows, advances durable device state, and enforces the rule neither tracker can see alone — **a peer row is only honest while our own connectivity is healthy**, since a blocked device makes every peer look unreachable and the device row already says why |
 | `telemetry/feedback.js` | HTTPS POST (via `bare-https`) of the feedback caption + optional screenshot. Sends `x-mirall-install-id`, `x-mirall-version`, `x-mirall-channel` |
 | `telemetry/install-id.js` | Lazily mints + persists an opaque per-install UUID at `<storage>/install-id`, for rate-limit bucketing on the relay |
 | `invite-envelope.js` *(root)* | `encodeInvite` / `decodeInvite`, v0 + v1. ESM, dynamically imported by `main/deeplink.js`. Twin of `renderer/invite-envelope.ts`. §5.1 |
@@ -1093,7 +1208,9 @@ Since the #199 reorg, split into domain subfolders. `invite-envelope.js` stays a
 | `platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; dark-mode persistence; bounds restore/track |
 | `dev-console.ts` | `window.mirall` debugging surface (§8) |
 | `global.d.ts` | Type declarations for `window.bridge` |
-| `hooks/` | `useIpc`, `useProfile`, `useSpaces`, `useFiles`, `useMembers`, `useSpaceMembers`, `useDecorations`, `useUpdates`, `useShares`, `useShareFiles`, `useFolderMount`, `useForeignMount` |
+| `store/` | The three renderer stores and their React bindings — `query-store.js` + `useQuery.ts`, `main-store.js` + `main-queries.js` + `useMainQuery.ts`, `prefs-store.js` + `usePrefs.ts`, and `reconcile.ts`. Plain JS + `.d.ts` so they unit-test under brittle-node. §8 |
+| `hooks/` | ~32 hooks. On the query store: `useSpaces`, `useFiles`, `useMembers`, `useSpaceMembers`, `useShares`, `useShareFiles`, `useSpaceMirrors`, `useSpaceStorage`, `useAuditLog` (and `useZoom` on `main-store`). Still hand-rolled: the mount/status family — `useFolderMount`, `useForeignMount`, `useIndexProgress`, `useDownloadRootStatus`, `usePeerDownloads`, `usePeerDownloadDetail`. Plus the non-fetching ones: `useDecorations`, `useUpdates`, `useProfile`, `useConnectionStatus`, `useErrorText`, `useTreeExpansion`, `useTransferControls`, … |
+| `workerRespawn.js` | `makeRespawnPolicy()` — the crash-respawn ladder `ipc.ts` drives (5 retries, backoff, give up after 3 unstable lifetimes in 10 min). §2 boot step 11 |
 | `screens/` | `Onboarding`, `SharedSpaces`, `SpaceView`, `FolderView`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |
 | `components/` | `primitives/`, `cards/`, `modals/`, `layout/`, `widgets/`, `toast/` (§10) |
 | `styles/tailwind.css` | Font faces, custom utilities, glass classes → `design.md` |
@@ -1171,7 +1288,15 @@ OTA is unaffected: the channel drive ships the whole `.app` / `.AppImage` / `.ms
 - **Invite links gate reading, not knocking.** The topic inside an invite is a discovery capability: anyone holding a code can join the swarm topic and send join requests until the link expires or is revoked (`invite-envelope.js` carries expiry + auto-approve policy; `revokeInvite` kills a link). Read access always requires approval — the SCK handout (§16).
 - **Checksum-failed transfers need manual intervention.** Transfers auto-pause and auto-resume across owner offline/reconnect, but one that failed its integrity check (`TRANSFER_CHECKSUM`) is never auto-resumed — re-fetching from the same holder would fail identically — so it waits for an explicit resume or discard (`overlay-download.js#resumeForOwner`).
 - **Very large listings are capped, not paged.** Listings return at most `runtime-config.js#getListFilesCap()` entries; a share with more files doesn't render fully. Paging/virtualization is future work. Very large folders (hundreds of thousands of entries) also remain a memory-scaling risk for the single Bare worker.
-- **Departed members can linger under some offline patterns.** Leave convergence (§6) relies on the leaver's own manifest plus witness observations; while the leaver *and every witness* are offline, a departed member stays in peers' rosters until that evidence replicates.
+- **Departed members can linger under some offline patterns.** Leave convergence (§6) is driven by the leaver's own `member/<S>` record. A live leave frame propagates within ~1 RTT to connected peers, but a peer offline at leave-time keeps the departed member in its roster until that record replicates — from the leaver, or from any peer already carrying it. There is no third-party witness path; that design was retired (§6).
+- **The boot leftover sweep hard-deletes cores, and its safety flag does not cover every category.** `cleanupOrphanedData` (§2 boot step 10) purges cores by raw RocksDB range delete — no backup, no undo, no audit row. The wanted set it purges *against* is built by `storage/leftover.js#buildWantedKeys`, which has error paths that silently shrink it; the flag those paths set withholds only the `orphanDrives` category, while `profiles` and `catalogs` purge every boot regardless. There is no floor, cap or ratio guard. The historical trigger — a drive-open failure deleting the space record outright — was narrowed to storage-inconsistency-only (§4.6), but the amplifier is unchanged.
+- **The mirror can overwrite a locally-edited file.** `folders/foreign-folders.js` decides "is this already correct?" by comparing the on-disk file against the owner's *current* `contentHash`, twice; there is no third branch comparing it against the **ancestor** the mirror itself delivered. That ancestor is already durable — `transfer/files.js#markVerified` records it per file — but every read funnels through `isVerifiedUnchanged`, which compares against the owner's current hash again, so `getVerifiedHash` has no consumer outside its own module and the record serves only as a re-hash cache. A user edit to a mirrored file, with no owner-side change, is refetched and replaced on a backstop tick. Mirrored files are not `chmod`ed read-only, and this path writes no audit row.
+- **Mirror deletions have no magnitude gate.** `shouldHonorDeletions` (§7.3) checks owner-online, non-empty and complete — never *how much* the listing shrank. A share going 1,000 → 3 files passes all three, and the unlinks run through bare `fs.promises.unlink`: no cap, no ratio test, no trash. Also unaudited: `contract/audit-kinds.js` excludes per-file folder sync, so both this and the overwrite above are silent **and** leave no record.
+- **The preview does not always show the plan the engine will execute.** `folders/foreign-preview.js` is a second implementation of the mirror engine's classification, and the two disagree on stat errors: the preview calls a non-ENOENT stat error a conflict, the engine swallows it and fetches.
+- **A deleted folder share leaves its file metadata behind.** `owned-folder:delete` tombstones the share record but not the per-file catalog entries under its prefix (§7.2), and those entries are excluded from the sweep that could collect them — so path, size, mtime and hash per file stay live in the owner's catalog for the lifetime of the space.
+- **Cancellation is a discard, not an abort.** The `FRAME.CANCEL` path is complete on the wire and the query store drives it, but only `share:list-files` reads `ctx.signal` in its handler. For every other request a cancel discards the response while the worker runs the read to completion — a bounded resource cost, not a correctness bug.
+- **`src/main` and `src/preload` share no contract.** `shared/contract/` covers the renderer and the worker; neither Electron process imports it. The renderer↔main surface is ~52 hand-mirrored `preload.js` methods against `renderer/global.d.ts`, and since preload sits outside `tsconfig`, `tsc` never compares the two and no parity test does either. They agree today.
+- **The vendored overlay has no static analysis.** `eslint.config.mjs` and `tsconfig.json` both exclude `vendor/**` as third-party code kept re-diffable against upstream, but it has taken behavioural commits here (bandwidth limits, relay support, transport liveness, handshake encoding, chunk-map caching) and has diverged substantially from the upstream `lib/`. Test coverage of it is strong and is what carries it. → `PROVENANCE.md`.
 - **Frontend tests are local-only.** `test/frontend/` drives the real Electron app through the macOS accessibility tree, which headless CI can't do. §15.
 - **Only production is actively seeded.** `mirall-seed.service` (prod) is the one active unit on the seed VM. `mirall-seed-staging.service` ships as a **disabled template** — there is no staging install base today. The dev channel has no seeder by design: dev builds are validated by direct download/install. → `seed-host/setup-guide.md`.
 - **Asar is binary, not compressed.** True compression / bytecode obfuscation would need another layer (e.g. `bytenode` for the renderer); deferred until there's a concrete threat model. §13.
@@ -1188,7 +1313,7 @@ Structure only:
 | Layer | Dir | Runner | Scope |
 |---|---|---|---|
 | **Unit** | `test/unit/` | `brittle-node` | Pure logic, no I/O: `path-keys`, validators, invite/ipc/share encoders, `echo-guard` TTL, ignore-matchers, runtime-config |
-| **Integration** | `test/integration/` | `brittle-bare -j 4` (Bare) | Single-peer data layer against real `corestore`/`hyperdrive`/`hyperbee`, **no mocks**: owned-folder publish/reconcile, foreign-mirror materialize, mount validation, share registry, transfers, cleanup-orphans, witness-prune |
+| **Integration** | `test/integration/` | `brittle-bare -j 4` (Bare) | Single-peer data layer against real `corestore`/`hyperdrive`/`hyperbee`, **no mocks**: owned-folder publish/reconcile, foreign-mirror materialize, mount validation, share registry, transfers, cleanup-orphans, the membership fold and its bounds, leave tombstone durability, observed-leave revoke, member-view supervision |
 | **Flow** | `test/flow/` | `brittle-node` orchestrating **real worker subprocesses** over a hermetic `hyperdht` testnet | End-to-end P2P: membership convergence, transfers, owned-folder replication, foreign-mirror, move/copy/delete, leave/reconcile, offline behaviour, multi-peer (3–4) |
 | **Raw (holepunch)** | `test/raw/` | `brittle-node` | Primitive guarantees of the deps themselves (Hyperdrive replication/deletes/blob streaming, Hyperbee mutations, Corestore namespacing) — **no Mirall code**. A trust-but-verify layer |
 | **Frontend (UI)** | `test/frontend/scenarios/` | `node test/frontend/run.mjs` driving the **real Electron app** via `agent-desktop` (macOS AX tree) | User-facing flows incl. owner-side filesystem operations — **the only layer exercising the real chokidar → publish → replicate → materialize path.** Local-only |
