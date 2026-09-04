@@ -5,7 +5,7 @@ import { encodeInvite } from '../../../src/shared/invite-envelope.js'
 
 // JoinSpaceModal validation: the Join action is disabled with no code, and a
 // malformed invite code is rejected with an inline error. The text is the worker's
-// code rendered through the errors catalog, not its English message — s126 pins that
+// code rendered through the errors catalog, not its English message — s128 pins that
 // in a non-English locale, where the difference is visible. The code field, Join
 // button (disabled state), and the role=alert error region must be addressable.
 // Pressing Enter in the auto-focused code field submits the join just like
