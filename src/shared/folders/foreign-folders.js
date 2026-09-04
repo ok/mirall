@@ -363,7 +363,20 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount), opts.fresh)
   const abs = pathFromMount(mount.mountPath, localRelPath)
   let onDisk = null
-  try { onDisk = await fs.promises.stat(abs) } catch {}
+  // ENOENT is the only stat failure that means "nothing is there, the path is free to write".
+  // Every other one means something IS there that we could not read — and the fetch below renames
+  // over it regardless of whether we could stat it, since rename needs permission on the DIRECTORY,
+  // not the file. Swallowing them all made the preserve step fail open in exactly the case it
+  // exists for: an unreadable local file looked absent and was overwritten without a copy.
+  let unreadable = false
+  try {
+    onDisk = await fs.promises.stat(abs)
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      unreadable = true
+      log.debug('could not stat a mirror path before materializing:', entry.relPath, '-', err.message)
+    }
+  }
   // Retained past the checks below: it is the evidence the ancestor comparison needs, and hashing
   // a multi-GB file twice in one pass to re-derive it would undo FIX-MIRROR-REHASH.
   let diskHash = null
@@ -393,7 +406,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
     // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
     // gets the check it needs — a stop landing during the wait above.
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk?.isFile() })
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
   } finally {
     releaseSlot()
   }

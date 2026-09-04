@@ -118,3 +118,34 @@ test('D2: an owner edit still overwrites an untouched mirror copy in place', asy
   t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a (conflicted copy).txt')),
     'no needless conflict copy for an ordinary update')
 })
+
+// REGRESSION (FIX-D2-3): the preserve step must not fail open on a path it cannot stat.
+//
+// The stat before the checks swallowed EVERY error, so anything present-but-unreadable read as
+// absent, `localExists` was false, and the fetch renamed over it without a copy — the same fail-open
+// shape the boot-sweep fix removed, reproduced inside the guard meant to prevent it. rename() needs
+// permission on the DIRECTORY, not the file, so an unstattable file is still perfectly destroyable.
+// A directory at the path exercises the same gate deterministically on every platform.
+test('REGRESSION (FIX-D2-3): a non-file at the mirror path is moved aside, not written over', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'owner-bytes' } })
+  await initDownloads()
+  // Mirror it first: a path the mirror has NOT synced is already handled by resolveLocalRelPath,
+  // which mints a sibling rather than touching a pre-existing file. The gap is on the synced path,
+  // where the resolver returns the natural name without reading the file at all.
+  await initialMaterializeScan(ctx.mount)
+
+  // The user replaces our file with a directory of their own.
+  const abs = path.join(ctx.mirrorPath, 'a.txt')
+  fs.unlinkSync(abs)
+  fs.mkdirSync(abs, { recursive: true })
+  fs.writeFileSync(path.join(abs, 'inner.txt'), 'user data inside a directory')
+
+  const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
+  await materializeCatalogFile(cur, ctx.share, await entryFor(ctx))
+
+  const moved = path.join(ctx.mirrorPath, 'a (conflicted copy).txt')
+  t.ok(fs.existsSync(moved), 'the unvouchable directory was moved aside')
+  t.is(fs.readFileSync(path.join(moved, 'inner.txt'), 'utf8'), 'user data inside a directory',
+    'its contents survived intact')
+  t.is(fs.readFileSync(abs, 'utf8'), 'owner-bytes', 'and the owner version took the canonical path')
+})
