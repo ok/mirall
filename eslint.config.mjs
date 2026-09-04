@@ -30,16 +30,23 @@ export const rendererStatusRestrictions = [
 ]
 
 // Lifecycle invariant: a timer armed at module level runs at import, so no close() can ever
-// reach it. Every periodic or deferred call belongs inside a Subsystem's _open, armed through
-// `this.timers`, so it dies with the subsystem. Exported so
-// test/unit/module-level-timers.test.js enforces the same grammar through eslint's parser.
+// reach it. Exported so test/unit/module-level-timers.test.js enforces the same grammar through
+// eslint's parser.
+//
+// This is the import-time corner of the lifecycle rule, and only that. The message used to say
+// "arm it in a Subsystem _open so close() can clear it", which reads as a promise that every
+// periodic call dies with its subsystem — a property no selector can decide, since three of the
+// eleven module-scoped handles in the data layer belong to module singletons that are not
+// Subsystems at all. The broad property is measured where it is actually observable: at runtime, in
+// test/integration/timer-lifecycle.test.js, with test/unit/module-scoped-timer-handles.test.js as
+// the decidable static companion.
 export const moduleLevelTimerRestrictions = [{
   // `:not(:function *)` alone is the whole rule: it matches a set*() call that has no function
   // ancestor, i.e. one that runs at import. Scoping it to top-level statement types instead would
   // miss every nesting a module-level timer can hide in — a top-level `if`, `try`, bare block,
   // labelled block, `for`/`while`, `switch` case, or a class static field or static block.
   selector: "CallExpression[callee.name=/^set(Interval|Timeout)$/]:not(:function *)",
-  message: 'No module-level timers — arm it in a Subsystem _open so close() can clear it.',
+  message: 'No timer armed at import — nothing can clear it. Arm it inside a Subsystem _open through this.timers, or inside a function whose module holds a matching clear.',
 }]
 
 // Mechanism invariant: chokidar's options are per-INSTANCE, not per-path, and its sharp edges —
