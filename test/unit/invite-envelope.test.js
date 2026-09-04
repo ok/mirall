@@ -1,5 +1,9 @@
 import test from 'brittle'
+import { readFileSync } from 'fs'
+import { fileURLToPath } from 'url'
+import path from 'path'
 import { decodeInvite, encodeInvite, extractInviteCode, NAME_MAX } from '../../src/shared/invite-envelope.js'
+import * as contract from '../../src/shared/contract/invite-envelope.js'
 
 const HEX = 'a'.repeat(64)
 const HEX_DASHED = 'aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa'
@@ -362,4 +366,64 @@ test('REGRESSION (MIR-01): invite carries no content key / secret', (t) => {
     t.ok(Object.keys(decoded).every((k) => ALLOWED.includes(k)), 'only known non-secret fields')
     t.absent('sck' in decoded || 'k' in decoded || 'key' in decoded, 'no key field')
   }
+})
+
+// --- one decoder, reachable from every runtime ---
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const readSrc = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
+
+// REGRESSION (FIX-PI2-1: the renderer carried its own decoder whose DecodedInvite union had no
+// field for the creator key, schema version, auto-admit flag or invite id, so a v2 invite decoded
+// there came back v1-shaped with those four facts silently dropped. Both renderer call sites only
+// displayed the name and expiry, so nothing broke visibly — the next feature to read one of the
+// four would have found undefined and blamed the worker.)
+test('REGRESSION (FIX-PI2-1): the renderer decoder returns every v2 field', (t) => {
+  const id = 'ab'.repeat(16)
+  const code = encodeInvite({ topic: HEX, name: 'Acme', creator: CREATOR, schemaVersion: 2, autoAdmit: true, inviteId: id })
+
+  // The renderer is TypeScript, so the runner cannot import it — but it is a re-export of the
+  // module tested here, which the structural assertions below pin.
+  const decoded = contract.decodeInvite(code)
+  t.is(decoded.creator, CREATOR)
+  t.is(decoded.schemaVersion, 2)
+  t.is(decoded.autoAdmit, true)
+  t.is(decoded.inviteId, id)
+
+  const renderer = readSrc('renderer/invite-envelope.ts')
+  t.ok(/export \{[^}]*decodeInvite[^}]*\} from '\.\.\/shared\/contract\/invite-envelope\.js'/.test(renderer),
+    'the renderer decodeInvite is the contract decodeInvite')
+  t.absent(/function decodeInvite/.test(renderer), 'the renderer declares no decoder of its own')
+})
+
+test('the data layer re-exports the decoder rather than wrapping it', (t) => {
+  t.is(decodeInvite, contract.decodeInvite, 'same function object, so behaviour cannot diverge')
+  t.is(encodeInvite, contract.encodeInvite)
+  t.is(extractInviteCode, contract.extractInviteCode)
+  t.is(NAME_MAX, contract.NAME_MAX)
+})
+
+// The codec had to lose its b4a dependency to become reachable from the renderer, and Bare has no
+// TextEncoder/TextDecoder to replace it with. These pin the replacement against the cases where a
+// hand-rolled UTF-8 layer is easy to get wrong.
+test('the codec round-trips text no matter which runtime encoded it', (t) => {
+  for (const name of ['Acme', 'Grüße', '共有スペース', 'Space 😀🎉', '𝕄irall', 'a"b\\c/d', 'Müller — café 日本']) {
+    t.is(decodeInvite(encodeInvite({ topic: HEX, name })).name, name, name)
+  }
+})
+
+test('a name truncated mid-emoji still produces a decodable code', (t) => {
+  // slice(0, NAME_MAX) can cut a surrogate pair in half; the encoder must not emit invalid UTF-8.
+  const code = encodeInvite({ topic: HEX, name: 'x'.repeat(NAME_MAX - 1) + '😀' })
+  const decoded = decodeInvite(code)
+  t.is(decoded.topic, HEX)
+  t.is(decoded.name.length, NAME_MAX)
+})
+
+test('the codec uses no runtime-specific text primitives', (t) => {
+  // Comments stripped: the header names these primitives to explain why they are unusable here.
+  const code = readSrc('shared/contract/invite-envelope.js').replace(/^\s*\/\/.*$/gm, '')
+  t.absent(/TextEncoder|TextDecoder/.test(code), 'no TextEncoder — Bare does not have one')
+  t.absent(/\bb4a\b|\bBuffer\b/.test(code), 'no b4a or Buffer — the renderer does not have those')
+  t.ok(/\batob\(/.test(code) && /\bbtoa\(/.test(code), 'btoa/atob, which all three runtimes have')
 })

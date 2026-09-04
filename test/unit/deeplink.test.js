@@ -84,3 +84,19 @@ test('handles percent-encoded path code', async (t) => {
   const out = await parseDeepLink(`mirall://join/${encoded}`)
   t.alike(out, { kind: 'join', code: ENV, name: 'Acme' })
 })
+
+// The envelope version and the membership schema version are different numbers: a link carrying
+// the v2 membership fields is still a v1 envelope, so the name must survive the extra fields.
+test('parses an envelope carrying the v2 membership fields', async (t) => {
+  const env = encodeInvite({
+    topic: HEX,
+    name: 'Acme',
+    creator: 'c'.repeat(64),
+    schemaVersion: 2,
+    autoAdmit: true,
+    inviteId: 'ab'.repeat(16),
+    expiresAt: 1893456000000,
+  })
+  const out = await parseDeepLink(`mirall://join/${env}`)
+  t.alike(out, { kind: 'join', code: env, name: 'Acme' })
+})
