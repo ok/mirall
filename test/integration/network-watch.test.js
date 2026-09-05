@@ -8,6 +8,12 @@ import { initAuditLog, flushAudit, queryAudit, purgeAudit, setAuditConfig, getNe
 import {
   initNetworkWatch, resetNetworkWatch, observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft,
 } from '../../src/shared/audit/network-watch.js'
+import { createTimers } from '../../src/shared/core/timers.js'
+
+// The watch arms its dwell timeouts through the owning subsystem's set (AuditLog hands it
+// this.timers), so a test driving the module directly has to supply one too — without it the
+// re-arming tails have nothing to arm through and every dwell assertion below would wait forever.
+let watchTimers = null
 
 const DWELL = 60
 const META = { memberName: 'Anna Keller', spaceName: 'Design Team' }
@@ -26,6 +32,8 @@ async function boot (t, { session = 'run-1' } = {}) {
   const storage = tmpDir('store')
   t.teardown(() => {
     resetNetworkWatch()
+    watchTimers?.close()
+    watchTimers = null
     try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}
   })
   initStore(storage)
@@ -33,7 +41,8 @@ async function boot (t, { session = 'run-1' } = {}) {
   await initAuditLog({ installId: 'install-under-test' })
   await setAuditConfig({ enabled: true, retentionDays: 90, maxEntries: 200000 })
   await purgeAudit()
-  initNetworkWatch({ sessionId: session, dwellMs: DWELL, peerDwellMs: DWELL })
+  watchTimers = createTimers()
+  initNetworkWatch({ sessionId: session, dwellMs: DWELL, peerDwellMs: DWELL, timers: watchTimers })
 }
 
 function observe (verdict, cause = null, since = Date.now()) {
@@ -197,7 +206,8 @@ test('relaunching on the same bad network is silent', async (t) => {
   await settle()
   t.is((await kinds()).filter((k) => k === 'network.blocked').length, 1)
 
-  initNetworkWatch({ sessionId: 'run-2', dwellMs: DWELL, peerDwellMs: DWELL })
+  watchTimers = createTimers()
+  initNetworkWatch({ sessionId: 'run-2', dwellMs: DWELL, peerDwellMs: DWELL, timers: watchTimers })
   observe('blocked', 'no-public-address')
   await settle()
   t.is((await kinds()).filter((k) => k === 'network.blocked').length, 1, 'the first launch already said so')
@@ -208,7 +218,8 @@ test('an outage spanning a restart recovers without inventing a duration', async
   observe('blocked', 'os-offline')
   await settle()
 
-  initNetworkWatch({ sessionId: 'run-2', dwellMs: DWELL, peerDwellMs: DWELL })
+  watchTimers = createTimers()
+  initNetworkWatch({ sessionId: 'run-2', dwellMs: DWELL, peerDwellMs: DWELL, timers: watchTimers })
   observe('healthy')
   await settle()
 

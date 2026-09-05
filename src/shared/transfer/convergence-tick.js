@@ -7,6 +7,7 @@
 // A converged, quiet swarm does no work in this module at all: each arm is gated on an observable
 // deficit, and the escalation to a discovery refresh is throttled and budgeted per space on top.
 import { getSpace } from '../spaces/space.js'
+import { liveHandle } from '../core/timers.js'
 import { getConvergenceConfig } from '../core/runtime-config.js'
 import { escalationDue, announceStatus } from './announce-ledger.js'
 import { refreshContentDiscoveries, contentPlaneHasPeer, getContentPlaneStatus } from './content-swarm.js'
@@ -33,6 +34,9 @@ export function initConvergenceTick(deps) {
   getIpc = deps.getIpc
 }
 
+// The owning subsystem's timer set, handed in when the tick starts. Same reason as the presence
+// heartbeat: a periodic interval outlives every call that could clear it.
+let timers = null
 let convergenceTimer = null
 let convergenceTicking = false          // re-entrancy guard: the tick is async, setInterval isn't
 const deficitTicks = new Map()          // spaceId → consecutive ticks with a roster deficit
@@ -199,11 +203,16 @@ export async function rescueStalledTransfers() {
   }
 }
 
-export function startConvergenceTick() {
+export function startConvergenceTick(owner = null) {
+  // See startPresenceHeartbeat: a handle from a closed set reads as "already armed" and would
+  // latch off stall rescue, roster-deficit escalation and every other arm of the re-drive.
+  convergenceTimer = liveHandle(timers, convergenceTimer)
   if (convergenceTimer) return
+  timers = owner ?? timers
+  if (!timers || timers.closed) return
   const { convergenceTickMs } = getConvergenceConfig()
   if (!convergenceTickMs) return
-  convergenceTimer = setInterval(() => {
+  convergenceTimer = timers.setInterval(() => {
     // The tick is async and setInterval doesn't await it — skip a fire that lands while the
     // previous run is still in flight, so overlapping runs can't double-send or double-count.
     if (convergenceTicking) return
@@ -212,14 +221,13 @@ export function startConvergenceTick() {
       .catch((err) => log.debug('convergence tick failed:', err.message))
       .finally(() => { convergenceTicking = false })
   }, convergenceTickMs)
-  convergenceTimer.unref?.()
 }
 
 // What destroySwarm calls: stop the timer and drop every counter, so a restarted swarm escalates
 // from a clean budget rather than inheriting the previous session's spent attempts.
 export function resetConvergenceTick() {
   if (convergenceTimer) {
-    clearInterval(convergenceTimer)
+    timers?.clear(convergenceTimer)
     convergenceTimer = null
   }
   convergenceTicking = false

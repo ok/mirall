@@ -7,7 +7,7 @@ import App from './app.js'
 import { request } from './ipc.js'
 import { configureQueryStore } from './store/query-store.js'
 import { configureMainStore, installMainPushBridge } from './store/main-store.js'
-import { installReconcileBridge } from './store/reconcile.js'
+import { installPushBridges, installReconcileBridge } from './store/reconcile.js'
 
 // Before the first render: both stores' transports, the single reconcile subscription every
 // worker-backed view re-derives from, and the one subscription per pushing main fact.
@@ -15,6 +15,7 @@ configureQueryStore({ request: (type, params, opts) => request(type, params, und
 configureMainStore(window.bridge)
 installMainPushBridge()
 installReconcileBridge()
+installPushBridges()
 
 if (__DEV__ && window.bridge?.isDev?.()) {
   void (async () => {

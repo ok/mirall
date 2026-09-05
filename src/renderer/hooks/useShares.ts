@@ -7,8 +7,10 @@ import { useCallback, useMemo } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { invalidateKey, refetchQuery } from '../store/query-store.js'
-import { unhealthyOwnedStatus } from './useFolderMount.js'
-import type { Share, ShareRole, ForeignFolderMount, OwnedFolderMount } from '../types.js'
+import { unhealthyOwnedStatus } from '../ownedMount.js'
+import { ANY_SHARES, sharesScope } from '../store/scopes.js'
+import type { OwnedMountRow } from '../ownedMount.js'
+import type { Share, ShareRole, ForeignFolderMount } from '../types.js'
 
 // Dropped when a space leaves the roster, so re-joining the same id never renders the rows it held
 // before (the twin of pruneRosterCache / pruneMirrorCache, called from the same place).
@@ -28,16 +30,13 @@ export interface ShareWithRole extends Share {
   mirrorStatus?: string
 }
 
-type OwnedMountRow = OwnedFolderMount & { mountPointMissing?: boolean }
-
-const ANY_SHARES = [{ kind: 'shares' }]
 
 const NO_SHARES: Share[] = []
 const NO_FOREIGN: ForeignFolderMount[] = []
 const NO_OWNED: OwnedMountRow[] = []
 
 export function useShares(spaceId: string, myPublicKey: string | null) {
-  const shareScopes = useMemo(() => [{ kind: 'shares', spaceId }], [spaceId])
+  const shareScopes = useMemo(() => sharesScope(spaceId), [spaceId])
   const params = spaceId ? { spaceId } : {}
 
   // Share/mirror changes — including owned and foreign mount-status transitions, both mapped to the

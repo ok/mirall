@@ -2,6 +2,31 @@
 // subsystem's periodic work cannot outlive it. Scheduling after close throws — a late
 // continuation that still wants a timer is the bug the flag exists to surface, not something
 // to swallow. Handles are opaque; clear() takes what set*() returned.
+// A handle whose owning set has CLOSED is dead: close() already disarmed it and clear() will not
+// find it in the set. A module that keeps its handle in a binding outliving the subsystem has to
+// drop it, because the usual `if (handle) return` guard reads a dead handle as "already armed" and
+// latches the work off for the rest of the process — the same shutdown-latch shape one level up
+// from the timer itself. Returns the handle only while its owner can still clear it.
+export function liveHandle(timers, handle) {
+  return timers && !timers.closed ? handle : null
+}
+
+// The schedule/clear pair to hand an injected scheduler (makeKeyedCoalescer's, say) when the owner
+// is a subsystem that may not exist yet and may already be closed. It DECLINES rather than throws:
+// arming against a closed set throws by design, and the callers here run inside a callback during
+// the post-close drain, where there is nothing to catch it. Guarded on the SET, not just the
+// pointer — a _close that rejects never reaches its `subsystem = null`, so the pointer stays live
+// while the base has already closed the timers underneath it.
+export function ownedScheduler(getTimers) {
+  return {
+    schedule: (fn, ms) => {
+      const timers = getTimers()
+      return timers && !timers.closed ? timers.setTimeout(fn, ms) : null
+    },
+    clear: (handle) => { if (handle) getTimers()?.clear(handle) },
+  }
+}
+
 export function createTimers() {
   const live = new Set()
   let closed = false

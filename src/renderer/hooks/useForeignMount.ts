@@ -1,45 +1,35 @@
-// Foreign (mirror) mount state and RPC wrappers (validate/preview/mount/enable/unmount); useForeignMount refreshes on foreign-folder-mount-status events.
-import { useState, useEffect, useCallback, useRef } from 'react'
+// Foreign (mirror) mount state and RPC wrappers (validate/preview/mount/enable/unmount);
+// useForeignMount reads the durable record through the query store.
+import { useMemo } from 'react'
 import { request, subscribe } from '../ipc.js'
+import { useQuery } from '../store/useQuery.js'
+import { sharesScope } from '../store/scopes.js'
 import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types.js'
 
-interface MountStatusEvent {
-  spaceId: string
-  shareId: string
-  status: ForeignMountStatus
-  error?: string
-}
+// The scope foreign mount-status transitions actually carry: event:foreign-folder-mount-status is
+// mapped to the SHARES scope worker-side, not the mirrors one. The mount is still level-triggered
+// on every transition (paused states persist too), so the record can never go stale on a missed
+// recovery event — the difference is that the store, not this hook, owns the re-read.
 
+// The params are part of the entry key, so an unmounted mirror — shareId '' — is a DIFFERENT entry
+// rather than the same entry holding a stale value. That is what closes the bug the hand-rolled
+// version had: its early return left `mount` and `status` untouched, so FolderView went on
+// rendering a paused-enospc fault strip, Retry button and all, for a mount that had already been
+// unmounted. The same key separation is what stops share A's fault from painting under share B's
+// header when A's read resolves after the navigation.
 export function useForeignMount(spaceId: string, shareId: string) {
-  const [mount, setMount] = useState<ForeignFolderMount | null>(null)
-  const [status, setStatus] = useState<ForeignMountStatus | null>(null)
-  // Every mount-status transition re-fires refresh and a share switch re-runs the effect, so two
-  // reads are routinely in flight at once. Without a generation the older one can land last and
-  // paint the previous share's mount over the folder the user is actually looking at.
-  const runRef = useRef(0)
+  const enabled = Boolean(spaceId && shareId)
+  const scopes = useMemo(() => sharesScope(spaceId), [spaceId])
+  const { data } = useQuery<ForeignFolderMount | null>('foreign-folder:get', { spaceId, shareId }, scopes, { enabled })
 
-  const refresh = useCallback(async () => {
-    if (!spaceId || !shareId) return
-    const run = ++runRef.current
-    const m = (await request('foreign-folder:get', { spaceId, shareId })) as ForeignFolderMount | null
-    if (run !== runRef.current) return
-    setMount(m)
-    setStatus(m?.status ?? null)
-  }, [spaceId, shareId])
-
-  useEffect(() => {
-    void refresh()
-    const unsub = subscribe<MountStatusEvent>('event:foreign-folder-mount-status', (msg) => {
-      if (msg.spaceId !== spaceId || msg.shareId !== shareId) return
-      setStatus(msg.status)
-      // Re-read the durable record on EVERY transition (paused states persist too), so
-      // `mount` (enabled/status) can never go stale on a missed recovery event.
-      void refresh()
-    })
-    return unsub
-  }, [refresh, spaceId, shareId])
-
-  return { mount, status, refresh }
+  // No refresh escape hatch. The hand-rolled version exported one and nothing ever called it: the
+  // mutations that would need it (set-enabled, unmount) already emit a mount-status event, and that
+  // is the shares-scoped hint the store re-reads on.
+  //
+  // Not `data ?? null` unconditionally: a disabled entry has never been fetched, and its undefined
+  // must read as "no mount" rather than as whatever the last enabled render held.
+  const mount = enabled ? (data ?? null) : null
+  return { mount, status: (mount?.status ?? null) as ForeignMountStatus | null }
 }
 
 export async function validateForeignMount(mountPath: string, shareId?: string): Promise<MountValidationResult> {

@@ -449,3 +449,76 @@ test('a genuine failure on an abandoned read is still rethrown', async (t) => {
   pending[0].reject(new Error('worker exploded'))
   await t.exception(failing, /worker exploded/, 'not every error on a stale read is ours to swallow')
 })
+
+// The mechanism the two folder-status hooks were migrated onto. Both bugs were shapes the store
+// already forbids; what they lacked was a store. Asserted here on the store rather than on the
+// hooks, because the fence is what closes the whole class — not the two call sites that had it.
+test('ADOPT-A1: a read for one share cannot land in another share entry', async (t) => {
+  const tp = setup(t)
+  const params = (shareId) => ({ spaceId: 'sp1', shareId })
+
+  // The navigation: FolderView opens share A, then the user picks share B while A's read is in
+  // flight. Two different entries, because params are part of the key.
+  void fetchQuery('foreign-folder:get', params('A'), null)
+  void fetchQuery('foreign-folder:get', params('B'), null)
+  t.is(tp.count(), 2, 'two entries, two reads — not one entry racing itself')
+
+  tp.settle(1, { shareId: 'B', status: 'active' })
+  tp.settle(0, { shareId: 'A', status: 'paused-enospc' })   // A resolves LAST
+  await tick()
+
+  t.is(peek(keyOf('foreign-folder:get', params('B'))).data.status, 'active', "B keeps B's answer")
+  t.is(peek(keyOf('foreign-folder:get', params('A'))).data.status, 'paused-enospc', "and A keeps A's")
+})
+
+test('ADOPT-A1: an unmounted mirror reads as no mount, not as the last mount', async (t) => {
+  const tp = setup(t)
+  void fetchQuery('foreign-folder:get', { spaceId: 'sp1', shareId: 'sh1' }, null)
+  tp.settle(0, { shareId: 'sh1', status: 'paused-enospc' })
+  await tick()
+
+  // What the hook does once share.role leaves 'mirrored': the id is empty, so useQuery is disabled
+  // and reads a DIFFERENT (never-fetched) entry. The hand-rolled version returned early and left
+  // its state untouched, so the fault strip and its Retry button kept rendering.
+  const empty = peek(keyOf('foreign-folder:get', { spaceId: 'sp1', shareId: '' }))
+  t.is(empty.data, undefined, 'the empty-id entry holds nothing')
+  t.is(tp.count(), 1, 'and nothing was requested for it')
+})
+
+test('ADOPT-A2: a slow listing read cannot overwrite the fast one that superseded it', async (t) => {
+  const tp = setup(t)
+  const scopes = [{ kind: 'shares' }]
+  const rows = (status) => [{ spaceId: 'sp1', shareId: 'sh1', status }]
+
+  void fetchQuery('owned-folder:list-all', {}, scopes)
+  // The second mount-status event: refetchQuery abandons the first read rather than joining it,
+  // which is what the two hand-rolled derive() calls could not do — both passed their `alive`
+  // check and the later-RESOLVING one won, regardless of which was issued first.
+  void refetchQuery('owned-folder:list-all', {}, scopes)
+  t.is(tp.count(), 2, 'the second read did not join the first')
+
+  tp.settle(1, rows('active'))
+  tp.settle(0, rows('mount-point-gone'))   // the stat'd-a-stalled-mount read, landing last
+  await tick()
+
+  t.is(
+    peek(keyOf('owned-folder:list-all')).data[0].status,
+    'active',
+    'the newer read wins on issue order, not arrival order — no "Source folder is missing" over a healthy folder',
+  )
+  t.ok(tp.aborted.includes('owned-folder:list-all'), 'and the superseded read was actually cancelled')
+})
+
+test('ADOPT-A2: the paramless listing keeps its wildcard scope whichever hook mounts first', async (t) => {
+  const tp = setup(t)
+  // useOwnedMount and useShares read the SAME entry. An entry keeps the scopes it was first
+  // registered with, so if either narrowed them to a spaceId, only the first space visited in the
+  // session could ever invalidate it.
+  void fetchQuery('owned-folder:list-all', {}, [{ kind: 'shares' }])
+  void fetchQuery('owned-folder:list-all', {}, [{ kind: 'shares' }])
+  tp.settle(0, [])
+  await tick()
+
+  const touched = invalidate({ kind: 'shares', spaceId: 'a-space-never-visited-first' })
+  t.ok(touched.includes('owned-folder:list-all'), 'a hint for any space reaches the shared listing')
+})

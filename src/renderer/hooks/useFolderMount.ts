@@ -1,77 +1,34 @@
-// Owned-folder mount state and RPC wrappers (validate/preview/mount); useOwnedMount refreshes on owned-folder-mount-status events.
-import { useState, useEffect } from 'react'
+// Owned-folder mount state and RPC wrappers (validate/preview/mount); useOwnedMount projects the
+// owned-folder:list-all entry the query store already holds.
+import { useMemo } from 'react'
 import { request, subscribe } from '../ipc.js'
-import type { OwnedFolderMount, MountValidationResult, ScanPreview, PreviewProgress, Share } from '../types.js'
+import { useQuery } from '../store/useQuery.js'
+import { ownedMountSettled, projectOwnedMount } from '../ownedMount.js'
+import { ANY_SHARES } from '../store/scopes.js'
+import type { OwnedMountRow, OwnedMountState } from '../ownedMount.js'
+import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types.js'
 
-interface MountStatusEvent {
-  spaceId: string
-  shareId: string
-  status: string
-  error?: string
-}
+export type { OwnedMountState } from '../ownedMount.js'
 
-// The badge projection of an owned mount's durable state: a live missing path wins, then
-// any persisted non-healthy status (paused-error / mount-point-gone survive a restart);
-// healthy states (active / scanning) render no badge. Shared by useOwnedMount and useShares
-// so SpaceView and FolderView cannot drift.
-export function unhealthyOwnedStatus(m: (OwnedFolderMount & { mountPointMissing?: boolean }) | null | undefined): string | null {
-  if (!m) return null
-  if (m.mountPointMissing) return 'mount-point-gone'
-  if (m.status && m.status !== 'active' && m.status !== 'scanning') return m.status
-  return null
-}
-
-// Level-triggered: every mount-status event for this share re-derives from
-// owned-folder:list-all (a live mountRootAvailable disk check plus the durable
-// mount.status) instead of latching msg.status — the same projection SpaceView gets
-// via useShares, but from a subscriber that is actually mounted while FolderView is open.
-export interface OwnedMountState {
-  status: string | null
-  lastError: string | null
-  /** The first read has landed. `status: null` means healthy only once this is true — before it,
-   *  it means "not read yet", and a caller that cannot tell them apart falls back to a frozen
-   *  navigation snapshot forever. */
-  loaded: boolean
-  indexPaused: boolean
-  /** The scan is walking the disk. It fills no queue, so nothing else can report that phase. */
-  scanning: boolean
-  mountPath: string | null
-}
-
-const NO_OWNED_MOUNT: OwnedMountState = { status: null, lastError: null, loaded: false, indexPaused: false, scanning: false, mountPath: null }
-
+// One read, one entry, one policy. This projects the SAME store entry useShares subscribes to, so
+// SpaceView's badge and FolderView's fault strip cannot disagree about a folder: they are two
+// projections of one value, not two reads of one worker. The hand-rolled second read this replaces
+// had no sequence fence, so two concurrent list-all reads resolved in arrival order — a slow
+// mount-point-gone read landing after a fast active one painted "Source folder is missing" over a
+// healthy, actively scanning folder, and it stayed until the next mount-status event.
+//
+// No event subscription: owned mount-status transitions are mapped to the shares scope worker-side,
+// so the one reconcile bridge invalidates this entry and the store refetches behind its fence.
 export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
-  const [state, setState] = useState<OwnedMountState>(NO_OWNED_MOUNT)
-
-  useEffect(() => {
-    if (!spaceId || !shareId) return
-    let alive = true
-    const derive = () => {
-      request('owned-folder:list-all').then((mounts) => {
-        if (!alive) return
-        const rows = mounts as (OwnedFolderMount & { mountPointMissing?: boolean })[]
-        const m = rows.find((x) => x.spaceId === spaceId && x.shareId === shareId)
-        // Both from one read: the badge projection AND the durable intent behind it. The status
-        // alone cannot carry the pause — a scan settle overwrites it, and 'mount-point-gone'
-        // legitimately outranks it while the source is missing.
-        setState({
-          status: unhealthyOwnedStatus(m),
-          lastError: m?.lastError ?? null,
-          loaded: true,
-          indexPaused: !!m?.indexPaused,
-          scanning: m?.status === 'scanning',
-          mountPath: m?.mountPath ?? null,
-        })
-      }).catch(() => {})
-    }
-    derive()
-    const unsub = subscribe<MountStatusEvent>('event:owned-folder-mount-status', (msg) => {
-      if (msg.spaceId === spaceId && msg.shareId === shareId) derive()
-    })
-    return () => { alive = false; unsub() }
-  }, [spaceId, shareId])
-
-  return state
+  const enabled = Boolean(spaceId && shareId)
+  // Not `loading`: ownedMountSettled carries that reasoning, and not taking the flag at all is
+  // what makes the trap unrepresentable here.
+  const { data } = useQuery<OwnedMountRow[]>('owned-folder:list-all', {}, ANY_SHARES, { enabled })
+  const settled = ownedMountSettled(enabled, data)
+  return useMemo(
+    () => projectOwnedMount(data, spaceId, shareId, settled),
+    [data, spaceId, shareId, settled],
+  )
 }
 
 export async function validateOwnedMount(mountPath: string, shareId?: string): Promise<MountValidationResult> {

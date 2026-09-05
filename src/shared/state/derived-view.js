@@ -17,17 +17,34 @@
 //    keys too, e.g. avatar/displayName), or pass { gte, lt } to scope it. Over-firing is
 //    safe — the fold is deterministic and idempotent, so an extra recompute only costs
 //    a fold, never correctness.
+//  - `ranges` is the multi-family form of `range`, because hyperbee.watch takes ONE range and
+//    a fold whose read set spans disjoint key families would otherwise have to watch the whole
+//    bee. N ranges means N watchers per tracked bee, each holding a snapshot pair and diffing
+//    on every append — worth it only when a spurious wake costs more than the watchers do,
+//    which it does for any fold that reads over the network. Exclusive with `range`.
 
 import { createPassLiveness } from '../core/pass-liveness.js'
 
 // One fold at a time, so the keyed bookkeeping carries a single key.
 const FOLD = 'fold'
 
-export function createDerivedView ({ fold, onChange, range, onError, debounceMs = 0 } = {}) {
+export function createDerivedView ({ fold, onChange, range, ranges, onError, debounceMs = 0 } = {}) {
   if (typeof fold !== 'function') throw new Error('createDerivedView: fold is required')
   if (typeof onChange !== 'function') throw new Error('createDerivedView: onChange is required')
+  // Silently preferring one would hide a read set that is half-declared.
+  if (range !== undefined && ranges !== undefined) throw new Error('createDerivedView: pass range or ranges, not both')
+  // An empty array would open no watcher on any source: the view folds once at boot and then never
+  // re-derives, with no error and no log — a membership set frozen at whatever it was. `null` is
+  // the same mistake in the other direction, silently taking the whole-bee fallback this option
+  // exists to avoid. Both are a caller computing its key families and coming up empty.
+  if (ranges !== undefined && (!Array.isArray(ranges) || ranges.length === 0)) {
+    throw new Error('createDerivedView: ranges must be a non-empty array')
+  }
 
-  const watchers = new Map()   // sourceKey -> { watcher, loop }
+  // [undefined] is the whole-bee watch the single-range form gives, so a caller passing neither
+  // keeps exactly the previous behaviour.
+  const watchRanges = ranges ?? [range]
+  const watchers = new Map()   // sourceKey -> [{ watcher, loop }]
   let closed = false
   let scheduled = false        // a recompute is queued but not yet running
   let running = false          // a fold is in flight
@@ -106,11 +123,15 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
   // members are discovered; corestore dedups the underlying cores.
   function track (key, bee) {
     if (closed || watchers.has(key)) return
-    const watcher = bee.watch(range)
-    const loop = (async () => {
-      try { for await (const _ of watcher) recompute() } catch { /* watcher closed */ }
-    })()
-    watchers.set(key, { watcher, loop })
+    // One entry per source key holding ALL its watchers, so close() and tracking() stay keyed on
+    // the source and cannot half-release a bee.
+    watchers.set(key, watchRanges.map((r) => {
+      const watcher = bee.watch(r)
+      const loop = (async () => {
+        try { for await (const _ of watcher) recompute() } catch { /* watcher closed */ }
+      })()
+      return { watcher, loop }
+    }))
   }
 
   function tracking (key) { return watchers.has(key) }
@@ -123,8 +144,10 @@ export function createDerivedView ({ fold, onChange, range, onError, debounceMs 
     // resolves. Closing out from under it leaves those sessions open for the store to find.
     try { await inFlight } catch { /* the fold's own error path already reported */ }
     inFlight = null
-    for (const { watcher } of watchers.values()) {
-      try { await watcher.close() } catch { /* already gone */ }
+    for (const opened of watchers.values()) {
+      for (const { watcher } of opened) {
+        try { await watcher.close() } catch { /* already gone */ }
+      }
     }
     watchers.clear()
   }

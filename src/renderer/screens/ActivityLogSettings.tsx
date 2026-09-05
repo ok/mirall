@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
+import { useQuery } from '../store/useQuery.js'
+import { refetchQuery, setQueryData } from '../store/query-store.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { RETENTION_CHOICES } from '../auditRetentionChoices.js'
 import type { AuditConfig, AuditEntry, AuditStats } from '../types.js'
@@ -27,33 +29,26 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const { t } = useTranslation()
   const errorText = useErrorText()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  const [config, setConfig] = useState<AuditConfig | null>(null)
-  const [stats, setStats] = useState<AuditStats | null>(null)
+  // The same two store entries the Account screen reads, so the two screens cannot report
+  // different numbers for one log. Scope-less for the reason stated there: the audit scope would
+  // repaint these rows on every recorded event, and they are a summary, not a live counter.
+  const { data: config } = useQuery<AuditConfig>('audit:get-config', {}, null)
+  const { data: stats } = useQuery<AuditStats>('audit:stats', {}, null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
 
-  // The mount read and the post-purge read can overlap — purge is slow enough that a user can
-  // change retention while it runs — and the stats half of the older pair would then re-show the
-  // row count that was just deleted.
-  const runRef = useRef(0)
-
   const refresh = useCallback(async () => {
-    const run = ++runRef.current
-    const [nextConfig, nextStats] = await Promise.all([
-      request('audit:get-config') as Promise<AuditConfig>,
-      request('audit:stats') as Promise<AuditStats>,
+    await Promise.all([
+      refetchQuery<AuditConfig>('audit:get-config', {}, null),
+      refetchQuery<AuditStats>('audit:stats', {}, null),
     ])
-    if (run !== runRef.current) return
-    setConfig(nextConfig)
-    setStats(nextStats)
   }, [])
 
-  useEffect(() => { void refresh() }, [refresh])
-
   const patch = useCallback(async (next: Partial<AuditConfig>) => {
-    const applied = await request('audit:configure', next) as AuditConfig
-    setConfig(applied)
+    // The worker answers with the record it applied, so push it rather than re-reading: a refetch
+    // here would race the write it is meant to reflect.
+    setQueryData<AuditConfig>('audit:get-config', {}, await request('audit:configure', next) as AuditConfig)
   }, [])
 
   const handleExport = useCallback(async () => {

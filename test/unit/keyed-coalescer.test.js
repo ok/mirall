@@ -86,3 +86,41 @@ test('keyed coalescer: reset clears every open window without firing', (t) => {
   c.poke('S1')
   t.alike(fired, ['S1', 'S2', 'S1'], 'a poke after reset opens a fresh leading edge')
 })
+
+// The injected schedule is how a caller hands the trailing timer to an owner that can stop it, and
+// an owner that has gone declines rather than arming something nothing will clear. The window must
+// then not open at all: a key left open with no timer swallows every later poke for it, which is a
+// far worse failure than the timer it was avoiding.
+test('a declined schedule fires every poke instead of opening a window nothing can close', (t) => {
+  const fired = []
+  const engine = makeKeyedCoalescer((x) => fired.push(x), {
+    intervalMs: 500,
+    schedule: () => null,
+    clear: () => {},
+  })
+
+  engine.poke('a')
+  engine.poke('a')
+  engine.poke('a')
+  t.alike(fired, ['a', 'a', 'a'], 'no window opened, so nothing was collapsed into a fire that never comes')
+})
+
+test('a granted schedule still coalesces, and the handle is the one the owner returned', (t) => {
+  const fired = []
+  const armed = []
+  const cleared = []
+  const handle = { owned: true }
+  const engine = makeKeyedCoalescer((x) => fired.push(x), {
+    intervalMs: 500,
+    schedule: (fn, ms) => { armed.push({ fn, ms }); return handle },
+    clear: (h) => cleared.push(h),
+  })
+
+  engine.poke('a')
+  engine.poke('a')
+  t.alike(fired, ['a'], 'the second poke collapsed into the open window')
+  t.is(armed.length, 1, 'one trailing timer, armed through the injected schedule')
+
+  engine.reset()
+  t.alike(cleared, [handle], 'and reset returned that same handle to the owner')
+})

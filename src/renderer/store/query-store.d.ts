@@ -15,6 +15,7 @@ export declare function keyOf (type: RequestName, params?: Record<string, unknow
 export declare function fetchQuery<T> (type: RequestName, params?: Record<string, unknown>, scopes?: ScopePattern | ScopePattern[] | null, opts?: { coalesceMs?: number }): Promise<T>
 export declare function invalidate (hint: ScopePattern): string[]
 export declare function subscribeKey (key: string, notify: () => void): () => void
+export declare const EMPTY_SNAPSHOT: QuerySnapshot<never>
 export declare function peek<T> (key: string): QuerySnapshot<T>
 export declare function refetchQuery<T> (type: RequestName, params?: Record<string, unknown>, scopes?: ScopePattern | ScopePattern[] | null): Promise<T>
 export declare function invalidateKey (shouldDrop: (key: string) => boolean): string[]

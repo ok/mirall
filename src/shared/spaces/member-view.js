@@ -1,6 +1,6 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex } from './profile.js'
+import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex, CAP_MEMBERSHIP_MANIFEST } from './profile.js'
 import { foldMembership } from './member-set.js'
 import { createDerivedView } from '../state/derived-view.js'
 import { getResourceCaps } from '../core/runtime-config.js'
@@ -126,6 +126,33 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
   // displayName/membership append shares the same bee but must not trigger a share re-fetch.
   const shareRange = { gte: SHARE_PREFIX + spaceId + '/', lt: SHARE_PREFIX + spaceId + '/\xff' }
   const shareWatchers = new Map()
+
+  // The fold's read set expressed as watch ranges — one per read deriveMemberSet actually issues.
+  // Without them createDerivedView watches the WHOLE bee, and every profile write a peer makes
+  // wakes a full serial roster re-fold at one network-bounded readMembershipRecord per member.
+  // displayName, avatar, publicKey, invite/, drive/, loosecat*/, mirror/ and share/ are read by no
+  // part of this fold, and share/ is doubly wasteful because shareRange above already covers it.
+  // viewSignature does not save this: it suppresses the emit AFTER the fold has already run.
+  //
+  // This range set IS the membership convergence guarantee. A key family the fold reads but this
+  // set omits yields a view that is correct at fold time and then silently never re-folds when
+  // that key changes. It is enforced by test/integration/member-view-watch-range.test.js, which
+  // drives a write into each of these prefixes and asserts a re-fold, and into each excluded
+  // prefix and asserts none. The bounds mirror profile.js's read streams byte-for-byte, including
+  // the '0' upper bound (0x30, the byte after '/').
+  //
+  // The two exact-key ranges are exact on purpose. member/<spaceId> must NOT be a prefix range:
+  // member/<other> is another space's membership and must not wake this space's fold.
+  // caps/membership-manifest is written once and so almost never fires, but stays a wake reason in
+  // its own right — a peer publishing its manifest after we first folded it reads as "unknown /
+  // not replicated yet" until something re-folds.
+  const foldRanges = [
+    { gte: CAP_MEMBERSHIP_MANIFEST, lte: CAP_MEMBERSHIP_MANIFEST },
+    { gte: 'member/' + spaceId, lte: 'member/' + spaceId },
+    { gte: 'approved/' + spaceId + '/', lt: 'approved/' + spaceId + '0' },
+    { gte: 'request/' + spaceId + '/', lt: 'request/' + spaceId + '0' },
+    { gte: 'denied/' + spaceId + '/', lt: 'denied/' + spaceId + '0' },
+  ]
   let closed = false
   const follow = (key, bee) => {
     if (closed || key === self || follows.has(key)) return
@@ -188,6 +215,7 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
     },
     onChange: emit,   // receives { members, considered, approved, requests, denied }
     onError,
+    ranges: foldRanges,
     debounceMs: getResourceCaps().deriveDebounceMs,
   })
 

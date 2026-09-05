@@ -62,7 +62,7 @@ function entryFor (key, scopes) {
 // An entry that has never resolved reports LOADING even before its fetch starts. The first render
 // happens before the effect that fetches, so reporting false there would paint the "nothing shared
 // yet" hero over a space whose content is still on its way.
-const EMPTY_SNAPSHOT = Object.freeze({ data: undefined, error: null, loading: true })
+export const EMPTY_SNAPSHOT = Object.freeze({ data: undefined, error: null, loading: true })
 
 function snapshotOf (entry) {
   const settled = entry.data !== undefined || entry.error !== null

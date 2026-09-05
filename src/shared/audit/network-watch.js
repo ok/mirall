@@ -16,8 +16,18 @@ const log = createLogger('network-watch')
 
 let device = null
 let peers = null
+// The owning subsystem's timer set, handed in by initNetworkWatch. Both handles below re-arm
+// themselves, so they outlive every call that arms them and nothing scoped to a call can clear
+// them; owning them here means the AuditLog subsystem's close reaches them on every path,
+// including a failed _open, which ReadyResource ends without ever running _close.
+let timers = null
 let deviceTimer = null
 let peerTimer = null
+
+// Arming through a closed set THROWS, by design — a late continuation that still wants a timer is
+// a bug worth seeing. Both re-arm tails run from a timer callback, where a throw would escape into
+// the event loop, so they ask first rather than being surprised.
+function canArm() { return !!timers && !timers.closed }
 let emitUpdated = null
 let session = null
 let last = null
@@ -25,7 +35,8 @@ let degraded = false
 let running = false
 let pending = false
 
-export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, peerDwellMs = 0 } = {}) {
+export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, peerDwellMs = 0, timers: owner = null } = {}) {
+  timers = owner
   device = createEpisodeTracker(dwellMs ? { dwellMs } : {})
   peers = createPeerPresenceTracker(peerDwellMs ? { dwellMs: peerDwellMs } : {})
   emitUpdated = emit
@@ -37,8 +48,8 @@ export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, p
 }
 
 export function resetNetworkWatch() {
-  if (deviceTimer) { clearTimeout(deviceTimer); deviceTimer = null }
-  if (peerTimer) { clearTimeout(peerTimer); peerTimer = null }
+  if (deviceTimer) { timers?.clear(deviceTimer); deviceTimer = null }
+  if (peerTimer) { timers?.clear(peerTimer); peerTimer = null }
   device?.reset()
   peers?.reset()
   last = null
@@ -79,10 +90,9 @@ async function pumpDevice() {
     const persisted = await getNetworkState()
     const { row, next, waitMs } = device.step({ ...last, now: Date.now(), session, persisted })
 
-    if (deviceTimer) { clearTimeout(deviceTimer); deviceTimer = null }
-    if (waitMs != null) {
-      deviceTimer = setTimeout(() => { deviceTimer = null; void pumpDevice() }, waitMs + 50)
-      deviceTimer.unref?.()
+    if (deviceTimer) { timers?.clear(deviceTimer); deviceTimer = null }
+    if (waitMs != null && canArm()) {
+      deviceTimer = timers.setTimeout(() => { deviceTimer = null; void pumpDevice() }, waitMs + 50)
     }
     if (!row) return
 
@@ -135,7 +145,7 @@ export const peerLeft = guarded((publicKey, spaceId) => {
 // escape into the event loop as an uncaught exception. Each row is written in its own guard so one
 // failure cannot drop the rest — their episodes are already flagged recorded.
 const armPeerTimer = guarded(() => {
-  if (peerTimer) { clearTimeout(peerTimer); peerTimer = null }
+  if (peerTimer) { timers?.clear(peerTimer); peerTimer = null }
   const { rows, waitMs } = peers.step(Date.now())
   for (const row of rows) {
     try {
@@ -144,9 +154,8 @@ const armPeerTimer = guarded(() => {
       log.warn('peer row write failed:', err.message)
     }
   }
-  if (waitMs != null) {
-    peerTimer = setTimeout(() => { peerTimer = null; armPeerTimer() }, waitMs + 50)
-    peerTimer.unref?.()
+  if (waitMs != null && canArm()) {
+    peerTimer = timers.setTimeout(() => { peerTimer = null; armPeerTimer() }, waitMs + 50)
   }
 })
 
