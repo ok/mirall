@@ -10,6 +10,76 @@ behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
 
+## v1.10.1
+### 2026-09-05
+
+Mostly about not losing your files: three ways Mirall could delete or
+overwrite something you had are closed. Errors now explain themselves
+properly, and a folder that gets stuck picks itself back up.
+
+#### Fixed
+
+- **Your edits inside a mirrored folder are kept.** Changing a file in a
+  folder you mirror used to overwrite your version without warning.
+  Mirall now saves it beside the owner's as a "conflicted copy".
+- **A folder that seems to have lost its files no longer deletes yours.**
+  An incomplete file list from the owner could remove hundreds of files
+  from your disk. A single pass may now never delete more than half of
+  what you hold.
+- **A file shared from a network drive notices your edits again.** Files
+  on a mounted network volume went on serving their old contents to
+  everyone, with no error and no sign anything was wrong.
+- **Error messages say what went wrong, in your language.** Different
+  problems shared one misleading message, and some appeared in English
+  whichever language you use. Every error now has its own wording in all
+  five.
+- **Two actions that failed silently.** Creating an invite could leave
+  the button stuck on "Creating…" or hand you no link and no reason, and
+  revealing a shared folder that has moved blamed a missing file
+  instead.
+- **The Activity Log covers shared folders, and gets its details right.**
+  Downloads from a shared folder were missing from it entirely, the
+  "granted access" entry named nobody, and its file sizes read too low.
+- **Mirall tells you when it can't read a folder on your disk.** A
+  permission problem, a full disk or a folder that has moved now shows
+  on the folder itself — for its owner and for everyone mirroring it —
+  and clears as soon as you fix the cause.
+- **A folder download that stalls now says so.** The progress bar simply
+  stopped moving before, with no notification; only files shared on
+  their own ever raised one.
+- **A space that freezes picks itself back up.** With members Mirall
+  couldn't reach, the member list, join requests and folder list could
+  all stop updating. It now notices and restarts just the part that
+  stopped.
+- **Quitting mid-task no longer leaves a folder broken.** Closing Mirall
+  while a shared folder was being created left one others could see but
+  you couldn't remove; closing it while moving a mirrored folder made
+  every member download the whole thing again.
+- **No screen invents a number it failed to read.** A failed read showed
+  "0 files", or the default speed limit, instead of saying it couldn't
+  load — and a speed limit that didn't save was never put back.
+- **Three mirroring annoyances.** A file saved under a second name was
+  listed as missing, a change arriving during a folder's first scan was
+  ignored until the next check, and downloading a file already on its
+  way did nothing at all.
+- **Lighter while running, cleaner on quit.** Mirrored folders no longer
+  start an unlimited number of downloads at once, spaces stop rebuilding
+  their member list on unrelated traffic, and background work now stops
+  when you do.
+- **Easier to read, and to hear.** The path under a folder was too faint
+  to read in both themes, Storage settings showed "Calculating storage…"
+  where a path belongs, and a file's status is now announced together
+  with its name.
+
+#### Security
+
+- **Mirall's internal parts check what they send each other.** Messages
+  between the window, the background process and the app's core could be
+  corrupted without anything noticing, unknown commands were ignored
+  rather than refused, and an unused internal route could set a watcher
+  on any folder on your disk.
+
+
 ## v1.10.0
 ### 2026-09-02
 
