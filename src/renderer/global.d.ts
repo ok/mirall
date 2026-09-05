@@ -129,8 +129,6 @@ export interface MirallBridge {
   getBandwidth(): Promise<BandwidthLimits>
   setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
-  startOwnedFolderWatcher(shareId: string, mountPath: string, ignore: string[]): Promise<{ ok: boolean; reason?: string }>
-  stopOwnedFolderWatcher(shareId: string): Promise<{ ok: boolean }>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>
   notifyIsSupported(): Promise<boolean>

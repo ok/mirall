@@ -134,8 +134,6 @@
     setDownloadFolder: asyncNoop,
     browseDownloadFolder: asyncNoop,
     browseShareFolder: asyncNoop,
-    startOwnedFolderWatcher: asyncNoop,
-    stopOwnedFolderWatcher: asyncNoop,
     onZoomChanged: noop,
     notify: asyncNoop,
     notifyIsSupported: () => Promise.resolve(false),

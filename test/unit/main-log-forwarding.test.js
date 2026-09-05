@@ -30,3 +30,26 @@ test('REGRESSION (FIX-EDA-4: main log forwarding cannot loop on a disposed rende
   t.ok(/forwarding = true[\s\S]*finally\s*\{\s*forwarding = false\s*\}/.test(fwd),
     'the flag is set around sendToAll and always restored')
 })
+
+// StringDecoder.write() returns '' for a chunk that completes no character — it holds the bytes for
+// the next one. The handlers wrote their prefix regardless, so a split character produced a bare
+// '[worker stderr] ' with no newline that the next real line then continued, in the terminal and in
+// any captured build log. The raw forward must NOT move behind that guard: the renderer decodes the
+// bytes itself, and a chunk carrying only a split character is the one it needs most.
+test('a chunk that decodes to nothing prints nothing, and is still forwarded', (t) => {
+  for (const stream of ['stdout', 'stderr']) {
+    const m = mainSrc.match(new RegExp(`worker\\.${stream}\\.on\\('data'[\\s\\S]*?\\n  \\}\\)`))
+    t.ok(m, `the ${stream} handler exists`)
+    const body = m[0]
+    const forward = body.indexOf('sendToAll')
+    const decode = body.indexOf(`${stream}Decoder.write`)
+    t.ok(forward !== -1 && forward < decode, `${stream}: the raw chunk is forwarded before any decode`)
+    t.ok(/if \(!text\) return/.test(body), `${stream}: an empty decode prints nothing`)
+  }
+
+  // And whatever the decoders still hold at process death is flushed, rather than dropped with the
+  // last line the worker wrote.
+  const exit = mainSrc.slice(mainSrc.indexOf("worker.once('exit'"))
+  t.ok(/stdoutDecoder\.end\(\)/.test(exit) && /stderrDecoder\.end\(\)/.test(exit),
+    'both decoders are flushed on worker exit')
+})

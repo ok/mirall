@@ -618,6 +618,30 @@ function clearApplyError() {
 // needs them to authorize "reveal in folder" for files outside the home directory.
 let workerDownloadRoots = []
 
+// === Folder watcher bridge (chokidar on the worker's behalf) ===
+
+const ownedFolderWatchers = require('./owned-folder-watchers.js')
+const looseFileWatchers = require('./loose-file-watchers.js')
+
+// A write racing the worker's death (shutdown, a watcher event) fails with an EPIPE; there is no
+// recipient anymore, so the message is moot.
+function sendToWorker(worker, frame) {
+  try { worker.write(Buffer.from(JSON.stringify(frame) + '\n')) } catch (err) {
+    if (debug) console.error('worker frame write failed:', frame.type, '-', err.message)
+  }
+}
+
+// Above getWorker on purpose. `mainRequests` is a const read from inside the worker's data
+// handler, and it used to be declared ~300 lines BELOW it: that works only while every spawn
+// comes from an ipcMain callback. Any synchronously-dispatched spawn added above the declaration
+// would turn the first worker frame into a TDZ ReferenceError thrown inside a stream listener.
+const mainRequests = createMainRequestRouter({
+  ownedFolderWatchers,
+  looseFileWatchers,
+  setDownloadRoots: (roots) => { workerDownloadRoots = roots },
+  sendToWorker,
+})
+
 function getDefaultDownloadFolder() {
   return app.getPath('downloads')
 }
@@ -757,17 +781,23 @@ function getWorker(specifier) {
   // one artifact used to diagnose exactly this class of bug — with the character mangled.
   const stdoutDecoder = new StringDecoder('utf8')
   const stderrDecoder = new StringDecoder('utf8')
+  // The renderer gets the raw bytes either way — it has its own streaming decoder, and gating the
+  // forward on a decode that came back empty would drop the chunk carrying a split character.
   worker.stdout.on('data', (data) => {
+    sendToAll('pear:worker:stdout:' + specifier, data)
+    // Empty whenever a chunk ends mid-character: the decoder holds those bytes for the next one.
+    // Writing the prefix anyway printed a bare '[worker stdout] ' that the next line continued.
     const text = stdoutDecoder.write(data)
+    if (!text) return
     if (debug) process.stdout.write('[worker stdout] ' + text)
     logRing.push('worker', 'log', text)
-    sendToAll('pear:worker:stdout:' + specifier, data)
   })
   worker.stderr.on('data', (data) => {
+    sendToAll('pear:worker:stderr:' + specifier, data)
     const text = stderrDecoder.write(data)
+    if (!text) return
     process.stderr.write('[worker stderr] ' + text)
     logRing.push('worker', 'error', text)
-    sendToAll('pear:worker:stderr:' + specifier, data)
   })
 
   const onBeforeQuit = () => {
@@ -789,6 +819,12 @@ function getWorker(specifier) {
   app.on('before-quit', onBeforeQuit)
 
   worker.once('exit', (code) => {
+    // A partial character at process death would otherwise be dropped along with the line it
+    // belongs to — and a worker's LAST line is the one worth having.
+    const stdoutTail = stdoutDecoder.end()
+    if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
+    const stderrTail = stderrDecoder.end()
+    if (stderrTail) logRing.push('worker', 'error', stderrTail)
     app.removeListener('before-quit', onBeforeQuit)
     // Replace the writeHandler with a no-op instead of removing it. Late
     // renderer messages (common during shutdown) would otherwise hit
@@ -1045,51 +1081,6 @@ ipcMain.handle('share:browseFolder', async (evt) => {
   })
   if (result.canceled || result.filePaths.length === 0) return null
   return result.filePaths[0]
-})
-
-// === Folder watcher bridge (chokidar on the worker's behalf) ===
-
-const ownedFolderWatchers = require('./owned-folder-watchers.js')
-const looseFileWatchers = require('./loose-file-watchers.js')
-
-// A write racing the worker's death (shutdown, a watcher event) fails with an EPIPE; there is no
-// recipient anymore, so the message is moot.
-function sendToWorker(worker, frame) {
-  try { worker.write(Buffer.from(JSON.stringify(frame) + '\n')) } catch (err) {
-    if (debug) console.error('worker frame write failed:', frame.type, '-', err.message)
-  }
-}
-
-const mainRequests = createMainRequestRouter({
-  ownedFolderWatchers,
-  looseFileWatchers,
-  setDownloadRoots: (roots) => { workerDownloadRoots = roots },
-  sendToWorker,
-})
-
-ipcMain.handle('owned-folder:start-watcher', (_evt, { shareId, mountPath, ignore }) => {
-  const worker = workers.get('/src/worker/main.js')
-  if (!worker) return { ok: false, reason: 'worker-not-running' }
-  ownedFolderWatchers.startWatcher(
-    shareId,
-    mountPath,
-    ignore || [],
-    (event) => {
-      const frame = JSON.stringify({ type: 'event:owned-folder-fs-event', ...event }) + '\n'
-      try { worker.write(Buffer.from(frame)) } catch (err) {
-        if (debug) console.error('owned-folder fs-event write failed:', err.message)
-      }
-    },
-    (err) => {
-      console.warn('owned-folder watcher error', shareId, '-', err.message)
-    },
-  )
-  return { ok: true }
-})
-
-ipcMain.handle('owned-folder:stop-watcher', (_evt, { shareId }) => {
-  ownedFolderWatchers.stopWatcher(shareId)
-  return { ok: true }
 })
 
 app.on('before-quit', () => {
@@ -1368,6 +1359,12 @@ const APP_PROTOCOL_MIME = {
 const APP_PROTOCOL_CACHE = new Map()
 
 function preloadAsarCache() {
+  // FIRST: everything below can throw (a missing assets/dist in a source checkout is an ENOENT out
+  // of readdirSync), and this function has no catch. The allowlist is what pear:startWorker
+  // resolves against, so losing it means the app refuses to spawn its OWN worker.
+  const repoRoot = path.join(__dirname, '..', '..')
+  preloadEntrypoints(repoRoot)
+
   const uiRoot = path.join(__dirname, '..', '..', 'assets')
   const walk = (dir) => {
     const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -1381,9 +1378,6 @@ function preloadAsarCache() {
     }
   }
   walk(uiRoot)
-
-  const repoRoot = path.join(__dirname, '..', '..')
-  preloadEntrypoints(repoRoot)
 
   // feature-flags.json is asar-internal too: read + cache it here, before
   // getPear opens the updater's noAsar window, so worker bootstrap's flag reads
