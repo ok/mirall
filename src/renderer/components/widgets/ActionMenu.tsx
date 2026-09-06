@@ -67,7 +67,7 @@ function MenuItemRow({ node, state, config, showSeparator }: {
             ? 'text-outline cursor-not-allowed opacity-60'
             : `cursor-pointer active:scale-[0.98] transition-all ${
                 isDanger
-                  ? 'text-error hover:bg-error-container'
+                  ? 'text-error hover:bg-error-container hover:text-on-error-container'
                   : 'text-accent hover:bg-surface-container-low'
               } ${isFocused || isFocusVisible ? 'bg-surface-container-low' : ''}`
           }

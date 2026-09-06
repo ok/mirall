@@ -126,7 +126,11 @@ function ActionSlot({
   const visibility = alwaysVisible
     ? ''
     : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
-  const hoverBg = isDanger ? 'hover:bg-error-container' : 'hover:bg-surface-container-high'
+  // The error-container fill carries its own ink: `text-error` on it is 2.94:1 in dark, under
+  // even the 3:1 non-text floor. Same pairing as the relay row's remove button.
+  const hoverBg = isDanger
+    ? 'hover:bg-error-container hover:text-on-error-container'
+    : 'hover:bg-surface-container-high'
   const iconColor = isDanger ? 'text-error' : 'text-secondary'
   return (
     <button

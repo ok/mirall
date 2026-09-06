@@ -27,14 +27,20 @@ interface ButtonProps {
 // Every variant names its hover colour; none of them blends. `hover:opacity-90` looked like a
 // darkening but is really "mix 10% of whatever is behind me", so it darkened the orange in dark
 // mode and LIGHTENED the plum in light mode (+9.3 L*), while the neutral swapped tokens and dropped
-// to within 2.8 L* of the page it sits on — a button dissolving into its own background. The tokens
-// step by a fixed perceptual amount instead: primary ~7 L*, neutral ~3-4 L*, always downwards, and
-// the neutral stays clear of the page.
+// to within 2.8 L* of the page it sits on — a button dissolving into its own background. Each hover
+// token is instead the resting fill stepped AWAY from the page: darker in light mode, lighter in
+// dark. That is the same gesture the rows, cards and menu items already make, and because it moves
+// a fill toward its own label in only one theme, no variant has to spend AA headroom to be felt.
+// How far is a function of how far the fill sits from the page — ~5 L* near it, ~7-9 for the brand
+// fills out at the ends, where the eye (adapted to the page) stops resolving small steps. Those two
+// also invert the direction, because at the end of a ramp outward has nothing left: the light plum
+// rests near-black and LIGHTENS, the dark orange sits at the sRGB edge and DARKENS.
+// design.md carries the table; the invariants are pinned by test/unit/control-hover-tokens.test.js.
 // `secondary` is the neutral surface style shared with the top-nav "Send feedback" button and
 // the filter chips, used for cancel / dismiss actions.
 // `danger` is the tonal destructive style used for every destructive action (in-page
 // triggers and modal confirmations alike): it rests in the soft error-container fill and
-// hovers to a slightly shifted shade of the same red rather than jumping to a neutral color.
+// hovers to a deeper shade of the same red rather than jumping to a neutral color.
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover focus-visible:ring-secondary/30',
   secondary: 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover focus-visible:ring-secondary/30',

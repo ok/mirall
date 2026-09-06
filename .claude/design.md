@@ -57,7 +57,8 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 
 | Token | Hex | Role |
 |---|---|---|
-| `primary` / `accent` | `#33253b` | Twilight plum. Headings, primary buttons, key text. (`accent` == `primary` in light mode.) |
+| `accent` | `#33253b` | Twilight plum as **ink** — headings, key text, link-ish emphasis |
+| `primary` / `-hover` | `#42304a` / `#52405b` | Twilight plum as **fill** — the primary button, resting dark and lightening on hover. Off the ramp floor on purpose: see Buttons |
 | `on-primary` | `#ffffff` | Text/icon on primary |
 | `secondary` | `#904d00` | Burnt amber — focus rings, links, secondary emphasis |
 | `secondary-container` | `#fd9c42` | Signature orange (the "Mirall dot") |
@@ -68,6 +69,7 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 | `surface-container-low` | `#f5f3ef` | Section/setting cards; **folder cards at rest (light)**; file cards at rest (dark) |
 | `surface-container` | `#efeeea` | |
 | `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles |
+| `surface-control` / `-hover` | `#eae8e4` / `#dcdad6` | **Every filled neutral control** — secondary buttons, ActionMenu triggers, PathRow, filter chips (dark: `#434955` / `#4f5561`) |
 | `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); avatar fallback, "remote" badge |
 | `progress-track` | `#d0cec9` | Progress-bar tracks and the peer-dropdown divider — see the note below |
 | `on-surface` | `#1b1c1a` | Primary body text (near-black; **never** `#000`) |
@@ -86,8 +88,8 @@ each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
 | `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk. **Solid chips only** |
 | `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — the read-only notice, the work strip's paused band |
 | `error` | `#ba1a1a` | Hard error text/icon |
-| `error-container` / `on-error-container` | `#ffdad6` / `#93000a` | Danger button rest, error toast/badge |
-| `error-container-hover` | `#f5c8c4` | Danger button hover |
+| `error-container` / `on-error-container` | `#f6c8c4` / `#93000a` | Danger button rest, error toast/badge, destructive row hover |
+| `error-container-hover` | `#e8bab6` | Danger button hover (dark: `#7c3f43`) — see the hover-token table under Buttons |
 | `icon-tile` / `on-icon-tile` | `#fec78a` / `#0a4742` | Reserved icon-tile pair (defined; most tiles render on `surface-container-high`) |
 
 ### Dark theme
@@ -100,9 +102,10 @@ mockup): `surface` `#282c34`, `surface-container-lowest` `#21252b`,
 `surface-container-low` `#2e3239`, `surface-container` `#2e323a`,
 `surface-container-high` `#5c6068`, `surface-container-highest` `#393f4a`,
 `progress-track` `#4a5160`. **The ramp is not monotonic by name in dark** — `surface-container-high` (`#5c6068`) is
-markedly *lighter* than `-highest` (`#393f4a`); this is why secondary buttons use
-`dark:bg-surface-container-highest` deliberately (and `dark:hover:bg-surface-container-high`,
-a step *lighter* on hover). The `icon-tile` pair (`#fec78a` / `#0a4742`) is **not
+markedly *lighter* than `-highest` (`#393f4a`), which is why the subtle icon triggers hover to
+`-high` and the card rows lift to `-highest`, both a step *lighter*, and why secondary buttons no
+longer borrow from this ramp at all: they sit on `surface-control` (`#434955`), a token of their
+own that flips per theme — see Buttons. The `icon-tile` pair (`#fec78a` / `#0a4742`) is **not
 inverted** — it keeps its warm-peach light values in dark. Every status token has a dark variant.
 `--color-background` syncs with `BG_DARK` in `main.js`.
 
@@ -316,15 +319,49 @@ by 9.3 L\* in light mode. Meanwhile the neutral swapped ramp tokens and landed 2
 page it sits on, so the button dissolved into its own background on hover — which reads as "too
 dark" even though the step was the same size as primary's.
 
-The hover tokens step by a fixed perceptual amount, always downwards, and the neutral keeps its
-distance from the page:
+**On hover a control steps AWAY from the page behind it** — *darker* in light mode, where the page
+is the lightest thing on screen, *lighter* in dark mode, where it is the darkest — **unless it
+already sits at an end of the ramp, where outward has nothing left; then it steps inward.** Both
+brand fills are in that second case, and both are so far from the page that moving toward it costs
+them nothing. One rule, one gesture, every interactive surface in the app:
 
-| | base → hover | ΔL\* | clears the page by |
-|---|---|---|---|
-| primary, dark | `#fd9c42` → `#e28c3b` | −7.0 | — |
-| neutral, dark | `#393f4a` → `#353b45` | −2.0 | 6.8 L\* |
-| primary, light | `#33253b` → `#241a2a` | −6.1 | — |
-| neutral, light | `#eae8e4` → `#e4e2de` | −2.1 | 7.6 L\* |
+**Why "away from the page" and not "always darker".** A hover that darkens in *both* themes moves
+half the palette toward its own label, so contrast pays for every step and the ceiling arrives
+early: the dark orange stopped at 4.75:1, and the light neutral needed 8× its old step to be felt
+at all — one gesture that looked like six. Stepping away from the page moves a fill away from its
+label in exactly one theme, never both, so nothing has to spend AA headroom to be noticed, and the
+control always grows *more* distinct from its background under the pointer, which is what a hover
+means. It is also what the app already did everywhere else: rows and cards lift to
+`surface-container-highest`, subtle icon triggers to `surface-container-high`, menu items to
+`surface-container-low` — all of them away from the page. The filled variants were the outliers.
+
+**How big the step has to be depends on how far the fill sits from the page**, because the page is
+what the eye is adapted to. Near it, a little goes a long way: the light neutral is felt at 4.9 L\*,
+the dark neutral and dark danger at ~5. Far from it, small differences compress and the same step
+disappears — the plum used to rest at `#33253b`, 81 L\* below a near-white page, where 4.9 L\* was
+*invisible to the person using it*. The two brand fills are the far ones (68 L\* below in light,
+55 above in dark) and both owe ~7–9 L\*.
+
+**`primary` in light rests dark and lightens** (`#42304a` → `#52405b`). Outward here means darker,
+and the fill was already on the floor of the ramp at `#33253b` — 81 L\* below the page, where 4.9
+L\* of extra black was *invisible to the person using it*. The pair moved up until the step had
+somewhere to live and then turned around: the button still reads as the near-black plum at rest,
+and the pointer lifts it. `accent` keeps `#33253b` and the two tokens have parted ways — the ink
+wants to be as dark as it can, the fill needs headroom. `primary` is only ever a `bg-`, never a
+text colour, so nothing lost contrast in the move; the label actually gains it (11.98:1 at rest).
+
+**`primary` in dark is the same story at the other end** (`#fd9c42` → `#dd8837`). Outward there
+means lighter, and that orange is close enough to the sRGB edge that +3.3 L\* was the whole budget
+at full chroma — it read as no hover at all, and buying more costs 22% of the chroma, which is the
+brand. So it steps down. The resting orange itself never moves.
+
+The tonal red is also the one fill that gets painted under a foreign ink — a destructive menu item
+or card action is `text-error` at rest and only meets the fill on hover, where `error` on
+`error-container` is **2.94:1** in dark, under even the 3:1 non-text floor. Every
+`hover:bg-error-container` therefore carries `hover:text-on-error-container` with it.
+`test/unit/control-hover-tokens.test.js` holds all of it: the direction per theme and the two
+documented ramp-end exceptions, the step floor as a function of distance from the page, AA on every label
+over *both* states, the neutral's clearance, and that pairing.
 
 **The neutral base is one token, not a `dark:` variant, and that is load-bearing.** A
 `dark:bg-…` utility compiles to `.dark\:bg-x:is(.dark *)` — specificity (0,2,0), the same as a
@@ -334,11 +371,16 @@ later: the hover simply never applied in dark mode. The old code only worked bec
 the base is (0,1,0) and hover always wins. Prefer a theme-flipping token over a `dark:` variant on
 anything that also has interactive states.
 
-The neutral's step is deliberately much the smaller one — about a third of primary's. It starts
-only ~8 L\* above the page, so a primary-sized step reads as the button dissolving rather than
-responding; ~2 L\* is enough to acknowledge the pointer on a surface that quiet. Same tokens for
-the `ActionMenu` triggers, `PathRow`'s button, and the All/Favorites tabs on the spaces list,
-which are filled neutral chips and not the *lift* pattern below. (A transparent control that *lifts* into a visible
+The neutral is the row with the least room: a plain surface with no hue of its own, a few L\* off
+the page in either direction, so both of its states have to stay a visible object — 5.9 L\* of
+clearance at rest in light, 13.0 in dark, and more on hover, never less. Its dark rest was
+`#393f4a` and sat too close to the page to read as a control at all; `#434955` is the same slate
+lifted until the button has an edge. Same tokens for
+the `ActionMenu` triggers, `PathRow`'s button, and the *unselected* All/Favorites tab on the spaces
+list, which are filled neutral chips and not the *lift* pattern below. The **selected** tab wears the
+primary pair, hover included, so both states of that row answer the pointer the way the Create/Join
+buttons beside them do; it once carried `bg-primary` with no hover class at all, which read as the
+orange chip going dead under the cursor. (A transparent control that *lifts* into a visible
 surface on hover — `IconButton`, list rows — is the opposite pattern and still brightens.)
 - **`danger`** — tonal `bg-error-container text-on-error-container` →
   `hover:bg-error-container-hover` (stays in the red family, never jumps to neutral).
