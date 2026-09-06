@@ -12,6 +12,10 @@ export interface KnownCommand {
   acceleratorRangeEnd?: string
   // Bound at runtime across a family of generated ids rather than to this one id.
   dynamic?: boolean
+  // Documented here but dispatched elsewhere: primitives/Modal.tsx answers the dialog chords
+  // itself, on the focused dialog, so they must never become global commands. The catalogue still
+  // carries them — it is the list of every chord in the app, and the cheatsheet reads it.
+  documentationOnly?: boolean
 }
 
 const isMacRuntime: boolean =
@@ -26,6 +30,10 @@ const SPACE_DIGIT_COUNT = 9
 export const KEYBOARD_SHORTCUTS: ReadonlyArray<KnownCommand> = [
   { id: 'palette.open',     labelKey: 'shortcuts.openPalette',     group: 'system',     accelerator: 'mod+k' },
   { id: 'shortcuts.show',   labelKey: 'shortcuts.showShortcuts',   group: 'system',     accelerator: 'mod+/' },
+  // Answered by the focused dialog, never dispatched as a command — see documentationOnly above.
+  { id: 'modal.confirm',    labelKey: 'shortcuts.confirmDialog',   group: 'system',     accelerator: 'enter',     documentationOnly: true },
+  { id: 'modal.confirmMod', labelKey: 'shortcuts.confirmDialogFromText', group: 'system', accelerator: 'mod+enter', documentationOnly: true },
+  { id: 'modal.dismiss',    labelKey: 'shortcuts.dismissDialog',   group: 'system',     accelerator: 'escape',    documentationOnly: true },
   { id: 'nav.back',         labelKey: 'shortcuts.back',            group: 'navigation', accelerator: 'mod+arrowleft' },
   { id: 'nav.home',         labelKey: 'shortcuts.home',            group: 'navigation', accelerator: HOME_ACCELERATOR },
   { id: 'space.openNth',    labelKey: 'shortcuts.openNthSpace',    group: 'navigation', accelerator: 'mod+digit1', acceleratorRangeEnd: 'mod+digit9', dynamic: true },
@@ -40,7 +48,7 @@ export const KEYBOARD_SHORTCUTS: ReadonlyArray<KnownCommand> = [
 ]
 
 const ACCELERATOR_BY_ID = new Map<string, string>(
-  KEYBOARD_SHORTCUTS.filter((c) => !c.dynamic).map((c) => [c.id, c.accelerator]),
+  KEYBOARD_SHORTCUTS.filter((c) => !c.dynamic && !c.documentationOnly).map((c) => [c.id, c.accelerator]),
 )
 
 export function acceleratorFor(id: string): string | undefined {

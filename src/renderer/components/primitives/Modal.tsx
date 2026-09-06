@@ -1,17 +1,27 @@
-// Base dialog shell: react-aria focus trap, Escape to dismiss, Cmd/Ctrl+Enter to
-// confirm, and a window-level event that closes every open modal at once.
+// Base dialog shell: react-aria focus trap, and the one place the dialog keyboard contract lives —
+// Escape to dismiss, Enter (plain, or Cmd/Ctrl+Enter from a textarea) to confirm. See modalKeys.ts.
+// Also owns the window-level event that closes every open modal at once.
 import { forwardRef, useEffect, useRef, type ForwardedRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useDialog, FocusScope } from 'react-aria'
 import CrystalBackdrop from '../widgets/CrystalBackdrop.js'
+import { isMac } from '../../keyboard/accelerator.js'
+import { describeModalKeyEvent, modalKeyAction } from './modalKeys.js'
 
 export const CLOSE_MODALS_EVENT = 'mirall:close-modals'
 
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
+  // Supplying this is what makes Enter confirm. A destructive dialog deliberately omits it: nothing
+  // that deletes, removes or leaves may fire from a keypress the person did not aim at a button.
   onConfirm?: () => void
   isDismissable?: boolean
   ariaLabel?: string
+  // 'alertdialog' is for the destructive confirms. It REQUIRES ariaDescribedBy: react-aria
+  // generates a description id for that role, and without an element carrying it the dialog would
+  // point aria-describedby at nothing.
+  role?: 'dialog' | 'alertdialog'
+  ariaDescribedBy?: string
   panelClassName?: string
   children: ReactNode
 }
@@ -32,18 +42,25 @@ function ModalContents({
   onConfirm,
   isDismissable = true,
   ariaLabel,
+  role = 'dialog',
+  ariaDescribedBy,
   panelClassName,
   children,
   externalRef,
 }: ModalContentsProps) {
   const contentRef = useRef<HTMLDivElement>(null)
-  const { dialogProps } = useDialog({ 'aria-label': ariaLabel }, contentRef)
+  const { dialogProps } = useDialog(
+    { 'aria-label': ariaLabel, 'aria-describedby': ariaDescribedBy, role },
+    contentRef,
+  )
 
   useEffect(() => {
-    const handler = () => onClose()
+    // A dialog that refuses Escape and the backdrop refuses this too: a global hotkey must not tear
+    // down a modal that is holding a running operation on screen.
+    const handler = () => { if (isDismissable) onClose() }
     window.addEventListener(CLOSE_MODALS_EVENT, handler)
     return () => window.removeEventListener(CLOSE_MODALS_EVENT, handler)
-  }, [onClose])
+  }, [onClose, isDismissable])
 
   function setWrapperRef(node: HTMLDivElement | null) {
     if (typeof externalRef === 'function') externalRef(node)
@@ -51,18 +68,20 @@ function ModalContents({
   }
 
   function onWrapperKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Escape' && isDismissable) {
+    const action = modalKeyAction(describeModalKeyEvent(e), {
+      isDismissable,
+      hasConfirm: onConfirm !== undefined,
+      isMac: isMac(),
+    })
+    if (action === 'dismiss') {
       e.stopPropagation()
       onClose()
       return
     }
-    if (e.key === 'Enter' && onConfirm) {
-      const isMac = window.bridge.getPlatform() === 'darwin'
-      const mod = isMac ? e.metaKey : e.ctrlKey
-      if (mod) {
-        e.preventDefault()
-        onConfirm()
-      }
+    if (action === 'confirm') {
+      e.preventDefault()
+      e.stopPropagation()
+      onConfirm?.()
     }
   }
 
@@ -76,15 +95,20 @@ function ModalContents({
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
     >
       <CrystalBackdrop onClick={onBackdropClick} />
-      <FocusScope contain restoreFocus autoFocus>
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the dialog owns its Escape / Cmd+Enter keyboard handling */}
+      {/* No `autoFocus`: it lands on the first tabbable element, which in a dialog whose header
+          carries the ✕ is the close button — so Enter used to cancel. Without it, a field with its
+          own `autoFocus` still claims focus at commit, and useDialog falls back to focusing the
+          panel, which is what announces the dialog and lets Enter reach the handler below. */}
+      <FocusScope contain restoreFocus>
         <div
           {...dialogProps}
-          role="dialog"
+          /* dialogProps already carries the role; spelling it out is what tells the a11y lint this
+             is a dialog and not a static div with a key handler bolted on. */
+          role={role}
           aria-modal="true"
           onKeyDown={onWrapperKeyDown}
           ref={contentRef}
-          className={panelClassName ?? DEFAULT_PANEL}
+          className={`${panelClassName ?? DEFAULT_PANEL} focus:outline-none`}
         >
           {children}
         </div>

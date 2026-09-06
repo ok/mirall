@@ -119,7 +119,7 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      onConfirm={sent ? undefined : handleSubmit}
+      onConfirm={sent ? handleClose : handleSubmit}
       isDismissable={!sending}
       ariaLabel={t(sent ? 'feedback.titleSent' : 'feedback.titleNew')}
       panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"

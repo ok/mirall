@@ -29,8 +29,6 @@ export default function ShortcutsHint() {
   return (
     <Modal isOpen={cheatsheetOpen} onClose={closeCheatsheet} ariaLabel={t('shortcuts.title')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
       <div className="px-10 pt-10 pb-10">
-        {/* First focusable element → FocusScope autoFocus lands here instead of
-            the whole dialog, so the panel doesn't get a focus ring. */}
         <IconButton
           icon="close"
           onClick={closeCheatsheet}

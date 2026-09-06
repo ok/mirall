@@ -45,7 +45,12 @@ interface FolderShareEditStepProps {
 function FolderShareEditStep({ isOpen, spaceName, mountPath, shareName, validationError, nameError, canProceed, previewLoading, onBrowse, onNext, onChangeName, onClose }: FolderShareEditStepProps) {
   const { t } = useTranslation()
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('addFolder.title')}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={canProceed && !previewLoading ? onNext : undefined}
+      ariaLabel={t('addFolder.title')}
+    >
       <div className="px-10 pt-10 pb-6">
         <div className="flex justify-between items-start mb-2">
           <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{t('addFolder.title')}</h1>

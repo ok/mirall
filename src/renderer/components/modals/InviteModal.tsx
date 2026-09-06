@@ -1,6 +1,6 @@
 // Creates a space invite (optional auto-approve and expiry) and presents the
 // resulting mirall://join link for copying.
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
@@ -32,6 +32,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   const [expiry, setExpiry] = useState<ExpiryId>('2h')
   const [code, setCode] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +47,8 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   // rejections. Unhandled, the rejection also skipped setCreating(false), so the button stayed
   // disabled on "Creating…" with nothing on screen saying why.
   async function handleCreate() {
+    if (creating || creatingRef.current) return
+    creatingRef.current = true
     setCreating(true)
     setError(null)
     try {
@@ -53,6 +56,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
     } catch (err) {
       setError(errorText(err))
     } finally {
+      creatingRef.current = false
       setCreating(false)
     }
   }

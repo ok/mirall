@@ -43,8 +43,8 @@ export default function EditFolderModal({
   const [draftName, setDraftName] = useState(name)
   const [draftPath, setDraftPath] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  // setSaving lands a render later, so the flag it guards is stale for anything that can fire twice
-  // in one dispatch — which the name field's Enter and the modal's Cmd+Enter both can.
+  // setSaving lands a render later, so it is stale for a second Enter arriving in the same dispatch
+  // or on key repeat. The ref is what actually holds the door.
   const savingRef = useRef(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [pathError, setPathError] = useState<string | null>(null)
@@ -119,9 +119,6 @@ export default function EditFolderModal({
               placeholder={t('editFolder.namePlaceholder')}
               value={isOwner ? draftName : name}
               onChange={(e) => setDraftName(e.target.value)}
-              /* Cmd/Ctrl+Enter is the modal's own confirm gesture and bubbles to it; handling the
-                 modified Enter here too would run the save twice in one dispatch. */
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) handleSave() }}
             />
             {!isOwner && (
               <p id="edit-folder-name-note" className="text-sm text-on-surface-variant px-1">

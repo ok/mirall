@@ -33,7 +33,10 @@ export default function DeleteFolderShareModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={busy ? () => undefined : onClose}
+      onClose={onClose}
+      isDismissable={!busy}
+      role="alertdialog"
+      ariaDescribedBy="delete-folder-body"
       ariaLabel={t('deleteFolder.title', { name: folderName })}
       panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
     >
@@ -51,7 +54,7 @@ export default function DeleteFolderShareModal({
       </div>
 
       <div className="px-10 pb-10 space-y-6">
-        <p className="text-on-surface-variant font-medium">
+        <p id="delete-folder-body" className="text-on-surface-variant font-medium">
           {t('deleteFolder.body', { space: spaceName })}
         </p>
 
@@ -59,6 +62,7 @@ export default function DeleteFolderShareModal({
           <Button
             type="button"
             variant="secondary"
+            autoFocus
             onClick={onClose}
             disabled={busy}
             className="flex-1 h-14"

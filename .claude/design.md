@@ -457,10 +457,24 @@ folder name ended up painted over the Browse button. `npm run test:layout:trunca
   is just the verb, so on its own it announces as a bare "Change".
 
 ### Modal — `primitives/Modal.tsx`
-react-aria `useDialog` + `<FocusScope contain restoreFocus autoFocus>`;
-`role="dialog" aria-modal="true"`. Escape dismisses; Cmd/Ctrl+Enter fires
-`onConfirm`; backdrop click dismisses (when `isDismissable`). A global
-`CLOSE_MODALS_EVENT` closes any open modal.
+react-aria `useDialog` + `<FocusScope contain restoreFocus>`; `role="dialog" aria-modal="true"`.
+**The dialog owns Enter and Escape — no modal binds a key on its own field.** The decision is one
+pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.test.js`:
+- **Escape** dismisses, and so does a backdrop click — both only when `isDismissable`, and so does
+  the global `CLOSE_MODALS_EVENT`, so a hotkey cannot tear down a dialog holding a running operation.
+- **Enter** fires `onConfirm`, unless the focused control owns Enter itself (a textarea, a button,
+  a link, a select, anything contenteditable, or a widget role that binds it — the command palette).
+- **Cmd/Ctrl+Enter** fires `onConfirm` from anywhere, including a textarea. It is the only way to
+  send Feedback from the keyboard, and it is in the cheatsheet like every other chord.
+- **No `onConfirm` means no keyboard confirm.** The destructive confirms
+  (Remove file, Delete folder, Leave space, Delete activity log) deliberately pass none, declare
+  `role="alertdialog"` with `ariaDescribedBy` pointing at their body text, and put `autoFocus` on
+  Cancel: an alert dialog rests on its least destructive action.
+- **Initial focus** is the first field with `autoFocus`, else the panel itself — never the header ✕.
+  (`FocusScope`'s own `autoFocus` takes the first *tabbable* element, which is that ✕, which is why
+  Enter used to cancel dialogs that wired no confirm.)
+- Enter should reach the **primary button of the current step**: a wizard wires its "Next" as well
+  as its final action, and a two-state dialog wires the "Done" of its second state.
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
 - Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`); body

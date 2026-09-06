@@ -8,9 +8,9 @@ import { encodeInvite } from '../../../src/shared/invite-envelope.js'
 // code rendered through the errors catalog, not its English message — s128 pins that
 // in a non-English locale, where the difference is visible. The code field, Join
 // button (disabled state), and the role=alert error region must be addressable.
-// Pressing Enter in the auto-focused code field submits the join just like
-// clicking Join — without the field's keydown handler the keypress is swallowed
-// (the modal only confirms on Cmd/Ctrl+Enter) and no error ever returns.
+// Pressing Enter in the auto-focused code field submits the join just like clicking Join. The
+// field no longer binds Enter itself — primitives/Modal.tsx answers it for every dialog — so this
+// is the plain-Enter half of the contract in s133.
 export default async function s3 ({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()

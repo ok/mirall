@@ -93,7 +93,16 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} isDismissable={!leaving} ariaLabel={leaving ? t('leaveSpace.titleProgress') : t('leaveSpace.titleConfirm', { name: spaceName })}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      isDismissable={!leaving}
+      /* Only the confirm step is an alert: once the leave is running the dialog is a progress
+         report, and its body paragraph — the description — is gone. */
+      role={leaving ? 'dialog' : 'alertdialog'}
+      ariaDescribedBy={leaving ? undefined : 'leave-space-body'}
+      ariaLabel={leaving ? t('leaveSpace.titleProgress') : t('leaveSpace.titleConfirm', { name: spaceName })}
+    >
       <>
         <div className="px-10 pt-10 pb-6">
           <div className="flex justify-between items-start mb-2 gap-3">
@@ -138,13 +147,14 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
             </div>
           ) : (
             <>
-              <p className="text-on-surface-variant font-medium">
+              <p id="leave-space-body" className="text-on-surface-variant font-medium">
                 {t('leaveSpace.body')}
               </p>
 
               <div className="pt-4 flex gap-4">
                 <Button
                   variant="secondary"
+                  autoFocus
                   onClick={onClose}
                   className="flex-1 h-14"
                 >

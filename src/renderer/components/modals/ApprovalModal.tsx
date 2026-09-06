@@ -46,7 +46,7 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, o
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('space.joinRequests')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+    <Modal isOpen={isOpen} onClose={onClose} onConfirm={selected.size > 0 ? approveSelected : undefined} ariaLabel={t('space.joinRequests')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
       <div className="px-10 pt-10 pb-5 flex items-start justify-between">
         <div>
           <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{t('space.joinRequests')}</h1>

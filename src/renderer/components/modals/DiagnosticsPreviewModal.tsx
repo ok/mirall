@@ -16,7 +16,7 @@ interface Props {
 export default function DiagnosticsPreviewModal({ isOpen, text, byteLength, redacted, onSave, onClose }: Props) {
   const { t } = useTranslation()
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('diagnostics.previewTitle')}>
+    <Modal isOpen={isOpen} onClose={onClose} onConfirm={onSave} ariaLabel={t('diagnostics.previewTitle')}>
       <div className="px-10 pt-10 pb-4">
         <div className="flex justify-between items-start mb-2">
           <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
