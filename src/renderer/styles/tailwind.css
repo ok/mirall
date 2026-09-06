@@ -11,8 +11,8 @@
   --color-online: #0d8b80;
   --color-offline: #a0a4ac;
   --color-accent: #33253b;
-  --color-primary: #33253b;
-  --color-primary-hover: #241a2a;
+  --color-primary: #42304a;
+  --color-primary-hover: #52405b;
   --color-primary-container: #4a3b52;
   --color-on-primary: #ffffff;
   --color-on-primary-container: #baa6c1;
@@ -43,7 +43,7 @@
   --color-surface-container-low: #f5f3ef;
   --color-surface-container-high: #eae8e4;
   --color-surface-control: #eae8e4;
-  --color-surface-control-hover: #e4e2de;
+  --color-surface-control-hover: #dcdad6;
   --color-surface-container-highest: #e4e2de;
   --color-surface-container-lowest: #ffffff;
   --color-surface-variant: #e4e2de;
@@ -65,8 +65,8 @@
   --color-outline-variant: #ccc4cc;
   --color-error: #ba1a1a;
   --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-error-container-hover: #f5c8c4;
+  --color-error-container: #f6c8c4;
+  --color-error-container-hover: #e8bab6;
   --color-on-error-container: #93000a;
   --color-warning: #fcd34d;
   --color-on-warning: #1b1c1a;
@@ -88,7 +88,7 @@
   --color-offline: #5b6270;
   --color-accent: #fce8d2;
   --color-primary: #fd9c42;
-  --color-primary-hover: #e28c3b;
+  --color-primary-hover: #dd8837;
   --color-primary-container: #4a3320;
   --color-on-primary: #282c34;
   --color-on-primary-container: #f6c094;
@@ -118,8 +118,8 @@
   --color-surface-container: #2e323a;
   --color-surface-container-low: #2e3239;
   --color-surface-container-high: #5c6068;
-  --color-surface-control: #393f4a;
-  --color-surface-control-hover: #353b45;
+  --color-surface-control: #434955;
+  --color-surface-control-hover: #4f5561;
   --color-surface-container-highest: #393f4a;
   --color-surface-container-lowest: #21252b;
   --color-surface-variant: #333842;
@@ -136,7 +136,7 @@
   --color-error: #df6b75;
   --color-on-error: #282c34;
   --color-error-container: #6f3338;
-  --color-error-container-hover: #823e44;
+  --color-error-container-hover: #7c3f43;
   --color-on-error-container: #ffd2cf;
   --color-warning: #fbbf24;
   --color-on-warning: #1b1c1a;
