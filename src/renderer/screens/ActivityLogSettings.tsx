@@ -197,7 +197,10 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
 
       <Modal
         isOpen={confirmPurge}
-        onClose={busy ? () => undefined : () => setConfirmPurge(false)}
+        onClose={() => setConfirmPurge(false)}
+        isDismissable={!busy}
+        role="alertdialog"
+        ariaDescribedBy="purge-activity-body"
         ariaLabel={t('activityLogSettings.deleteConfirmTitle')}
         panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
       >
@@ -216,9 +219,9 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
           </div>
         </div>
         <div className="px-10 pb-10 space-y-6">
-          <p className="text-on-surface-variant font-medium">{t('activityLogSettings.deleteConfirmBody')}</p>
+          <p id="purge-activity-body" className="text-on-surface-variant font-medium">{t('activityLogSettings.deleteConfirmBody')}</p>
           <div className="flex gap-3">
-            <Button variant="secondary" size="lg" className="flex-1" onClick={() => setConfirmPurge(false)} disabled={busy}>
+            <Button variant="secondary" size="lg" autoFocus className="flex-1" onClick={() => setConfirmPurge(false)} disabled={busy}>
               {t('actions.cancel')}
             </Button>
             <Button variant="danger" size="lg" className="flex-1" onClick={() => void handlePurge()} disabled={busy}>

@@ -11,6 +11,9 @@ interface ButtonProps {
   variant?: ButtonVariant
   fullWidth?: boolean
   disabled?: boolean
+  // Claims initial focus inside a dialog. React focuses it at commit, before react-aria's own
+  // fallback runs, so the dialog leaves it alone — that is how a destructive confirm rests on Cancel.
+  autoFocus?: boolean
   type?: 'button' | 'submit'
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void
   className?: string
@@ -46,6 +49,7 @@ export default function Button({
   variant = 'primary',
   fullWidth,
   disabled,
+  autoFocus,
   type = 'button',
   onClick,
   className,
@@ -63,6 +67,7 @@ export default function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      autoFocus={autoFocus}
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
       className={`${base} ${variantClasses[variant]} ${sizeClasses}${widthClass}${extra}`}

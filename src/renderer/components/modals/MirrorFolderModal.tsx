@@ -195,7 +195,12 @@ interface MirrorEditStepProps {
 function MirrorEditStep({ isOpen, share, owner, ownerName, info, infoError, mountPath, validationError, canProceed, previewLoading, onBrowse, onNext, onClose }: MirrorEditStepProps) {
   const { t } = useTranslation()
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('mirrorFolder.title', { name: share.name })}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={canProceed && !previewLoading ? onNext : undefined}
+      ariaLabel={t('mirrorFolder.title', { name: share.name })}
+    >
       <div className="px-10 pt-10 pb-6">
         <div className="flex justify-between items-start mb-2 gap-3">
           <FilenameTitle i18nKey="mirrorFolder.title" name={share.name} />

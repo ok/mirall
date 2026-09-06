@@ -25,7 +25,7 @@ export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }:
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel={t('removeFile.titleConfirm', { name: getFileName(filePath) })} panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+    <Modal isOpen={isOpen} onClose={onClose} isDismissable={!removing} role="alertdialog" ariaDescribedBy="remove-file-body" ariaLabel={t('removeFile.titleConfirm', { name: getFileName(filePath) })} panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
       <>
         <div className="px-10 pt-10 pb-6">
           <div className="flex justify-between items-start mb-2 gap-3">
@@ -40,13 +40,14 @@ export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }:
         </div>
 
         <div className="px-10 pb-10 space-y-6">
-          <p className="text-on-surface-variant font-medium">
+          <p id="remove-file-body" className="text-on-surface-variant font-medium">
             {t('removeFile.body')}
           </p>
 
           <div className="pt-2 flex gap-4">
             <Button
               variant="secondary"
+              autoFocus
               onClick={onClose}
               className="flex-1 h-14"
             >

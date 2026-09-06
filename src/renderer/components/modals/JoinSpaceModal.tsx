@@ -25,6 +25,7 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
   const [inviteCode, setInviteCode] = useState(initialCode ?? '')
   const [name, setName] = useState(initialName ?? '')
   const [joining, setJoining] = useState(false)
+  const joiningRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const lastSuggestedNameRef = useRef<string>(initialName ?? '')
 
@@ -56,7 +57,8 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
   }
 
   async function handleJoin() {
-    if (!inviteCode.trim() || joining) return
+    if (!inviteCode.trim() || joining || joiningRef.current) return
+    joiningRef.current = true
     setJoining(true)
     setError(null)
     try {
@@ -69,6 +71,7 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
     } catch (err) {
       setError(errorText(err))
     } finally {
+      joiningRef.current = false
       setJoining(false)
     }
   }
@@ -93,11 +96,11 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
         <div className="px-10 pb-10 space-y-6">
           <div className="space-y-3">
             <label htmlFor="join-space-code" className="font-headline text-sm font-bold text-accent px-1">{t('joinSpace.codeLabel')}</label>
-            <input id="join-space-code" autoFocus aria-invalid={error ? true : undefined} aria-describedby={error ? 'join-space-error' : undefined} className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all font-mono text-sm" placeholder={t('joinSpace.codePlaceholder')} value={inviteCode} onChange={(e) => { setInviteCode(extractInviteCode(e.target.value)); setError(null) }} onKeyDown={(e) => e.key === 'Enter' && handleJoin()} />
+            <input id="join-space-code" autoFocus aria-invalid={error ? true : undefined} aria-describedby={error ? 'join-space-error' : undefined} className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all font-mono text-sm" placeholder={t('joinSpace.codePlaceholder')} value={inviteCode} onChange={(e) => { setInviteCode(extractInviteCode(e.target.value)); setError(null) }} />
           </div>
           <div className="space-y-3">
             <label htmlFor="join-space-name" className="font-headline text-sm font-bold text-accent px-1">{t('joinSpace.nameLabel')}</label>
-            <input id="join-space-name" className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all" placeholder={t('joinSpace.namePlaceholder')} value={name} onChange={(e) => { setName(e.target.value); setError(null) }} onKeyDown={(e) => e.key === 'Enter' && handleJoin()} />
+            <input id="join-space-name" className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all" placeholder={t('joinSpace.namePlaceholder')} value={name} onChange={(e) => { setName(e.target.value); setError(null) }} />
           </div>
           {error && (
             <div id="join-space-error" className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">

@@ -38,20 +38,30 @@ export default function ScanPreviewModal({
 }: ScanPreviewModalProps) {
   const { t } = useTranslation()
   const [confirming, setConfirming] = useState(false)
+  const confirmingRef = useRef(false)
   const busy = confirming || loading === true
   // A folder over the share file limit has nothing to confirm: the summary is replaced by the
   // refusal and the primary action is disabled, so the wizard cannot create it.
   const overLimit = preview?.overFileLimit === true
 
   async function handleConfirm() {
-    if (busy || overLimit) return
+    if (busy || overLimit || confirmingRef.current) return
+    confirmingRef.current = true
     setConfirming(true)
     try { await onConfirm() }
-    finally { setConfirming(false) }
+    finally {
+      confirmingRef.current = false
+      setConfirming(false)
+    }
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onCancel} ariaLabel={title}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      onConfirm={busy || overLimit ? undefined : handleConfirm}
+      ariaLabel={title}
+    >
       <div className="px-10 pt-10 pb-6">
         <div className="flex justify-between items-start mb-2">
           <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{title}</h1>

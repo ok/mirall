@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Space } from "../../types.js";
 import { gradientForSpaceId } from "../../utils.js";
@@ -26,13 +26,20 @@ export default function CreateSpaceModal({
   const [icon, setIcon] = useState("folder");
   const [createdSpace, setCreatedSpace] = useState<Space | null>(null);
   const [creating, setCreating] = useState(false);
+  // setCreating lands a render later; the ref is what stops a held Enter creating two spaces.
+  const creatingRef = useRef(false);
 
   async function handleCreate() {
-    if (name.trim().length < 2 || creating) return;
+    if (name.trim().length < 2 || creating || creatingRef.current) return;
+    creatingRef.current = true;
     setCreating(true);
-    const space = await onCreate(name.trim(), icon);
-    setCreatedSpace(space);
-    setCreating(false);
+    try {
+      const space = await onCreate(name.trim(), icon);
+      setCreatedSpace(space);
+    } finally {
+      creatingRef.current = false;
+      setCreating(false);
+    }
   }
 
   function handleClose() {
@@ -48,7 +55,7 @@ export default function CreateSpaceModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      onConfirm={createdSpace ? undefined : handleCreate}
+      onConfirm={createdSpace ? handleClose : handleCreate}
       ariaLabel={t(
         createdSpace ? "createSpace.titleCreated" : "createSpace.titleNew",
       )}
@@ -90,7 +97,6 @@ export default function CreateSpaceModal({
                   placeholder={t("createSpace.namePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                 />
               </div>
 

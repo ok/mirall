@@ -44,7 +44,7 @@ export default function WhatsNewModal() {
   }
 
   return (
-    <Modal isOpen onClose={handleDismiss} ariaLabel={t('whatsNew.title')} panelClassName="glass-modal w-full max-w-2xl max-h-[80vh] rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative flex flex-col">
+    <Modal isOpen onClose={handleDismiss} onConfirm={handleDismiss} ariaLabel={t('whatsNew.title')} panelClassName="glass-modal w-full max-w-2xl max-h-[80vh] rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative flex flex-col">
       <>
         <div className="px-10 pt-10 pb-6 shrink-0">
           <div className="flex justify-between items-start mb-2">

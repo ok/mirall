@@ -68,7 +68,6 @@ export default function AddRelayModal({ isOpen, onClose, onAdd }: AddRelayModalP
               placeholder={t('networkSettings.relays.keyPlaceholder')}
               value={publicKey}
               onChange={(e) => { setPublicKey(e.target.value); setError(null) }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) handleAdd() }}
             />
           </div>
           <div className="space-y-3">
@@ -81,7 +80,6 @@ export default function AddRelayModal({ isOpen, onClose, onAdd }: AddRelayModalP
               placeholder={t('networkSettings.relays.labelPlaceholder')}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) handleAdd() }}
             />
           </div>
           {error && (

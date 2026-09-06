@@ -54,8 +54,21 @@ test('every catalogue accelerator parses to a real key', (t) => {
 test('every catalogue id is registered by a call site', (t) => {
   const sources = rendererSources()
   for (const c of KEYBOARD_SHORTCUTS) {
-    if (c.dynamic) continue
+    if (c.dynamic || c.documentationOnly) continue
     t.ok(sources.includes(`id: '${c.id}'`), `${c.id} is registered somewhere in the renderer`)
+  }
+})
+
+test('documentation-only chords are documented but never dispatched', (t) => {
+  // The dialog chords belong to the focused dialog (primitives/Modal.tsx). Registering one as a
+  // command would fire it globally — from behind the dialog, or with no dialog open at all.
+  // The catalogue itself is excluded: it is where these ids are declared.
+  const sources = rendererSources(['known-commands.ts'])
+  const documented = KEYBOARD_SHORTCUTS.filter((c) => c.documentationOnly)
+  t.ok(documented.length > 0, 'the catalogue carries the dialog chords')
+  for (const c of documented) {
+    t.absent(sources.includes(`id: '${c.id}'`), `${c.id} is not registered as a command`)
+    t.is(acceleratorFor(c.id), undefined, `${c.id} is not resolvable by id`)
   }
 })
 
@@ -76,7 +89,7 @@ test('call sites do not hardcode accelerators', (t) => {
 
 test('dynamic entries are excluded from the id lookup', (t) => {
   for (const c of KEYBOARD_SHORTCUTS) {
-    if (c.dynamic) t.is(acceleratorFor(c.id), undefined, `${c.id} is not resolvable by id`)
+    if (c.dynamic || c.documentationOnly) t.is(acceleratorFor(c.id), undefined, `${c.id} is not resolvable by id`)
     else t.is(acceleratorFor(c.id), c.accelerator, `${c.id} resolves to its chord`)
   }
 })
