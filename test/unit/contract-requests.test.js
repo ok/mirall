@@ -67,3 +67,17 @@ test('the unreferenced-handler list only shrinks', (t) => {
   t.ok(UNREFERENCED_REQUESTS.length <= 0, 'no new unreferenced handler was introduced')
   for (const name of UNREFERENCED_REQUESTS) t.ok(REQUESTS[name], `${name} is still a real request`)
 })
+
+// The two cancel-preview handlers were byte-identical five-line copies over one shared abort map.
+// Registered from one identifier now, so the pair cannot drift: the request names are the wire
+// contract and stay two, the behaviour behind them is one function.
+test('the two cancel-preview request names are registered from one function', (t) => {
+  const src = readFileSync(path.join(root, 'src', 'worker', 'main.js'), 'utf8')
+  const bound = {}
+  for (const m of src.matchAll(/ipc\.handle\('((?:owned|foreign)-folder:cancel-preview)',\s*([A-Za-z_$][\w$]*)\)/g)) {
+    bound[m[1]] = m[2]
+  }
+  t.is(Object.keys(bound).length, 2, 'both names are registered by identifier, not by a fresh literal')
+  t.is(bound['owned-folder:cancel-preview'], bound['foreign-folder:cancel-preview'],
+    'and both reach the same handler')
+})

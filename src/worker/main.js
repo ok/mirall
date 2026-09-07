@@ -983,6 +983,16 @@ ipc.handle('event:loose-file-fs-event', async (msg) => {
 
 const previewAborts = new Map()
 
+// Both wizards cancel the same way over the same map, so they are one function under two request
+// names — the names are a wire contract (contract/requests.js), the behaviour never differed.
+const cancelPreview = async (msg) => {
+  const sig = previewAborts.get(msg.previewId)
+  if (sig) sig.aborted = true
+  return { ok: true }
+}
+ipc.handle('owned-folder:cancel-preview', cancelPreview)
+ipc.handle('foreign-folder:cancel-preview', cancelPreview)
+
 ipc.handle('owned-folder:preview', async (msg) => {
   const ignore = msg.ignore || DEFAULT_IGNORE
   const shareId = msg.shareId && msg.shareId !== 'preview' ? msg.shareId : null
@@ -999,12 +1009,6 @@ ipc.handle('owned-folder:preview', async (msg) => {
   } finally {
     if (previewId) previewAborts.delete(previewId)
   }
-})
-
-ipc.handle('owned-folder:cancel-preview', async (msg) => {
-  const sig = previewAborts.get(msg.previewId)
-  if (sig) sig.aborted = true
-  return { ok: true }
 })
 
 ipc.handle('owned-folder:validate', async (msg) => {
@@ -1218,12 +1222,6 @@ ipc.handle('foreign-folder:preview', async (msg) => {
   } finally {
     if (previewId) previewAborts.delete(previewId)
   }
-})
-
-ipc.handle('foreign-folder:cancel-preview', async (msg) => {
-  const sig = previewAborts.get(msg.previewId)
-  if (sig) sig.aborted = true
-  return { ok: true }
 })
 
 ipc.handle('foreign-folder:mount', async (msg) => {
