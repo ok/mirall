@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import ProgressBar from '../primitives/ProgressBar.js'
 import FilePath from '../widgets/FilePath.js'
@@ -62,18 +62,7 @@ export default function ScanPreviewModal({
       onConfirm={busy || overLimit ? undefined : handleConfirm}
       ariaLabel={title}
     >
-      <div className="px-10 pt-10 pb-6">
-        <div className="flex justify-between items-start mb-2">
-          <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{title}</h1>
-          <IconButton
-            icon="close"
-            onClick={onCancel}
-            ariaLabel={t('actions.close')}
-            iconClassName="text-secondary"
-          />
-        </div>
-        <p className="text-on-surface-variant font-medium">{description}</p>
-      </div>
+      <ModalHeader title={title} description={description} onClose={onCancel} />
 
       <div className="px-10 pb-10 space-y-4">
         <ScanPreviewBody

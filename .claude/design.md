@@ -524,8 +524,13 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   as its final action, and a two-state dialog wires the "Done" of its second state.
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
-- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`); body
-  `px-10 pb-10 space-y-{4–8}`. Three footer shapes:
+- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`) — **one component,
+  `components/layout/ModalHeader.tsx`**, used by every dialog including the purge confirm that
+  `screens/ActivityLogSettings.tsx` mounts inline; `keyboard/ShortcutsHint.tsx` and
+  `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either a
+  `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two sizes,
+  and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
+  Three footer shapes:
   1. A single full-width `lg` button.
   2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
   3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)

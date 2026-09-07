@@ -11,7 +11,7 @@ import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import Modal from '../components/primitives/Modal.js'
 import Button from '../components/primitives/Button.js'
-import IconButton from '../components/primitives/IconButton.js'
+import ModalHeader from '../components/layout/ModalHeader.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 
 interface ActivityLogSettingsProps {
@@ -204,20 +204,11 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
         ariaLabel={t('activityLogSettings.deleteConfirmTitle')}
         panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
       >
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex justify-between items-start mb-2 gap-3">
-            <h2 className="text-2xl font-headline font-extrabold text-accent tracking-tight">
-              {t('activityLogSettings.deleteConfirmTitle')}
-            </h2>
-            <IconButton
-              icon="close"
-              onClick={() => setConfirmPurge(false)}
-              ariaLabel={t('actions.close')}
-              disabled={busy}
-              iconClassName="text-secondary"
-            />
-          </div>
-        </div>
+        <ModalHeader
+          title={t('activityLogSettings.deleteConfirmTitle')}
+          onClose={() => setConfirmPurge(false)}
+          closeDisabled={busy}
+        />
         <div className="px-10 pb-10 space-y-6">
           <p id="purge-activity-body" className="text-on-surface-variant font-medium">{t('activityLogSettings.deleteConfirmBody')}</p>
           <div className="flex gap-3">

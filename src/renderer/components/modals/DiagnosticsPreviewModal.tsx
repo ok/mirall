@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Button from '../primitives/Button.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import { formatSize } from '../../formatSize.js'
 
 interface Props {
@@ -17,22 +17,11 @@ export default function DiagnosticsPreviewModal({ isOpen, text, byteLength, reda
   const { t } = useTranslation()
   return (
     <Modal isOpen={isOpen} onClose={onClose} onConfirm={onSave} ariaLabel={t('diagnostics.previewTitle')}>
-      <div className="px-10 pt-10 pb-4">
-        <div className="flex justify-between items-start mb-2">
-          <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
-            {t('diagnostics.previewTitle')}
-          </h1>
-          <IconButton
-            icon="close"
-            onClick={onClose}
-            ariaLabel={t('actions.close')}
-            iconClassName="text-secondary"
-          />
-        </div>
-        <p className="text-on-surface-variant font-medium">
-          {redacted ? t('diagnostics.previewIntro') : t('diagnostics.previewIntroRaw')}
-        </p>
-      </div>
+      <ModalHeader
+        title={t('diagnostics.previewTitle')}
+        description={redacted ? t('diagnostics.previewIntro') : t('diagnostics.previewIntroRaw')}
+        onClose={onClose}
+      />
 
       <div className="px-10 pb-4">
         <pre

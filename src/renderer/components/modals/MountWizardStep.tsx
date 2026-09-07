@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
-import IconButton from '../primitives/IconButton.js'
 import Button from '../primitives/Button.js'
+import ModalHeader from '../layout/ModalHeader.js'
 
 // The edit step of a folder-mount wizard: the dialog, its header, the body its caller fills, and the
 // wizard footer design.md calls footer shape 3 — Cancel plus a primary carrying a trailing arrow,
@@ -44,20 +44,9 @@ export default function MountWizardStep({
   const ready = canProceed && !busy
   return (
     <Modal isOpen={isOpen} onClose={onClose} onConfirm={ready ? onNext : undefined} ariaLabel={ariaLabel}>
-      <div className="px-10 pt-10 pb-6">
-        <div className="flex justify-between items-start mb-2 gap-3">
-          {titleNode ?? (
-            <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{title}</h1>
-          )}
-          <IconButton
-            icon="close"
-            onClick={onClose}
-            ariaLabel={t('actions.close')}
-            iconClassName="text-secondary"
-          />
-        </div>
-        <p className="text-on-surface-variant font-medium">{description}</p>
-      </div>
+      {titleNode
+        ? <ModalHeader titleNode={titleNode} description={description} onClose={onClose} />
+        : <ModalHeader title={title as string} description={description} onClose={onClose} />}
 
       <div className="px-10 pb-10 space-y-6">
         {children}

@@ -72,7 +72,10 @@ async function run(): Promise<void> {
   let dialogs: HTMLElement[] = []
   while (dialogs.length < 2 && Date.now() < deadline) {
     await sleep(50)
-    dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+    // Both roles: the destructive confirms this harness mounts declare `alertdialog`, and a
+    // selector that named only `dialog` matched nothing and reported "expected 2 dialogs, got 0"
+    // for every run rather than measuring anything.
+    dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'))
   }
   if (dialogs.length < 2) return publishError('expected 2 dialogs, got ' + dialogs.length)
   await document.fonts.ready

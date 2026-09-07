@@ -6,6 +6,7 @@ import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
 import Button from '../primitives/Button.js'
 import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 
 interface ApprovalModalProps {
   isOpen: boolean
@@ -47,13 +48,12 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, o
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} onConfirm={selected.size > 0 ? approveSelected : undefined} ariaLabel={t('space.joinRequests')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
-      <div className="px-10 pt-10 pb-5 flex items-start justify-between">
-        <div>
-          <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{t('space.joinRequests')}</h1>
-          <p className="text-on-surface-variant text-sm mt-1">{t('space.joinRequestsDesc')}</p>
-        </div>
-        <IconButton icon="close" onClick={onClose} ariaLabel={t('actions.close')} iconClassName="text-secondary" />
-      </div>
+      <ModalHeader
+        title={t('space.joinRequests')}
+        description={t('space.joinRequestsDesc')}
+        descriptionSize="sm"
+        onClose={onClose}
+      />
       <ul className="px-10 pb-4 space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
         {requests.map((r) => (
           <li key={r.publicKey} className="flex items-center gap-3 rounded-xl bg-surface-container-low p-3">

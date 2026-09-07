@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import FilenameTitle from '../widgets/FilenameTitle.js'
 
@@ -40,18 +40,11 @@ export default function DeleteFolderShareModal({
       ariaLabel={t('deleteFolder.title', { name: folderName })}
       panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
     >
-      <div className="px-10 pt-10 pb-6">
-        <div className="flex justify-between items-start mb-2 gap-3">
-          <FilenameTitle i18nKey="deleteFolder.title" name={folderName} />
-          <IconButton
-            icon="close"
-            onClick={onClose}
-            ariaLabel={t('actions.close')}
-            disabled={busy}
-            iconClassName="text-secondary"
-          />
-        </div>
-      </div>
+      <ModalHeader
+        titleNode={<FilenameTitle i18nKey="deleteFolder.title" name={folderName} />}
+        onClose={onClose}
+        closeDisabled={busy}
+      />
 
       <div className="px-10 pb-10 space-y-6">
         <p id="delete-folder-body" className="text-on-surface-variant font-medium">
