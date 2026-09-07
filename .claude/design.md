@@ -186,11 +186,18 @@ mapped in `tailwind.config.js`:
   Weights **400–600**. All body and UI text.
 
 There is **no named type scale** (no `display-lg`, `body-lg`, etc.). Headings use
-plain Tailwind sizes + `font-headline`:
+plain Tailwind sizes + `font-headline`.
+
+Two page-title treatments, and which one a screen takes is decided by whether the title is a
+translated constant or a name someone typed. A settings page uses `PageHeader`. A screen *about
+something* — a space, a folder — uses `EntityHeader`, which adds a back button, an eyebrow line, an
+actions cluster, and the three classes a user-supplied name needs: `truncate`, plus `leading-tight`
+and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` introduces.
 
 | Use | Classes | Where |
 |---|---|---|
 | Page title | `text-4xl font-headline font-extrabold text-accent tracking-tight` (`md:text-5xl` on onboarding) | `components/layout/PageHeader.tsx` |
+| Entity title (a name someone typed) | `text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5` | `components/layout/EntityHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
 | Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |

@@ -10,8 +10,8 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useTreeExpansion } from '../hooks/useTreeExpansion.js'
 import Icon from '../components/primitives/Icon.js'
-import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
+import EntityHeader from '../components/layout/EntityHeader.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import FolderTree from '../components/widgets/FolderTree.js'
 import FolderWorkStrip from '../components/widgets/FolderWorkStrip.js'
@@ -38,8 +38,57 @@ import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
-import type { FileTreeNode } from '../types.js'
+import type { FileTreeNode, ShareRole } from '../types.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+
+interface FolderEyebrowProps {
+  isYou: boolean
+  ownerName: string
+  spaceName: string | null
+  role: ShareRole
+  mirrorEnabled: boolean
+}
+
+function FolderEyebrow({ isYou, ownerName, spaceName, role, mirrorEnabled }: FolderEyebrowProps) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {isYou ? t('share.sharedByYou') : t('share.ownedBy', { name: ownerName })}
+      {spaceName !== null ? ' · ' + t('space.in', { name: spaceName }) : null}
+      {role === 'mirrored'
+        ? ' · ' + t('share.badgeMirrored') + ' · ' + (mirrorEnabled ? t('share.readOnly') : t('folder.paused'))
+        : null}
+    </>
+  )
+}
+
+interface FolderHeaderActionsProps {
+  role: ShareRole
+  sourceMissing: boolean
+  onMirror?: () => void
+  onLocate: () => void
+  onReveal: () => void
+  menuItems: ActionMenuItemConfig[]
+}
+
+function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal, menuItems }: FolderHeaderActionsProps) {
+  const { t } = useTranslation()
+  if (role === 'browse') {
+    return onMirror
+      ? <Button icon="folder_download" onClick={onMirror}>{t('share.mirrorToDisk')}</Button>
+      : null
+  }
+  return (
+    <>
+      {sourceMissing ? (
+        <Button icon="folder_open" onClick={onLocate}>{t('share.locateFolder')}</Button>
+      ) : (
+        <Button icon="folder_open" onClick={onReveal}>{t('share.openInFinder')}</Button>
+      )}
+      <ActionMenu label={t('share.moreActions')} items={menuItems} ariaLabel={t('share.moreActions')} />
+    </>
+  )
+}
 
 interface FolderViewProps {
   spaceId: string
@@ -327,56 +376,29 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
-      <div className="shrink-0 pt-8 pb-4">
-        <div className="flex items-start gap-4">
-          <IconButton
-            icon="arrow_back"
-            onClick={onBack}
-            ariaLabel={t('actions.back')}
-            className="mt-1 shrink-0"
+      <EntityHeader
+        name={share.name}
+        onBack={onBack}
+        eyebrow={
+          <FolderEyebrow
+            isYou={isYou}
+            ownerName={owner?.displayName || t('avatar.unknown')}
+            spaceName={space ? space.name : null}
+            role={share.role}
+            mirrorEnabled={foreignEnabled}
           />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
-              {share.name}
-            </h1>
-            <p className="text-xs font-bold text-secondary tracking-wide uppercase mt-1">
-              {isYou
-                ? t('share.sharedByYou')
-                : t('share.ownedBy', { name: owner?.displayName || t('avatar.unknown') })}
-              {space ? ' · ' + t('space.in', { name: space.name }) : null}
-              {share.role === 'mirrored'
-                ? ' · ' + t('share.badgeMirrored') + ' · ' + (foreignEnabled ? t('share.readOnly') : t('folder.paused'))
-                : null}
-            </p>
-          </div>
-          <div className="flex gap-3 mt-2 shrink-0">
-            {share.role === 'browse' ? (
-              onMirror && (
-                <Button icon="folder_download" onClick={() => onMirror(share)}>
-                  {t('share.mirrorToDisk')}
-                </Button>
-              )
-            ) : (
-              <>
-                {sourceMissing ? (
-                  <Button icon="folder_open" onClick={() => { void locate(share) }}>
-                    {t('share.locateFolder')}
-                  </Button>
-                ) : (
-                  <Button icon="folder_open" onClick={handleRevealFolder}>
-                    {t('share.openInFinder')}
-                  </Button>
-                )}
-                <ActionMenu
-                  label={t('share.moreActions')}
-                  items={menuItems}
-                  ariaLabel={t('share.moreActions')}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+        actions={
+          <FolderHeaderActions
+            role={share.role}
+            sourceMissing={sourceMissing}
+            onMirror={onMirror ? () => onMirror(share) : undefined}
+            onLocate={() => { void locate(share) }}
+            onReveal={handleRevealFolder}
+            menuItems={menuItems}
+          />
+        }
+      />
 
       {/* The strips are a band, not a reserved slot: no strip, no height. Outside the scroll pane,
           so folder state can never scroll away from the folder it describes.
