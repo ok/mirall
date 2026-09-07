@@ -8,6 +8,7 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import RelaySettingsSection from '../components/settings/RelaySettingsSection.js'
+import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import { isRelayFeatureEnabled } from '../config-client.js'
 import { useMainQuery } from '../store/useMainQuery.js'
 import type { BandwidthLimits } from '../global.js'
@@ -24,11 +25,6 @@ type Direction = 'download' | 'upload'
 const MIN_KBPS = 32
 const PRESET_KBPS = [0, 1024, 5120, 25600]
 const COMMIT_DEBOUNCE_MS = 400
-
-const SEGMENT_BASE =
-  'flex items-center px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
-const SEGMENT_ON = 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
-const SEGMENT_OFF = 'text-on-surface-variant hover:text-accent font-medium'
 
 function LimitRow({
   direction,
@@ -85,33 +81,26 @@ function LimitRow({
     <div>
       <div className="flex items-center justify-between gap-4">
         <p className="font-semibold text-accent">{t(`networkSettings.${direction}`)}</p>
-        <div className="flex bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-full shrink-0">
+        <SegmentedControl className="shrink-0">
           {PRESET_KBPS.map((preset) => {
             const label = preset === 0 ? t('networkSettings.unlimited') : `${preset / 1024} MB/s`
-            const active = !custom && kbps === preset
             return (
-              <button
+              <Segment
                 key={preset}
-                type="button"
-                onClick={() => onPreset(preset)}
-                aria-label={t(`networkSettings.a11y.${direction}Preset`, { rate: label })}
-                aria-pressed={active}
-                className={`${SEGMENT_BASE} ${active ? SEGMENT_ON : SEGMENT_OFF}`}
-              >
-                {label}
-              </button>
+                label={label}
+                selected={!custom && kbps === preset}
+                onSelect={() => onPreset(preset)}
+                ariaLabel={t(`networkSettings.a11y.${direction}Preset`, { rate: label })}
+              />
             )
           })}
-          <button
-            type="button"
-            onClick={onCustom}
-            aria-label={t(`networkSettings.a11y.${direction}Custom`)}
-            aria-pressed={custom}
-            className={`${SEGMENT_BASE} ${custom ? SEGMENT_ON : SEGMENT_OFF}`}
-          >
-            {t('networkSettings.custom')}
-          </button>
-        </div>
+          <Segment
+            label={t('networkSettings.custom')}
+            selected={custom}
+            onSelect={onCustom}
+            ariaLabel={t(`networkSettings.a11y.${direction}Custom`)}
+          />
+        </SegmentedControl>
       </div>
 
       {custom && (

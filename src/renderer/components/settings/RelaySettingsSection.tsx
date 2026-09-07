@@ -10,6 +10,7 @@ import Button from '../primitives/Button.js'
 import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
 import SectionHeading from '../layout/SectionHeading.js'
+import SegmentedControl, { Segment } from '../primitives/SegmentedControl.js'
 import { CompactToggle } from '../primitives/Toggle.js'
 import AddRelayModal from '../modals/AddRelayModal.js'
 
@@ -107,22 +108,16 @@ export default function RelaySettingsSection() {
         {relays.length > 0 && (
           <div className="flex items-center justify-between">
             <p className="font-semibold text-accent">{t('networkSettings.relays.modeLabel')}</p>
-            <div className="flex bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-full">
+            <SegmentedControl>
               {MODES.map((option) => (
-                <button
+                <Segment
                   key={option}
-                  type="button"
-                  onClick={() => commit(option, latest.current.relays)}
-                  aria-label={t(`networkSettings.relays.mode.${option}`)}
-                  aria-pressed={mode === option}
-                  className={`px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
-                    mode === option ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold' : 'text-on-surface-variant hover:text-accent font-medium'
-                  }`}
-                >
-                  {t(`networkSettings.relays.mode.${option}`)}
-                </button>
+                  label={t(`networkSettings.relays.mode.${option}`)}
+                  selected={mode === option}
+                  onSelect={() => commit(option, latest.current.relays)}
+                />
               ))}
-            </div>
+            </SegmentedControl>
           </div>
         )}
 

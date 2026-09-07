@@ -9,6 +9,7 @@ import type { AuditConfig, AuditEntry, AuditStats } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
+import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import Modal from '../components/primitives/Modal.js'
 import Button from '../components/primitives/Button.js'
 import ModalHeader from '../components/layout/ModalHeader.js'
@@ -143,24 +144,16 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
                   <p className="font-semibold text-accent">{t('activityLogSettings.retention')}</p>
                   <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.retentionDesc')}</p>
                 </div>
-                <div className="flex bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-full shrink-0">
-                  {RETENTION_CHOICES.map((days) => {
-                    const on = config?.retentionDays === days
-                    return (
-                      <button
-                        key={days}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => void patch({ retentionDays: days })}
-                        className={`px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
-                          on ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold' : 'text-on-surface-variant hover:text-accent font-medium'
-                        }`}
-                      >
-                        {t('activityLogSettings.retentionDays', { count: days })}
-                      </button>
-                    )
-                  })}
-                </div>
+                <SegmentedControl className="shrink-0">
+                  {RETENTION_CHOICES.map((days) => (
+                    <Segment
+                      key={days}
+                      label={t('activityLogSettings.retentionDays', { count: days })}
+                      selected={config?.retentionDays === days}
+                      onSelect={() => void patch({ retentionDays: days })}
+                    />
+                  ))}
+                </SegmentedControl>
               </div>
             </div>
             <p className="mt-3 text-xs text-on-surface-variant">{t('activityLogSettings.survivesLeave')}</p>
