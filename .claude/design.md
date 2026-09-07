@@ -468,6 +468,11 @@ Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings
 second form — a bare line of path text next to a `secondary` button is the drift this replaced, and
 it read as a different kind of thing depending on which door you came through.
 
+The two mount wizards reach it through **`widgets/MountPathField.tsx`**, which adds the field's
+headline label and its `role="alert"` validation line. The label is a `<span>` with an id rather
+than a `<label>`, because the row's action is a button, not a form control — the association goes
+through `aria-describedby`.
+
 `FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
 segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
 once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
@@ -524,8 +529,10 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   1. A single full-width `lg` button.
   2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
   3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)
-     at default `sm` size, the action carrying a trailing `arrow_forward`.
-     Used by Add Folder / Mirror Folder and their shared scan-preview step.
+     at default `sm` size, the action carrying a trailing `arrow_forward`. Owned by
+     **`modals/MountWizardStep.tsx`** (header + body slot + this footer), which Add Folder and
+     Mirror to Disk both render; their shared second step is `modals/ScanPreviewModal.tsx`, and the
+     state machine behind both — validate, scan, commit — is `hooks/useMountWizard.ts`.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
 - Progress modals (Leave / Reclaim / Clear cache) animate through
