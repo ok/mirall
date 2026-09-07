@@ -231,7 +231,7 @@ let configStore = null
 function config() {
   if (!configStore) {
     configStore = new ConfigStore(getDataDir(), {
-      readFeatures: () => ({ relay: readFeatureFlags().relay === true }),
+      readFeatures: () => readFeatureFlags(),
     }).load()
   }
   return configStore
@@ -737,9 +737,8 @@ function getWorker(specifier) {
     // can set separateContentPlane:false to revert to the single-plane overlay.
     separateContentPlane: readFeatureFlags().separateContentPlane !== false,
     // Relay config rides the boot frame unconditionally: it is inert when relayMode is
-    // 'off', and a stable frame shape means flipping the flag can never be the change
-    // that breaks worker boot.
-    relayEnabled: readFeatureFlags().relay === true,
+    // 'off' (relayFunctionFor returns null, so swarm.relayThrough is never installed),
+    // which is the shipped default.
     relayMode: config().get('network.relayMode'),
     relays: config().get('network.relays'),
     // Read at spawn only. getDownloadConcurrency() re-reads it per acquire, so a live push would

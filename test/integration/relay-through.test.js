@@ -22,9 +22,9 @@ const KEY_B = idEncoding.encode(b4a.alloc(32, 12))
 
 // Mirrors the boot root: Swarm, then ContentSwarm, then apply. The order is
 // the point — getContentSwarm() is null until the second call returns.
-async function bootSwarms (t, { relayEnabled = true, relayMode = 'off', relays = [] } = {}) {
+async function bootSwarms (t, { relayMode = 'off', relays = [] } = {}) {
   const bootstrap = await localTestnet(t)
-  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayEnabled, relayMode, relays })
+  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode, relays })
   const ipc = createFakeIpc().ipc
   const swarm = new Swarm('swarm', { ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [] })
   const content = new ContentSwarm('content-swarm', { swarm, overlayBackend: stubOverlayBackend })
@@ -34,7 +34,7 @@ async function bootSwarms (t, { relayEnabled = true, relayMode = 'off', relays =
   })
   await swarm.ready()
   await content.ready()
-  return { swarm, content }
+  return { swarm, content, bootstrap }
 }
 
 test('a configured relay reaches BOTH swarms', async (t) => {
@@ -91,7 +91,7 @@ test('the applied relay set is capped even when the frame bypasses main', async 
 
 test('applying before the content swarm exists would miss the content plane', async (t) => {
   const bootstrap = await localTestnet(t)
-  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayEnabled: true, relayMode: 'always', relays: [] })
+  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode: 'always', relays: [] })
   const soloSwarm = new Swarm('swarm', { ipc: createFakeIpc().ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [] })
   t.teardown(async () => {
     try { await soloSwarm.close() } catch {}
@@ -123,16 +123,37 @@ test('mode off and empty key lists install no relay function', async (t) => {
   t.is(getContentSwarm().relayThrough, null, 'a disabled relay is not a relay')
 })
 
-test('with the feature flag off, a stale config cannot change transport behaviour', async (t) => {
-  await bootSwarms(t, { relayEnabled: false })
+// The relay used to be gated on a boot-frame flag as well as the mode. The flag is gone, so a
+// frame from an older main may still carry the field: it must be an ignored unknown, not a
+// gate, or relaying would silently switch off against a mismatched host.
+test('a stale relayEnabled field no longer gates the transport', async (t) => {
+  const { bootstrap } = await bootSwarms(t)
+  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayEnabled: false, relayMode: 'always', relays: [] })
 
   const res = setRelayThrough([{ id: 'a', publicKey: KEY_A, enabled: true }], 'always')
-  t.is(res.applied, 0)
-  t.is(getContentSwarm().relayThrough, null, 'off means off, whatever config.json says')
+  t.is(res.applied, 1)
+  t.is(typeof getContentSwarm().relayThrough, 'function', 'the retired flag is an ignored field')
+})
 
+test('the probe no longer has a disabled verdict', async (t) => {
+  await bootSwarms(t)
   const verdict = await testRelayReachable(KEY_A)
-  t.is(verdict.ok, false)
-  t.is(verdict.reason, 'disabled', 'the probe refuses to dial on a flag-off build')
+  t.not(verdict.reason, 'disabled', 'the flag-gated reason is gone from the contract')
+})
+
+// The announce path is where a one-sided setup gets rescued: the peer dialling us has no
+// relay of its own and adopts ours straight from the handshake payload. Asserted on the
+// function actually installed on a live swarm, not just on the pure factory.
+test('the installed auto function offers our relay on the announce shape', async (t) => {
+  await bootSwarms(t, { relayMode: 'auto', relays: [{ id: 'a', publicKey: KEY_A, enabled: true }] })
+  setRelayThrough([{ id: 'a', publicKey: KEY_A, enabled: true }], 'auto')
+
+  const before = getSwarmStatus().stats.relaying.selected
+  const offered = getContentSwarm().relayThrough()
+
+  t.is(offered?.length, 1, 'the announce path is handed our key')
+  t.ok(b4a.equals(offered[0], b4a.alloc(32, 11)), 'and it is the configured one')
+  t.is(getSwarmStatus().stats.relaying.selected, before, 'offering is not counted as a selection')
 })
 
 test('setRelayThrough survives the shutdown window', async (t) => {

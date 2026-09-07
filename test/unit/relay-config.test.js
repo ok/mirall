@@ -55,6 +55,41 @@ test('relay mode maps onto hyperswarm semantics', (t) => {
   t.is(auto(false, {}), null, 'a swarm with no dht yet does not throw')
 })
 
+// The two call shapes are a hyperdht/hyperswarm calling convention, not a declared API:
+// every DIAL passes peerInfo.forceRelaying (a boolean, seeded false in peer-info.js:28),
+// and the ANNOUNCE path arrives through selectRelay(this.relayThrough) with no arguments
+// at all (server.js:354). If a future bump starts passing false on announce, offering
+// silently stops and one-sided setups get slow again — this is the test that catches it.
+test('auto offers our relay on the announce path even when it would not use one', (t) => {
+  const keys = enabledRelayKeys([{ publicKey: KEY_A, enabled: true }])
+  const auto = relayFunctionFor(keys, 'auto')
+
+  t.is(auto(), keys, 'no arguments at all is the announce path — always offer')
+  t.is(auto(undefined, { dht: { randomized: false } }), keys, 'offered regardless of our own NAT')
+  t.is(auto(false, { dht: { randomized: false } }), null, 'a dial with force=false still declines')
+})
+
+// relaying.selected means "we put a relay in play", and it drives the network diagnostics.
+// Counting the announce offer would make it climb on every inbound connection, most of
+// which punch straight through and never touch a relay. hyperdht's own relaying.attempts
+// counts the offers actually taken up (server.js:630).
+test('offering on announce does not inflate the selected counter', (t) => {
+  let selected = 0
+  const keys = enabledRelayKeys([{ publicKey: KEY_A, enabled: true }])
+  const auto = relayFunctionFor(keys, 'auto', () => { selected++ })
+
+  auto()
+  auto(undefined, { dht: { randomized: false } })
+  t.is(selected, 0, 'an offer is not a selection')
+
+  auto(true, { dht: { randomized: false } })
+  t.is(selected, 1, 'a forced dial still counts')
+
+  const always = relayFunctionFor(keys, 'always', () => { selected++ })
+  always()
+  t.is(selected, 2, 'always counts every call, announce included')
+})
+
 test('an unknown mode degrades to off', (t) => {
   t.is(normalizeRelayMode('nonsense'), 'off')
   t.is(normalizeRelayMode(undefined), 'off')

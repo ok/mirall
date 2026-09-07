@@ -21,7 +21,7 @@ import {
 import {
   getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isRelayEnabled, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
+import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import { catalogKeyField } from '../shares/share-catalog.js'
@@ -1149,9 +1149,8 @@ let relaySelections = 0
 // Call this after initContentSwarm has run — the two swarms are constructed on
 // consecutive lines and getContentSwarm() is null in between.
 export function setRelayThrough(relays, mode) {
-  const enabled = isRelayEnabled()
-  const keys = enabled ? enabledRelayKeys(relays) : []
-  const fn = enabled ? relayFunctionFor(keys, mode, () => { relaySelections++ }) : null
+  const keys = enabledRelayKeys(relays)
+  const fn = relayFunctionFor(keys, mode, () => { relaySelections++ })
   for (const s of [swarm, getContentSwarm()]) {
     if (!s) continue
     s.relayThrough = fn
@@ -1163,7 +1162,6 @@ export function setRelayThrough(relays, mode) {
 // weeks later. Reaching the Noise stream only proves something answers on that key, so
 // the verdict waits for the blind-relay protomux channel to open.
 export async function testRelayReachable(publicKey) {
-  if (!isRelayEnabled()) return { ok: false, reason: 'disabled' }
   const key = decodeRelayKey(publicKey)
   if (!key) return { ok: false, reason: 'invalid-key' }
   const dht = swarm?.dht

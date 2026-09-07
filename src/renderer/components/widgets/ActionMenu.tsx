@@ -93,14 +93,22 @@ interface MenuPosition { top: number; right: number; maxWidth: number }
 // soon as the collection is non-empty), so a first render that bailed out to `null`
 // burned it while menuRef was still empty — focus stayed on the trigger, and Escape,
 // which react-aria binds to the overlay's own onKeyDown, never reached a handler.
-function measurePosition(trigger: HTMLButtonElement | null): MenuPosition | null {
+function measurePosition(trigger: HTMLButtonElement | null, menuHeight = 0): MenuPosition | null {
   if (!trigger) return null
   const rect = trigger.getBoundingClientRect()
   const gap = 8
   const edgeMargin = 16
   const right = Math.max(edgeMargin, window.innerWidth - rect.right)
   const maxWidth = window.innerWidth - right - edgeMargin
-  return { top: rect.bottom + gap, right, maxWidth }
+  // Flip above the trigger when the popup would run past the bottom of the window. It only ever
+  // opened downward, so a trigger low in a scrolling pane (a relay row near the end of Settings ▸
+  // Network) pushed its last items — Remove, the destructive one — outside the window, where no
+  // pointer, key or assistive tech could reach them. menuHeight is 0 on the very first measure,
+  // before the <ul> exists; the layout effect re-measures with the real height before paint.
+  const below = rect.bottom + gap
+  const overflows = menuHeight > 0 && below + menuHeight + edgeMargin > window.innerHeight
+  const top = overflows ? Math.max(edgeMargin, rect.top - gap - menuHeight) : below
+  return { top, right, maxWidth }
 }
 
 function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, triggerRef, autoFocus }: {
@@ -118,7 +126,7 @@ function MenuPopup({ items, onAction, onClose, menuProps: externalMenuProps, tri
   useLayoutEffect(() => {
     const trigger = triggerRef.current
     if (!trigger) return
-    const computePosition = () => setPosition(measurePosition(trigger))
+    const computePosition = () => setPosition(measurePosition(trigger, menuRef.current?.offsetHeight ?? 0))
     computePosition()
     window.addEventListener('resize', computePosition)
     window.addEventListener('scroll', computePosition, true)

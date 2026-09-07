@@ -25,8 +25,9 @@ export interface RendererConfig {
   // so they are readable here but never written through setConfig.
   network: { downloadKBps: number; uploadKBps: number; relayMode: RelayMode; relays: RelayEntry[] }
   // Read-only: main populates it from feature-flags.json and setRenderer has no
-  // counterpart, so the renderer can observe a flag but never write one.
-  features: { relay: boolean }
+  // counterpart, so the renderer can observe a flag but never write one. Empty since the
+  // relay flag retired; a new field is added here and to RENDERER_FEATURES together.
+  features: Record<string, boolean>
 }
 
 export interface RendererConfigPatch {
@@ -41,7 +42,7 @@ const FALLBACK: RendererConfig = {
   notifications: null,
   ui: { lastSeenVersion: null, feedbackEmail: '' },
   network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [] },
-  features: { relay: false },
+  features: {},
 }
 
 // INVARIANT — read this before adding a setting or "optimizing" a setter.
@@ -158,12 +159,6 @@ export function getFeedbackEmail(): string {
 export function setFeedbackEmail(email: string): void {
   cache.ui.feedbackEmail = email
   persist({ ui: { feedbackEmail: email } })
-}
-
-// Flags reach the renderer through the boot snapshot (sendSync), so a gated section
-// resolves on first paint rather than mounting absent and popping in.
-export function isRelayFeatureEnabled(): boolean {
-  return cache.features.relay === true
 }
 
 export function getRelayMode(): RelayMode {
