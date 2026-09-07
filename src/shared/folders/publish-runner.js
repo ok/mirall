@@ -18,17 +18,22 @@ export function mountRootAvailable(mountPath) {
 //   direct?         — never writes through the space batch (so no batch is settled or opened)
 //   present?(abs)   — how "still on disk" is judged before a retire; exact readdir name by default
 //   resolve(item)   → { absPath, ...channel-private } | { skip: outcome }
-//   publish(item, ctx, { catalog, signal, deep }) → { changed, ... }
+//   publish(item, ctx, { catalog, signal, deep, beat }) → { changed, ... }
 //   retire(item, ctx, { catalog })
 //   onPublishFailed?(item, ctx, err), afterPublish?(item, ctx, result)
 //   onProgress?(spaceId, shareId), onDrained?(spaceId, shareId, tally), onSpaceIdle?(spaceId)
 // }
 export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
-  return async function execute(item) {
+  // `beat` is the item's heartbeat: the scheduler reports an item that is running and not
+  // advancing as wedged, and every phase here is legitimately slow on a large share. Resolving the
+  // mount hits the disk and the catalog settle waits on a flush window — a phase that reports
+  // nothing is a phase the stall window has to be widened to tolerate.
+  return async function execute(item, { beat = () => {} } = {}) {
     const channel = channelFor(item.shareId)
     if (!channel) return { outcome: 'failed' }
     const ctx = await channel.resolve(item)
     if (ctx.skip) return { outcome: ctx.skip }
+    beat()
 
     // Bulk items write through the space's catalog batch (few atomic heads for the consumer). An
     // interactive item goes direct so a dropped-in file is visible within milliseconds — after
@@ -37,6 +42,7 @@ export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
     // anything, so it neither waits for the batch nor opens one.
     const interactive = item.priority === PRIORITY.INTERACTIVE
     if (interactive && !channel.direct) await settleCatalog(item.spaceId)
+    beat()
     const catalog = interactive || channel.direct ? undefined : catalogFor(item.spaceId)
 
     if (item.op === OP.RETIRE) {
@@ -52,7 +58,7 @@ export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
 
     let result
     try {
-      result = await channel.publish(item, ctx, { catalog, signal: item.signal, deep: item.deep })
+      result = await channel.publish(item, ctx, { catalog, signal: item.signal, deep: item.deep, beat })
     } catch (err) {
       await channel.onPublishFailed?.(item, ctx, err)
       throw err

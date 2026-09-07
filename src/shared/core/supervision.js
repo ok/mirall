@@ -6,7 +6,12 @@
 //   maxRecoveries  — a unit that cannot be recovered is stated once, not recovered forever
 //   pruning        — a unit that disappeared drops its counters, or the next unit to reuse the key
 //                    inherits a spent budget
-export const DEFAULT_POLICY = { consecutiveBad: 2, maxRecoveries: 3 }
+//
+// A row may also declare `recoverable: false`, which means "report this stall, never act on it":
+// the unit is stated once the consecutive-bad threshold is crossed and restated on a backoff, but
+// no recovery is proposed and no budget is spent. A unit whose safe recovery has not been built
+// yet is reported that way rather than not reported at all.
+export const DEFAULT_POLICY = { consecutiveBad: 2, maxRecoveries: 3, restateEvery: 10 }
 
 export function createSupervisionPolicy(overrides = {}) {
   const bad = new Map()
@@ -24,9 +29,10 @@ export function createSupervisionPolicy(overrides = {}) {
     for (const id of [...gaveUp]) if (!live.has(id)) gaveUp.delete(id)
   }
 
-  // Rows: { id, name, key, ok, detail }. Returns a decision per row that needs one, with `action`
-  // in 'note' | 'recover' | 'gave-up'. The counters are mutated here, so a caller that evaluates
-  // and then declines to act leaves the unit permanently one probe short of its recovery.
+  // Rows: { id, name, key, ok, detail, recoverable }. Returns a decision per row that needs one,
+  // with `action` in 'note' | 'observe' | 'recover' | 'gave-up'. The counters are mutated here, so
+  // a caller that evaluates and then declines to act leaves the unit permanently one probe short
+  // of its recovery.
   function evaluate(rows) {
     prune(rows)
     const out = []
@@ -37,6 +43,16 @@ export function createSupervisionPolicy(overrides = {}) {
       bad.set(row.id, n)
       if (n < limits.consecutiveBad) {
         out.push({ row, action: 'note', badCount: n, badLimit: limits.consecutiveBad })
+        continue
+      }
+      // An observe-only unit never spends a budget and is never given up on — there is nothing to
+      // give up. It is restated on a cadence instead of every probe, so a stall that lasts an hour
+      // is sixty log lines' worth of information in six.
+      if (row.recoverable === false) {
+        const restate = Math.max(1, limits.restateEvery)
+        if (n === limits.consecutiveBad || (n - limits.consecutiveBad) % restate === 0) {
+          out.push({ row, action: 'observe', badCount: n })
+        }
         continue
       }
       const used = spent.get(row.id) || 0

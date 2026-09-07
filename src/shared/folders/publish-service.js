@@ -7,7 +7,7 @@
 // this module and registers its channel at load time, so a path from here back to it would put
 // `channels` in its temporal dead zone for whichever module happens to be imported first.
 import { createLogger } from '../core/logger.js'
-import { getPublishConcurrency, getPublishOrder } from '../core/runtime-config.js'
+import { getPublishConcurrency, getPublishOrder, getPublishStallWindowMs } from '../core/runtime-config.js'
 import { createCatalogBatch } from '../shares/catalog-writer.js'
 import { LOOSE_SHARE_ID } from '../transfer/transfer-id.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -75,6 +75,45 @@ export class PublishService extends Subsystem {
       },
     })
     current = this
+  }
+
+  // One unit per item holding a slot and not advancing. The lane is shared by every space, so a
+  // wedged item is not one share's problem: at the shipped concurrency three of them stop
+  // publishing everywhere. The label is the path — the worker log names a unit; the redacted
+  // health report below counts them.
+  supervise({ now = Date.now() } = {}) {
+    if (this.closed || this.stopping || !this.scheduler) return []
+    return this.scheduler.stalledItems({ now, windowMs: getPublishStallWindowMs() })
+      .map((row) => ({
+        key: row.key,
+        ok: row.ok,
+        detail: row.detail,
+        label: row.shareId + ' ' + row.relPath,
+        // An item whose slot has already been reclaimed has no second recovery: the executor is
+        // past anything we can reach, and evicting it again is a no-op. Reported for as long as it
+        // is still out there — which is what keeps its strike counter alive and its wedge in the
+        // health report — but never acted on again.
+        recoverable: !row.evicted,
+      }))
+  }
+
+  // Reclaim the slot. The item stays in the queue until its executor returns, so the path it holds
+  // cannot get a second executor and the file is never hashed twice.
+  async recover(key) {
+    if (this.stopping) return
+    this.scheduler?.evict(key)
+  }
+
+  // Counts, not identifiers: diagnostics:export is user-shareable.
+  health() {
+    const open = !this.closed && !this.stopping
+    if (!open) return { ok: false, detail: null }
+    const wedged = this.scheduler?.stalledItems({ windowMs: getPublishStallWindowMs() }) ?? []
+    return {
+      ok: wedged.length === 0,
+      detail: wedged.length ? `${wedged.length} publish item(s) not advancing` : null,
+      publishes: { wedged: wedged.length },
+    }
   }
 
   // Stops scheduling synchronously, so an in-flight hash unwinds during the shutdown's flush

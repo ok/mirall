@@ -159,6 +159,24 @@ const DEFAULTED = {
   // matches the cadence the mirror probe ran at, so the two-consecutive-bad rule still acts about
   // two minutes into a stall. Tests shrink it.
   supervisionProbeIntervalMs: 60_000,
+  // How long a recover() may run before the supervisor stops waiting on it. Generous against every
+  // recovery in the tree (each re-arms a loop and returns) and short against the probe interval, so
+  // one slow recovery cannot eat the next probe.
+  supervisionRecoverBudgetMs: 10_000,
+  // A diff over a large tree is legitimately slow, so the wedge signal is a pass that stats no
+  // file for this long — not one that merely takes a while. Generous on purpose: a false recovery
+  // costs a re-scan, and by the time it fires the share has made no progress for ten minutes.
+  reconcileStallWindowMs: 10 * 60 * 1000,
+  // A publish item that has hashed no byte and completed no phase for this long is wedged, not
+  // slow. The same 10 minutes the owner-side reconcile uses, for the same reason: a false recovery
+  // costs a re-hash, and by the time it fires the file has made no progress for ten minutes.
+  publishStallWindowMs: 10 * 60 * 1000,
+  // The convergence tick's own window, rather than a multiple of its interval: its phases are
+  // network-bound — a per-space bee read per pending announce, then a discovery refresh per space
+  // on both planes — and a tight multiple of a 15s cadence condemns a tick that is slow because
+  // the network is, which is exactly when the re-drive matters most. Every phase beats, so a tick
+  // silent for five minutes has stopped.
+  convergenceStallWindowMs: 5 * 60 * 1000,
   // How many mirror ticks may skip the walk before one runs in full regardless. The owner's catalog
   // version cannot see a LOCAL change (a user deleting a mirrored file) and a foreign mount has no
   // filesystem watcher, so this backstop is what repairs it — within 5 min at the 30s poll.
@@ -303,6 +321,27 @@ export function getDeepReconcileEvery() {
 
 export function getSupervisionProbeIntervalMs() {
   return config.supervisionProbeIntervalMs ?? DEFAULTED.supervisionProbeIntervalMs
+}
+
+// Validated rather than `??`-defaulted, unlike most of the DEFAULTED group: for a deadline both
+// sentinels invert. 0 makes stallVerdict condemn every pass the instant it starts, so the
+// supervisor would evict every healthy publish and abandon every healthy scan; Infinity reaches
+// setTimeout, which clamps it to about a millisecond, so "no timeout" becomes "instant timeout".
+// Anything that is not a positive finite number falls back to the default.
+export function getSupervisionRecoverBudgetMs() {
+  return finiteAtLeast(config.supervisionRecoverBudgetMs, 1, DEFAULTED.supervisionRecoverBudgetMs)
+}
+
+export function getReconcileStallWindowMs() {
+  return finiteAtLeast(config.reconcileStallWindowMs, 1, DEFAULTED.reconcileStallWindowMs)
+}
+
+export function getPublishStallWindowMs() {
+  return finiteAtLeast(config.publishStallWindowMs, 1, DEFAULTED.publishStallWindowMs)
+}
+
+export function getConvergenceStallWindowMs() {
+  return finiteAtLeast(config.convergenceStallWindowMs, 1, DEFAULTED.convergenceStallWindowMs)
 }
 
 // A budget that is multiplied by a live count must be finite and non-negative: Infinity yields

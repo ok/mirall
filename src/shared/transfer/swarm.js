@@ -70,8 +70,9 @@ export {
 } from './leave-protocol.js'
 import {
   initConvergenceTick, resetConvergenceTick, startConvergenceTick, forgetSpaceConvergence,
+  convergenceHealth, restartConvergenceTick,
 } from './convergence-tick.js'
-export { rescueStalledTransfers } from './convergence-tick.js'
+export { rescueStalledTransfers, convergenceHealth, restartConvergenceTick } from './convergence-tick.js'
 import {
   initConnectivity, resetConnectivity, attachSwarmWatchers,
   noteBooted, noteConnection, noteAnnounced, scheduleStatusEmit,
@@ -1216,6 +1217,18 @@ export class Swarm extends Subsystem {
     overlayReconnectHook = (ownerKey, spaceId) => this.deps.overlayBackend.resumeForOwner(ownerKey, spaceId)
     revokeServesForSpaceHook = (spaceId, profileKey) => this.deps.overlayBackend.revokeServesForSpace(spaceId, profileKey)
     initSwarm(this.deps.ipc)
+  }
+
+  // One unit: the level-triggered re-drive. Everything else the swarm owns is either event-driven
+  // (no pass to stall) or already supervised by the subsystem that owns it.
+  supervise({ now = Date.now() } = {}) {
+    if (this.closed || this.stopping) return []
+    return [{ key: 'convergence', label: 'convergence tick', ...convergenceHealth({ now }) }]
+  }
+
+  async recover(key) {
+    if (this.stopping || key !== 'convergence') return
+    restartConvergenceTick()
   }
 
   async _close() {

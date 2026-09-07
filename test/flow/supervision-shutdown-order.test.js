@@ -37,6 +37,17 @@ test('the supervisor rides the boot order without changing the departure conveya
     t.absent(JSON.stringify(diag.health.supervision).includes(spaceId),
       'the shareable bundle names no space')
 
+    // The new clients report through the same redacted surface. The rows the SUPERVISOR reads
+    // carry space and share ids by design — they are what the worker log names — so the boundary
+    // that matters is this one: the bundle a user attaches to a support mail.
+    const names = diag.health.subsystems.map((s) => s.name)
+    t.ok(names.includes('publish'), 'the publish service reports health')
+    t.ok(names.includes('owned-folders'), 'and so does the owner side')
+    t.ok(names.includes('swarm'))
+    const serialised = JSON.stringify(diag.health.subsystems)
+    t.absent(serialised.includes(spaceId), 'no space id rides along')
+    t.absent(serialised.includes(aKey), 'and no peer key either')
+
     // The departure datagram must still leave UDX before any socket drops — the first three steps
     // of boot.close(), which now run behind supervisor.pause().
     await A.request('shutdown').catch(() => {})
