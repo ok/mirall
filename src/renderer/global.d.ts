@@ -1,5 +1,5 @@
 import type { RendererConfig, RendererConfigPatch } from './config-client.js'
-import type { DiagnosticLogEntry } from './types.js'
+import type { ApplyErrorReport, DiagnosticLogEntry } from './types.js'
 
 export interface PkgInfo {
   name: string
@@ -102,6 +102,7 @@ export interface MirallBridge {
   getIdentityProtection(): Promise<IdentityProtection>
   setVerbose(on?: boolean): Promise<boolean>
   getDiagnosticLogs(opts?: { redact?: boolean }): Promise<DiagnosticLogEntry[]>
+  getLastApplyError(opts?: { redact?: boolean }): Promise<ApplyErrorReport | null>
   getNetOnline(): Promise<boolean>
   onNetOnlineChange(listener: (online: boolean) => void): () => void
   onMainLog(listener: (entry: { level: 'log' | 'warn' | 'error'; text: string }) => void): () => void
