@@ -7,6 +7,7 @@ import Badge from '../primitives/Badge.js'
 import ShareFileRow from '../cards/ShareFileRow.js'
 import { formatSize } from '../../utils.js'
 import { badgeStyle } from '../../statusBadge.js'
+import type { Decoration } from '../../hooks/useDecorations.js'
 import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
 interface FileRowCallbacks {
@@ -15,6 +16,8 @@ interface FileRowCallbacks {
   spaceId: string
   members: SpaceMember[]
   getDownloadSummary: (relPath: string) => PeerDownloadSummary | null
+  getDecoration: (relPath: string) => Decoration | null
+  isSeeded: (relPath: string) => boolean
   onDownload: (relPath: string) => void
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
@@ -95,6 +98,8 @@ export default function FolderTree(props: FolderTreeProps) {
           <ShareFileRow
             key={`file:${node.path}`}
             file={node.entry}
+            decoration={rest.getDecoration(node.entry.relPath)}
+            seeded={rest.isSeeded(node.entry.relPath)}
             displayName={node.name}
             leadingGutter
             isOwn={rest.isOwn}

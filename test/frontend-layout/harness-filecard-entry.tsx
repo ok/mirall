@@ -72,14 +72,14 @@ const toastItems: ToastItem[] = [
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8">
     <div id="cards-host" className="max-w-3xl space-y-2">
-      <FileCard file={fileEntry({})} decoration={null} {...cardHandlers} />
+      <FileCard file={fileEntry({})} decoration={null} seeded={false} {...cardHandlers} />
       <FileCard
         file={fileEntry({ status: 'error', errorCode: 'TRANSFER_DISK_FULL' })}
-        decoration={null} {...cardHandlers}
+        decoration={null} seeded={false} {...cardHandlers}
       />
       <FileCard
         file={fileEntry({ status: 'error', errorCode: 'TRANSFER_REMOVED', sharedByCount: 2 })}
-        decoration={null} {...cardHandlers}
+        decoration={null} seeded={false} {...cardHandlers}
       />
     </div>
     <ToastContainer items={toastItems} onDismiss={noop} onPause={noop} onResume={noop} />

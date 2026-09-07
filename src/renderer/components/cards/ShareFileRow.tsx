@@ -5,20 +5,23 @@ import { memo, useState, useId, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
-import VerifiedCheck from '../primitives/VerifiedCheck.js'
-import Badge from '../primitives/Badge.js'
-import DownloadProgressLane from '../widgets/DownloadProgressLane.js'
-import PeerDownloadIndicator from './PeerDownloadIndicator.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
+import RowLane from './RowLane.js'
 import FileName from '../widgets/FileName.js'
-import { formatSize, formatSpeed, resolveEta, getFileIcon } from '../../utils.js'
+import { formatSize, getFileIcon } from '../../utils.js'
 import { errorCodeToI18nKey } from '../../errorMessages.js'
 import { fileRowAction } from '../../fileRowAction.js'
-import { badgeStyle, shareFileStatusToBadge } from '../../statusBadge.js'
+import { deriveRowView } from '../../rowView.js'
+import type { Decoration } from '../../hooks/useDecorations.js'
 import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
 export interface ShareFileRowProps {
   file: ShareFileEntry
+  /** This row's live transfer frame, looked up by useShareFiles. Two scalar props rather than one
+      object: an object literal would be a fresh identity every render and defeat the memo below. */
+  decoration: Decoration | null
+  /** The download was just requested and no decoration has arrived yet. */
+  seeded: boolean
   isOwn: boolean
   manualControls: boolean
   spaceId: string
@@ -94,53 +97,25 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
   return <div className="w-10 h-10" />
 }
 
-function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, onDiscardPartial, displayName, leadingGutter }: ShareFileRowProps) {
+function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, onDiscardPartial, displayName, leadingGutter }: ShareFileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
-  const isDownloading = file.status === 'downloading'
-  // Indexing, not transferring: the owner hashes its own file ('publishing'), and a member
-  // watching that file waits on the same hash ('preparing'). Neither moves bytes to this device,
-  // so both stay out of the download lane and off its "Download progress" meter.
-  const isPreparing = file.status === 'preparing'
-  const isPublishing = file.status === 'publishing'
-  const isIndexing = isPreparing || isPublishing
-  // Verifying is a display sub-phase of an active (server-derived) download, carried on the
-  // decoration — not a status the renderer sets. Parity with the loose FileCard path.
-  const isVerifying = isDownloading && file.progress?.phase === 'verifying'
-  const verifyPct = file.verifyFraction != null ? Math.round(file.verifyFraction * 100) : 0
-  const isPausedInterrupted = file.status === 'paused-interrupted'
-  const isPausedOffline = file.status === 'paused-offline'
-  const transferId = file.transferId
-  // Until the first byte (owner indexing + connection setup) show "Preparing…", not
-  // a 0% bar — gives feedback during the gap and matches the space-root path.
-  const waiting = isDownloading && (file.progress?.bytes ?? 0) === 0
-  const badge = badgeStyle(shareFileStatusToBadge(isVerifying ? 'verifying' : waiting ? 'preparing' : file.status, isOwn))
-  const pausedBytes = (isPausedInterrupted || isPausedOffline) ? file.pendingBytes : undefined
-  const showDownloadProgressBar = isDownloading && !waiting && file.progress != null && file.progress.total > 0
-  const showIndexProgressBar = isIndexing && file.progress != null && file.progress.total > 0
-  const progressEta = resolveEta(file.progress?.eta, file.progress?.avgSpeed)
-  const showPausedProgressBar = (isPausedInterrupted || isPausedOffline)
-    && pausedBytes != null && pausedBytes > 0 && file.size > 0
-  const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!transferId })
-  // The badge sits apart from the file name in the row, so on its own it announces a bare state
-  // with nothing tying it to what it describes. Naming it also makes the row's status assertable
-  // by one exact string instead of a whole-window word match.
-  const badgeName = (label: string) => t('file.rowStatusLabel', { name: displayName || file.relPath, status: label })
-  const busyLabel = isPublishing ? t('status.publishing') : isPreparing ? t('file.preparing') : t('file.syncing')
+  const rowName = displayName || file.relPath
+  const view = deriveRowView(file, decoration, downloadSummary, { kind: 'share', isOwn, seeded })
 
-  // Sender-side download indicator: who is currently pulling this file from us. Only
-  // shown on an owned share's row at rest — a competing progress branch takes
-  // precedence, and the dropdown is gated on the same condition so it can't orphan.
-  // Mirrors FileCard's loose-file indicator (downloadSummary is null for non-owners).
+  const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!file.transferId })
+  const busyLabel = file.status === 'publishing'
+    ? t('status.publishing')
+    : file.status === 'preparing' ? t('file.preparing') : t('file.syncing')
+
+  // The dropdown is gated on the same indicator condition as the lane, so it can't orphan when a
+  // competing progress branch wins.
   const [showDownloaders, setShowDownloaders] = useState(false)
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
-  const hasDownloaders = (downloadSummary?.peerKeys.length ?? 0) > 0
-  const inProgressBranch = showDownloadProgressBar || showIndexProgressBar || showPausedProgressBar || isVerifying
-  const indicatorActive = hasDownloaders && !inProgressBranch
   useEffect(() => {
-    if (!indicatorActive) setShowDownloaders(false)
-  }, [indicatorActive])
+    if (!view.indicatorActive) setShowDownloaders(false)
+  }, [view.indicatorActive])
 
   return (
     <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
@@ -158,85 +133,23 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
           )}
         </div>
       </div>
-      {isVerifying ? (
-        <>
-          <div className="ml-6 basis-32 shrink-0 self-center">
-            <DownloadProgressLane value={verifyPct} label={t('status.verifying')} showPct />
-          </div>
-          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
-          </div>
-        </>
-      ) : showIndexProgressBar && file.progress ? (
-        <>
-          <div className="ml-6 basis-32 shrink-0 self-center">
-            <DownloadProgressLane
-              value={Math.min(100, Math.round((file.progress.bytes / file.progress.total) * 100))}
-              label={t('file.indexingProgress')}
-              eta={progressEta.etaText}
-              indeterminate={progressEta.indeterminate}
-            />
-          </div>
-          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
-          </div>
-        </>
-      ) : showDownloadProgressBar && file.progress ? (
-        <>
-          <div className="ml-6 basis-40 shrink-0 self-center">
-            <DownloadProgressLane
-              value={Math.min(100, Math.round((file.progress.bytes / file.progress.total) * 100))}
-              label={t('file.downloadProgress')}
-              speed={file.progress.avgSpeed != null ? formatSpeed(file.progress.avgSpeed) : undefined}
-              eta={progressEta.etaText}
-              indeterminate={progressEta.indeterminate}
-            />
-          </div>
-          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
-          </div>
-        </>
-      ) : showPausedProgressBar && pausedBytes != null ? (
-        <>
-          <div className="ml-6 basis-32 shrink-0 self-center">
-            <DownloadProgressLane
-              value={Math.min(100, Math.round((pausedBytes / file.size) * 100))}
-              label={t('file.downloadProgress')}
-              bytes={formatSize(pausedBytes)}
-            />
-          </div>
-          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
-          </div>
-        </>
-      ) : indicatorActive && downloadSummary ? (
-        <>
-          <div className="ml-6 basis-72 shrink-[2] min-w-[180px] self-center">
-            <PeerDownloadIndicator
-              summary={downloadSummary}
-              members={members}
-              open={showDownloaders}
-              onToggle={() => setShowDownloaders((v) => !v)}
-              controlsId={dropdownId}
-            />
-          </div>
-          <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
-            <Badge label={t('file.sending')} classes="bg-info text-accent" srLabel={badgeName(t('file.sending'))} />
-          </div>
-        </>
-      ) : (
-        <div className="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
-          {file.verified && <VerifiedCheck label={t('file.verified')} />}
-          <Badge label={t(badge.labelKey)} classes={badge.classes} srLabel={badgeName(t(badge.labelKey))} />
-        </div>
-      )}
+      <RowLane
+        view={view}
+        rowName={rowName}
+        kind="share"
+        members={members}
+        downloadSummary={downloadSummary}
+        showDownloaders={showDownloaders}
+        onToggleDownloaders={() => setShowDownloaders((v) => !v)}
+        dropdownId={dropdownId}
+      />
       {/* Right edge is actions only; the verified badge is information and sits with
           the status pill above (so pills stay right-aligned across rows). */}
       <div className="flex items-center gap-1 shrink-0">
         <FileRowActions
           action={action}
           relPath={file.relPath}
-          transferId={transferId}
+          transferId={file.transferId}
           busyLabel={busyLabel}
           onDownload={onDownload}
           onReveal={onReveal}
@@ -246,7 +159,7 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
         />
       </div>
       </div>
-      {indicatorActive && showDownloaders && downloadSummary && (
+      {view.indicatorActive && showDownloaders && downloadSummary && (
         <div className="pb-2">
           <PeerDownloadDropdown
             id={dropdownId}
@@ -262,5 +175,6 @@ function ShareFileRow({ file, isOwn, manualControls, spaceId, members, downloadS
 
 // Same reason as FileCard: the folder tree's rows must not repaint on every decoration heartbeat.
 // `file` keeps its identity across a listing refetch (shareFilesReconcile.js), `members` is the
-// memoized roster, `downloadSummary` is a per-path Map value, and the five handlers are stable.
+// memoized roster, `decoration` and `downloadSummary` are per-path Map values, and the five
+// handlers are stable.
 export default memo(ShareFileRow)

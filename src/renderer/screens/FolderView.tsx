@@ -27,6 +27,7 @@ import { deriveStrips } from '../folderStrips.js'
 import { mountFault } from '../mountFault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
 import { deriveMirrorSync } from '../mirrorSync.js'
+import { rowBytesOnDevice } from '../rowView.js'
 import { request } from '../ipc.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useOwnedMount } from '../hooks/useFolderMount.js'
@@ -61,6 +62,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const isYou = share.role === 'mine'
   const {
     files, info, loading, error,
+    getDecoration, isSeeded,
     downloadFile, revealFile,
     pauseDownload, cancelDownload, discardPartial,
   } = useShareFiles(spaceId, share.owner, share.id, share.role)
@@ -154,8 +156,14 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     [isYou, ownedMountStatus, ownedError, foreignStatus, foreignMount],
   )
   const mirrorSync = useMemo(
-    () => (share.role === 'mirrored' ? deriveMirrorSync(files, { truncated: listingTruncated, enabled: foreignEnabled }) : null),
-    [share.role, files, listingTruncated, foreignEnabled],
+    () => (share.role === 'mirrored'
+      ? deriveMirrorSync(files, {
+          truncated: listingTruncated,
+          enabled: foreignEnabled,
+          bytesOf: (f) => rowBytesOnDevice(f, getDecoration(f.relPath)),
+        })
+      : null),
+    [share.role, files, listingTruncated, foreignEnabled, getDecoration],
   )
   const ownerName = isYou
     ? (profile?.displayName || t('avatar.unknown'))
@@ -489,6 +497,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                   spaceId={spaceId}
                   members={members}
                   getDownloadSummary={getDownloadSummary}
+                  getDecoration={getDecoration}
+                  isSeeded={isSeeded}
                   onDownload={downloadFile}
                   onReveal={revealFile}
                   onPause={pauseDownload}

@@ -4,17 +4,19 @@ import { memo, useState, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatSize, getFileIcon, fileName } from '../../utils.js'
 import { errorCodeToI18nKey } from '../../errorMessages.js'
-import { deriveFileCardView } from '../../fileCardView.js'
+import { deriveRowView } from '../../rowView.js'
 import type { FileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
 import type { Decoration } from '../../hooks/useDecorations.js'
 import FileName from '../widgets/FileName.js'
-import FileCardLane from './FileCardLane.js'
+import RowLane from './RowLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
 import Icon, { type IconName } from '../primitives/Icon.js'
 
 interface FileCardProps {
   file: FileEntry
   decoration: Decoration | null
+  /** The download was just requested and no decoration has arrived yet. */
+  seeded: boolean
   onDownload: (file: FileEntry) => void
   onCancel: (transferId: string) => void
   onPause: (transferId: string) => void
@@ -147,6 +149,7 @@ function ActionSlot({
 function FileCard({
   file,
   decoration,
+  seeded,
   onDownload,
   onCancel,
   onPause,
@@ -159,7 +162,8 @@ function FileCard({
 }: FileCardProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
-  const view = deriveFileCardView(file, decoration, downloadSummary)
+  const rowName = fileName(file.path)
+  const view = deriveRowView(file, decoration, downloadSummary, { kind: 'loose', seeded })
 
   // The dropdown is gated on the same indicator condition so it can't orphan when a
   // competing progress branch wins the lane.
@@ -195,7 +199,7 @@ function FileCard({
           <Icon name={getFileIcon(file.path)} className="text-accent" />
         </div>
         <div className="min-w-0 flex-grow">
-          <FileName name={fileName(file.path)} className="font-bold text-accent" />
+          <FileName name={rowName} className="font-bold text-accent" />
           <p className="text-xs text-on-surface-variant truncate">
             {formatSize(file.size)} • {t('file.sharedBy', { name: file.owner?.displayName || t('file.unknownOwner') })}{sharedByLabel}
             {/* Error rides the meta line (not a row of its own) so a failed row
@@ -210,8 +214,10 @@ function FileCard({
         </div>
       </div>
 
-      <FileCardLane
+      <RowLane
         view={view}
+        rowName={rowName}
+        kind="loose"
         members={members}
         downloadSummary={downloadSummary}
         showDownloaders={showDownloaders}

@@ -6,8 +6,9 @@ const root = new URL('../../', import.meta.url)
 const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
 const IND = 'src/renderer/components/cards/PeerDownloadIndicator.tsx'
-const FILECARD_LANE = 'src/renderer/components/cards/FileCardLane.tsx'
+const ROW_LANE = 'src/renderer/components/cards/RowLane.tsx'
 const SHARE_FILE_ROW = 'src/renderer/components/cards/ShareFileRow.tsx'
+const FILE_CARD = 'src/renderer/components/cards/FileCard.tsx'
 
 const indSrc = read(IND)
 const indFlat = indSrc.replace(/\n/g, ' ')
@@ -38,10 +39,14 @@ test('REGRESSION (FIX-4): aria-valuetext keeps pct + count + paused + speed + et
 })
 
 test('REGRESSION (FIX-5): lane floors bumped so speed·ETA always fits', (t) => {
-  const fc = read(FILECARD_LANE)
-  t.ok(fc.includes('min-w-[180px]'), 'FileCard indicator floor is 180px')
-  t.absent(fc.includes('min-w-[160px]'), 'FileCard no longer floors at 160px')
-  const fv = read(SHARE_FILE_ROW)
-  t.ok(fv.includes('min-w-[180px]'), 'ShareFileRow indicator floor is 180px')
-  t.absent(fv.includes('min-w-[120px]'), 'ShareFileRow no longer floors at 120px')
+  // One lane component serves both row kinds now, so the floor is asserted once — and the two
+  // per-kind basis widths it still varies live there with it.
+  const lane = read(ROW_LANE)
+  t.ok(lane.includes('min-w-[180px]'), 'the indicator floor is 180px')
+  t.absent(lane.includes('min-w-[160px]'), 'no longer floors at 160px')
+  t.absent(lane.includes('min-w-[120px]'), 'no longer floors at 120px')
+  t.ok(lane.includes('basis-56') && lane.includes('basis-72'), 'both kinds keep their own basis')
+  for (const p of [SHARE_FILE_ROW, FILE_CARD]) {
+    t.absent(/min-w-\[\d+px\]|basis-\d/.test(read(p)), `${p} carries no lane width of its own`)
+  }
 })

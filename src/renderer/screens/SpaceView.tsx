@@ -56,6 +56,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     loading,
     error,
     refresh,
+    isSeeded,
     addFiles,
     downloadFile,
     unshareFile,
@@ -507,6 +508,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                         key={`${file.driveKey}-${file.path}`}
                         file={file}
                         decoration={getDecoration(file.path)}
+                        seeded={isSeeded(file.path)}
                         onDownload={downloadFile}
                         onCancel={cancelDownload}
                         onPause={pauseDownload}

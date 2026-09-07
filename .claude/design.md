@@ -580,9 +580,11 @@ silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
 states animate `avatar-issue-pulse-error` / `-warning` (2.4s pulse, CSS in
 `tailwind.css`).
 
-### Badges & status pills — `primitives/Badge.tsx`, `StatusBadge.tsx`, `src/renderer/statusBadge.js`
+### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/statusBadge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and
-**always `border border-outline`** (a deliberate border). `statusBadge.js` maps
+**always `border border-outline`** (a deliberate border). A file row's pill also carries
+`srLabel` — `"<filename>: <status>"` — because it sits apart from the name it describes and
+announces a bare state without it; `cards/RowLane.tsx` renders every one of them. `statusBadge.js` maps
 file/share state onto a **fixed 5-token palette**, each token one fixed meaning:
 🟢 `bg-success` (on your device — `mine` + `downloaded`/`synced`),
 🔵 `bg-info` (busy — `downloading` / `verifying` (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) /

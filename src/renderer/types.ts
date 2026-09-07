@@ -158,16 +158,7 @@ export interface ShareFileEntry {
   verified?: boolean
   pendingBytes?: number
   errorCode?: string
-  verifyFraction?: number
   transferId?: string
-  progress?: {
-    bytes: number
-    total: number
-    speed: number
-    avgSpeed?: number
-    eta?: number | null
-    phase?: 'verifying'
-  }
 }
 
 export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
