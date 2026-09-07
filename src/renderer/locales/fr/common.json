@@ -130,6 +130,8 @@
     "conflictDetail": "Les fichiers à destination diffèrent de ceux du partage. Vos fichiers existants sont conservés ; les versions du partage sont enregistrées à côté avec un nom numéroté.",
     "overFileLimit": "Ce dossier contient {{total}} fichiers, au-delà de la limite de {{limit}} fichiers",
     "overFileLimitDetail": "Choisissez un dossier plus petit, ou répartissez-le sur plusieurs partages.",
+    "listingCapped": "Ce dossier contient {{total}} fichiers, au-delà de la limite de {{limit}} fichiers",
+    "listingCappedDetail": "La mise en miroir fonctionne et tous les fichiers sont synchronisés, mais la liste n’affichera que les {{limit}} premiers.",
     "noConflicts": "Aucun conflit",
     "noConflictDetail": "La destination est propre.",
     "noConflictDetailOwned": "Rien ne sera écrasé.",

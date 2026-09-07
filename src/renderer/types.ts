@@ -221,11 +221,14 @@ export interface ScanPreview {
   totalBytes: number
   perFile: ScanPreviewEntry[]
   perFileOmitted?: boolean
-  // Owned-folder flow only: the folder's total file count against the share limit, so the
-  // confirmation step can refuse before the user commits.
+  // The folder's total file count against the limit, so the confirmation step can act before the
+  // user commits. Both flows carry it; only the owned one can REFUSE on overFileLimit, because
+  // mounting a peer share creates no share of your own. A mirror over the display cap sets
+  // listingAdvisory instead: a warning it can proceed past, not a wall.
   totalFiles?: number
   fileLimit?: number
   overFileLimit?: boolean
+  listingAdvisory?: boolean
 }
 
 export interface PreviewProgress {

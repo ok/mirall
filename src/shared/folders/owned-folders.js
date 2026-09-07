@@ -17,7 +17,7 @@ import { listOwnShare } from '../shares/share-catalog.js'
 import { ensureServable, setFolderPublishLane } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
-import { walkDisk } from './walk-disk.js'
+import { countDiskFiles, walkDisk } from './walk-disk.js'
 import { relToDriveKey as relToKey, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
@@ -500,11 +500,12 @@ export async function initialPublishScan(spaceId, shareId, mountPath, ignore, op
 
 export const periodicReconcile = initialPublishScan
 
-// The count the worker's admission gate reads. Stat-only, and it walks the same way the publish
-// scan does, so the gate can never admit a folder the scan would then find too large.
+// The count the worker's admission gate reads. It counts what is on disk under the same key rule
+// the publish scan walks by, INCLUDING files the scan will set aside as unreadable — so the gate
+// can only ever be stricter than the scan, never looser, and can never admit a folder the scan
+// would then find too large.
 export async function countFolderFiles(mountPath, ignore) {
-  const { onDisk } = await walkDisk(mountPath, ignore)
-  return onDisk.size
+  return await countDiskFiles(mountPath, ignore)
 }
 
 export function getIndexStatus(spaceId, shareId) {

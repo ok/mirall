@@ -154,6 +154,8 @@
     "conflictDetail": "Files at the destination differ from the share. Your existing files are kept; the share's versions are saved alongside with a numbered name.",
     "overFileLimit": "This folder has {{total}} files, above the {{limit}}-file limit",
     "overFileLimitDetail": "Choose a smaller folder, or split it into several shares.",
+    "listingCapped": "This folder has {{total}} files, above the {{limit}}-file limit",
+    "listingCappedDetail": "Mirroring works and every file syncs, but the file list will only show the first {{limit}}.",
     "noConflicts": "No conflicts",
     "noConflictDetail": "The destination is clean.",
     "noConflictDetailOwned": "Nothing will be overwritten.",

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { exceedsShareFileLimit } from '../../src/shared/folders/share-limits.js'
+import { exceedsShareFileLimit, listingWillTruncate } from '../../src/shared/folders/share-limits.js'
 import { getMaxFilesPerShare, getListFilesCap, getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The admission gate behind the add-folder wizard: a folder with more files than a share may hold
@@ -49,3 +49,37 @@ test('the admission limit and the display ceiling are the same number', (t) => {
   t.is(getMaxFilesPerShare(), getListFilesCap(), 'maxFilesPerShare === listFilesCap by default')
 })
 
+// The mirror's half of the same question. A mount creates no share, so the admission gate does not
+// apply to it — but the display ceiling does, and the mirror wizard has to be able to say so.
+test('listingWillTruncate is exclusive at the boundary, like the admission gate', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  setRuntimeConfig({ ...saved, listFilesCap: 5000 })
+  t.absent(listingWillTruncate(4999))
+  t.absent(listingWillTruncate(5000), 'exactly at the cap is listed in full')
+  t.ok(listingWillTruncate(5001), 'one over lists short')
+})
+
+// The two are equal by default, which is what makes the owned gate safe. They are still different
+// questions, and a mirror asks the display one — so this pins WHICH knob is read, not just the
+// number it happens to hold.
+test('listingWillTruncate reads the display ceiling, not the admission limit', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  setRuntimeConfig({ ...saved, listFilesCap: 10, maxFilesPerShare: 1000 })
+  t.ok(listingWillTruncate(11), 'over the display cap, well under the admission limit')
+  t.absent(exceedsShareFileLimit(11), 'and the admission gate is untouched by it')
+})
+
+test('an explicit 0 / Infinity disables the listing advisory too', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  setRuntimeConfig({ ...saved, listFilesCap: 0 })
+  t.absent(listingWillTruncate(150000), 'nothing truncates an uncapped listing')
+
+  setRuntimeConfig({ ...saved, listFilesCap: Infinity })
+  t.absent(listingWillTruncate(150000))
+})

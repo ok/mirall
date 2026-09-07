@@ -130,6 +130,8 @@
     "conflictDetail": "I file nella destinazione differiscono da quelli condivisi. I tuoi file esistenti vengono mantenuti; le versioni della condivisione vengono salvate accanto con un nome numerato.",
     "overFileLimit": "Questa cartella contiene {{total}} file, oltre il limite di {{limit}} file",
     "overFileLimitDetail": "Scegli una cartella più piccola oppure suddividila in più condivisioni.",
+    "listingCapped": "Questa cartella contiene {{total}} file, oltre il limite di {{limit}} file",
+    "listingCappedDetail": "La copia speculare funziona e tutti i file vengono sincronizzati, ma l’elenco mostrerà solo i primi {{limit}}.",
     "noConflicts": "Nessun conflitto",
     "noConflictDetail": "La destinazione è pulita.",
     "noConflictDetailOwned": "Non verrà sovrascritto nulla.",

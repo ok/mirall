@@ -166,6 +166,17 @@ function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPr
         />
       )}
 
+      {/* A warning, not a refusal: the primary action stays enabled. Mirroring an over-cap share
+          works and every file syncs — only the list is short — so the honest move is to say so and
+          let the user decide, which is the same thing the folder screen says after the mount. */}
+      {preview.listingAdvisory === true && (
+        <SummaryCard
+          tone="warning"
+          title={t('scanPreview.listingCapped', { total: preview.totalFiles ?? 0, limit: preview.fileLimit ?? 0 })}
+          detail={t('scanPreview.listingCappedDetail', { limit: preview.fileLimit ?? 0 })}
+        />
+      )}
+
       {readOnlyWarning && (
         <SummaryCard tone="warning" title={t('scanPreview.readOnly')} detail={readOnlyWarning} />
       )}

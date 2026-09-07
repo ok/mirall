@@ -7,6 +7,8 @@ import { DEFAULT_IGNORE, dropUnsafeEntries } from './path-keys.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'
 import { isVerifiedUnchanged } from '../transfer/files.js'
+import { getListFilesCap } from '../core/runtime-config.js'
+import { listingWillTruncate } from './share-limits.js'
 import { createPreviewTally } from './preview-tally.js'
 import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
@@ -78,8 +80,16 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
   ])
   checkAborted()
 
+  // A preview that could not read the listing must not advise about its size: totalFiles 0 here
+  // means "unknown", not "small".
   if (!entries) {
-    return createPreviewTally().result('mount-foreign-folder', 'download', { existingAtDestination })
+    return createPreviewTally().result('mount-foreign-folder', 'download', {
+      existingAtDestination,
+      totalFiles: 0,
+      fileLimit: getListFilesCap(),
+      overFileLimit: false,
+      listingAdvisory: false,
+    })
   }
 
   let scanned = 0
@@ -97,5 +107,15 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
     if (!r.download) continue
     tally.add({ relPath: r.relPath, size: r.size, conflict: !!r.conflict })
   }
-  return tally.result('mount-foreign-folder', 'download', { existingAtDestination })
+  // overFileLimit is the wizard's REFUSAL flag and stays false for a mirror: mounting creates no
+  // share, so the admission gate is not this flow's to enforce. listingAdvisory is the separate,
+  // non-blocking fact — the folder screen already degrades for a truncated listing after the mount,
+  // and this is the same news delivered before it.
+  return tally.result('mount-foreign-folder', 'download', {
+    existingAtDestination,
+    totalFiles: entries.length,
+    fileLimit: getListFilesCap(),
+    overFileLimit: false,
+    listingAdvisory: listingWillTruncate(entries.length),
+  })
 }

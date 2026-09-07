@@ -130,6 +130,8 @@
     "conflictDetail": "Los archivos del destino son distintos a los del recurso compartido. Tus archivos existentes se conservan; las versiones del recurso compartido se guardan junto a ellos con un nombre numerado.",
     "overFileLimit": "Esta carpeta tiene {{total}} archivos, por encima del límite de {{limit}}",
     "overFileLimitDetail": "Elige una carpeta más pequeña o divídela en varios recursos compartidos.",
+    "listingCapped": "Esta carpeta tiene {{total}} archivos, por encima del límite de {{limit}}",
+    "listingCappedDetail": "La duplicación funciona y todos los archivos se sincronizan, pero la lista solo mostrará los primeros {{limit}}.",
     "noConflicts": "Sin conflictos",
     "noConflictDetail": "El destino está limpio.",
     "noConflictDetailOwned": "No se sobrescribirá nada.",
