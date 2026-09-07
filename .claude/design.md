@@ -186,11 +186,18 @@ mapped in `tailwind.config.js`:
   Weights **400–600**. All body and UI text.
 
 There is **no named type scale** (no `display-lg`, `body-lg`, etc.). Headings use
-plain Tailwind sizes + `font-headline`:
+plain Tailwind sizes + `font-headline`.
+
+Two page-title treatments, and which one a screen takes is decided by whether the title is a
+translated constant or a name someone typed. A settings page uses `PageHeader`. A screen *about
+something* — a space, a folder — uses `EntityHeader`, which adds a back button, an eyebrow line, an
+actions cluster, and the three classes a user-supplied name needs: `truncate`, plus `leading-tight`
+and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` introduces.
 
 | Use | Classes | Where |
 |---|---|---|
 | Page title | `text-4xl font-headline font-extrabold text-accent tracking-tight` (`md:text-5xl` on onboarding) | `components/layout/PageHeader.tsx` |
+| Entity title (a name someone typed) | `text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5` | `components/layout/EntityHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
 | Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |
@@ -468,6 +475,11 @@ Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings
 second form — a bare line of path text next to a `secondary` button is the drift this replaced, and
 it read as a different kind of thing depending on which door you came through.
 
+The two mount wizards reach it through **`widgets/MountPathField.tsx`**, which adds the field's
+headline label and its `role="alert"` validation line. The label is a `<span>` with an id rather
+than a `<label>`, because the row's action is a button, not a form control — the association goes
+through `aria-describedby`.
+
 `FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
 segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
 once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
@@ -519,13 +531,20 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   as its final action, and a two-state dialog wires the "Done" of its second state.
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
-- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`); body
-  `px-10 pb-10 space-y-{4–8}`. Three footer shapes:
+- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`) — **one component,
+  `components/layout/ModalHeader.tsx`**, used by every dialog including the purge confirm that
+  `screens/ActivityLogSettings.tsx` mounts inline; `keyboard/ShortcutsHint.tsx` and
+  `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either a
+  `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two sizes,
+  and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
+  Three footer shapes:
   1. A single full-width `lg` button.
   2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
   3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)
-     at default `sm` size, the action carrying a trailing `arrow_forward`.
-     Used by Add Folder / Mirror Folder and their shared scan-preview step.
+     at default `sm` size, the action carrying a trailing `arrow_forward`. Owned by
+     **`modals/MountWizardStep.tsx`** (header + body slot + this footer), which Add Folder and
+     Mirror to Disk both render; their shared second step is `modals/ScanPreviewModal.tsx`, and the
+     state machine behind both — validate, scan, commit — is `hooks/useMountWizard.ts`.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
 - Progress modals (Leave / Reclaim / Clear cache) animate through

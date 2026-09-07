@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { subscribe } from '../../ipc.js'
 import { formatSize } from '../../utils.js'
 import Modal from '../primitives/Modal.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import FilenameTitle from '../widgets/FilenameTitle.js'
 
@@ -104,25 +104,14 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
       ariaLabel={leaving ? t('leaveSpace.titleProgress') : t('leaveSpace.titleConfirm', { name: spaceName })}
     >
       <>
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex justify-between items-start mb-2 gap-3">
-            {leaving ? (
-              <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
-                {t('leaveSpace.titleProgress')}
-              </h1>
-            ) : (
-              <FilenameTitle i18nKey="leaveSpace.titleConfirm" name={spaceName} />
-            )}
-            {!leaving && (
-              <IconButton
-                icon="close"
-                onClick={onClose}
-                ariaLabel={t('actions.close')}
-                iconClassName="text-secondary"
-              />
-            )}
-          </div>
-        </div>
+        {leaving ? (
+          <ModalHeader title={t('leaveSpace.titleProgress')} />
+        ) : (
+          <ModalHeader
+            titleNode={<FilenameTitle i18nKey="leaveSpace.titleConfirm" name={spaceName} />}
+            onClose={onClose}
+          />
+        )}
 
         <div className="px-10 pb-10 space-y-6">
           {leaving ? (

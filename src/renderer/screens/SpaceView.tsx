@@ -33,13 +33,88 @@ import ActionMenu from '../components/widgets/ActionMenu.js'
 import InviteModal from '../components/modals/InviteModal.js'
 import EditSpaceModal from '../components/modals/EditSpaceModal.js'
 import Icon from '../components/primitives/Icon.js'
-import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
+import EntityHeader from '../components/layout/EntityHeader.js'
 import Avatar from '../components/primitives/Avatar.js'
 import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useLocateShare } from '../hooks/useLocateShare.js'
+
+interface SpaceHeaderActionsProps {
+  isPending: boolean
+  isLegacy: boolean
+  favorite: boolean
+  onCancelRequest: () => void
+  onInvite: () => void
+  onToggleFavorite: () => void
+  onEdit: () => void
+  onManageStorage: () => void
+  onLeave: () => void
+}
+
+function SpaceHeaderActions({
+  isPending,
+  isLegacy,
+  favorite,
+  onCancelRequest,
+  onInvite,
+  onToggleFavorite,
+  onEdit,
+  onManageStorage,
+  onLeave,
+}: SpaceHeaderActionsProps) {
+  const { t } = useTranslation()
+  // Not a member yet — expose nothing member-only (invite/edit/storage), just a way to withdraw
+  // the request.
+  if (isPending) {
+    return (
+      <Button variant="secondary" icon="close" onClick={onCancelRequest}>
+        {t('space.cancelRequest')}
+      </Button>
+    )
+  }
+  return (
+    <>
+      <Button icon="group_add" onClick={onInvite} disabled={isLegacy}>
+        {t('space.inviteShort')}
+      </Button>
+      <ActionMenu
+        label={t('space.more')}
+        items={[
+          {
+            id: 'favorite',
+            label: favorite ? t('space.removeFavorite') : t('space.addFavorite'),
+            icon: 'star',
+            iconFilled: favorite,
+            onAction: onToggleFavorite,
+          },
+          {
+            id: 'edit',
+            label: t('space.edit'),
+            icon: 'edit',
+            disabled: isLegacy,
+            onAction: onEdit,
+          },
+          {
+            id: 'manage-storage',
+            label: t('space.manageStorage'),
+            icon: 'database',
+            onAction: onManageStorage,
+          },
+          {
+            id: 'leave',
+            label: t('space.leave'),
+            icon: 'logout',
+            variant: 'danger',
+            onAction: onLeave,
+          },
+        ]}
+      />
+    </>
+  )
+}
 
 interface SpaceViewProps {
   spaceId: string
@@ -77,6 +152,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
   const toast = useToast()
   const errorText = useErrorText()
+  const { locate } = useLocateShare(spaceId)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showApproval, setShowApproval] = useState(false)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -147,18 +223,8 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
 
   // The row handlers below are useCallback'd because they are props of memoized rows (ShareCard,
   // FileCard): an identity that changes every render defeats the memo, and the decoration
-  // heartbeat re-renders this screen once a second for as long as a transfer is live.
-  const handleLocate = useCallback(async (share: ShareWithRole) => {
-    const picked = await window.bridge.browseShareFolder()
-    if (!picked) return
-    try {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }, [spaceId, toast, t, errorText])
-
+  // heartbeat re-renders this screen once a second for as long as a transfer is live. `locate` comes
+  // out of useLocateShare already wrapped, for the same reason.
   const handleOpenShare = useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare])
 
   const handleOpenInFinder = useCallback(async (share: ShareWithRole) => {
@@ -248,75 +314,28 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           e.target.value = ''
         }}
       />
-      <div className="shrink-0 pt-8 pb-4">
-        <div className="flex items-start gap-4 mb-2">
-          <IconButton
-            icon="arrow_back"
-            onClick={onBack}
-            ariaLabel={t('actions.back')}
-            className="mt-1 shrink-0"
+      <EntityHeader
+        name={space?.name || t('space.fallbackName')}
+        onBack={onBack}
+        titleAdornment={isLegacy ? (
+          <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-error-container text-on-error-container text-xs font-bold border border-outline">
+            {t('space.legacyBadge')}
+          </span>
+        ) : null}
+        actions={
+          <SpaceHeaderActions
+            isPending={isPending}
+            isLegacy={isLegacy}
+            favorite={!!space?.favorite}
+            onCancelRequest={handleCancelRequest}
+            onInvite={handleInvite}
+            onToggleFavorite={() => toggleFavorite(spaceId)}
+            onEdit={() => setShowEditModal(true)}
+            onManageStorage={onManageStorage}
+            onLeave={() => setShowLeaveModal(true)}
           />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
-                {space?.name || t('space.fallbackName')}
-              </h1>
-              {isLegacy && (
-                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-error-container text-on-error-container text-xs font-bold border border-outline">
-                  {t('space.legacyBadge')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-3 mt-2 shrink-0">
-            {isPending ? (
-              // Not a member yet — expose nothing member-only (invite/edit/storage),
-              // just a way to withdraw the request.
-              <Button variant="secondary" icon="close" onClick={handleCancelRequest}>
-                {t('space.cancelRequest')}
-              </Button>
-            ) : (
-              <>
-                <Button icon="group_add" onClick={handleInvite} disabled={isLegacy}>
-                  {t('space.inviteShort')}
-                </Button>
-                <ActionMenu
-                  label={t('space.more')}
-                  items={[
-                    {
-                      id: 'favorite',
-                      label: space?.favorite ? t('space.removeFavorite') : t('space.addFavorite'),
-                      icon: 'star',
-                      iconFilled: space?.favorite,
-                      onAction: () => toggleFavorite(spaceId),
-                    },
-                    {
-                      id: 'edit',
-                      label: t('space.edit'),
-                      icon: 'edit',
-                      disabled: isLegacy,
-                      onAction: () => setShowEditModal(true),
-                    },
-                    {
-                      id: 'manage-storage',
-                      label: t('space.manageStorage'),
-                      icon: 'database',
-                      onAction: onManageStorage,
-                    },
-                    {
-                      id: 'leave',
-                      label: t('space.leave'),
-                      icon: 'logout',
-                      variant: 'danger',
-                      onAction: () => setShowLeaveModal(true),
-                    },
-                  ]}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {isLegacy && (
         <div className="shrink-0 pb-4">
@@ -464,7 +483,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                           onOpen={handleOpenShare}
                           onOpenInFinder={handleOpenInFinder}
                           onDelete={handleDeleteRequest}
-                          onLocate={handleLocate}
+                          onLocate={locate}
                           onMirror={handleMirrorRequest}
                           onUnmount={handleUnmount}
                           onPauseMirror={handlePauseMirror}

@@ -13,17 +13,19 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER = path.resolve(here, '../../src/renderer')
 const read = (p) => readFileSync(p, 'utf8')
 
-function tsxFiles (dir) {
+// `.ts` as well as `.tsx`: the picker is opened from hooks now, and a walk that saw only components
+// could not tell a hook that shows the path it picked from one that does not.
+function sourceFiles (dir) {
   const out = []
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry)
-    if (statSync(full).isDirectory()) out.push(...tsxFiles(full))
-    else if (entry.endsWith('.tsx')) out.push(full)
+    if (statSync(full).isDirectory()) out.push(...sourceFiles(full))
+    else if (entry.endsWith('.tsx') || entry.endsWith('.ts')) out.push(full)
   }
   return out
 }
 
-const files = tsxFiles(RENDERER).map((f) => ({ rel: path.relative(RENDERER, f), src: read(f) }))
+const files = sourceFiles(RENDERER).map((f) => ({ rel: path.relative(RENDERER, f), src: read(f) }))
 const pathRow = read(path.join(RENDERER, 'components/widgets/PathRow.tsx'))
 
 // `FilePath` renders the path text alone. Beside an action it is the bare-text form this
@@ -43,15 +45,31 @@ test('FilePath is rendered only where a path field would be wrong', (t) => {
 })
 
 test('every path the user can re-pick goes through PathRow', (t) => {
-  // The two folder pickers main exposes. A screen that opens one and shows the result IS a path
-  // field; the only callers that legitimately open one without showing a path are the action-menu
-  // entries (Locate / relocate from a card), which navigate rather than render a row.
-  const MENU_ONLY = new Set(['screens/SpaceView.tsx', 'screens/FolderView.tsx'])
+  // The two folder pickers main exposes. A caller that opens one and shows the result IS a path
+  // field, and it renders one — directly, or through the wizards' <MountPathField>, which is a
+  // PathRow with its label and its validation message. The exceptions are the callers that never
+  // show the path at all, each named with why.
+  const PICKS_WITHOUT_SHOWING = new Map([
+    ['screens/SpaceView.tsx', 'drag-drop / Add folder hand the picked path straight to a modal'],
+    ['hooks/useLocateShare.ts', 'Locate re-points the folder and reports it in a toast; there is no field'],
+    ['hooks/useMountWizard.ts', 'a hook renders nothing; its callers show the path, asserted below'],
+  ])
   const pickers = files.filter((f) => /window\.bridge\.browse(DownloadFolder|ShareFolder)\(/.test(f.src))
   t.ok(pickers.length > 0, 'the picker calls were found at all')
   for (const f of pickers) {
-    if (MENU_ONLY.has(f.rel)) continue
-    t.ok(f.src.includes('<PathRow'), `${f.rel} picks a folder and must show it in a PathRow`)
+    if (PICKS_WITHOUT_SHOWING.has(f.rel)) continue
+    t.ok(/<PathRow|<MountPathField/.test(f.src), `${f.rel} picks a folder and must show it in a PathRow`)
+  }
+  // A stale exemption is the same failure wearing a green tick: every name above must still be a
+  // caller that opens a picker.
+  for (const rel of PICKS_WITHOUT_SHOWING.keys()) {
+    t.ok(pickers.some((f) => f.rel === rel), `${rel} still opens a folder picker`)
+  }
+  // The one exemption that delegates rather than declines: close it where it is actually kept.
+  const wizards = files.filter((f) => f.rel !== 'hooks/useMountWizard.ts' && f.src.includes('useMountWizard('))
+  t.ok(wizards.length > 0, 'the wizard callers were found at all')
+  for (const f of wizards) {
+    t.ok(f.src.includes('<MountPathField'), `${f.rel} drives the wizard and must show the path it picks`)
   }
 })
 

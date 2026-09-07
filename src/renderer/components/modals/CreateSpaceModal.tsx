@@ -5,7 +5,7 @@ import { gradientForSpaceId } from "../../utils.js";
 import IconPicker from "../widgets/IconPicker.js";
 import Modal from "../primitives/Modal.js";
 import Icon, { type IconName } from "../primitives/Icon.js";
-import IconButton from "../primitives/IconButton.js";
+import ModalHeader from "../layout/ModalHeader.js";
 import Button from "../primitives/Button.js";
 
 interface CreateSpaceModalProps {
@@ -62,26 +62,11 @@ export default function CreateSpaceModal({
       panelClassName={`glass-modal w-full ${createdSpace ? "max-w-lg" : "max-w-xl"} rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative`}
     >
       <>
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex justify-between items-start mb-2">
-            <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
-              {createdSpace
-                ? t("createSpace.titleCreated")
-                : t("createSpace.titleNew")}
-            </h1>
-            <IconButton
-              icon="close"
-              onClick={handleClose}
-              ariaLabel={t("actions.close")}
-              iconClassName="text-secondary"
-            />
-          </div>
-          <p className="text-on-surface-variant font-medium">
-            {createdSpace
-              ? t("createSpace.descCreated")
-              : t("createSpace.descNew")}
-          </p>
-        </div>
+        <ModalHeader
+          title={createdSpace ? t("createSpace.titleCreated") : t("createSpace.titleNew")}
+          description={createdSpace ? t("createSpace.descCreated") : t("createSpace.descNew")}
+          onClose={handleClose}
+        />
 
         <div className="px-10 pb-10 space-y-8">
           {!createdSpace && (

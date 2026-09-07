@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { isWellFormedRelayKey } from '../../relay-key.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 
 interface AddRelayModalProps {
@@ -45,15 +45,12 @@ export default function AddRelayModal({ isOpen, onClose, onAdd }: AddRelayModalP
       panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
     >
       <>
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex justify-between items-start mb-2">
-            <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
-              {t('networkSettings.relays.addTitle')}
-            </h1>
-            <IconButton icon="close" onClick={handleClose} ariaLabel={t('actions.close')} iconClassName="text-secondary" />
-          </div>
-          <p className="text-on-surface-variant font-medium text-sm">{t('networkSettings.relays.addDesc')}</p>
-        </div>
+        <ModalHeader
+          title={t('networkSettings.relays.addTitle')}
+          description={t('networkSettings.relays.addDesc')}
+          descriptionSize="sm"
+          onClose={handleClose}
+        />
         <div className="px-10 pb-10 space-y-6">
           <div className="space-y-3">
             <label htmlFor="add-relay-key" className="font-headline text-sm font-bold text-accent px-1">

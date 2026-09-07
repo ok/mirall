@@ -6,7 +6,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import PathRow from '../widgets/PathRow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
@@ -95,15 +95,12 @@ export default function EditFolderModal({
   return (
     <Modal isOpen onClose={onClose} onConfirm={handleSave} ariaLabel={t('editFolder.title')} panelClassName={PANEL}>
       <>
-        <div className="px-10 pt-10 pb-6 shrink-0">
-          <div className="flex justify-between items-start mb-2">
-            <h1 className="font-headline text-2xl font-extrabold text-accent tracking-tight">{t('editFolder.title')}</h1>
-            <IconButton icon="close" onClick={onClose} ariaLabel={t('actions.close')} iconClassName="text-secondary" />
-          </div>
-          <p className="text-on-surface-variant font-medium">
-            {isOwner ? t('editFolder.descOwner') : t('editFolder.descMirror')}
-          </p>
-        </div>
+        <ModalHeader
+          title={t('editFolder.title')}
+          description={isOwner ? t('editFolder.descOwner') : t('editFolder.descMirror')}
+          onClose={onClose}
+          className="shrink-0"
+        />
 
         <div className="px-10 pb-10 space-y-8 overflow-y-auto">
           <div className="space-y-3">
