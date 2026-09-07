@@ -6,7 +6,7 @@ import { listOwnShare } from '../shares/share-catalog.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'
 import { getMaxFilesPerShare } from '../core/runtime-config.js'
 import { driveKeyToSegments } from './path-keys.js'
-import { exceedsShareFileLimit } from './share-limits.js'
+import { exceedsShareFileLimit, listingWillTruncate } from './share-limits.js'
 import { createPreviewTally } from './preview-tally.js'
 import { walkDisk } from './walk-disk.js'
 
@@ -45,10 +45,15 @@ export async function previewInitialPublishScan(spaceId, shareId, mountPath, ign
   // The limit is about how many files the folder HOLDS, not how many this scan would upload —
   // a re-preview of an existing share uploads only the changed ones.
   const totalFiles = onDisk.size
+  // Both verdicts, computed the same way for both flows. An admitted owned folder is under the
+  // display cap too while the two caps are held equal, so the advisory is dead weight today — but
+  // it is dead weight that cannot go stale, and a field only one flow computes is how the mirror
+  // side ended up silent about the limit in the first place.
   return tally.result('add-owned-folder', 'upload', {
     existingAtDestination: totalFiles,
     totalFiles,
     fileLimit: getMaxFilesPerShare(),
     overFileLimit: exceedsShareFileLimit(totalFiles),
+    listingAdvisory: listingWillTruncate(totalFiles),
   })
 }

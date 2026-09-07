@@ -130,6 +130,8 @@
     "conflictDetail": "Dateien am Zielort unterscheiden sich von der Freigabe. Deine vorhandenen Dateien bleiben erhalten; die Versionen aus der Freigabe werden daneben mit einem nummerierten Namen gespeichert.",
     "overFileLimit": "Dieser Ordner enthält {{total}} Dateien und liegt über dem Limit von {{limit}} Dateien",
     "overFileLimitDetail": "Wähle einen kleineren Ordner oder teile ihn auf mehrere Freigaben auf.",
+    "listingCapped": "Dieser Ordner enthält {{total}} Dateien und liegt über dem Limit von {{limit}} Dateien",
+    "listingCappedDetail": "Das Spiegeln funktioniert und alle Dateien werden synchronisiert, in der Dateiliste werden aber nur die ersten {{limit}} angezeigt.",
     "noConflicts": "Keine Konflikte",
     "noConflictDetail": "Der Zielort ist sauber.",
     "noConflictDetailOwned": "Es wird nichts überschrieben.",
