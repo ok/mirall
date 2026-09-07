@@ -51,7 +51,7 @@ test('every path the user can re-pick goes through PathRow', (t) => {
   // show the path at all, each named with why.
   const PICKS_WITHOUT_SHOWING = new Map([
     ['screens/SpaceView.tsx', 'drag-drop / Add folder hand the picked path straight to a modal'],
-    ['screens/FolderView.tsx', 'its Locate entry re-points the folder and renders no row'],
+    ['hooks/useLocateShare.ts', 'Locate re-points the folder and reports it in a toast; there is no field'],
     ['hooks/useMountWizard.ts', 'a hook renders nothing; its callers show the path, asserted below'],
   ])
   const pickers = files.filter((f) => /window\.bridge\.browse(DownloadFolder|ShareFolder)\(/.test(f.src))

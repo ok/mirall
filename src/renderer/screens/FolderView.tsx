@@ -35,6 +35,7 @@ import { useIndexProgress } from '../hooks/useIndexProgress.js'
 import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
+import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { FileTreeNode } from '../types.js'
@@ -53,6 +54,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
+  const { locate, relocate } = useLocateShare(spaceId)
   const { profile } = useProfile()
   const { members } = useMembers(spaceId)
   const { getDownloadSummary } = usePeerDownloads(spaceId)
@@ -230,17 +232,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     }
   }
 
-  async function handleLocate() {
-    const picked = await window.bridge.browseShareFolder()
-    if (!picked) return
-    try {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
   async function handleDelete() {
     try {
       await request('owned-folder:delete', { spaceId, shareId: share.id })
@@ -279,17 +270,13 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   }
 
   async function handleRelocate(mountPath: string) {
-    if (isYou) {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-      return
-    }
+    if (isYou) return relocate(share, mountPath)
     await request('foreign-folder:relocate', { spaceId, shareId: share.id, mountPath })
     toast.success(t('share.mirrorLocationSuccess'))
   }
 
   function handleStripAction(action: 'locate' | 'resume' | 'pause') {
-    if (action === 'locate') void handleLocate()
+    if (action === 'locate') void locate(share)
     else void setPaused(action === 'pause')
   }
 
@@ -304,7 +291,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     sourceMissing,
     canMirror: !!onMirror,
     onOpen: handleRevealFolder,
-    onLocate: handleLocate,
+    onLocate: () => { void locate(share) },
     onSetPaused: (next) => { void setPaused(next) },
     onMirror: () => onMirror?.(share),
     onEdit: () => setShowEdit(true),
@@ -372,7 +359,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
             ) : (
               <>
                 {sourceMissing ? (
-                  <Button icon="folder_open" onClick={handleLocate}>
+                  <Button icon="folder_open" onClick={() => { void locate(share) }}>
                     {t('share.locateFolder')}
                   </Button>
                 ) : (

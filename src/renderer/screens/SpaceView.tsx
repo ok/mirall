@@ -40,6 +40,7 @@ import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useLocateShare } from '../hooks/useLocateShare.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -77,6 +78,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
   const toast = useToast()
   const errorText = useErrorText()
+  const { locate } = useLocateShare(spaceId)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showApproval, setShowApproval] = useState(false)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -147,18 +149,8 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
 
   // The row handlers below are useCallback'd because they are props of memoized rows (ShareCard,
   // FileCard): an identity that changes every render defeats the memo, and the decoration
-  // heartbeat re-renders this screen once a second for as long as a transfer is live.
-  const handleLocate = useCallback(async (share: ShareWithRole) => {
-    const picked = await window.bridge.browseShareFolder()
-    if (!picked) return
-    try {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }, [spaceId, toast, t, errorText])
-
+  // heartbeat re-renders this screen once a second for as long as a transfer is live. `locate` comes
+  // out of useLocateShare already wrapped, for the same reason.
   const handleOpenShare = useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare])
 
   const handleOpenInFinder = useCallback(async (share: ShareWithRole) => {
@@ -464,7 +456,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
                           onOpen={handleOpenShare}
                           onOpenInFinder={handleOpenInFinder}
                           onDelete={handleDeleteRequest}
-                          onLocate={handleLocate}
+                          onLocate={locate}
                           onMirror={handleMirrorRequest}
                           onUnmount={handleUnmount}
                           onPauseMirror={handlePauseMirror}
