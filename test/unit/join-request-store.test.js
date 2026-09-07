@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  recordJoinRequest, getJoinRequestDriveKey, listJoinRequests, clearJoinRequest,
+  recordJoinRequest, getConvergingMember, listJoinRequests, clearJoinRequest,
 } from '../../src/shared/spaces/space.js'
 
 // A driveKey-bearing record is a materialized member converging (captured from a handshake), not
@@ -14,16 +14,17 @@ test('a drive-holder is captured for convergence but not listed as an approvable
   const jk2 = 'd'.repeat(64)
 
   recordJoinRequest(sid, jk, 'Bob', null, dk)
-  t.is(getJoinRequestDriveKey(sid, jk), dk, 'driveKey captured for convergence')
+  t.is(getConvergingMember(sid, jk)?.driveKey, dk, 'driveKey captured for convergence')
+  t.is(getConvergingMember(sid, jk)?.displayName, 'Bob', 'and the name that arrived with it — the deferred-admission replay sends this')
   t.absent(listJoinRequests(sid).some((r) => r.publicKey === jk), 'a drive-holder is NOT listed as a request')
 
   recordJoinRequest(sid, jk2, 'Carol', null, null)
   t.ok(listJoinRequests(sid).some((r) => r.publicKey === jk2), 'a genuine no-driveKey joiner IS listed')
 
   recordJoinRequest(sid, jk, 'Bob', null, null)
-  t.is(getJoinRequestDriveKey(sid, jk), dk, 'driveKey preserved across a re-record without one')
+  t.is(getConvergingMember(sid, jk)?.driveKey, dk, 'driveKey preserved across a re-record without one')
 
   t.ok(clearJoinRequest(sid, jk), 'clear returns true when a request existed')
   t.absent(clearJoinRequest(sid, jk), 'clear returns false when none existed')
-  t.is(getJoinRequestDriveKey(sid, jk), null, 'driveKey gone after clear')
+  t.is(getConvergingMember(sid, jk), null, 'driveKey gone after clear')
 })

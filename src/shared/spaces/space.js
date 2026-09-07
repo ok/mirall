@@ -674,7 +674,7 @@ const pendingRequests = new Map()
 // Derived (replicated, converged) pending requests, computed by the member registry's fold over
 // members' request/denied records. Authoritative for the UI; `pendingRequests` above stays as a
 // live, this-peer cache that fills the gap before the first fold and carries the joiner's
-// driveKey/socket for the grant path (getJoinRequestDriveKey / sendMembershipGrant).
+// driveKey/socket for the grant path (getConvergingMember / sendMembershipGrant).
 const derivedRequests = new Map()
 
 export function setDerivedRequests(spaceId, map) {
@@ -721,8 +721,13 @@ export function listPendingRequests(spaceId, memberKeys = null) {
   return reqs.filter((r) => !memberKeys.has(r.publicKey))
 }
 
-export function getJoinRequestDriveKey(spaceId, profileKey) {
-  return pendingRequests.get(spaceId)?.get(profileKey)?.driveKey || null
+// The live-cache entry for a peer whose handshake was bounced into a join request, with both
+// fields that handshake carried. listJoinRequests deliberately hides a driveKey-bearing entry (it
+// is a converging member, not an approvable request), so the deferred-admission replay has to read
+// the cache directly — off the list — to learn who it is replaying.
+export function getConvergingMember(spaceId, profileKey) {
+  const req = pendingRequests.get(spaceId)?.get(profileKey)
+  return req?.driveKey ? { driveKey: req.driveKey, displayName: req.displayName } : null
 }
 
 export function clearJoinRequest(spaceId, profileKey) {
