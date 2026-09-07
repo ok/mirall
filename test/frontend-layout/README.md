@@ -110,6 +110,25 @@ ring — 4px the header could never cover. That ring room was dead weight there:
 the first control sits 52px down, below the header's own bottom padding. Fix:
 drop the pane's top padding; the horizontal `-mx-1 pl-1 pr-1` room stays.
 
+## Segmented-control width stability (`npm run test:layout:segments`)
+
+Mounts the **real** `<SegmentedControl>` in the three shapes the app ships
+(text-only, icon + text, and a wrapping multi-row group), clicks every segment in
+turn and asserts the track — and each segment inside it — keeps exactly the same
+size, while the pressed label still paints bolder than the rest. That second half
+matters: without it the harness would pass on a control that simply stopped
+marking its selection.
+
+### What it caught
+
+Selecting a transfer cap resized the whole pill under the pointer. The selected
+segment is `font-semibold` and the rest `font-medium`, so each press widened one
+label and narrowed its neighbour — ~1px on the track per click, and the segment
+you were aiming at moved. Fix: each label renders twice in one grid cell, the
+visible copy plus an `invisible font-semibold` ghost, so every segment is always
+as wide as it will be when selected. Only real Chromium can see this — jsdom has
+no glyph widths and the AX tree the agent-desktop suite drives has no geometry.
+
 ## Run
 
 ```
@@ -119,6 +138,7 @@ npm run test:layout:peerdownload # Peer-download serve-UI (meta clip + % fallbac
 npm run test:layout:filecard     # FileCard error-state height + toast width cap
 npm run test:layout:spaceoverflow # SpaceView document-overflow scenario
 npm run test:layout:stickyheader # SpaceView pinned section-header coverage
+npm run test:layout:segments     # SegmentedControl width stability across selections
 node test/frontend-layout/run.mjs --no-build          # reuse the existing bundle
 node test/frontend-layout/run-members.mjs --no-build   # reuse the existing bundle
 ```

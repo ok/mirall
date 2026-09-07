@@ -53,7 +53,8 @@
     "test:layout:spaceoverflow": "node test/frontend-layout/run-spaceoverflow.mjs",
     "test:layout:stickyheader": "node test/frontend-layout/run-stickyheader.mjs",
     "test:layout:focusring": "node test/frontend-layout/run-focusring.mjs",
-    "test:layout:truncation": "node test/frontend-layout/run-truncation.mjs"
+    "test:layout:truncation": "node test/frontend-layout/run-truncation.mjs",
+    "test:layout:segments": "node test/frontend-layout/run-segments.mjs"
   },
   "devDependencies": {
     "@axe-core/react": "^4.13.0",

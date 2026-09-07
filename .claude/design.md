@@ -453,13 +453,26 @@ trailing `keyboard_arrow_down` that rotates 180° when open:
 Menu items may omit `icon`; a fixed-size blank keeps labels aligned, which is how a
 single-choice menu marks only the selected row with `check`.
 
-### Segmented control — inline pattern (no primitive)
-Not a shared primitive — implemented inline in `screens/AppearanceSettings.tsx`
-(theme + zoom selectors) and `components/modals/InviteModal.tsx` (expiry group).
-A pill `bg-surface-container-high p-1 rounded-full` of `aria-pressed` buttons in
-a plain flex `div` (no `role="group"`, no description line); the selected button
-lifts to `bg-surface-container-lowest shadow-sm font-semibold`, others
-`text-on-surface-variant`.
+### Segmented control — `primitives/SegmentedControl.tsx`
+A pill `bg-surface-container-high p-1 rounded-full` of `aria-pressed` `<Segment>`
+buttons (no `role="group"`, no description line); the selected one lifts to
+`bg-surface-container-lowest shadow-sm font-semibold`, the others stay
+`text-on-surface-variant font-medium`. Used by Appearance (theme + zoom), Network
+(transfer caps, relay mode), Activity Log settings (retention) and the Activity Log
+category filters — the last through `wrap`, which softens the track to `rounded-3xl`
+because `rounded-full` on a two-row group reads as a lozenge.
+
+**A segment reserves its selected width in every state.** The weight change is the
+whole reason this is a primitive: sized to the weight it is currently painting, each
+press widened one label and narrowed its neighbour, so the whole track resized under
+the pointer. Each label therefore renders twice in one grid cell — the visible copy
+and an `invisible font-semibold` ghost that fixes the width (and, being
+`visibility: hidden`, stays out of the accessibility tree). `npm run test:layout:segments`
+pins it in real Chromium.
+
+`components/modals/InviteModal.tsx` keeps its own expiry group: `flex-1` equal-width
+segments in a `rounded-xl` track, `font-bold` in both states — a different shape that
+cannot jitter.
 
 ### Inputs
 No dedicated primitive — inputs are styled inline and consistently:
