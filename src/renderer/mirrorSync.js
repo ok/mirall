@@ -13,6 +13,10 @@ const ON_DEVICE = new Set(['downloaded', 'synced'])
 export function deriveMirrorSync (files, opts = {}) {
   const truncated = !!opts.truncated
   const enabled = opts.enabled !== false
+  // How many bytes of a not-yet-complete file are already here. The live decoration when there is
+  // one, the durable partial otherwise. Injected because the decoration no longer rides the row —
+  // see rowView.js — and this module must not learn what a decoration is.
+  const bytesOf = opts.bytesOf ?? ((file) => file.pendingBytes ?? 0)
   let pending = 0
   let bytesRemaining = 0
   let onDeviceBytes = 0
@@ -25,7 +29,7 @@ export function deriveMirrorSync (files, opts = {}) {
       continue
     }
     pending += 1
-    const done = file.progress?.bytes ?? file.pendingBytes ?? 0
+    const done = bytesOf(file)
     bytesRemaining += Math.max(0, size - done)
     onDeviceBytes += Math.min(size, done)
   }

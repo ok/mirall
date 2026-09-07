@@ -20,10 +20,11 @@
 // field to toEntry without adding it here means that field's updates are silently dropped — the
 // row keeps painting the stale value until one of the fields listed here happens to move.
 //
-// `progress` and `verifyFraction` are deliberately absent: they are NOT on toEntry. useShareFiles
-// merges them over the reconciled row at render from the decoration channel, and `progress` is a
-// fresh object on every decoration frame — comparing them here would make every active row unequal
-// and defeat the identity adoption this function exists for.
+// Live transfer progress is deliberately absent — not from this list, and not from the row at all.
+// It reaches the row component as its own prop, looked up per path from the decoration channel, so
+// a frame never touches the row object and this comparison never sees one. Merging it in would have
+// made every active row unequal on every frame and defeated the identity adoption this function
+// exists for.
 function sameRow(a, b) {
   return a.size === b.size && a.hash === b.hash && a.mtime === b.mtime &&
     a.status === b.status && a.localPath === b.localPath &&

@@ -11,5 +11,5 @@ export interface MirrorSyncSummary {
 
 export function deriveMirrorSync(
   files: ShareFileEntry[],
-  opts?: { truncated?: boolean; enabled?: boolean },
+  opts?: { truncated?: boolean; enabled?: boolean; bytesOf?: (file: ShareFileEntry) => number },
 ): MirrorSyncSummary

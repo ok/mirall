@@ -11,6 +11,11 @@ import type { FileEntry } from '../types.js'
 
 const EMPTY: FileEntry[] = []
 
+interface DownloadFileResult {
+  transferId?: string
+  queued?: boolean
+}
+
 // A members change (a peer's catalog key committed post-handshake) can newly reveal that peer's
 // loose files, so the listing re-derives on it too — the handshake's pre-persist files hint races
 // the member persist, but the post-persist members poke does not.
@@ -22,6 +27,13 @@ export function useFiles(spaceId: string) {
   const toast = useToast()
   const errorText = useErrorText()
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, FileEntry>>(new Map())
+  // Paths whose download was just requested — the same override useShareFiles carries. It stands
+  // in for the missing first decoration frame, which buys exactly two things: a RESUMED partial
+  // paints the bytes already on disk instead of waiting to be told about them, and a row waiting on
+  // the owner's hash says so. A first-time download has nothing to show either way and still reads
+  // "Preparing…". An override, never a write into the list, so it cannot outlive what it stands
+  // in for: a real frame outranks it, and it is inert on any status but the two transfer ones.
+  const [seeded, setSeeded] = useState<ReadonlySet<string>>(new Set())
 
   // One leading + one trailing files:list per 750 ms window: a publish emits one files hint per
   // catalog append and a handshake emits a members poke AND a files hint, neither of which should
@@ -84,13 +96,17 @@ export function useFiles(spaceId: string) {
   // rows, and a fresh closure per render made every row's shallow compare fail — so the list
   // re-rendered whole on each decoration heartbeat. They close over nothing but spaceId.
   const downloadFile = useCallback(async (file: FileEntry) => {
-    return await request('files:download', {
+    const res = await request('files:download', {
       spaceId,
       driveKey: file.driveKey,
       path: file.path,
       inPlace: file.inPlace ?? false,
       ownerKey: file.owner.publicKey,
-    })
+    }) as DownloadFileResult
+    // A queued click started nothing — the owner is unreachable and the intent is recorded for the
+    // reconnect machinery — so there is no transfer to report movement for.
+    if (res?.transferId) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
+    return res
   }, [spaceId])
 
   const unshareFile = useCallback(async (path: string) => {
@@ -114,10 +130,13 @@ export function useFiles(spaceId: string) {
     [files, uploadingFiles],
   )
 
+  const isSeeded = useCallback((path: string) => seeded.has(path), [seeded])
+
   return {
     files: allFiles,
     loading,
     error,
+    isSeeded,
     addFiles,
     downloadFile,
     unshareFile,

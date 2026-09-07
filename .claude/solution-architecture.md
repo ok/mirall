@@ -1032,7 +1032,7 @@ Current consumer: `DropZone` (folder-drop rejection, via `webkitGetAsEntry().isD
 
 ### Component library
 
-Tailwind + React Aria. Since the #199 reorg, grouped under `renderer/components/`: `primitives/` (Button, IconButton, Toggle, Badge, Avatar, Icon, Modal, ProgressBar, StatusBadge, CopyButton), `cards/` (FileCard, MemberCard, ShareCard, SpaceCard), `modals/`, `layout/` (TopNav, UpdateBanner, PageHeader, SectionHeading), `widgets/` (ActionMenu, DropZone, StorageIndicator, IconPicker, FilePath, NetworkStatusIndicator, CrystalBackdrop, ConnectivityToastBridge, DownloadProgressLane), `toast/`.
+Tailwind + React Aria. Since the #199 reorg, grouped under `renderer/components/`: `primitives/` (Button, IconButton, Toggle, Badge, Avatar, Icon, Modal, ProgressBar, CopyButton), `cards/` (FileCard, ShareFileRow, RowLane, MemberCard, ShareCard, SpaceCard), `modals/`, `layout/` (TopNav, UpdateBanner, PageHeader, SectionHeading), `widgets/` (ActionMenu, DropZone, StorageIndicator, IconPicker, FilePath, NetworkStatusIndicator, CrystalBackdrop, ConnectivityToastBridge, DownloadProgressLane), `toast/`.
 
 Behaviour worth knowing (styling → `design.md`):
 

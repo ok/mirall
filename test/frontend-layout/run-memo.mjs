@@ -1,7 +1,8 @@
 // REGRESSION (FIX-R04-7 / FIX-R03-9: with zero memoized rows, useDecorations' 1 Hz heartbeat
 // re-rendered every row in the list once a second for as long as a transfer was live) — LOCAL/
 // dev-machine only, spawns a real Electron GUI process. Mounts real <ShareFileRow>s and counts
-// renders across an idle heartbeat tick, a single-row summary change, and a listing refetch.
+// renders across an idle heartbeat tick, a single-row summary change, a listing refetch, and a
+// transfer frame — plus the file-tree rebuilds that frame must not cause.
 //
 //   node test/frontend-layout/run-memo.mjs            (builds, then runs)
 //   node test/frontend-layout/run-memo.mjs --no-build (reuse existing bundle)
@@ -18,6 +19,8 @@ console.log(`+ idle heartbeat tick      : ${counts(out.afterIdleTick)} (must be 
 console.log(`+ b.txt summary change     : ${counts(out.afterOneSummary)} (only b.txt may move)`)
 console.log(`+ unchanged full refetch   : ${counts(out.afterUnchangedRefetch)} (must be unchanged)`)
 console.log(`+ c.txt content change     : ${counts(out.afterOneRowChanged)} (only c.txt may move)`)
+console.log(`+ a.txt transfer frame     : ${counts(out.afterOneDecoration)} (only a.txt may move)`)
+console.log(`file-tree rebuilds         : ${out.treeBuildsBeforeDecoration} -> ${out.treeBuildsAfterDecoration} across that frame (must not move)`)
 
 const pass = out.pass === true
 console.log(`\n${pass ? 'ok  ' : 'FAIL'} only the rows that actually changed re-render`)
