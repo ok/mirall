@@ -46,7 +46,10 @@ export class Subsystem extends ReadyResource {
   // the redacted report reaching the shareable diagnostics bundle, while these rows carry the space
   // and share ids the supervisor keys its counters on and names in the worker log. A subsystem with
   // nothing recoverable returns nothing and is never probed.
-  // Rows: { key, ok, detail, label } — `key` is stable within the subsystem, `label` is log-safe.
+  // Rows: { key, ok, detail, label, recoverable } — `key` is stable within the subsystem, `label`
+  // is log-safe, and `recoverable: false` means "report this stall, never act on it": the policy
+  // notes and restates it and never spends a recovery budget on it. A unit whose safe recovery has
+  // not been built yet is reported that way rather than not reported at all.
   supervise(_opts) { return [] }
 
   // Recover one unit: abandon the stalled pass and re-arm it. It never replaces this instance — a

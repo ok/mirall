@@ -383,8 +383,14 @@ export async function probeCanary(upgradeKey, { force = false } = {}) {
     if (canaryInFlight) return canaryInFlight
   }
 
-  canaryInFlight = runCanaryProbe(upgradeKey)
+  // Identity-guarded throughout: a forced probe replaces this one while it is still running, and
+  // the two can settle in either order. An unconditional write here would let the OLDER verdict
+  // overwrite the newer one and stamp it with a later timestamp — which the 15-minute freshness
+  // gate above then serves to every caller for another quarter of an hour.
+  const stale = () => canaryInFlight !== probe
+  const probe = runCanaryProbe(upgradeKey)
     .then((result) => {
+      if (stale()) return lastCanaryResult
       lastCanaryResult = { ...result, at: Date.now() }
       lastCanaryAt = Date.now()
       scheduleStatusEmit()
@@ -392,12 +398,14 @@ export async function probeCanary(upgradeKey, { force = false } = {}) {
     })
     .catch((err) => {
       log.debug('canary probe failed:', err.message)
+      if (stale()) return lastCanaryResult
       lastCanaryResult = { state: CANARY.UNAVAILABLE, at: Date.now() }
       return lastCanaryResult
     })
-    .finally(() => { canaryInFlight = null })
+    .finally(() => { if (!stale()) canaryInFlight = null })
+  canaryInFlight = probe
 
-  return canaryInFlight
+  return probe
 }
 
 export function getSwarmStatus() {

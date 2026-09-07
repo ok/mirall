@@ -8,7 +8,8 @@
 // deficit, and the escalation to a discovery refresh is throttled and budgeted per space on top.
 import { getSpace } from '../spaces/space.js'
 import { liveHandle } from '../core/timers.js'
-import { getConvergenceConfig } from '../core/runtime-config.js'
+import { createPassLiveness } from '../core/pass-liveness.js'
+import { getConvergenceConfig, getConvergenceStallWindowMs } from '../core/runtime-config.js'
 import { escalationDue, announceStatus } from './announce-ledger.js'
 import { refreshContentDiscoveries, contentPlaneHasPeer, getContentPlaneStatus } from './content-swarm.js'
 import { takeIncompleteListSpaces } from './list-deficits.js'
@@ -39,6 +40,12 @@ export function initConvergenceTick(deps) {
 let timers = null
 let convergenceTimer = null
 let convergenceTicking = false          // re-entrancy guard: the tick is async, setInterval isn't
+// The tick is one pass, process-wide, so its liveness needs one key.
+const TICK = 'convergence'
+const liveness = createPassLiveness()
+// Bumped by a restart, so a tick abandoned by one cannot clear the flag of the tick that replaced
+// it — which would let two run at once and double-send every re-announce.
+let tickGen = 0
 const deficitTicks = new Map()          // spaceId → consecutive ticks with a roster deficit
 const lastRefreshAt = new Map()         // spaceId → last escalation (discovery.refresh) time
 const escalationsSpent = new Map()      // spaceId → discovery.refreshes spent on the current deficit
@@ -47,7 +54,7 @@ const escalationsSpent = new Map()      // spaceId → discovery.refreshes spent
 // space, some identity on that socket is admitted to it (their reciprocal proved the round
 // trip); for a pending space, the grant/deny flipped the status. A space that is leaving,
 // left, or only held as a pending-leave replay topic (no record) has nothing to announce.
-async function drainAnnounceLedger() {
+async function drainAnnounceLedger(beat) {
   if (socketMsgHandlers.size === 0) return
   // Resolve per-space status only for the spaces actually in the ledger — a converged client
   // with an empty ledger does no bee reads at all.
@@ -60,6 +67,7 @@ async function drainAnnounceLedger() {
     // announceStatus distinguishes "present but statusless" (owner-created / v1 → 'active',
     // a real member space) from "gone" (null → settled). Conflating them killed the owner's heal.
     status.set(spaceId, announceStatus(await getSpace(spaceId)))
+    beat()
   }
   const isSettled = (socket, spaceId, kind) => {
     const st = status.get(spaceId)
@@ -86,6 +94,7 @@ async function drainAnnounceLedger() {
     if (!topic) continue
     log.debug('re-announcing space', spaceId)
     await sendSingleHandshake(socket, handler, spaceId, topic)
+    beat()
   }
 }
 
@@ -94,11 +103,18 @@ async function drainAnnounceLedger() {
 // replicated (escalating a persistent deficit to a throttled discovery refresh — fresh
 // connections mean fresh replication streams), and re-poke listings that gave up on a peer
 // catalog under the read budget. A converged, quiet swarm does nothing here.
-async function runConvergenceTick() {
-  await drainAnnounceLedger()
+async function runConvergenceTick(pass) {
+  // Every phase beats, including the two that await the network: a per-space bee read for each
+  // pending announce, and a discovery refresh per space on both planes inside the rescue. A window
+  // spanning a phase that reports nothing condemns a tick that is merely slow — and the recovery
+  // for a "wedged" tick re-announces every unacked identity frame again.
+  const beat = () => liveness.progress(TICK, pass)
+  await drainAnnounceLedger(beat)
+  beat()
   const cfg = getConvergenceConfig()
   const deficits = rosterDeficits()
   for (const spaceId of spaceTopics.keys()) {
+    beat()
     if (!deficits.has(spaceId) || isSpaceLeaving(spaceId)) {
       // Deficit cleared: reset all per-space escalation state so a LATER deficit (a new member
       // not yet replicated) gets a fresh escalation budget.
@@ -133,11 +149,13 @@ async function runConvergenceTick() {
   for (const spaceId of takeIncompleteListSpaces()) {
     if (spaceTopics.has(spaceId) && !isSpaceLeaving(spaceId)) getIpc()?.emit('event:files-updated', { spaceId })
   }
+  beat()
   // Re-attempt incomplete peer-bee captures: a capture that raced a starved or
   // short-lived session heals here on a later one. Throttled per key inside the
   // scheduler; retired keys (complete or past the sweep cap) never come back.
   for (const key of await captureDeficits()) scheduleCapture(key)
-  try { await rescueStalledTransfers() } catch (err) { log.debug('stalled-transfer rescue failed:', err.message) }
+  beat()
+  try { await rescueStalledTransfers({ beat }) } catch (err) { log.debug('stalled-transfer rescue failed:', err.message) }
 }
 
 // The tick's cleanup only visits current spaceTopics, so a space we just left would dangle here
@@ -169,7 +187,7 @@ let lastStallRescueAt = 0
 let stallRescueBackoffMs = STALL_RESCUE_MIN_MS
 let stallRescueInFlight = false
 
-export async function rescueStalledTransfers() {
+export async function rescueStalledTransfers({ beat = () => {} } = {}) {
   const stalledOwners = getStalledOwners()
   if (!getSwarm() || !stalledOwners || stallRescueInFlight) return false
 
@@ -178,10 +196,12 @@ export async function rescueStalledTransfers() {
     const contentActive = getContentPlaneStatus().active
     let controlDown = false
     let contentDown = false
+    beat()
     for (const ownerKey of await stalledOwners()) {
       if (!connectedPeers.has(ownerKey)) controlDown = true
       if (contentActive && !contentPlaneHasPeer(ownerKey)) contentDown = true
     }
+    beat()
     if (!controlDown && !contentDown) {
       stallRescueBackoffMs = STALL_RESCUE_MIN_MS // everyone we are waiting on is reachable
       return false
@@ -194,6 +214,7 @@ export async function rescueStalledTransfers() {
     if (controlDown) {
       for (const [spaceId, discovery] of spaceDiscoveries) {
         try { await discovery.refresh({ client: true, server: true }) } catch (err) { log.debug('stall refresh failed for', spaceId, err.message) }
+        beat()
       }
     }
     if (contentDown) await refreshContentDiscoveries()
@@ -217,24 +238,69 @@ export function startConvergenceTick(owner = null) {
     // previous run is still in flight, so overlapping runs can't double-send or double-count.
     if (convergenceTicking) return
     convergenceTicking = true
-    runConvergenceTick()
+    const mine = tickGen
+    const pass = liveness.started(TICK)
+    runConvergenceTick(pass)
       .catch((err) => log.debug('convergence tick failed:', err.message))
-      .finally(() => { convergenceTicking = false })
+      .finally(() => {
+        // Identity-guarded: a tick abandoned by a recovery must not clear the flag of the tick
+        // that replaced it, which would let two run at once and double-send every re-announce.
+        if (mine !== tickGen) return
+        convergenceTicking = false
+        liveness.ended(TICK, pass)
+      })
   }, convergenceTickMs)
 }
 
-// What destroySwarm calls: stop the timer and drop every counter, so a restarted swarm escalates
-// from a clean budget rather than inheriting the previous session's spent attempts.
-export function resetConvergenceTick() {
+// The unit the supervisor watches: one pass, process-wide. A tick that never settles permanently
+// kills re-announcing unacked identity frames, roster-deficit escalation, listing re-pokes,
+// peer-bee capture retries and the stalled-transfer rescue — every arm of the re-drive that exists
+// so state converges without a restart.
+export function convergenceHealth({ now = Date.now() } = {}) {
+  const { convergenceTickMs } = getConvergenceConfig()
+  if (!convergenceTimer || !convergenceTickMs) return { ok: true, detail: null }
+  return liveness.verdict(TICK, { now, windowMs: getConvergenceStallWindowMs() })
+}
+
+// Abandon the wedged pass and re-arm the cadence. The generation bump is what makes the abandoned
+// pass inert; resetConvergenceTick drops the per-space escalation budgets with it, which is correct
+// — a tick that stopped ran none of them.
+export function restartConvergenceTick() {
+  const owner = timers
+  stopConvergenceTick()
+  startConvergenceTick(owner)
+}
+
+// The tick's own machinery and nothing else. Deliberately narrower than resetConvergenceTick: a
+// restart-in-place must not reset the refresh throttle or the per-space escalation budgets, or a
+// wedged tick turns every recovery into a fresh licence to re-announce and re-refresh — a storm
+// driven by the very mechanism meant to make things converge quietly.
+function stopConvergenceTick() {
+  // Bumped HERE rather than only in the restart: destroySwarm reaches this through the reset below,
+  // and a tick still in flight across a destroy/init pair would otherwise pass the identity check
+  // and clear the NEXT swarm's re-entrancy flag and heartbeat as if they were its own.
+  tickGen += 1
   if (convergenceTimer) {
     timers?.clear(convergenceTimer)
     convergenceTimer = null
   }
   convergenceTicking = false
+  // Dropped with the timer: a tick that was in flight must not leave its heartbeat behind for the
+  // next one to be judged against.
+  liveness.forget(TICK)
+  // Cleared so the rescue arm cannot stay dead behind an abandoned tick that never returns to run
+  // its own finally. Its throttle is deliberately NOT cleared here — that is what keeps a restart
+  // from becoming a refresh storm.
+  stallRescueInFlight = false
+}
+
+// What destroySwarm calls: stop the timer and drop every counter, so a restarted swarm escalates
+// from a clean budget rather than inheriting the previous session's spent attempts.
+export function resetConvergenceTick() {
+  stopConvergenceTick()
   deficitTicks.clear()
   lastRefreshAt.clear()
   escalationsSpent.clear()
   lastStallRescueAt = 0
   stallRescueBackoffMs = STALL_RESCUE_MIN_MS
-  stallRescueInFlight = false
 }

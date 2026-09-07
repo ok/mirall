@@ -45,6 +45,39 @@ export async function countDiskFiles(root, ignore) {
   return count
 }
 
+// Enumerates the tree one directory at a time instead of in a single recursive readdir. The
+// recursive form returns nothing until the WHOLE tree has been read: on a large or slow mount that
+// is the longest phase of the pass, it reports no progress for its entire duration, and — being one
+// awaited syscall — the abort signal cannot reach it either. A pass whose supervisor recovers a
+// stall it cannot see is the worst of both: a healthy slow enumeration reads as wedged, and
+// abandoning it frees the key without stopping the walk, so the next pass enumerates the same mount
+// a second time, concurrently. Level by level, every directory is a checkpoint: the pass can say it
+// is still advancing, and a cancel can take effect between directories.
+//
+// A directory that cannot be read PROPAGATES, exactly as the recursive form does (measured: it
+// rejects with EACCES rather than skipping the subtree). Swallowing it would report every file
+// underneath as absent, and the reconcile diff turns absent into tombstones.
+//
+// Breadth-first over an index rather than a shifted queue: same order the recursive form produced,
+// without the O(n²) of shifting a large array.
+async function enumerateFiles(root, onProgress, signal) {
+  const files = []
+  const dirs = [root]
+  for (let i = 0; i < dirs.length; i++) {
+    if (signal?.aborted) throw new AbortError()
+    const dir = dirs[i]
+    for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) dirs.push(path.join(dir, entry.name))
+      // Ignores are applied per FILE in the stat pass below, never by pruning a directory here: a
+      // glob is matched against a file's whole relative key, so pruning by a directory's own name
+      // would silently change which files a given glob covers.
+      else if (entry.isFile()) files.push({ name: entry.name, parentPath: dir })
+    }
+    onProgress?.({ phase: 'enumerating', scanned: 0, total: files.length, bytes: 0 })
+  }
+  return files
+}
+
 // Returns { onDisk: Map<relKey, { size, mtime }>, unreadable: Set<relKey> }.
 // Stat-only — reads no file contents. `unreadable` holds paths that exist but
 // couldn't be stat'd; they are skipped, never reported as absent — callers must
@@ -57,8 +90,7 @@ export async function walkDisk(root, ignore, { onProgress = null, signal = null 
   // parentPath while `root` has none; normalising both sides keeps path.relative
   // from emitting the absolute target verbatim as a key.
   const cleanRoot = stripLongPathPrefix(root)
-  const entries = await fs.promises.readdir(root, { recursive: true, withFileTypes: true })
-  const files = entries.filter((e) => e.isFile())
+  const files = await enumerateFiles(root, onProgress, signal)
   const total = files.length
   let scanned = 0
   let bytes = 0

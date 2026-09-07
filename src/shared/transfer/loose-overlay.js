@@ -187,7 +187,7 @@ registerPublishChannel('loose', {
     if (!absPath && item.op === OP.PUBLISH) return { skip: 'unlinked' }
     return { absPath }
   },
-  async publish (item, { absPath }, { signal }) {
+  async publish (item, { absPath }, { signal, beat }) {
     const { spaceId, relPath } = item
     let ticker = null
     try {
@@ -200,7 +200,7 @@ registerPublishChannel('loose', {
           })
           ipcRef?.emit('event:files-updated', { spaceId })
         },
-        onProgress: (len) => ticker?.push(len),
+        onProgress: (len) => { ticker?.push(len); beat?.() },
       })
       return { changed, contentHash }
     } finally {

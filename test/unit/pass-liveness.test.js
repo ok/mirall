@@ -119,3 +119,81 @@ test('stalled() is empty when nothing is in flight', (t) => {
   l.ended('k')
   t.alike(l.stalled({ windowMs: 1 }), [], 'a completed pass is not a wedge')
 })
+
+test('verdicts() reports every key in flight, stalled() only the bad ones', (t) => {
+  const c = clockAt(1000)
+  const l = createPassLiveness({ now: c.now })
+  l.started('a')
+  l.started('b')
+  c.advance(5000)
+  l.progress('b')
+  c.advance(5000)
+  t.alike(l.verdicts({ windowMs: 8000 }).map((r) => [r.key, r.ok]), [['a', false], ['b', true]])
+  t.alike(l.stalled({ windowMs: 8000 }).map((r) => r.key), ['a'])
+})
+
+test('a key whose pass ended is in neither list', (t) => {
+  const l = createPassLiveness()
+  l.started('a')
+  l.ended('a')
+  t.alike(l.verdicts({ windowMs: 1 }), [], 'a completed pass has nothing to stall')
+  t.alike(l.stalled({ windowMs: 1 }), [])
+})
+
+// The bug the token exists to prevent: a recovery forgets a wedged key, a fresh pass takes it, and
+// the abandoned pass then unparks and runs its own `finally` — clearing the heartbeat of the pass
+// that replaced it, which would leave the live pass invisible to the supervisor for the rest of
+// its life.
+test('an abandoned pass cannot end the pass that replaced it', (t) => {
+  const c = clockAt(1000)
+  const l = createPassLiveness({ now: c.now })
+  const zombie = l.started('k')
+  l.forget('k')
+  const live = l.started('k')
+  t.not(zombie, live, 'a token is never reused')
+
+  l.ended('k', zombie)
+  t.is(l.peek('k').startedAt, 1000, 'the live pass is still in flight')
+  c.advance(5000)
+  t.is(l.verdict('k', { now: c.now(), windowMs: 10 }).ok, false, 'and is still judged on its own progress')
+
+  l.ended('k', live)
+  t.is(l.peek('k').startedAt, 0, 'its own token still ends it')
+})
+
+test('ended without a token still ends whatever is in flight', (t) => {
+  const l = createPassLiveness()
+  l.started('k')
+  l.ended('k')
+  t.is(l.peek('k').startedAt, 0, 'the callers that cannot be abandoned under need no token')
+})
+
+// REGRESSION (FIX-BEAT-TOKEN: started() and ended() were token-guarded but progress() was not. An
+// abandoned pass does not beat once — the owner diff beats per catalog entry and per unchanged
+// file — so every one of those landed on the entry that replaced it, holding a genuinely wedged
+// pass healthy for as long as the zombie kept running. The second wedge, on the same sick mount, is
+// exactly the one the supervisor most needs to see.)
+test('REGRESSION (FIX-BEAT-TOKEN): an abandoned pass cannot beat for the pass that replaced it', (t) => {
+  const c = clockAt(1000)
+  const l = createPassLiveness({ now: c.now })
+  const zombie = l.started('k')
+  l.forget('k')
+  const live = l.started('k')
+
+  c.advance(5000)
+  for (let i = 0; i < 20; i++) l.progress('k', zombie)
+  t.is(l.verdict('k', { now: c.now(), windowMs: 1000 }).ok, false,
+    'twenty zombie beats did not make the live pass look alive')
+
+  l.progress('k', live)
+  t.is(l.verdict('k', { now: c.now(), windowMs: 1000 }).ok, true, 'its own beat still counts')
+})
+
+test('progress without a token still beats whatever is in flight', (t) => {
+  const c = clockAt(1000)
+  const l = createPassLiveness({ now: c.now })
+  l.started('k')
+  c.advance(5000)
+  l.progress('k')
+  t.is(l.verdict('k', { now: c.now(), windowMs: 1000 }).ok, true, 'callers that cannot be abandoned need no token')
+})
