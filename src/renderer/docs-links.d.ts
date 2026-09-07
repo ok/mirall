@@ -6,6 +6,7 @@ type GuideAnchor =
   | 'fix-a-stuck-join'
   | 'share-files'
   | 'share-a-folder'
+  | 'run-your-own-relay'
 
 type ExplanationAnchor =
   | 'membership-approval'

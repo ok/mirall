@@ -38,6 +38,17 @@ function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+// Per-field allowlist, deliberately not a spread of feature-flags.json: main is the only
+// writer of flags, and the renderer must never receive one it could echo back. Empty since
+// the relay flag retired — add a name here to expose the next renderer-visible flag.
+const RENDERER_FEATURES = []
+
+function featureSnapshot(flags) {
+  const out = {}
+  for (const name of RENDERER_FEATURES) out[name] = flags?.[name] === true
+  return out
+}
+
 // Overlay stored values onto the default tree so a config written by an older
 // version self-heals: keys it never knew about appear with their defaults while
 // the values it did set are preserved.
@@ -66,9 +77,9 @@ class ConfigStore {
     this._file = path.join(dataDir, CONFIG_FILENAME)
     this._data = defaults()
     // A thunk, not a value: the store is constructed before primeFeatureFlags runs, so
-    // latching the flag here would capture the degraded lazy-read result and could
+    // latching flags here would capture the degraded lazy-read result and could
     // disagree with the copy the worker gets from the primed cache.
-    this._readFeatures = opts.readFeatures || (() => ({ relay: false }))
+    this._readFeatures = opts.readFeatures || (() => ({}))
     this._dirty = false
     this._timer = null
   }
@@ -167,7 +178,7 @@ class ConfigStore {
         relayMode: d.network.relayMode,
         relays: d.network.relays.map((r) => ({ ...r })),
       },
-      features: { relay: this._readFeatures().relay === true },
+      features: featureSnapshot(this._readFeatures()),
     }
   }
 

@@ -24,7 +24,6 @@ import {
   isHandshakeIdentityBindingEnabled,
   isOverlayEnabled,
   isInPlaceFilesEnabled,
-  isRelayEnabled,
   setRelayConfig,
 } from '../shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
@@ -1744,7 +1743,6 @@ ipc.handle('network:status:get', async () => getSwarmStatus())
 ipc.handle('network:reconnect', async () => await reconnectAll())
 
 ipc.handle('network:set-relays', async (msg) => {
-  if (!isRelayEnabled()) return { ok: false, reason: 'disabled' }
   setRelayConfig(msg?.relayMode, msg?.relays)
   return { ok: true, ...applyRelayConfig() }
 })

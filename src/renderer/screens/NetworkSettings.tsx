@@ -9,7 +9,6 @@ import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import RelaySettingsSection from '../components/settings/RelaySettingsSection.js'
 import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
-import { isRelayFeatureEnabled } from '../config-client.js'
 import { useMainQuery } from '../store/useMainQuery.js'
 import type { BandwidthLimits } from '../global.js'
 
@@ -225,7 +224,7 @@ export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
             </div>
           </section>
 
-          {isRelayFeatureEnabled() && <RelaySettingsSection />}
+          <RelaySettingsSection />
         </div>
       </div>
     </div>

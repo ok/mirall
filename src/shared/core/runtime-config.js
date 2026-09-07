@@ -25,7 +25,7 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'up
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
   'dev', 'verbose',
-  'handshakeIdentityBindingEnabled', 'relayEnabled',
+  'handshakeIdentityBindingEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -234,8 +234,9 @@ function buildConfig(next) {
   // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
   // only an explicit `false` reverts.
   out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
-  // Relay config is carried whether or not the flag is on; relayEnabled is the gate,
-  // and setRelayThrough refuses to install a relay function without it.
+  // 'off' is the default and the kill switch: relayFunctionFor returns null for it, so
+  // swarm.relayThrough is never installed and the transport is byte-identical to a build
+  // with no relay support.
   out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
   out.relays = Array.isArray(next?.relays) ? next.relays : []
   out.publishOrder = coercePublishOrder(next)
@@ -295,10 +296,6 @@ export function isSeparateContentPlaneEnabled() {
 
 export function getUpgradeKey() {
   return config.upgradeKey
-}
-
-export function isRelayEnabled() {
-  return config.relayEnabled
 }
 
 export function getRelayConfig() {

@@ -11,7 +11,8 @@ import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
 import SectionHeading from '../layout/SectionHeading.js'
 import SegmentedControl, { Segment } from '../primitives/SegmentedControl.js'
-import { CompactToggle } from '../primitives/Toggle.js'
+import ActionMenu from '../widgets/ActionMenu.js'
+import DocsLink from '../widgets/DocsLink.js'
 import AddRelayModal from '../modals/AddRelayModal.js'
 
 const MODES: RelayMode[] = ['off', 'auto', 'always']
@@ -21,12 +22,74 @@ interface RelayTestResult {
   reason?: string
 }
 
-function verdictBadge(relay: RelayEntry, testing: boolean, t: (key: string) => string) {
-  if (testing) return <Badge label={t('networkSettings.relays.testing')} classes="bg-surface-container-high text-on-surface-variant" />
-  if (!relay.lastTest) return <Badge label={t('networkSettings.relays.notTested')} classes="bg-surface-container-high text-on-surface-variant" />
-  return relay.lastTest.ok
-    ? <Badge label={t('networkSettings.relays.reachable')} classes="bg-primary/15 text-accent" />
-    : <Badge label={t('networkSettings.relays.unreachable')} classes="bg-error-container text-on-error-container" />
+interface RelayRowProps {
+  relay: RelayEntry
+  testing: boolean
+  anyTesting: boolean
+  onTest: (relay: RelayEntry) => void
+  onToggle: (id: string, enabled: boolean) => void
+  onRemove: (id: string) => void
+}
+
+function RelayRow({ relay, testing, anyTesting, onTest, onToggle, onRemove }: RelayRowProps) {
+  const { t } = useTranslation()
+  const name = relay.label || relay.publicKey
+
+  // Disabled beats every other state: a relay that is not in use has no meaningful
+  // reachability, and showing a stale "Reachable" beside it would claim otherwise.
+  const status = (() => {
+    if (!relay.enabled) return { key: 'disabled', classes: 'bg-surface-container-high text-on-surface-variant' }
+    if (testing) return { key: 'testing', classes: 'bg-surface-container-high text-on-surface-variant' }
+    if (!relay.lastTest) return { key: 'notTested', classes: 'bg-surface-container-high text-on-surface-variant' }
+    if (relay.lastTest.ok) return { key: 'reachable', classes: 'bg-success text-accent' }
+    return { key: 'unreachable', classes: 'bg-error-container text-on-error-container' }
+  })()
+  const statusLabel = t(`networkSettings.relays.${status.key}`)
+
+  return (
+    <li className="flex items-center gap-3 bg-surface-container-high/40 rounded-xl px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-accent truncate">{relay.label || t('networkSettings.relays.unnamed')}</p>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-on-surface-variant truncate">{truncateRelayKey(relay.publicKey)}</span>
+          <CopyButton value={relay.publicKey} />
+        </div>
+      </div>
+      <Badge
+        label={statusLabel}
+        srLabel={t('networkSettings.relays.statusFor', { name, status: statusLabel })}
+        classes={status.classes}
+      />
+      <ActionMenu
+        label={t('networkSettings.relays.rowMenu', { name })}
+        ariaLabel={t('networkSettings.relays.rowMenu', { name })}
+        icon="more_vert"
+        triggerVariant="subtle"
+        items={[
+          {
+            id: 'test',
+            label: t('networkSettings.relays.test'),
+            icon: 'refresh',
+            disabled: anyTesting,
+            onAction: () => onTest(relay),
+          },
+          {
+            id: 'toggle',
+            label: relay.enabled ? t('networkSettings.relays.disable') : t('networkSettings.relays.enable'),
+            icon: relay.enabled ? 'pause' : 'play_arrow',
+            onAction: () => onToggle(relay.id, !relay.enabled),
+          },
+          {
+            id: 'remove',
+            label: t('networkSettings.relays.remove'),
+            icon: 'delete',
+            variant: 'danger',
+            onAction: () => onRemove(relay.id),
+          },
+        ]}
+      />
+    </li>
+  )
 }
 
 export default function RelaySettingsSection() {
@@ -55,23 +118,13 @@ export default function RelaySettingsSection() {
     // main sanitizes on write (dedupe, cap, label length), so adopt what it actually
     // stored rather than leaving the optimistic array on screen — otherwise rows main
     // dropped keep rendering as configured until the next launch.
-    persistRelayConfig(nextMode, nextRelays).then((stored) => {
+    return persistRelayConfig(nextMode, nextRelays).then((stored) => {
       if (!alive.current) return
       latest.current = { mode: nextMode, relays: stored }
       setRelayList(stored)
       return request('network:set-relays', { relayMode: nextMode, relays: stored })
     }).catch((err) => console.error('relay config push failed:', err))
   }, [])
-
-  // Adding the first relay while the mode is still 'off' would configure a relay that
-  // does nothing, so the first add opts into the library default. Later adds respect
-  // whatever the user has since chosen.
-  const handleAdd = useCallback((publicKey: string, label: string) => {
-    const entry: RelayEntry = { id: newRelayId(), label, publicKey, enabled: true, lastTest: null }
-    const { mode: current, relays: existing } = latest.current
-    const nextMode = existing.length === 0 && current === 'off' ? 'auto' : current
-    commit(nextMode, [...existing, entry])
-  }, [commit])
 
   const handleRemove = useCallback((id: string) => {
     commit(latest.current.mode, latest.current.relays.filter((r) => r.id !== id))
@@ -99,11 +152,26 @@ export default function RelaySettingsSection() {
     commit(liveMode, liveRelays.map((r) => (r.id === relay.id ? { ...r, lastTest: verdict } : r)))
   }, [commit])
 
+  // Adding the first relay while the mode is still 'off' would configure a relay that
+  // does nothing, so the first add opts into the library default. Later adds respect
+  // whatever the user has since chosen. The probe runs as soon as the relay is stored and
+  // pushed to the worker, so a mistyped key is caught at configuration time rather than
+  // sitting there as "Not tested" until someone thinks to check it.
+  const handleAdd = useCallback((publicKey: string, label: string) => {
+    const entry: RelayEntry = { id: newRelayId(), label, publicKey, enabled: true, lastTest: null }
+    const { mode: current, relays: existing } = latest.current
+    const nextMode = existing.length === 0 && current === 'off' ? 'auto' : current
+    commit(nextMode, [...existing, entry]).then(() => {
+      if (alive.current) handleTest(entry)
+    })
+  }, [commit, handleTest])
+
   return (
     <section>
       <SectionHeading>{t('networkSettings.relays.heading')}</SectionHeading>
       <div className="bg-surface-container-low rounded-xl p-6 space-y-6">
         <p className="text-sm text-on-surface-variant">{t('networkSettings.relays.desc')}</p>
+        <DocsLink target={{ page: 'guides', anchor: 'run-your-own-relay' }} label={t('networkSettings.relays.docsLink')} />
 
         {relays.length > 0 && (
           <div className="flex items-center justify-between">
@@ -132,41 +200,24 @@ export default function RelaySettingsSection() {
           : (
             <ul className="space-y-3">
               {relays.map((relay) => (
-                <li key={relay.id} className="flex items-center gap-3 bg-surface-container-high/40 rounded-xl px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-accent truncate">{relay.label || t('networkSettings.relays.unnamed')}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-on-surface-variant truncate">{truncateRelayKey(relay.publicKey)}</span>
-                      <CopyButton value={relay.publicKey} />
-                    </div>
-                  </div>
-                  {verdictBadge(relay, testingId === relay.id, t)}
-                  <button
-                    type="button"
-                    onClick={() => handleTest(relay)}
-                    disabled={testingId !== null}
-                    aria-label={t('networkSettings.relays.testAction', { name: relay.label || relay.publicKey })}
-                    className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-accent hover:bg-surface-container-highest disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-                  >
-                    {t('networkSettings.relays.test')}
-                  </button>
-                  <CompactToggle
-                    ariaLabel={t('networkSettings.relays.useAction', { name: relay.label || relay.publicKey })}
-                    checked={relay.enabled}
-                    onChange={(next) => handleToggle(relay.id, next)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(relay.id)}
-                    aria-label={t('networkSettings.relays.removeAction', { name: relay.label || relay.publicKey })}
-                    className="shrink-0 rounded-lg p-1.5 text-on-surface-variant hover:bg-error-container hover:text-on-error-container focus:outline-none focus-visible:ring-2 focus-visible:ring-error/30"
-                  >
-                    <Icon name="delete" size={18} />
-                  </button>
-                </li>
+                <RelayRow
+                  key={relay.id}
+                  relay={relay}
+                  testing={testingId === relay.id}
+                  anyTesting={testingId !== null}
+                  onTest={handleTest}
+                  onToggle={handleToggle}
+                  onRemove={handleRemove}
+                />
               ))}
             </ul>
           )}
+
+        {relays.length > 0 && (
+          <p className="text-sm text-on-surface-variant leading-relaxed">
+            {t('networkSettings.relays.bothPeersNote')}
+          </p>
+        )}
 
         <Button onClick={() => setAddOpen(true)} ariaLabel={t('networkSettings.relays.addAction')}>
           {t('networkSettings.relays.addAction')}

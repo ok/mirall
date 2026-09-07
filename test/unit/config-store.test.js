@@ -226,24 +226,29 @@ test('network defaults appear on a config.json written before relays existed', (
   t.alike(store.get('network.relays'), [])
 })
 
-test('the renderer snapshot exposes network and read-only features', (t) => {
-  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: true }) }).load()
+test('the renderer snapshot exposes network and a read-only features group', (t) => {
+  const store = new ConfigStore(tmpDir()).load()
   const snap = store.rendererSnapshot()
-  t.is(snap.network.relayMode, 'off')
+  t.is(snap.network.relayMode, 'off', 'relays are off until the user configures one')
   t.alike(snap.network.relays, [])
-  t.alike(snap.features, { relay: true })
+  t.alike(snap.features, {}, 'the group survives with no flags in it')
 })
 
-test('the relay feature flag defaults off in the snapshot', (t) => {
-  t.is(new ConfigStore(tmpDir()).load().rendererSnapshot().features.relay, false)
-  t.is(new ConfigStore(tmpDir(), { readFeatures: () => ({}) }).load().rendererSnapshot().features.relay, false)
-  t.is(new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: 'yes' }) }).load().rendererSnapshot().features.relay, false)
+// The group is kept deliberately (a future renderer-visible flag), and its value is that main
+// stays the only writer. A spread of feature-flags.json would leak every flag; an unguarded
+// setRenderer would let the renderer mint one. Neither may become possible by accident, so
+// both are asserted while the allowlist is empty.
+test('an unknown flag cannot reach the renderer through the features group', (t) => {
+  const store = new ConfigStore(tmpDir(), {
+    readFeatures: () => ({ relay: true, somethingNew: true }),
+  }).load()
+  t.alike(store.rendererSnapshot().features, {}, 'only RENDERER_FEATURES entries are exposed')
 })
 
 test('setRenderer cannot write a feature flag', (t) => {
-  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({ relay: false }) }).load()
-  store.setRenderer({ readFeatures: () => ({ relay: true }) })
-  t.is(store.rendererSnapshot().features.relay, false, 'the renderer is not a trust boundary')
+  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({}) }).load()
+  store.setRenderer({ features: { anything: true } })
+  t.alike(store.rendererSnapshot().features, {}, 'the renderer is not a trust boundary')
 })
 
 test('setRenderer validates relay keys and modes', (t) => {
@@ -326,14 +331,15 @@ test('relay and bandwidth coexist in the network group', (t) => {
 })
 
 // The store is constructed before primeFeatureFlags runs (main.js: readPrefs at app-ready,
-// preloadAsarCache six lines later). Latching the flag at construction would capture the
-// degraded pre-prime read and could disagree with the copy the worker gets.
-test('the relay flag is read lazily, not latched at construction', (t) => {
-  const dir = tmpDir()
-  let primed = false
-  const store = new ConfigStore(dir, { readFeatures: () => ({ relay: primed }) }).load()
+// preloadAsarCache six lines later). Latching flags at construction would capture the degraded
+// pre-prime read. The allowlist is empty today, so the property is asserted on the thunk
+// itself: it must be called per snapshot, not once.
+test('feature flags are read lazily, not latched at construction', (t) => {
+  let reads = 0
+  const store = new ConfigStore(tmpDir(), { readFeatures: () => { reads++; return {} } }).load()
 
-  t.is(store.rendererSnapshot().features.relay, false, 'pre-prime read resolves off')
-  primed = true
-  t.is(store.rendererSnapshot().features.relay, true, 'the snapshot follows the primed value')
+  const before = reads
+  store.rendererSnapshot()
+  store.rendererSnapshot()
+  t.is(reads, before + 2, 'each snapshot re-reads the flags')
 })
