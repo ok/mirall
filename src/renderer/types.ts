@@ -304,6 +304,16 @@ export interface Liveness {
   interfaceKind: 'none' | 'tunnel-only' | 'physical'
 }
 
+// Only present in a bundle while THIS build has an update apply it has not got past — see
+// src/main/apply-error.js.
+export interface ApplyErrorReport {
+  timestamp: string | null
+  version: string | null
+  platform: string | null
+  message: string
+  stack: string | null
+}
+
 export interface DiagnosticLogEntry {
   at: number
   source: string

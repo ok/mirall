@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('bridge', {
   getIdentityProtection: () => ipcRenderer.invoke('app:identityProtection'),
   setVerbose: (on) => ipcRenderer.invoke('app:setVerbose', on),
   getDiagnosticLogs: (opts) => ipcRenderer.invoke('diagnostics:logs', opts),
+  getLastApplyError: (opts) => ipcRenderer.invoke('diagnostics:lastApplyError', opts),
   getNetOnline: () => ipcRenderer.invoke('net:online'),
   onNetOnlineChange: (listener) => {
     const wrap = (_evt, online) => listener(online)

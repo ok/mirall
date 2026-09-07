@@ -4,7 +4,7 @@
 // IPC frames renderer↔worker in both directions; runs the chokidar folder
 // watchers on the worker's behalf (Bare has no recursive watch). Main holds no
 // application state — durable state lives in the worker's store.
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, net, protocol: electronProtocol, shell, webContents } = require('electron')
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, net, protocol: electronProtocol, screen, shell, webContents } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -48,6 +48,68 @@ const { buildAppMenuTemplate } = require('./menu.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { ConfigStore } = require('./config-store.js')
 const { primeFeatureFlags, readFeatureFlags } = require('./feature-flags.js')
+const { initDebugGate, isDebug, isVerbose, setVerbose } = require('./debug-gate.js')
+const { integrateXdgLinux } = require('./xdg-integration.js')
+const { usableBounds } = require('./window-bounds.js')
+const applyErrors = require('./apply-error.js')
+
+// === Renderer broadcast + log forwarding ===
+// Ahead of everything else on purpose: installMainLogForwarding is what puts main's console into
+// the log ring, and anything logged before it runs is absent from every diagnostics bundle. The
+// argv warnings below were the casualty — the one line that says which argument was dropped.
+
+let redactLinePromise = null
+function loadRedactLine() {
+  if (!redactLinePromise) {
+    redactLinePromise = import('../shared/core/diagnostics-redact.js')
+      .then((m) => m.redactLine)
+      .catch((err) => {
+        console.error('[main] redaction module unavailable:', err.message)
+        return null
+      })
+  }
+  return redactLinePromise
+}
+
+function sendToAll(channel, payload) {
+  for (const wc of webContents.getAllWebContents()) {
+    if (wc.isDestroyed()) continue
+    // A render frame can be disposed while its webContents isn't yet destroyed (teardown, a crashed
+    // subprocess). wc.send then throws "Render frame was disposed"; swallow it per-target so the
+    // failure can't propagate back into the log-forwarding console override below and feed a loop.
+    try { wc.send(channel, payload) } catch {}
+  }
+}
+
+// Mirror main-process console output into the renderer DevTools console while
+// debug logging is on, so window.mirall.verbose surfaces BOTH worker and main
+// logs in one place — main's own logs otherwise only reach the terminal, which a
+// packaged user never sees. The original console still writes to stdout/stderr.
+// Two guards prevent a feedback loop with the renderer→main console mirror in
+// createWindow: we never forward main's own "[renderer …]" echo lines, and that
+// mirror skips our "[main]" lines.
+const MAIN_LOG_PREFIX = '[main]'
+const RENDERER_ECHO_PREFIX = '[renderer '
+function installMainLogForwarding() {
+  const { format } = require('util')
+  // Re-entrancy guard: forwarding a log calls sendToAll, and a failed send can itself be logged
+  // (e.g. Electron's "Error sending from webFrameMain" when a frame is disposed). Without this flag
+  // that log re-enters here, forwards again, fails again — an unbounded loop that hangs main.
+  let forwarding = false
+  for (const level of ['log', 'warn', 'error']) {
+    const orig = console[level].bind(console)
+    console[level] = (...args) => {
+      orig(...args)
+      const text = format(...args)
+      logRing.push('main', level, text)
+      if (!isDebug() || forwarding) return
+      if (text.startsWith(RENDERER_ECHO_PREFIX)) return
+      forwarding = true
+      try { sendToAll('main:log', { level, text }) } catch {} finally { forwarding = false }
+    }
+  }
+}
+installMainLogForwarding()
 
 const pkg = require('../../package.json')
 const appName = pkg.productName || pkg.name
@@ -94,13 +156,9 @@ app.setAboutPanelOptions({
 })
 
 const isDev = !app.isPackaged || !!process.env.PEAR_DEV_SERVER_URL
-// `verbose` seeds the worker bootstrap; `debug` is the live gate behind main's
-// own if(debug) log guards. Both are mutable so the renderer dev console
-// (window.mirall.verbose) can flip them at runtime — see app:setVerbose.
-// baseDebug remembers the build default so turning verbose back off restores it.
-const baseDebug = process.env.MIRALL_DEBUG === '1' || isDev
-let verbose = process.env.MIRALL_VERBOSE === '1'
-let debug = baseDebug
+// The gate reads false until this runs, which only suppresses forwarding to the renderer — there
+// is no renderer this early, and the log ring is written either way. See debug-gate.js.
+initDebugGate({ isDev })
 
 let pear = null
 let identityKEKHex = null
@@ -131,73 +189,6 @@ let menuCtx = { inSpace: false, spaces: [] }
 process.on('unhandledRejection', (reason) => {
   console.error('unhandledRejection:', reason && (reason.stack || reason.message || reason))
 })
-
-function integrateXdgLinux() {
-  if (!isLinux || !process.env.APPIMAGE || !process.env.APPDIR) return
-  const appdir = process.env.APPDIR
-  const appimage = process.env.APPIMAGE
-  const home = os.homedir()
-
-  const srcDesktop = path.join(appdir, `${appName}.desktop`)
-  if (!fs.existsSync(srcDesktop)) return
-
-  // Rewrite Exec= to the absolute AppImage path so the launcher entry self-heals
-  // if the user moves the AppImage. %U lets the DE pass mirall:// URLs to us.
-  // Also ensure x-scheme-handler/mirall is declared so xdg-mime can pick this
-  // .desktop as the default handler for the protocol.
-  const mimeToken = 'x-scheme-handler/' + protocol
-  let desktop = fs.readFileSync(srcDesktop, 'utf8')
-    .replace(/^Exec=.*$/m, `Exec="${appimage}" %U`)
-  if (/^MimeType=/m.test(desktop)) {
-    desktop = desktop.replace(/^MimeType=(.*)$/m, (_m, list) => {
-      const items = list.split(';').filter(Boolean)
-      if (!items.includes(mimeToken)) items.push(mimeToken)
-      return 'MimeType=' + items.join(';') + ';'
-    })
-  } else {
-    desktop = desktop.replace(/(\n?)$/, `\nMimeType=${mimeToken};\n`)
-  }
-
-  const appsDir = path.join(home, '.local', 'share', 'applications')
-  fs.mkdirSync(appsDir, { recursive: true })
-  writeIfChanged(path.join(appsDir, `${appName}.desktop`), desktop)
-
-  const iconsRoot = path.join(home, '.local', 'share', 'icons', 'hicolor')
-  for (const size of [16, 32, 48, 64, 128, 256]) {
-    const src = path.join(appdir, 'usr', 'share', 'icons', 'hicolor',
-      `${size}x${size}`, 'apps', `${appName}.png`)
-    if (!fs.existsSync(src)) continue
-    const destDir = path.join(iconsRoot, `${size}x${size}`, 'apps')
-    fs.mkdirSync(destDir, { recursive: true })
-    copyFileIfChanged(src, path.join(destDir, `${appName}.png`))
-  }
-
-  // Detached + unref so we don't block startup or care about the result. If the
-  // tool is missing, the DE picks up the new entry on its next scan anyway.
-  try {
-    require('child_process')
-      .spawn('update-desktop-database', [appsDir], { detached: true, stdio: 'ignore' })
-      .unref()
-  } catch {}
-  try {
-    require('child_process')
-      .spawn('xdg-mime', ['default', `${appName}.desktop`, mimeToken], { detached: true, stdio: 'ignore' })
-      .unref()
-  } catch {}
-}
-
-function writeIfChanged(dest, contents) {
-  try { if (fs.readFileSync(dest, 'utf8') === contents) return } catch {}
-  fs.writeFileSync(dest, contents)
-}
-
-function copyFileIfChanged(src, dest) {
-  try {
-    const s = fs.statSync(src), d = fs.statSync(dest)
-    if (s.size === d.size && s.mtimeMs <= d.mtimeMs) return
-  } catch {}
-  fs.copyFileSync(src, dest)
-}
 
 function getAppPath() {
   if (!app.isPackaged) return null
@@ -311,10 +302,10 @@ function getPear() {
     }
     try {
       const result = await applyWithNoAsar()
-      clearApplyError()
+      applyErrors.clearApplyError(getDataDir())
       return result
     } catch (err) {
-      recordApplyError(err)
+      applyErrors.recordApplyError(getDataDir(), err, { version, platform: process.platform })
       throw err
     }
   }
@@ -339,61 +330,6 @@ function getPear() {
   pear.on('error', (err) => console.error('pear error:', err))
   return pear
 }
-
-// === Renderer broadcast + log forwarding ===
-
-let redactLinePromise = null
-function loadRedactLine() {
-  if (!redactLinePromise) {
-    redactLinePromise = import('../shared/core/diagnostics-redact.js')
-      .then((m) => m.redactLine)
-      .catch((err) => {
-        console.error('[main] redaction module unavailable:', err.message)
-        return null
-      })
-  }
-  return redactLinePromise
-}
-
-function sendToAll(channel, payload) {
-  for (const wc of webContents.getAllWebContents()) {
-    if (wc.isDestroyed()) continue
-    // A render frame can be disposed while its webContents isn't yet destroyed (teardown, a crashed
-    // subprocess). wc.send then throws "Render frame was disposed"; swallow it per-target so the
-    // failure can't propagate back into the log-forwarding console override below and feed a loop.
-    try { wc.send(channel, payload) } catch {}
-  }
-}
-
-// Mirror main-process console output into the renderer DevTools console while
-// debug logging is on, so window.mirall.verbose surfaces BOTH worker and main
-// logs in one place — main's own logs otherwise only reach the terminal, which a
-// packaged user never sees. The original console still writes to stdout/stderr.
-// Two guards prevent a feedback loop with the renderer→main console mirror in
-// createWindow: we never forward main's own "[renderer …]" echo lines, and that
-// mirror skips our "[main]" lines.
-const MAIN_LOG_PREFIX = '[main]'
-const RENDERER_ECHO_PREFIX = '[renderer '
-function installMainLogForwarding() {
-  const { format } = require('util')
-  // Re-entrancy guard: forwarding a log calls sendToAll, and a failed send can itself be logged
-  // (e.g. Electron's "Error sending from webFrameMain" when a frame is disposed). Without this flag
-  // that log re-enters here, forwards again, fails again — an unbounded loop that hangs main.
-  let forwarding = false
-  for (const level of ['log', 'warn', 'error']) {
-    const orig = console[level].bind(console)
-    console[level] = (...args) => {
-      orig(...args)
-      const text = format(...args)
-      logRing.push('main', level, text)
-      if (!debug || forwarding) return
-      if (text.startsWith(RENDERER_ECHO_PREFIX)) return
-      forwarding = true
-      try { sendToAll('main:log', { level, text }) } catch {} finally { forwarding = false }
-    }
-  }
-}
-installMainLogForwarding()
 
 // === Persisted window state: zoom, bounds, theme, prefs ===
 
@@ -475,8 +411,23 @@ function writePrefs(next) {
 
 // === Tray, autostart, window reveal ===
 
+// The one answer to "which window does this act on". Written five times as a three-way fallback
+// ending in getAllWindows()[0] and twice as a find() that skips destroyed windows — the two
+// disagreed, and setBounds/setZoomFactor on a destroyed window throws.
+function targetWindow(evt) {
+  const sender = evt && evt.sender ? BrowserWindow.fromWebContents(evt.sender) : null
+  const candidates = [sender, BrowserWindow.getFocusedWindow(), ...BrowserWindow.getAllWindows()]
+  return candidates.find((w) => w && !w.isDestroyed()) ?? null
+}
+
+// dock.hide has a one-second cooldown after a previous call, so a call made while AppKit is still
+// settling is silently dropped. Deferring to the next tick is what makes it take effect.
+function hideDockSoon() {
+  setTimeout(() => { try { app.dock.hide() } catch {} }, 0)
+}
+
 async function revealWindow() {
-  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null
+  const win = targetWindow()
   if (!win) {
     await createWindow()
     return
@@ -590,44 +541,41 @@ function maybeShowFirstHideNotice() {
   sendToAll('pear:event:first-hide-notice', { platform: process.platform })
 }
 
-function applyErrorPath() {
-  return path.join(getDataDir(), 'pear-runtime', 'last-apply-error.json')
-}
-
-function recordApplyError(err) {
-  try {
-    const file = applyErrorPath()
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(file, JSON.stringify({
-      timestamp: new Date().toISOString(),
-      version,
-      platform: process.platform,
-      message: err && err.message ? err.message : String(err),
-      stack: err && err.stack ? err.stack : null,
-    }, null, 2))
-  } catch (writeErr) {
-    console.error('record apply error failed:', writeErr)
-  }
-}
-
-function clearApplyError() {
-  try { fs.rmSync(applyErrorPath(), { force: true }) } catch {}
-}
-
 // Per-space download roots, pushed by the worker (it owns the space records). Main
 // needs them to authorize "reveal in folder" for files outside the home directory.
 let workerDownloadRoots = []
 
-// === Folder watcher bridge (chokidar on the worker's behalf) ===
+// === Worker frame writer + the worker→main request router ===
 
 const ownedFolderWatchers = require('./owned-folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
-// A write racing the worker's death (shutdown, a watcher event) fails with an EPIPE; there is no
-// recipient anymore, so the message is moot.
+// The one way main puts a frame on the worker pipe — bootstrap, shutdown and every watcher event
+// alike, so a frame cannot be written with a weaker guard than its neighbours. Returns whether the
+// frame went out, because the callers do not agree on what a failure means: a lost watcher event
+// is survivable, a lost bootstrap is not (see getWorker).
+//
+// This catch does NOT see the EPIPE of a write racing the worker's death — that arrives
+// asynchronously on the stream and is handled by worker.on('error') in getWorker. What lands here
+// is a synchronous failure: an unserialisable frame, or a stream that rejects the write outright.
+//
+// Reported once per worker. Every frame after a pipe goes bad fails for the same reason, and the
+// repeats would evict the crash that explains them from the fixed-size log ring; a respawned
+// worker reports again. Silent during a quit, where a half-written pipe is expected.
+const writeFailureReported = new WeakSet()
+
 function sendToWorker(worker, frame) {
-  try { worker.write(Buffer.from(JSON.stringify(frame) + '\n')) } catch (err) {
-    if (debug) console.error('worker frame write failed:', frame.type, '-', err.message)
+  try {
+    worker.write(Buffer.from(JSON.stringify(frame) + '\n'))
+    return true
+  } catch (err) {
+    if (isQuitting) {
+      if (isDebug()) console.error('worker frame write failed during quit:', frame.type, '-', err.message)
+    } else if (!writeFailureReported.has(worker)) {
+      writeFailureReported.add(worker)
+      console.warn('worker frame write failed:', frame.type, '-', err.message, '- further failures for this worker are not logged')
+    }
+    return false
   }
 }
 
@@ -641,6 +589,8 @@ const mainRequests = createMainRequestRouter({
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
   sendToWorker,
 })
+
+// === Download folder + bandwidth settings ===
 
 function getDefaultDownloadFolder() {
   return app.getPath('downloads')
@@ -699,7 +649,7 @@ function getWorker(specifier) {
   // as an uncaught exception (Electron's error dialog). Consume it here;
   // cleanup runs off worker.once('exit') below either way.
   worker.on('error', (err) => {
-    if (debug) console.error('worker stream error (shutdown race):', err.message)
+    if (isDebug()) console.error('worker stream error (shutdown race):', err.message)
   })
   // A previous worker for this specifier may have left a no-op handler
   // registered on exit (see the worker.once('exit', ...) below). Clear it
@@ -712,7 +662,7 @@ function getWorker(specifier) {
     appVersion: version,
     upgradeKey: upgrade || null,
     dev: isDev,
-    verbose,
+    verbose: isVerbose(),
     downloadFolder: readDownloadFolder(),
     ...readBandwidth(),
     dhtBootstrap: process.env.MIRALL_DHT_BOOTSTRAP ? JSON.parse(process.env.MIRALL_DHT_BOOTSTRAP) : null,
@@ -748,16 +698,33 @@ function getWorker(specifier) {
     downloadConcurrency: config().get('network.downloadConcurrency'),
     identityKEK: identityKEKHex,
   }
-  worker.write(Buffer.from(JSON.stringify(bootstrap) + '\n'))
+  // The bootstrap is the one frame whose loss cannot be absorbed: without it the worker has no
+  // storage path, no identity KEK and no feature flags, and it never asks again. Caching such a
+  // worker would leave `pear:startWorker` reporting success while every later renderer request
+  // hangs against a process that can never answer, so it is torn down and the failure is raised —
+  // the next startWorker then spawns a fresh one.
+  if (!sendToWorker(worker, bootstrap)) {
+    try { worker.destroy() } catch {}
+    throw new Error('worker bootstrap write failed')
+  }
 
+  // Raw bytes rather than a frame, so this is the one write that cannot go through sendToWorker:
+  // the renderer has already serialised its own NDJSON envelope.
+  let relayFailureReported = false
   const writeHandler = (_evt, data) => {
     try {
       worker.write(Buffer.from(data))
     } catch (err) {
-      // Worker may have closed its socket before the renderer's last message
-      // arrived (e.g., during app shutdown). Swallow the EPIPE / FIN race —
-      // there's no recipient anymore, the message is moot.
-      if (debug) console.error('worker write failed (shutdown race):', err.message)
+      // Worker may have closed its socket before the renderer's last message arrived. During a quit
+      // that is the expected FIN race and the message is moot; outside one it is a request the
+      // renderer is still waiting on, and nothing else reports that it never left. Once per worker,
+      // for the same reason as sendToWorker.
+      if (isQuitting) {
+        if (isDebug()) console.error('worker write failed during quit:', err.message)
+      } else if (!relayFailureReported) {
+        relayFailureReported = true
+        console.warn('worker write failed:', err.message, '- further failures for this worker are not logged')
+      }
     }
   }
   ipcMain.handle('pear:worker:writeIPC:' + specifier, writeHandler)
@@ -772,7 +739,7 @@ function getWorker(specifier) {
       try { msg = JSON.parse(line) } catch { continue }
       if (msg && msg.type === MAIN_REQUEST_FRAME) {
         mainRequests.handle(msg.command, msg.args || {}, worker).catch((err) => {
-          if (debug) console.error('main-request failed:', msg.command, err.message)
+          if (isDebug()) console.error('main-request failed:', msg.command, err.message)
         })
       }
     }
@@ -789,7 +756,7 @@ function getWorker(specifier) {
     // Writing the prefix anyway printed a bare '[worker stdout] ' that the next line continued.
     const text = stdoutDecoder.write(data)
     if (!text) return
-    if (debug) process.stdout.write('[worker stdout] ' + text)
+    if (isDebug()) process.stdout.write('[worker stdout] ' + text)
     logRing.push('worker', 'log', text)
   })
   worker.stderr.on('data', (data) => {
@@ -802,7 +769,7 @@ function getWorker(specifier) {
 
   const onBeforeQuit = () => {
     // 1. Ask the worker to exit cleanly (it closes the swarm, then Bare.exit).
-    try { worker.write(Buffer.from(JSON.stringify({ type: 'shutdown' }) + '\n')) } catch {}
+    sendToWorker(worker, { type: 'shutdown' })
     // 2. Escalate if it's still alive. NOTE: the bare-sidecar Duplex has no
     //  kill method — the previous `worker.kill` threw and was swallowed by
     //  the catch, so a wedged worker was never reaped and orphaned itself at
@@ -831,6 +798,9 @@ function getWorker(specifier) {
     // "No handler registered" and surface as Uncaught Promise rejections.
     try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
     try { ipcMain.handle('pear:worker:writeIPC:' + specifier, () => undefined) } catch {}
+    // The roots came from this worker and describe the spaces it had open. Keeping them past its
+    // death leaves shell:showInFolder authorising paths nothing is serving any more.
+    workerDownloadRoots = []
     sendToAll('pear:worker:exit:' + specifier, code)
     workers.delete(specifier)
   })
@@ -923,10 +893,15 @@ ipcMain.handle('diagnostics:logs', async (_evt, opts) => {
   return logRing.snapshot(redactLine)
 })
 
-ipcMain.handle('app:setVerbose', (_evt, on) => {
-  if (typeof on === 'boolean') { verbose = on; debug = on || baseDebug }
-  return debug
+// null on the installs where no apply has ever failed — which is nearly all of them — so the
+// bundle can leave the key out entirely rather than carry a permanent empty slot.
+ipcMain.handle('diagnostics:lastApplyError', async (_evt, opts) => {
+  const redactLine = opts?.redact !== false ? await loadRedactLine() : null
+  if (opts?.redact !== false && !redactLine) return null
+  return applyErrors.readLiveApplyError(getDataDir(), { version, redactLine })
 })
+
+ipcMain.handle('app:setVerbose', (_evt, on) => setVerbose(on))
 
 ipcMain.handle('app:getChangelog', async () => {
   const file = app.isPackaged
@@ -935,7 +910,7 @@ ipcMain.handle('app:getChangelog', async () => {
   try {
     return await fs.promises.readFile(file, 'utf8')
   } catch (err) {
-    if (debug) console.error('app:getChangelog read failed:', err.message)
+    if (isDebug()) console.error('app:getChangelog read failed:', err.message)
     return ''
   }
 })
@@ -996,7 +971,7 @@ app.on('before-quit', (event) => {
 })
 
 ipcMain.handle('window:getBounds', (evt) => {
-  const win = BrowserWindow.fromWebContents(evt.sender) ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const win = targetWindow(evt)
   if (!win) return null
   return win.getBounds()
 })
@@ -1004,13 +979,13 @@ ipcMain.handle('window:getBounds', (evt) => {
 ipcMain.handle('zoom:get', () => currentZoom)
 
 ipcMain.handle('zoom:set', (evt, factor) => {
-  const win = BrowserWindow.fromWebContents(evt.sender) ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const win = targetWindow(evt)
   if (!win) return currentZoom
   return applyZoom(win, factor)
 })
 
 ipcMain.handle('window:setBounds', (evt, bounds) => {
-  const win = BrowserWindow.fromWebContents(evt.sender) ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const win = targetWindow(evt)
   if (!win) return
   win.setBounds(bounds)
 })
@@ -1057,31 +1032,20 @@ ipcMain.handle('tray:setLabels', (_evt, labels) => {
   refreshTrayMenu()
 })
 
-ipcMain.handle('downloads:browse', async (evt, defaultPath) => {
-  const win = BrowserWindow.fromWebContents(evt.sender)
-    ?? BrowserWindow.getFocusedWindow()
-    ?? BrowserWindow.getAllWindows()[0]
-  const current = typeof defaultPath === 'string' && defaultPath.length > 0
-    ? defaultPath
-    : readDownloadFolder()
-  const result = await dialog.showOpenDialog(win, {
-    properties: ['openDirectory', 'createDirectory'],
-    defaultPath: current,
-  })
+async function pickDirectory(evt, defaultPath) {
+  const options = { properties: ['openDirectory', 'createDirectory'] }
+  if (typeof defaultPath === 'string' && defaultPath.length > 0) options.defaultPath = defaultPath
+  const result = await dialog.showOpenDialog(targetWindow(evt), options)
   if (result.canceled || result.filePaths.length === 0) return null
   return result.filePaths[0]
-})
+}
 
-ipcMain.handle('share:browseFolder', async (evt) => {
-  const win = BrowserWindow.fromWebContents(evt.sender)
-    ?? BrowserWindow.getFocusedWindow()
-    ?? BrowserWindow.getAllWindows()[0]
-  const result = await dialog.showOpenDialog(win, {
-    properties: ['openDirectory', 'createDirectory'],
-  })
-  if (result.canceled || result.filePaths.length === 0) return null
-  return result.filePaths[0]
-})
+ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(
+  evt,
+  typeof defaultPath === 'string' && defaultPath.length > 0 ? defaultPath : readDownloadFolder(),
+))
+
+ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 
 app.on('before-quit', () => {
   try { ownedFolderWatchers.stopAllWatchers() } catch {}
@@ -1094,27 +1058,27 @@ app.on('before-quit', () => {
 // Renderer pushes its theme choice so the BrowserWindow's native background
 // tracks it across launches and OS theme changes. This is also the persistence
 // path — the mode is written to config.json (appearance.theme).
-ipcMain.handle('theme:set', (_evt, mode) => {
-  if (mode !== 'light' && mode !== 'dark' && mode !== 'system') return false
-  writeStoredTheme(mode)
+function applyBackgroundColor(mode) {
   const color = resolveBackgroundColor(mode)
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.setBackgroundColor(color)
   }
+}
+
+ipcMain.handle('theme:set', (_evt, mode) => {
+  if (mode !== 'light' && mode !== 'dark' && mode !== 'system') return false
+  writeStoredTheme(mode)
+  applyBackgroundColor(mode)
   return true
 })
 
 nativeTheme.on('updated', () => {
   if (readStoredTheme() !== 'system') return
-  const color = resolveBackgroundColor('system')
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) w.setBackgroundColor(color)
-  }
+  applyBackgroundColor('system')
 })
 
-function sendKeyboardCommand(id) {
-  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
-  if (!win) return
+function sendKeyboardCommand(id, win = targetWindow()) {
+  if (!win || win.isDestroyed()) return
   win.webContents.send('keyboard:command', id)
 }
 
@@ -1182,14 +1146,17 @@ async function createWindow() {
       contextIsolation: true,
     },
   }
-  if (startHidden && isMac) {
-    setTimeout(() => { try { app.dock.hide() } catch {} }, 0)
-  }
+  if (startHidden && isMac) hideDockSoon()
+  // A position no display can show would open the window out of reach, so it is dropped and only
+  // the remembered size survives — Electron then centres it on the primary display.
   if (restored) {
-    winOpts.x = restored.x
-    winOpts.y = restored.y
-    winOpts.width = restored.width
-    winOpts.height = restored.height
+    const placeable = usableBounds(restored, screen.getAllDisplays())
+    if (typeof placeable.x === 'number') {
+      winOpts.x = placeable.x
+      winOpts.y = placeable.y
+    }
+    winOpts.width = placeable.width
+    winOpts.height = placeable.height
   }
   if (process.env.MIRALL_WINDOW_BOUNDS) {
     try {
@@ -1246,10 +1213,10 @@ async function createWindow() {
     if (typeof message === 'string' && message.startsWith(MAIN_LOG_PREFIX)) return
     const tag = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'][level] || 'INFO'
     logRing.push('renderer', tag.toLowerCase(), `${sourceId}:${line} ${message}`)
-    if (debug) console.log(`[renderer ${tag}] ${sourceId}:${line} ${message}`)
+    if (isDebug()) console.log(`[renderer ${tag}] ${sourceId}:${line} ${message}`)
   })
 
-  if (debug) {
+  if (isDebug()) {
     win.webContents.on('did-fail-load', (_e, code, desc, url) => {
       console.error('[mirall] renderer did-fail-load', code, desc, url)
     })
@@ -1279,15 +1246,11 @@ async function createWindow() {
   // Windows sends WM_APPCOMMAND for mouse back/forward buttons as 'app-command';
   // macOS three-finger trackpad swipe arrives as 'swipe'. (Mouse side buttons on
   // macOS/Linux are handled directly in the renderer as mouse button 3.)
-  win.on('app-command', (e, cmd) => {
-    if (cmd === 'browser-backward' && !win.isDestroyed()) {
-      win.webContents.send('keyboard:command', 'nav.back')
-    }
+  win.on('app-command', (_e, cmd) => {
+    if (cmd === 'browser-backward') sendKeyboardCommand('nav.back', win)
   })
   win.on('swipe', (_e, direction) => {
-    if (direction === 'left' && !win.isDestroyed()) {
-      win.webContents.send('keyboard:command', 'nav.back')
-    }
+    if (direction === 'left') sendKeyboardCommand('nav.back', win)
   })
 
   win.on('close', (e) => {
@@ -1298,11 +1261,7 @@ async function createWindow() {
 
     e.preventDefault()
     win.hide()
-    if (isMac) {
-      // dock.hide has a 1-second cooldown after a previous call. Defer
-      // via setTimeout so the no-op fires after AppKit settles.
-      setTimeout(() => { try { app.dock.hide() } catch {} }, 0)
-    }
+    if (isMac) hideDockSoon()
     sendToAll('pear:event:hidden-to-tray', null)
     maybeShowFirstHideNotice()
   })
@@ -1326,7 +1285,7 @@ async function createWindow() {
     return
   }
   await win.loadURL('app://-/index.html')
-  if (debug && process.env.MIRALL_NO_DEVTOOLS !== '1') win.webContents.openDevTools({ mode: 'detach' })
+  if (isDebug() && process.env.MIRALL_NO_DEVTOOLS !== '1') win.webContents.openDevTools({ mode: 'detach' })
 }
 
 // === app:// asset serving, deep links, app lifecycle ===
@@ -1464,7 +1423,11 @@ if (!lock) {
   app.whenReady().then(async () => {
     prefs = readPrefs()
     firstHideNoticeShown = prefs.firstHideNoticeShown
-    try { integrateXdgLinux() } catch (err) { console.error('[xdg] integration failed:', err.message) }
+    try {
+      integrateXdgLinux({ appName, protocol, isLinux, homedir: os.homedir() })
+    } catch (err) {
+      console.error('[xdg] integration failed:', err.message)
+    }
     // Preload before getPear runs — getPear installs the noAsar
     // wrappers on the OTA updater, after which any read of an asar path
     // can race with _update and return ENOTDIR.
