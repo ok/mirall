@@ -52,7 +52,7 @@ import {
   initDeferredAdmission, resetDeferredAdmission,
   reconcilePendingRequestersForApprover, emitPeerSharesUpdated,
 } from './deferred-admission.js'
-export { readmitConnectedMembers, emitSharesUpdated, reconcilePendingRequester } from './deferred-admission.js'
+export { readmitConnectedMembers } from './deferred-admission.js'
 import {
   initLeaveProtocol, resetLeaveProtocol,
   handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck,

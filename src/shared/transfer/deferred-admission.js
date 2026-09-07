@@ -4,7 +4,7 @@
 //
 // Kept out of swarm.js because it is a retry loop over the registries, not connection handling, and
 // because its two in-flight sets are its own: nothing else reads them.
-import { getSpace, listSpaces, listJoinRequests, getJoinRequestDriveKey } from '../spaces/space.js'
+import { getSpace, listSpaces, listJoinRequests, getConvergingMember } from '../spaces/space.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
 
 // 'spaceId:joinerKey' currently being admitted via reconcile. Exists only to keep a concurrent
@@ -32,14 +32,37 @@ export function resetDeferredAdmission() {
   readmitInflight.clear()
 }
 
-// A peer we recorded as a pending join request may since have been approved by a
-// co-member. Re-run the gate; if it now passes, admit them. If we hold their driveKey
-// (captured from a post-grant re-handshake) we replay their handshake directly — opening
-// their drive, listing them as a member, sending the reciprocal, and clearing the stale
-// request via the shared admit path. If we only ever saw their membership:request (no
-// drive), we prompt a fresh handshake over the live socket so they re-send with a driveKey
-// the gate can then admit for content — rather than bailing and leaving them unadmitted.
-export async function reconcilePendingRequester(spaceId, joinerKey) {
+// The shared tail of both deferred-admission paths: given a joiner we have decided to admit, replay
+// their handshake over whatever live socket we hold. If we captured their driveKey (from a
+// post-grant re-handshake) we replay it directly — opening their drive, listing them as a member,
+// sending the reciprocal, and clearing the stale request through the shared admit path. If we only
+// ever saw their membership:request, we send OUR handshake to prompt a fresh one carrying a driveKey
+// the gate can then admit for content, rather than bailing and leaving a connected member showing as
+// Unknown/Offline.
+//
+// The DECISION to admit belongs to the callers and stays there — this is only the replay.
+async function replayHandshakeFor(spaceId, joinerKey) {
+  const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
+  const topic = spaceTopics.get(spaceId)
+  if (!sock || !topic) return
+  const converging = getConvergingMember(spaceId, joinerKey)
+  if (!converging) {
+    const handler = socketMsgHandlers.get(sock)
+    if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
+    return
+  }
+  await handleHandshake(sock, null, {
+    type: 'handshake',
+    profileKey: joinerKey,
+    driveKey: converging.driveKey,
+    displayName: converging.displayName,
+    spaceTopic: topic,
+  })
+}
+
+// A peer we recorded as a pending join request may since have been approved by a co-member. Re-run
+// the gate; if it now passes, replay their handshake to admit them.
+async function reconcilePendingRequester(spaceId, joinerKey) {
   const key = spaceId + ':admit:' + joinerKey
   if (pendingAdmitInflight.has(key)) return
   pendingAdmitInflight.add(key)
@@ -48,23 +71,7 @@ export async function reconcilePendingRequester(spaceId, joinerKey) {
     if (!space || space.status === 'pending') return
     if ((space.members || []).some((m) => m.publicKey === joinerKey)) return
     if (!(await getGates().isApprovedByPeers(space, joinerKey))) return
-    const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
-    const topic = spaceTopics.get(spaceId)
-    if (!sock || !topic) return
-    const driveKey = getJoinRequestDriveKey(spaceId, joinerKey)
-    if (!driveKey) {
-      const handler = socketMsgHandlers.get(sock)
-      if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
-      return
-    }
-    const req = listJoinRequests(spaceId).find((r) => r.publicKey === joinerKey)
-    await handleHandshake(sock, null, {
-      type: 'handshake',
-      profileKey: joinerKey,
-      driveKey,
-      displayName: req?.displayName || 'Unknown',
-      spaceTopic: topic,
-    })
+    await replayHandshakeFor(spaceId, joinerKey)
   } finally {
     pendingAdmitInflight.delete(key)
   }
@@ -88,47 +95,21 @@ export async function reconcilePendingRequestersForApprover(approverKey) {
 
 const readmitInflight = new Set()
 
-// The derived member set just vouched for joinerKey; admit it if we have a live socket but no
-// admitted handshake for this space (its handshake raced ahead of the record that admits it, so we
-// bounced it to a join request and never sent the reciprocal — leaving a connected member showing as
-// Unknown/Offline). Replaying handleHandshake opens its drive, lists it, marks presence, and sends
-// the reciprocal. If we never captured its driveKey, send our handshake instead to prompt a fresh
-// one. Unlike reconcilePendingRequester this trusts the fold (no isApprovedByPeers re-check), so it
-// also admits the creator, who is approved by nobody.
-async function admitDerivedMember(spaceId, joinerKey) {
-  const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
-  const topic = spaceTopics.get(spaceId)
-  if (!sock || !topic) return
-  const driveKey = getJoinRequestDriveKey(spaceId, joinerKey)
-  if (!driveKey) {
-    const handler = socketMsgHandlers.get(sock)
-    if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
-    return
-  }
-  const req = listJoinRequests(spaceId).find((r) => r.publicKey === joinerKey)
-  await handleHandshake(sock, null, {
-    type: 'handshake',
-    profileKey: joinerKey,
-    driveKey,
-    displayName: req?.displayName || 'Unknown',
-    spaceTopic: topic,
-  })
-}
-
+// The derived member set just vouched for these keys; admit any we have a live socket with but no
+// admitted handshake for this space (their handshake raced ahead of the record that admits them, so
+// we bounced it to a join request and never sent the reciprocal). Unlike reconcilePendingRequester
+// this trusts the fold — no isApprovedByPeers re-check — so it also admits the creator, who is
+// approved by nobody.
 export function readmitConnectedMembers(spaceId, keys) {
   for (const key of keys) {
     if (!pendingRequesters.has(key) && !connectedPeers.has(key)) continue
     const guard = spaceId + ':' + key
     if (readmitInflight.has(guard)) continue
     readmitInflight.add(guard)
-    admitDerivedMember(spaceId, key)
+    replayHandshakeFor(spaceId, key)
       .catch((err) => log.warn('readmit on derive failed:', err.message))
       .finally(() => readmitInflight.delete(guard))
   }
-}
-
-export function emitSharesUpdated(spaceId) {
-  if (getIpc()) getIpc().emit('event:shares-updated', { spaceId })
 }
 
 // A peer's profile bee appended (it holds their `share/<space>/*` records), so refresh the
