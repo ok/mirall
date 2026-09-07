@@ -151,10 +151,20 @@ test('clearApplyError removes a live record and is safe when there is none', (t)
   t.execution(() => clearApplyError(dir), 'clearing twice is fine')
 })
 
-test('recording into an unwritable data dir does not throw at the caller', (t) => {
+test('recording into a data dir it cannot write does not throw at the caller', (t) => {
   // It runs inside the updater's own catch block; throwing here would replace the real apply
   // failure with a filesystem one.
+  //
+  // The obstruction is a plain file sitting where the directory has to go, so mkdirSync fails with
+  // ENOTDIR under any OS and any user. Do not reach for a real unwritable system path: pointing
+  // this at /proc/… passed on macOS only because /proc does not exist there (instant ENOENT), and
+  // on the Linux CI runner the synchronous mkdir into procfs never returned — it hung the whole
+  // unit suite until the job was cancelled half an hour later.
+  const dir = tmpDataDir(t)
+  fs.writeFileSync(path.join(dir, 'pear-runtime'), 'a file, not the directory the writer needs')
+
   t.execution(() => {
-    recordApplyError('/proc/nonexistent-mirall', new Error('x'), { version: VERSION, platform: 'linux' })
+    recordApplyError(dir, new Error('x'), { version: VERSION, platform: 'linux' })
   })
+  t.absent(fs.existsSync(applyErrorPath(dir)), 'and nothing was recorded')
 })
