@@ -216,6 +216,14 @@ function coercePublishOrder(next) {
   return PUBLISH_ORDERS.includes(next?.publishOrder) ? next.publishOrder : DEFAULT_PUBLISH_ORDER
 }
 
+// The public half of the relay slot only. The member seed is deliberately absent from
+// runtime config: it rides the bootstrap frame and is consumed in boot.js, exactly as
+// bootstrap.identityKEK is, so it never reaches a getRuntimeConfig() caller.
+function coerceRelaySlot(relay) {
+  if (!relay || typeof relay !== 'object' || Array.isArray(relay)) return null
+  return relay
+}
+
 function buildConfig(next) {
   const out = {}
   for (const k of NULLABLE) out[k] = next?.[k] || null
@@ -238,7 +246,7 @@ function buildConfig(next) {
   // swarm.relayThrough is never installed and the transport is byte-identical to a build
   // with no relay support.
   out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
-  out.relays = Array.isArray(next?.relays) ? next.relays : []
+  out.relay = coerceRelaySlot(next?.relay)
   out.publishOrder = coercePublishOrder(next)
   return out
 }
@@ -299,12 +307,12 @@ export function getUpgradeKey() {
 }
 
 export function getRelayConfig() {
-  return { mode: config.relayMode, relays: config.relays }
+  return { mode: config.relayMode, relay: config.relay }
 }
 
-export function setRelayConfig(mode, relays) {
+export function setRelayConfig(mode, relay) {
   const relayMode = mode === 'auto' || mode === 'always' ? mode : 'off'
-  config = { ...config, relayMode, relays: Array.isArray(relays) ? relays : [] }
+  config = { ...config, relayMode, relay: coerceRelaySlot(relay) }
 }
 
 export function getOverlayServeLimit() {

@@ -207,7 +207,7 @@ test('network survives a persist/reload round-trip', (t) => {
   store.flush()
   // Bandwidth, relay and the fetch-gate cap share the `network` group, so the persisted block
   // carries all three.
-  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relays: [], downloadConcurrency: 6 })
+  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relay: null, downloadConcurrency: 6 })
   const reopened = new ConfigStore(dir).load()
   t.is(reopened.get('network.downloadKBps'), 2048)
   t.is(reopened.get('network.uploadKBps'), 256)
@@ -216,6 +216,7 @@ test('network survives a persist/reload round-trip', (t) => {
 // === network / relay block ===
 
 const RELAY_KEY = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
+const OTHER_KEY = 'usdgj55ym13jkwz7nyrn4tf9yog5ocqhgbzpmiapfunqoj398xqo'
 
 test('network defaults appear on a config.json written before relays existed', (t) => {
   const dir = tmpDir()
@@ -223,14 +224,14 @@ test('network defaults appear on a config.json written before relays existed', (
   const store = new ConfigStore(dir).load()
   t.is(store.get('appearance.theme'), 'dark', 'existing values are preserved')
   t.is(store.get('network.relayMode'), 'off')
-  t.alike(store.get('network.relays'), [])
+  t.is(store.get('network.relay'), null)
 })
 
 test('the renderer snapshot exposes network and a read-only features group', (t) => {
   const store = new ConfigStore(tmpDir()).load()
   const snap = store.rendererSnapshot()
   t.is(snap.network.relayMode, 'off', 'relays are off until the user configures one')
-  t.alike(snap.network.relays, [])
+  t.is(snap.network.relay, null)
   t.alike(snap.features, {}, 'the group survives with no flags in it')
 })
 
@@ -251,51 +252,111 @@ test('setRenderer cannot write a feature flag', (t) => {
   t.alike(store.rendererSnapshot().features, {}, 'the renderer is not a trust boundary')
 })
 
-test('setRenderer validates relay keys and modes', (t) => {
-  const store = new ConfigStore(tmpDir()).load()
-
-  store.setRenderer({ network: { relayMode: 'nonsense' } })
-  t.is(store.get('network.relayMode'), 'off', 'an unknown mode degrades to off')
-
-  store.setRenderer({ network: { relayMode: 'always' } })
-  t.is(store.get('network.relayMode'), 'always')
-
-  store.setRenderer({ network: { relays: [{ id: 'a', publicKey: 'not-a-key' }] } })
-  t.alike(store.get('network.relays'), [], 'an undecodable key never reaches relayThrough')
-
-  store.setRenderer({ network: { relays: [{ id: 'a', label: 'A', publicKey: RELAY_KEY }] } })
-  t.is(store.get('network.relays').length, 1)
-  t.is(store.get('network.relays')[0].publicKey, RELAY_KEY)
-})
-
-test('a malformed network patch leaves the stored block untouched', (t) => {
-  const store = new ConfigStore(tmpDir()).load()
-  store.setRenderer({ network: { relayMode: 'auto', relays: [{ id: 'a', publicKey: RELAY_KEY }] } })
-  store.setRenderer({ network: 'nope' })
-  t.is(store.get('network.relayMode'), 'auto')
-  t.is(store.get('network.relays').length, 1)
-})
-
-test('removal persists the replaced array, not a merge', (t) => {
-  const dir = tmpDir()
-  const store = new ConfigStore(dir).load()
-  store.setRenderer({ network: { relays: [{ id: 'a', publicKey: RELAY_KEY }] } })
-  store.setRenderer({ network: { relays: [] } })
-  store.flush()
-  t.alike(readConfig(dir).network.relays, [], 'the empty array wins over the stored one')
-  t.alike(new ConfigStore(dir).load().get('network.relays'), [], 'and survives a reload')
-})
-
-test('a hand-edited config.json is re-sanitized on load', (t) => {
+// Not a migration — the relay UI has never been reachable in a shipped build, so no
+// config.json in the wild holds a relay to lose. This asserts only that the dead `relays: []`
+// every existing file carries is dropped rather than outliving the feature, and that the
+// bandwidth caps sharing the group are untouched by the delete.
+test('the dead relays array is dropped, and nothing else in the group moves', (t) => {
   const dir = tmpDir()
   writeJson(path.join(dir, 'config.json'), {
     version: CONFIG_VERSION,
-    network: { relayMode: 'sideways', relays: [{ id: 'a', publicKey: 'garbage' }, { id: 'b', publicKey: RELAY_KEY }] },
+    network: { downloadKBps: 500, uploadKBps: 128, relayMode: 'off', relays: [], downloadConcurrency: 4 },
+  })
+  const store = new ConfigStore(dir).load()
+  store.flush()
+
+  t.is(store.get('network.relay'), null)
+  t.absent('relays' in readConfig(dir).network, 'mergeDefaults would otherwise keep it forever')
+  t.is(store.get('network.downloadKBps'), 500)
+  t.is(store.get('network.uploadKBps'), 128)
+  t.is(store.get('network.downloadConcurrency'), 4, 'the rollback lever survives the delete')
+  t.is(readConfig(dir).version, CONFIG_VERSION, 'no version bump — nothing was migrated')
+})
+
+// A dev build with the flag forced on could have written rows. Nobody in the wild has them,
+// so they are dropped without ceremony — the point is that a stale array cannot crash the
+// load or leak into the snapshot.
+test('a hand-written relays array is discarded, not folded', (t) => {
+  const dir = tmpDir()
+  writeJson(path.join(dir, 'config.json'), {
+    version: CONFIG_VERSION,
+    network: { relayMode: 'auto', relays: [{ id: 'a', label: 'Home', publicKey: RELAY_KEY, enabled: true }] },
+  })
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('network.relay'), null, 'no fold, no inherited slot')
+  t.is(store.get('network.relayMode'), 'auto', 'the mode is not a relay row and is left alone')
+  t.absent('relays' in store.rendererSnapshot().network)
+})
+
+test('a config with nothing to clean is not rewritten on load', (t) => {
+  const dir = tmpDir()
+  const file = path.join(dir, 'config.json')
+  writeJson(file, { version: CONFIG_VERSION, network: { downloadKBps: 1, relayMode: 'off', relay: null } })
+  const before = fs.statSync(file).mtimeMs
+  new ConfigStore(dir).load().flush()
+  t.is(fs.statSync(file).mtimeMs, before, 'rewriting every boot to change nothing is worse than waiting')
+})
+
+test('setRenderer cannot write the relay slot', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'open', label: 'kept', enabled: true, lastTest: null })
+
+  store.setRenderer({ network: { relay: { publicKey: OTHER_KEY }, relayMode: 'always' } })
+  t.is(store.get('network.relay').publicKey, RELAY_KEY, 'the slot has its own IPC — it also writes a secret')
+  t.is(store.get('network.relay').label, 'kept')
+  t.is(store.get('network.relayMode'), 'auto')
+})
+
+test('setRelay validates the key, the kind and the mode', (t) => {
+  const store = new ConfigStore(tmpDir()).load()
+
+  store.setRelay('nonsense', { publicKey: RELAY_KEY })
+  t.is(store.get('network.relayMode'), 'off', 'an unknown mode degrades to off')
+
+  store.setRelay('always', { publicKey: 'not-a-key' })
+  t.is(store.get('network.relay'), null, 'an undecodable key never reaches relayThrough')
+  t.is(store.get('network.relayMode'), 'always')
+
+  const network = store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'private', label: 'club' })
+  t.is(network.relay.kind, 'private')
+  t.is(network.relay.label, 'club')
+  t.is(network.relay.enabled, true)
+  t.is(network.relayMode, 'auto', 'the post-write snapshot is what the renderer adopts')
+
+  store.setRelay('auto', null)
+  t.is(store.get('network.relay'), null, 'removal clears the slot')
+})
+
+test('the renderer snapshot never carries a ticket or a seed', (t) => {
+  const store = new ConfigStore(tmpDir()).load()
+  store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'private', label: 'club', enabled: true, lastTest: null })
+  const snap = JSON.stringify(store.rendererSnapshot())
+  t.absent(snap.includes('seed'), 'the member seed lives in relay-ticket.enc, not here')
+  t.absent(snap.includes('ticket'))
+  t.alike(Object.keys(store.rendererSnapshot().network.relay).sort(),
+    ['enabled', 'kind', 'label', 'lastTest', 'publicKey'])
+})
+
+test('a hand-edited relay slot is re-sanitized on load', (t) => {
+  const dir = tmpDir()
+  writeJson(path.join(dir, 'config.json'), {
+    version: CONFIG_VERSION,
+    network: { relayMode: 'sideways', relay: { publicKey: 'garbage', kind: 'private' } },
   })
   const store = new ConfigStore(dir).load()
   t.is(store.get('network.relayMode'), 'off')
-  t.is(store.get('network.relays').length, 1)
-  t.is(store.get('network.relays')[0].id, 'b')
+  t.is(store.get('network.relay'), null)
+})
+
+// config.json now sits beside a member identity: the slot names the relay a person belongs to.
+// It also already held the download folder and the feedback email, so 0600 is right regardless.
+test('config.json is written owner-only', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  store.setRelay('auto', { publicKey: RELAY_KEY })
+  store.flush()
+  t.is(fs.statSync(path.join(dir, 'config.json')).mode & 0o777, 0o600)
 })
 
 // Bandwidth caps and relay config share the `network` group. Each writer must leave
@@ -305,7 +366,7 @@ test('relay and bandwidth coexist in the network group', (t) => {
   const dir = tmpDir()
   writeJson(path.join(dir, 'config.json'), {
     version: CONFIG_VERSION,
-    network: { downloadKBps: 4096, uploadKBps: 512, relayMode: 'auto', relays: [{ id: 'a', publicKey: RELAY_KEY }] },
+    network: { downloadKBps: 4096, uploadKBps: 512, relayMode: 'auto', relay: { publicKey: RELAY_KEY, kind: 'open' } },
   })
 
   const store = new ConfigStore(dir).load()
@@ -313,7 +374,7 @@ test('relay and bandwidth coexist in the network group', (t) => {
   t.is(store.get('network.uploadKBps'), 512)
   t.is(store.get('network.relayMode'), 'auto')
 
-  store.setRenderer({ network: { relayMode: 'always', relays: [] } })
+  store.setRelay('always', null)
   t.is(store.get('network.downloadKBps'), 4096, 'a relay write does not clear the caps')
   t.is(store.get('network.uploadKBps'), 512)
 
@@ -326,7 +387,7 @@ test('relay and bandwidth coexist in the network group', (t) => {
   t.is(reopened.get('network.relayMode'), 'always')
 
   const snap = reopened.rendererSnapshot().network
-  t.alike(Object.keys(snap).sort(), ['downloadKBps', 'relayMode', 'relays', 'uploadKBps'],
+  t.alike(Object.keys(snap).sort(), ['downloadKBps', 'relay', 'relayMode', 'uploadKBps'],
     'the snapshot carries the whole group, not just one writer half')
 })
 

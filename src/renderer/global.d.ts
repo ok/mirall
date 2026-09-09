@@ -1,4 +1,4 @@
-import type { RendererConfig, RendererConfigPatch } from './config-client.js'
+import type { RelayParseResult, RelaySetPayload, RelaySetResult, RendererConfig, RendererConfigPatch } from './config-client.js'
 import type { ApplyErrorReport, DiagnosticLogEntry } from './types.js'
 
 export interface PkgInfo {
@@ -142,6 +142,8 @@ export interface MirallBridge {
   setPrefs(partial: Partial<AppPrefs>): Promise<AppPrefs>
   getConfig(): RendererConfig
   setConfig(patch: RendererConfigPatch): Promise<RendererConfig>
+  parseRelayInput(input: string): Promise<RelayParseResult>
+  setRelay(payload: RelaySetPayload): Promise<RelaySetResult>
   setTrayLabels(labels: TrayLabels): Promise<void>
   menuContextChanged(ctx: MenuContext): Promise<void>
   onFirstHideNotice(listener: (payload: FirstHideNoticePayload) => void): () => void

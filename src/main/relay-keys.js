@@ -1,12 +1,10 @@
-// Relay entries arrive from the renderer, which is not a trust boundary. A key that
+// The relay slot arrives from the renderer, which is not a trust boundary. A key that
 // reaches swarm.relayThrough without decoding to exactly 32 bytes produces a silent
 // connect failure with no diagnosis, so validation happens here, in main, before
 // anything is persisted.
-const b4a = require('b4a')
 const idEncoding = require('hypercore-id-encoding')
 
 const RELAY_MODES = ['off', 'auto', 'always']
-const MAX_RELAYS = 8
 const MAX_LABEL_LENGTH = 64
 
 function decodeRelayKey(id) {
@@ -34,33 +32,29 @@ function sanitizeLastTest(value) {
   return { at, ok }
 }
 
-// Drops malformed entries rather than rejecting the whole array: one bad row from a
-// hand-edited config.json must not cost the user every other relay they configured.
-// Duplicates collapse to the first occurrence, compared on the DECODED bytes — the same
-// relay can be written as z-base-32, either hex case, or a pear:// URL.
-function sanitizeRelays(list) {
-  if (!Array.isArray(list)) return []
-  const seen = new Set()
-  const out = []
-  for (const entry of list) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
-    const { id, label, publicKey, enabled, lastTest } = entry
-    if (typeof id !== 'string' || id.length === 0) continue
-    const key = decodeRelayKey(publicKey)
-    if (!key) continue
-    const fingerprint = b4a.toString(key, 'hex')
-    if (seen.has(fingerprint)) continue
-    seen.add(fingerprint)
-    out.push({
-      id,
-      label: typeof label === 'string' ? label.slice(0, MAX_LABEL_LENGTH) : '',
-      publicKey,
-      enabled: enabled !== false,
-      lastTest: sanitizeLastTest(lastTest),
-    })
-    if (out.length >= MAX_RELAYS) break
+// The single relay slot, as stored. The ticket and its member seed are NOT here — they live
+// in relay-ticket.enc under safeStorage (see relay-secret.js), because a member seed is a
+// bearer credential and config.json is a plain-text prefs file that ends up in backups.
+// `kind` is the only trace of a private relay that reaches disk here, so the UI can pick the
+// right badge and the right warning without touching the vault.
+function sanitizeRelay(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+  const { publicKey, label, kind, enabled, lastTest } = entry
+  if (!decodeRelayKey(publicKey)) return null
+  return {
+    publicKey,
+    kind: kind === 'private' ? 'private' : 'open',
+    label: typeof label === 'string' ? label.slice(0, MAX_LABEL_LENGTH) : '',
+    enabled: enabled !== false,
+    lastTest: sanitizeLastTest(lastTest),
   }
-  return out
 }
 
-module.exports = { decodeRelayKey, isValidRelayKey, normalizeRelayMode, sanitizeRelays, RELAY_MODES, MAX_RELAYS }
+module.exports = {
+  decodeRelayKey,
+  isValidRelayKey,
+  normalizeRelayMode,
+  sanitizeRelay,
+  RELAY_MODES,
+  MAX_LABEL_LENGTH,
+}

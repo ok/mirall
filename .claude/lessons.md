@@ -360,3 +360,69 @@ same asymmetry one level down is why an injected `schedule` must be guarded on t
 than on the subsystem pointer (`ownedScheduler`): a `_close` that rejects never reaches its
 own `subsystem = null`, so the pointer outlives the timers it points at, and arming against a
 closed set throws from inside a callback nothing catches.
+
+
+## A z-base-32 payload's last character can be pure slack, so a checksum cannot see a truncation
+
+The relay invite ticket is 69 bytes as 111 z-base-32 characters. 111 × 5 = 555 bits for 552
+bits of payload, so the final character carries 3 slack bits and **nothing else**:
+`z32.decode(payload.slice(0, 110))` returns the *identical* 69 bytes. The version byte reads
+1, the 4-byte blake2b checksum matches, and a paste that lost its last character — the
+commonest clipboard failure there is — decodes as a perfectly valid ticket for a member key
+that is not on any roster. The failure then surfaces as a relay that silently never admits
+you, which is indistinguishable from the relay being offline.
+
+**The rule:** for a fixed-length encoded credential, gate on the **string length** before
+decoding, and treat that gate as load-bearing rather than as a dispatch condition. A checksum
+covers *alteration*; only the length covers *truncation*. The unit test asserts the
+byte-equality alongside the rejection (`test/unit/relay-ticket.test.js`), because the
+equality is the only thing that stops the next reader deleting the gate as redundant. This
+generalises to any base-N encoding whose bit count does not divide evenly.
+
+
+## The worker respawn IS the restart primitive; there is no `restart(subsystem)`
+
+`dht.defaultKeyPair` is fixed when the node is constructed, so changing a relay identity
+means rebuilding it. The obvious move — close and reopen the `Swarm` subsystem — fights the
+codebase: `ContentSwarm` is constructed from `swarm.dht` and deliberately does not destroy
+that shared node, so reopening `Swarm` alone leaves it holding a destroyed DHT; the lifecycle
+has no `restart(subsystem)` by design (the rule is `recover(unit)`); and topic rejoin,
+overlay reattach and `replayPendingLeaves` all live in the boot root, not in `Swarm._open`.
+
+**The rule:** when a change cannot be applied live, ask the worker to exit rather than
+inventing a restart. `request('shutdown')` is already in the request contract; the worker
+exits 0, `scheduleRespawn` brings it back, main rebuilds the bootstrap frame from the config
+just written, and `markReady` reloads the window. That is the crash-recovery path, already
+tested, and reusing it costs nothing. Fire it and forget — the reply races the exit and is
+rejected by `failAllPending`.
+
+**And the rule that goes with it: never fire it behind the user.** `markReady`'s reload
+returns to the app's default screen, so a respawn triggered from a settings action drops the
+person on the home screen holding no account of what just happened — measured, not reasoned:
+the frontend scenario failed because the row menu it had just been using no longer existed,
+and the AX dump was the Shared Spaces screen. Store the change, mark a session-scoped
+pending flag, and put a **Reconnect now** button next to an explanation. A reload the person
+asked for is a reconnect; the same reload unasked-for is a bug report. The interim state has
+to be honest too — ours reports the relay unreachable, which it genuinely is until the
+restart.
+
+
+## Two writes that cannot be atomic: leave the failure that is VISIBLE
+
+Adding a private relay writes two places — the member seed to `relay-ticket.enc` (synchronous,
+fsync'd) and the slot to `config.json` (debounced 250 ms, otherwise flushed only on
+`before-quit`, which a SIGKILL or a power loss never reaches). They cannot be made atomic, so
+the order is not a style question: it decides which half survives a crash between them.
+
+- **Seed without config** — the node keeps deriving a pinned DHT identity from a seed nothing
+  references. It announces a durable member key on the public DHT, Settings shows no relay, and
+  no path in the app can find or remove it. Invisible and unreachable.
+- **Config without seed** — the app degrades loudly: `setRelayThrough` refuses to install the
+  relay, the log says why, and the probe reports it unreachable. Wrong, but visible and fixable.
+
+**The rule:** write so the surviving half is the one a user can see and act on — config first
+when adding, vault first when removing, and `flush()` rather than trusting the debounce. And
+never `catch {}` the delete: a seed you failed to remove is the invisible case, so the caller
+has to learn about it (`test/unit/relay-secret.test.js` pins that with a read-only directory).
+
+The same shape applies to any pair of "secret at rest" + "record that names it".

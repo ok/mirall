@@ -119,6 +119,8 @@ contextBridge.exposeInMainWorld('bridge', {
   setPrefs: (partial) => ipcRenderer.invoke('prefs:set', partial),
   getConfig: () => ipcRenderer.sendSync('config:get'),
   setConfig: (patch) => ipcRenderer.invoke('config:set', patch),
+  parseRelayInput: (input) => ipcRenderer.invoke('relay:parse', input),
+  setRelay: (payload) => ipcRenderer.invoke('relay:set', payload),
   setTrayLabels: (labels) => ipcRenderer.invoke('tray:setLabels', labels),
   menuContextChanged: (ctx) => ipcRenderer.invoke('menu:context-changed', ctx),
   onFirstHideNotice: (listener) => {
