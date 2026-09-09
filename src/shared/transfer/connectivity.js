@@ -185,7 +185,9 @@ function parseUpgradeKey(raw) {
   } catch { return null }
 }
 
-function dialOnce(dht, peer) {
+// Exported for the keypair-isolation test: the guarantee below is invisible at every
+// layer above this function.
+export function dialOnce(dht, peer) {
   return new Promise((resolve) => {
     let socket = null
     let settled = false
@@ -199,7 +201,14 @@ function dialOnce(dht, peer) {
     const timer = setTimeout(() => finish(false), CANARY_TIMEOUT_MS)
     timer.unref?.()
     try {
-      socket = dht.connect(peer.publicKey, { relayAddresses: peer.relayAddresses })
+      // Explicit ephemeral identity. Without opts.keyPair hyperdht dials with
+      // dht.defaultKeyPair (connect.js:47) — harmless while that key is random per boot,
+      // wrong the moment it is a private-relay member identity, because it would hand the
+      // vendor's update seeder a durable name for this install.
+      socket = dht.connect(peer.publicKey, {
+        relayAddresses: peer.relayAddresses,
+        keyPair: crypto.keyPair(),
+      })
       socket.on('open', () => finish(true))
       socket.on('error', () => finish(false))
       socket.on('close', () => finish(false))
