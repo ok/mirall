@@ -6,6 +6,9 @@
 //   1. the rows are memoized, and
 //   2. the props they receive keep their identity — the listing rows across a reconcile
 //      (shareFilesReconcile.js) and the handlers across a render (useFiles/useTransferControls).
+//   3. a live transfer frame reaches ONE row without touching the listing array, so the two O(n)
+//      walks FolderView runs over it (buildFileTree, then filterTree) do not re-run per frame.
+//      `treeBuilds` is the measurement: it must not move when a decoration lands.
 //
 // HOW THE COUNT IS HONEST. The counter cannot live inside the real ShareFileRow without editing
 // it, and a plain unmemoized wrapper around it would count the WRAPPER's renders — which happen on
@@ -20,7 +23,9 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import ShareFileRow, { type ShareFileRowProps } from './../../src/renderer/components/cards/ShareFileRow.js'
 import { reconcileFiles } from './../../src/renderer/shareFilesReconcile.js'
-import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from './../../src/renderer/types.js'
+import { buildFileTree } from './../../src/renderer/fileTree.js'
+import type { Decoration } from './../../src/renderer/hooks/useDecorations.js'
+import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary } from './../../src/renderer/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -31,6 +36,9 @@ interface HarnessResults {
   afterOneSummary: Record<string, number>
   afterUnchangedRefetch: Record<string, number>
   afterOneRowChanged: Record<string, number>
+  afterOneDecoration: Record<string, number>
+  treeBuildsBeforeDecoration: number
+  treeBuildsAfterDecoration: number
 }
 
 declare global {
@@ -39,6 +47,7 @@ declare global {
     __tick: () => void
     __setSummary: (relPath: string) => void
     __refetch: (changed: string | null) => void
+    __decorate: (relPath: string) => void
   }
 }
 
@@ -72,6 +81,14 @@ function snapshot(): Record<string, number> {
   return { ...renders }
 }
 
+// FolderView memoizes buildFileTree(files) on [files] and filterTree on [tree, …]. Counting the
+// first stands in for both: they share the one dependency that a per-frame row rewrite would churn.
+let treeBuilds = 0
+function countedTree(files: ShareFileEntry[]): FileTreeNode[] {
+  treeBuilds++
+  return buildFileTree(files)
+}
+
 const Counted = memo(function Counted(props: ShareFileRowProps) {
   renders[props.file.relPath] = (renders[props.file.relPath] ?? 0) + 1
   return <ShareFileRow {...props} />
@@ -89,6 +106,7 @@ function Harness() {
   const [, setTick] = useState(0)
   const [files, setFiles] = useState<ShareFileEntry[]>(() => freshListing(null))
   const [summaries, setSummaries] = useState<Map<string, PeerDownloadSummary>>(() => new Map())
+  const [decorations, setDecorations] = useState<Map<string, Decoration>>(() => new Map())
 
   window.__tick = useCallback(() => { setTick((t) => t + 1) }, [])
 
@@ -102,15 +120,29 @@ function Harness() {
     })
   }, [])
 
+  // One path's transfer frame lands, as useDecorations' Map update does. The listing array is not
+  // touched, which is the property this harness measures.
+  window.__decorate = useCallback((relPath: string) => {
+    setDecorations((prev) => {
+      const next = new Map(prev)
+      next.set(relPath, { bytes: 512, total: 1024, speed: 100, avgSpeed: 100, eta: 5 })
+      return next
+    })
+  }, [])
+
   // A listing refetch through the REAL reconciler, complete:true — the ordinary owner-side read.
   window.__refetch = useCallback((changed: string | null) => {
     setFiles((prev) => reconcileFiles(prev, freshListing(changed), { complete: true }))
   }, [])
 
+  const tree = useMemo(() => countedTree(files), [files])
+
   const rows = useMemo(() => files.map((file) => (
     <Counted
       key={file.relPath}
       file={file}
+      decoration={decorations.get(file.relPath) ?? null}
+      seeded={false}
       isOwn={false}
       manualControls={false}
       spaceId="s"
@@ -118,9 +150,9 @@ function Harness() {
       downloadSummary={summaries.get(file.relPath) ?? null}
       {...HANDLERS}
     />
-  )), [files, summaries])
+  )), [files, summaries, decorations])
 
-  return <div id="rows-host" className="max-w-3xl">{rows}</div>
+  return <div id="rows-host" data-tree-nodes={tree.length} className="max-w-3xl">{rows}</div>
 }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
@@ -139,6 +171,9 @@ function publishError(error: string): void {
     afterOneSummary: {},
     afterUnchangedRefetch: {},
     afterOneRowChanged: {},
+    afterOneDecoration: {},
+    treeBuildsBeforeDecoration: -1,
+    treeBuildsAfterDecoration: -1,
   }
 }
 
@@ -186,8 +221,19 @@ async function run(): Promise<void> {
   const afterOneRowChanged = snapshot()
   const oneRowScoped = delta(afterUnchangedRefetch, afterOneRowChanged).join(',') === 'c.txt'
 
+  // 5. A transfer frame for one path reaches that row and nothing else — and, the point of moving
+  //    the decoration off the row, leaves the listing array alone so the tree is not rebuilt.
+  const treeBuildsBeforeDecoration = treeBuilds
+  window.__decorate('a.txt')
+  await sleep(100)
+  const afterOneDecoration = snapshot()
+  const treeBuildsAfterDecoration = treeBuilds
+  const oneDecorationScoped = delta(afterOneRowChanged, afterOneDecoration).join(',') === 'a.txt'
+  const treeQuiet = treeBuildsAfterDecoration === treeBuildsBeforeDecoration
+
   window.__results = {
-    pass: isMemo && mountedOnce && idleTickQuiet && oneSummaryScoped && unchangedRefetchQuiet && oneRowScoped,
+    pass: isMemo && mountedOnce && idleTickQuiet && oneSummaryScoped && unchangedRefetchQuiet &&
+      oneRowScoped && oneDecorationScoped && treeQuiet,
     error: null,
     isMemo,
     mountCounts,
@@ -195,6 +241,9 @@ async function run(): Promise<void> {
     afterOneSummary,
     afterUnchangedRefetch,
     afterOneRowChanged,
+    afterOneDecoration,
+    treeBuildsBeforeDecoration,
+    treeBuildsAfterDecoration,
   }
 }
 

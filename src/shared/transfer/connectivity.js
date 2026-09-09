@@ -185,7 +185,9 @@ function parseUpgradeKey(raw) {
   } catch { return null }
 }
 
-function dialOnce(dht, peer) {
+// Exported for the keypair-isolation test: the guarantee below is invisible at every
+// layer above this function.
+export function dialOnce(dht, peer) {
   return new Promise((resolve) => {
     let socket = null
     let settled = false
@@ -199,7 +201,14 @@ function dialOnce(dht, peer) {
     const timer = setTimeout(() => finish(false), CANARY_TIMEOUT_MS)
     timer.unref?.()
     try {
-      socket = dht.connect(peer.publicKey, { relayAddresses: peer.relayAddresses })
+      // Explicit ephemeral identity. Without opts.keyPair hyperdht dials with
+      // dht.defaultKeyPair (connect.js:47) — harmless while that key is random per boot,
+      // wrong the moment it is a private-relay member identity, because it would hand the
+      // vendor's update seeder a durable name for this install.
+      socket = dht.connect(peer.publicKey, {
+        relayAddresses: peer.relayAddresses,
+        keyPair: crypto.keyPair(),
+      })
       socket.on('open', () => finish(true))
       socket.on('error', () => finish(false))
       socket.on('close', () => finish(false))
@@ -383,8 +392,14 @@ export async function probeCanary(upgradeKey, { force = false } = {}) {
     if (canaryInFlight) return canaryInFlight
   }
 
-  canaryInFlight = runCanaryProbe(upgradeKey)
+  // Identity-guarded throughout: a forced probe replaces this one while it is still running, and
+  // the two can settle in either order. An unconditional write here would let the OLDER verdict
+  // overwrite the newer one and stamp it with a later timestamp — which the 15-minute freshness
+  // gate above then serves to every caller for another quarter of an hour.
+  const stale = () => canaryInFlight !== probe
+  const probe = runCanaryProbe(upgradeKey)
     .then((result) => {
+      if (stale()) return lastCanaryResult
       lastCanaryResult = { ...result, at: Date.now() }
       lastCanaryAt = Date.now()
       scheduleStatusEmit()
@@ -392,12 +407,14 @@ export async function probeCanary(upgradeKey, { force = false } = {}) {
     })
     .catch((err) => {
       log.debug('canary probe failed:', err.message)
+      if (stale()) return lastCanaryResult
       lastCanaryResult = { state: CANARY.UNAVAILABLE, at: Date.now() }
       return lastCanaryResult
     })
-    .finally(() => { canaryInFlight = null })
+    .finally(() => { if (!stale()) canaryInFlight = null })
+  canaryInFlight = probe
 
-  return canaryInFlight
+  return probe
 }
 
 export function getSwarmStatus() {

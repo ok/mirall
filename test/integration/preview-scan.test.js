@@ -6,6 +6,7 @@ import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The scan-preview dialogs are the user's last confirmation before bytes move.
 // They must count uploads/downloads and conflicts honestly.
@@ -233,4 +234,61 @@ test('foreign preview: ignored files do not inflate the destination count', asyn
   fs.writeFileSync(path.join(ctx.mirrorPath, 'half.mirall.part'), 'junk')
   const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, ctx.mirrorPath)
   t.is(preview.existingAtDestination, 1, 'DEFAULT_IGNORE still applies through the shared walk')
+})
+
+function withCap (t, cap) {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  setRuntimeConfig({ ...saved, listFilesCap: cap })
+}
+
+function fiveFiles () {
+  const files = {}
+  for (let i = 0; i < 5; i++) files['f' + i + '.txt'] = 'x'
+  return files
+}
+
+// REGRESSION (FIX-PI6-2): the mirror preview carried none of the file-limit fields, because the two
+// previews assembled their summary separately and only the owned one grew them. So mirroring an
+// over-cap share said nothing, and the user met the short list for the first time inside the folder
+// — where the app has told them about it, correctly, all along.
+test('REGRESSION (FIX-PI6-2): a mirror preview of an over-cap share advises, and does not refuse', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: fiveFiles() })
+  withCap(t, 3)
+
+  const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, ctx.mirrorPath)
+  t.is(preview.totalFiles, 5, 'the TRUE remote count — the preview listing is read uncapped')
+  t.is(preview.fileLimit, 3)
+  t.ok(preview.listingAdvisory, 'the wizard has what it needs to warn')
+  t.absent(preview.overFileLimit, 'but never what it needs to REFUSE — a mount creates no share')
+})
+
+test('a mirror preview under the cap carries no advisory', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: fiveFiles() })
+  withCap(t, 5)
+
+  const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, ctx.mirrorPath)
+  t.is(preview.totalFiles, 5)
+  t.absent(preview.listingAdvisory, 'exactly at the cap lists in full')
+})
+
+// A preview that could not read the listing knows nothing about its size. The trap is a totalFiles
+// of 0 reading as "small" — it means "unknown", and neither field may claim otherwise.
+test('a mirror preview that cannot read the share advises nothing', async (t) => {
+  const ctx = await setupSelfMirror(t)
+  withCap(t, 1)
+
+  const preview = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, 'no-such-share', ctx.mirrorPath)
+  t.is(preview.totalFiles, 0, 'unknown, not small')
+  t.absent(preview.listingAdvisory, 'and nothing is claimed about a listing that was never read')
+  t.absent(preview.overFileLimit)
+})
+
+// The two flows answer one dialog through one component, so a field must never exist on one of them
+// by accident — which is exactly how the mirror side ended up silent about the limit.
+test('both previews return the same fields', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: fiveFiles() })
+  const owned = await previewInitialPublishScan(ctx.spaceId, null, ctx.mountPath, [])
+  const mirror = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, ctx.mirrorPath)
+  t.alike(Object.keys(owned).sort(), Object.keys(mirror).sort())
 })

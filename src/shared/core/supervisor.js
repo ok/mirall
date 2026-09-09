@@ -13,7 +13,10 @@
 // recovery abandons; it does not drain.
 import { Subsystem } from './subsystem.js'
 import { createSupervisionPolicy, DEFAULT_POLICY } from './supervision.js'
-import { getSupervisionProbeIntervalMs } from './runtime-config.js'
+import { getSupervisionProbeIntervalMs, getSupervisionRecoverBudgetMs } from './runtime-config.js'
+import { withReadTimeout } from './with-timeout.js'
+
+const TIMED_OUT = Symbol('recover-timeout')
 
 export class Supervisor extends Subsystem {
   constructor(name, deps) {
@@ -21,6 +24,8 @@ export class Supervisor extends Subsystem {
     this.require('lifecycle')
     this.paused = false
     this.probing = false
+    this.lastProbeAt = 0
+    this.probeStartedAt = 0
     this.overrides = {}
     this.policy = createSupervisionPolicy(this.overrides)
   }
@@ -50,6 +55,13 @@ export class Supervisor extends Subsystem {
       if (!units.length) continue
       if (subsystem.supervisionPolicy) this.overrides[subsystem.name] = subsystem.supervisionPolicy
       for (const unit of units) {
+        // A row with no key would share its id — and therefore its strike counter and its recovery
+        // budget — with every other keyless row from the same subsystem. Dropped with a name, not
+        // silently: a subsystem that returns one is broken and its author needs to hear about it.
+        if (!unit || typeof unit.key !== 'string' || !unit.key) {
+          this.log.warn(subsystem.name, 'returned a supervisable unit with no key — ignored')
+          continue
+        }
         rows.push({ ...unit, name: subsystem.name, id: subsystem.name + ' ' + unit.key, subsystem })
       }
     }
@@ -61,23 +73,49 @@ export class Supervisor extends Subsystem {
     // next probe is a full interval away and the state it reads will be fresher.
     if (this.paused || this.stopping || this.probing) return
     this.probing = true
+    this.probeStartedAt = Date.now()
     try {
       for (const decision of this.policy.evaluate(this.collectRows())) {
         if (!this.actOn(decision)) continue
         // Re-checked inside the loop, not only at entry: this awaits, so a shutdown can begin
         // between two units and the second recovery would re-arm work the teardown already stopped.
-        if (this.paused || this.stopping || decision.row.subsystem.stopping) return
+        if (this.paused || this.stopping) return
+        // One subsystem closing is not a reason to abandon the others. The policy has ALREADY
+        // charged every unit it decided to recover a strike and a slice of its budget, so skipping
+        // the rest of the loop bills them for attempts that never happened.
+        if (decision.row.subsystem.stopping) continue
         const { row } = decision
         this.log.warn('recovering', row.name, row.label || row.key, '-', row.detail || '')
         try {
-          await row.subsystem.recover(row.key)
+          // A recovery that does not settle would hold `probing` for the life of the process and
+          // end supervision for every other unit. Abandoned rather than cancelled: a recovery is
+          // re-armable work, the next probe re-reads the unit's verdict, and the policy has
+          // already spent a strike for this attempt.
+          const done = await withReadTimeout(row.subsystem.recover(row.key), getSupervisionRecoverBudgetMs(), TIMED_OUT)
+          if (done === TIMED_OUT) {
+            this.log.warn('recovery did not return within the budget for', row.name, row.label || row.key)
+          }
         } catch (err) {
           this.log.warn('recovery failed for', row.name, row.label || row.key, '-', err.message)
         }
       }
     } finally {
       this.probing = false
+      this.probeStartedAt = 0
+      this.lastProbeAt = Date.now()
     }
+  }
+
+  // A supervisor that has stopped probing supervises nothing, and every other subsystem's row
+  // would keep reading healthy because nobody is asking. Three intervals of slack: one missed
+  // probe is a busy loop, three is a stopped one.
+  health() {
+    const open = !this.closed && !this.stopping
+    if (!open || this.paused || !this.lastProbeAt) return { ok: open, detail: null }
+    const slack = getSupervisionProbeIntervalMs() * 3
+    const since = Date.now() - Math.max(this.lastProbeAt, this.probeStartedAt)
+    if (since <= slack) return { ok: true, detail: null }
+    return { ok: false, detail: `no probe completed for ${Math.round(since / 1000)}s` }
   }
 
   // Logs the non-acting decisions; returns true only for the ones that need a recovery.
@@ -85,6 +123,13 @@ export class Supervisor extends Subsystem {
     if (action === 'note') {
       const limit = badLimit ?? DEFAULT_POLICY.consecutiveBad
       this.log.warn('unhealthy:', row.name, row.label || row.key, '-', row.detail || '', `(${badCount}/${limit})`)
+      return false
+    }
+    // A unit whose safe recovery has not been built. Stated at full volume with its label, because
+    // the redacted health report cannot name it and this is the only place anyone will read it.
+    if (action === 'observe') {
+      this.log.warn('stalled, no recovery available:', row.name, row.label || row.key, '-', row.detail || '',
+        `(${badCount} consecutive probes)`)
       return false
     }
     if (action === 'gave-up') {

@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import FolderTree from './../../src/renderer/components/widgets/FolderTree.js'
 import { buildFileTree } from './../../src/renderer/fileTree.js'
+import type { Decoration, DecorationPhase } from './../../src/renderer/hooks/useDecorations.js'
 import type { ShareFileEntry, FileTreeNode } from './../../src/renderer/types.js'
 
 interface HarnessResults {
@@ -30,10 +31,11 @@ declare global {
 }
 
 const noop = () => {}
-const callbacks = {
+const base = {
   spaceId: 'space1',
   members: [],
   getDownloadSummary: () => null,
+  isSeeded: () => false,
   onDownload: noop,
   onReveal: noop,
   onPause: noop,
@@ -43,40 +45,54 @@ const callbacks = {
   onToggle: noop,
 }
 
-function entry(relPath: string, status: ShareFileEntry['status'], progress = false): ShareFileEntry {
+function entry(relPath: string, status: ShareFileEntry['status']): ShareFileEntry {
   return {
     relPath,
     size: 2 * 1024 ** 3,
     hash: status === 'preparing' || status === 'publishing' ? '' : 'hash-' + relPath,
     mtime: 0,
     status,
-    ...(progress ? { progress: { bytes: 30, total: 100, speed: 0, eta: 11 } } : {}),
   }
 }
 
+const HUSTLE = 'movies/american-hustle.mp4'
+const ASTERIX = 'movies/asterix.mkv'
+
+// Progress is a per-row PROP now, not a field on the entry, so each tree brings its own lookup —
+// which is also the only way to say what these three cases are about: the SAME path is
+// `publishing` in the owner's tree and `preparing` in the member's, and rowView.js paints a frame
+// only onto a row whose status matches its phase.
+const frame = (phase?: DecorationPhase): Decoration =>
+  ({ bytes: 30, total: 100, speed: 0, avgSpeed: 0, eta: 11, phase })
+const lookup = (byPath: Record<string, Decoration>) => (relPath: string) => byPath[relPath] ?? null
+
+const ownCallbacks = { ...base, getDecoration: lookup({ [HUSTLE]: frame('publishing') }) }
+const memberCallbacks = { ...base, getDecoration: lookup({ [HUSTLE]: frame('preparing') }) }
+const mixedCallbacks = { ...base, getDecoration: lookup({ [HUSTLE]: frame('preparing'), [ASTERIX]: frame() }) }
+
 const ownTree: FileTreeNode[] = buildFileTree([
-  entry('movies/american-hustle.mp4', 'publishing', true),
-  entry('movies/asterix.mkv', 'synced'),
+  entry(HUSTLE, 'publishing'),
+  entry(ASTERIX, 'synced'),
 ])
 const memberTree: FileTreeNode[] = buildFileTree([
-  entry('movies/american-hustle.mp4', 'preparing', true),
-  entry('movies/asterix.mkv', 'remote'),
+  entry(HUSTLE, 'preparing'),
+  entry(ASTERIX, 'remote'),
 ])
 const mixedTree: FileTreeNode[] = buildFileTree([
-  entry('movies/american-hustle.mp4', 'preparing', true),
-  entry('movies/asterix.mkv', 'downloading', true),
+  entry(HUSTLE, 'preparing'),
+  entry(ASTERIX, 'downloading'),
 ])
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8 space-y-4" style={{ width: 1100 }}>
     <div id="own-host" className="space-y-2">
-      <FolderTree {...callbacks} nodes={ownTree} isOwn manualControls={false} />
+      <FolderTree {...ownCallbacks} nodes={ownTree} isOwn manualControls={false} />
     </div>
     <div id="member-host" className="space-y-2">
-      <FolderTree {...callbacks} nodes={memberTree} isOwn={false} manualControls />
+      <FolderTree {...memberCallbacks} nodes={memberTree} isOwn={false} manualControls />
     </div>
     <div id="mixed-host" className="space-y-2">
-      <FolderTree {...callbacks} nodes={mixedTree} isOwn={false} manualControls />
+      <FolderTree {...mixedCallbacks} nodes={mixedTree} isOwn={false} manualControls />
     </div>
   </div>,
 )

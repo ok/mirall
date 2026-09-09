@@ -181,3 +181,101 @@ test('REGRESSION (SUP-1): the supervisor closes first and leaves no probe armed'
   t.is(supervisor.timers.size, 0, 'and its probe interval is gone')
   t.ok(supervisor.timers.closed, 'with the timer set closed, so nothing can re-arm one')
 })
+
+// REGRESSION (FIX-RECOVER-BUDGET: probe() held `probing` across a bare `await recover()`. The base
+// contract permits a recovery that never settles, and one of those ended supervision for every
+// other unit for the rest of the process — silently, because the Supervisor overrode no health().)
+test('REGRESSION (FIX-RECOVER-BUDGET): a recovery that does not return is abandoned', async (t) => {
+  const before = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(before))
+  setRuntimeConfig({ ...before, supervisionRecoverBudgetMs: 20, supervisionProbeIntervalMs: 3_600_000 })
+
+  class Hangs extends Subsystem {
+    supervise () { return [{ key: 'u1', ok: false, detail: 'stuck' }] }
+    recover () { return new Promise(() => {}) }
+  }
+  const hangs = quiet(new Hangs('hangs'))
+  const mirrors = new Wedgeable('mirrors')
+  const { supervisor } = await harness(t, [hangs, mirrors])
+  mirrors.wedge()
+
+  await supervisor.probe()
+  await supervisor.probe()
+  t.is(supervisor.probing, false, 'the probe returned rather than parking on the recovery')
+  t.alike(mirrors.recovered, ['u1'], 'the second subsystem was still reached')
+})
+
+test('a supervisor that has stopped completing probes reports itself unhealthy', async (t) => {
+  const before = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(before))
+  const intervalMs = 3_600_000
+  setRuntimeConfig({ ...before, supervisionProbeIntervalMs: intervalMs })
+
+  const { supervisor } = await harness(t, [])
+  t.ok(supervisor.health().ok, 'a supervisor that has not probed yet is not a stopped one')
+  await supervisor.probe()
+  t.ok(supervisor.health().ok)
+
+  supervisor.lastProbeAt = Date.now() - (intervalMs * 3) - 1000
+  t.absent(supervisor.health().ok, 'three intervals of silence is a stopped supervisor')
+  t.ok(supervisor.health().detail.includes('no probe'), 'and it says so')
+})
+
+test('a unit row with no key is dropped instead of colliding with another', async (t) => {
+  class Sloppy extends Subsystem {
+    supervise () { return [{ ok: false, detail: 'a' }, { ok: false, detail: 'b' }, { key: 'real', ok: false, detail: 'c' }] }
+  }
+  const { supervisor } = await harness(t, [quiet(new Sloppy('sloppy'))])
+  t.alike(supervisor.collectRows().map((r) => r.key), ['real'], 'keyless rows never reach the policy')
+})
+
+test('an observe-only unit is stated in the log with its label and never recovered', async (t) => {
+  class Watched extends Subsystem {
+    constructor (name) { super(name); this.recovered = [] }
+    supervise () { return [{ key: 'space:share', ok: false, detail: 'no progress for 700s', label: 'space:share', recoverable: false }] }
+    async recover (key) { this.recovered.push(key) }
+  }
+  const watched = quiet(new Watched('owned-folders'))
+  const { supervisor } = await harness(t, [watched])
+  const warnings = []
+  supervisor.log = { ...silentLog, warn: (...args) => warnings.push(args.join(' ')) }
+
+  for (let i = 0; i < 4; i++) await supervisor.probe()
+  t.alike(watched.recovered, [], 'a unit with no safe recovery is never acted on')
+  t.ok(warnings.some((w) => w.includes('stalled, no recovery available') && w.includes('space:share')),
+    'but the worker log names it — the redacted health report cannot')
+  t.alike(supervisor.stats().recoveries, {}, 'and no budget was spent on it')
+})
+
+// REGRESSION (FIX-PROBE-CONTINUE: the per-subsystem `stopping` check used `return`, abandoning
+// every remaining recovery in the probe. The policy has ALREADY charged each of those units a
+// strike and a slice of its recovery budget by the time the loop runs, so one subsystem beginning
+// to close billed every unit behind it for an attempt that never happened.)
+test('REGRESSION (FIX-PROBE-CONTINUE): one subsystem closing does not skip the recoveries behind it', async (t) => {
+  const first = new Wedgeable('first')
+  const second = new Wedgeable('second')
+  const { supervisor } = await harness(t, [first, second])
+  first.wedge()
+  second.wedge()
+  // Begins closing between collectRows() and its own recover(), which is the real race.
+  first.recover = async () => { first._stopping = true }
+
+  await supervisor.probe()
+  await supervisor.probe()
+  t.alike(second.recovered, ['u1'], 'the subsystem behind it was still reached')
+  t.is(supervisor.stats().recoveries.second, 1, 'and was billed for an attempt that happened')
+})
+
+test('a supervisor-wide pause still stops the whole probe', async (t) => {
+  const first = new Wedgeable('first')
+  const second = new Wedgeable('second')
+  const { supervisor } = await harness(t, [first, second])
+  first.wedge()
+  second.wedge()
+  first.recover = async (key) => { first.recovered.push(key); supervisor.pause() }
+
+  await supervisor.probe()
+  await supervisor.probe()
+  t.alike(first.recovered, ['u1'])
+  t.alike(second.recovered, [], 'a shutdown is not a per-subsystem skip')
+})

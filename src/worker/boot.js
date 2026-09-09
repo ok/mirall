@@ -58,12 +58,13 @@ import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
 
-// Apply the configured relay set to BOTH swarms. Exported through the root because the
+// Apply the configured relay to BOTH swarms. Exported through the root because the
 // settings handler re-applies it at runtime.
 function applyRelayConfig(log) {
-  const { mode, relays } = getRelayConfig()
-  const res = setRelayThrough(relays, mode)
-  if (res.applied > 0) log.info('relay configured:', res.applied, 'key(s), mode', mode)
+  const { mode, relay } = getRelayConfig()
+  const res = setRelayThrough(relay, mode)
+  if (res.applied > 0) log.info('relay configured: mode', mode, relay?.kind === 'private' ? '(private)' : '(open)')
+  else if (res.reason) log.warn('relay NOT configured:', res.reason)
   return res
 }
 
@@ -266,6 +267,9 @@ export async function boot(bootstrap, {
         membershipControl,
         overlayBackend,
         stalledOwners: listPendingOwnerKeys,
+        // Read straight off the bootstrap frame and stored nowhere else, exactly as
+        // bootstrap.identityKEK is: a private relay's member seed is a bearer credential.
+        relaySeedHex: bootstrap.relaySeed || null,
       }))
       await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend }))
       // After BOTH: getContentSwarm() is null until the content swarm starts, and a relay

@@ -15,6 +15,7 @@ const SHIPPING_LINKS = [
   [{ page: 'guides', anchor: 'fix-a-stuck-join' }, 'https://mirall.app/docs/guides#fix-a-stuck-join'],
   [{ page: 'guides', anchor: 'share-files' }, 'https://mirall.app/docs/guides#share-files'],
   [{ page: 'guides', anchor: 'share-a-folder' }, 'https://mirall.app/docs/guides#share-a-folder'],
+  [{ page: 'guides', anchor: 'run-your-own-relay' }, 'https://mirall.app/docs/guides#run-your-own-relay'],
   [{ page: 'explanation', anchor: 'membership-approval' }, 'https://mirall.app/docs/explanation#membership-approval'],
   [{ page: 'explanation', anchor: 'spaces-members-availability' }, 'https://mirall.app/docs/explanation#spaces-members-availability'],
 ]

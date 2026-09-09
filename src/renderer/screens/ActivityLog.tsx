@@ -7,6 +7,7 @@ import { AUDIT_KINDS } from '../auditKinds.js'
 import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
+import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
@@ -226,38 +227,21 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                 />
               </div>
 
-              <div className="flex flex-wrap gap-1 bg-surface-container-high dark:bg-surface-container-highest p-1 rounded-3xl w-fit">
-                <button
-                  type="button"
-                  aria-pressed={filters.categories.length === 0}
-                  onClick={() => setFilters((prev) => ({ ...prev, categories: [] }))}
-                  className={`px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
-                    filters.categories.length === 0
-                      ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
-                      : 'text-on-surface-variant hover:text-accent font-medium'
-                  }`}
-                >
-                  {t('activityLog.categoryAll')}
-                </button>
-                {AUDIT_CATEGORIES.map((category) => {
-                  const on = filters.categories.includes(category)
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => toggleCategory(category)}
-                      className={`px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
-                        on
-                          ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
-                          : 'text-on-surface-variant hover:text-accent font-medium'
-                      }`}
-                    >
-                      {t('activityLog.category.' + category)}
-                    </button>
-                  )
-                })}
-              </div>
+              <SegmentedControl wrap>
+                <Segment
+                  label={t('activityLog.categoryAll')}
+                  selected={filters.categories.length === 0}
+                  onSelect={() => setFilters((prev) => ({ ...prev, categories: [] }))}
+                />
+                {AUDIT_CATEGORIES.map((category) => (
+                  <Segment
+                    key={category}
+                    label={t('activityLog.category.' + category)}
+                    selected={filters.categories.includes(category)}
+                    onSelect={() => toggleCategory(category)}
+                  />
+                ))}
+              </SegmentedControl>
 
               {active && (
                 <div className="flex flex-wrap items-center gap-2">

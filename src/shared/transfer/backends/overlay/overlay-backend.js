@@ -287,12 +287,13 @@ async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = d
 
 // Folder publish for one file (no view-refresh emit — callers batch that; the terminal decoration
 // `done` fires here in a finally, on success AND throw, so a failed hash can't strand a preparing bar).
-async function publishOne(spaceId, share, relPath, absPath, { catalog = directCatalog, signal, deep = false } = {}) {
+async function publishOne(spaceId, share, relPath, absPath, { catalog = directCatalog, signal, deep = false, beat } = {}) {
   let ticker = null
   try {
     let force = false
     if (deep) {
-      const verdict = await deepVerdict(spaceId, share, relPath, absPath, catalog, signal)
+      const verdict = await deepVerdict(spaceId, share, relPath, absPath, catalog, signal, beat)
+      beat?.()
       if (verdict === 'unchanged') return false
       force = verdict === 'changed'
     }
@@ -311,7 +312,7 @@ async function publishOne(spaceId, share, relPath, absPath, { catalog = directCa
           broadcastSharePrepare(spaceId, { shareId: share.id, relPath, bytes, total, eta })
         })
       },
-      onProgress: (len) => ticker?.push(len),
+      onProgress: (len) => { ticker?.push(len); beat?.() },
     })
     return changed
   } finally {
@@ -429,10 +430,15 @@ export async function compactOverlayIndex() {
 //                 the mtime is unchanged too (the fast path would call that "already published");
 //   'unknown'   — nothing to compare against (no hash yet, size differs, unreadable): the
 //                 ordinary size+mtime publish decides.
-async function compareDeep(spaceId, share, relPath, abs, info, prev, catalog, signal) {
+async function compareDeep(spaceId, share, relPath, abs, info, prev, catalog, signal, beat) {
   if (!prev?.contentHash || prev.size !== info.size) return 'unknown'
   let diskHash
-  try { diskHash = await overlayHashFile(abs, undefined, signal) } catch (err) {
+  // The beat rides the hash's own per-chunk callback rather than sitting on either side of it:
+  // this streams the whole file, and on a large one it is the longest phase of a deep pass by far.
+  // A phase that reports nothing reads as wedged — and the recovery for a wedged publish item
+  // aborts the item's signal, which this hash polls per chunk, so a silent phase here would have
+  // the supervisor kill the very work that was making progress.
+  try { diskHash = await overlayHashFile(abs, beat, signal) } catch (err) {
     if (err?.code === 'ECANCELLED') throw err
     return 'unknown'
   }
@@ -442,11 +448,11 @@ async function compareDeep(spaceId, share, relPath, abs, info, prev, catalog, si
   return 'unchanged'
 }
 
-async function deepVerdict(spaceId, share, relPath, abs, catalog, signal) {
+async function deepVerdict(spaceId, share, relPath, abs, catalog, signal, beat) {
   let st
   try { st = fs.statSync(abs) } catch { return 'unknown' }
   const prev = await catalog.get(spaceId, share.id, relPath)
-  return await compareDeep(spaceId, share, relPath, abs, { size: st.size, mtime: st.mtimeMs }, prev, catalog, signal)
+  return await compareDeep(spaceId, share, relPath, abs, { size: st.size, mtime: st.mtimeMs }, prev, catalog, signal, beat)
 }
 
 export async function overlayListOwn(spaceId, shareId, limit = Infinity) {

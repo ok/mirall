@@ -10,8 +10,8 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useTreeExpansion } from '../hooks/useTreeExpansion.js'
 import Icon from '../components/primitives/Icon.js'
-import IconButton from '../components/primitives/IconButton.js'
 import Button from '../components/primitives/Button.js'
+import EntityHeader from '../components/layout/EntityHeader.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import FolderTree from '../components/widgets/FolderTree.js'
 import FolderWorkStrip from '../components/widgets/FolderWorkStrip.js'
@@ -27,6 +27,7 @@ import { deriveStrips } from '../folderStrips.js'
 import { mountFault } from '../mountFault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
 import { deriveMirrorSync } from '../mirrorSync.js'
+import { rowBytesOnDevice } from '../rowView.js'
 import { request } from '../ipc.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useOwnedMount } from '../hooks/useFolderMount.js'
@@ -34,10 +35,60 @@ import { useIndexProgress } from '../hooks/useIndexProgress.js'
 import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
+import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useToast } from '../components/toast/useToast.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
-import type { FileTreeNode } from '../types.js'
+import type { FileTreeNode, ShareRole } from '../types.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+
+interface FolderEyebrowProps {
+  isYou: boolean
+  ownerName: string
+  spaceName: string | null
+  role: ShareRole
+  mirrorEnabled: boolean
+}
+
+function FolderEyebrow({ isYou, ownerName, spaceName, role, mirrorEnabled }: FolderEyebrowProps) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {isYou ? t('share.sharedByYou') : t('share.ownedBy', { name: ownerName })}
+      {spaceName !== null ? ' · ' + t('space.in', { name: spaceName }) : null}
+      {role === 'mirrored'
+        ? ' · ' + t('share.badgeMirrored') + ' · ' + (mirrorEnabled ? t('share.readOnly') : t('folder.paused'))
+        : null}
+    </>
+  )
+}
+
+interface FolderHeaderActionsProps {
+  role: ShareRole
+  sourceMissing: boolean
+  onMirror?: () => void
+  onLocate: () => void
+  onReveal: () => void
+  menuItems: ActionMenuItemConfig[]
+}
+
+function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal, menuItems }: FolderHeaderActionsProps) {
+  const { t } = useTranslation()
+  if (role === 'browse') {
+    return onMirror
+      ? <Button icon="folder_download" onClick={onMirror}>{t('share.mirrorToDisk')}</Button>
+      : null
+  }
+  return (
+    <>
+      {sourceMissing ? (
+        <Button icon="folder_open" onClick={onLocate}>{t('share.locateFolder')}</Button>
+      ) : (
+        <Button icon="folder_open" onClick={onReveal}>{t('share.openInFinder')}</Button>
+      )}
+      <ActionMenu label={t('share.moreActions')} items={menuItems} ariaLabel={t('share.moreActions')} />
+    </>
+  )
+}
 
 interface FolderViewProps {
   spaceId: string
@@ -52,6 +103,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
+  const { locate, relocate } = useLocateShare(spaceId)
   const { profile } = useProfile()
   const { members } = useMembers(spaceId)
   const { getDownloadSummary } = usePeerDownloads(spaceId)
@@ -61,6 +113,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const isYou = share.role === 'mine'
   const {
     files, info, loading, error,
+    getDecoration, isSeeded,
     downloadFile, revealFile,
     pauseDownload, cancelDownload, discardPartial,
   } = useShareFiles(spaceId, share.owner, share.id, share.role)
@@ -154,8 +207,14 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     [isYou, ownedMountStatus, ownedError, foreignStatus, foreignMount],
   )
   const mirrorSync = useMemo(
-    () => (share.role === 'mirrored' ? deriveMirrorSync(files, { truncated: listingTruncated, enabled: foreignEnabled }) : null),
-    [share.role, files, listingTruncated, foreignEnabled],
+    () => (share.role === 'mirrored'
+      ? deriveMirrorSync(files, {
+          truncated: listingTruncated,
+          enabled: foreignEnabled,
+          bytesOf: (f) => rowBytesOnDevice(f, getDecoration(f.relPath)),
+        })
+      : null),
+    [share.role, files, listingTruncated, foreignEnabled, getDecoration],
   )
   const ownerName = isYou
     ? (profile?.displayName || t('avatar.unknown'))
@@ -222,17 +281,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     }
   }
 
-  async function handleLocate() {
-    const picked = await window.bridge.browseShareFolder()
-    if (!picked) return
-    try {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath: picked })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
   async function handleDelete() {
     try {
       await request('owned-folder:delete', { spaceId, shareId: share.id })
@@ -271,17 +319,13 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   }
 
   async function handleRelocate(mountPath: string) {
-    if (isYou) {
-      await request('owned-folder:relocate', { spaceId, shareId: share.id, mountPath })
-      toast.success(t('share.locateSuccess', { name: share.name }))
-      return
-    }
+    if (isYou) return relocate(share, mountPath)
     await request('foreign-folder:relocate', { spaceId, shareId: share.id, mountPath })
     toast.success(t('share.mirrorLocationSuccess'))
   }
 
   function handleStripAction(action: 'locate' | 'resume' | 'pause') {
-    if (action === 'locate') void handleLocate()
+    if (action === 'locate') void locate(share)
     else void setPaused(action === 'pause')
   }
 
@@ -296,7 +340,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     sourceMissing,
     canMirror: !!onMirror,
     onOpen: handleRevealFolder,
-    onLocate: handleLocate,
+    onLocate: () => { void locate(share) },
     onSetPaused: (next) => { void setPaused(next) },
     onMirror: () => onMirror?.(share),
     onEdit: () => setShowEdit(true),
@@ -332,56 +376,29 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
-      <div className="shrink-0 pt-8 pb-4">
-        <div className="flex items-start gap-4">
-          <IconButton
-            icon="arrow_back"
-            onClick={onBack}
-            ariaLabel={t('actions.back')}
-            className="mt-1 shrink-0"
+      <EntityHeader
+        name={share.name}
+        onBack={onBack}
+        eyebrow={
+          <FolderEyebrow
+            isYou={isYou}
+            ownerName={owner?.displayName || t('avatar.unknown')}
+            spaceName={space ? space.name : null}
+            role={share.role}
+            mirrorEnabled={foreignEnabled}
           />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5">
-              {share.name}
-            </h1>
-            <p className="text-xs font-bold text-secondary tracking-wide uppercase mt-1">
-              {isYou
-                ? t('share.sharedByYou')
-                : t('share.ownedBy', { name: owner?.displayName || t('avatar.unknown') })}
-              {space ? ' · ' + t('space.in', { name: space.name }) : null}
-              {share.role === 'mirrored'
-                ? ' · ' + t('share.badgeMirrored') + ' · ' + (foreignEnabled ? t('share.readOnly') : t('folder.paused'))
-                : null}
-            </p>
-          </div>
-          <div className="flex gap-3 mt-2 shrink-0">
-            {share.role === 'browse' ? (
-              onMirror && (
-                <Button icon="folder_download" onClick={() => onMirror(share)}>
-                  {t('share.mirrorToDisk')}
-                </Button>
-              )
-            ) : (
-              <>
-                {sourceMissing ? (
-                  <Button icon="folder_open" onClick={handleLocate}>
-                    {t('share.locateFolder')}
-                  </Button>
-                ) : (
-                  <Button icon="folder_open" onClick={handleRevealFolder}>
-                    {t('share.openInFinder')}
-                  </Button>
-                )}
-                <ActionMenu
-                  label={t('share.moreActions')}
-                  items={menuItems}
-                  ariaLabel={t('share.moreActions')}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+        actions={
+          <FolderHeaderActions
+            role={share.role}
+            sourceMissing={sourceMissing}
+            onMirror={onMirror ? () => onMirror(share) : undefined}
+            onLocate={() => { void locate(share) }}
+            onReveal={handleRevealFolder}
+            menuItems={menuItems}
+          />
+        }
+      />
 
       {/* The strips are a band, not a reserved slot: no strip, no height. Outside the scroll pane,
           so folder state can never scroll away from the folder it describes.
@@ -489,6 +506,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
                   spaceId={spaceId}
                   members={members}
                   getDownloadSummary={getDownloadSummary}
+                  getDecoration={getDecoration}
+                  isSeeded={isSeeded}
                   onDownload={downloadFile}
                   onReveal={revealFile}
                   onPause={pauseDownload}

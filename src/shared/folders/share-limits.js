@@ -1,11 +1,21 @@
 // The one rule behind the folder-share file limit. The add-folder preview, the worker's mount
 // gate and the renderer all read it from here so they cannot drift: a folder the gate ADMITS
 // must always render in full.
-import { getMaxFilesPerShare } from '../core/runtime-config.js'
+import { getListFilesCap, getMaxFilesPerShare } from '../core/runtime-config.js'
 
 export function exceedsShareFileLimit(fileCount) {
   const limit = getMaxFilesPerShare()
   return Number.isFinite(limit) && fileCount > limit
+}
+
+// The mirror's constraint, and a different one from exceedsShareFileLimit: mounting a peer share
+// creates no share of your own, so admission does not apply — but the display ceiling does, and a
+// mirror of an over-cap share lists short exactly like an owned one would. Reads the display cap
+// rather than the admission limit because that is the ceiling a mirror actually meets — the two are
+// held equal by default, so today they agree, but only one of them is the mirror's reason.
+export function listingWillTruncate(fileCount) {
+  const cap = getListFilesCap()
+  return Number.isFinite(cap) && fileCount > cap
 }
 
 export function shareFileLimitMessage(fileCount) {

@@ -9,13 +9,35 @@ export interface RelayTestVerdict {
   ok: boolean
 }
 
-export interface RelayEntry {
-  id: string
-  label: string
+export type RelayKind = 'open' | 'private'
+
+export interface RelaySlot {
   publicKey: string
+  kind: RelayKind
+  label: string
   enabled: boolean
   lastTest: RelayTestVerdict | null
 }
+
+// `incomplete-invite` never reaches the wire: mirall-relay's vocabulary is the other three.
+// It exists so a paste that lost characters is told to copy the whole thing rather than that it
+// "is not a relay key or an invite".
+export type RelayParseErrorCode = 'invalid-format' | 'unsupported-version' | 'checksum-failed' | 'incomplete-invite' | 'save-failed'
+
+export type RelayParseResult =
+  | { ok: true; kind: RelayKind; publicKey: string }
+  | { ok: false; code: RelayParseErrorCode }
+
+export interface RelaySetPayload {
+  mode: RelayMode
+  // Omitted → the stored slot is kept and only the mode (or lastTest) changes; null → removed.
+  relay?: { input: string; label: string } | null
+  lastTest?: RelayTestVerdict | null
+}
+
+export type RelaySetResult =
+  | { ok: true; network: RendererConfig['network']; identityChanged: boolean }
+  | { ok: false; code: RelayParseErrorCode }
 
 export interface RendererConfig {
   appearance: { theme: ThemeMode; locale: string | null }
@@ -23,25 +45,25 @@ export interface RendererConfig {
   ui: { lastSeenVersion: string | null; feedbackEmail: string }
   // Bandwidth caps share this group; main owns them via its own setBandwidth path,
   // so they are readable here but never written through setConfig.
-  network: { downloadKBps: number; uploadKBps: number; relayMode: RelayMode; relays: RelayEntry[] }
+  network: { downloadKBps: number; uploadKBps: number; relayMode: RelayMode; relay: RelaySlot | null }
   // Read-only: main populates it from feature-flags.json and setRenderer has no
-  // counterpart, so the renderer can observe a flag but never write one.
-  features: { relay: boolean }
+  // counterpart, so the renderer can observe a flag but never write one. Empty since the
+  // relay flag retired; a new field is added here and to RENDERER_FEATURES together.
+  features: Record<string, boolean>
 }
 
 export interface RendererConfigPatch {
   appearance?: { theme?: ThemeMode; locale?: string }
   notifications?: NotificationPrefs
   ui?: { lastSeenVersion?: string; feedbackEmail?: string }
-  network?: { relayMode?: RelayMode; relays?: RelayEntry[] }
 }
 
 const FALLBACK: RendererConfig = {
   appearance: { theme: 'system', locale: null },
   notifications: null,
   ui: { lastSeenVersion: null, feedbackEmail: '' },
-  network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [] },
-  features: { relay: false },
+  network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null },
+  features: {},
 }
 
 // INVARIANT — read this before adding a setting or "optimizing" a setter.
@@ -59,11 +81,6 @@ const cache: RendererConfig = window.bridge?.getConfig?.() ?? FALLBACK
 
 function persist(patch: RendererConfigPatch): void {
   window.bridge?.setConfig?.(patch)
-}
-
-async function persistAndAdopt(patch: RendererConfigPatch): Promise<RendererConfig> {
-  const stored = await window.bridge?.setConfig?.(patch)
-  return stored ?? cache
 }
 
 // One-time fold of the pre-unification localStorage keys into config.json, then
@@ -160,28 +177,28 @@ export function setFeedbackEmail(email: string): void {
   persist({ ui: { feedbackEmail: email } })
 }
 
-// Flags reach the renderer through the boot snapshot (sendSync), so a gated section
-// resolves on first paint rather than mounting absent and popping in.
-export function isRelayFeatureEnabled(): boolean {
-  return cache.features.relay === true
-}
-
 export function getRelayMode(): RelayMode {
   return cache.network.relayMode
 }
 
-export function getRelays(): RelayEntry[] {
-  return cache.network.relays
+export function getRelay(): RelaySlot | null {
+  return cache.network.relay
 }
 
-// One round trip for both fields, and the cache adopts what main actually stored —
-// main drops duplicates, caps the list and truncates labels, so the optimistic array
-// can differ from the persisted one.
-export async function persistRelayConfig(mode: RelayMode, relays: RelayEntry[]): Promise<RelayEntry[]> {
-  cache.network.relayMode = mode
-  cache.network.relays = relays
-  const stored = await persistAndAdopt({ network: { relayMode: mode, relays } })
-  cache.network.relayMode = stored.network.relayMode
-  cache.network.relays = stored.network.relays
-  return stored.network.relays
+// Goes through its own IPC rather than setConfig: writing the slot also writes the member
+// seed to the safeStorage vault. The cache is still updated here, because the INVARIANT above
+// is what keeps the section from reverting to its boot value on the next remount.
+export async function setRelay(payload: RelaySetPayload): Promise<RelaySetResult> {
+  const result = await window.bridge?.setRelay?.(payload)
+  if (!result) return { ok: false, code: 'invalid-format' }
+  if (result.ok) {
+    cache.network.relayMode = result.network.relayMode
+    cache.network.relay = result.network.relay
+  }
+  return result
+}
+
+export async function parseRelayInput(input: string): Promise<RelayParseResult> {
+  const result = await window.bridge?.parseRelayInput?.(input)
+  return result ?? { ok: false, code: 'invalid-format' }
 }

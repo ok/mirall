@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createPublishScheduler } from '../../src/shared/folders/publish-scheduler.js'
+import { createPublishScheduler, publishSlotKey } from '../../src/shared/folders/publish-scheduler.js'
 import { OP, PRIORITY } from '../../src/shared/folders/work-item.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -558,4 +558,287 @@ test('REGRESSION (FIX-INDEX-CANCEL): cancelling a share reports the emptied lane
   t.ok(reports.length > before, 'the cancel reported')
   t.is(reports[reports.length - 1].adding, 0, 'and reported the lane as empty')
   await g.releaseAll()
+})
+
+const WINDOW = 10 * 60 * 1000
+
+test('an item that never settles is reported stalled once the window passes', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a.bin'))
+  await sleep(10)
+
+  t.alike(s.stalledItems({ windowMs: WINDOW }), [], 'an item that just started is not a wedged one')
+  const rows = s.stalledItems({ now: Date.now() + WINDOW + 1, windowMs: WINDOW })
+  t.alike(rows.map((r) => r.relPath), ['a.bin'])
+  t.is(rows[0].shareId, 'sh', 'the row names the unit for the worker log')
+  t.ok(rows[0].detail.startsWith('no progress for'))
+  await g.releaseAll()
+})
+
+test('an item that beats is never stalled, however long its hash takes', async (t) => {
+  const beats = []
+  const holds = []
+  const execute = (item, { beat }) => { beats.push(beat); return new Promise((resolve) => holds.push(resolve)) }
+  const s = createPublishScheduler({ execute, concurrency: () => 1 })
+  s.enqueue(spec('A', 'big.bin'))
+  await sleep(10)
+  t.is(beats.length, 1, 'the executor is handed its item\'s heartbeat')
+
+  t.is(s.stalledItems({ now: Date.now() + WINDOW + 1, windowMs: WINDOW }).length, 1,
+    'a pass that has reported nothing is wedged')
+  beats[0]()
+  t.alike(s.stalledItems({ now: Date.now() + WINDOW - 1000, windowMs: WINDOW }), [],
+    'one beat re-armed the window — a multi-gigabyte hash is slow, not stuck')
+  for (const resolve of holds) resolve({ outcome: 'published' })
+  await sleep(10)
+})
+
+// REGRESSION (FIX-PUBLISH-WEDGE: three items that never settled held both bulk slots and the
+// express lane, so publishing stopped for EVERY space until the app restarted. No crash, no log
+// line, health() said ok — the only cure was a restart.)
+test('REGRESSION (FIX-PUBLISH-WEDGE): evicting one wedged item resumes the lane for every space', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'bulk-1'))
+  s.enqueue(spec('A', 'bulk-2'))
+  await sleep(10)
+  s.enqueue(spec('A', 'watched', { priority: PRIORITY.INTERACTIVE }))
+  await sleep(10)
+  t.is(g.started.length, 3, 'both bulk slots and the express lane, all held by items that never settle')
+
+  s.enqueue(spec('B', 'other', { priority: PRIORITY.INTERACTIVE }))
+  await sleep(10)
+  t.absent(g.started.includes('B/other'), 'and nothing else can start, in any space')
+
+  t.is(s.evict(publishSlotKey('A', 'sh', 'watched')), true)
+  await sleep(10)
+  t.ok(g.started.includes('B/other'), 'the reclaimed slot went to the space that was starved')
+  await g.releaseAll()
+})
+
+test('an evicted item keeps its path guarded until its executor returns', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  const ticket = s.enqueue(spec('A', 'a'))
+  await sleep(10)
+
+  t.is(s.evict(publishSlotKey('A', 'sh', 'a')), true)
+  t.alike(await ticket.settled, { outcome: 'cancelled' }, 'callers waiting on this run are released now')
+
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  t.is(g.started.filter((p) => p === 'A/a').length, 1, 'the path never gets a second executor')
+
+  await g.release('A/a')
+  await sleep(10)
+  t.is(g.started.filter((p) => p === 'A/a').length, 2, 'its one queued rerun starts once the zombie returns')
+  await g.releaseAll()
+})
+
+test('an evicted item is reported stalled, not as queued work nothing is doing', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  t.alike([s.statusFor('A', 'sh').running, s.statusFor('A', 'sh').stalled, s.statusFor('A', 'sh').queued], [1, 0, 0])
+
+  s.evict(publishSlotKey('A', 'sh', 'a'))
+  const after = s.statusFor('A', 'sh')
+  t.alike([after.running, after.stalled, after.queued], [0, 1, 0], 'it holds no slot and has not returned')
+  await g.releaseAll()
+  await sleep(10)
+  t.alike([s.statusFor('A', 'sh').running, s.statusFor('A', 'sh').stalled], [0, 0], 'and is gone once it does')
+})
+
+test('evicting a key that is not running is a no-op', (t) => {
+  const s = createPublishScheduler({ execute: async () => ({ outcome: 'published' }) })
+  t.is(s.evict(publishSlotKey('A', 'sh', 'nope')), false)
+})
+
+// REGRESSION (FIX-EVICTED-ADDING: the queue's `adding` counter is decremented only by settle(),
+// which an evicted item's never-returning executor never reaches. statusFor therefore reported the
+// self-contradictory { running: 0, queued: 0, stalled: 1, adding: 1 }, and both owner-side announce
+// paths gate on `adding > 0` — so the share re-broadcast "indexing 1 file" to every member every
+// five seconds for the life of the process, for a file the recovery had given up on.)
+test('REGRESSION (FIX-EVICTED-ADDING): an evicted item stops counting as work still being added', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  t.is(s.statusFor('A', 'sh').adding, 1, 'a running publish is work being added')
+
+  s.evict(publishSlotKey('A', 'sh', 'a'))
+  const after = s.statusFor('A', 'sh')
+  t.is(after.adding, 0, 'an evicted one is not — the indexing indicator must be able to stop')
+  t.is(after.stalled, 1, 'it is reported as stalled instead, which is what it is')
+  await g.releaseAll()
+})
+
+test('a retire evicted from its slot never counted as an addition anyway', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'gone', { op: OP.RETIRE }))
+  await sleep(10)
+  t.is(s.statusFor('A', 'sh').adding, 0)
+  s.evict(publishSlotKey('A', 'sh', 'gone'))
+  t.is(s.statusFor('A', 'sh').adding, 0, 'and the discount cannot push it negative')
+  await g.releaseAll()
+})
+
+// REGRESSION (FIX-SLOT-KEY-SPACE: the lane's liveness map is one map across every space, but it was
+// keyed on the item's own key — shareId + relPath — which carries no space. Every space's loose
+// files share the one LOOSE_SHARE_ID, so two spaces holding a same-named loose file collided on a
+// single entry: one space's settle deleted the other's heartbeat, and the still-running item then
+// read healthy forever. That is the precise defect this feature exists to catch, reintroduced.)
+test('REGRESSION (FIX-SLOT-KEY-SPACE): a same-named path in two spaces is two units, not one', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 4 })
+  const loose = '__loose__'
+  s.enqueue({ spaceId: 'A', shareId: loose, relPath: 'notes.txt', op: OP.PUBLISH, size: 1 })
+  s.enqueue({ spaceId: 'B', shareId: loose, relPath: 'notes.txt', op: OP.PUBLISH, size: 1 })
+  await sleep(10)
+  t.is(g.started.length, 2, 'both spaces are publishing their own copy')
+
+  // A settles; B is still running and must keep its own heartbeat.
+  await g.release('A/notes.txt')
+  await sleep(10)
+
+  const far = Date.now() + WINDOW + 1
+  const rows = s.stalledItems({ now: far, windowMs: WINDOW })
+  t.is(rows.length, 1, 'B is still visible as a unit after A settled under the same path')
+  t.is(rows[0]?.spaceId, 'B')
+  t.not(rows[0]?.key, publishSlotKey('A', loose, 'notes.txt'), 'the two spaces never shared a key')
+  await g.releaseAll()
+})
+
+// REGRESSION (FIX-EVICTED-ROW: an evicted item was dropped from the reported units the moment it
+// was evicted. The supervision policy prunes the counters of any unit nobody reports any more, so
+// the recovery budget reset on every attempt — maxRecoveries could never be reached and the error
+// line naming the stuck file could never print. health() flipped back to ok in the same breath,
+// while the executor was still holding the file.)
+test('REGRESSION (FIX-EVICTED-ROW): an evicted item stays reported until its executor returns', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  const key = publishSlotKey('A', 'sh', 'a')
+  t.is(s.evict(key), true)
+
+  // Reported without consulting the heartbeat: the point is that it is still out there, and a
+  // zombie that resumes beating must not erase its own record.
+  const rows = s.stalledItems({ windowMs: WINDOW })
+  t.is(rows.length, 1, 'still one unit, immediately after eviction and inside the window')
+  t.is(rows[0]?.key, key)
+  t.is(rows[0]?.evicted, true, 'flagged so the service can report it as beyond recovery')
+
+  await g.releaseAll()
+  await sleep(10)
+  t.alike(s.stalledItems({ windowMs: WINDOW }), [], 'and it leaves only when the executor returns')
+})
+
+// An executor that can be released per invocation, not per path: the eviction cases run two
+// executors over the SAME path (a zombie and its replacement), which a path-keyed gate cannot hold.
+function invocations () {
+  const started = []
+  const holds = []
+  const execute = async (item) => {
+    started.push(item.spaceId + '/' + item.relPath)
+    await new Promise((resolve) => holds.push(resolve))
+    return { outcome: 'published' }
+  }
+  return {
+    execute,
+    started,
+    releaseFirst: async () => { holds.shift()?.(); await sleep(0) },
+    releaseAll: async () => { for (const r of holds.splice(0)) r(); await sleep(0) },
+  }
+}
+
+// REGRESSION (FIX-EVICT-CEILING: nothing bounded how many executors could be abandoned. Before this
+// verb a wedged item held its slot, which capped the stuck executors at the width of the lane;
+// freeing slots without a ceiling let a dead mount accumulate one more — with its file handle and
+// its read buffers — every stall window, for the life of the process.)
+test('REGRESSION (FIX-EVICT-CEILING): the lane never abandons more executors than it has slots', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  s.enqueue(spec('A', 'b'))
+  await sleep(10)
+  s.enqueue(spec('A', 'c', { priority: PRIORITY.INTERACTIVE }))
+  await sleep(10)
+  t.is(g.started.length, 3, 'both bulk slots and the express lane')
+
+  t.is(s.evict(publishSlotKey('A', 'sh', 'a')), true)
+  t.is(s.evict(publishSlotKey('A', 'sh', 'b')), true)
+  t.is(s.evict(publishSlotKey('A', 'sh', 'c')), false, 'at the ceiling the item keeps its slot')
+
+  const rows = s.stalledItems({ now: Date.now() + WINDOW + 1, windowMs: WINDOW })
+  t.is(rows.length, 3, 'and it is still reported, so the supervisor spends its budget and gives up')
+  t.is(rows.filter((r) => r.evicted).length, 2)
+  await g.releaseAll()
+})
+
+// REGRESSION (FIX-DRAIN-EVICTED: stop() and cancelSpace() watch `running`, which an evicted item
+// has already left — so a drain reported itself complete while that item's executor was still
+// reading the file. PublishService._close returned at once and the lifecycle closed the store
+// underneath a live read.)
+test('REGRESSION (FIX-DRAIN-EVICTED): stop() waits for an evicted executor too', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  s.evict(publishSlotKey('A', 'sh', 'a'))
+
+  let drained = false
+  s.stop({ settleMs: 3000 }).then(() => { drained = true })
+  await sleep(40)
+  t.absent(drained, 'the executor is still on the file, so the lane has not drained')
+
+  await g.releaseAll()
+  await sleep(20)
+  t.ok(drained, 'and it drains the moment the executor returns')
+})
+
+test('cancelSpace waits for an evicted executor of that space', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  s.evict(publishSlotKey('A', 'sh', 'a'))
+
+  let done = false
+  s.cancelSpace('A', { settleMs: 3000 }).then(() => { done = true })
+  await sleep(40)
+  t.absent(done, 'the space is not clear while its executor is still out there')
+  await g.releaseAll()
+  await sleep(20)
+  t.ok(done)
+})
+
+// REGRESSION (FIX-SETTLE-OWN-QUEUE: the settle in run()'s finally looked the queue up by space, but
+// cancelSpace DELETES a space's queue. A late-returning item then settled against the queue that
+// replaced it — decrementing counters for work that queue never admitted, and deleting the byKey
+// entry of the live item holding that same path, which is the guard that makes one path one
+// executor.)
+test('REGRESSION (FIX-SETTLE-OWN-QUEUE): a late item settles against the queue it was taken from', async (t) => {
+  const inv = invocations()
+  const s = createPublishScheduler({ execute: inv.execute, concurrency: () => 2 })
+  s.enqueue(spec('A', 'a'))
+  await sleep(10)
+  // Awaited alongside a ref'd timer: cancelSpace's settle timer is unref'd, so awaiting it while
+  // the only other pending work is a promise would empty the event loop.
+  const cancelled = s.cancelSpace('A', { settleMs: 10 })
+  await sleep(40)
+  await cancelled                                  // the space's queue is dropped, 'a' still runs
+
+  s.enqueue(spec('A', 'a'))                        // a fresh queue, a fresh item for the same path
+  await sleep(10)
+  t.is(inv.started.length, 2, 'the new item started')
+  t.ok(s.isPending('A', 'sh', 'a'), 'and owns the path')
+
+  await inv.releaseFirst()                         // the ZOMBIE returns
+  await sleep(10)
+  t.ok(s.isPending('A', 'sh', 'a'), 'the late settle did not delete the live item holding that path')
+  await inv.releaseAll()
 })

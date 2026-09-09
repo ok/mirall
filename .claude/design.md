@@ -186,11 +186,18 @@ mapped in `tailwind.config.js`:
   Weights **400–600**. All body and UI text.
 
 There is **no named type scale** (no `display-lg`, `body-lg`, etc.). Headings use
-plain Tailwind sizes + `font-headline`:
+plain Tailwind sizes + `font-headline`.
+
+Two page-title treatments, and which one a screen takes is decided by whether the title is a
+translated constant or a name someone typed. A settings page uses `PageHeader`. A screen *about
+something* — a space, a folder — uses `EntityHeader`, which adds a back button, an eyebrow line, an
+actions cluster, and the three classes a user-supplied name needs: `truncate`, plus `leading-tight`
+and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` introduces.
 
 | Use | Classes | Where |
 |---|---|---|
 | Page title | `text-4xl font-headline font-extrabold text-accent tracking-tight` (`md:text-5xl` on onboarding) | `components/layout/PageHeader.tsx` |
+| Entity title (a name someone typed) | `text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5` | `components/layout/EntityHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
 | Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |
@@ -432,6 +439,31 @@ a 48×28 pill track on the right (`bg-primary` on / `bg-surface-container-high`
 off) with a 20px translating thumb. Hover lifts to
 `bg-surface-container-high/50`.
 
+**A control's supporting text belongs on the control**, in that `description` — not in a
+separate advisory block near it. A box that explains a switch two elements further down
+describes something the reader has not reached yet, and if the box only appears once the
+switch is on it explains a decision already made.
+
+### Settings section composition
+`SectionHeading` → **one** `bg-surface-container-low rounded-xl overflow-hidden` surface, and
+everything the section says or offers lives on it: intro prose (`px-6 pt-6 pb-5`), then the
+controls as rows, then the trailing note (`px-6 pt-5 pb-6 text-xs`). Rows own their padding —
+`p-6` for a `Toggle`, `px-6 py-5` for a row with a control on the right — and carry
+`border-t border-outline-variant/40` between them. `NetworkSettings` is the reference: both its
+sections keep their note inside the card.
+
+Prose does **not** float on the page between the heading and the card, and a control does
+**not** get a tinted card of its own inside the section's card: a second surface nested in the
+first reads as a grouping that means nothing, and `surface-container-high/40` on
+`surface-container-low` is the combination that shows it. Tinted blocks are for modal panels
+and status banners, which sit on a different ground. (`ActivityLogSettings` uses the same one
+surface but hangs its note outside as `mt-3 text-xs`; prefer the note inside.)
+
+**A row whose control is switched off dims with it** — `opacity-50` on the row's identity and
+its badges, and a status badge that says so rather than one still claiming a verdict that is no
+longer being applied. Whatever *manages* the row — its overflow menu — stays at full strength:
+dimming is a statement about the setting, never a reason to strip the only way to change it.
+
 ### Dropdown button — `widgets/ActionMenu.tsx`
 The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
 trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a
@@ -446,13 +478,26 @@ trailing `keyboard_arrow_down` that rotates 180° when open:
 Menu items may omit `icon`; a fixed-size blank keeps labels aligned, which is how a
 single-choice menu marks only the selected row with `check`.
 
-### Segmented control — inline pattern (no primitive)
-Not a shared primitive — implemented inline in `screens/AppearanceSettings.tsx`
-(theme + zoom selectors) and `components/modals/InviteModal.tsx` (expiry group).
-A pill `bg-surface-container-high p-1 rounded-full` of `aria-pressed` buttons in
-a plain flex `div` (no `role="group"`, no description line); the selected button
-lifts to `bg-surface-container-lowest shadow-sm font-semibold`, others
-`text-on-surface-variant`.
+### Segmented control — `primitives/SegmentedControl.tsx`
+A pill `bg-surface-container-high p-1 rounded-full` of `aria-pressed` `<Segment>`
+buttons (no `role="group"`, no description line); the selected one lifts to
+`bg-surface-container-lowest shadow-sm font-semibold`, the others stay
+`text-on-surface-variant font-medium`. Used by Appearance (theme + zoom), Network
+(transfer caps, relay mode), Activity Log settings (retention) and the Activity Log
+category filters — the last through `wrap`, which softens the track to `rounded-3xl`
+because `rounded-full` on a two-row group reads as a lozenge.
+
+**A segment reserves its selected width in every state.** The weight change is the
+whole reason this is a primitive: sized to the weight it is currently painting, each
+press widened one label and narrowed its neighbour, so the whole track resized under
+the pointer. Each label therefore renders twice in one grid cell — the visible copy
+and an `invisible font-semibold` ghost that fixes the width (and, being
+`visibility: hidden`, stays out of the accessibility tree). `npm run test:layout:segments`
+pins it in real Chromium.
+
+`components/modals/InviteModal.tsx` keeps its own expiry group: `flex-1` equal-width
+segments in a `rounded-xl` track, `font-bold` in both states — a different shape that
+cannot jitter.
 
 ### Inputs
 No dedicated primitive — inputs are styled inline and consistently:
@@ -467,6 +512,11 @@ and carries the full path for assistive tech), with an optional button beside it
 Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings. There is no
 second form — a bare line of path text next to a `secondary` button is the drift this replaced, and
 it read as a different kind of thing depending on which door you came through.
+
+The two mount wizards reach it through **`widgets/MountPathField.tsx`**, which adds the field's
+headline label and its `role="alert"` validation line. The label is a `<span>` with an id rather
+than a `<label>`, because the row's action is a button, not a form control — the association goes
+through `aria-describedby`.
 
 `FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
 segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
@@ -519,13 +569,20 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   as its final action, and a two-state dialog wires the "Done" of its second state.
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
-- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`); body
-  `px-10 pb-10 space-y-{4–8}`. Three footer shapes:
+- Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`) — **one component,
+  `components/layout/ModalHeader.tsx`**, used by every dialog including the purge confirm that
+  `screens/ActivityLogSettings.tsx` mounts inline; `keyboard/ShortcutsHint.tsx` and
+  `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either a
+  `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two sizes,
+  and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
+  Three footer shapes:
   1. A single full-width `lg` button.
   2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
   3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)
-     at default `sm` size, the action carrying a trailing `arrow_forward`.
-     Used by Add Folder / Mirror Folder and their shared scan-preview step.
+     at default `sm` size, the action carrying a trailing `arrow_forward`. Owned by
+     **`modals/MountWizardStep.tsx`** (header + body slot + this footer), which Add Folder and
+     Mirror to Disk both render; their shared second step is `modals/ScanPreviewModal.tsx`, and the
+     state machine behind both — validate, scan, commit — is `hooks/useMountWizard.ts`.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
 - Progress modals (Leave / Reclaim / Clear cache) animate through
@@ -580,9 +637,11 @@ silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
 states animate `avatar-issue-pulse-error` / `-warning` (2.4s pulse, CSS in
 `tailwind.css`).
 
-### Badges & status pills — `primitives/Badge.tsx`, `StatusBadge.tsx`, `src/renderer/statusBadge.js`
+### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/statusBadge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and
-**always `border border-outline`** (a deliberate border). `statusBadge.js` maps
+**always `border border-outline`** (a deliberate border). A file row's pill also carries
+`srLabel` — `"<filename>: <status>"` — because it sits apart from the name it describes and
+announces a bare state without it; `cards/RowLane.tsx` renders every one of them. `statusBadge.js` maps
 file/share state onto a **fixed 5-token palette**, each token one fixed meaning:
 🟢 `bg-success` (on your device — `mine` + `downloaded`/`synced`),
 🔵 `bg-info` (busy — `downloading` / `verifying` (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) /

@@ -1,5 +1,5 @@
 import { request } from './ipc.js'
-import type { DiagnosticLogEntry } from './types.js'
+import type { ApplyErrorReport, DiagnosticLogEntry } from './types.js'
 
 export interface BundleOptions {
   redact: boolean
@@ -10,6 +10,7 @@ export interface DiagnosticsBundle {
   schema: number
   reference: string | null
   logs: DiagnosticLogEntry[] | null
+  lastApplyError?: ApplyErrorReport
   [key: string]: unknown
 }
 
@@ -20,7 +21,11 @@ export async function buildBundle({ redact, includeLogs }: BundleOptions): Promi
   // outlast the default request budget.
   const core = await request('diagnostics:export', { redact }, 0) as DiagnosticsBundle
   const logs = includeLogs ? await window.bridge.getDiagnosticLogs({ redact }) : null
-  return { ...core, logs }
+  // Absent, not null, when there is nothing to report: a key that appears in every bundle stops
+  // being read, and a failed update apply is meant to stand out.
+  const lastApplyError = await window.bridge.getLastApplyError({ redact })
+  if (!lastApplyError) return { ...core, logs }
+  return { ...core, logs, lastApplyError }
 }
 
 export function serialiseBundle(bundle: DiagnosticsBundle): string {

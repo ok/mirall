@@ -7,6 +7,7 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
 const SPACEVIEW = 'src/renderer/screens/SpaceView.tsx'
 const FOLDERVIEW = 'src/renderer/screens/FolderView.tsx'
+const ENTITYHEADER = 'src/renderer/components/layout/EntityHeader.tsx'
 const SPACECARD = 'src/renderer/components/cards/SpaceCard.tsx'
 const CREATESPACE = 'src/renderer/components/modals/CreateSpaceModal.tsx'
 
@@ -26,13 +27,17 @@ const titleClass = (src, size) => {
   return src.match(re)?.[1] ?? null
 }
 
+// The two screens that title a name now share one header, so the property lives in one file. Both
+// halves still have to hold: the class is right, AND the screens actually reach it — otherwise this
+// passes over a component nobody renders.
 test('REGRESSION (FIX-1): text-4xl space/folder titles get leading-tight + pb headroom', (t) => {
+  const cls = titleClass(read(ENTITYHEADER), 'text-4xl')
+  t.ok(cls, 'EntityHeader has a text-4xl font-headline title')
+  t.ok(cls.includes('truncate'), 'the title still truncates long names')
+  t.ok(cls.includes('leading-tight'), 'the title loosens the tight text-4xl line box')
+  t.ok(/\bpb-\d/.test(cls), 'the title has bottom padding for clip headroom')
   for (const [name, path] of [['SpaceView', SPACEVIEW], ['FolderView', FOLDERVIEW]]) {
-    const cls = titleClass(read(path), 'text-4xl')
-    t.ok(cls, `${name} has a text-4xl font-headline title`)
-    t.ok(cls.includes('truncate'), `${name} title still truncates long names`)
-    t.ok(cls.includes('leading-tight'), `${name} title loosens the tight text-4xl line box`)
-    t.ok(/\bpb-\d/.test(cls), `${name} title has bottom padding for clip headroom`)
+    t.ok(read(path).includes('<EntityHeader'), `${name} takes its title from EntityHeader`)
   }
 })
 

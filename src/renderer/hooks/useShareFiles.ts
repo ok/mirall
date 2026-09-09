@@ -1,7 +1,7 @@
 // A folder share's file listing. The query store holds the raw share:list-files response; this hook
 // keeps the parts that are judgements about what a folder listing MEANS — the never-blank fold
 // across successive reads, the header totals derived from both, and which failures are terminal —
-// and paints per-file progress from the decoration channel at render.
+// and hands out the per-row decoration lookups the rows derive their lane from.
 import { useState, useCallback, useMemo } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
@@ -116,39 +116,20 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     await refetchQuery<ListResult>('share:list-files', { spaceId, ownerKey, shareId }, scopes).catch(() => {})
   }, [ready, spaceId, ownerKey, shareId, scopes])
 
-  // Per-file transfer progress rides the unified decoration channel (keyed shareId:relPath) and is
-  // merged at render — never into the list state, so a late frame can't outlive a refresh. The gate
-  // on the worker-derived status keeps a lingering decoration (missed `done`) invisible: a row that
-  // is no longer downloading/verifying simply stops rendering it. `decorations` is prefix-scoped to
-  // this share, so the memo recomputes only for this share's frames or a fresh listing.
-  const decorated = useMemo(() => files.map((f) => {
-    const d = decorations.get(shareDecoKey(shareId, f.relPath))
-    // The seed only paints while there is no real frame yet and the row has not left the transfer
-    // states — a decoration, or any other status, outranks it.
-    if (!d && seeded.has(f.relPath) && (f.status === 'downloading' || f.status === 'preparing')) {
-      return { ...f, progress: { bytes: f.pendingBytes ?? 0, total: f.size, speed: 0, eta: null } }
-    }
-    if (!d) return f
-    // Match the decoration phase to the row's status: the shared key has no receiver-side terminal
-    // done, so a lingering cross-phase frame (a preparing frame left on a now-downloading row) must
-    // not paint the wrong bar. A downloading row takes only a download/verify frame; a preparing row
-    // only a preparing frame.
-    if (f.status === 'downloading') {
-      if (d.phase === 'verifying') {
-        return { ...f, verifyFraction: d.verifyFraction ?? 0, progress: { bytes: d.bytes, total: f.size, speed: 0, eta: null, phase: 'verifying' as const } }
-      }
-      if (d.phase == null) {
-        return { ...f, verifyFraction: undefined, progress: { bytes: d.bytes, total: d.total, speed: d.speed, avgSpeed: d.avgSpeed, eta: d.eta } }
-      }
-      return f
-    }
-    // Indexing rows take only their own side's frame: 'publishing' is our hash of our own file,
-    // 'preparing' is the owner's hash of theirs.
-    if ((f.status === 'preparing' && d.phase === 'preparing') || (f.status === 'publishing' && d.phase === 'publishing')) {
-      return { ...f, verifyFraction: undefined, progress: { bytes: d.bytes, total: d.total, speed: 0, eta: d.eta } }
-    }
-    return f
-  }), [files, decorations, shareId, seeded])
+  // The decoration for one row, or null. Handed out as an accessor rather than merged into the row:
+  // merging built a NEW row object on every frame, which rebuilt the whole file tree and re-ran the
+  // filter walk — two O(n) passes per frame over a listing capped at 5,000 rows — for a change that
+  // only ever affects one row's right-hand lane. Which phase a frame may paint is rowView.js's
+  // judgement, not this hook's.
+  //
+  // useCallback, unlike useDecorations' own getDecoration (a fresh arrow per render, which is fine
+  // there because SpaceView only ever passes its RESULT down): FolderView's mirrorSync memo takes
+  // this as a dependency, so it has to change exactly when the decorations do and not once per render.
+  const getDecoration = useCallback(
+    (relPath: string) => decorations.get(shareDecoKey(shareId, relPath)) ?? null,
+    [decorations, shareId],
+  )
+  const isSeeded = useCallback((relPath: string) => seeded.has(relPath), [seeded])
 
   const downloadFile = useCallback(
     async (relPath: string) => {
@@ -181,5 +162,5 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     await request('share:discard-partial', { spaceId, ownerKey, shareId, relPath })
   }, [spaceId, ownerKey, shareId])
 
-  return { files: decorated, info, loading, error, refresh, downloadFile, revealFile, pauseDownload, cancelDownload, discardPartial }
+  return { files, info, loading, error, refresh, getDecoration, isSeeded, downloadFile, revealFile, pauseDownload, cancelDownload, discardPartial }
 }

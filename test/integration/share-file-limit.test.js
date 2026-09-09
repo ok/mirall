@@ -8,6 +8,7 @@ import {
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { exceedsShareFileLimit } from '../../src/shared/folders/share-limits.js'
 
 function writeFiles (dir, n, from = 0) {
   for (let i = from; i < from + n; i++) {
@@ -46,7 +47,34 @@ test('a folder at exactly the limit is admitted', async (t) => {
   const preview = await previewInitialPublishScan(spaceId, null, mountPath, [])
   t.is(preview.totalFiles, 10)
   t.absent(preview.overFileLimit, 'exactly at the limit is not over it')
-  t.is(await countFolderFiles(mountPath, []), 10, 'the gate counts the same folder the scan will publish')
+  t.is(await countFolderFiles(mountPath, []), 10, 'the gate counts at least what the scan will publish')
+})
+
+// REGRESSION (FIX-PI6-1): the gate stopped stat-ing every file to count it, and the stat-free count
+// keeps a file it cannot read where the stat-ing walk drops it. That moves the count UP, never down
+// — the only safe direction, because a gate that under-counts admits a folder that then lists short.
+test('REGRESSION (FIX-PI6-1): the gate counts a file it cannot stat', async (t) => {
+  const { mountPath } = await setupOwnedShare(t)
+  withLimit(t, 10)
+  writeFiles(mountPath, 10)
+  const locked = path.join(mountPath, 'f009.txt')
+  fs.chmodSync(locked, 0o000)
+  t.teardown(() => { try { fs.chmodSync(locked, 0o644) } catch {} })
+
+  t.is(await countFolderFiles(mountPath, []), 10, 'the unreadable file is still a file at the destination')
+  t.absent(exceedsShareFileLimit(await countFolderFiles(mountPath, [])), 'and ten is still ten — the boundary has not moved')
+})
+
+test('the gate refuses an over-limit folder whose last file is unreadable', async (t) => {
+  const { mountPath } = await setupOwnedShare(t)
+  withLimit(t, 10)
+  writeFiles(mountPath, 11)
+  const locked = path.join(mountPath, 'f010.txt')
+  fs.chmodSync(locked, 0o000)
+  t.teardown(() => { try { fs.chmodSync(locked, 0o644) } catch {} })
+
+  t.ok(exceedsShareFileLimit(await countFolderFiles(mountPath, [])),
+    'the eleventh file counts even though the scan would set it aside — the gate rounds towards refusal')
 })
 
 // REGRESSION (FIX-360): the limit is an ADMISSION gate, not a runtime ceiling. A share admitted at

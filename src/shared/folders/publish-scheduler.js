@@ -5,8 +5,9 @@
 // hash holds its slot — so interactive items (a watcher event: the user just did this) get an
 // EXPRESS lane on top of the bulk slots: one may always start, even while every bulk slot is
 // held by a multi-minute hash, and an eligible interactive head is always picked before bulk.
-import { PRIORITY, promiseOf } from './work-item.js'
+import { OP, PRIORITY, itemKey, promiseOf } from './work-item.js'
 import { createPublishQueue } from './publish-queue.js'
+import { createPassLiveness } from '../core/pass-liveness.js'
 
 const EXPRESS_LANES = 1
 
@@ -16,6 +17,12 @@ const isIdle = (q) => { const s = q.stats(); return s.queued + s.running === 0 }
 function heldBy(running, spaceId) {
   let n = 0
   for (const it of running) if (it.spaceId === spaceId) n += 1
+  return n
+}
+
+function heldForShare(items, spaceId, shareId) {
+  let n = 0
+  for (const it of items) if (it.spaceId === spaceId && it.shareId === shareId) n += 1
   return n
 }
 
@@ -112,22 +119,126 @@ function createDrainWaiters() {
   }
 }
 
-function describeShare(queues, running, tallies, spaceId, shareId, order, concurrency) {
+function describeShare(queues, running, slots, tallies, spaceId, shareId, order, concurrency) {
   const q = queues.get(spaceId)
   const t = tallies.get(tallyKey(spaceId, shareId))
-  let active = 0
-  for (const it of running) if (it.spaceId === spaceId && it.shareId === shareId) active += 1
+  const active = heldForShare(running, spaceId, shareId)
+  // An evicted item holds no slot but has not returned, so it is still pending in the queue.
+  // Counted on its own, or it would read as queued work nothing is doing.
+  const stalled = slots.evictedForShare(spaceId, shareId)
   return {
-    queued: Math.max(0, (q?.pendingForShare(shareId) ?? 0) - active),
+    queued: Math.max(0, (q?.pendingForShare(shareId) ?? 0) - active - stalled),
     running: active,
+    stalled,
     done: (t?.uploaded ?? 0) + (t?.deleted ?? 0),
     failed: t?.failed ?? 0,
     totalOnDisk: t?.totalOnDisk ?? null,
     bytesQueued: q?.bytesForShare(shareId) ?? 0,
     // Publish work only — `queued`/`running` above count retires too, and a delete is not an add.
-    adding: q?.addingForShare(shareId) ?? 0,
+    adding: Math.max(0, (q?.addingForShare(shareId) ?? 0) - slots.evictedAddsForShare(spaceId, shareId)),
     order,
     concurrency,
+  }
+}
+
+// Every queued item is released as cancelled and the per-space queues go with them: what a stop
+// does, and the one path that empties the lane rather than draining it.
+function dropQueues(queues) {
+  for (const q of queues.values()) q.cancel(() => true)
+  queues.clear()
+}
+
+// The identity the supervisor keys a wedged item on. The item's own key is `shareId + relPath`,
+// which is unique WITHIN a space because each space has its own queue — but the lane's liveness is
+// one map across every space, and every space's loose files share the one LOOSE_SHARE_ID. Two
+// spaces holding a same-named loose file would collide on a single entry: one space's settle would
+// delete the other's heartbeat, and the still-running item would read healthy for the rest of its
+// life. The space is what makes it an identity rather than a name.
+export const publishSlotKey = (spaceId, shareId, relPath) => spaceId + '\0' + itemKey(shareId, relPath)
+const slotKey = (item) => publishSlotKey(item.spaceId, item.shareId, item.relPath)
+
+// The lane's wedge bookkeeping: per-item progress, plus the items whose slot was reclaimed while
+// their executor was still on them. A different question from the scheduler's own state — not
+// "what is running" but "what is running and getting nowhere" — and the only one the supervisor
+// asks. An evicted item stays in the queue's byKey map, so the path it holds cannot get a second
+// executor: a later request for it supersedes into one rerun, exactly as it does for an item that
+// kept its slot. It is tracked here only so statusFor can report it rather than drop it from both
+// counts.
+function createSlotWatch({ running, queues, pump, concurrency }) {
+  const liveness = createPassLiveness()
+  const evicted = new Set()
+  return {
+    // A multi-gigabyte hash is legitimately slow, so elapsed time cannot be the signal — only an
+    // item that is running AND not advancing is wedged. Returns the item's beat, bound to THIS
+    // pass: a token the executor cannot outlive its own entry with.
+    started(item) {
+      const key = slotKey(item)
+      const pass = liveness.started(key)
+      return () => liveness.progress(key, pass)
+    },
+    settled(item) { evicted.delete(item); liveness.forget(slotKey(item)) },
+    evictedForShare: (spaceId, shareId) => heldForShare(evicted, spaceId, shareId),
+    // What a drain has to wait for besides `running`: an evicted item holds no slot but its
+    // executor is still on the file. A stop() that treated it as finished would let the lifecycle
+    // close the store underneath a live read.
+    pending: () => evicted.size,
+    pendingIn: (spaceId) => heldBy(evicted, spaceId),
+    // The queue's own `adding` counter is only ever decremented by settle(), which an evicted
+    // item's never-returning executor does not reach. Discounted here, or the share keeps
+    // broadcasting "still indexing one file" to every member for the life of the process — for a
+    // file the recovery gave up on.
+    evictedAddsForShare: (spaceId, shareId) => {
+      let n = 0
+      for (const it of evicted) if (it.spaceId === spaceId && it.shareId === shareId && it.op !== OP.RETIRE) n += 1
+      return n
+    },
+    // Rows carry the share id and the path — the worker log names a unit, the shareable
+    // diagnostics bundle does not.
+    //
+    // An evicted item is still reported, and reported UNCONDITIONALLY rather than through its
+    // heartbeat. Two reasons, and both are the same reason: it is still stuck. Dropping it the
+    // moment we act on it is what let the policy's prune wipe its strike counter, so the recovery
+    // budget reset every time and the give-up line that names the file could never fire; and its
+    // executor still holds the file, so a health report that flips back to ok is a lie. It leaves
+    // this list when its executor finally returns, which is the only event that ends it.
+    stalledItems({ now = Date.now(), windowMs } = {}) {
+      const out = []
+      const row = (item, verdict) => ({ key: slotKey(item), spaceId: item.spaceId, shareId: item.shareId, relPath: item.relPath, ...verdict })
+      for (const item of running) {
+        const verdict = liveness.verdict(slotKey(item), { now, windowMs })
+        if (!verdict.ok) out.push(row(item, { ...verdict, evicted: false }))
+      }
+      for (const item of evicted) {
+        out.push(row(item, { ok: false, detail: 'slot reclaimed; the executor has not returned', evicted: true }))
+      }
+      return out
+    },
+    // Reclaim a wedged item's slot. The item is NOT settled here: leaving it in the queue is what
+    // keeps its path guarded while the executor is still on it, and the settle its executor's
+    // return already performs unwinds the accounting for both cases. Publishing resumes for every
+    // other file the instant this returns.
+    evict(key) {
+      // Bounded, which it was not before: a wedged item used to hold its slot, and that capped the
+      // number of abandoned executors at the width of the lane. Freeing slots without a ceiling
+      // lets a dead mount accumulate one more stuck executor — with its file handle and its read
+      // buffers — every stall window, for the life of the process. At the ceiling the lane goes
+      // back to what it did before this verb existed: the item keeps its slot, and the supervisor
+      // reports it, spends its budget and finally gives up on it by name.
+      if (evicted.size >= concurrency()) return false
+      for (const item of running) {
+        if (slotKey(item) !== key) continue
+        // Through the queue rather than by hand: it releases the callers waiting on this run,
+        // drops a queued publish rerun (but never a queued retire, which is disk state), and sets
+        // the abort the executor will honour if it ever reaches a checkpoint.
+        queues.get(item.spaceId)?.cancel((it) => it === item)
+        running.delete(item)
+        evicted.add(item)
+        liveness.forget(slotKey(item))
+        pump()
+        return true
+      }
+      return false
+    },
   }
 }
 
@@ -143,6 +254,7 @@ export function createPublishScheduler({
   const concurrency = () => Math.max(1, rawConcurrency())
   const queues = new Map()
   const running = new Set()
+  const slots = createSlotWatch({ running, queues, pump, concurrency })
   const tallies = createTallies()
   const waiters = createWaiters()
   const drainWaiters = createDrainWaiters()
@@ -175,7 +287,12 @@ export function createPublishScheduler({
   }
 
   function run(item) {
+    // Captured, not looked up in the finally: cancelSpace deletes a space's queue, and settling a
+    // late-returning item against the queue that REPLACED it decrements counters for work that
+    // queue never admitted and deletes the live item holding that path.
+    const queue = queues.get(item.spaceId)
     running.add(item)
+    const beat = slots.started(item)
     // An item STARTING moves a file from queued to running, and for a multi-GB hash that is the last
     // shape change for minutes — reporting only from the settle hook below left every consumer of
     // statusFor() describing a queue that had already moved on. Bounded by the consumer's own
@@ -184,7 +301,7 @@ export function createPublishScheduler({
     ;(async () => {
       let settlement
       try {
-        const result = await execute(item)
+        const result = await execute(item, { beat })
         settlement = { outcome: result?.outcome === 'failed' ? 'failed' : 'done', result }
         // A cancelled item that ran to completion anyway counts for nobody: its pass is gone.
         if (!item.signal.aborted) tally(item, result)
@@ -195,8 +312,12 @@ export function createPublishScheduler({
           log?.warn('publish item failed:', item.shareId, item.relPath, '-', err.message)
         }
       } finally {
+        // Identity-guarded by the queue, not here: an evicted item was removed from `running`
+        // while its executor was still on it, and it settles here exactly as one that kept its
+        // slot — which is what unwinds the queue's accounting for both cases.
         running.delete(item)
-        queues.get(item.spaceId)?.settle(item, settlement)
+        slots.settled(item)
+        queue?.settle(item, settlement)
         waiters.settle()
         onProgress?.(item.spaceId, item.shareId)
         settleDrain(item.spaceId, item.shareId)
@@ -230,11 +351,6 @@ export function createPublishScheduler({
     const t = tallies.get(key)
     if (t || cancelling.delete(key)) onShareDrained?.(spaceId, shareId, t)
     releaseWaiters(key)
-  }
-
-  function clear() {
-    for (const q of queues.values()) q.cancel(() => true)
-    queues.clear()
   }
 
   return {
@@ -295,18 +411,20 @@ export function createPublishScheduler({
       for (const key of [...drainWaiters.keys()]) {
         if (key.startsWith(spaceId + '\0')) { tallies.cancel(key); releaseWaiters(key) }
       }
-      await waiters.add(() => heldBy(running, spaceId) === 0, settleMs)
+      await waiters.add(() => heldBy(running, spaceId) + slots.pendingIn(spaceId) === 0, settleMs)
       return n
     },
+    stalledItems: slots.stalledItems,
+    evict: slots.evict,
     isPending(spaceId, shareId, relPath) { return !!queues.get(spaceId)?.isPending(shareId, relPath) },
     pendingRelPaths(spaceId, shareId) { return queues.get(spaceId)?.pendingRelPaths(shareId) ?? [] },
     isSpaceIdle(spaceId) { const q = queues.get(spaceId); return !q || isIdle(q) },
-    statusFor(spaceId, shareId) { return describeShare(queues, running, tallies, spaceId, shareId, order(), concurrency()) },
+    statusFor(spaceId, shareId) { return describeShare(queues, running, slots, tallies, spaceId, shareId, order(), concurrency()) },
     // Resolves once every executor has returned (or after the bound); nothing starts after it.
     stop({ settleMs = 0 } = {}) {
       stopped = true
-      clear()
-      return waiters.add(() => running.size === 0, settleMs)
+      dropQueues(queues)
+      return waiters.add(() => running.size + slots.pending() === 0, settleMs)
     },
     _running: running,
   }

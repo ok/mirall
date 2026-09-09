@@ -25,7 +25,7 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'up
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [
   'dev', 'verbose',
-  'handshakeIdentityBindingEnabled', 'relayEnabled',
+  'handshakeIdentityBindingEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -159,6 +159,24 @@ const DEFAULTED = {
   // matches the cadence the mirror probe ran at, so the two-consecutive-bad rule still acts about
   // two minutes into a stall. Tests shrink it.
   supervisionProbeIntervalMs: 60_000,
+  // How long a recover() may run before the supervisor stops waiting on it. Generous against every
+  // recovery in the tree (each re-arms a loop and returns) and short against the probe interval, so
+  // one slow recovery cannot eat the next probe.
+  supervisionRecoverBudgetMs: 10_000,
+  // A diff over a large tree is legitimately slow, so the wedge signal is a pass that stats no
+  // file for this long — not one that merely takes a while. Generous on purpose: a false recovery
+  // costs a re-scan, and by the time it fires the share has made no progress for ten minutes.
+  reconcileStallWindowMs: 10 * 60 * 1000,
+  // A publish item that has hashed no byte and completed no phase for this long is wedged, not
+  // slow. The same 10 minutes the owner-side reconcile uses, for the same reason: a false recovery
+  // costs a re-hash, and by the time it fires the file has made no progress for ten minutes.
+  publishStallWindowMs: 10 * 60 * 1000,
+  // The convergence tick's own window, rather than a multiple of its interval: its phases are
+  // network-bound — a per-space bee read per pending announce, then a discovery refresh per space
+  // on both planes — and a tight multiple of a 15s cadence condemns a tick that is slow because
+  // the network is, which is exactly when the re-drive matters most. Every phase beats, so a tick
+  // silent for five minutes has stopped.
+  convergenceStallWindowMs: 5 * 60 * 1000,
   // How many mirror ticks may skip the walk before one runs in full regardless. The owner's catalog
   // version cannot see a LOCAL change (a user deleting a mirrored file) and a foreign mount has no
   // filesystem watcher, so this backstop is what repairs it — within 5 min at the 30s poll.
@@ -198,6 +216,14 @@ function coercePublishOrder(next) {
   return PUBLISH_ORDERS.includes(next?.publishOrder) ? next.publishOrder : DEFAULT_PUBLISH_ORDER
 }
 
+// The public half of the relay slot only. The member seed is deliberately absent from
+// runtime config: it rides the bootstrap frame and is consumed in boot.js, exactly as
+// bootstrap.identityKEK is, so it never reaches a getRuntimeConfig() caller.
+function coerceRelaySlot(relay) {
+  if (!relay || typeof relay !== 'object' || Array.isArray(relay)) return null
+  return relay
+}
+
 function buildConfig(next) {
   const out = {}
   for (const k of NULLABLE) out[k] = next?.[k] || null
@@ -216,10 +242,11 @@ function buildConfig(next) {
   // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
   // only an explicit `false` reverts.
   out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
-  // Relay config is carried whether or not the flag is on; relayEnabled is the gate,
-  // and setRelayThrough refuses to install a relay function without it.
+  // 'off' is the default and the kill switch: relayFunctionFor returns null for it, so
+  // swarm.relayThrough is never installed and the transport is byte-identical to a build
+  // with no relay support.
   out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
-  out.relays = Array.isArray(next?.relays) ? next.relays : []
+  out.relay = coerceRelaySlot(next?.relay)
   out.publishOrder = coercePublishOrder(next)
   return out
 }
@@ -279,17 +306,13 @@ export function getUpgradeKey() {
   return config.upgradeKey
 }
 
-export function isRelayEnabled() {
-  return config.relayEnabled
-}
-
 export function getRelayConfig() {
-  return { mode: config.relayMode, relays: config.relays }
+  return { mode: config.relayMode, relay: config.relay }
 }
 
-export function setRelayConfig(mode, relays) {
+export function setRelayConfig(mode, relay) {
   const relayMode = mode === 'auto' || mode === 'always' ? mode : 'off'
-  config = { ...config, relayMode, relays: Array.isArray(relays) ? relays : [] }
+  config = { ...config, relayMode, relay: coerceRelaySlot(relay) }
 }
 
 export function getOverlayServeLimit() {
@@ -303,6 +326,27 @@ export function getDeepReconcileEvery() {
 
 export function getSupervisionProbeIntervalMs() {
   return config.supervisionProbeIntervalMs ?? DEFAULTED.supervisionProbeIntervalMs
+}
+
+// Validated rather than `??`-defaulted, unlike most of the DEFAULTED group: for a deadline both
+// sentinels invert. 0 makes stallVerdict condemn every pass the instant it starts, so the
+// supervisor would evict every healthy publish and abandon every healthy scan; Infinity reaches
+// setTimeout, which clamps it to about a millisecond, so "no timeout" becomes "instant timeout".
+// Anything that is not a positive finite number falls back to the default.
+export function getSupervisionRecoverBudgetMs() {
+  return finiteAtLeast(config.supervisionRecoverBudgetMs, 1, DEFAULTED.supervisionRecoverBudgetMs)
+}
+
+export function getReconcileStallWindowMs() {
+  return finiteAtLeast(config.reconcileStallWindowMs, 1, DEFAULTED.reconcileStallWindowMs)
+}
+
+export function getPublishStallWindowMs() {
+  return finiteAtLeast(config.publishStallWindowMs, 1, DEFAULTED.publishStallWindowMs)
+}
+
+export function getConvergenceStallWindowMs() {
+  return finiteAtLeast(config.convergenceStallWindowMs, 1, DEFAULTED.convergenceStallWindowMs)
 }
 
 // A budget that is multiplied by a live count must be finite and non-negative: Infinity yields

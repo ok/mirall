@@ -1,7 +1,6 @@
 // Network diagnostics screen: connectivity verdict plus DHT/swarm details with maskable, copyable fields.
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { isRelayFeatureEnabled } from '../config-client.js'
 import { reachableState, formatDuration } from '../connectivity.js'
 import DiagnosticsCard from '../components/settings/DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
@@ -295,11 +294,10 @@ function SuggestionsList({ lines }: { lines: string[] }) {
 
 interface AdvancedDetailsProps {
   status: NetworkStatus | null
-  relayVisible: boolean
   now: number
 }
 
-function AdvancedDetails({ status, relayVisible, now }: AdvancedDetailsProps) {
+function AdvancedDetails({ status, now }: AdvancedDetailsProps) {
   const { t } = useTranslation()
   if (!status) return null
   const portPreserved = status.address.publicPort > 0
@@ -334,13 +332,11 @@ function AdvancedDetails({ status, relayVisible, now }: AdvancedDetailsProps) {
                 <Field label={t('networkStatus.ephemeral')}  value={formatBool(status.nat.ephemeral, t)} />
               </Section>
 
-              {relayVisible && (
-                <Section title={t('networkStatus.relaying')}>
-                  <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
-                  <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
-                  <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
-                </Section>
-              )}
+              <Section title={t('networkStatus.relaying')}>
+                <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
+                <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
+                <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
+              </Section>
 
               <Section title={t('networkStatus.dht')}>
                 <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status.routing.tableSize)} />
@@ -368,7 +364,6 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const relayVisible = isRelayFeatureEnabled()
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
@@ -426,7 +421,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
             </button>
           </section>
 
-          {advancedOpen && <AdvancedDetails status={status} relayVisible={relayVisible} now={now} />}
+          {advancedOpen && <AdvancedDetails status={status} now={now} />}
         </div>
       </div>
 

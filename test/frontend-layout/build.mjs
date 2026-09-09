@@ -97,6 +97,11 @@ await build({
 })
 await build({
   ...common,
+  entryPoints: [path.join(HERE, 'harness-segments-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-segments.js'),
+})
+await build({
+  ...common,
   entryPoints: [path.join(HERE, 'harness-spaceoverflow-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-spaceoverflow.js'),
 })

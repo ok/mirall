@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fileName as getFileName } from '../../utils.js'
 import Modal from '../primitives/Modal.js'
-import IconButton from '../primitives/IconButton.js'
+import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import FilenameTitle from '../widgets/FilenameTitle.js'
 
@@ -27,17 +27,10 @@ export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }:
   return (
     <Modal isOpen={isOpen} onClose={onClose} isDismissable={!removing} role="alertdialog" ariaDescribedBy="remove-file-body" ariaLabel={t('removeFile.titleConfirm', { name: getFileName(filePath) })} panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
       <>
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex justify-between items-start mb-2 gap-3">
-            <FilenameTitle i18nKey="removeFile.titleConfirm" name={getFileName(filePath)} />
-            <IconButton
-              icon="close"
-              onClick={onClose}
-              ariaLabel={t('actions.close')}
-              iconClassName="text-secondary"
-            />
-          </div>
-        </div>
+        <ModalHeader
+          titleNode={<FilenameTitle i18nKey="removeFile.titleConfirm" name={getFileName(filePath)} />}
+          onClose={onClose}
+        />
 
         <div className="px-10 pb-10 space-y-6">
           <p id="remove-file-body" className="text-on-surface-variant font-medium">

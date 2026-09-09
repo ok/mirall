@@ -20,11 +20,11 @@ test('an empty listing is not active', (t) => {
 // is not here yet.
 test('the count is what is still missing, not what is moving', (t) => {
   const summary = deriveMirrorSync([
-    file('downloading', 100, { progress: { bytes: 40, total: 100, speed: 0 } }),
+    file('downloading', 100),
     file('remote', 60),
     file('remote', 40),
     file('downloaded', 200),
-  ])
+  ], { bytesOf: (f) => (f.status === 'downloading' ? 40 : 0) })
   t.is(summary.active, true)
   t.is(summary.files, 3, 'one in flight plus the two queued behind it')
   t.is(summary.onDevice, 1)
@@ -54,8 +54,16 @@ test('progress is measured against the whole folder, not the queue', (t) => {
 })
 
 test('bytes already pulled into a partial count towards the bar', (t) => {
-  const summary = deriveMirrorSync([file('downloading', 1000, { progress: { bytes: 500, total: 1000, speed: 0 } })])
+  const summary = deriveMirrorSync([file('downloading', 1000)], { bytesOf: () => 500 })
   t.is(summary.pct, 50)
+})
+
+// The live decoration no longer rides the row, so which of the two byte sources wins is the
+// caller's judgement and this module only has to honour it.
+test('a live decoration outranks the durable partial', (t) => {
+  const files = [file('downloading', 100, { pendingBytes: 10 })]
+  t.is(deriveMirrorSync(files).bytesRemaining, 90, 'default reader uses pendingBytes')
+  t.is(deriveMirrorSync(files, { bytesOf: () => 40 }).bytesRemaining, 60, 'injected reader wins')
 })
 
 // Past the cap the rows are a capped sample, so bytes-on-device over bytes-total would be computed

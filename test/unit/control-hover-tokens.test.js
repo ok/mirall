@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 
 // One rule governs every interactive fill in the app: **on hover a control steps ~5 L* AWAY from
@@ -25,6 +25,17 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 const css = read('src/renderer/styles/tailwind.css')
 const chips = read('src/renderer/screens/SharedSpaces.tsx')
 const button = read('src/renderer/components/primitives/Button.tsx')
+
+// Every .tsx under the renderer, so a pattern check cannot go stale by a control moving file.
+const rendererSources = (dir = 'src/renderer') => {
+  const out = []
+  for (const entry of readdirSync(fileURLToPath(new URL(dir, root)), { withFileTypes: true })) {
+    const p = `${dir}/${entry.name}`
+    if (entry.isDirectory()) out.push(...rendererSources(p))
+    else if (entry.name.endsWith('.tsx')) out.push(p)
+  }
+  return out
+}
 
 const tokensFor = (selector) => {
   const start = css.indexOf(selector + ' {')
@@ -151,11 +162,12 @@ test('the neutral control stays clear of the page behind it', (t) => {
 // `text-error` at rest and only meets the fill on hover. `error` on `error-container` is 2.94:1 in
 // dark — under even the 3:1 non-text floor — so the fill has to bring `on-error-container` with it.
 test('the error-container fill is never painted under text-error', (t) => {
-  const sources = ['src/renderer/components/widgets/ActionMenu.tsx',
-    'src/renderer/components/cards/FileCard.tsx',
-    'src/renderer/components/settings/RelaySettingsSection.tsx']
+  // Walked, not listed: a hardcoded set of files silently loses coverage the moment a
+  // destructive control moves (the relay row's delete button became an ActionMenu `danger`
+  // item, and the list still named the file it had left). Walking also covers a NEW file
+  // painting the fill, which a list can never do.
   let checked = 0
-  for (const f of sources) {
+  for (const f of rendererSources()) {
     const src = read(f)
     for (const m of src.matchAll(/hover:bg-error-container(?!-)/g)) {
       checked++
@@ -163,7 +175,7 @@ test('the error-container fill is never painted under text-error', (t) => {
         `${f}: the error-container hover brings its own ink`)
     }
   }
-  t.ok(checked >= 3, `all ${checked} error-container hovers were reached`)
+  t.ok(checked >= 2, `all ${checked} error-container hovers were reached`)
 })
 
 // REGRESSION (FIX-1: the selected chip carried `bg-primary` with no hover class at all).

@@ -598,6 +598,26 @@ export class Instance {
     await this._confirmPreview('Start Mirroring', 'Download')
   }
 
+  // Mirror's counterpart to openAddFolderPreview: advance to the ScanPreviewModal and STOP there,
+  // so the preview's own verdict can be inspected before committing.
+  async openMirrorPreview(mirrorDir) {
+    await this.click({ name: 'More', last: true })
+    await new Promise((r) => setTimeout(r, POLL_MS))
+    await this.click({ name: 'Mirror to Disk…' })
+    await this.waitText('to Disk', 20000)
+    await this.nativeChoosePath(mirrorDir, { trigger: () => this.click({ role: 'button', name: 'Browse…' }) })
+    await new Promise((r) => setTimeout(r, 400))
+    for (let i = 0; i < 20; i++) {
+      const next = flatten(await this.snap()).find(
+        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
+      )
+      if (next && !(next.states ?? []).includes('disabled')) break
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    await this.click({ role: 'button', name: 'Next: Preview' })
+    await this.waitText('Download', 20000)
+  }
+
   async unmountShare() {
     await this.click({ name: 'More', last: true })
     await new Promise((r) => setTimeout(r, POLL_MS))
