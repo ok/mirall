@@ -118,7 +118,8 @@
     "ready-resource": "^1.2.0",
     "sodium-native": "^5.1.0",
     "sodium-universal": "^5.0.1",
-    "which-runtime": "^1.4.0"
+    "which-runtime": "^1.4.0",
+    "z32": "^1.1.0"
   },
   "overrides": {
     "hyperdht": "~6.32.0"
