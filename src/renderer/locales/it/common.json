@@ -752,19 +752,9 @@
       "heading": "Relè",
       "desc": "Un relè aiuta due dispositivi a collegarsi quando la rete blocca un collegamento diretto — per esempio uno spazio che non si sincronizza mai sul Wi-Fi dell'ufficio. I relè inoltrano solo dati cifrati e non possono leggere i tuoi file.",
       "docsLink": "Come ospitare il tuo relè",
-      "bothPeersNote": "Aggiungi lo stesso relè su entrambi i dispositivi. Un solo lato basta per collegarsi, ma la connessione si ristabilisce molto più in fretta se entrambe le estremità lo conoscono.",
-      "modeLabel": "Quando usare un relè",
-      "mode": {
-        "off": "Mai",
-        "auto": "Quando serve",
-        "always": "Sempre"
-      },
-      "alwaysWarning": "Ogni connessione passa da un relè, anche quando una diretta funzionerebbe. Utile per i test, più lento nell'uso quotidiano.",
-      "empty": "Nessun relè configurato.",
+      "empty": "Nessun relay configurato. Un relay lo gestisci tu o qualcuno che conosci: di solito si entra con un invito di chi lo gestisce.",
       "unnamed": "Relè senza nome",
       "test": "Prova",
-      "disable": "Disattiva",
-      "enable": "Attiva",
       "remove": "Rimuovi",
       "rowMenu": "Opzioni per {{name}}",
       "testing": "Prova in corso",
@@ -775,12 +765,42 @@
       "statusFor": "{{name}}: {{status}}",
       "addAction": "Aggiungi relè",
       "addTitle": "Aggiungi un relè",
-      "addDesc": "Incolla la chiave pubblica del relè che vuoi usare. I tuoi file restano cifrati end-to-end — il relè si limita a inoltrarli.",
-      "keyLabel": "Chiave del relè",
-      "keyPlaceholder": "Chiave pubblica",
+      "addDesc": "Incolla una chiave del relay, o un invito di chi lo gestisce. I tuoi file restano cifrati end-to-end: il relay li inoltra soltanto.",
       "labelLabel": "Nome (facoltativo)",
       "labelPlaceholder": "es. Relè dell'ufficio",
-      "invalidKey": "Non sembra una chiave di relè. Controlla se manca o è di troppo un carattere."
+      "useRelay": "Usa un relay",
+      "useRelayDesc": "Solo quando non è possibile una connessione diretta.",
+      "alwaysLabel": "Instrada tutto attraverso il relay",
+      "alwaysDesc": "Ogni connessione passa da un relay, anche quando ne funzionerebbe una diretta. Per i test: più lento nell'uso quotidiano.",
+      "inputLabel": "Chiave del relay o invito",
+      "inputPlaceholder": "Incolla una chiave o un invito mirall://relay/…",
+      "replace": "Sostituisci",
+      "replaceTitle": "Sostituisci questo relay",
+      "decodedKey": "Chiave del relay {{key}}",
+      "kindFor": "Tipo di relay: {{kind}}",
+      "privacyNote": "Un invito ti dà un nome duraturo su questo relay. Chi lo gestisce può vedere quando sei online e con chi ti connetti, mai cosa invii. Cieco ai tuoi file non vuol dire cieco ai tuoi contatti.",
+      "restartWarning": "Questo invito avrà effetto quando Mirall si riconnette.",
+      "restartWarningRemove": "La rimozione avrà effetto quando Mirall si riconnette.",
+      "kind": {
+        "open": "Relay aperto",
+        "private": "Relay privato"
+      },
+      "kindNote": {
+        "open": "Chiunque abbia la chiave può usarlo.",
+        "private": "Sei stato invitato a questo."
+      },
+      "error": {
+        "format": "Questa non è né una chiave del relay né un invito.",
+        "version": "Questo invito richiede una versione più recente di Mirall.",
+        "incomplete": "Questo invito sembra incompleto: copialo per intero.",
+        "save": "Mirall non è riuscito a salvare questo relay. Non è stato modificato nulla."
+      },
+      "reconnectPending": "Il tuo invito è salvato. Avrà effetto quando Mirall si riconnette: fino ad allora questo relay non ti accetterà.",
+      "reconnectAction": "Riconnetti ora",
+      "removeConfirmTitle": "Rimuovere {{name}}?",
+      "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà un nuovo invito da chi lo gestisce.",
+      "replaceConfirmTitle": "Sostituire {{name}}?",
+      "replaceConfirmBody": "Il tuo invito attuale è salvato solo su questo dispositivo e verrà cancellato. Per usare di nuovo quel relay ti servirà un nuovo invito da chi lo gestisce."
     }
   },
   "networkStatus": {

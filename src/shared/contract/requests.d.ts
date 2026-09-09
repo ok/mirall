@@ -40,7 +40,7 @@ export type RequestName =
   | 'network:online-hint'
   | 'network:probe-canary'
   | 'network:reconnect'
-  | 'network:set-relays'
+  | 'network:set-relay'
   | 'network:status:get'
   | 'network:test-relay'
   | 'owned-folder:cancel-preview'

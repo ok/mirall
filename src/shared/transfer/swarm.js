@@ -10,6 +10,7 @@
 // content key — possession is read access), denials, and acknowledged leaves. Liveness is a
 // separate presence lease — heartbeat-refreshed, TTL-expired, cleared on disconnect:
 // connectedPeers stays the routing registry (where to send), the lease is who is online.
+import DHT from 'hyperdht'
 import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import c from 'compact-encoding'
@@ -22,7 +23,7 @@ import {
   getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
 import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
-import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
+import { enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../invite-envelope.js'
@@ -228,15 +229,28 @@ let corruptionDiagnosed = false
 
 // === Connection intake & frame dispatch ===
 
-function initSwarm(_ipc) {
+function initSwarm(_ipc, relaySeedHex = null) {
   if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
   // swarm stays off the public DHT; unset in production → default bootstrap.
   const dhtBootstrap = getRuntimeConfig().dhtBootstrap
   const caps = getResourceCaps()
-  swarm = new Hyperswarm({
+  // The DHT node is built here rather than left to hyperswarm because dht.defaultKeyPair is
+  // the relay-facing identity and hyperswarm gives no way to set it: its seed/keyPair options
+  // set swarm.keyPair only (index.js:29) and the node it builds receives no keypair at all
+  // (:38-45), so defaultKeyPair stays random (hyperdht/index.js:35). Under a private relay
+  // that key IS the membership, on both the dialing (connect.js:793) and announcing
+  // (server.js:646) sides, so one enrolment covers both roles. Peers are unaffected — they
+  // authenticate swarm.keyPair. Ownership is unchanged: hyperswarm.destroy() destroys
+  // this.dht whether it built the node or was handed one, so destroySwarm still tears it down.
+  const dht = new DHT({
     ...(dhtBootstrap ? { bootstrap: dhtBootstrap } : {}),
+    keyPair: relayIdentityKeyPair(relaySeedHex),
+  })
+  relayIdentityPinned = typeof relaySeedHex === 'string' && relaySeedHex.length > 0
+  swarm = new Hyperswarm({
+    dht,
     maxServerConnections: caps.serverConnections || Infinity,
     maxClientConnections: caps.clientConnections || Infinity,
     // firewall returns true to REJECT — drop reconnects from a Noise key we evicted for flooding.
@@ -1119,6 +1133,7 @@ async function destroySwarm() {
   resetDeferredAdmission()
   corruptionDiagnosed = false
   relaySelections = 0
+  relayIdentityPinned = false
   try {
     await swarm.destroy()
   } catch {}
@@ -1143,19 +1158,32 @@ const RELAY_PROBE_TIMEOUT_MS = 10000
 // selections is the one signal that covers both directions — without it the diagnostics
 // read 0 on the peer doing the relaying, which is precisely the peer checking.
 let relaySelections = 0
+// Whether this node actually booted with a pinned member identity. A config that names a private
+// relay is not proof: the vault can be missing (a machine move that copied config.json but not
+// relay-ticket.enc) or unreadable under a new keyring, and readRelaySeedHex degrades to null.
+let relayIdentityPinned = false
 
 // BOTH swarms, always. The content plane carries every file byte, so configuring only
 // the control swarm produces a build whose handshakes connect and whose transfers stall.
 // Call this after initContentSwarm has run — the two swarms are constructed on
 // consecutive lines and getContentSwarm() is null in between.
-export function setRelayThrough(relays, mode) {
-  const keys = enabledRelayKeys(relays)
-  const fn = relayFunctionFor(keys, mode, () => { relaySelections++ })
+export function setRelayThrough(relay, mode) {
+  // A private relay names a member the firewall matches by key. Without the seed live on this
+  // node we present a different key, so installing it would route every dial into a refusal
+  // instead of letting it fall back to a direct connection — the silent-never-connects failure
+  // the ticket format exists to prevent. Refuse loudly and stay direct.
+  const identityMissing = relay?.kind === 'private' && !relayIdentityPinned
+  if (identityMissing) log.warn('relay: a private relay is configured but no member identity is live — not installing it')
+
+  const keys = identityMissing ? [] : enabledRelayKeys(relay)
+  const fn = relayFunctionFor(keys, mode, () => { relaySelections++ }, {
+    offerable: relay?.kind !== 'private',
+  })
   for (const s of [swarm, getContentSwarm()]) {
     if (!s) continue
     s.relayThrough = fn
   }
-  return { applied: fn ? keys.length : 0 }
+  return identityMissing ? { applied: 0, reason: 'identity-missing' } : { applied: fn ? keys.length : 0 }
 }
 
 // A mistyped or stale key is otherwise invisible until a space silently fails to sync
@@ -1214,7 +1242,8 @@ export class Swarm extends Subsystem {
     }
     overlayReconnectHook = (ownerKey, spaceId) => this.deps.overlayBackend.resumeForOwner(ownerKey, spaceId)
     revokeServesForSpaceHook = (spaceId, profileKey) => this.deps.overlayBackend.revokeServesForSpace(spaceId, profileKey)
-    initSwarm(this.deps.ipc)
+    // Not in require(): a null seed is the normal case — no relay, or an open one.
+    initSwarm(this.deps.ipc, this.deps.relaySeedHex ?? null)
   }
 
   // One unit: the level-triggered re-drive. Everything else the swarm owns is either event-driven

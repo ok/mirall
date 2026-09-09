@@ -1742,8 +1742,8 @@ ipc.handle('settings:set-bandwidth', async (msg) => {
 ipc.handle('network:status:get', async () => getSwarmStatus())
 ipc.handle('network:reconnect', async () => await reconnectAll())
 
-ipc.handle('network:set-relays', async (msg) => {
-  setRelayConfig(msg?.relayMode, msg?.relays)
+ipc.handle('network:set-relay', async (msg) => {
+  setRelayConfig(msg?.mode, msg?.relay)
   return { ok: true, ...applyRelayConfig() }
 })
 

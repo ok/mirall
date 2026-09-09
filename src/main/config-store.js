@@ -4,7 +4,7 @@
 // fsync + rename), so a crash never leaves a truncated config behind.
 const fs = require('fs')
 const path = require('path')
-const { normalizeRelayMode, sanitizeRelays } = require('./relay-keys.js')
+const { normalizeRelayMode, sanitizeRelay } = require('./relay-keys.js')
 
 const CONFIG_FILENAME = 'config.json'
 const CONFIG_VERSION = 1
@@ -27,7 +27,7 @@ function defaults() {
     // downloadConcurrency has no UI on purpose — it is an operator lever and the rollback path
     // for the shared fetch gate. 0 disables the cap entirely, so a UI would have to offer it as
     // a named "Unlimited" rather than a raw zero.
-    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relays: [], downloadConcurrency: 6 },
+    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 },
     storage: { cacheBudgetBytes: 0 },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
@@ -107,7 +107,18 @@ class ConfigStore {
     // on every load.
     if (!isPlainObject(data.network)) data.network = defaults().network
     data.network.relayMode = normalizeRelayMode(data.network.relayMode)
-    data.network.relays = sanitizeRelays(data.network.relays)
+    data.network.relay = sanitizeRelay(data.network.relay)
+    // Every config.json written before the single-slot change carries `relays: []`, and
+    // mergeDefaults keeps stored keys the defaults no longer name, so without this the dead
+    // array outlives the feature. Nothing is folded: the relay UI has never been reachable
+    // in a shipped build, so no config.json in the wild holds a relay to lose. Scheduled
+    // rather than written here, and only when there is something to drop — load() does not
+    // otherwise persist, and rewriting the file on every boot to change nothing is worse
+    // than leaving a dead key one more launch.
+    if ('relays' in data.network) {
+      delete data.network.relays
+      this._schedule()
+    }
     return data
   }
 
@@ -176,7 +187,7 @@ class ConfigStore {
         downloadKBps: d.network.downloadKBps,
         uploadKBps: d.network.uploadKBps,
         relayMode: d.network.relayMode,
-        relays: d.network.relays.map((r) => ({ ...r })),
+        relay: d.network.relay ? { ...d.network.relay } : null,
       },
       features: featureSnapshot(this._readFeatures()),
     }
@@ -196,6 +207,13 @@ class ConfigStore {
     return this._data.network
   }
 
+  setRelay(mode, relay) {
+    this._data.network.relayMode = normalizeRelayMode(mode)
+    this._data.network.relay = sanitizeRelay(relay)
+    this._schedule()
+    return this.rendererSnapshot().network
+  }
+
   setRenderer(patch) {
     if (!isPlainObject(patch)) return
     if (isPlainObject(patch.appearance)) {
@@ -211,13 +229,10 @@ class ConfigStore {
       if (typeof lastSeenVersion === 'string') this._data.ui.lastSeenVersion = lastSeenVersion
       if (typeof feedbackEmail === 'string') this._data.ui.feedbackEmail = feedbackEmail
     }
-    if (isPlainObject(patch.network)) {
-      const { relayMode, relays } = patch.network
-      if (relayMode !== undefined) this._data.network.relayMode = normalizeRelayMode(relayMode)
-      // The whole array is replaced, never merged — mergeDefaults treats arrays as
-      // opaque, so every add / remove / toggle must send the complete list.
-      if (relays !== undefined) this._data.network.relays = sanitizeRelays(relays)
-    }
+    // The relay slot is deliberately absent: setting it also writes a secret to the
+    // safeStorage vault and can require the worker to come back up, neither of which a
+    // fire-and-forget patch can express. It has its own IPC (relay:set), and that is the
+    // only path that changes it.
     this._schedule()
   }
 
@@ -242,7 +257,7 @@ class ConfigStore {
     const tmp = this._file + '.tmp'
     try {
       fs.mkdirSync(this._dataDir, { recursive: true })
-      const fd = fs.openSync(tmp, 'w')
+      const fd = fs.openSync(tmp, 'w', 0o600)
       try {
         fs.writeSync(fd, JSON.stringify(this._data, null, 2))
         fs.fsyncSync(fd)
