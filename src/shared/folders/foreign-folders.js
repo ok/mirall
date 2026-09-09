@@ -7,9 +7,10 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries, conflictCopyName, driveKeyToSegments } from './path-keys.js'
-import { isOwnerOnline, setPeerOnlineHook } from '../transfer/swarm.js'
+import { isOwnerOnline, onPeerOnline } from '../transfer/swarm.js'
 import { record } from '../audit/audit-log.js'
 import { createIntegritySeen } from './integrity-seen.js'
+import { createAttemptBudget } from './fetch-attempts.js'
 import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getResourceCaps } from '../core/runtime-config.js'
@@ -40,6 +41,9 @@ import { createMirrorState, localRelOf } from './mirror-state.js'
 import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-ownership.js'
 import { shouldWalk } from './mirror-walk.js'
 import { mirrorMayFetch } from './mirror-reach.js'
+import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetch-policy.js'
+import { shortfall } from '../transfer/free-space.js'
+import { freeBytesFor } from '../transfer/free-space-probe.js'
 
 const log = createLogger('foreign-folders')
 
@@ -57,6 +61,7 @@ const loops = createMirrorLoops({
 const state = createMirrorState({ keyOf: loopKey, isStopped: (key, gen) => loops.stopped(key, gen) })
 
 let ipcRef = null
+let unsubscribePeerOnline = null
 
 export function initForeignFolders(_ipc) {
   ipcRef = _ipc
@@ -65,7 +70,8 @@ export function initForeignFolders(_ipc) {
   setOverlayCatalogChangeHook(onPeerDriveChanged)
   // The other level trigger: a pass gated on an offline owner did nothing at all, so without this
   // an offline->online flip waits out a whole poll interval before the first byte moves.
-  setPeerOnlineHook(onOwnerOnline)
+  unsubscribePeerOnline?.()
+  unsubscribePeerOnline = onPeerOnline(onOwnerOnline)
 }
 
 function loopKey(spaceId, shareId) {
@@ -268,9 +274,18 @@ export function foreignFetchActive(spaceId, shareId, relPath) {
 const mirrorGen = (key) => loops.generationOf(key)
 const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 
+// Presence is a module-private lease map in swarm.js, so an unreachable owner cannot otherwise be
+// staged below the flow layer: a fabricated remote key makes the share unreadable and the pass exits
+// before any gate, while a self-mirror is reachable by rule. Overriding the VERDICT rather than
+// isOwnerOnline is what lets a readable mount stand in for an absent owner; the rule itself is
+// unit-tested in mirror-reach.test.js. The engine carries the same seam as `channel.isOwnerOnline`.
+let reachabilityOverride = null
+export function setMirrorReachability(fn) { reachabilityOverride = fn }
+
 // Read live rather than snapshotted: a pass that starts online and finishes offline re-asks at the
 // per-entry gate.
 function mayFetch(mount) {
+  if (reachabilityOverride) return reachabilityOverride(mount)
   return mirrorMayFetch({
     ownerKey: mount.ownerKey,
     localKey: getLocalPublicKeyHex(),
@@ -307,21 +322,18 @@ export async function materializeCatalogFile(mount, share, entry, opts = {}) {
   return await materializeOverlayFile(mount, share, entry, opts)
 }
 
-// Classify an overlay-mirror fetch that produced no file (fetchFile → null).
-// fetchFile returns null for TWO reasons: no holder was ever reachable (no chunk
-// scheduler ran), or a holder WAS asked but the transfer stalled / all peers
-// vanished mid-stream (its internal catch swallows that into null). Only the
-// latter is a genuine give-up worth a WARN; the former is a benign "retry next
-// tick" (debug). `attempted` is true once a scheduler ran — i.e. the fetch's
-// onEnd fired. Exported for unit coverage of the give-up/no-holder split.
-export function classifyMirrorMiss(attempted) {
-  return attempted ? 'failed' : 'no-holder'
-}
 
 const integritySeen = createIntegritySeen({
   onCap: (mountKey, limit) => log.warn('mirror integrity rows capped at', limit, 'for', mountKey,
     '— further hash mismatches on this mount are logged but not audited until it is remounted'),
 })
+
+// How many times this mount has failed to land a given (file, hash), and when to stop asking. The
+// mirror used to retry a corrupt file on every 30s tick and every catalog append, forever. A budget
+// rather than an outright block because the overlay is multi-source: the first holder serving bad
+// bytes must not condemn content a second holder can serve. In memory rather than durable — the
+// mirror is catalog-driven and must not grow a row per file — so a remount forgives it.
+const attempts = createAttemptBudget()
 
 // The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
 // sync, and this is not sync bookkeeping: it is a claim about what a member of this space served.
@@ -388,10 +400,76 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
   // blame a holder for our own full disk.
   if (await pauseMountForIoError(mount, err)) return
   diag?.finish('failed')
-  if (err?.code === 'EHASHMISMATCH') {
-    log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
-    recordMirrorIntegrityFailure(mount, share, entry)
-  } else log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
+  const code = err?.code === 'EHASHMISMATCH' ? ErrorCodes.TRANSFER_CHECKSUM : null
+  if (!code) {
+    log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
+    return
+  }
+  log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
+  recordMirrorIntegrityFailure(mount, share, entry)
+  // Checksum is the only terminal fault reachable here — every local I/O fault was classified and
+  // paused above, and the engine's other two terminal codes describe a destination mountCanTake
+  // preflights instead. Charged to a budget rather than blocked outright, so another holder can
+  // still serve the same content.
+  if (!isTerminalFault(code)) return
+  const key = loopKey(mount.spaceId, mount.shareId)
+  const spent = attempts.fail(key, entry.relPath, entry.contentHash)
+  if (attempts.exhausted(key, entry.relPath, entry.contentHash)) {
+    log.warn('mirror stopped asking for a file whose holders keep failing its hash:', entry.relPath, 'after', spent, 'attempts')
+  }
+}
+
+// Why this entry will not be fetched, or null to go ahead. All three sit BELOW the caller's
+// 'present' returns: an unreachable owner and a spent budget must still let a file already on disk
+// be adopted, or a fully-mirrored mount can never converge.
+function fetchSkipReason(mount, entry, opts) {
+  if (!entry.contentHash) return 'missing'
+  if (opts.noFetch) return 'missing'
+  // 'blocked', deliberately not 'no-peers': that means "nobody is out there", which ends the whole
+  // pass — a corrupt file must not stop the mirror fetching the rest of the folder.
+  if (attempts.exhausted(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return 'blocked'
+  return null
+}
+
+// One probe per pass, not one per file. Both questions are about the VOLUME, so asking them per
+// catalog entry is thousands of blocking syscalls answering the same thing — the shape
+// files.js::createDirProbe already exists for on the listing side.
+function createMountProbe(mount) {
+  let root = null
+  let free = null
+  return {
+    rootAvailable: () => (root ??= mountRootAvailable(mount.mountPath)),
+    freeBytes: () => (free ??= freeBytesFor(mount.mountPath)),
+  }
+}
+
+// The two preflights the engine has run since FIX-DLDIR-2, which the mirror never had. Without the
+// first, fetchOverlayEntry's mkdir -p silently RECREATES a mount root the user deleted and
+// materializes into a resurrected empty tree.
+//
+// They settle differently on purpose. A missing root and an exhausted volume are mount-wide, so
+// they pause. A single file that will not fit is about THAT file: pausing the mount for it would
+// strand every other file in the folder, and the engine keeps the same decision per row.
+async function mountCanTake(mount, entry, abs, probe) {
+  if (!probe.rootAvailable()) {
+    await pauseMount(mount, STATUS_MOUNT_GONE)
+    return false
+  }
+  const freeBytes = probe.freeBytes()
+  // Short of the headroom with nothing requested at all: the volume is out, not this file.
+  if (shortfall({ freeBytes, needBytes: 0 }) > 0) {
+    await pauseMount(mount, statusForFaultCode(ErrorCodes.TRANSFER_DISK_FULL), ErrorCodes.TRANSFER_DISK_FULL)
+    return false
+  }
+  // A resumed partial has already taken its bytes from the volume; charging for them twice would
+  // refuse — and before this split, terminally pause — a transfer that is nearly done.
+  let allocatedBytes = 0
+  try { allocatedBytes = fs.statSync(abs + PARTIAL_SUFFIX).blocks * 512 || 0 } catch {}
+  if (shortfall({ freeBytes, needBytes: entry.size || 0, allocatedBytes }) > 0) {
+    log.warn('mirror skipped a file this volume cannot hold:', entry.relPath, 'needs', entry.size, 'bytes')
+    return false
+  }
+  return true
 }
 
 async function materializeOverlayFile(mount, share, entry, opts = {}) {
@@ -432,7 +510,8 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
       }
     } catch (err) { log.debug('overlay hash skipped on disk:', err.message) }
   }
-  if (!entry.contentHash) return 'missing'
+  const skip = fetchSkipReason(mount, entry, opts)
+  if (skip) return skip
   // A manual download of the same file may already be in flight (mounted mid-download): fetching it
   // here too would interleave two producers on one decoration key and duplicate the bytes. A cheap
   // early-out so we do not queue for a slot to do it; the claim taken past the gate decides. Another
@@ -440,6 +519,9 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // activeOverlayFetches, and refusing it here would change what FIX-R09-2 pins.
   const claimedBy = fetchClaimedBy(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))
   if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
+  // Below the claim check on purpose: charging a file the download engine already owns against our
+  // own free space would refuse it over bytes that engine has already reserved.
+  if (!(await mountCanTake(mount, entry, abs, opts.probe || createMountProbe(mount)))) return 'blocked'
   const streamKey = loopKey(mount.spaceId, mount.shareId)
   const releaseSlot = await acquireMirrorSlot(streamKey)
   try {
@@ -549,7 +631,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   // null = nothing fetched: a stall after a holder was asked is a give-up (WARN);
   // never reaching a holder is a benign retry-next-tick (debug).
   if (!res) {
-    const miss = classifyMirrorMiss(attempted)
+    const miss = classifyMiss({ attempted })
     diag.finish(miss)
     // 'no-holder' means the overlay had zero peers, which is a process-global fact rather than a
     // property of this file: every remaining entry would pay the same peer wait for the same
@@ -565,6 +647,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   // The transfer verified the content hash on landing — record it so the row can
   // surface a "verified" indicator without re-hashing.
   await markVerified(mount.spaceId, verifyKey, entry.contentHash)
+  attempts.succeed(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'present'
 }
 
@@ -574,21 +657,20 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
 // view of the catalog a prefix — the same partial view a truncated listing gives.
 async function materializeEntries(mount, share, entries, { key, gen, synced, fresh, label }) {
   let allPresent = true
+  const probe = createMountProbe(mount)
+  // Asked once, not per entry: a walk that cannot fetch can still ADOPT — reporting what is already
+  // on disk needs no holder, and it is the difference between a fully-mirrored folder converging
+  // across an outage and reporting "syncing" until the owner returns. A drop mid-pass is caught by
+  // the fetch itself returning no-peers.
+  const canFetch = mayFetch(mount)
+  if (!canFetch) log.debug('mirror pass will adopt only — owner offline:', mount.shareId)
   for (const entry of entries) {
     if (mirrorStopped(key, gen)) return { allPresent, noPeers: false, stopped: true }
-    // Asked per entry rather than once above the loop: a pass that started while the owner was up
-    // must stop queueing fetches the moment they drop. It lives here rather than inside the entry
-    // materializer so that stays a primitive — "materialize this file", not "decide whether to" —
-    // which is also what lets a caller drive one entry directly.
-    if (!mayFetch(mount)) {
-      log.debug('mirror pass stopped — owner offline:', mount.shareId)
-      return { allPresent: false, noPeers: true, stopped: false }
-    }
     // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
     // wrote, or the owner's later delete of that file is never applied.
     state.recordSynced(key, synced, entry.relPath, fresh)
     try {
-      const outcome = await materializeCatalogFile(mount, share, entry, { synced, fresh, gen })
+      const outcome = await materializeCatalogFile(mount, share, entry, { synced, fresh, gen, probe, noFetch: !canFetch })
       // A NOT-present test rather than a list of miss values: a future outcome must never read as
       // done and let a file that was never fetched count toward convergence.
       if (outcome !== 'present') allPresent = false
@@ -601,6 +683,8 @@ async function materializeEntries(mount, share, entries, { key, gen, synced, fre
       log.debug(label, entry.relPath, '-', err.message)
     }
   }
+  // An adopt-only walk read the whole catalog and every file on disk, so its view is COMPLETE — it
+  // simply could not fetch what was missing. Calling it a prefix would stop the scan ever settling.
   return { allPresent, noPeers: false, stopped: false }
 }
 
@@ -719,7 +803,10 @@ async function materializeOnceCatalog(mount, share) {
   const pendingDeletions = [...synced].filter((ownerKey) => !onDrive.has(ownerKey))
   const caps = getResourceCaps()
   const honorDeletions = shouldHonorDeletions({
-    ownerOnline: isOwnerOnline(mount.ownerKey),
+    // mayFetch, not raw isOwnerOnline: presence never leases our own key, so a self-mirror read as
+    // offline here would refuse the owner's deletions forever. Same rule and same reason as the
+    // fetch gate — this was the third call site and the last to be converted.
+    ownerOnline: mayFetch(mount),
     driveCount: onDrive.size,
     listingComplete,
     syncedCount: synced.size,
@@ -854,10 +941,15 @@ export class ForeignMirrors extends Subsystem {
   // AFTER us — an unscoped drain would release the two engines' backlog into an overlay that is
   // still live, and those tasks pass their own hasOverlay() guard.
   async _close() {
+    unsubscribePeerOnline?.()
+    unsubscribePeerOnline = null
+    // A leaked override disables fetching for every mount in the process, not just a test's own.
+    reachabilityOverride = null
     drainFetchSlots(FETCH_OWNER_MIRROR)
     await stopAllForeignLoops()
     pausedHolders.clear()
     integritySeen.clear()
+    attempts.clear()
   }
 
   // Counts, not identifiers: diagnostics:export is user-shareable and redacts peer keys and
@@ -906,6 +998,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
   // Only here, not in stopForeignLoop: that runs on pause and on a health restart too, and
   // re-arming there would re-record the same mismatch on every resume.
   integritySeen.forget(loopKey(spaceId, shareId))
+  attempts.forget(loopKey(spaceId, shareId))
   // Overlay copies no bytes into a drive (it serves straight from the owner's
   // source), so there is no per-share blob cache to reclaim on unmount — the
   // materialized files stay on disk, matching owner-delete behaviour.

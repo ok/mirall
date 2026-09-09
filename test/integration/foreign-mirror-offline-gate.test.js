@@ -1,13 +1,14 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
+import { getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { initialMaterializeScan, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/foreign-folders.js'
 
-// The offline half of the gate is NOT tested here, deliberately. A remote-owner mount cannot be
-// faked at this layer: loadShareForForeignMount -> readPeerShares returns null for a key with no
-// peer bee, so materializeOnce returns at `if (!share)` and never reaches the gate — the test would
-// pass with the gate deleted. That half lives in test/flow/mirror-offline-idle.test.js, where
-// "offline" is a real peer shutting down.
+// The offline half needs the reachability seam: presence is a module-private lease map, so a test
+// cannot make a peer online. A FABRICATED remote ownerKey does not work either — readPeerShares
+// returns null for a key with no peer bee, so the pass exits at `if (!share)` before reaching any
+// gate and the test would pass with the gate deleted. So these stage a SELF mirror (share readable,
+// catalog real) and override reachability alone.
 
 // A well-formed scheduler-end frame. Passing one is what makes `attempted` true, which is the whole
 // difference between "a holder was asked and died" and "there was no holder at all".
@@ -86,4 +87,49 @@ test('a pass stopped early never converges', async (t) => {
   state.calls = 0
   await runMaterializeTick(ctx.spaceId, ctx.share.id)
   t.is(state.calls, 3, 'the next tick walked the whole catalog — the partial pass set no watermark')
+})
+
+// Staged offline. The override replaces the VERDICT, not isOwnerOnline: a self-mirror is reachable
+// by rule (presence never leases our own key), so overriding presence alone would change nothing.
+function offline (t) {
+  setMirrorReachability(() => false)
+  t.teardown(() => setMirrorReachability(null))
+}
+
+function countFetchesOn (t) {
+  const overlay = getOverlay()
+  const inner = overlay.fetchFile
+  const state = { calls: 0 }
+  overlay.fetchFile = async (...a) => { state.calls++; return await inner(...a) }
+  t.teardown(() => { overlay.fetchFile = inner })
+  return state
+}
+
+// The control. Without it a zero count below proves only that the harness was broken — and an
+// earlier draft of this file did exactly that, counting zero because a previous tick had already
+// put every file on disk.
+test('control: a reachable mirror fetches every missing file on one tick', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': '1', 'b.txt': '2', 'c.txt': '3' } })
+  const fetches = countFetchesOn(t)
+  await runMaterializeTick(ctx.spaceId, ctx.share.id)
+  t.is(fetches.calls, 3, 'three missing files, three fetches')
+})
+
+test('REGRESSION (FIX-MIRROR-OFFLINE): an unreachable owner costs zero fetches', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': '1', 'b.txt': '2', 'c.txt': '3' } })
+  offline(t)
+  const fetches = countFetchesOn(t)
+  await runMaterializeTick(ctx.spaceId, ctx.share.id)
+  await runMaterializeTick(ctx.spaceId, ctx.share.id)
+  t.is(fetches.calls, 0, 'two full ticks over three absent files issued no fetch at all')
+})
+
+test('the initial mount scan is gated too — it has no tick gate above it', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': '1', 'b.txt': '2' } })
+  offline(t)
+  const fetches = countFetchesOn(t)
+  await initialMaterializeScan(ctx.mount)
+  t.is(fetches.calls, 0, 'the boot scan issued no fetch')
+  const mount = await getForeignMount(ctx.spaceId, ctx.share.id)
+  t.is(mount.status, 'active', 'and still settled the mount rather than sticking on scanning')
 })

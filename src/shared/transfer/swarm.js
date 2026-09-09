@@ -135,7 +135,7 @@ let swarm
 let subsystem = null
 let ipcRef
 let overlayReconnectHook = null         // notified when an overlay-content owner (re)connects, so paused/interrupted overlay downloads (loose + folder) resume
-let peerOnlineHook = null               // notified on the same edge, for producers with no durable row for a resume to find (the mirror loops)
+const peerOnlineHooks = new Set()       // notified on the same edge, for producers with no durable row for a resume to find (the mirror loops)
 let membershipControlHandler = null     // membership:* frames (join request / grant / deny) routed to the worker
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
 let stalledOwnersHook = null            // worker-supplied probe: which owners are we waiting on?
@@ -610,7 +610,7 @@ async function handleHandshake(socket, peerInfo, msg) {
   }
 
   overlayReconnectHook?.(peerKey, spaceId)   // resume overlay downloads (loose + folder) owned by this peer (fn swallows its own errors)
-  peerOnlineHook?.(peerKey, spaceId)         // re-drive mirrors in this space (fn swallows its own errors)
+  notifyPeerOnline(peerKey, spaceId)
 
   // Reciprocal handshake so the peer learns about us. New to this space: always. A
   // duplicate means the peer is re-announcing because it hasn't admitted US for this space
@@ -999,12 +999,21 @@ export function isOwnerOnline(publicKey) {
   return presence.isOnlineAnywhere(publicKey)
 }
 
-// The level trigger that goes with it: whoever gates work on isOwnerOnline needs telling when the
-// answer flips, or it waits out its own poll interval. overlayReconnectHook covers the download
-// engine, whose durable rows a resume can re-drive; this covers producers that keep no row and
-// simply did nothing while the owner was away.
-export function setPeerOnlineHook(fn) {
-  peerOnlineHook = fn
+// One subscriber's fault is not the swarm's: a throw here would abandon the reciprocal handshake
+// that keeps two peers converged.
+function notifyPeerOnline(peerKey, spaceId) {
+  for (const fn of peerOnlineHooks) {
+    try { fn(peerKey, spaceId) } catch (err) { log.debug('peer-online subscriber failed:', err.message) }
+  }
+}
+
+// The level trigger that goes with isOwnerOnline: whoever gates work on it needs telling when the
+// answer flips, or it waits out its own poll interval. A registry rather than a single slot, so the
+// next producer that needs this edge subscribes instead of adding another call beside the first —
+// which is exactly how the mirror's arrived. Returns its own unsubscribe.
+export function onPeerOnline(fn) {
+  peerOnlineHooks.add(fn)
+  return () => peerOnlineHooks.delete(fn)
 }
 
 // A connected peer's live metadata for a space (driveKey announced in its handshake,
@@ -1135,7 +1144,7 @@ async function destroySwarm() {
   membersPoke.reset()
   ipcRef = null
   overlayReconnectHook = null
-  peerOnlineHook = null
+  peerOnlineHooks.clear()
   membershipControlHandler = null
   connectionAttachHook = null
   revokeServesForSpaceHook = null

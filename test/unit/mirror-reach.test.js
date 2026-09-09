@@ -43,8 +43,10 @@ test('foreign-folders routes every fetch-reachability decision through mirrorMay
   const here = path.dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'foreign-folders.js'), 'utf8')
   const direct = src.match(/isOwnerOnline\(/g) || []
-  // Exactly two: the deletion guard (shouldHonorDeletions) and mayFetch(). A third is a copy.
-  t.is(direct.length, 2, 'isOwnerOnline is called exactly twice')
+  // Exactly one, inside mayFetch. The deletion guard used to call it raw, which read every
+  // self-mirror as offline and refused the owner's deletions forever; it now asks mayFetch too.
+  t.is(direct.length, 1, 'isOwnerOnline has a single call site')
+  t.ok(/ownerOnline: mayFetch\(mount\)/.test(src), 'the deletion guard asks the same rule')
   t.ok(/function mayFetch\s*\(/.test(src), 'the single reachability helper exists')
   t.ok(/mirrorMayFetch\(/.test(src), 'and it delegates to the pure rule')
 })
