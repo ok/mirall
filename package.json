@@ -82,7 +82,7 @@
     "globals": "^17.12.0",
     "hyperdht": "~6.32.0",
     "i18next": "^26.4.2",
-    "knip": "^6.33.0",
+    "knip": "^6.34.0",
     "marked": "^18.0.11",
     "modern-screenshot": "^4.7.0",
     "react": "^19.2.8",
