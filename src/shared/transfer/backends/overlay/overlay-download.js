@@ -6,7 +6,7 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { getOverlay, getJournalDir } from './overlay-instance.js'
-import { fetchContentToFile, makeFetchDiag } from './overlay-backend.js'
+import { fetchContentToFile } from './overlay-backend.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../swarm.js'
@@ -14,7 +14,6 @@ import { markDownloaded, markVerified, isDownloadedFile, isDownloadedWithHash } 
 import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,
 } from '../../pending-transfers.js'
-import { makeProgressTicker } from '../../progress-ticker.js'
 import { createPausedHolders } from './paused-holders.js'
 import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
@@ -25,11 +24,12 @@ import { fetchClaimedBy } from './fetch-claims.js'
 import { ErrorCodes, classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
-const log = createLogger('overlay-download')
+import { isTerminalFault, nextRetryDelay } from './fetch-policy.js'
+import { makeFetchInstruments } from './fetch-run.js'
+import { shortfall } from '../../free-space.js'
+import { freeBytesFor } from '../../free-space-probe.js'
 
-// Keep some headroom beyond the file itself: the journal, rocksdb writes and the OS all
-// need working space — filling the volume to the last byte would wedge more than the transfer.
-const FREE_SPACE_HEADROOM = 64 * 1024 * 1024
+const log = createLogger('overlay-download')
 
 // [mirall] FIX-BW9 — stall auto-retry. A code-less fetch failure means "the bytes stopped":
 // a holder that dropped, or one whose UPLOAD cap kept it silent past our 30 s no-progress
@@ -45,17 +45,6 @@ const STALL_RETRY_BASE_MS = 3000
 // Binds only if STALL_RETRY_DRY_LIMIT is raised: at 3 the backoff reaches 3s/6s/12s and stops.
 const STALL_RETRY_MAX_MS = 60000
 const STALL_RETRY_DRY_LIMIT = 3
-
-// Available bytes for the volume holding `dir`. Fails OPEN (Infinity) — a probe error must
-// never block a download; the fetch itself still surfaces a real ENOSPC.
-function defaultFreeBytes (dir) {
-  try {
-    const s = fs.statfsSync(dir)
-    return s.bavail * s.bsize
-  } catch {
-    return Infinity
-  }
-}
 
 // Is `dir` a usable destination folder right now? Anything other than a live directory —
 // missing, or a plain file sitting where the folder belongs — reads as unavailable.
@@ -103,7 +92,7 @@ function discardPartial (finalPath) {
 // }
 // job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq,
 //        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
-export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = defaultFreeBytes, stallRetry = {}, dirExists = defaultDirExists } = {}) {
+export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
   const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
   // Paused-transfer markers whose single-flight slot was released (the fetch IIFE deletes it on
   // settle). The marker is the user's intent — it outranks every automatic resume — and its hash
@@ -117,17 +106,16 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   const terminalCodes = new Map()
 
   // Record a terminal verdict on the row. Never throws: the caller still emits the error (the
-  // transfer DID fail); what the warn adds is that the failure is not durable.
-  // Only the codes runReconcile actually suppresses are worth remembering; anything else would
-  // grow the map for the life of the worker without ever being read.
-  const SUPPRESSED_CODES = new Set([ErrorCodes.TRANSFER_CHECKSUM, ErrorCodes.TRANSFER_DISK_FULL, ErrorCodes.TRANSFER_DEST_UNAVAILABLE])
+  // transfer DID fail); what the warn adds is that the failure is not durable. Only the codes
+  // isTerminalFault names are remembered — anything else would grow the map for the life of the
+  // worker without ever being read.
 
   async function recordTerminal (job, code) {
     try {
       await recordPendingError(job.spaceId, job.pendingKey, code)
       terminalCodes.delete(job.transferId)
     } catch (err) {
-      if (SUPPRESSED_CODES.has(code)) terminalCodes.set(job.transferId, code)
+      if (isTerminalFault(code)) terminalCodes.set(job.transferId, code)
       log.warn('could not persist the transfer error — auto-resume is suppressed only until restart:', job.relPath, code, '-', err.message)
     }
   }
@@ -181,7 +169,8 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     // Progress since the last attempt clears the counter — that is what lets a paced transfer
     // keep going, one attempt at a time, without a retry budget it can exhaust.
     const dry = prev && bytes <= prev.bytes ? prev.dry + 1 : 0
-    if (dry >= retryDryLimit) { cancelStallRetry(transferId); return false }
+    const delayMs = nextRetryDelay({ dry, baseMs: retryBaseMs, maxMs: retryMaxMs, dryLimit: retryDryLimit })
+    if (delayMs === null) { cancelStallRetry(transferId); return false }
     // Replacing a record must clear its timer, or the old one fires unreachable: cancelStallRetry
     // only ever sees the map's CURRENT record, so an orphan survives pause, discard and leave —
     // and re-creates the row they just purged.
@@ -190,7 +179,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     st.timer = setTimeout(() => {
       st.timer = null
       retryNow(job, bytes, dry).catch((err) => log.debug('overlay stall-retry failed:', err.message))
-    }, Math.min(retryMaxMs, retryBaseMs * 2 ** dry))
+    }, delayMs)
     st.timer.unref?.()
     stallRetries.set(transferId, st)
     return true
@@ -320,12 +309,18 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       slot.fetching = true
       // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
       // bytes (chunk-scheduler.js), so the ticker needs no resume offset.
-      const ticker = makeProgressTicker(job.size, ({ bytes, total, speed, eta }) => {
-        channel.emitProgress(job, { bytes, total, speed, eta })
-        updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
+      const { diag, callbacks } = makeFetchInstruments({
+        label: channel.diagLabel,
+        relPath: job.relPath,
+        size: job.size,
+        contentHash: job.contentHash,
+        onProgress: ({ bytes, total, speed, eta }) => {
+          channel.emitProgress(job, { bytes, total, speed, eta })
+          updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
+        },
+        onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
       })
-      const diag = makeFetchDiag(channel.diagLabel, job.relPath, job.size, job.contentHash)
-      const r = await fetchImpl(job.contentHash, { finalPath: job.finalPath, onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b) }, onVerify: (fraction) => channel.emitVerifying?.(job, fraction), onEnd: diag.onEnd })
+      const r = await fetchImpl(job.contentHash, { finalPath: job.finalPath, ...callbacks })
       await settleFetch(transferId, job, r, diag)
     } finally {
       releaseSlot()
@@ -402,10 +397,13 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   }
 
   function missingFreeSpaceFor (job) {
-    let allocated = 0
-    try { allocated = fs.statSync(partialPathFor(job.finalPath)).blocks * 512 || 0 } catch {}
-    const needed = Math.max(0, job.size - allocated) + FREE_SPACE_HEADROOM
-    return freeBytes(path.dirname(job.finalPath)) < needed
+    let allocatedBytes = 0
+    try { allocatedBytes = fs.statSync(partialPathFor(job.finalPath)).blocks * 512 || 0 } catch {}
+    return shortfall({
+      freeBytes: freeBytes(path.dirname(job.finalPath)),
+      needBytes: job.size,
+      allocatedBytes,
+    }) > 0
   }
 
   async function start (job) {
@@ -472,7 +470,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       // (vendor/transfer.js), so a folder the user simply DELETED is silently recreated and the
       // download completes into a resurrected empty folder with no error to classify at all.
       // Downloads are flat (finalPath is always <root>/<basename>), so dirname IS the root.
-      // Runs BEFORE the free-space gate on purpose: defaultFreeBytes fails open on a statfs
+      // Runs BEFORE the free-space gate on purpose: freeBytesFor fails open on a statfs
       // error, so a gone root sails straight past that check.
       if (!dirExists(path.dirname(job.finalPath))) {
         registry.delete(transferId)
@@ -680,7 +678,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       const transferId = channel.transferIdForRow(spaceId, row)
       if (registry.has(transferId)) continue // active → reconcileActive* owns supersede + removal
       const errorCode = row.errorCode ?? terminalCodes.get(transferId)
-      const suppressed = pausedHashes.has(transferId) || errorCode === ErrorCodes.TRANSFER_CHECKSUM || errorCode === ErrorCodes.TRANSFER_DISK_FULL || errorCode === ErrorCodes.TRANSFER_DEST_UNAVAILABLE
+      const suppressed = pausedHashes.has(transferId) || isTerminalFault(errorCode)
       if (suppressed && !deep) continue
       // A completed download whose row outlived its claim (a failed clear, or a crash between
       // the claim and the clear): the file is on disk and claimed, so finish the intent here

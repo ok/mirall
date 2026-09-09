@@ -7,17 +7,8 @@
 // Imports nothing from `bare-*` (and nothing from the two modules that build channels), so it
 // loads under plain Node and unit-tests directly.
 import { driveBaseName } from '../../../folders/path-keys.js'
-import { ErrorCodes } from '../../../core/errors.js'
 
-// Codes that reach the user directly on a channel whose rows have a list to fall back on.
-// Everything else surfaces through the list refresh, where the row carries its own errorCode and
-// offers Resume. The membership of this set and the auto-resume suppression in overlay-download.js
-// are the same judgement: a fault the user must clear before a retry can ever succeed.
-const USER_FACING_ERRORS = new Set([
-  ErrorCodes.TRANSFER_DISK_FULL,
-  ErrorCodes.TRANSFER_CHECKSUM,
-  ErrorCodes.TRANSFER_DEST_UNAVAILABLE,
-])
+import { isTerminalFault } from './fetch-policy.js'
 
 export function createOverlayChannel (d) {
   // Decoration frames carry spaceId: a bare drive path is unique per space only — without the
@@ -46,7 +37,7 @@ export function createOverlayChannel (d) {
     // real one: a folder row surfaces its error inline in the file list, a loose row has no such
     // list to fall back on.
     emitError: (job, errorCode) => {
-      if (d.surfaceAllErrors || USER_FACING_ERRORS.has(errorCode)) {
+      if (d.surfaceAllErrors || isTerminalFault(errorCode)) {
         d.emit('event:transfer-error', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, errorCode })
       }
       decoJob(job, { done: true })

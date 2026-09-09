@@ -13,19 +13,34 @@ import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay-fetch')
 
+// The ticker, the diag, and the three callbacks that wire them together — everything either
+// consumer builds AROUND the vendor call. The engine cannot share runOverlayFetch itself because
+// its vendor call resolves { ok, code } instead of throwing, so it takes these and keeps its own
+// settle; the header's claim that both consumers share this file is true through here.
+export function makeFetchInstruments ({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
+  const ticker = makeProgressTicker(size, onProgress)
+  const diag = makeFetchDiag(label, relPath, size, contentHash)
+  return {
+    diag,
+    callbacks: {
+      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); onTick?.() },
+      onVerify,
+      onEnd: diag.onEnd,
+    },
+  }
+}
+
 export async function runOverlayFetch (overlay, contentHash, {
   label, relPath, size = 0, destPath, reSeed = false, onProgress, onVerify, onTick,
 }) {
-  const ticker = makeProgressTicker(size, onProgress)
-  const diag = makeFetchDiag(label, relPath, size, contentHash)
   let attempted = false
+  const { diag, callbacks } = makeFetchInstruments({ label, relPath, size, contentHash, onProgress, onVerify, onTick })
   try {
     const res = await overlay.fetchFile(contentHash, {
       destPath,
       reSeed,
-      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); onTick?.() },
-      onVerify,
-      onEnd: (info) => { attempted = true; diag.onEnd(info) },
+      ...callbacks,
+      onEnd: (info) => { attempted = true; callbacks.onEnd(info) },
     })
     return { res, attempted, diag }
   } catch (err) {
