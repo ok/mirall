@@ -439,6 +439,31 @@ a 48×28 pill track on the right (`bg-primary` on / `bg-surface-container-high`
 off) with a 20px translating thumb. Hover lifts to
 `bg-surface-container-high/50`.
 
+**A control's supporting text belongs on the control**, in that `description` — not in a
+separate advisory block near it. A box that explains a switch two elements further down
+describes something the reader has not reached yet, and if the box only appears once the
+switch is on it explains a decision already made.
+
+### Settings section composition
+`SectionHeading` → **one** `bg-surface-container-low rounded-xl overflow-hidden` surface, and
+everything the section says or offers lives on it: intro prose (`px-6 pt-6 pb-5`), then the
+controls as rows, then the trailing note (`px-6 pt-5 pb-6 text-xs`). Rows own their padding —
+`p-6` for a `Toggle`, `px-6 py-5` for a row with a control on the right — and carry
+`border-t border-outline-variant/40` between them. `NetworkSettings` is the reference: both its
+sections keep their note inside the card.
+
+Prose does **not** float on the page between the heading and the card, and a control does
+**not** get a tinted card of its own inside the section's card: a second surface nested in the
+first reads as a grouping that means nothing, and `surface-container-high/40` on
+`surface-container-low` is the combination that shows it. Tinted blocks are for modal panels
+and status banners, which sit on a different ground. (`ActivityLogSettings` uses the same one
+surface but hangs its note outside as `mt-3 text-xs`; prefer the note inside.)
+
+**A row whose control is switched off dims with it** — `opacity-50` on the row's identity and
+its badges, and a status badge that says so rather than one still claiming a verdict that is no
+longer being applied. Whatever *manages* the row — its overflow menu — stays at full strength:
+dimming is a statement about the setting, never a reason to strip the only way to change it.
+
 ### Dropdown button — `widgets/ActionMenu.tsx`
 The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
 trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a
