@@ -139,9 +139,9 @@ test('the mirror releases its claim and its slot on every exit path', async (t) 
   t.is(fetchSlotStats().held, 0, 'slot released after a completed fetch')
   t.is(fetchClaimedBy(transferIdFor(ctx.spaceId, ctx.share.id, entries[0].relPath)), null, 'claim released')
 
-  // miss (fetchFile resolves null)
+  // miss (fetchFile resolves null with no scheduler end == no holder was ever reachable)
   overlay.fetchFile = async () => null
-  t.is(await materializeCatalogFile(ctx.mount, ctx.share, entries[1]), 'missing')
+  t.is(await materializeCatalogFile(ctx.mount, ctx.share, entries[1]), 'no-peers')
   t.is(fetchSlotStats().held, 0, 'slot released after a miss')
   t.is(fetchClaimedBy(transferIdFor(ctx.spaceId, ctx.share.id, entries[1].relPath)), null, 'claim released after a miss')
 

@@ -7,6 +7,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { materializeCatalogFile, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
+import { createIntegritySeen } from '../../src/shared/folders/integrity-seen.js'
 
 // src/shared/folders/ contained ZERO record( calls: a mirror holder serving bytes that fail their
 // advertised hash produced a console warning and nothing else. Everything else the mirror does per
@@ -74,6 +75,17 @@ test('REGRESSION (FIX-D11-4): a mirror hash mismatch records security.integrity_
   t.is(found[0].category, 'security')
   t.is(found[0].outcome, 'error')
   t.is(found[0].space.id, space.spaceId)
+})
+
+// The attempt budget stops asking after 3 tries, so five calls no longer reach the audit path five
+// times — driving `admit` directly is what keeps this about the DEDUP rule rather than about the
+// budget that now happens to sit in front of it. The end-to-end count is asserted below.
+test('the audit memo records one row per (mount, file, hash), however often it is told', async (t) => {
+  const seen = createIntegritySeen()
+  t.ok(seen.admit('m', 'a/report.pdf', 'h1'), 'the first claim records')
+  for (let i = 0; i < 5; i++) t.absent(seen.admit('m', 'a/report.pdf', 'h1'), 'repeats do not')
+  t.ok(seen.admit('m', 'a/report.pdf', 'h2'), 'a re-publish is a new claim')
+  t.ok(seen.admit('other', 'a/report.pdf', 'h1'), 'and another mount is its own')
 })
 
 test('five ticks against the same bad file record exactly one row', async (t) => {
