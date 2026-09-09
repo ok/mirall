@@ -7,7 +7,7 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries, conflictCopyName, driveKeyToSegments } from './path-keys.js'
-import { isOwnerOnline } from '../transfer/swarm.js'
+import { isOwnerOnline, setPeerOnlineHook } from '../transfer/swarm.js'
 import { record } from '../audit/audit-log.js'
 import { createIntegritySeen } from './integrity-seen.js'
 import { getSpace } from '../spaces/space.js'
@@ -39,6 +39,7 @@ import { createMirrorLoops } from './mirror-loop.js'
 import { createMirrorState, localRelOf } from './mirror-state.js'
 import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-ownership.js'
 import { shouldWalk } from './mirror-walk.js'
+import { mirrorMayFetch } from './mirror-reach.js'
 
 const log = createLogger('foreign-folders')
 
@@ -62,6 +63,9 @@ export function initForeignFolders(_ipc) {
   // Materialize promptly when an owner's catalog appends, instead of waiting for
   // the mirror's poll tick.
   setOverlayCatalogChangeHook(onPeerDriveChanged)
+  // The other level trigger: a pass gated on an offline owner did nothing at all, so without this
+  // an offline->online flip waits out a whole poll interval before the first byte moves.
+  setPeerOnlineHook(onOwnerOnline)
 }
 
 function loopKey(spaceId, shareId) {
@@ -70,15 +74,28 @@ function loopKey(spaceId, shareId) {
 
 const APPEND_TICK_DEBOUNCE_MS = 250
 
+// Both level triggers poke the same way — every mirror in the space, debounced. A loop record
+// carries no ownerKey, and a mirror whose owner is uninvolved re-derives and settles for the price
+// of a map lookup, so filtering by owner would buy nothing and cost a mount read per event.
+function pokeSpaceMirrors(spaceId) {
+  for (const loop of loops.entries()) {
+    if (loop.spaceId !== spaceId) continue
+    loops.debounce(loop.key, { spaceId: loop.spaceId, shareId: loop.shareId }, APPEND_TICK_DEBOUNCE_MS)
+  }
+}
+
 // The owner's content changed. Run a materialize tick now (debounced) for each
 // active mirror in that space instead of waiting for the 30s poll, so owner-side
 // edits/deletes reflect on the mirror's disk as promptly as they do in the folder
 // view.
 export function onPeerDriveChanged(spaceId) {
-  for (const loop of loops.entries()) {
-    if (loop.spaceId !== spaceId) continue
-    loops.debounce(loop.key, { spaceId: loop.spaceId, shareId: loop.shareId }, APPEND_TICK_DEBOUNCE_MS)
-  }
+  pokeSpaceMirrors(spaceId)
+}
+
+// A member handshaked into this space. Any mirror of theirs has been skipping its passes on the
+// reachability gate, so re-drive now rather than at the next tick.
+export function onOwnerOnline(_ownerKey, spaceId) {
+  pokeSpaceMirrors(spaceId)
 }
 
 async function loadShareForForeignMount(mount) {
@@ -250,6 +267,16 @@ export function foreignFetchActive(spaceId, shareId, relPath) {
 }
 const mirrorGen = (key) => loops.generationOf(key)
 const mirrorStopped = (key, gen) => loops.stopped(key, gen)
+
+// Read live rather than snapshotted: a pass that starts online and finishes offline re-asks at the
+// per-entry gate.
+function mayFetch(mount) {
+  return mirrorMayFetch({
+    ownerKey: mount.ownerKey,
+    localKey: getLocalPublicKeyHex(),
+    ownerOnline: isOwnerOnline(mount.ownerKey),
+  })
+}
 
 export async function runMaterializeTick(spaceId, shareId) {
   return await loops.tick(loopKey(spaceId, shareId), { spaceId, shareId })
@@ -452,6 +479,11 @@ async function acquireMirrorSlot(streamKey) {
 async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen, diskHash = null, localExists = false }) {
   // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
   if (mirrorStopped(streamKey, gen)) return 'missing'
+  // Deliberately NOT re-checking reachability here, unlike the download engine past its own slot
+  // wait: this function is reached from materializeCatalogFile, which callers drive one entry at a
+  // time against mounts whose owner is unreachable by construction. The window it would close — the
+  // owner leaving while this entry is parked on the shared slot — is already bounded, because the
+  // fetch then returns 'no-peers' and ends the whole pass. One peer wait, once, not a spin.
   // Read AFTER the wait, not before it: the overlay can be torn down while a pass is parked.
   const overlay = getOverlay()
   if (!overlay) return 'missing'
@@ -516,7 +548,14 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   }
   // null = nothing fetched: a stall after a holder was asked is a give-up (WARN);
   // never reaching a holder is a benign retry-next-tick (debug).
-  if (!res) { diag.finish(classifyMirrorMiss(attempted)); return 'missing' }
+  if (!res) {
+    const miss = classifyMirrorMiss(attempted)
+    diag.finish(miss)
+    // 'no-holder' means the overlay had zero peers, which is a process-global fact rather than a
+    // property of this file: every remaining entry would pay the same peer wait for the same
+    // answer. 'failed' IS per-file — a holder was asked and died — so the walk must carry on.
+    return miss === 'no-holder' ? 'no-peers' : 'missing'
+  }
   diag.finish('done')
   // a local hit returns the source path without writing abs — copy the bytes by
   // path (never buffering a possibly multi-GB file in memory).
@@ -529,6 +568,42 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   return 'present'
 }
 
+// The half both passes share: materialize every catalog entry and report what the walk learned.
+// `stopped` is a cancelled pass, which its caller must return from without writing anything;
+// `noPeers` is a pass that gave up early because there was nothing to fetch from, which leaves its
+// view of the catalog a prefix — the same partial view a truncated listing gives.
+async function materializeEntries(mount, share, entries, { key, gen, synced, fresh, label }) {
+  let allPresent = true
+  for (const entry of entries) {
+    if (mirrorStopped(key, gen)) return { allPresent, noPeers: false, stopped: true }
+    // Asked per entry rather than once above the loop: a pass that started while the owner was up
+    // must stop queueing fetches the moment they drop. It lives here rather than inside the entry
+    // materializer so that stays a primitive — "materialize this file", not "decide whether to" —
+    // which is also what lets a caller drive one entry directly.
+    if (!mayFetch(mount)) {
+      log.debug('mirror pass stopped — owner offline:', mount.shareId)
+      return { allPresent: false, noPeers: true, stopped: false }
+    }
+    // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
+    // wrote, or the owner's later delete of that file is never applied.
+    state.recordSynced(key, synced, entry.relPath, fresh)
+    try {
+      const outcome = await materializeCatalogFile(mount, share, entry, { synced, fresh, gen })
+      // A NOT-present test rather than a list of miss values: a future outcome must never read as
+      // done and let a file that was never fetched count toward convergence.
+      if (outcome !== 'present') allPresent = false
+      if (outcome === 'no-peers') {
+        log.debug('mirror pass stopped early — nothing to fetch from:', mount.shareId)
+        return { allPresent, noPeers: true, stopped: false }
+      }
+    } catch (err) {
+      allPresent = false
+      log.debug(label, entry.relPath, '-', err.message)
+    }
+  }
+  return { allPresent, noPeers: false, stopped: false }
+}
+
 async function initialMaterializeScanCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
@@ -538,25 +613,19 @@ async function initialMaterializeScanCatalog(mount, share) {
   const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-initial)'))
-  let allPresent = true
-  for (const entry of entries) {
-    if (mirrorStopped(key, gen)) return { stopped: true }
-    // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
-    // wrote, or the owner's later delete of that file is never applied.
-    state.recordSynced(key, synced, entry.relPath, fresh)
-    try {
-      if (await materializeCatalogFile(mount, share, entry, { synced, fresh, gen }) === 'missing') allPresent = false
-    } catch (err) {
-      allPresent = false
-      log.debug('catalog initial materialize failed:', entry.relPath, '-', err.message)
-    }
-  }
-  if (mirrorStopped(key, gen)) return { stopped: true }
+  const walk = await materializeEntries(mount, share, entries, {
+    key, gen, synced, fresh, label: 'catalog initial materialize failed:',
+  })
+  if (walk.stopped || mirrorStopped(key, gen)) return { stopped: true }
+  const allPresent = walk.allPresent
+  // A pass that stopped early walked a PREFIX of the catalog, which is the same thing a truncated
+  // listing is — so it may not replace the synced record or stamp the scan done either.
+  const listingComplete = complete && !walk.noPeers
   // An incomplete drain is a partial view of the owner's catalog, so it may not SHRINK the synced
   // record — union instead, or a mirror that already holds 12 files forgets 8 of them on a
   // truncated re-scan (and with it the evidence a later deletion would be judged against). Only a
   // complete read is authoritative enough to replace the record, or to stamp the scan done.
-  if (complete) {
+  if (listingComplete) {
     const listed = new Set(entries.map((e) => e.relPath))
     for (const ownerKey of [...synced]) if (!listed.has(ownerKey)) state.forgetSynced(key, synced, ownerKey)
     mount.initialScanCompletedAt = Date.now()
@@ -568,7 +637,7 @@ async function initialMaterializeScanCatalog(mount, share) {
     // A pass that got through clears the reason with the status: a stale one would name the next
     // fault that records none.
     lastError: null,
-    ...(complete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
+    ...(listingComplete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
   })
   state.markClean(key)
   emitStatus(mount.spaceId, mount.shareId, 'active')
@@ -577,7 +646,7 @@ async function initialMaterializeScanCatalog(mount, share) {
   // show a fully-merged mirror. A genuinely-empty share settles to 'synced' on a later tick. The
   // gen recheck (adjacent to the enqueue, no await between) stops a concurrent pause from being
   // overwritten.
-  if (!mirrorStopped(key, gen) && entries.length > 0 && complete) await settleMirrorSyncState(mount, allPresent)
+  if (!mirrorStopped(key, gen) && entries.length > 0 && listingComplete) await settleMirrorSyncState(mount, allPresent)
   return {}
 }
 
@@ -594,6 +663,17 @@ function logWithheldDeletions (key, pending, syncedSize, minDeletions) {
 async function materializeOnceCatalog(mount, share) {
   const key = loopKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
+
+  // Nothing this pass is allowed to do: an offline owner cannot append, so the catalog cannot have
+  // moved, and shouldHonorDeletions already refuses to act on deletions while they are away — every
+  // fetch would just burn the overlay's peer wait to learn there is no holder. Returning HERE,
+  // above the version read and above forgetConverged, is what lets a converged mirror keep its
+  // watermark across an outage. onOwnerOnline re-drives on their handshake, so being wrong costs
+  // latency, never a stuck mirror.
+  if (!mayFetch(mount)) {
+    log.debug('mirror tick skipped — owner offline:', mount.shareId)
+    return
+  }
 
   // Read BEFORE the listing: an append landing mid-walk leaves the head past the version this pass
   // records, so the next tick walks. A pass only ever converges against the snapshot it walked.
@@ -624,19 +704,15 @@ async function materializeOnceCatalog(mount, share) {
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-tick)'))
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
-  let allPresent = true
-  for (const [, entry] of onDrive) {
-    if (mirrorStopped(key, gen)) return
-    state.recordSynced(key, synced, entry.relPath, fresh)
-    try {
-      if (await materializeCatalogFile(mount, share, entry, { synced, fresh, gen }) === 'missing') allPresent = false
-    } catch (err) {
-      allPresent = false
-      log.debug('catalog materialize failed:', entry.relPath, '-', err.message)
-    }
-  }
-
-  if (mirrorStopped(key, gen)) return
+  const walk = await materializeEntries(mount, share, onDrive.values(), {
+    key, gen, synced, fresh, label: 'catalog materialize failed:',
+  })
+  if (walk.stopped || mirrorStopped(key, gen)) return
+  const allPresent = walk.allPresent
+  // A pass that stopped early walked a PREFIX of the catalog — the same partial view a truncated
+  // listing gives, and the two things that must not act on one are the same: the deletion reconcile
+  // and the convergence test.
+  const listingComplete = complete && !walk.noPeers
 
   // Resolved BEFORE the gate rather than inside the loop: the gate now weighs how MANY files a
   // pass would remove, which cannot be known one key at a time.
@@ -645,7 +721,7 @@ async function materializeOnceCatalog(mount, share) {
   const honorDeletions = shouldHonorDeletions({
     ownerOnline: isOwnerOnline(mount.ownerKey),
     driveCount: onDrive.size,
-    listingComplete: complete,
+    listingComplete,
     syncedCount: synced.size,
     deletionCount: pendingDeletions.length,
     minDeletions: caps.minMirrorDeletions,
@@ -677,7 +753,7 @@ async function materializeOnceCatalog(mount, share) {
   // skipping is safest — and if deletions really are outstanding the size check catches them and the
   // mirror keeps walking. A cancelled pass proves nothing, and a version we could not read cannot
   // authorise a later skip.
-  const converged = allPresent && complete && synced.size === onDrive.size
+  const converged = allPresent && listingComplete && synced.size === onDrive.size
   if (converged && version !== null && !mirrorStopped(key, gen)) state.setWatermark(key, version)
   // Re-check the generation adjacent to the enqueue (no await between) so a pause/unmount that
   // landed during the deletion-reconcile await above can't be overwritten by this terminal write.

@@ -200,7 +200,9 @@ function baselineRow(w, mountPath) {
       const verified = !!entry.contentHash && VERIFIED[w.verified] === entry.contentHash
       return { ...out, row: { status: 'synced', localPath: abs, verified } }
     }
-    if (w.fetchActive) return { ...out, row: { status: 'downloading', localPath: null, pendingBytes: 0 } }
+    // An in-flight mirror fetch only counts while the owner is reachable: with them away the fetch
+    // is parked on the overlay's peer wait, not pulling anything.
+    if (w.fetchActive && w.ownerOnline) return { ...out, row: { status: 'downloading', localPath: null, pendingBytes: 0 } }
     if (!entry.contentHash) return { ...out, row: { status: unhashedStatusFor(w.ownerOnline), localPath: null } }
     return { ...out, row: { status: w.ownerOnline ? 'remote' : 'unavailable', localPath: null } }
   }
@@ -376,4 +378,24 @@ test('an unrenamed mirror row is unaffected by the mapping lookup', async (t) =>
   const res = await listOverlayShareFiles(SPACE, SHARE, backendFor([{ relPath: 'f.txt', size: 10, contentHash: 'h1', mtime: 0 }]), deps)
   t.is(res.entries[0].status, 'synced')
   t.is(res.entries[0].localPath, path.join(root, 'f.txt'))
+})
+
+// REGRESSION (FIX-MIRROR-OFFLINE): the mirror kept a fetch "in flight" against an offline owner —
+// parked on the overlay's peer wait, transferring nothing — and this row reported it 'downloading'.
+// The renderer paints a downloading row with no bytes as "Preparing…", so the folder showed a badge
+// walking from file to file directly beneath its own "the owner is offline" banner. The strip and
+// the folder tile already suppressed their equivalents; the row was the surface that did not.
+test("REGRESSION (FIX-MIRROR-OFFLINE): a parked mirror fetch is not 'downloading' when the owner is away", async (t) => {
+  const root = mirrorDir(t, 'offline-parked', {})
+  const deps = countingDeps()
+  deps.getForeignMount = async () => ({ enabled: true, mountPath: root })
+  deps.foreignFetchActive = () => true
+
+  deps.isOwnerOnline = () => false
+  const away = await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(1)), deps)
+  t.is(away.entries[0].status, 'unavailable', 'offline: the parked fetch does not read as a download')
+
+  deps.isOwnerOnline = () => true
+  const back = await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(1)), deps)
+  t.is(back.entries[0].status, 'downloading', 'online: a real in-flight fetch still reads as one')
 })

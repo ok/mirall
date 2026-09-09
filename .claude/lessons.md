@@ -426,3 +426,36 @@ never `catch {}` the delete: a seed you failed to remove is the invisible case, 
 has to learn about it (`test/unit/relay-secret.test.js` pins that with a read-only directory).
 
 The same shape applies to any pair of "secret at rest" + "record that names it".
+
+## `isOwnerOnline` is FALSE for a self-mirror — presence tracks remote peers only
+
+`isOwnerOnline` → `presence.isOnlineAnywhere`, and a presence lease is only ever created for a
+peer whose handshake we received. Our own key is never in the map, so `isOwnerOnline(ourKey)` is
+permanently false. Any gate written as `isOwnerOnline(mount.ownerKey)` therefore freezes every
+self-mirror forever — and `test/helpers/owned.js::setupSelfMirror`, which most of the mirror
+integration suite is built on, mounts with exactly that ownerKey.
+
+`share-listing.js` already carries the special case (`isOwn ? true : deps.isOwnerOnline(...)`) and
+so does `ownerLeftSpace`. Any third consumer needs it too — which is the argument for one pure
+predicate (`mirror-reach.js`) over a hand-rolled copy per call site.
+
+**Related:** an integration test cannot fake an *offline remote* owner. A fabricated ownerKey makes
+`loadShareForForeignMount` → `readPeerShares` return null, so the pass exits at `if (!share)` before
+reaching any gate — the test then passes with the gate deleted. Offline-owner behaviour has to be
+asserted at the flow layer, where a real peer shuts down.
+
+## A mirror re-fetching its own deleted file needs no peer — the overlay spool answers it
+
+A completed overlay fetch registers the blob locally ("seeding multiplication"), so `fetchFile`
+resolves a later request for that content hash from disk before it ever waits for a peer. Deleting
+a mirrored file therefore does NOT create unfetchable work: the next pass restores it from our own
+spool, converges, and goes quiet.
+
+This invalidates the obvious fixture for "the mirror spins against an offline owner" — mirror the
+folder, delete the files, take the owner away. It reproduces nothing. The shape that does is a
+mount created while the owner is already gone, against content this peer has never held. Cost: one
+flow test that passed for the wrong reason until it was instrumented to print the statuses it had
+actually observed (`unavailable,synced` — never `downloading`).
+
+**Generalisation:** when a red-first test goes green too easily, print what it observed rather than
+trusting the assertion. A guard that cannot fail is worse than no guard.

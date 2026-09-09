@@ -69,8 +69,12 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     const abs = pathFromMount(foreignMount.mountPath, localRelOf(foreignMount, entry.relPath))
     if (statSizeOrNull(abs) === entry.size) return { status: 'synced', localPath: abs, verified: isVerified }
     // The mirror loop is pulling this row right now — 'downloading' so FolderView's
-    // bar/speed/verify lane (all gated on the status) render during materialization.
-    if (deps.foreignFetchActive(spaceId, share.id, entry.relPath)) {
+    // bar/speed/verify lane (all gated on the status) render during materialization. Gated on
+    // reachability: a fetch parked on the overlay's peer wait is not pulling anything, and the
+    // renderer paints a downloading row with no bytes as "Preparing…" — which read as a rotating
+    // badge beside the banner saying the owner is offline. The strip and the folder tile already
+    // apply this rule; the row was the one surface that did not.
+    if (ownerOnline && deps.foreignFetchActive(spaceId, share.id, entry.relPath)) {
       return { status: 'downloading', localPath: null, pendingBytes: 0 }
     }
     if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null }
