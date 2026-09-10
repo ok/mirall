@@ -14,13 +14,13 @@ const { startWatcher, stopWatcher, stopAllWatchers } = modules[1]
 // REGRESSION (G3): after a worker "respawn" (a second startWatcher for the SAME shareId with a
 // NEW callback), fs events must route to the NEW callback. Before the fix the has()-guard
 // early-returned and the old (dead-worker) callback kept receiving events.
-test('REGRESSION (G3): a re-armed watcher retargets to the newest callback', (t) => {
+test('REGRESSION (G3): a re-armed watcher retargets to the newest callback', async (t) => {
   created.length = 0
   const seenA = []; const seenB = []
-  startWatcher('s1', '/mnt/x', [], (e) => seenA.push(e), () => {})
+  await startWatcher('s1', '/mnt/x', [], (e) => seenA.push(e), () => {})
   t.is(created.length, 1, 'one watcher created')
 
-  startWatcher('s1', '/mnt/x', [], (e) => seenB.push(e), () => {})   // worker #2 re-arms
+  await startWatcher('s1', '/mnt/x', [], (e) => seenB.push(e), () => {})   // worker #2 re-arms
   t.is(created.length, 1, 'no second watcher (has()-guard held)')
 
   created[0].emit('change', '/mnt/x/f.txt')   // an fs event on the surviving watcher
@@ -35,11 +35,11 @@ test('REGRESSION (G3): a re-armed watcher retargets to the newest callback', (t)
 
 // The error callback retargets the same way (an error-storm on a re-armed watcher must reach
 // the live worker, not the dead one).
-test('G3: the error callback also retargets on re-arm', (t) => {
+test('G3: the error callback also retargets on re-arm', async (t) => {
   created.length = 0
   const errA = []; const errB = []
-  startWatcher('s2', '/mnt/y', [], () => {}, (e) => errA.push(e))
-  startWatcher('s2', '/mnt/y', [], () => {}, (e) => errB.push(e))
+  await startWatcher('s2', '/mnt/y', [], () => {}, (e) => errA.push(e))
+  await startWatcher('s2', '/mnt/y', [], () => {}, (e) => errB.push(e))
   created[0].emit('error', new Error('boom'))
   t.is(errB.length, 1, 'newest error callback received it')
   t.is(errA.length, 0, 'stale error callback did not')
@@ -47,12 +47,12 @@ test('G3: the error callback also retargets on re-arm', (t) => {
 })
 
 // After a stop, a fresh arm creates a new watcher and routes to its callback.
-test('G3: a stopped share re-arms cleanly', (t) => {
+test('G3: a stopped share re-arms cleanly', async (t) => {
   created.length = 0
   const seen = []
-  startWatcher('s3', '/mnt/z', [], () => {}, () => {})
+  await startWatcher('s3', '/mnt/z', [], () => {}, () => {})
   stopWatcher('s3')
-  startWatcher('s3', '/mnt/z', [], (e) => seen.push(e), () => {})
+  await startWatcher('s3', '/mnt/z', [], (e) => seen.push(e), () => {})
   t.is(created.length, 2, 'a fresh watcher after stop')
   created[1].emit('add', '/mnt/z/g.txt')
   t.is(seen.length, 1, 'routed to the new callback')
@@ -71,4 +71,14 @@ test('G3 guard: startWatcher re-points the shared emitter before the has()-guard
   t.ok(guardIdx > -1, 'the has()-guard is present')
   t.ok(assignIdx > -1 && guardIdx > -1 && assignIdx < guardIdx, 're-point precedes the guard')
   t.ok(/emitEvent\?\.\(/.test(body), 'the handler emits via the shared emitEvent ref')
+})
+
+// chokidar's per-instance `ignored` option is this watcher's only ignore decision, and the
+// periodic reconcile asks the data layer's matcher for the same answer. A matcher of its own
+// here is how the two sides come to disagree about what a glob covers.
+test('the ignore globs are matched by the data layer, not re-implemented here', (t) => {
+  const src = readFileSync(join(here, '..', '..', 'src', 'main', 'owned-folder-watchers.js'), 'utf8')
+  t.ok(/folders\/path-keys\.js/.test(src), 'it reaches the shared matcher')
+  t.ok(/shouldIgnore\(/.test(src), 'and asks it for the decision')
+  t.absent(/\.endsWith\('\/\*\*'\)/.test(src), 'it re-implements no glob branch')
 })

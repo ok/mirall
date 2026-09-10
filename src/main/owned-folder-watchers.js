@@ -6,41 +6,41 @@
 // cut-off — belongs to watch-host.js and is shared with loose-file-watchers.js. A share needs
 // its own host rather than a shared one because `ignored` is a per-instance chokidar option
 // and each share's ignore patterns differ.
+//
+// The ignore globs are matched by the data layer's `shouldIgnore`, the same function the periodic
+// reconcile's disk walk asks, so a path this watcher withholds is a path the reconcile withholds.
+// The data layer is ESM, which a CommonJS main reaches with a dynamic import (as notifications.js
+// does for the reveal authorization check).
 const path = require('node:path')
 const { createWatchHost } = require('./watch-host.js')
+
+const pathKeys = import('../shared/folders/path-keys.js').catch((err) => {
+  console.error('[owned-folder-watchers] path-keys import failed, watching disabled:', err.message)
+  return null
+})
 
 const watchers = new Map()
 let emitEvent = null
 let emitError = null
 
-function defaultIgnore(name, ignorePatterns) {
-  if (!ignorePatterns || ignorePatterns.length === 0) return false
-  const base = path.basename(name)
-  for (const pat of ignorePatterns) {
-    if (pat === base || pat === name) return true
-    if (pat.endsWith('/**')) {
-      const prefix = pat.slice(0, -3)
-      if (base === prefix || name.includes('/' + prefix + '/') || name.endsWith('/' + prefix)) return true
-    }
-    if (pat.startsWith('*')) {
-      if (base.endsWith(pat.slice(1))) return true
-    }
-  }
-  return false
-}
-
-function startWatcher(shareId, mountPath, ignorePatterns, onEvent, onError) {
+async function startWatcher(shareId, mountPath, ignorePatterns, onEvent, onError) {
   // Re-point BEFORE the has()-guard: on a worker respawn the new worker re-issues
   // start-watcher for a shareId whose chokidar watcher is still alive; without this the
   // surviving watcher would keep delivering to the dead worker's write closure.
   emitEvent = onEvent
   emitError = onError
   if (watchers.has(shareId)) return
+  const mod = await pathKeys
+  // No matcher, no watcher: arming one that ignores nothing would publish exactly the paths the
+  // share's globs exist to withhold. The reconcile still re-derives the share from disk.
+  if (!mod) return onError?.(new Error('ignore matcher unavailable - watcher not started'))
+  // The await above is a second window for a concurrent start-watcher for this share.
+  if (watchers.has(shareId)) return
   const ignoreFn = (full) => {
     if (full === mountPath) return false
     const rel = path.relative(mountPath, full)
     if (!rel) return false
-    return defaultIgnore(rel.split(path.sep).join('/'), ignorePatterns)
+    return mod.shouldIgnore(rel.split(path.sep).join('/'), ignorePatterns)
   }
   // atomic:false — the retire executor re-confirms presence (publish-runner's
   // fileExactlyPresent) and the periodic reconcile re-derives the truth, so coalescing an

@@ -223,6 +223,34 @@ test('shouldIgnore: dir/** matches the dir and everything under it, not look-ali
   t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
 })
 
+// ── one ignore matcher for the watcher and the reconcile ───────────────────────
+// The owned-folder watcher (Electron main) and the periodic reconcile (the Bare worker's disk
+// walk) must answer the same question the same way, or a file one of them withholds the other
+// publishes. These are the patterns the two hand-written matchers disagreed on.
+test('REGRESSION (FIX-221: watcher and reconcile disagree on ignore-glob semantics)', (t) => {
+  // `dir/**` covers the directory anywhere in the tree AND everything beneath it, at any depth.
+  t.ok(shouldIgnore('build/main.js', ['build/**']), 'root-level content of the ignored dir')
+  t.ok(shouldIgnore('src/build/x.js', ['build/**']), 'content of a NESTED ignored dir')
+  t.ok(shouldIgnore('src/build', ['build/**']), 'the nested dir itself (basename match)')
+  t.ok(shouldIgnore('build', ['build/**']), 'the dir itself at the root')
+  t.ok(shouldIgnore('src/node_modules/pkg/index.js', DEFAULT_IGNORE), 'nested node_modules')
+  t.ok(shouldIgnore('sub/.git/HEAD', DEFAULT_IGNORE), 'a nested git repository')
+
+  // A bare name matches by basename anywhere; it says nothing about what is under it.
+  t.ok(shouldIgnore('dist', ['dist']), 'at the root')
+  t.ok(shouldIgnore('a/b/dist', ['dist']), 'anywhere in the tree')
+  t.absent(shouldIgnore('dist/app.js', ['dist']), 'a bare name is not a directory glob')
+
+  // `**/` is not a supported prefix in either matcher: the answer is the same on both sides.
+  t.absent(shouldIgnore('node_modules/pkg/index.js', ['**/node_modules']))
+  t.absent(shouldIgnore('a/node_modules', ['**/node_modules']))
+
+  // Look-alikes stay publishable now that the glob reaches into the tree.
+  t.absent(shouldIgnore('src/.gitignore', DEFAULT_IGNORE))
+  t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
+  t.absent(shouldIgnore('rebuild/x.js', ['build/**']), 'a name-suffix sibling directory')
+})
+
 test('shouldIgnore: ordinary files pass; empty/missing patterns ignore nothing', (t) => {
   t.absent(shouldIgnore('docs/readme.md', DEFAULT_IGNORE))
   t.absent(shouldIgnore('.DS_Store', []))

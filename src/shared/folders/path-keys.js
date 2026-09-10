@@ -118,6 +118,9 @@ export function overlapAllowed (aPath, aRole, bPath, bRole) {
 }
 
 // ─── ignore globs ─────────────────────────────────────────────────────────────
+// The one matcher both sides of an owned folder ask: the recursive watcher in Electron main (as
+// chokidar's per-instance `ignored`) and the periodic reconcile's disk walk. A second
+// implementation is a share where a file one side withholds the other publishes.
 export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX, '*~', '.git/**', 'node_modules/**']
 
 export function shouldIgnore (rel, ignorePatterns) {
@@ -130,11 +133,18 @@ export function shouldIgnore (rel, ignorePatterns) {
   return false
 }
 
+// Plain string comparisons, never a compiled regular expression: patterns arrive from a share's
+// configuration and are matched against every path of every scan, where a backtracking pattern
+// would be a stall the user cannot explain.
 function matchPattern (input, pattern) {
   if (pattern === input) return true
+  // `dir/**` covers that directory WHEREVER it sits in the tree, plus everything beneath it at
+  // any depth. Anchoring it to the mount root would publish a nested `node_modules` or `.git`
+  // while the same glob withheld the one at the top.
   if (pattern.endsWith('/**')) {
     const prefix = pattern.slice(0, -3)
-    return input === prefix || input.startsWith(prefix + '/')
+    return input === prefix || input.startsWith(prefix + '/') ||
+      input.endsWith('/' + prefix) || input.includes('/' + prefix + '/')
   }
   if (pattern.startsWith('*')) {
     return input.endsWith(pattern.slice(1))
