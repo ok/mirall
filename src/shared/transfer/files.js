@@ -1,7 +1,7 @@
 // File-level operations for a space: the local `downloads-meta` bee (downloaded-copy
 // claims, hash-verified records, owned-source paths), the add/remove entry points for
-// loose files, the aggregated file listing (one row per content hash; the most-progressed
-// copy wins), and reveal-in-file-manager. "On your device" is always re-verified against
+// loose files, the aggregated file listing (rows folded by file-dedupe), and
+// reveal-in-file-manager. "On your device" is always re-verified against
 // the disk before it is reported — the bee rows are claims, the file is the truth.
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -27,6 +27,7 @@ import { revealExitIsFailure } from './reveal-exit.js'
 import { looseShareFile, looseUnshareFile, looseHasOwn, looseListOwn, looseListPeer, looseTransferActive } from './loose-overlay.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { unhashedStatusFor } from './transfer-status.js'
+import { dedupeFileRows } from './file-dedupe.js'
 import { claimVerdict } from './download-claim.js'
 
 const log = createLogger('files')
@@ -286,18 +287,6 @@ export async function addFile(spaceId, filePath, fileName) {
   await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
 }
 
-const STATUS_PRIORITY = {
-  mine: 0,
-  downloaded: 1,
-  downloading: 2,
-  publishing: 2,
-  'paused-interrupted': 3,
-  'paused-offline': 4,
-  remote: 5,
-  unavailable: 6,
-  error: 7,
-}
-
 // The display status of a peer-held file, most-progressed first. Exported for unit coverage.
 export function peerFileStatus(downloaded, pendingRow, ownerOnline, isActive) {
   if (downloaded) return 'downloaded'
@@ -307,28 +296,8 @@ export function peerFileStatus(downloaded, pendingRow, ownerOnline, isActive) {
   return ownerOnline ? 'remote' : 'unavailable'
 }
 
-// One row per distinct file (by content hash). When the same content is held by several peers,
-// the most-progressed copy wins (STATUS_PRIORITY) and the rest become a sharedByCount.
-function dedupeByHash(candidates) {
-  const byHash = new Map()
-  for (const candidate of candidates) {
-    const list = byHash.get(candidate.hash)
-    if (list) list.push(candidate)
-    else byHash.set(candidate.hash, [candidate])
-  }
-
-  const files = []
-  for (const [, group] of byHash) {
-    group.sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status])
-    const winner = group[0]
-    const others = group.length - 1
-    files.push(others > 0 ? { ...winner, sharedByCount: others } : winner)
-  }
-  return files
-}
-
 // In-place loose files (own + each peer's) read from the loose catalog, shaped
-// like drive-backed candidates so dedupeByHash merges them with the rest.
+// like drive-backed candidates so dedupeFileRows merges them with the rest.
 async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveKeyHex) {
   if (!isInPlaceFilesEnabled()) return []
   const out = []
@@ -374,7 +343,7 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
     }
   }))
   // Row mapping stays sequential in member order: claim verification has side effects
-  // (stale-claim pruning) and dedupeByHash breaks ties by candidate order.
+  // (stale-claim pruning) and dedupeFileRows breaks ties by candidate order.
   for (const [i, member] of peerMembers.entries()) {
     const ownerOnline = isOwnerOnline(member.publicKey)
     for (const e of peerEntries[i]) {
@@ -418,7 +387,7 @@ export async function listFiles(spaceId, members) {
   const localDriveKeyHex = b4a.toString(localDrive.key, 'hex')
   const localPublicKey = getLocalPublicKeyHex()
 
-  const files = dedupeByHash(await collectLooseInPlace(spaceId, members, localPublicKey, localDriveKeyHex))
+  const files = dedupeFileRows(await collectLooseInPlace(spaceId, members, localPublicKey, localDriveKeyHex))
   log.debug('listed', files.length, 'files in space', spaceId, '(' + members?.length, 'members)')
   return files
 }

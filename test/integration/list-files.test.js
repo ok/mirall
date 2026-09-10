@@ -10,7 +10,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
@@ -61,6 +61,47 @@ test('files inside an owned-folder share are excluded from the loose list', asyn
   const paths = (await listFiles(ctx.spaceId, [])).map((f) => f.path)
   t.ok(paths.includes('/loose.txt'), 'the loose file is listed')
   t.absent(paths.includes('/MyFolder/inside.txt'), 'a file inside an owned share is NOT a loose file')
+})
+
+// REGRESSION (FIX-1: an entry that has not finished hashing carries an empty contentHash, and the
+// listing grouped rows on that hash alone — so every file being prepared at once collapsed into a
+// single row claiming the others as co-sharers).
+test('two files added at once are listed as two rows while both are still preparing', async (t) => {
+  const ctx = await setup(t)
+  const overlay = getOverlay()
+  const orig = overlay.prepareForServe.bind(overlay)
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  overlay.prepareForServe = async (diskPath, opts) => { await held; return await orig(diskPath, opts) }
+  t.teardown(() => { overlay.prepareForServe = orig })
+
+  const dir = ctx.tmpDir('src')
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'alpha')
+  fs.writeFileSync(path.join(dir, 'b.txt'), 'bravo')
+  const adds = [
+    addFile(ctx.spaceId, path.join(dir, 'a.txt'), 'a.txt', 5, null),
+    addFile(ctx.spaceId, path.join(dir, 'b.txt'), 'b.txt', 5, null),
+  ]
+
+  try {
+    let files = []
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline && files.length < 2) {
+      files = await listFiles(ctx.spaceId, [])
+      if (files.length < 2) await new Promise((r) => setTimeout(r, 20))
+    }
+
+    t.alike(files.map((f) => f.path).sort(), ['/a.txt', '/b.txt'], 'both in-progress files are listed')
+    for (const f of files) {
+      t.is(f.status, 'publishing', f.path + ' is still preparing')
+      t.absent(f.sharedByCount, f.path + ' claims no co-sharer')
+    }
+  } finally {
+    // Unblock the held hashes whatever happened: leaving them parked wedges teardown behind the
+    // publish scheduler's settle window and hides the real failure.
+    release()
+    await Promise.all(adds)
+  }
 })
 
 test('distinct loose files are each listed', async (t) => {
