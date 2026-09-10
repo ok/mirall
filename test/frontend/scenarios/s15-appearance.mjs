@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Instance } from '../instance.mjs'
@@ -15,6 +16,34 @@ async function pressedZoomTiles (A) {
     if ((await A.nodeValue({ name: label })) === '1') pressed.push(label)
   }
   return pressed
+}
+
+function storeHeldByApp (store) {
+  try {
+    execFileSync('pgrep', ['-f', `Electron.*${store}`], { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Editing a stopped instance's store is only safe once the app is really gone: quit() resolves on
+// the `npx electron-forge` wrapper, whose Electron child can still be shutting down, and main's
+// config store is debounced and flushed on before-quit — a flush that rewrites the WHOLE file, so
+// an early edit is silently replaced by the factor the dying app held. Wait the app out, then read
+// the edit back, so a clobber fails here by name instead of as a mystery timeout further down.
+// The wait belongs in the harness's own stop; this is local until quit() awaits the real process.
+async function seedPersistedZoom (A, factor) {
+  await waitFor(async () => !storeHeldByApp(A.store), 20000, 'the quit app released its store')
+  const configPath = join(A.store, 'config.json')
+  const config = JSON.parse(readFileSync(configPath, 'utf8'))
+  config.window.zoom = factor
+  writeFileSync(configPath, JSON.stringify(config))
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  const readBack = JSON.parse(readFileSync(configPath, 'utf8')).window.zoom
+  if (readBack !== factor) {
+    throw new Error(`seeded zoom ${factor} was clobbered: config.json holds ${readBack}`)
+  }
 }
 
 export default async function s15 ({ runDir, bootstrap }) {
@@ -46,10 +75,7 @@ export default async function s15 ({ runDir, bootstrap }) {
     // nothing — a screen reader must never be told no zoom is selected while one plainly is.
     await r.ok('a factor between presets marks exactly the nearest tile', async () => {
       await A.quit()
-      const configPath = join(A.store, 'config.json')
-      const config = JSON.parse(readFileSync(configPath, 'utf8'))
-      config.window.zoom = 0.90
-      writeFileSync(configPath, JSON.stringify(config))
+      await seedPersistedZoom(A, 0.90)
       await A.launch({ onboard: false })
       await A.gotoSettings('Appearance')
       await A.waitText('Appearance', 8000)
