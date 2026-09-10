@@ -48,7 +48,7 @@ test('the unused list is honest and only shrinks', (t) => {
   const stillThrown = UNUSED_CODES.filter((c) => thrown.has(c))
   t.alike(stillThrown, [], 'a code listed as unused is actually thrown — move it out of the list')
   for (const c of UNUSED_CODES) t.ok(CODES[c], `${c} is declared`)
-  t.ok(UNUSED_CODES.length <= 11, 'no code was added to the unused list')
+  t.ok(UNUSED_CODES.length <= 10, 'no code was added to the unused list')
 })
 
 // REGRESSION (FIX-CODES-1: this was a ratchet at 17 while INVITE_INVALID, INVITE_EXPIRED and

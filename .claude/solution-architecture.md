@@ -1101,6 +1101,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/config-store.js` | The single owner of `config.json` — atomic writes, merge-over-defaults, the legacy-file fold, validated setters, migration seam (§2 step 5) |
 | `src/main/debug-gate.js` | The live logging gate (`baseDebug` / `debug` / `verbose`) — one reader/writer seam for the five sections that consult it |
 | `src/main/deeplink.js` | `parseDeepLink(url)` — validates `mirall://join/<code>`, decodes the envelope (dynamic import, since main is CJS) |
+| `src/main/env-json.js` | `envJson(name)` — the JSON-valued env knobs (test/debug overrides): parses one, ignores a malformed or scalar value with a warning that never repeats it |
 | `src/main/feature-flags.js` | Boot-cached `feature-flags.json` from the package root + env override |
 | `src/main/identity-kek.js` | The os-keychain unlock provider's host side: the identity KEK at rest under `safeStorage` (§16) |
 | `src/main/ipc-frame.js` | Byte-level NDJSON splitter for worker→main control frames, with a 64 KB per-frame gate |

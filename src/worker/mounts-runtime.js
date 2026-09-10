@@ -313,12 +313,12 @@ export class MountsRuntime extends Subsystem {
   }
 
   async probeMountPoints() {
-    const fsMod = await import('bare-fs')
     const all = await listAllMounts()
     for (const mount of all) {
       const key = mount.role + ':' + mount.shareId
-      let exists = true
-      try { fsMod.default.statSync(mount.mountPath) } catch { exists = false }
+      // The same question the resume passes ask — is a DIRECTORY there — so a path replaced by a
+      // file cannot read present here and absent to them.
+      const exists = mountRootAvailable(mount.mountPath)
       const prev = this.lastMountPointStatus.get(key)
       if (prev === exists) continue
       const wasGone = prev === false
