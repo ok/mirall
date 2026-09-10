@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { buildRecord, SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
-import { KINDS } from '../../src/shared/contract/audit-kinds.js'
+import { KINDS, OUTCOME, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
 
 const base = { seq: 1, ts: 1754236800000, kind: 'space.created' }
 
@@ -63,8 +63,16 @@ test('a space without an id yields no space ref, so no by-space index entry is w
 })
 
 test('outcome is constrained to the known set', (t) => {
-  t.is(buildRecord({ ...base, outcome: 'denied' }).outcome, 'denied')
-  t.is(buildRecord({ ...base, outcome: 'weird' }).outcome, 'ok', 'an unknown outcome degrades to ok')
+  for (const outcome of OUTCOMES) t.is(buildRecord({ ...base, outcome }).outcome, outcome)
+  t.is(buildRecord({ ...base }).outcome, OUTCOME.OK, 'a row without an outcome records a success')
+})
+
+// REGRESSION (FIX-AUDIT-OUTCOME: a misspelt outcome was coerced to 'ok', so a security row
+// recording a denial claimed an approval — the one thing an audit log may not do.)
+test('REGRESSION (FIX-AUDIT-OUTCOME): an unknown outcome is refused, not coerced to ok', (t) => {
+  t.exception(() => buildRecord({ ...base, outcome: 'denyed' }), /unknown outcome/)
+  t.exception(() => buildRecord({ ...base, outcome: 'DENIED' }), /unknown outcome/)
+  t.exception(() => buildRecord({ ...base, outcome: null }), /unknown outcome/)
 })
 
 test('every kind in the table builds a valid record', (t) => {

@@ -5,7 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
-import { KINDS } from '../../src/shared/contract/audit-kinds.js'
+import { KINDS, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -209,7 +209,7 @@ test('every recorded row is well formed and renderable without a join', { timeou
     t.ok(Object.hasOwn(KINDS, row.kind), row.kind + ' is a declared kind')
     t.is(row.category, KINDS[row.kind].category, row.kind + ' stamps its category at write time')
     t.is(row.tier, KINDS[row.kind].tier, row.kind + ' stamps its tier at write time')
-    t.ok(['ok', 'denied', 'error'].includes(row.outcome), row.kind + ' has a known outcome')
+    t.ok(OUTCOMES.includes(row.outcome), row.kind + ' has a known outcome')
     t.ok(row.device, row.kind + ' names the device, for the future multi-device grouping')
     // The zero-joins rule: anything the row references must be named IN the row, because the
     // space record is deleted on leave and a peer may be unreachable.

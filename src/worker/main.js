@@ -189,6 +189,7 @@ import {
   recordMirrorScanFault,
 } from '../shared/folders/foreign-folders.js'
 import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
+import { ACTOR_TYPE, OUTCOME } from '../shared/contract/audit-kinds.js'
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -275,14 +276,14 @@ function refreshAuditSelfName(displayName) {
 }
 
 function selfActor() {
-  return { type: 'self', key: null, name: null }
+  return { type: ACTOR_TYPE.SELF, key: null, name: null }
 }
 
 function peerActor(space, publicKey) {
   const live = space ? getConnectedMemberMeta(space.spaceId, publicKey) : null
   const persisted = (space?.members || []).find((m) => m.publicKey === publicKey)
   return {
-    type: 'peer',
+    type: ACTOR_TYPE.PEER,
     key: publicKey,
     name: displayNameOrNull(live?.displayName) || displayNameOrNull(persisted?.displayName) || null,
   }
@@ -471,7 +472,7 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
   recordedJoinRequests.add(key)
   getSpace(spaceId).then((space) => {
     record('membership.requested', {
-      actor: { type: 'peer', key: publicKey, name: displayName || null },
+      actor: { type: ACTOR_TYPE.PEER, key: publicKey, name: displayName || null },
       space: spaceRef(space),
       target: { kind: 'member', id: publicKey, name: displayName || null },
     })
@@ -503,11 +504,11 @@ async function reconcileGrantCreator(spaceId, space, asserted) {
   }
   if (decision === 'refuse') {
     record('security.creator_divergence', {
-      actor: { type: 'system', key: null, name: null },
+      actor: { type: ACTOR_TYPE.SYSTEM, key: null, name: null },
       space: spaceRef(space),
       target: { kind: 'space', id: spaceId, name: space?.name ?? null },
       subject: { pinned: space.creatorKey ?? null, asserted: asserted ?? null },
-      outcome: 'denied',
+      outcome: OUTCOME.DENIED,
     })
     log.warn('membership:grant creator divergence — confirmed', space.creatorKey?.slice(0, 12) + '...', 'vs granter', asserted?.slice(0, 12) + '...')
     await markCreatorDivergence(spaceId)
@@ -1542,7 +1543,7 @@ ipc.handle('space:deny-member', async (msg) => {
       actor: selfActor(),
       space: spaceRef(space),
       target: { kind: 'member', id: msg.publicKey, name: peerActor(space, msg.publicKey).name },
-      outcome: 'denied',
+      outcome: OUTCOME.DENIED,
     })
   }
   return denied

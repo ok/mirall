@@ -18,6 +18,7 @@ import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
 import { prefixRange } from '../core/bee-keys.js'
+import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 const log = createLogger('space')
 const { store: keysStore, core: keysCore } = keysMod
@@ -298,7 +299,7 @@ function auditArrivals(spaceId, space, added) {
     // arrival row seconds later is noise.
     if (await hasOwnApproval(spaceId, m.publicKey)) return
     record('member.joined', {
-      actor: { type: 'peer', key: m.publicKey, name: m.displayName || null },
+      actor: { type: ACTOR_TYPE.PEER, key: m.publicKey, name: m.displayName || null },
       space: { id: spaceId, name: space.name ?? null },
       target: { kind: 'member', id: m.publicKey, name: m.displayName || null },
     })

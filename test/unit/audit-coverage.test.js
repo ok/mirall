@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { KINDS, CATEGORIES } from '../../src/shared/contract/audit-kinds.js'
+import { KINDS, CATEGORIES, OUTCOME, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(here, '..', '..')
@@ -53,6 +53,28 @@ test('every kind the data layer records is declared', (t) => {
   t.ok(called.size > 20, 'found the record() call sites')
   for (const kind of called) {
     t.ok(Object.hasOwn(KINDS, kind), kind + ' is declared in audit-kinds.js')
+  }
+})
+
+// The files that write audit rows. An outcome is what the viewer badges the row on, so the spelling
+// has to come from the frozen vocabulary rather than a literal: buildRecord refuses an unknown one,
+// but record() is fire-and-forget, so a misspelling costs the row instead of failing the operation.
+const auditCallSites = dataLayerFiles.filter((f) => /from '[^']*audit\/audit-log\.js'/.test(readFileSync(f, 'utf8')))
+
+test('every audit call site names its outcome through the frozen vocabulary', (t) => {
+  t.ok(auditCallSites.length > 5, `found ${auditCallSites.length} audit call sites`)
+  for (const file of auditCallSites) {
+    const code = readFileSync(file, 'utf8').replace(/^\s*\/\/.*$/gm, '')
+    const literals = [...code.matchAll(/outcome:\s*'([^']+)'/g)].map((m) => m[1])
+    t.alike(literals, [], path.relative(ROOT, file) + ' spells its outcome as OUTCOME.X, not a literal')
+  }
+})
+
+test('every OUTCOME reference in the data layer resolves to a member', (t) => {
+  const refs = new Set([...dataLayerSource.matchAll(/OUTCOME\.([A-Z_]+)/g)].map((m) => m[1]))
+  t.ok(refs.size > 0, 'found the OUTCOME references')
+  for (const key of refs) {
+    t.ok(OUTCOMES.includes(OUTCOME[key]), 'OUTCOME.' + key + ' is a member of the outcome vocabulary')
   }
 })
 

@@ -8,6 +8,7 @@ import { tombstoneActive, observedLeavers } from './member-set.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
+import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 // Set by the worker. A hook, not an import: the overlay reaches back into spaces/ for the
 // membership gate, so importing it here would close the cycle.
@@ -262,7 +263,7 @@ async function applyObservedLeave (spaceId, key, leaveTs) {
   // our own vouch being withdrawn as a consequence of their departure — not a removal.
   getSpace(spaceId).then((space) => {
     record('membership.approval_revoked', {
-      actor: { type: 'system', key: null, name: null },
+      actor: { type: ACTOR_TYPE.SYSTEM, key: null, name: null },
       space: { id: spaceId, name: space?.name ?? null },
       target: {
         kind: 'member',

@@ -11,15 +11,15 @@
 // There is no tier D: what a peer does with bytes after receipt, and transfers between two
 // other members, are unobservable here (overlay transfers are point-to-point — only the holder
 // sees them).
-export const CATEGORY = {
+export const CATEGORY = Object.freeze({
   MEMBERS: 'members',
   FILES: 'files',
   FOLDERS: 'folders',
   SECURITY: 'security',
   NETWORK: 'network',
-}
+})
 
-export const KINDS = {
+export const KINDS = Object.freeze({
   'space.created': { category: CATEGORY.MEMBERS, tier: 'A' },
   'space.joined': { category: CATEGORY.MEMBERS, tier: 'A' },
   'space.updated': { category: CATEGORY.MEMBERS, tier: 'A' },
@@ -77,7 +77,7 @@ export const KINDS = {
   // healthy, because a blocked device makes every peer look gone.
   'network.peer_lost': { category: CATEGORY.NETWORK, tier: 'B' },
   'network.peer_back': { category: CATEGORY.NETWORK, tier: 'B' },
-}
+})
 
 // Absent on purpose — a kind that can never fire still shows in the search labels and the i18n
 // catalogue:
@@ -93,7 +93,18 @@ export const KINDS = {
 //   per-file folder sync  the deliberate act is mounting (share.mounted carries the totals); the
 //                       reconcile and the watcher's per-file publishes produce no rows
 
-export const CATEGORIES = Object.values(CATEGORY)
+// Did the described act succeed? The viewer badges a row on this alone, so the vocabulary is
+// closed exactly as the kinds are: buildRecord refuses a spelling absent from it rather than
+// defaulting, because a denial stored as `ok` claims the opposite of what happened.
+export const OUTCOME = Object.freeze({ OK: 'ok', DENIED: 'denied', ERROR: 'error' })
+
+// Whom a row attributes its act to: this install, an identified peer, or the app acting on its
+// own. The renderer picks the sentence, the avatar and the name snapshot from it.
+export const ACTOR_TYPE = Object.freeze({ SELF: 'self', PEER: 'peer', SYSTEM: 'system' })
+
+export const CATEGORIES = Object.freeze(Object.values(CATEGORY))
+export const OUTCOMES = Object.freeze(Object.values(OUTCOME))
+export const ACTOR_TYPES = Object.freeze(Object.values(ACTOR_TYPE))
 
 export function isKnownKind(kind) {
   return Object.hasOwn(KINDS, kind)
