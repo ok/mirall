@@ -8,8 +8,8 @@ import path from 'path'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-function runFixture (name) {
-  const r = spawnSync(process.execPath, ['test/flow-runner.mjs', `test/fixtures/flow-runner/${name}`], {
+function runFixture (name, nodeArgs = []) {
+  const r = spawnSync(process.execPath, [...nodeArgs, 'test/flow-runner.mjs', `test/fixtures/flow-runner/${name}`], {
     cwd: repo,
     encoding: 'utf8',
   })
@@ -33,6 +33,26 @@ test('REGRESSION (RUNNER-2: a mid-run death fails the run and names the tests it
   t.ok(out.includes('background boom'), 'the fatal error is printed')
   t.ok(out.includes('not ok - flow run truncated: 1 registered test(s) never executed'), 'the truncation fails the run')
   t.ok(out.includes('# never executed: never executes'), 'the unreached test is named')
+  t.not(status, 0, 'the run exits non-zero')
+})
+
+// The runner wraps an internal of a caret-ranged dependency. A bump that moves that internal must
+// stop the run loudly, because a wrap that silently applies to nothing restores the very defect
+// the two regressions above pin.
+test('the runner refuses to start when brittle no longer has the entry point it wraps', async (t) => {
+  const { status, out } = runFixture('clean.test.js', ['--import', './test/fixtures/flow-runner/break-brittle.mjs'])
+
+  t.ok(out.includes('not ok - flow runner cannot wrap brittle'), 'the refusal is reported as a failure')
+  t.ok(/brittle \d+\.\d+\.\d+/.test(out), 'the installed brittle version is named')
+  t.ok(out.includes('update test/flow-runner.mjs'), 'the message says what to do')
+  t.absent(out.includes('TAP version'), 'no tests are run unpatched')
+  t.not(status, 0, 'the run exits non-zero')
+})
+
+test('the runner fails a run in which it observed no registered test', async (t) => {
+  const { status, out } = runFixture('no-tests.test.js')
+
+  t.ok(out.includes('not ok - flow runner observed no registered tests'), 'an empty run is a failure')
   t.not(status, 0, 'the run exits non-zero')
 })
 

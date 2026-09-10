@@ -17,12 +17,27 @@ import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const brittle = require('brittle')
 const { Test } = brittle
+const brittleVersion = require('brittle/package.json').version
 
 // One record per top-level test, in registration order. `ran` flips when the body is
 // entered, so anything left un-run at exit is a test the run never reached.
 const records = []
 
-const runTest = Test.prototype._run
+// The three guarantees above are delivered by wrapping brittle's per-test entry point, which
+// is internal to a caret-ranged dependency. A release that renames it or stops routing through
+// it would leave the wrapper installed on nothing, restoring the silent-skip behaviour with no
+// signal — so the shape is a hard precondition, not a best effort.
+function patchTarget () {
+  const target = Test?.prototype?._run
+  if (typeof Test !== 'function' || typeof target !== 'function' || target.length !== 2) {
+    say(`not ok - flow runner cannot wrap brittle ${brittleVersion}: Test.prototype._run(fn, opts) is not the shape it patches`)
+    say('# update test/flow-runner.mjs for this brittle version — an unpatched run cannot be trusted')
+    process.exit(1)
+  }
+  return target
+}
+
+const runTest = patchTarget()
 Test.prototype._run = async function (fn, opts) {
   if (!this._isMain || this._isHook) return runTest.call(this, fn, opts)
 
@@ -131,4 +146,13 @@ brittle.pause()
 for (const file of resolveFiles(args)) {
   await brittle.load(pathToFileURL(path.resolve(file)).href)
 }
+
+// brittle registers a top-level test the moment its module body calls `test()`, so by now every
+// test in the run has passed through the wrapper. None having done so means the wrap is inert —
+// the second half of the precondition above, and the half a shape check cannot see.
+if (records.length === 0) {
+  say(`not ok - flow runner observed no registered tests: either the files hold none, or the brittle ${brittleVersion} wrap is not taking effect`)
+  process.exit(1)
+}
+
 brittle.resume()
