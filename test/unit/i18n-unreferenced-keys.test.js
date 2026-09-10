@@ -10,11 +10,7 @@ const PLURAL = /_(one|other|zero|two|few|many)$/
 
 // Keys the scan cannot see but which are live, each with the site that will consume it. A key
 // that merely stopped being used does not belong here — delete it from all five locales instead.
-const ALLOW = [
-  // ScanPreviewModal.tsx calls the `_other` form directly; switching it to
-  // t('scanPreview.toUpload', { count }) makes the `_one` forms live again. Remove then.
-  /^scanPreview\.to(Upload|Download)_one$/
-]
+const ALLOW = []
 
 function flatten (obj, prefix = '', out = []) {
   for (const [k, v] of Object.entries(obj)) {
@@ -84,4 +80,18 @@ test('the scan sees a literal, a plural base and a dotted-prefix template — an
   t.ok(literals.has('actions.cancel'), 'a plain t() key is a literal')
   t.ok(patterns.some((re) => re.test('leaveSpace.phases.finalizing')), 'a `prefix.${x}` template covers its family')
   t.absent(patterns.some((re) => re.test('zzz.never.defined')), 'no template matches everything')
+})
+
+// i18next picks the plural form from `count`; naming a suffix in the key pins one form for every
+// count, so the singular is unreachable and the locale key reads as dead to the scan above.
+test('REGRESSION (FIX-PLURAL-SUFFIX): no t() call names a plural suffix in its key', (t) => {
+  const files = SCAN.flatMap((d) => walk(path.join(root, d)))
+  const offenders = []
+  for (const file of files) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/\bt\(\s*['"`]([^'"`]+)['"`]/g)) {
+      if (PLURAL.test(m[1])) offenders.push(path.relative(root, file) + ': ' + m[1])
+    }
+  }
+  t.alike(offenders, [], 'pass the base key and { count } instead of a _one/_other key')
 })

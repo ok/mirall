@@ -124,14 +124,14 @@ function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPr
       {preview.toUpload > 0 && (
         <SummaryCard
           tone="info"
-          title={t('scanPreview.toUpload_other', { count: preview.toUpload })}
+          title={t('scanPreview.toUpload', { count: preview.toUpload })}
           detail={t('scanPreview.uploadDetail', { size: formatSize(preview.totalBytes) })}
         />
       )}
       {preview.toDownload > 0 && (
         <SummaryCard
           tone="info"
-          title={t('scanPreview.toDownload_other', { count: preview.toDownload })}
+          title={t('scanPreview.toDownload', { count: preview.toDownload })}
           detail={t('scanPreview.downloadDetail', { size: formatSize(preview.totalBytes) })}
         />
       )}
