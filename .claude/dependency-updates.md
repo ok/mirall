@@ -84,6 +84,14 @@ Before merging:
 
 There is **no** automated pin-guard test — nothing fails CI when the version changes. Any manual hyperdrive bump is therefore a `needs-smoke-test` candidate: re-read the release notes for replication/wire-format changes, run the two-window smoke test, and confirm end-to-end replication before merging.
 
+## `@react-types/shared` — pinned twin of `react-aria`
+
+`@react-types/shared` is pinned to an exact version in `package.json` (`"@react-types/shared": "3.36.1"`, no caret). It is not a dependency we chose: `src/renderer/components/widgets/ActionMenu.tsx` needs the `Node`, `CollectionElement` and `FocusStrategy` types, and `react-aria` re-exports only `Key` from that package. It must therefore stay on the exact version the installed `react-aria` resolves for it.
+
+**When Renovate bumps `react-aria` (or `@react-stately/*`), bump `@react-types/shared` in the same PR** to whatever the new `react-aria` resolves — `npm ls @react-types/shared` after the bump tells you. Leaving it behind gives the renderer types from one React Aria release against hooks from another.
+
+`test/unit/renderer-declared-dependencies.test.js` fails if the renderer imports a package that `package.json` does not declare, so a dropped declaration is caught; it does not pin the version, which is what this note is for.
+
 ## Security PRs
 
 Renovate's `vulnerabilityAlerts` rule bypasses the weekly schedule. When one shows up:
