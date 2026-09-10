@@ -5,6 +5,14 @@ export const AVATAR_MAX_BYTES = 256 * 1024
 // The display-name cap applied to a profile name and to the name carried in an invite envelope.
 export const NAME_MAX = 80
 
+// Room reserved in a membership:request frame for everything that is not the avatar. The frame is
+// judged by peerFrameMaxBytes on the far side BEFORE it is parsed, so an avatar that overflows the
+// budget makes the whole join request vanish unparsed. Worst case measured at 672 chars / 752 bytes:
+// a NAME_MAX display name taken as multi-byte, hex64 profileKey/spaceTopic/inviteId/signerKey/
+// signerNs and the hex128 ed25519 binding signature. 1024 keeps 36% of margin over that, so a new
+// short field does not silently eat into the picture.
+export const JOIN_REQUEST_FRAME_OVERHEAD = 1024
+
 // The worker's NDJSON reader accumulates bytes until a newline. Uncapped, a sender that never
 // terminates a frame grows worker memory without limit. Both sides must agree on this one: it is
 // the largest frame a sender may put on the pipe, not just what the reader happens to tolerate.
