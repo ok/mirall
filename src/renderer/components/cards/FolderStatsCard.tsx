@@ -11,13 +11,14 @@ import { formatSize } from '../../utils.js'
 import type { FolderStatus } from '../../folderStatus.js'
 
 interface FolderStatsCardProps {
+  folderName: string
   totalBytes: number
   fileCount: number
   onDevice: number | null
   status: FolderStatus
 }
 
-function FolderStatsCard({ totalBytes, fileCount, onDevice, status }: FolderStatsCardProps) {
+function FolderStatsCard({ folderName, totalBytes, fileCount, onDevice, status }: FolderStatsCardProps) {
   const { t } = useTranslation()
   const meta = onDevice === null
     ? t('folder.fileCount', { count: fileCount })
@@ -29,7 +30,11 @@ function FolderStatsCard({ totalBytes, fileCount, onDevice, status }: FolderStat
         <Icon name="folder" className="text-secondary shrink-0" />
         <h3 className="text-xl font-headline font-bold text-accent">{t('folder.folderHeading')}</h3>
         <span className="ml-auto">
-          <Badge label={t(status.labelKey)} classes={badgeStyle(status.badge).classes} />
+          <Badge
+            label={t(status.labelKey)}
+            classes={badgeStyle(status.badge).classes}
+            srLabel={t('folder.statusLabel', { name: folderName, status: t(status.labelKey) })}
+          />
         </span>
       </div>
       <div className="text-5xl font-headline font-extrabold text-accent tracking-tighter leading-none">

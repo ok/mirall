@@ -252,6 +252,15 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
         ? t('folder.indexingAnnouncePeer', { owner: ownerName })
         : ''
 
+  // A count only a mirror can report honestly: an owner holds every file by definition, and a
+  // browser holds none, so the qualifier would be noise in both.
+  const onDeviceCount = share.role === 'mirrored' && !listingTruncated ? (mirrorSync?.onDevice ?? null) : null
+  // Only a gap we can prove. Truncated means onDeviceCount is null (a capped sample), and info may
+  // not have loaded; either way we do not know, so the pill does not claim.
+  const mirrorIncomplete = onDeviceCount !== null
+    && typeof info?.fileCount === 'number'
+    && onDeviceCount < info.fileCount
+
   const folderStatus = deriveFolderStatus({
     role: share.role,
     sourceMissing,
@@ -262,10 +271,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     // Same rule the strip applies: with the owner away nothing is being fetched, so the tile must
     // not read "Syncing" beside a strip that says they are offline.
     mirrorSyncing: !!mirrorSync?.active && owner?.online !== false,
+    ownerOnline: owner?.online !== false,
+    incomplete: mirrorIncomplete,
   })
-  // A count only a mirror can report honestly: an owner holds every file by definition, and a
-  // browser holds none, so the qualifier would be noise in both.
-  const onDeviceCount = share.role === 'mirrored' && !listingTruncated ? (mirrorSync?.onDevice ?? null) : null
   // Only OUR OWN running work gates the destructive entry, and only while it is not paused. A
   // mirror's sync is the owner's doing and can last as long as they keep adding files — disabling
   // Unmount for its duration would leave the user with a dead control while the same action still
@@ -533,6 +541,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
           />
           {info && (
             <FolderStatsCard
+              folderName={share.name}
               totalBytes={info.totalBytes}
               fileCount={info.fileCount}
               onDevice={onDeviceCount}
