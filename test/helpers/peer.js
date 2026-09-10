@@ -41,8 +41,8 @@ export async function waitForWorkerExit (pid, ms = 5000, every = 50) {
   }
 }
 
-// Backstop mirroring production's exit reaper: brittle-node runs the whole flow suite in one process,
-// and an uncaught error aborts it before teardowns run — orphaned workers then starve later runs.
+// Backstop mirroring production's exit reaper: the flow suite runs in one process, and a fatal
+// death or a SIGINT exits it before teardowns run — orphaned workers then starve later runs.
 const liveChildren = new Set()
 let exitBackstopInstalled = false
 function installExitBackstop () {

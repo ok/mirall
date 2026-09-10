@@ -67,14 +67,14 @@ jobs:
           failed=""
           for f in $files; do
             log="flake-report/logs/$(echo "$f" | tr '/' '_').log"
-            if npx brittle-node "$f" >"$log" 2>&1; then rm -f "$log"; else cat "$log"; failed="$failed $f"; fi
+            if node test/flow-runner.mjs "$f" >"$log" 2>&1; then rm -f "$log"; else cat "$log"; failed="$failed $f"; fi
           done
           entries=""
           status=0
           if [ -n "$failed" ]; then
             echo "::warning title=Flow shard ${{ matrix.shard }} flaked::retried$failed (a pass-on-retry is a residual flake — the failed attempt's output is in the flake-report artifact)"
             for f in $failed; do
-              if npx brittle-node "$f"; then passed=true; else passed=false; status=1; fi
+              if node test/flow-runner.mjs "$f"; then passed=true; else passed=false; status=1; fi
               entries="$entries{\"file\":\"$f\",\"attempts\":2,\"passedOnRetry\":$passed},"
             done
           fi
