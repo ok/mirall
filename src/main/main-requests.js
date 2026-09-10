@@ -40,7 +40,7 @@ function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setD
     },
 
     [MAIN_REQUEST.OWNED_FOLDER_START_WATCHER]: async (args, worker) => {
-      ownedFolderWatchers.startWatcher(
+      await ownedFolderWatchers.startWatcher(
         args.shareId,
         args.mountPath,
         args.ignore || [],
