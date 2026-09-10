@@ -2,8 +2,10 @@
 // leave-progress events while local data is cleaned up and compacted.
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useErrorText } from '../../hooks/useErrorText.js'
 import { subscribe } from '../../ipc.js'
 import { formatSize } from '../../utils.js'
+import { useToast } from '../toast/ToastProvider.js'
 import Modal from '../primitives/Modal.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
@@ -32,6 +34,8 @@ const PHASES_WITH_SIZE = new Set(['compactingPeerCache', 'compactingLocalCache']
 
 export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, onLeave, onComplete }: LeaveSpaceModalProps) {
   const { t } = useTranslation()
+  const toast = useToast()
+  const errorText = useErrorText()
   const [leaving, setLeaving] = useState(false)
   const [done, setDone] = useState(false)
   const [progress, setProgress] = useState<LeaveProgress | null>(null)
@@ -63,15 +67,24 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
     return unsub
   }, [leaving, spaceId])
 
+  // Leaving a space is destructive and irreversible, so the completion half — the bar filled to
+  // 100% and the navigation away from the space — runs on RESOLVE only. A rejection reports and
+  // returns the dialog to its confirm step, where the space is still joined and the leave can be
+  // retried.
   async function handleLeave() {
     if (leaving) return
     setLeaving(true)
     try {
       await onLeave()
-    } finally {
-      setDone(true)
-      setTimeout(() => { onComplete() }, COMPLETION_HOLD_MS)
+    } catch (err) {
+      toast.error(errorText(err))
+      setLeaving(false)
+      setProgress(null)
+      totalBytesRef.current = 0
+      return
     }
+    setDone(true)
+    setTimeout(() => { onComplete() }, COMPLETION_HOLD_MS)
   }
 
   const computedPercent = progress

@@ -135,6 +135,7 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               description={t('feedback.intro')}
               descriptionSize="sm"
               onClose={handleClose}
+              closeDisabled={sending}
             />
             <div className="px-10 pb-10 space-y-6">
               <div className="space-y-3">
