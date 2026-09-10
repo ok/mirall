@@ -15,10 +15,17 @@ export const ZOOM_LEVELS: readonly ZoomLevel[] = [
   { key: 'spacious', factor: 1.10, labelKey: 'appearanceSettings.zoomSpacious' },
 ]
 
-const EPSILON = 0.005
-
-export function isSameZoom(a: number, b: number): boolean {
-  return Math.abs(a - b) < EPSILON
+// The presets are four named rungs, but the factor itself is continuous: main steps it by 0.05
+// within a 0.5-1.5 clamp, so most values sit between two rungs. Any factor resolves to the closest
+// one — past either end, to that end — so the Zoom control always marks exactly one preset. A
+// factor exactly between two rungs takes the lower one, so the answer never depends on how the
+// ladder is walked.
+export function nearestZoomLevel(factor: number): ZoomLevel {
+  let nearest = ZOOM_LEVELS[0]
+  for (const level of ZOOM_LEVELS) {
+    if (Math.abs(factor - level.factor) < Math.abs(factor - nearest.factor)) nearest = level
+  }
+  return nearest
 }
 
 export function useZoom(): { zoom: number; setZoom: (factor: number) => Promise<void> } {

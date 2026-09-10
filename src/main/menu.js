@@ -75,9 +75,14 @@ function buildAppMenuTemplate({ platform, isDev, inSpace, spaces = [], appName, 
     { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: handlers.openPalette },
     { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: handlers.showShortcuts },
     { type: 'separator' },
-    { role: 'zoomIn' },
-    { role: 'zoomOut' },
-    { role: 'resetZoom' },
+    // Zoom is a click handler, not Electron's zoomIn/zoomOut/resetZoom role: a role writes
+    // webContents.zoomLevel directly, which persists nothing and tells main nothing, so the
+    // factor is lost on quit. registerAccelerator keeps the chord displayed but unregistered on
+    // Windows/Linux (it is a no-op on macOS, where the window's key handler already claims the
+    // chord first), so one press applies exactly one step.
+    { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', registerAccelerator: false, click: handlers.zoomIn },
+    { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', registerAccelerator: false, click: handlers.zoomOut },
+    { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', registerAccelerator: false, click: handlers.zoomReset },
     { type: 'separator' },
     { role: 'togglefullscreen' },
     { type: 'separator' },
