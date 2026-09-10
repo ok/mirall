@@ -381,12 +381,14 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
       purged++
       purgedDks.push(dkHex)
     } catch (err) {
-      log.debug('leftover purge skip:', dkHex.slice(0, 12), err.message)
+      // A core the sweep decided to delete and could not is a store that no longer matches its
+      // own journal, so it is reported rather than swallowed.
+      log.warn('leftover purge failed:', dkHex.slice(0, 12), err.message)
     }
   }
   await recordSweep({
     refused: null, targets: dks.length, totalCores: scan.totalCores,
-    gaps: [], categories: allowed, purged, purgedDks,
+    gaps: scan.gaps, categories: allowed, purged, purgedDks,
   })
   // Tombstoning the cores is what makes the leave effective; the compaction only returns the
   // bytes. A boot-path caller passes compact:false rather than block startup on a full-range

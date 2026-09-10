@@ -95,6 +95,10 @@ export async function getSpaceCacheBytes(spaceId) {
 // Boot sweep. Prunes leftover peer metadata (profile and catalog bee cores no longer tied to any
 // active space) — never system bees, active drives, or any raw blob/drive core.
 //
+// The deletes are irreversible, so the go/no-go is sweep-decision.js and it fails closed: any gap
+// in the scan refuses the WHOLE sweep, and past a floor the target set is refused above an
+// absolute cap or a fraction of the store. Every pass, allowed or refused, is journaled.
+//
 // Orphan drives ride along exactly once, on the first boot after upgrading past the copy-based
 // content path (see legacy-orphan-drives.js). That is the only category that can free gigabytes,
 // so it is also the only one worth a compaction: metadata tombstones are collected by whatever

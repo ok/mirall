@@ -138,3 +138,21 @@ test('REGRESSION (FIX-D1-4): a refused sweep does not consume the one-shot orpha
   t.ok(await shouldReclaimOrphanDrives(),
     'the one-shot pass survives — a refused sweep looked at nothing, so it must not spend it')
 })
+
+// D12 — a sweep with nothing to delete is allowed (there is no risk to weigh), but its scan can
+// still have been incomplete. Journaling that pass as `gaps: []` reports a clean scan, so the one
+// record that makes a missing-spaces boot reconstructable hides the reason it saw nothing.
+test('REGRESSION (FIX-D12-1): a gapped scan with no targets journals the gap', async (t) => {
+  await freshPeer(t)
+  await createSpace('Aurora')
+
+  const res = await purgeLeftovers({ openSystemBee: failOpening('spaces-meta') })
+  t.is(res.purged, 0, 'precondition: nothing to delete, so the sweep is allowed rather than refused')
+  t.is(res.refused, null)
+  t.absent(res.scanComplete, 'and the scan itself was incomplete')
+
+  const [entry] = await listRecentSweeps(1)
+  t.is(entry.refused, null, 'the allowed pass is journaled')
+  t.ok(entry.gaps.some((g) => g.stage === 'system-bee:spaces-meta'),
+    'carrying the gap it actually saw, not an empty list that reads as a clean scan')
+})

@@ -8,7 +8,9 @@
 // Entry (written by leftover.js purgeLeftovers, one per sweep):
 //   { at, refused: <decideSweep reason> | null, targets, totalCores, gaps: [{ stage, detail }],
 //     categories: ('profiles' | 'catalogs' | 'orphanDrives')[], purged, purgedDks?: dkHex[] }
-//   A refused sweep carries its gaps and purged: 0; a sweep that ran carries gaps: [] and purgedDks.
+//   A refused sweep carries its gaps and purged: 0; a sweep that ran carries purgedDks. Gaps are
+//   the scan's own, either way: a sweep with nothing to delete is allowed on a scan that may
+//   still have been incomplete, and journaling that as [] would report a clean scan.
 // Keys in `reclaim-meta`: purge/<at, 16 digits>-<seq, 4 digits> (this journal, chronological) and
 // overlay-index-compacted (worker/sweeps.js's last-compaction stamp).
 import { createLocalBee } from '../core/store.js'
