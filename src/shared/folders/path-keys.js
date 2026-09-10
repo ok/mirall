@@ -137,7 +137,17 @@ export function shouldIgnore (rel, ignorePatterns) {
 // configuration and are matched against every path of every scan, where a backtracking pattern
 // would be a stall the user cannot explain.
 function matchPattern (input, pattern) {
-  if (pattern === input) return true
+  // `**/x` is the gitignore spelling of "x wherever it sits in the tree" — the form a user is
+  // likeliest to type. It names one segment, so it is answered per segment: any path holding a
+  // matching segment is covered, which withholds a matching directory's contents too. A `**/`
+  // prefix on a multi-segment pattern only widens where that pattern may sit, which is already
+  // what the rest of this matcher does, so the remainder is answered on its own terms.
+  if (pattern.startsWith('**/')) {
+    const rest = pattern.slice(3)
+    if (rest === '') return false
+    if (rest.includes('/')) return matchPattern(input, rest)
+    return input.split('/').some((segment) => matchSegment(segment, rest))
+  }
   // `dir/**` covers that directory WHEREVER it sits in the tree, plus everything beneath it at
   // any depth. Anchoring it to the mount root would publish a nested `node_modules` or `.git`
   // while the same glob withheld the one at the top.
@@ -146,12 +156,15 @@ function matchPattern (input, pattern) {
     return input === prefix || input.startsWith(prefix + '/') ||
       input.endsWith('/' + prefix) || input.includes('/' + prefix + '/')
   }
-  if (pattern.startsWith('*')) {
-    return input.endsWith(pattern.slice(1))
-  }
-  if (pattern.endsWith('*')) {
-    return input.startsWith(pattern.slice(0, -1))
-  }
+  return matchSegment(input, pattern)
+}
+
+// Exact name, leading-`*` suffix glob, or trailing-`*` prefix glob — the whole vocabulary a
+// pattern without a `**` has.
+function matchSegment (input, pattern) {
+  if (pattern === input) return true
+  if (pattern.startsWith('*')) return input.endsWith(pattern.slice(1))
+  if (pattern.endsWith('*')) return input.startsWith(pattern.slice(0, -1))
   return false
 }
 

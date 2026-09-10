@@ -241,14 +241,37 @@ test('REGRESSION (FIX-221: watcher and reconcile disagree on ignore-glob semanti
   t.ok(shouldIgnore('a/b/dist', ['dist']), 'anywhere in the tree')
   t.absent(shouldIgnore('dist/app.js', ['dist']), 'a bare name is not a directory glob')
 
-  // `**/` is not a supported prefix in either matcher: the answer is the same on both sides.
-  t.absent(shouldIgnore('node_modules/pkg/index.js', ['**/node_modules']))
-  t.absent(shouldIgnore('a/node_modules', ['**/node_modules']))
-
   // Look-alikes stay publishable now that the glob reaches into the tree.
   t.absent(shouldIgnore('src/.gitignore', DEFAULT_IGNORE))
   t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
   t.absent(shouldIgnore('rebuild/x.js', ['build/**']), 'a name-suffix sibling directory')
+})
+
+// The gitignore spelling of "anywhere in the tree". It reaches the matcher from a share's
+// configuration, so a pattern that matches nothing withholds nothing — silently.
+test('REGRESSION (FIX-245: a `**/` pattern matches nothing)', (t) => {
+  t.ok(shouldIgnore('node_modules', ['**/node_modules']), 'the dir at the root')
+  t.ok(shouldIgnore('a/node_modules', ['**/node_modules']), 'the dir nested')
+  t.ok(shouldIgnore('node_modules/pkg/index.js', ['**/node_modules']), 'content at the root')
+  t.ok(shouldIgnore('a/b/node_modules/pkg/index.js', ['**/node_modules']), 'content nested')
+
+  t.ok(shouldIgnore('debug.log', ['**/*.log']), 'a suffix glob at the root')
+  t.ok(shouldIgnore('a/b/debug.log', ['**/*.log']), 'a suffix glob nested')
+
+  t.ok(shouldIgnore('debug.log', ['*.log']), 'a bare suffix glob at the root')
+  t.ok(shouldIgnore('a/b/debug.log', ['*.log']), 'a bare suffix glob nested')
+
+  // Look-alikes stay publishable: the prefix widens where a name may sit, not what it matches.
+  t.absent(shouldIgnore('my-node_modules-notes.md', ['**/node_modules']))
+  t.absent(shouldIgnore('a/node_modules-old/x.js', ['**/node_modules']))
+  t.absent(shouldIgnore('a/log/x.txt', ['**/*.log']))
+
+  // A `**/` prefix on a pattern that already carries its own semantics keeps them.
+  t.ok(shouldIgnore('src/build/x.js', ['**/build/**']))
+  t.absent(shouldIgnore('rebuild/x.js', ['**/build/**']))
+
+  // A bare `**/` names nothing, so it withholds nothing.
+  t.absent(shouldIgnore('docs/readme.md', ['**/']))
 })
 
 test('shouldIgnore: ordinary files pass; empty/missing patterns ignore nothing', (t) => {
