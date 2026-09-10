@@ -16,6 +16,7 @@ import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createRefCountedLru } from '../core/lru.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('share-catalog')
 
@@ -313,7 +314,7 @@ export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, lim
     // core.get, so a missing block throws instead of parking for a peer — rows we replicated
     // before still surface (an offline owner keeps its `unavailable` rows), and the drain can
     // never park for a second budget.
-    const stream = bee.createReadStream({ gte: prefix, lt: prefix + '\xff', wait: left > 0 })
+    const stream = bee.createReadStream({ ...prefixRange(prefix), wait: left > 0 })
     const { entries, complete, total, totalBytes } = await drainWithTimeout(stream, prefix, Math.max(left, LOCAL_DRAIN_MS), limit, onEach)
     // `complete` also requires blocks (length>0) so the renderer keeps its last list over an
     // empty read; `stalled` is the narrower "the read could not finish" signal (head-sync
@@ -458,7 +459,7 @@ export async function purgeLegacyPlaintextCatalog(space, spaceId) {
 
 async function* streamShare(bee, shareId) {
   const prefix = sharePrefixKey(shareId)
-  for await (const node of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+  for await (const node of bee.createReadStream(prefixRange(prefix))) {
     if (node.value?.deletedAt) continue
     yield {
       relPath: node.key.slice(prefix.length),

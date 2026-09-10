@@ -6,6 +6,7 @@ import { createLocalBee, storeEpoch } from '../core/store.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('pending-transfers')
 
@@ -83,7 +84,7 @@ export async function listPending() {
 
 export async function listPendingForSpace(spaceId) {
   const out = []
-  for await (const entry of bee.createReadStream({ gte: spaceId + ':', lt: spaceId + ';' })) {
+  for await (const entry of bee.createReadStream(prefixRange(spaceId + ':'))) {
     out.push({
       spaceId,
       filePath: entry.key.slice(spaceId.length + 1),
@@ -109,7 +110,7 @@ export async function listPendingOwnerKeys() {
 // after the purge and resurrect a row for a space the user just left.
 export async function clearPendingForSpace(spaceId) {
   const keys = []
-  for await (const entry of bee.createReadStream({ gte: spaceId + ':', lt: spaceId + ';' })) {
+  for await (const entry of bee.createReadStream(prefixRange(spaceId + ':'))) {
     keys.push(entry.key)
   }
   await Promise.all(keys.map((key) => exclusive(key, () => bee.del(key))))

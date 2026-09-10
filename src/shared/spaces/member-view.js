@@ -6,6 +6,7 @@ import { createDerivedView } from '../state/derived-view.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import { peerReadTimeoutMs } from '../core/with-timeout.js'
 import { SHARE_PREFIX } from '../shares/shares.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 // Transitive discovery + fold. Walks the approval graph FORWARD from the creator (the
 // root of the OR-Set fold — see member-set.js) and self, reading each reachable peer's
@@ -124,23 +125,23 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
   // added/removed a share, letting the share list re-derive instead of waiting for an unrelated
   // event. Watch ONLY that peer's share/<space>/ sub-range, not the whole core: an avatar/
   // displayName/membership append shares the same bee but must not trigger a share re-fetch.
-  const shareRange = { gte: SHARE_PREFIX + spaceId + '/', lt: SHARE_PREFIX + spaceId + '/\xff' }
+  const shareRange = prefixRange(SHARE_PREFIX + spaceId + '/')
   const shareWatchers = new Map()
 
   // The fold's read set as watch ranges — one per read deriveMemberSet issues. Watching the WHOLE
   // bee instead would wake a full serial roster re-fold (one network-bounded read per member) on
   // every profile write a peer makes. This range set IS the membership convergence guarantee: a key
   // family the fold reads but this set omits yields a view that is correct at fold time and then
-  // silently never re-folds. The bounds mirror profile.js's read streams byte-for-byte, including
-  // the '0' upper bound (the byte after '/'). member/<spaceId> is an exact key, not a prefix:
+  // silently never re-folds. The prefix bounds come from the same prefixRange() profile.js's read
+  // streams use, so the two can never drift. member/<spaceId> is an exact key, not a prefix:
   // member/<other> is another space's membership. caps/membership-manifest is exact and almost
   // never fires, but a peer publishing its manifest after we first folded it must re-fold us.
   const foldRanges = [
     { gte: CAP_MEMBERSHIP_MANIFEST, lte: CAP_MEMBERSHIP_MANIFEST },
     { gte: 'member/' + spaceId, lte: 'member/' + spaceId },
-    { gte: 'approved/' + spaceId + '/', lt: 'approved/' + spaceId + '0' },
-    { gte: 'request/' + spaceId + '/', lt: 'request/' + spaceId + '0' },
-    { gte: 'denied/' + spaceId + '/', lt: 'denied/' + spaceId + '0' },
+    prefixRange('approved/' + spaceId + '/'),
+    prefixRange('request/' + spaceId + '/'),
+    prefixRange('denied/' + spaceId + '/'),
   ]
   let closed = false
   const follow = (key, bee) => {
