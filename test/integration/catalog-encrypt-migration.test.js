@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshDurableWithIdentity } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { createSpace, joinSpace, mutateSpace } from '../../src/shared/spaces/space.js'
+import { createSpace, joinSpace, mutateSpace, listSpaces } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
@@ -96,4 +96,37 @@ test('a legacy space is skipped, not deferred — the migration still closes out
   const res = await migrateCatalogsToEncrypted()
   t.is(res.deferred, 0, 'the legacy space is not deferred')
   t.ok((await migrateCatalogsToEncrypted()).skipped, 'the global flag closed out, so later boots no-op')
+})
+
+// REGRESSION (FIX-MIGRATE-CONTINUE): a space whose catalog copy throws must not end the pass —
+// every space after it stayed plaintext until the next boot, where it failed the same way.
+test('REGRESSION (FIX-MIGRATE-CONTINUE): a failing space is counted and the rest still migrate', async (t) => {
+  await v2Peer(t)
+  for (const name of ['Aurora', 'Borealis', 'Corona']) await createSpace(name)
+  const spaces = await listSpaces()
+  t.is(spaces.length, 3, 'precondition: three v2 spaces')
+
+  // The FIRST space in the pass order is the poisoned one, so a runner that stops on a failure
+  // migrates nothing at all.
+  const poisoned = spaces[0].spaceId
+  for (const space of spaces) {
+    const legacy = createBee(await legacyPlaintextCatalogName(space.spaceId))
+    await legacy.ready()
+    await legacy.put(fileKey(SHARE, 'a.txt'), { size: 3, mtime: 1, contentHash: 'hf' })
+    // An unreadable legacy catalog: the copy throws where a corrupt core would.
+    if (space.spaceId === poisoned) await legacy.core.append(b4a.from('not-a-hyperbee-node'))
+    await legacy.close()
+  }
+
+  const res = await migrateCatalogsToEncrypted()
+  t.is(res.failed, 1, 'the failing space is counted')
+  t.is(res.migrated, 2, 'the two healthy spaces migrated anyway')
+
+  for (const space of spaces) {
+    if (space.spaceId === poisoned) continue
+    const folder = await collectOwnShare(space.spaceId, SHARE)
+    t.alike(folder.entries.map((e) => e.relPath), ['a.txt'], 'healthy space copied into its encrypted core')
+  }
+
+  t.absent((await migrateCatalogsToEncrypted()).skipped, 'not marked complete while a space failed (retries next boot)')
 })
