@@ -26,6 +26,7 @@ import { CODES } from '../../../contract/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
 import { isTerminalFault, nextRetryDelay } from './fetch-policy.js'
+import { FETCH_OUTCOME } from './fetch-outcome.js'
 import { makeFetchInstruments } from './fetch-run.js'
 import { shortfall } from '../../free-space.js'
 import { freeBytesFor } from '../../free-space-probe.js'
@@ -241,7 +242,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // failure (disk-full / checksum / permission → record + surface the error).
   async function settleFailed (job, r, diag) {
     if (!r.code) {
-      diag.finish('no-holder')
+      diag.finish(FETCH_OUTCOME.NO_HOLDER)
       log.debug('overlay fetch interrupted — holder gone or throttled:', job.relPath, 'at', job.prevBytes || 0, 'bytes')
       // `retrying` withholds the OS notification only — the paused emit still fires, because it
       // also terminates the decoration, and withholding it strands a progress bar that then
@@ -251,7 +252,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       channel.emitUpdated(job.spaceId)
       return
     }
-    diag.finish('failed')
+    diag.finish(FETCH_OUTCOME.FAILED)
     const code = terminalCodeFor(r, job, dirExists)
     if (code === CODES.TRANSFER_CHECKSUM) log.warn('overlay integrity failure — holder served bytes that do not match the content hash:', job.relPath)
     else if (code === CODES.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
@@ -320,7 +321,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     // fetch settled (a no-holder stall, a checksum failure, or even a lucky completion of the OLD
     // bytes) — and let the status derive 'preparing' + the materialized-hash append restart it.
     const parkForRepublish = s?.republishing && !restartJob && !wasCancelled && !wasPaused
-    if (parkForRepublish) { diag.finish('awaiting-republish'); cancelStallRetry(transferId); finishRepublishRelease(transferId, s); return }
+    if (parkForRepublish) { diag.finish(FETCH_OUTCOME.AWAITING_REPUBLISH); cancelStallRetry(transferId); finishRepublishRelease(transferId, s); return }
     registry.delete(transferId)
     // Only a code-less stall keeps its retry history; every other outcome (done, cancelled,
     // superseded, terminal error) ends the intent this record belongs to.
@@ -330,7 +331,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       // and its partial discarded. Re-enter on the NEW contentHash now that the
       // stable transferId's slot is free — start() re-reserves it synchronously,
       // so has()/looseTransferActive never observes a gap.
-      diag.finish('superseded')
+      diag.finish(FETCH_OUTCOME.SUPERSEDED)
       restartAfterSupersede(restartJob)
       return
     }
@@ -338,7 +339,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       // A cancel raced the fetch to completion (the abort couldn't reach it in
       // time). cancelByKey already cleared the row + emitted, so just drop any
       // bytes that landed — never re-mark a cancelled file as downloaded.
-      diag.finish('cancelled')
+      diag.finish(FETCH_OUTCOME.CANCELLED)
       try { fs.unlinkSync(job.finalPath) } catch {}
       discardPartial(job.finalPath)
       // Settle-time re-derive: cancelByKey's emit fired while the slot was still
@@ -348,14 +349,14 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
       return
     }
     if (r.code === 'ECANCELLED') {
-      diag.finish(wasPaused ? 'paused' : 'cancelled')
+      diag.finish(wasPaused ? FETCH_OUTCOME.PAUSED : FETCH_OUTCOME.CANCELLED)
       // Pause keeps the pending row + partial → re-list so the row derives a
       // paused state. A discard already cleared the row + emitted in cancelByKey.
       if (wasPaused) { channel.emitUpdated(job.spaceId); channel.emitDecorationDone?.(job) }
       return
     }
     if (!r.ok) { await settleFailed(job, r, diag); return }
-    diag.finish('done')
+    diag.finish(FETCH_OUTCOME.DONE)
     // Durable positive fact FIRST: a crash inside this window must re-derive
     // 'downloaded' (a lingering resume row is masked by the downloaded status),
     // never 'remote' — which would re-download and duplicate the file.

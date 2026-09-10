@@ -47,25 +47,24 @@ import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
 import { getDownloadDir } from '../../../core/paths.js'
 import { createLogger } from '../../../core/logger.js'
+import { DELIBERATE_STOPS, FETCH_OUTCOME } from './fetch-outcome.js'
 
 const log = createLogger('overlay')
 
 // === fetch diagnostics ===
-
-// finish()'s deliberate stops — see makeFetchDiag; anything else is a give-up and WARNs.
-const DELIBERATE_STOPS = new Set(['paused', 'cancelled', 'superseded', 'no-holder'])
 
 // Download instrumentation: logs fetch start, throttled mid-download progress
 // (every 5s), the scheduler's terminal reason (timeout vs complete, with
 // bytes/chunks transferred), and the final outcome — so a stalled large-file
 // transfer reveals exactly where and why it stopped.
 //
-// finish(outcome): 'done' on success; a deliberate stop ('paused' / 'cancelled' /
-// 'superseded' / 'no-holder') is normal control flow and logs at debug — NOT a
-// WARN "gave up", which would make a user pausing a download read as a failure.
-// Only a genuine give-up ('failed' — timeout / stall / no live holder / hash
-// mismatch) warrants the WARN. An unrecognized outcome (caller bug) is fail-safe:
-// it WARNs rather than silently logging at debug.
+// finish(outcome): a member of FETCH_OUTCOME. 'done' on success; a deliberate stop
+// (fetch-outcome.js — a pause, a cancel, a supersede, no holder, a republish park)
+// is normal control flow and logs at debug — NOT a WARN "gave up", which would make
+// a user pausing a download read as a failure. Only a genuine give-up ('failed' —
+// timeout / stall / no live holder / hash mismatch) warrants the WARN. An outcome
+// outside the vocabulary (caller bug) is fail-safe: it WARNs rather than silently
+// logging at debug.
 export function makeFetchDiag(label, relPath, total, contentHash) {
   const t0 = Date.now()
   let lastLog = 0
@@ -90,12 +89,12 @@ export function makeFetchDiag(label, relPath, total, contentHash) {
     },
     finish(outcome) {
       const elapsed = ((Date.now() - t0) / 1000).toFixed(0)
-      if (outcome === 'done') {
+      if (outcome === FETCH_OUTCOME.DONE) {
         log.info(`${label} done:`, relPath, `${total} bytes in ${elapsed}s`)
       } else if (DELIBERATE_STOPS.has(outcome)) {
         log.debug(`${label} ${outcome}:`, relPath, `at ${lastBytes}/${total} bytes after ${elapsed}s`)
       } else {
-        const tag = outcome !== 'failed' ? ` [outcome='${outcome}']` : ''
+        const tag = outcome !== FETCH_OUTCOME.FAILED ? ` [outcome='${outcome}']` : ''
         log.warn(`${label} INCOMPLETE:`, relPath, `gave up after ${elapsed}s at ${lastBytes}/${total} bytes${tag}`)
       }
     },

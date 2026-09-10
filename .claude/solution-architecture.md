@@ -1323,6 +1323,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/backends/overlay/fetch-claims.js` | The process-wide "who is fetching this transferId" registry — engine probes + mirror claims |
 | `src/shared/transfer/backends/overlay/fetch-slots.js` | The one fetch semaphore for the process (`downloadConcurrency`, §2), reset per lifetime |
 | `src/shared/transfer/backends/overlay/fetch-policy.js` | `isTerminalFault`, `classifyMiss`, `nextRetryDelay` — one rule set for every producer. Pure |
+| `src/shared/transfer/backends/overlay/fetch-outcome.js` | `FETCH_OUTCOME` — the closed vocabulary every `diag.finish()` accepts, and the `DELIBERATE_STOPS` derived from it. Pure |
 | `src/shared/transfer/backends/overlay/paused-holders.js` | The paused-transfer markers a producer leaves behind, and the "tell the holder we stopped" primitives |
 | `src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js` | One-shot copy of the plaintext file-index bee into the encrypted namespace, then purge |
 | `src/shared/transfer/backends/overlay/vendor/` | The vendored `hyper-overlay` v2 subset (8 files) + `PROVENANCE.md`, which records every local modification (§7.7) |

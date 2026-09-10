@@ -2,6 +2,7 @@
 // asserted directly rather than through a live engine — the same shape as mirror-walk.js, and no
 // bare-* imports so it unit-tests under Node.
 import { CODES } from '../../../contract/errors.js'
+import { FETCH_OUTCOME } from './fetch-outcome.js'
 
 // A fault the user must clear before ANY retry can succeed: the same holder serves the same bad
 // bytes, a full disk is still full, an ejected volume is still gone. One set because it is one
@@ -21,7 +22,7 @@ export function isTerminalFault(code) {
 // false means no holder was ever reachable — a process-global fact, so a caller walking a list may
 // stop. True means a holder WAS asked and the transfer died, which is a fact about this file alone.
 export function classifyMiss({ attempted }) {
-  return attempted ? 'failed' : 'no-holder'
+  return attempted ? FETCH_OUTCOME.FAILED : FETCH_OUTCOME.NO_HOLDER
 }
 
 // How long before attempt N+1, and when to stop. `dry` counts consecutive attempts that banked no
