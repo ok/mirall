@@ -118,6 +118,7 @@ Distribution: `.dmg` (macOS, signed + notarized) and `.msix` (Windows, signed lo
 
 ## Obligatory Reading
 
+- **`.claude/coding.md` — READ FIRST.** The binding coding standard for this repository: naming, module boundaries, function/complexity guardrails, the commenting rule, the named anti-patterns, the patterns to reuse, and the definition of done. Every code change, review, and agent run follows it; if a change conflicts with a rule there, either follow the rule or change the rule deliberately in the same change.
 - `.claude/solution-architecture.md` — authoritative reference for the current pear-electron-runtime architecture: process model, data model, networking, IPC catalog, update system, build pipeline, deps.
 - `.claude/build-process.md` — how a release flows from a tag push to an installed user: CI build → R2 → seed-VM `pear stage`/`provision` → client OTA swap, plus the `dev`/`staging`/`prod` channel model.
 - `.claude/lessons.md` — running log of hard-won, non-obvious lessons from real debugging and implementation: gotchas, root causes, and the fixes that actually worked, so the same mistakes aren't repeated.
