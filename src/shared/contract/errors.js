@@ -62,6 +62,7 @@ export const CODES = Object.freeze({
   TRANSFER_RENAME_FAILED: 'TRANSFER_RENAME_FAILED',
   UNKNOWN: 'UNKNOWN',
   UPLOAD_FAILED: 'UPLOAD_FAILED',
+  WORKER_UNAVAILABLE: 'WORKER_UNAVAILABLE',  // the renderer's channel has no worker behind it
 })
 
 export const CODE_NAMES = Object.freeze(Object.keys(CODES))
@@ -97,7 +98,6 @@ export const UNUSED_CODES = Object.freeze([
   'PREPARE_FAILED',
   'SOURCE_CHANGED',
   'SPACE_EXISTS',
-  'TIMEOUT',
   'TRANSFER_IN_PROGRESS',
   'TRANSFER_NOT_FOUND',
   'TRANSFER_RENAME_FAILED',

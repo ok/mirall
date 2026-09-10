@@ -123,9 +123,9 @@ function handleLine(line: string): void {
   }
 }
 
-function failAllPending(reason: string): void {
+function failAllPending(reason: string, code: string): void {
   for (const [id, entry] of pending) {
-    entry.reject(new Error(reason))
+    entry.reject(codedError(reason, code))
     pending.delete(id)
   }
 }
@@ -171,7 +171,7 @@ function onWorkerExit(code: number): void {
   decoder = new TextDecoder('utf-8')
   stdoutDecoder = new TextDecoder('utf-8')
   stderrDecoder = new TextDecoder('utf-8')
-  failAllPending('Worker exited with code ' + code)
+  failAllPending('Worker exited with code ' + code, CODES.WORKER_UNAVAILABLE)
   scheduleRespawn(code)
 }
 
@@ -256,10 +256,17 @@ if (typeof window !== 'undefined') {
   ensureWorker().catch((err) => console.error('worker start failed:', err))
 }
 
-function cancelledError(type: RequestName): Error & { code: string } {
-  const err = new Error(`cancelled: ${type}`) as Error & { code: string }
-  err.code = ECANCELLED
+// Every rejection this module raises itself carries a code: errorTextFor keys on `.code`, and one
+// without it renders the generic sentence — the outcome that makes a stalled or dead worker
+// indistinguishable from any other failure in the UI.
+function codedError(message: string, code: string): Error & { code: string } {
+  const err = new Error(message) as Error & { code: string }
+  err.code = code
   return err
+}
+
+function cancelledError(type: RequestName): Error & { code: string } {
+  return codedError(`cancelled: ${type}`, ECANCELLED)
 }
 
 export async function request(
@@ -276,7 +283,7 @@ export async function request(
   // (which re-arms it) wakes us onto the new worker instead of stranding us on a stale promise.
   // Fail fast if the respawn policy has given up rather than hanging until the IPC timeout.
   while (!workerReady) {
-    if (permanentlyDown) throw new Error('Worker is unavailable (respawn limit reached)')
+    if (permanentlyDown) throw codedError('Worker is unavailable (respawn limit reached)', CODES.WORKER_UNAVAILABLE)
     await readyPromise
   }
 
@@ -292,7 +299,7 @@ export async function request(
           if (pending.has(id)) {
             pending.delete(id)
             detach()
-            reject(new Error(`IPC timeout: ${type} (${timeout}ms)`))
+            reject(codedError(`IPC timeout: ${type} (${timeout}ms)`, CODES.TIMEOUT))
           }
         }, timeout)
       : null
@@ -332,7 +339,11 @@ export async function request(
       pending.delete(id)
       if (timer) clearTimeout(timer)
       detach()
-      reject(err instanceof Error ? err : new Error(String(err)))
+      // The write reaches main, not the worker, so its failure means no worker is behind the
+      // channel — the same thing a request has to tell the user as an exit does. The bridge's own
+      // message goes to the console; the sentence a person reads comes from the code.
+      console.error('worker write failed:', type, err)
+      reject(codedError(`worker write failed: ${type}`, CODES.WORKER_UNAVAILABLE))
     })
   })
 }

@@ -44,6 +44,10 @@ export const ERROR_I18N_KEY_BY_CODE = {
   NOT_A_MEMBER: 'notAMember',
   EOWNERSHIP: 'notApprovedForSpace',
   CREATOR_DIVERGENCE_UNRESOLVED: 'approveBlockedDivergence',
+  // The renderer's own channel failures. Without copy of their own they render the generic
+  // sentence, which is the one outcome that makes a stalled or dead worker undiagnosable.
+  TIMEOUT: 'requestTimedOut',
+  WORKER_UNAVAILABLE: 'workerUnavailable',
 }
 
 export function errorI18nKey (code, fallbackKey) {

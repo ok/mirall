@@ -50,6 +50,7 @@ const { buildAppMenuTemplate } = require('./menu.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { ConfigStore } = require('./config-store.js')
 const { primeFeatureFlags, readFeatureFlags } = require('./feature-flags.js')
+const { envJson } = require('./env-json.js')
 const relaySecret = require('./relay-secret.js')
 const { initDebugGate, isDebug, isVerbose, setVerbose } = require('./debug-gate.js')
 const { integrateXdgLinux } = require('./xdg-integration.js')
@@ -679,7 +680,7 @@ function getWorker(specifier) {
     verbose: isVerbose(),
     downloadFolder: readDownloadFolder(),
     ...readBandwidth(),
-    dhtBootstrap: process.env.MIRALL_DHT_BOOTSTRAP ? JSON.parse(process.env.MIRALL_DHT_BOOTSTRAP) : null,
+    dhtBootstrap: envJson('MIRALL_DHT_BOOTSTRAP'),
     // Test/debug override for the share:list-files row cap (undefined → omitted by JSON →
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
     // with a handful of files; a bad value is caught by getListFilesCap's fail-safe.

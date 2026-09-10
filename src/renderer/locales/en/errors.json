@@ -42,6 +42,8 @@
   "leaveInProgress": "Mirall is still finishing your last leave of this space. Try again in a moment.",
   "notAMember": "You can only invite others once you've been approved for this space.",
   "notApprovedForSpace": "You haven't been approved for this space yet, so you can't share into it.",
+  "requestTimedOut": "Mirall took too long to answer. Try again in a moment.",
+  "workerUnavailable": "Mirall's background service isn't available. Restart Mirall if this keeps happening.",
   "unexpected": "Something went wrong. Try again — if it keeps happening, send feedback from Settings.",
   "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved."
 }
