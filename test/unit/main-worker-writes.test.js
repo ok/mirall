@@ -19,6 +19,7 @@ function fnBody(name) {
 const code = (text) => text.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
 
 const getWorker = code(mainSrc.match(/function getWorker\s*\([\s\S]*?\n\}/)?.[0] ?? '')
+const stopWorkers = code(mainSrc.match(/function stopWorkers\s*\([\s\S]*?\n\}/)?.[0] ?? '')
 
 test('REGRESSION (FIX-BOOTSTRAP-1): every frame main puts on the worker pipe is written through one guarded path', (t) => {
   // The bootstrap write was the only one of four with no try/catch. A worker that died between
@@ -29,8 +30,9 @@ test('REGRESSION (FIX-BOOTSTRAP-1): every frame main puts on the worker pipe is 
 
   t.ok(/sendToWorker\(worker,\s*bootstrap\)/.test(getWorker),
     'the bootstrap frame goes through sendToWorker')
-  t.ok(/sendToWorker\(worker,\s*\{\s*type:\s*'shutdown'\s*\}\)/.test(getWorker),
-    'and so does the shutdown frame')
+  t.ok(stopWorkers, 'stopWorkers() exists in src/main/main.js')
+  t.ok(/sendToWorker\(worker,\s*\{\s*type:\s*'shutdown'\s*\}\)/.test(stopWorkers),
+    'and so does the quit sequence\'s shutdown frame')
 
   // The raw relay is the one legitimate exception: the renderer has already serialised its own
   // NDJSON envelope, so there is no frame object to hand over.

@@ -11,6 +11,7 @@ const fs = require('fs')
 const os = require('os')
 const { StringDecoder } = require('node:string_decoder')
 const { logRing } = require('./log-ring')
+const { createQuitSequence } = require('./lifecycle.js')
 
 // Custom app:// scheme. Registered as standard+secure so the renderer
 // document gets a stable origin across webContents.reload — file://
@@ -634,6 +635,23 @@ function validateDownloadFolder(folder) {
 
 // === Worker spawn + renderer⇄worker IPC relay ===
 
+// Asks every live worker to exit. Called once, from the quit sequence.
+//
+// 1. The shutdown frame lets the worker close the swarm and Bare.exit on its own.
+// 2. Escalation covers a worker that cannot. The bare-sidecar Duplex has no kill(): destroy()
+//    sends SIGTERM via the sidecar; a worker whose loop is starved cannot process the shutdown
+//    frame OR a SIGTERM bare dispatches on that loop, so follow up with SIGKILL on the child.
+//    Timers are unref'd so they never delay a clean exit; process.on('exit') is the backstop
+//    when main exits before these fire.
+function stopWorkers() {
+  for (const worker of workers.values()) {
+    sendToWorker(worker, { type: 'shutdown' })
+    const child = worker._process
+    setTimeout(() => { try { worker.destroy() } catch {} ; try { child?.kill('SIGTERM') } catch {} }, 3000).unref?.()
+    setTimeout(() => { try { child?.kill('SIGKILL') } catch {} }, 5000).unref?.()
+  }
+}
+
 function getWorker(specifier) {
   if (workers.has(specifier)) return workers.get(specifier)
   const p = getPear()
@@ -764,20 +782,6 @@ function getWorker(specifier) {
     logRing.push('worker', 'error', text)
   })
 
-  const onBeforeQuit = () => {
-    // 1. Ask the worker to exit cleanly (it closes the swarm, then Bare.exit).
-    sendToWorker(worker, { type: 'shutdown' })
-    // 2. Escalate if it is still alive. The bare-sidecar Duplex has no kill(): destroy() sends
-    //  SIGTERM via the sidecar; a worker whose loop is starved cannot process the shutdown frame
-    //  OR a SIGTERM bare dispatches on that loop, so follow up with SIGKILL on the child. Timers
-    //  are unref'd so they never delay a clean exit; process.on('exit') is the backstop when main
-    //  exits before these fire.
-    const child = worker._process
-    setTimeout(() => { try { worker.destroy() } catch {} ; try { child?.kill('SIGTERM') } catch {} }, 3000).unref?.()
-    setTimeout(() => { try { child?.kill('SIGKILL') } catch {} }, 5000).unref?.()
-  }
-  app.on('before-quit', onBeforeQuit)
-
   worker.once('exit', (code) => {
     // A partial character at process death would otherwise be dropped along with the line it
     // belongs to — and a worker's LAST line is the one worth having.
@@ -785,7 +789,6 @@ function getWorker(specifier) {
     if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
     const stderrTail = stderrDecoder.end()
     if (stderrTail) logRing.push('worker', 'error', stderrTail)
-    app.removeListener('before-quit', onBeforeQuit)
     // Replace the writeHandler with a no-op instead of removing it. Late
     // renderer messages (common during shutdown) would otherwise hit
     // "No handler registered" and surface as Uncaught Promise rejections.
@@ -998,13 +1001,6 @@ ipcMain.handle('pear:startWorker', (_evt, specifier) => {
   return true
 })
 
-// before-quit fires before any window's close event. Setting isQuitting here
-// covers system-initiated quits (Cmd-Q, OS shutdown, app menu Quit) so the
-// close handler doesn't hide-to-tray instead of quitting. Tray-menu Quit
-// also sets this directly before calling app.quit — idempotent re-set is
-// harmless.
-app.on('before-quit', () => { isQuitting = true })
-
 // Backstop against orphaned worker subprocesses. When the main process exits for
 // any reason (clean quit, OTA relaunch, an uncaught crash), synchronously
 // hard-kill any worker child still alive. A healthy worker has already exited via
@@ -1015,22 +1011,6 @@ process.on('exit', () => {
   for (const worker of workers.values()) {
     try { worker._process?.kill('SIGKILL') } catch {}
   }
-})
-
-// Promote any staged OTA bundle on the user's next clean quit. Defer the quit
-// (preventDefault → await applyUpdate → re-quit) because Electron does not
-// await async listeners and the swap must finish before the process exits —
-// macOS/Linux: fsx.swap (fast); Windows: MSIXManager.addPackage (seconds).
-let updateApplyAttempted = false
-app.on('before-quit', (event) => {
-  if (updateApplyAttempted) return
-  if (!updatesEnabled) return
-  if (!pear?.updater?.updated || pear.updater.applied) return
-  updateApplyAttempted = true
-  event.preventDefault()
-  pear.updater.applyUpdate()
-    .catch((err) => console.error('apply update on quit failed:', err))
-    .finally(() => app.quit())
 })
 
 ipcMain.handle('window:getBounds', (evt) => {
@@ -1110,11 +1090,31 @@ ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(
 
 ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 
-app.on('before-quit', () => {
-  try { ownedFolderWatchers.stopAllWatchers() } catch {}
-  try { looseFileWatchers.stopLooseWatchers() } catch {}
-  try { configStore?.flush() } catch {}
-})
+// The one quit teardown. Electron re-emits before-quit to every listener on every
+// app.quit(), so the update-apply step's deferral (preventDefault → apply → quit
+// again) would run every sibling twice if they were separate listeners; the
+// sequence runs once per process and the re-issued quit passes straight through.
+// Step order and the continue-on-error rule live in lifecycle.js.
+app.on('before-quit', createQuitSequence({
+  // Read by the window close handler, which hides to tray unless the app is
+  // quitting. Tray-menu Quit sets it directly before calling app.quit.
+  markQuitting: () => { isQuitting = true },
+  stopOwnedWatchers: () => ownedFolderWatchers.stopAllWatchers(),
+  stopLooseWatchers: () => looseFileWatchers.stopLooseWatchers(),
+  flushConfig: () => configStore?.flush(),
+  stopWorkers,
+  // Promote any staged OTA bundle on the user's next clean quit. Returning the
+  // promise defers the quit, because Electron does not await async listeners and
+  // the swap must finish before the process exits — macOS/Linux: fsx.swap (fast);
+  // Windows: MSIXManager.addPackage (seconds).
+  applyUpdate: () => {
+    if (!updatesEnabled) return null
+    if (!pear?.updater?.updated || pear.updater.applied) return null
+    return pear.updater.applyUpdate()
+  },
+  quit: () => app.quit(),
+  onStepError: (step, err) => console.error('quit teardown step failed:', step, err),
+}))
 
 // === Theme, app menu, window creation ===
 
