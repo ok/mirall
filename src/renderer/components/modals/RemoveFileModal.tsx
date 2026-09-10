@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useErrorText } from '../../hooks/useErrorText.js'
 import { fileName as getFileName } from '../../utils.js'
+import { useToast } from '../toast/ToastProvider.js'
 import Modal from '../primitives/Modal.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
@@ -10,18 +12,24 @@ interface RemoveFileModalProps {
   isOpen: boolean
   filePath: string
   onClose: () => void
-  onRemove: () => void
+  onRemove: () => void | Promise<void>
 }
 
 export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }: RemoveFileModalProps) {
   const { t } = useTranslation()
+  const toast = useToast()
+  const errorText = useErrorText()
   const [removing, setRemoving] = useState(false)
 
+  // A rejected removal reports and leaves the dialog on its confirm step: the busy flag is what
+  // makes the dialog undismissable, so clearing it is the only thing that gives the escape routes
+  // (Escape, the backdrop, the close button) back.
   async function handleRemove() {
     if (removing) return
     setRemoving(true)
-    await onRemove()
-    setRemoving(false)
+    try { await onRemove() }
+    catch (err) { toast.error(errorText(err)) }
+    finally { setRemoving(false) }
   }
 
   return (
@@ -30,6 +38,7 @@ export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }:
         <ModalHeader
           titleNode={<FilenameTitle i18nKey="removeFile.titleConfirm" name={getFileName(filePath)} />}
           onClose={onClose}
+          closeDisabled={removing}
         />
 
         <div className="px-10 pb-10 space-y-6">
@@ -42,6 +51,7 @@ export default function RemoveFileModal({ isOpen, filePath, onClose, onRemove }:
               variant="secondary"
               autoFocus
               onClick={onClose}
+              disabled={removing}
               className="flex-1 h-14"
             >
               {t('actions.cancel')}
