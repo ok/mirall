@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { deriveFolderStatus } from '../../src/renderer/folderStatus.js'
 import { badgeStyle } from '../../src/renderer/statusBadge.js'
+import { BADGE_STATUS } from '../../src/shared/contract/statuses.js'
 
 const BASE = {
   role: 'mine',
@@ -88,4 +89,57 @@ test('a fault outranks both pauses and reads as an error', (t) => {
 test('a missing source still outranks a fault', (t) => {
   const status = deriveFolderStatus({ ...BASE, sourceMissing: true, fault: true })
   t.is(status.labelKey, 'folder.statusMissing', 'the more specific state wins')
+})
+
+// With the owner away nothing can be fetched, so a mirror demonstrably short of the owner's listing
+// must not sit under an "Up to date" pill beside a strip saying they are offline.
+const MIRROR_OFFLINE = { ...BASE, role: 'mirrored', ownerOnline: false, incomplete: true }
+
+test('REGRESSION (FIX-M4-1): an incomplete mirror with an offline owner does not claim to be up to date', (t) => {
+  const s = deriveFolderStatus(MIRROR_OFFLINE)
+  t.is(s.labelKey, 'status.ownerOffline')
+  t.is(s.badge, 'owner-offline')
+})
+
+test('a complete mirror with an offline owner is still up to date', (t) => {
+  // Deliberate: up to date as of last contact. Flipping this would fire on every healthy mirror
+  // the moment its owner closed a laptop.
+  t.is(deriveFolderStatus({ ...MIRROR_OFFLINE, incomplete: false }).labelKey, 'folder.statusUpToDate')
+})
+
+test('an unknown on-device count never manufactures the offline state', (t) => {
+  const { incomplete, ...noSignal } = MIRROR_OFFLINE
+  t.is(deriveFolderStatus(noSignal).labelKey, 'folder.statusUpToDate')
+})
+
+test('the user\'s own pause outranks the outage', (t) => {
+  t.is(deriveFolderStatus({ ...MIRROR_OFFLINE, mirrorEnabled: false }).labelKey, 'folder.statusPaused')
+})
+
+test('a fault outranks the outage', (t) => {
+  t.is(deriveFolderStatus({ ...MIRROR_OFFLINE, fault: true }).labelKey, 'folder.statusFault')
+})
+
+test('a missing source outranks the outage', (t) => {
+  t.is(deriveFolderStatus({ ...MIRROR_OFFLINE, sourceMissing: true }).labelKey, 'folder.statusMissing')
+})
+
+test('an owned folder is unaffected by owner presence', (t) => {
+  t.is(deriveFolderStatus({ ...BASE, role: 'mine', ownerOnline: false, incomplete: true }).labelKey, 'folder.statusUpToDate')
+})
+
+test('REGRESSION (FIX-M4-1): a self-mirror never reads as owner-offline', (t) => {
+  // Presence leases track remote peers only, so our own key is never in the map; the caller
+  // resolves a self-owned share to online before it gets here.
+  t.is(deriveFolderStatus({ ...MIRROR_OFFLINE, ownerOnline: true }).labelKey, 'folder.statusUpToDate')
+})
+
+test('the offline state is still exactly a label and a badge', (t) => {
+  t.alike(Object.keys(deriveFolderStatus(MIRROR_OFFLINE)).sort(), ['badge', 'labelKey'])
+})
+
+test('every badge deriveFolderStatus can return is a legal BADGE_STATUS token', (t) => {
+  const cases = [MIRROR_OFFLINE, { ...BASE, sourceMissing: true }, { ...BASE, fault: true },
+    { ...BASE, role: 'mirrored', mirrorSyncing: true }, { ...BASE, role: 'browse' }, BASE]
+  for (const c of cases) t.ok(BADGE_STATUS.includes(deriveFolderStatus(c).badge), `${deriveFolderStatus(c).badge} is a BADGE_STATUS`)
 })

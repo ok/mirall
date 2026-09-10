@@ -8,6 +8,7 @@ import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import TextButton from '../primitives/TextButton.js'
 import { useSpaceMirrors } from '../../hooks/useSpaceMirrors.js'
 import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
+import { mirrorStateLabelKey } from '../../mirrorStateLabel.js'
 import type { MirrorParticipant, Profile, SpaceMember } from '../../types.js'
 
 const STACK_MAX = 5
@@ -108,8 +109,10 @@ function FolderPeopleCard({
   const [expanded, setExpanded] = useState(false)
   const mirrors = useSpaceMirrors(spaceId, shareId)
 
-  const stateLabel = (state: MirrorState) =>
-    t(state === 'paused' ? 'folder.mirrorStatePaused' : state === 'syncing' ? 'folder.mirrorStateSyncing' : 'folder.mirrorStateSynced')
+  // Our own view of the owner, not the mirrorer's claim. If this folder is ours the owner is us.
+  const ownerOnline = isYou || owner?.online !== false
+  const ownerProfile = isYou ? selfProfile : owner
+  const stateLabel = (state: MirrorState) => t(mirrorStateLabelKey(state, ownerOnline))
 
   const resolved: Mirrorer[] = mirrors.map((m) => {
     const isSelf = m.mirrorer === selfPublicKey
@@ -149,9 +152,9 @@ function FolderPeopleCard({
     >
       <p className="text-xs font-bold uppercase tracking-wide text-secondary mb-3">{t('folder.ownerEyebrow')}</p>
       <OwnerRow
-        name={isYou ? (selfProfile?.displayName || t('avatar.unknown')) : (owner?.displayName || t('avatar.unknown'))}
-        avatar={(isYou ? selfProfile?.avatar : owner?.avatar) ?? null}
-        online={isYou || owner?.online !== false}
+        name={ownerProfile?.displayName || t('avatar.unknown')}
+        avatar={ownerProfile?.avatar ?? null}
+        online={ownerOnline}
         isYou={isYou}
         spaced={resolved.length > 0}
       />
