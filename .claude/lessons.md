@@ -488,3 +488,44 @@ missing" until the next real change. The tell is a badge that only clears after 
 **The rule:** whoever notices a state first records it where the probe reads. `handleOwnedMountGone`
 (`src/worker/mounts-runtime.js`) is the single entry for "the source is gone" from either signal,
 so the return is always an edge.
+
+## `gh pr checks` serves a previous commit's results as current
+
+A rebase-and-force-push during a fast-moving `staging` produced ten green rows from run
+`34492422347` — the run for the *pre-rebase* head. The commit actually on the PR had no
+registered run at all. `gh pr checks` renders both cases identically, so the obvious poll
+("any rows pending? no → green → merge") reads a stale-but-complete table as a pass and merges
+a head CI never tested. It caught the agent and the orchestrator within the same hour, on the
+same PR.
+
+Two shapes have to be ruled out, not one: checks that are still running, and checks that belong
+to a commit that is no longer the head. A poll that only counts pending rows is trivially
+satisfied by a head with zero rows.
+
+**The rule:** verify by head SHA, never by PR.
+
+```
+H=$(gh pr view <N> --json headRefOid --jq .headRefOid)
+gh api repos/<owner>/<repo>/commits/$H/check-runs \
+  --jq '.check_runs[]|"\(.name)=\(.status)/\(.conclusion)"'
+```
+
+Require *both* zero non-completed runs *and* the expected run count (10 here: node, bare,
+flow 1-6, cla, flake-ledger) before merging. GitHub's own `mergeStateStatus` agrees — it read
+`UNSTABLE`/`UNKNOWN` while `gh pr checks` said green — so it is worth a second look when the
+two disagree.
+
+Corollary for sequential merges: every merge to `staging` invalidates the verification of every
+other open PR in the queue. Freeze the base once the last PR is in flight, or accept a rebase
+cycle per merge.
+
+## A suite that dies mid-run still prints a near-perfect count
+
+`until()` (`test/flow/helpers/peer.js`) throws on timeout, the throw escapes uncaught, brittle
+records no `not ok`, and the runner dies. One run printed `201/202` with **zero** failures
+listed while 172 tests never executed. The failing test's name is lost with it, so a red has to
+be characterised by isolation runs instead of read off the log.
+
+**The rule:** a local flow "green" is only trustworthy up to the first throw. Compare planned
+against executed count before believing a pass, and prefer CI's sharded result — it is the
+stronger evidence, not the weaker one. Tracked as #246.
