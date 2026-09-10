@@ -10,7 +10,7 @@ import ActionMenu, { type ActionMenuItemConfig } from '../widgets/ActionMenu.js'
 import Badge from '../primitives/Badge.js'
 import Avatar from '../primitives/Avatar.js'
 import { roleBadge } from '../../statusBadge.js'
-import { isMountFault } from '../../mountFault.js'
+import { isMountFault } from '../../../shared/contract/mount-fault.js'
 import { shareSizeLine } from '../../shareSizeLine.js'
 import { formatSize } from '../../utils.js'
 
@@ -172,8 +172,6 @@ function ShareCard({
   )
 }
 
-// SpaceView re-renders once a second under the decoration heartbeat, and a share card's content
-// has nothing to do with a transfer's progress. Every handler prop is useCallback'd at the call
-// site; the role gating that used to build them conditionally lives in menuItems above, which is
-// where it was already being applied.
+// memo: a share card has nothing to do with a transfer's progress; every handler prop is
+// useCallback'd at the call site (src/renderer/hooks/README.md).
 export default memo(ShareCard)

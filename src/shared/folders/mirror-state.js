@@ -124,8 +124,8 @@ export function createMirrorState ({ keyOf, isStopped }) {
     markClean: (key) => dirty.delete(key),
 
     // Persist once per pass, only when something changed, and never from a pass that was
-    // cancelled: a pause persists the set itself, and unmount deleted the record. Writing it on
-    // every tick of an owner-online mirror appended ~36 B per path to the mounts bee every 30 s.
+    // cancelled: a pause persists the set itself, and unmount deleted the record. An unconditional
+    // write costs ~36 B per path per tick in the mounts bee.
     async persist (mount, key, gen) {
       if (!dirty.has(key) || isStopped(key, gen)) return
       if (await patchForeignMount(mount.spaceId, mount.shareId, syncFields(mount))) dirty.delete(key)

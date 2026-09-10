@@ -22,7 +22,7 @@ const log = createLogger('peer-watch')
 const sweeps = new Map()
 let closed = false
 
-export function resetPeerWatch() {
+function resetPeerWatch() {
   sweeps.clear()
   closed = false
 }
@@ -44,8 +44,7 @@ async function closePeerWatch({ settleMs = 3000 } = {}) {
 // The watch itself is a set of free functions called from swarm.js and share-catalog.js; this
 // owns only the accept/drain gate, so shutdown has one thing to await.
 export class PeerWatch extends Subsystem {
-  // Lifts the refuse-new-sweeps flag a previous close left set — a module-level latch nothing
-  // else clears, so a second boot in the same process would accept no sweeps at all.
+  // Clears the refuse-new-sweeps latch a previous close set.
   async _open() { resetPeerWatch() }
   async _close() { await closePeerWatch() }
 }
@@ -163,11 +162,9 @@ async function syncHead(bee) {
 }
 
 function serialize(beeId, fn) {
-  // Refuse new sweeps once the watch is closing. Swarm connections stay live until destroySwarm,
-  // which runs well after this closes, so replication keeps calling in: without the flag a late
-  // sweep would start from a cleared map — i.e. NOT chained behind the one still running for the
-  // same bee — which is exactly the duplicate-row race the chain exists to prevent. And once the
-  // audit bee is closed the watermark cannot advance anyway, so the work is pure cost.
+  // Refuse new sweeps once closing: replication keeps calling in until destroySwarm, and a sweep
+  // started from a cleared map is not chained behind the one still running for the same bee — the
+  // duplicate-row race the chain exists to prevent. The watermark cannot advance on a closed bee.
   if (closed) return Promise.resolve()
   const prev = sweeps.get(beeId) ?? Promise.resolve()
   const next = prev.then(fn, fn).catch((err) => log.debug('peer sweep failed:', err.message))

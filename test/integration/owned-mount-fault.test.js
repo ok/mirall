@@ -5,7 +5,7 @@ import { setupOwnedShare } from '../helpers/owned.js'
 import { getOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 // How an owned folder's local I/O faults reach its durable status. The mirror side classified its
 // faults from the start; the owner collapsed everything to 'paused-error' with a raw errno message
@@ -36,7 +36,7 @@ test('REGRESSION (FIX-PI12-1: a pass whose publishes all failed on a full disk r
 
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'paused-enospc', 'the fault the scheduler counted and dropped now settles the status')
-  t.is(mount.lastError, ErrorCodes.TRANSFER_DISK_FULL, 'and it is a code the renderer translates')
+  t.is(mount.lastError, CODES.TRANSFER_DISK_FULL, 'and it is a code the renderer translates')
 })
 
 test('REGRESSION (FIX-PI12-1: a permission fault on the publish path is classified too)', async (t) => {
@@ -49,7 +49,7 @@ test('REGRESSION (FIX-PI12-1: a permission fault on the publish path is classifi
   )
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'paused-error', 'a permission fault has no status of its own — the reason carries it')
-  t.is(mount.lastError, ErrorCodes.TRANSFER_PERMISSION)
+  t.is(mount.lastError, CODES.TRANSFER_PERMISSION)
 })
 
 test('an unclassified publish failure is not a mount fault', async (t) => {
@@ -83,7 +83,7 @@ test('a genuinely unreadable file faults the mount through the real publish path
 
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'paused-error')
-  t.is(mount.lastError, ErrorCodes.TRANSFER_PERMISSION, 'classified from the real errno, not a double')
+  t.is(mount.lastError, CODES.TRANSFER_PERMISSION, 'classified from the real errno, not a double')
 })
 
 test('REGRESSION (FIX-PI12-2: a classified whole-pass failure records the code, never err.message)', async (t) => {
@@ -94,7 +94,7 @@ test('REGRESSION (FIX-PI12-2: a classified whole-pass failure records the code, 
 
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'paused-enospc')
-  t.is(mount.lastError, ErrorCodes.TRANSFER_DISK_FULL, 'the errno string went to the log, not to the record')
+  t.is(mount.lastError, CODES.TRANSFER_DISK_FULL, 'the errno string went to the log, not to the record')
   t.absent(statuses(ctx).some((p) => (p.error ?? '').includes('no space left')), 'and not onto the wire either')
 })
 

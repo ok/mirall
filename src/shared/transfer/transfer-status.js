@@ -1,6 +1,7 @@
 // Pure status derivation for a share-file row, given the durable pending row
-// and whether a transfer is currently in flight for it. Shared by the
-// share:list-files and loose/foreign status paths so the rule stays consistent.
+// and whether a transfer is currently in flight for it. The share listing takes the
+// whole ladder; the loose listing keeps its own and takes only unhashedStatusFor; the
+// overlay download engine takes pauseReasonFor. The folder mirror derives its own.
 export function pausedStatusFor({ pendingRow, isActive, ownerOnline }) {
   if (!pendingRow || isActive) return null
   return {
@@ -25,8 +26,8 @@ export function unhashedStatusFor(ownerOnline) {
 
 // Consumer-side row status for a catalog entry we hold no copy of, as an ORDER of rules. The
 // unhashed check sits ahead of the pending-row ones because the republish park deliberately keeps
-// a (zeroed) pending row through the owner's re-hash: read paused-first, that wait surfaced as a
-// "Paused" row nobody paused, offering Resume against a hash that no longer exists.
+// a (zeroed) pending row through the owner's re-hash — read paused-first, that wait would surface
+// as a "Paused" row offering Resume against a hash that no longer exists.
 //
 // It yields to a row that still holds PARTIAL BYTES and an owner who has gone offline: that wait
 // cannot resolve until they return, and 'unavailable' would strip the partial's Discard and leave

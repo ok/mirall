@@ -1,9 +1,9 @@
 // The single, process-global HyperOverlayV2 instance. Content addressing is
 // global by hash, so ONE instance (not per-space) avoids per-space core blow-up;
 // it gets its own stable Corestore namespace. This module owns the instance
-// lifecycle (init/attach/teardown) and THE SERVE GATE (authorizeServe), wired
-// from the socket-auth, membership, and rate-limit helpers (see
-// .claude/solution-architecture.md, "Serve authorization").
+// lifecycle (initOverlay / attachOverlay / teardownOverlay) and wires the serve gate
+// (makeServeAuthorizer in overlay-authorize.js) to the real socket-auth, membership and
+// rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
 import { HyperOverlayV2 } from './vendor/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
@@ -109,11 +109,10 @@ export async function initOverlay() {
   // goes on the wire — and a refused content request is exactly the "unauthorized access attempt"
   // line an audit trail exists for. Do not "simplify" this away.
   //
-  // Only a SECURITY denial is recorded. A rate-limited request is flow control and fires
-  // routinely mid-transfer; a missing socket is a teardown race; a request for a hash we
-  // advertise nowhere is a peer's multi-source fetch asking every connected peer, holder or not.
-  // Recording those produced a wall of identical "A file request was refused" rows during an
-  // ordinary folder mirror.
+  // Only a SECURITY denial is recorded: a rate-limited request is flow control mid-transfer, a
+  // missing socket is a teardown race, and a hash we advertise nowhere is a multi-source fetch
+  // asking every connected peer — recording those is one identical row per file of an ordinary
+  // mirror.
   const serveAuthorizer = makeServeAuthorizer({
     peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex,
     onDeny: (reason, ctx) => {
@@ -145,17 +144,11 @@ export async function initOverlay() {
     // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
     // index on close, so nothing to tear down here. 0 disables it (runtime-config).
     chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),
-    // The remote's overlay protocol version, announced in the channel handshake. Below the
-    // minimum the protocol closes that channel only: the socket, its sibling control channel
-    // (mirall/handshake, or mirall/content-hello when the separate content plane is on) and
-    // corestore replication all stay up.
-    //
-    // No minVersion is passed, so the protocol default (MIN_VERSION = 1, the unannounced
-    // version) applies and nothing in the field is refused. onPeerRejected is therefore
-    // unreachable in every shipping configuration — deliberately: the gate exists so that the
-    // release which first drops a message slot or changes a codec only has to raise the
-    // constant. Do not delete it as dead code; test/integration/overlay-channel-handshake.test.js
-    // drives it with an explicit minVersion.
+    // The remote's overlay protocol version, announced in the channel handshake. Below the minimum
+    // the protocol closes that channel only — socket, control channel and replication stay up.
+    // No minVersion is passed, so nothing in the field is refused and onPeerRejected is unreachable
+    // in every shipping configuration — deliberately: the first release that drops a message slot
+    // or changes a codec only has to raise the constant. Not dead code.
     onPeerOpen: ({ peer, version, capabilities }) =>
       log.debug(`peer ${peerKeyLabel(peer)} overlay v${version} caps=0x${capabilities.toString(16)}`),
     onPeerRejected: ({ peer, version, minVersion }) =>
@@ -170,7 +163,7 @@ export async function initOverlay() {
  * Bind this swarm connection to the overlay protocol. Called SYNCHRONOUSLY inside
  * swarm.on('connection') — protomux will not pair a channel opened after the
  * remote's. The overlay channel never serves to an unauthenticated peer because
- * authorizeServe reads `peerSocket` + `socketAuthorized`, both empty until the
+ * the serve authorizer (overlay-authorize.js) reads `peerSocket` + `socketAuthorized`, both empty until the
  * connection's handshake (mirall/handshake or mirall/content-hello) authenticates
  * the sender on this socket.
  */

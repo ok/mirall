@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
-import { encodeInvite } from '../../../src/shared/invite-envelope.js'
+import { encodeInvite } from '../../../src/shared/contract/invite-envelope.js'
 
 // JoinSpaceModal validation: the Join action is disabled with no code, and a
 // malformed invite code is rejected with an inline error. The text is the worker's

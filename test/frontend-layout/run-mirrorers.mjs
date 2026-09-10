@@ -1,11 +1,7 @@
-// People sidebar tile test (LOCAL/dev-machine only — spawns a real Electron GUI process,
-// like the agent-desktop frontend suite). Mounts the real <FolderPeopleCard> in real Chromium and
-// asserts the stacked facepile renders a capped avatar stack + "+N" overflow chip, encodes each
-// peer's sync state as a ring colour (synced / syncing-pulse / paused — never opacity), shows the
-// heading, exposes an accessible name listing the mirrors and their states, and carries no
-// explanatory body copy — a sidebar tile states, it does not explain. It also measures that the
-// "Show all" toggle is flush with the card's right content edge (as in the Members tile) instead of
-// stacked in the eyebrow column.
+// People sidebar tile test (LOCAL/dev-machine only — spawns a real Electron GUI process). Mounts the
+// real <FolderPeopleCard> in real Chromium: capped avatar stack + "+N" chip, sync state as a ring
+// colour (never opacity), an accessible name listing the mirrors and their states, no body copy, and
+// the "Show all" toggle flush with the card's right content edge (as in the Members tile).
 //
 //   node test/frontend-layout/run-mirrorers.mjs            (builds, then runs)
 //   node test/frontend-layout/run-mirrorers.mjs --no-build (reuse existing bundle)

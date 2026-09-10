@@ -43,9 +43,8 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   const chosen = EXPIRY.find((e) => e.id === expiry) ?? EXPIRY[0]
   const expiresLabel = new Date(Date.now() + chosen.ms).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })
 
-  // space:invite refuses a pending membership, a pre-encryption space and an unknown space, all as
-  // rejections. Unhandled, the rejection also skipped setCreating(false), so the button stayed
-  // disabled on "Creating…" with nothing on screen saying why.
+  // space:invite rejects a pending membership, a pre-encryption space and an unknown space; the
+  // rejection is handled here so `creating` always clears and the reason reaches the screen.
   async function handleCreate() {
     if (creating || creatingRef.current) return
     creatingRef.current = true

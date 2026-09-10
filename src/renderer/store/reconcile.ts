@@ -27,11 +27,7 @@ const reread = (type: RequestName, scopes: ScopePattern[] | null) => {
 }
 
 // Every worker event that PUSHES a value into the store, or re-reads one, subscribed once for the
-// app. Two of these used to live in the hooks that read them, and both hooks have several mounted
-// consumers: useDownloadRootStatus two (Storage settings and the toast bridge), useSpaces five.
-// One event therefore wrote the same entry once per mount — each write publishing a new object
-// that defeats the store's identity check and re-renders every subscriber again — and each
-// membership signal fired N refetches that abandoned one another's in-flight read.
+// app — the header's rule; a per-hook writer multiplies by mount count.
 export function installPushBridges(): () => void {
   const unsubs = [
     // The whole answer rides the event, so it is pushed rather than poked.

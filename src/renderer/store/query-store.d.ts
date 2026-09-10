@@ -21,4 +21,3 @@ export declare function refetchQuery<T> (type: RequestName, params?: Record<stri
 export declare function invalidateKey (shouldDrop: (key: string) => boolean): string[]
 export declare function resetQueryStore (): void
 export declare function setQueryData<T> (type: RequestName, params: Record<string, unknown>, data: T, scopes?: ScopePattern | ScopePattern[] | null): string
-export declare function storeStats (): { entries: number; inFlight: number }

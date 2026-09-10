@@ -5,9 +5,8 @@
 import { useState, useCallback, useMemo } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { refetchQuery } from '../store/query-store.js'
 import { foldListing, emptyFold, resetFold, resolveListing, type Fold } from '../shareFilesFold.js'
-import { shareDecoKey } from '../decoration-key.js'
+import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
 import type { ShareFileEntry, ShareFileStatus } from '../types.js'
 
@@ -67,11 +66,11 @@ function toEntry(e: ServerEntry): ShareFileEntry {
   }
 }
 
-export function useShareFiles(spaceId: string, ownerKey: string, shareId: string, _role: 'mine' | 'browse' | 'mirrored') {
+export function useShareFiles(spaceId: string, ownerKey: string, shareId: string) {
   const { byKey: decorations } = useDecorations('transfer', spaceId, shareDecoKey(shareId, ''))
 
-  // Two scopes feed this view: the share's own rows, and the space's peer/presence transitions,
-  // which change row status (remote/unavailable, paused-offline) without touching the catalog.
+  // The share's own rows, plus the space's peer/presence transitions, which change row status
+  // without touching the catalog (README.md).
   const scopes = useMemo(
     () => [{ kind: 'share-files', spaceId, shareId }, { kind: 'files', spaceId }],
     [spaceId, shareId],
@@ -86,11 +85,9 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     { coalesceMs: 750, enabled: ready },
   )
 
-  // The fold across successive responses, advanced DURING RENDER. reconcileFiles needs the previous
-  // reconciled list, which the store cannot supply — it holds the latest answer, not the history.
-  // React's documented way to carry a value between renders is to hold it in state and update it
-  // conditionally here; an effect would be the derived-state-in-effect anti-pattern, a memo has no
-  // memory of its own output, and a ref written in render is not a render input.
+  // The fold across responses, advanced DURING RENDER: reconcileFiles needs the previous reconciled
+  // list, which the store does not hold. State updated conditionally in render is React's documented
+  // carry; an effect would be derived-state-in-effect, and a memo has no memory of its own output.
   const [fold, setFold] = useState<Fold>(emptyFold)
   const [foldedShare, setFoldedShare] = useState(shareId)
   // Paths whose download was just requested. An override rather than a write into the list: seeded
@@ -107,24 +104,13 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   }
 
   const { rows: files, info, error } = resolveListing(fold, queryError as (Error & { code?: string }) | null)
-  // Only a genuinely cold share reports loading; a hint-driven refetch keeps the rows and the
-  // scroll position.
+  // Cold only (README.md).
   const loading = ready && fold.res === null && fetching && !queryError
 
-  const refresh = useCallback(async () => {
-    if (!ready) return
-    await refetchQuery<ListResult>('share:list-files', { spaceId, ownerKey, shareId }, scopes).catch(() => {})
-  }, [ready, spaceId, ownerKey, shareId, scopes])
-
-  // The decoration for one row, or null. Handed out as an accessor rather than merged into the row:
-  // merging built a NEW row object on every frame, which rebuilt the whole file tree and re-ran the
-  // filter walk — two O(n) passes per frame over a listing capped at 5,000 rows — for a change that
-  // only ever affects one row's right-hand lane. Which phase a frame may paint is rowView.js's
-  // judgement, not this hook's.
-  //
-  // useCallback, unlike useDecorations' own getDecoration (a fresh arrow per render, which is fine
-  // there because SpaceView only ever passes its RESULT down): FolderView's mirrorSync memo takes
-  // this as a dependency, so it has to change exactly when the decorations do and not once per render.
+  // An accessor, not a merged field: merging built a NEW row object every frame, which rebuilt the
+  // whole tree and re-ran the filter walk — two O(n) passes per frame for one row's lane. Which
+  // phase a frame may paint is rowView.js's judgement. useCallback because FolderView's mirrorSync
+  // memo takes this as a dependency, so it must change exactly when the decorations do (README.md).
   const getDecoration = useCallback(
     (relPath: string) => decorations.get(shareDecoKey(shareId, relPath)) ?? null,
     [decorations, shareId],
@@ -162,5 +148,5 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     await request('share:discard-partial', { spaceId, ownerKey, shareId, relPath })
   }, [spaceId, ownerKey, shareId])
 
-  return { files, info, loading, error, refresh, getDecoration, isSeeded, downloadFile, revealFile, pauseDownload, cancelDownload, discardPartial }
+  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile, pauseDownload, cancelDownload, discardPartial }
 }

@@ -1,6 +1,5 @@
-// Every error code that can cross the IPC boundary, and the only place they are declared.
-// The ten that were thrown as bare strings are ADOPTED here under the spelling the code already
-// emits — renaming one would be a wire-visible change to something the renderer branches on.
+// Every error code that can cross the IPC boundary, and the only place they are declared. A code's
+// spelling is wire-visible — the renderer branches on it — so none is ever renamed.
 export const CODES = Object.freeze({
   CREATOR_DIVERGENCE_UNRESOLVED: 'CREATOR_DIVERGENCE_UNRESOLVED',
   DOWNLOAD_FAILED: 'DOWNLOAD_FAILED',
@@ -8,17 +7,17 @@ export const CODES = Object.freeze({
   DOWNLOAD_FOLDER_INVALID: 'DOWNLOAD_FOLDER_INVALID',
   DOWNLOAD_FOLDER_OVERLAPS_MOUNT: 'DOWNLOAD_FOLDER_OVERLAPS_MOUNT',
   DRIVE_NOT_FOUND: 'DRIVE_NOT_FOUND',
-  ECANCELLED: 'ECANCELLED',  // adopted from a bare string
-  EHASHMISMATCH: 'EHASHMISMATCH',  // adopted from a bare string
-  EIO: 'EIO',  // adopted from a bare string
+  ECANCELLED: 'ECANCELLED',
+  EHASHMISMATCH: 'EHASHMISMATCH',
+  EIO: 'EIO',
   EOWNERSHIP: 'EOWNERSHIP',
   FILE_NOT_ON_DEVICE: 'FILE_NOT_ON_DEVICE',
   FILE_SOURCE_MISSING: 'FILE_SOURCE_MISSING',
   EPATH: 'EPATH',
   INVALID_INVITE: 'INVALID_INVITE',
-  INVITE_EXPIRED: 'INVITE_EXPIRED',  // adopted from a bare string
-  INVITE_INVALID: 'INVITE_INVALID',  // adopted from a bare string
-  LEAVE_IN_PROGRESS: 'LEAVE_IN_PROGRESS',  // adopted from a bare string
+  INVITE_EXPIRED: 'INVITE_EXPIRED',
+  INVITE_INVALID: 'INVITE_INVALID',
+  LEAVE_IN_PROGRESS: 'LEAVE_IN_PROGRESS',
   LOOSE_FILE_LIMIT: 'LOOSE_FILE_LIMIT',
   MOUNT_CONTAINS_DOWNLOADS: 'MOUNT_CONTAINS_DOWNLOADS',
   MOUNT_FORBIDDEN_APP_DATA: 'MOUNT_FORBIDDEN_APP_DATA',
@@ -32,13 +31,13 @@ export const CODES = Object.freeze({
   MOUNT_NOT_WRITABLE: 'MOUNT_NOT_WRITABLE',
   MOUNT_OVERLAPS: 'MOUNT_OVERLAPS',
   MOUNT_PATH_MISSING: 'MOUNT_PATH_MISSING',
-  NOT_A_MEMBER: 'NOT_A_MEMBER',  // adopted from a bare string
+  NOT_A_MEMBER: 'NOT_A_MEMBER',
   NOT_FOUND: 'NOT_FOUND',  // internal only: a record a background loop expected to be there
   OVERLAY_REQUIRED: 'OVERLAY_REQUIRED',
   PEER_NOT_AVAILABLE: 'PEER_NOT_AVAILABLE',
   PREPARE_FAILED: 'PREPARE_FAILED',
-  PREVIEW_CANCELLED: 'PREVIEW_CANCELLED',  // adopted from a bare string
-  REMOVABLE_OR_NETWORK: 'REMOVABLE_OR_NETWORK',  // adopted from a bare string
+  PREVIEW_CANCELLED: 'PREVIEW_CANCELLED',
+  REMOVABLE_OR_NETWORK: 'REMOVABLE_OR_NETWORK',
   SHARE_FILE_LIMIT: 'SHARE_FILE_LIMIT',
   SHARE_NAME_COLLISION: 'SHARE_NAME_COLLISION',
   SHARE_NAME_INVALID: 'SHARE_NAME_INVALID',
@@ -50,7 +49,7 @@ export const CODES = Object.freeze({
   SPACE_EXISTS: 'SPACE_EXISTS',
   SPACE_NOT_FOUND: 'SPACE_NOT_FOUND',
   SPACE_UNSUPPORTED: 'SPACE_UNSUPPORTED',  // created before v1.7.0; no SCK, and no path to one
-  TCC_GATED: 'TCC_GATED',  // adopted from a bare string
+  TCC_GATED: 'TCC_GATED',
   TIMEOUT: 'TIMEOUT',
   TRANSFER_CHECKSUM: 'TRANSFER_CHECKSUM',
   TRANSFER_DEST_UNAVAILABLE: 'TRANSFER_DEST_UNAVAILABLE',
@@ -88,7 +87,7 @@ export const INTERNAL_CODES = Object.freeze([
   'UNKNOWN',
 ])
 
-// Declared but thrown nowhere as of 2026-08-30. Kept rather than deleted: several are the
+// Declared but thrown nowhere. Kept rather than deleted: several are the
 // vocabulary a planned feature will use, and deleting them would make the parity test pass by
 // shrinking the contract instead of fixing the code. The test asserts this list only shrinks.
 export const UNUSED_CODES = Object.freeze([
@@ -105,7 +104,6 @@ export const UNUSED_CODES = Object.freeze([
   'UPLOAD_FAILED',
 ])
 
-// Named export for the router's own use. Declared inside CODES as well, so the "is every
-// user-visible code mapped?" ratchet can see it — it was invisible to that test while it lived
-// outside, which is how a code the user CAN see escaped the count.
+// Named export for the router's own use; declared inside CODES as well so the "is every
+// user-visible code mapped?" ratchet can see it.
 export const INVALID_ARGUMENT = CODES.INVALID_ARGUMENT

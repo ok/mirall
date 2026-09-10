@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor, assert } from '../assert.mjs'
-import { encodeInvite } from '../../../src/shared/invite-envelope.js'
+import { encodeInvite } from '../../../src/shared/contract/invite-envelope.js'
 
 // REGRESSION (r07-7 / defect 16): space:join throws INVITE_INVALID and INVITE_EXPIRED, and
 // JoinSpaceModal displayed err.message — the worker's English — in every locale. An English run

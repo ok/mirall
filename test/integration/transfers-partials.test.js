@@ -7,11 +7,10 @@ import {
   recordPending,
   getPendingFor,
   recordPendingError,
-  clearPendingError,
   clearPending,
   listPendingForSpace,
 } from '../../src/shared/transfer/pending-transfers.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 test('recordPending persists the resume-stable destination', async (t) => {
   await freshPeer(t)
@@ -34,10 +33,10 @@ test('pending error lifecycle: set on failure, cleared on a fresh attempt', asyn
   await freshPeer(t)
   await initPendingTransfers()
   await recordPending('s', '/b.txt', { localPath: '/x', totalBytes: 1 })
-  await recordPendingError('s', '/b.txt', ErrorCodes.TRANSFER_NETWORK)
-  t.is((await getPendingFor('s', '/b.txt')).errorCode, ErrorCodes.TRANSFER_NETWORK)
-  await clearPendingError('s', '/b.txt')
-  t.absent((await getPendingFor('s', '/b.txt')).errorCode, 'error wiped when the user retries')
+  await recordPendingError('s', '/b.txt', CODES.TRANSFER_NETWORK)
+  t.is((await getPendingFor('s', '/b.txt')).errorCode, CODES.TRANSFER_NETWORK)
+  await recordPending('s', '/b.txt', { localPath: '/x', totalBytes: 1 })
+  t.absent((await getPendingFor('s', '/b.txt')).errorCode, 'a fresh attempt records the row anew, without the error')
   await clearPending('s', '/b.txt')
   t.is((await listPendingForSpace('s')).length, 0)
 })

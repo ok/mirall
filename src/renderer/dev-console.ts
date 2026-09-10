@@ -76,8 +76,8 @@ const mirall: MirallDevConsole = {
   mounts: () => diag('mounts', 'mounts:list-all'),
   profile: () => diag('profile', 'profile:get'),
   features: () => diag('feature flags', 'features:get'),
-  // Per-request call counts, failures, in-flight and timing. This is how the fan-out claims in the
-  // architecture review get checked against a running app instead of estimated.
+  // Per-request call counts, failures, in-flight and timing — how many round-trips a UI action
+  // really costs, measured on the running app rather than estimated.
   metrics: async () => {
     const diagnostics = await request('diagnostics:export', { redact: true }) as {
       requests?: { metrics?: Record<string, unknown>; failures?: Record<string, unknown> }

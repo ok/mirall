@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { validateMountPathSync } from '../../src/shared/folders/mount-validate.js'
 import { getStoragePath } from '../../src/shared/core/store.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 const codeOf = (fn) => { try { fn(); return null } catch (e) { return e.code } }
 
@@ -14,6 +14,6 @@ test('rejects a mount inside the app-data (store) directory', async (t) => {
   fs.mkdirSync(inside, { recursive: true })
   t.is(
     codeOf(() => validateMountPathSync(inside, 'owned-folder', [])),
-    ErrorCodes.MOUNT_FORBIDDEN_APP_DATA,
+    CODES.MOUNT_FORBIDDEN_APP_DATA,
   )
 })

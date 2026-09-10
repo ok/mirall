@@ -95,7 +95,6 @@ export interface MirallBridge {
   getPlatform(): NodeJS.Platform
   getPathForFile(file: File): string
 
-  applyUpdate(): Promise<void>
   checkForUpdate(): Promise<{ triggered: boolean; length?: number; fork?: number; reason?: string; error?: string }>
   appVersion(): Promise<{ length: number; fork: number; semver: string | null }>
   getChangelog(): Promise<string>
@@ -132,7 +131,6 @@ export interface MirallBridge {
   browseShareFolder(): Promise<string | null>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>
-  notifyIsSupported(): Promise<boolean>
   isWindowFocused(): Promise<boolean>
   focusWindow(): Promise<void>
   showInFolder(fullPath: string): Promise<{ ok: boolean }>

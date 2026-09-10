@@ -1,15 +1,14 @@
-// The peer-connection layer. Each space is a Hyperswarm topic; every discovered peer shares
-// ONE Noise socket on which Protomux multiplexes Corestore replication, this module's
-// `mirall/handshake` JSON channel, and the overlay content channel (bound via the connection
-// attach hook). Every identity-asserting frame (handshake, membership:request/grant, leave)
-// carries a signature binding the sender's profile key to this socket's Noise key — and, on
-// handshakes, to its per-space drive key — verified in handshake-guard.js, so frames are
-// attributable to a member and cannot be replayed on another connection. A handshake admits a
-// peer to a space only through the membership gate (approved member + cross-checked creator
-// root); membership control frames carry join requests, sealed grants of the SCK (space
-// content key — possession is read access), denials, and acknowledged leaves. Liveness is a
-// separate presence lease — heartbeat-refreshed, TTL-expired, cleared on disconnect:
-// connectedPeers stays the routing registry (where to send), the lease is who is online.
+// The peer-connection layer: one Hyperswarm topic per space, one Noise socket per peer carrying
+// Corestore replication, the `mirall/handshake` JSON channel and the overlay content channel over
+// Protomux. Every identity-asserting frame carries a signature binding the sender's profile key
+// to this socket's Noise key (verified in handshake-guard.js), so frames are attributable to a
+// member and cannot be replayed on another connection.
+//
+// This file owns connection intake and frame dispatch, handshake handling and the peer registry,
+// topic joins and space cleanup, the membership frames (request / grant / deny / cancel) and the
+// blind-relay install. Presence lives in presence-broadcast.js + state/presence.js, leaves in
+// leave-protocol.js, connectivity in connectivity.js, admission in admission-gates.js and
+// deferred-admission.js, the re-drive in convergence-tick.js.
 import DHT from 'hyperdht'
 import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
@@ -26,7 +25,7 @@ import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, g
 import { enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import { catalogKeyField } from '../shares/share-catalog.js'
-import { HEX64 } from '../invite-envelope.js'
+import { HEX64 } from '../contract/invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
 import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, getContentSwarm } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
@@ -73,7 +72,7 @@ import {
   initConvergenceTick, resetConvergenceTick, startConvergenceTick, forgetSpaceConvergence,
   convergenceHealth, restartConvergenceTick,
 } from './convergence-tick.js'
-export { rescueStalledTransfers, convergenceHealth, restartConvergenceTick } from './convergence-tick.js'
+export { rescueStalledTransfers } from './convergence-tick.js'
 import {
   initConnectivity, resetConnectivity, attachSwarmWatchers,
   noteBooted, noteConnection, noteAnnounced, scheduleStatusEmit,
@@ -81,7 +80,7 @@ import {
 // The renderer's whole network picture comes through these; worker/main.js and the diagnostics
 // bundle import them from swarm.js.
 export {
-  getSwarmStatus, statusEqual, setBrowserOnlineHint, getVerdictHistory, getDiagnosticCounters,
+  getSwarmStatus, setBrowserOnlineHint, getVerdictHistory, getDiagnosticCounters,
   getPeerSamples, checkLivenessNow, probeCanary, reconnectAll,
 } from './connectivity.js'
 
@@ -147,15 +146,13 @@ let frameLimiter = null                 // general per-socket budget charged for
 // Why a frame was dropped, for diagnostics — hardening nobody can see is hardening nobody can tune.
 const droppedFrames = { oversize: 0, rate: 0, parse: 0, shape: 0, unknown: 0 }
 function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
-export function getDroppedFrameCounters() { return { ...droppedFrames } }
-// Unsettled identity-frame announcements per (socket, space), drained by the convergence
-// tick — the level-triggered resend that heals a dropped handshake/membership:request.
+function getDroppedFrameCounters() { return { ...droppedFrames } }
 let testDrop = null                     // test-only inbound identity-frame drop window
 
 const DHT_VERSION = (() => {
   try {
-    // Three levels: this file is src/shared/transfer/, so ../../ lands on src/, where there is no
-    // node_modules. That typo made the reported version a permanent 'unknown'.
+    // Three levels up: this file is src/shared/transfer/, so ../../ would land on src/, where there
+    // is no node_modules.
     const url = new URL('../../../node_modules/hyperdht/package.json', import.meta.url)
     const text = fs.readFileSync(url, 'utf8')
     const pkg = JSON.parse(text)
@@ -172,7 +169,8 @@ const diag = createSwarmDiagnostics({
   getRelaySelections: () => relaySelections,
   getDhtVersion: () => DHT_VERSION,
 })
-// The join gates. connectedPeers is passed rather than imported: it is this module's registry.
+// The join gates. Deferred admission reads the registries itself (swarm-registries.js) and takes
+// only the gates, the handshake callbacks and the IPC handle from here.
 initDeferredAdmission({
   getGates: () => gates,
   log,
@@ -208,10 +206,7 @@ initConnectivity({
 })
 const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => ipcRef })
 
-// Re-exported, not relocated: worker/main.js imports BOTH (isApprovedMember for the join-request
-// auto-admit check, resolveInvite for the invite path) and overlay-instance.js imports
-// isApprovedMember. The gates moved; swarm.js stays their public address so
-// no caller has to learn a new import path for a refactor that changed nothing for them.
+// Re-exported: worker/main.js and overlay-instance.js import the gates from here.
 export const isApprovedMember = (spaceId, joinerKey) => gates.isApprovedMember(spaceId, joinerKey)
 export const resolveInvite = (space, inviteId) => gates.resolveInvite(space, inviteId)
 
@@ -237,14 +232,14 @@ function initSwarm(_ipc, relaySeedHex = null) {
   // swarm stays off the public DHT; unset in production → default bootstrap.
   const dhtBootstrap = getRuntimeConfig().dhtBootstrap
   const caps = getResourceCaps()
-  // The DHT node is built here rather than left to hyperswarm because dht.defaultKeyPair is
-  // the relay-facing identity and hyperswarm gives no way to set it: its seed/keyPair options
-  // set swarm.keyPair only (index.js:29) and the node it builds receives no keypair at all
-  // (:38-45), so defaultKeyPair stays random (hyperdht/index.js:35). Under a private relay
-  // that key IS the membership, on both the dialing (connect.js:793) and announcing
-  // (server.js:646) sides, so one enrolment covers both roles. Peers are unaffected — they
-  // authenticate swarm.keyPair. Ownership is unchanged: hyperswarm.destroy() destroys
-  // this.dht whether it built the node or was handed one, so destroySwarm still tears it down.
+  // The DHT node is built here rather than left to hyperswarm because dht.defaultKeyPair is the
+  // relay-facing identity and hyperswarm gives no way to set it: its seed/keyPair options set
+  // swarm.keyPair only, and the HyperDHT it constructs gets no keyPair, so defaultKeyPair stays
+  // random. Under a private relay that key IS the membership on both sides — the relay socket is
+  // opened with a bare dht.connect(relayKey), by relayConnection in hyperdht's connect.js and by
+  // Server._relayConnection — so one enrolment covers both roles. Peers are unaffected — they
+  // authenticate swarm.keyPair. Ownership is unchanged: hyperswarm.destroy() destroys this.dht
+  // whether it built the node or was handed one, so destroySwarm still tears it down.
   const dht = new DHT({
     ...(dhtBootstrap ? { bootstrap: dhtBootstrap } : {}),
     keyPair: relayIdentityKeyPair(relaySeedHex),
@@ -334,8 +329,8 @@ function initSwarm(_ipc, relaySeedHex = null) {
         }
 
         let msg
-        // debug, not error: a malformed frame is now a metered, counted, expected event, and
-        // logging it at error would hand any peer on the topic a log-spam primitive.
+        // debug, not error: a malformed frame is metered and counted, and error-level would hand
+        // any peer on the topic a log-spam primitive.
         try { msg = JSON.parse(str) } catch (err) { countDroppedFrame('parse'); log.debug('handshake parse error:', err.message); return }
         if (!validFrameShape(msg)) {
           countDroppedFrame('shape')
@@ -395,10 +390,9 @@ function initSwarm(_ipc, relaySeedHex = null) {
 // Gate for frames that assert the sender's profileKey (handshake, membership:request).
 // Order matters: resolve the topic FIRST (a Map scan, no crypto) and charge the lane it
 // picks — frames for topics we didn't join are dropped cheaply on a generous lane and can
-// never starve the shared-space frame (a multi-space peer's connection-open burst used to
-// eat the whole budget before its one matching frame). Only matched frames pay for
-// signature verification and reach dispatch. Both lanes ban on a sustained flood. Returns
-// false if the frame was dropped/rejected.
+// never starve the shared-space frame. Only matched frames pay for signature verification and
+// reach dispatch. Both lanes ban on a sustained flood. Returns false if the frame was
+// dropped/rejected.
 function admitIdentityFrame(socket, peerInfo, remoteKey, msg) {
   if (testDrop) {
     const i = testDrop.seen++
@@ -634,7 +628,7 @@ async function handleHandshake(socket, peerInfo, msg) {
     // don't let a bee write error mute the arrival emit below.
     log.warn('handshake member persist failed:', err.message)
   }
-  // A handshake is a presence arrival (recordHandshake leased the peer online), so the online set
+  // A handshake is a presence arrival (trackPeerConnection leased the peer online), so the online set
   // changed even when the durable record didn't — emit unconditionally, the arrival mirror of the
   // onExpire departure emit. Emit AFTER the persist so a roster re-derive (useMembers/useSpaces) sees
   // the committed member; the pre-persist event:member-joined signal above would race it.
@@ -659,15 +653,13 @@ async function handleHandshake(socket, peerInfo, msg) {
 const AVATAR_FETCH_ATTEMPTS = 4
 const AVATAR_RETRY_BASE_MS = 1500
 
-export function isBlockUnavailable(err) {
+function isBlockUnavailable(err) {
   return err?.code === 'BLOCK_NOT_AVAILABLE' || /not available|avatar sync timeout/i.test(err?.message || '')
 }
 
 // The long-lived holder: ONE bee per peer for the process lifetime, carrying the append listener
 // that drives admission re-evaluation, the share-list refresh and the audit observer. Every other
-// touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee), so
-// this is the only session we keep — previously every avatar fetch opened another one and never
-// closed it.
+// touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee).
 function ensurePeerProfileWatch(peerKey, profileKeyHex) {
   const held = profileBeeAppendListeners.get(peerKey)
   if (held) return held
@@ -695,9 +687,8 @@ function ensurePeerProfileWatch(peerKey, profileKeyHex) {
     profileBeeAppendListeners.set(peerKey, { bee: peerProfileBee, listener })
     // Baseline now, not on the first append — otherwise the first share a peer creates after we
     // meet them is swallowed as "history".
-    // Drop the entry if the bee never opens: caching a broken holder would make every later
-    // avatar fetch for this peer hit the fast path and fail again for the process lifetime,
-    // where the old per-fetch open self-healed on the next handshake.
+    // Drop the entry if the bee never opens: a cached broken holder would make every later avatar
+    // fetch for this peer fail for the process lifetime.
     peerProfileBee.ready().then(
       () => observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true }),
       (err) => {
@@ -773,15 +764,12 @@ function handleDisconnect(socket) {
       ipcRef.emit('event:files-updated', { spaceId })
     }
 
-    presence.clear(peerKey)   // instant offline; don't wait for the lease to expire
+    presence.clear(peerKey)
     connectedPeers.delete(peerKey)
-    if (!pendingRequesters.has(peerKey)) boundSignerKeys.delete(peerKey)   // prune the per-identity signer map
+    if (!pendingRequesters.has(peerKey)) boundSignerKeys.delete(peerKey)
   }
   scheduleStatusEmit()
 }
-
-// Captured before the teardown drops the member from the roster: the audit row has to stay
-// readable once the record is gone.
 
 // === Topics, outbound handshakes & space cleanup ===
 
@@ -806,8 +794,8 @@ export async function joinSpaceTopic(spaceId) {
   )
   scheduleStatusEmit()
 
-  // Send handshake for the new space to all already-connected peers
-  // (Hyperswarm reuses existing sockets, so no new connection event fires)
+  // Hyperswarm reuses existing sockets, so no connection event fires for them: handshake the new
+  // space to every already-connected peer explicitly.
   if (socketMsgHandlers.size > 0) {
     log.info('sending new space handshake to', socketMsgHandlers.size, 'existing connections')
     for (const [sock, handler] of socketMsgHandlers) {
@@ -1064,19 +1052,6 @@ export function getBoundSignerKey(profileKeyHex) {
   return boundSignerKeys.get(profileKeyHex) || null
 }
 
-// Is the owner of this drive reachable (presence lease), for transfer queue/resume gating?
-// Find the peer by driveKey via the connection registry, then defer to its presence lease —
-// so a lingering socket whose owner has gone silent reads offline, consistent with
-// members:online and isOwnerOnline. Replication itself still rides the live socket.
-export function isPeerConnectedByDriveKey(driveKeyHex) {
-  for (const [profileKey, peer] of connectedPeers) {
-    for (const [, dk] of peer.spaces) {
-      if (dk === driveKeyHex) return presence.isOnlineAnywhere(profileKey)
-    }
-  }
-  return false
-}
-
 export function getSwarmDht() {
   return swarm?.dht || null
 }
@@ -1196,7 +1171,7 @@ async function destroySwarm() {
 
 const RELAY_PROBE_TIMEOUT_MS = 10000
 
-// hyperdht increments dht.stats.relaying only on its ANNOUNCE path (server.js:630-681);
+// hyperdht increments dht.stats.relaying only on its ANNOUNCE path (Server._relayConnection);
 // the dialing side is never counted. Since the relay function is ours, counting its
 // selections is the one signal that covers both directions — without it the diagnostics
 // read 0 on the peer doing the relaying, which is precisely the peer checking.
@@ -1208,8 +1183,8 @@ let relayIdentityPinned = false
 
 // BOTH swarms, always. The content plane carries every file byte, so configuring only
 // the control swarm produces a build whose handshakes connect and whose transfers stall.
-// Call this after initContentSwarm has run — the two swarms are constructed on
-// consecutive lines and getContentSwarm() is null in between.
+// Call this after the ContentSwarm subsystem has started — getContentSwarm() is null until its
+// _open runs, which is why boot.js applies the relay config only once both swarms are up.
 export function setRelayThrough(relay, mode) {
   // A private relay names a member the firewall matches by key. Without the seed live on this
   // node we present a different key, so installing it would route every dial into a refusal

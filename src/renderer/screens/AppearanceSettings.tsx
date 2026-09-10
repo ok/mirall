@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n.js'
 import { applyTheme, getStoredTheme, type ThemeMode } from '../theme.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { usePrefs } from '../store/usePrefs.js'
+import { useMainQuery } from '../store/useMainQuery.js'
 import { useZoom, ZOOM_LEVELS, isSameZoom } from '../hooks/useZoom.js'
 import Icon, { type IconName } from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
@@ -32,7 +32,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
   const showMenuBarToggle = window.bridge.getPlatform() !== 'darwin'
   // macOS has no menu-bar toggle, and prefs are read here for nothing else — so this screen does
   // not pull them there. Everywhere else it shares the one copy with GeneralSettings.
-  const { prefs, update: updatePrefs } = usePrefs({ enabled: showMenuBarToggle })
+  const { data: prefs, patch: updatePrefs } = useMainQuery('main:prefs', { enabled: showMenuBarToggle })
 
   function handleTheme(mode: ThemeMode) {
     setTheme(mode)

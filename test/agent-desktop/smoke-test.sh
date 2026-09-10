@@ -50,7 +50,6 @@ first_ref=$(jq -r '.. | objects | select(.role=="button" and ((.description // "
 first_label=$(jq -r --arg r "$first_ref" '.. | objects | select(.ref_id==$r) | .description' <<<"$snap")
 pass "space card found: $first_label ($first_ref)"
 
-# 5. Click it
 expect_ok "click" click "$first_ref" >/dev/null
 pass "clicked $first_ref"
 

@@ -8,9 +8,9 @@ import {
   materializeCatalogFile, runMaterializeTick, startForeignLoop, stopForeignLoop, restartForeignLoop, mirrorHealth,
 } from '../../src/shared/folders/foreign-folders.js'
 import {
-  claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims, FETCH_OWNER_MIRROR,
+  claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
 } from '../../src/shared/transfer/backends/overlay/fetch-claims.js'
-import { resetFetchSlots, fetchSlotStats, acquireFetchSlot } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'

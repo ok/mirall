@@ -1,21 +1,19 @@
 // The worker's mount runtime: everything that keeps owned and mirrored folder mounts alive
 // between boot and shutdown — the durable status writer, the per-share periodic reconcile
 // timers, the resume passes for both mount kinds, and the probe that notices a mount point or a
-// download root appearing or disappearing.
-//
-// It was ~250 lines of module-level state and top-level statements in the worker entry, which is
-// why nothing could stop it: `periodicTimers` had a per-share cancel but no bulk one, and the
-// probe interval was armed at the top level. As a Subsystem the maps are instance state, the
-// probe rides `this.timers`, and _close is the bulk stop.
+// download root appearing or disappearing. A Subsystem: the maps are instance state, the probe
+// rides `this.timers`, and _close is the bulk stop.
 import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listDownloadRoots } from '../shared/core/paths.js'
-import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { AppError } from '../shared/core/errors.js'
+import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
-import { periodicReconcile, stopOwnedFolder, cancelIndex, mountRootAvailable } from '../shared/folders/owned-folders.js'
+import { periodicReconcile, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
+import { mountRootAvailable } from '../shared/folders/publish-runner.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
 
@@ -138,8 +136,8 @@ export class MountsRuntime extends Subsystem {
     }
   }
 
-  // The bulk stop the per-share cancelPeriodicReconcile never had a caller for. The probe
-  // interval rides this.timers, so the base clears it.
+  // Clears every per-share reconcile timer; the probe interval rides this.timers, so the base
+  // clears it.
   async _close() {
     for (const timer of this.periodicTimers.values()) this.timers.clear(timer)
     this.periodicTimers.clear()
@@ -160,9 +158,7 @@ export class MountsRuntime extends Subsystem {
   // Everything that must happen once an owned source folder is known to be missing, from whichever
   // signal noticed first: the mount-point probe, or a scan/reconcile that bailed on the absent root.
   // Recording the absence in `this.lastMountPointStatus` is what lets the probe read the RETURN as a
-  // gone→present edge. Without it, a folder that vanished and came back inside a single 60s probe
-  // window produced no transition at all — so no status event, and every derived-from-event UI
-  // (the FolderView banner, the share card badge) stayed latched on "source missing" indefinitely.
+  // gone→present edge, even when both happen inside one probe window.
   async handleOwnedMountGone(spaceId, shareId) {
     this.lastMountPointStatus.set('owned-folder:' + shareId, false)
     // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
@@ -177,7 +173,7 @@ export class MountsRuntime extends Subsystem {
   // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
   // with { skipped } when it couldn't run — a missing root or a content mode this build can't serve
   // — so treating any resolution as 'active' would durably record a healthy scan that never ran.
-  // A pass that was CANCELLED (delete, relocate, leave, cancel-index) records nothing: whoever
+  // A pass that was CANCELLED (delete, relocate, leave, pause) records nothing: whoever
   // cancelled it owns the status from here, and a late 'active' would race a delete's mount
   // removal back into a zombie record. Returns the settled result (null on failure) so callers can
   // gate their scan-completed emit.
@@ -204,9 +200,9 @@ export class MountsRuntime extends Subsystem {
   }
 
   // The whole-pass half of the same question: the walk's recursive readdir, the catalog read and
-  // the batch flush all reject with an errno, and every one of them used to reach the user as a
-  // raw message. An unclassified failure keeps its message — an unrecognised error with nothing to
-  // say is worse than a raw one, and the renderer shows it as a generic reason either way.
+  // the batch flush all reject with an errno, classified here rather than shown raw. An
+  // unclassified failure keeps its message — an unrecognised error with nothing to say is worse
+  // than a raw one, and the renderer shows it as a generic reason either way.
   async recordScanFault(spaceId, shareId, err) {
     const fault = faultFromError(err)
     if (fault) {
@@ -277,20 +273,18 @@ export class MountsRuntime extends Subsystem {
     }
   }
 
-  // Pause an owned folder's index: stop the burst, stop the cadence, record the intent durably.
-  // Unlike cancel-index (the Stop), nothing resumes this but an explicit resume — that is the whole
-  // difference between the two.
+  // Pause an owned folder's index: stop the burst and the cadence, and record the pause durably.
+  // Only resumeIndex reverses it; cancelIndex below is the internal primitive, not a user verb.
   async pauseIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
-    if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
+    if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     // The flag first: an item enqueued between the cancel and the write must be declined by the
     // publish channel rather than published.
     await setOwnedIndexPaused(spaceId, shareId, true)
     const cancelled = cancelIndex(spaceId, shareId)
     this.cancelPeriodicReconcile(spaceId, shareId)
     // A missing source folder outranks the pause as a status — but the event must fire either way:
-    // it is the only thing that tells the renderer to re-read the mount, so skipping it left the
-    // paused banner unrendered and the folder looking like it had simply finished.
+    // it is the only thing that tells the renderer to re-read the mount.
     const gone = !mountRootAvailable(mount.mountPath)
     await this.setOwnedStatus(spaceId, shareId, gone ? 'mount-point-gone' : 'paused')
     return { cancelled, paused: true, mountPointGone: gone }
@@ -301,10 +295,10 @@ export class MountsRuntime extends Subsystem {
   // still precedes arming the scan, or that scan is declined by the gate resume has not yet lifted.
   async resumeIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
-    if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
+    if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     if (!mountRootAvailable(mount.mountPath)) {
       await this.handleOwnedMountGone(spaceId, shareId)
-      throw new AppError(ErrorCodes.SOURCE_FOLDER_MISSING, 'Source folder is missing — locate it before resuming')
+      throw new AppError(CODES.SOURCE_FOLDER_MISSING, 'Source folder is missing — locate it before resuming')
     }
     await setOwnedIndexPaused(spaceId, shareId, false)
     // A relocate that landed while this was paused recorded a debt: its deep pass never ran, and
@@ -383,14 +377,10 @@ export class MountsRuntime extends Subsystem {
 
   // === Download-root availability ===
   //
-  // The mount probe above covers owned/mirrored folders; download roots had no equivalent, which
-  // is why a deleted or ejected download folder only ever surfaced as a failing transfer. Every
-  // root counts, not just the global one — a per-space override can vanish on its own.
-  //
-  // Level-triggered probe, edge-triggered emit: re-broadcasting an unchanged set every minute
-  // would churn the renderer for nothing, so the event fires only when the set actually changes.
-  // The renderer gets its INITIAL state from downloads:roots-status instead of waiting up to a
-  // full interval for the first transition.
+  // Every root counts, not just the global one — a per-space override can vanish on its own.
+  // Level-triggered probe, edge-triggered emit: the event fires only when the set changes, so an
+  // unchanged set is not re-broadcast every minute. The renderer gets its INITIAL state from
+  // downloads:roots-status rather than waiting up to a full interval for the first transition.
   probeDownloadRoots() {
     const next = readUnavailableRoots()
     if (sameRootSet(next, this.unavailableRoots)) return

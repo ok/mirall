@@ -111,10 +111,7 @@ test('the over-limit strip carries the numbers it reports', (t) => {
   t.is(strips[0].live, 'status')
 })
 
-// The fault strip: the only surface either role has for a durable local fault. Before it, the
-// owner's fault had none at all (its status was written and read by nothing) and the mirror's
-// rendered as the plain paused strip with a Resume that re-paused it on the next tick.
-test('a faulted owner gets the fault strip, an alert, and a retry', (t) => {
+test('REGRESSION: a fault outranks paused — an auto-paused mirror is enabled === false, so the paused strip offered a Resume that re-paused it', (t) => {
   const strips = deriveStrips({ ...OWNER, fault: { status: 'paused-enospc', code: 'TRANSFER_DISK_FULL' } })
   t.alike(ids(strips), ['fault'])
   t.is(strips[0].tone, 'error')

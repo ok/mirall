@@ -19,14 +19,10 @@ const NO_ROOTS: string[] = []
 
 const list = (res: RootsStatus | undefined) => (Array.isArray(res?.unavailable) ? res.unavailable : NO_ROOTS)
 
-// Scope-less: `event:download-roots-status` carries the whole answer, so the event PUSHES the value
-// into the entry rather than poking a re-read. The store's own no-clear-on-error policy is what the
-// hand-rolled version's empty catch was reaching for — a failed read keeps the last value on the
-// entry, so a worker that is not up yet cannot clear a banner that is currently correct.
-//
-// The pushing subscription itself is installDownloadRootsBridge's, not this hook's: two components
-// mount this, and a per-hook writer wrote the same entry twice per event with two distinct wrapper
-// objects — the second defeating the store's identity check and re-rendering everyone again.
+// Scope-less: `event:download-roots-status` carries the whole answer and installPushBridges
+// (store/reconcile.ts) pushes it into this entry. Never subscribe here — two components mount this
+// hook, and a per-hook writer double-writes (README.md). A failed read keeps the last value, so a
+// worker that is not up yet cannot clear a banner that is currently correct.
 export function useDownloadRootStatus() {
   const { data } = useQuery<RootsStatus>('downloads:roots-status', {}, null)
   // Counts transfers that failed on an unreachable folder. The unavailable SET is unchanged by a

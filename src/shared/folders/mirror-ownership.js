@@ -1,18 +1,9 @@
-// Whose bytes are on disk? The one question the mirror never asked.
-//
-// The materialize path has always compared the local file against the owner's CURRENT content
-// hash. That answers "is this file up to date?" and nothing else — when it says no, the reason is
-// either that the owner moved on or that the user edited our copy, and those two need opposite
-// handling. Treating every mismatch as the first is what let a tick rename fetched bytes over a
-// user's edit.
-//
-// The evidence to separate them is the ANCESTOR: the hash the mirror itself last delivered for that
-// path, recorded by markVerified() on every landing and durable for the life of the mount. Disk ===
-// ancestor means our copy is untouched, so a difference from the owner is the owner's doing. Disk
-// !== ancestor means someone else wrote those bytes.
-//
-// Pure on purpose (same shape as supersede-decision.js / mount-fault.js): every branch here decides
-// whether a user's file may be destroyed, and that decision should be testable without a disk.
+// Whose bytes are on disk? Comparing the local file against the owner's CURRENT hash answers "is
+// it up to date?" and nothing else: a mismatch is either the owner moving on or the user editing
+// our copy, and those need opposite handling. The ANCESTOR separates them — the hash the mirror
+// itself last delivered for that path, recorded by markVerified() on every landing and durable for
+// the life of the mount. Disk === ancestor means our copy is untouched, so a difference from the
+// owner is the owner's doing; disk !== ancestor means someone else wrote those bytes.
 
 export const LOCAL_COPY = {
   // The local file already IS the owner's current content — nothing to fetch.

@@ -1,6 +1,4 @@
-// The single code -> i18n key map. It was two maps because NOT_FOUND meant "choose a folder" in the
-// picker and "share not found" everywhere else; the codes are split now, so one map is enough and a
-// second would only re-open the door to a code meaning two things.
+// The single code -> i18n key map: one map, one meaning per code.
 export const ERROR_I18N_KEY_BY_CODE = {
   TRANSFER_DISK_FULL: 'transferDiskFull',
   TRANSFER_PERMISSION: 'transferPermission',

@@ -1,4 +1,4 @@
-// Tracks window bounds during the session (debounced) and persists the last good size to main on unload for next-launch restore.
+// Tracks window bounds during the session (debounced) and persists the last good size to main on unload; main restores them itself on the next launch.
 interface Bounds {
   x: number
   y: number
@@ -13,10 +13,6 @@ const MIN_HEIGHT = 870
 
 let timer: ReturnType<typeof setTimeout> | null = null
 let lastBounds: Bounds | null = null
-
-export async function restoreWindowBounds(): Promise<void> {
-  return
-}
 
 export function trackWindowBounds(): void {
   fetchAndSave()

@@ -1,7 +1,7 @@
 // The probe-to-action rule for supervised units, kept pure and separate from the driver: a policy
 // that can only be exercised by running a real subsystem is a policy nothing asserts.
 //
-// Three guards, each of which a hand-built probe had to reinvent:
+// Three guards:
 //   consecutiveBad — one slow sample must not recover work that is merely busy
 //   maxRecoveries  — a unit that cannot be recovered is stated once, not recovered forever
 //   pruning        — a unit that disappeared drops its counters, or the next unit to reuse the key

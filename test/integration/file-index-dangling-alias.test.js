@@ -20,7 +20,7 @@ test('FileIndex recovers from a dangling index alias by advancing the version', 
   await fi1.close()
 
   // Reproduce the purge: delete the core + its by-dkey alias, leaving the by-name alias.
-  await purgeCoreDk(getStore(), getStore().storage.db, dk)
+  await purgeCoreDk(getStore(), dk)
   await getStore().storage.db.flush()
 
   // Simulate a real boot — reopen the store so nothing is cached in memory.

@@ -3,14 +3,12 @@
 // durable state, no acknowledgement — which is why it separates from the swarm's connection handling
 // so cleanly.
 //
-// Reads the shared registries directly and takes its three genuine collaborators through init(),
-// following the module-state pattern serve-ledger.js and loose-overlay.js already use here. That
-// keeps swarm.js's public surface intact: it re-exports these names rather than wrapping them.
+// Reads the shared registries directly; its three genuine collaborators come through init().
 import b4a from 'b4a'
 import { getProfileKey } from '../spaces/profile.js'
 import { liveHandle } from '../core/timers.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
-import { shareDecoKey } from './decoration-key.js'
+import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
 import { presenceFrameKind } from '../state/presence.js'
 import { connectedPeers, socketToPeers, spaceTopics, socketMsgHandlers } from './swarm-registries.js'

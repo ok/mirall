@@ -2,7 +2,11 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath, pathToFileURL } from 'url'
 import path from 'path'
-import * as contract from '../../src/shared/contract/index.js'
+import { EVENT_NAMES } from '../../src/shared/contract/events.js'
+import { REQUESTS, REQUEST_NAMES } from '../../src/shared/contract/requests.js'
+import { CODES, CODE_NAMES } from '../../src/shared/contract/errors.js'
+import { AVATAR_MAX_BYTES, NAME_MAX } from '../../src/shared/contract/limits.js'
+import * as statuses from '../../src/shared/contract/statuses.js'
 import { emitSites, subscribeSites } from '../helpers/emit-sites.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -21,30 +25,11 @@ test('the contract package imports nothing', (t) => {
 })
 
 // REGRESSION (FIX-CONTRACT-DRIFT: TypeScript never compares a .js against its own .d.ts — the
-// declaration shadows the implementation. Measured: PROBE declared readonly string[] and implemented
-// as 42 type-checks clean. A contract built that way would hand the renderer confident types with no
-// runtime backing, which is worse than the duplication it replaces.)
-test('REGRESSION (FIX-CONTRACT-DRIFT): every declared export exists at runtime', (t) => {
-  const dts = readFileSync(path.join(dir, 'index.d.ts'), 'utf8')
-  const declared = new Set()
-  for (const m of dts.matchAll(/export\s+\{([^}]+)\}/g)) {
-    for (const name of m[1].split(',')) {
-      const clean = name.trim().split(/\s+as\s+/).pop().trim()
-      if (clean && clean !== 'type') declared.add(clean)
-    }
-  }
-  declared.delete('ArgType'); declared.delete('ArgRule'); declared.delete('RequestSpec')
-
-  for (const name of declared) t.ok(name in contract, `${name} is declared but not exported at runtime`)
-  for (const name of Object.keys(contract)) t.ok(declared.has(name), `${name} is exported but not declared`)
-})
-
-// index.js re-exports most of the package but not all of it, and the check above only reaches what
-// it re-exports — so mount-fault.d.ts declared a vocabulary nothing compared against its runtime,
-// while its own header said the opposite. Per FILE, against the module it declares: a fourth
-// AUTO_PAUSE_STATUSES entry would otherwise have reached the renderer's union silently.
-test('every declaration file matches the module it declares', async (t) => {
-  const files = readdirSync(dir).filter((f) => f.endsWith('.d.ts') && f !== 'index.d.ts')
+// declaration shadows the implementation, so a declared export with no runtime backing would hand
+// the renderer confident types over nothing.) Per FILE, against the module it declares: the barrel
+// this once went through omitted five modules, and mount-fault.d.ts drifted unseen behind it.
+test('REGRESSION (FIX-CONTRACT-DRIFT): every declaration file matches the module it declares', async (t) => {
+  const files = readdirSync(dir).filter((f) => f.endsWith('.d.ts'))
   t.ok(files.length >= 10, `found ${files.length} declaration files`)
 
   for (const file of files) {
@@ -65,21 +50,29 @@ test('every declaration file matches the module it declares', async (t) => {
   }
 })
 
-test('every vocabulary is frozen', (t) => {
-  for (const [name, value] of Object.entries(contract)) {
-    if (value && typeof value === 'object') {
-      t.ok(Object.isFrozen(value), `${name} is frozen — a consumer mutating it would rewrite the contract for everyone`)
+// The modules whose exports are pure vocabulary. Deliberately a list, not every file in the
+// package: audit-kinds.js and scope.js export objects that are not frozen today, and
+// invite-envelope.js exports a RegExp — widening this is a code change, not a test change.
+const FROZEN = ['errors', 'requests', 'events', 'limits', 'statuses', 'exit-codes', 'frames', 'main-requests', 'workers']
+
+test('every vocabulary is frozen', async (t) => {
+  for (const name of FROZEN) {
+    const mod = await import(pathToFileURL(path.join(dir, name + '.js')).href)
+    for (const [key, value] of Object.entries(mod)) {
+      if (value && typeof value === 'object') {
+        t.ok(Object.isFrozen(value), `${name}.js: ${key} is frozen — a consumer mutating it would rewrite the contract for everyone`)
+      }
     }
   }
 })
 
 test('the declared types match the runtime kinds', (t) => {
-  t.ok(Array.isArray(contract.REQUEST_NAMES), 'REQUEST_NAMES is an array')
-  t.ok(Array.isArray(contract.CODE_NAMES), 'CODE_NAMES is an array')
-  t.is(typeof contract.AVATAR_MAX_BYTES, 'number', 'AVATAR_MAX_BYTES is a number')
-  t.is(typeof contract.NAME_MAX, 'number', 'NAME_MAX is a number')
-  t.is(typeof contract.CODES, 'object', 'CODES is a record')
-  t.is(typeof contract.REQUESTS, 'object', 'REQUESTS is a record')
+  t.ok(Array.isArray(REQUEST_NAMES), 'REQUEST_NAMES is an array')
+  t.ok(Array.isArray(CODE_NAMES), 'CODE_NAMES is an array')
+  t.is(typeof AVATAR_MAX_BYTES, 'number', 'AVATAR_MAX_BYTES is a number')
+  t.is(typeof NAME_MAX, 'number', 'NAME_MAX is a number')
+  t.is(typeof CODES, 'object', 'CODES is a record')
+  t.is(typeof REQUESTS, 'object', 'REQUESTS is a record')
 })
 
 // The status tuples are load-bearing in a way the other exports are not: types.ts derives its unions
@@ -95,8 +88,8 @@ test('the declared status tuples match the runtime arrays exactly', (t) => {
   // is compared without anyone remembering to add it here.
   t.ok(Object.keys(declared).length >= 5, 'the declaration parse found the tuples')
   for (const [name, values] of Object.entries(declared)) {
-    t.ok(Array.isArray(contract[name]), `${name} is declared as a tuple and exists at runtime`)
-    t.alike(values, [...(contract[name] ?? [])], `${name} declaration matches its implementation`)
+    t.ok(Array.isArray(statuses[name]), `${name} is declared as a tuple and exists at runtime`)
+    t.alike(values, [...(statuses[name] ?? [])], `${name} declaration matches its implementation`)
   }
 })
 
@@ -159,7 +152,7 @@ test('REGRESSION (FIX-EVENTS-1): a bare emit() is seen by the contract guard', (
 test('every event the worker emits is declared in the contract', (t) => {
   const emitted = collect(DATA_LAYER, /\.js$/, emitSites)
   t.ok(emitted.size > 10, 'the data layer was actually walked')
-  const undeclared = [...emitted.keys()].filter((e) => !contract.EVENT_NAMES.includes(e)).sort()
+  const undeclared = [...emitted.keys()].filter((e) => !EVENT_NAMES.includes(e)).sort()
     .map((e) => `${e} (${emitted.get(e).join(', ')})`)
   t.alike(undeclared, [], 'events emitted but absent from the contract')
 })
@@ -168,7 +161,7 @@ test('every event the worker emits is declared in the contract', (t) => {
 // should lose its contract row in the same commit, not linger as vocabulary nothing speaks.
 test('every declared event is emitted somewhere', (t) => {
   const emitted = collect(DATA_LAYER, /\.js$/, emitSites)
-  const dead = contract.EVENT_NAMES.filter((e) => !emitted.has(e)).sort()
+  const dead = EVENT_NAMES.filter((e) => !emitted.has(e)).sort()
   t.alike(dead, [], 'events declared in the contract that nothing emits')
 })
 
@@ -177,7 +170,7 @@ test('every declared event is emitted somewhere', (t) => {
 test('every renderer subscription names a declared event', (t) => {
   const subscribed = collect(['renderer'], /\.(js|ts|tsx)$/, subscribeSites)
   t.ok(subscribed.size > 10, 'src/renderer was actually walked')
-  const unknown = [...subscribed.keys()].filter((e) => !contract.EVENT_NAMES.includes(e)).sort()
+  const unknown = [...subscribed.keys()].filter((e) => !EVENT_NAMES.includes(e)).sort()
     .map((e) => `${e} (${subscribed.get(e).join(', ')})`)
   t.alike(unknown, [], 'the renderer waits for an event the contract does not declare')
 })
@@ -189,7 +182,7 @@ test('the declared RequestName union matches the request rows exactly', (t) => {
   const dts = readFileSync(path.join(dir, 'requests.d.ts'), 'utf8')
   const block = dts.slice(dts.indexOf('export type RequestName ='), dts.indexOf('export type ArgType'))
   const declared = [...block.matchAll(/\|\s*'([^']+)'/g)].map((m) => m[1]).sort()
-  t.alike(declared, Object.keys(contract.REQUESTS).sort(), 'every request row has a declared name and vice versa')
+  t.alike(declared, Object.keys(REQUESTS).sort(), 'every request row has a declared name and vice versa')
 })
 
 // The decoder grew four fields the renderer's hand-written copy never learned, and a .d.ts that

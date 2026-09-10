@@ -12,9 +12,8 @@ function sourceMissingStrip (input) {
 }
 
 // A local fault the user can name: a full disk, a folder that stopped being readable. It outranks
-// the paused strip because an auto-paused mirror IS enabled === false — so a mirror stopped by a
-// full disk used to render "Paused" with a Resume that re-paused it on the next tick, which told
-// the user they had paused it themselves.
+// the paused strip because an auto-paused mirror IS enabled === false, and a Resume on it would
+// re-pause it on the next tick.
 //
 // Both roles carry the retry. An owner's fault is not a stop — the cadence still runs — but that
 // cadence is six-hourly, so after freeing the disk the only thing that would clear the strip is a

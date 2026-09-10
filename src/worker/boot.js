@@ -1,10 +1,8 @@
 // The worker's composition root.
 //
 // Everything the data layer needs is constructed here, with its collaborators passed in, and
-// started in a declared order; `root.close()` closes what started, in reverse. Before this file
-// existed the same sequence was ~250 top-level statements in `worker/main.js`, and the boot order
-// was carried entirely by comments — 25 things were started, 6 were ever stopped, and adding a
-// subsystem meant remembering to edit two distant places or silently leaking it.
+// started in a declared order; `root.close()` closes what started, in reverse. Adding a subsystem
+// is one `life.start(...)` line here — nothing else has to remember to stop it.
 //
 // `worker/main.js` keeps what only an entry point can own: the crash backstop, the IPC pipe, the
 // renderer-facing handlers, the shutdown deadline and `Bare.exit`. boot() and close() never exit
@@ -117,6 +115,8 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
  * @param deps.membershipControl   the entry's membership-control handler (it needs the handler
  *                                 closure's state, so it is passed in rather than moved here).
  * @param deps.publishDownloadRoots  pushes the reveal allowlist to Electron main.
+ * @param deps.memberRegistry  the entry's member-registry collaborators (`memberRegistry` in
+ *                         worker/main.js), spread into the MemberViews subsystem's deps.
  * @param deps.swarm       false skips the swarm, the content swarm and topic joins — how the
  *                         single-peer test suite boots the data layer with no network.
  * @param deps.onPartialRoot  called with `{ close }` before anything starts, so a shutdown that
@@ -141,18 +141,15 @@ export async function boot(bootstrap, {
   // be able to stop whatever has started so far. Until this is published, `root` is null and a
   // quit would exit without announcing departure or dropping the swarm.
   //
-  // The first three steps are deliberately NOT in reverse order and are kept verbatim from the
-  // entry's old safeShutdown: announce departure and abort hashing FIRST, then a short flush
-  // window, so the departure datagram leaves UDX before any socket drops.
+  // The first three steps are deliberately NOT in reverse order: announce departure and abort
+  // hashing FIRST, then a short flush window, so the departure datagram leaves UDX before any
+  // socket drops.
   //
-  // The budgets bound the subsystem drains. Several wait (bounded) for an in-flight pass to bail —
-  // 5 s for the mirror loops, 5 s for the publish executors, 3 s for the peer-watch sweeps — and
-  // those ceilings sum well past the entry's 4 s hard deadline. Without a budget a single slow
-  // drain means the swarms and the store are never closed at all, which is strictly worse than
-  // abandoning that drain.
-  // Each tier gets its own budget. One shared deadline let a busy runtime tier spend all of it and
-  // skip the durable tier outright — including the store's own close, which on the way out is what
-  // releases the RocksDB lock, and the ledger flush that records the shutdown's own audit rows.
+  // The budgets bound the subsystem drains (their ceilings sum past the entry's hard deadline);
+  // an unbounded drain would leave the swarms and the store never closed, which is worse than
+  // abandoning it. Each tier gets its own budget: one shared deadline let a busy runtime tier
+  // spend all of it and skip the durable tier outright — including the store close that releases
+  // the RocksDB lock, and the ledger flush that records the shutdown's own audit rows.
   async function close({ budgetMs = 1500, durableBudgetMs = 1500 } = {}) {
     // First, ahead of the flush window below: no subsystem's `stopping` is set until life.close()
     // runs, so a probe firing in between reads a healthy lifecycle and could re-arm work this
@@ -176,9 +173,8 @@ export async function boot(bootstrap, {
   try {
     return await start()
   } catch (err) {
-    // A throw here leaves boot() rejecting with `root` never assigned in the entry, so nothing
-    // downstream would ever close what already came up — the "25 started, 6 stopped" asymmetry
-    // this root exists to end, reintroduced on the error path. Close it, then rethrow.
+    // A boot that throws must still close what it started: `root` is never assigned in the entry
+    // on this path, so nothing downstream would. Close, then rethrow.
     log.error('boot failed:', err.message)
     await close().catch((closeErr) => log.warn('cleanup after failed boot failed:', closeErr.message))
     throw err
@@ -202,10 +198,9 @@ export async function boot(bootstrap, {
     const content = await runMigrations('content', { log })
     const didMigrateOverlayIndex = content['overlay-index-encrypt']?.migrated === true
 
-    // The mount runtime is CONSTRUCTED here and STARTED further down, where its resume loops used to
-    // run. That split is what retires the entry's forward reference to a hoisted settleScanStatus:
-    // the owned-folder subsystem needs the settle callback at wiring time, and the runtime that owns
-    // it needs the mounts bee — construction is free of side effects, so both can be satisfied.
+    // Constructed here (side-effect-free) so OwnedFolders can take its settle callback at wiring
+    // time; started below, after the swarm and the topic joins, so its resume passes read a fully
+    // wired data layer.
     const mounts = new MountsRuntime('mounts', { ipc })
     // Before every hook consumer and before the swarm: an inbound connection that landed without
     // the overlay channel attached would silently never get one.
@@ -215,11 +210,6 @@ export async function boot(bootstrap, {
         if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p)
       },
     }))
-    // AFTER the content migrations and the overlay start, both load-bearing: migrateCatalogsToEncrypted
-    // still needs the pre-encryption plaintext catalog it copies from (a sweep ahead of it would
-    // classify that core as a stray catalog and delete it), and getOverlayLocalDiscoveryKeys returns
-    // [] while the overlay is down, which would leave the index cores out of the wanted set.
-    // compact:false — tombstoning is what collects them; a full-range compaction must not block boot.
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,
@@ -247,8 +237,8 @@ export async function boot(bootstrap, {
     // scan that pass already did. A space being left keeps no download root: hydrating it would
     // leak a dead space's folder into main's reveal allowlist and into mount validation for the
     // whole session (the resume path purges the record without going through space:leave's forget).
-    // Safe this late — nothing between store init and here reads a download root, and ipc.start()
-    // (which admits the first frame that could) is the last statement in this module.
+    // Safe this late — nothing between store init and here reads a download root, and main.js calls
+    // ipc.start() (which admits the first frame that could) only after boot() has returned.
     hydrateDownloadRoots(activeSpaces)
     publishDownloadRoots()
     await backfillMembership(activeSpaces, log)
@@ -293,18 +283,19 @@ export async function boot(bootstrap, {
     }
     await replayPendingLeaves(swarm, log)
 
-    // The three periodic backstops start last, so nothing they sweep is still opening.
+    // The mount runtime and the sweeps start after every subsystem they poll, so nothing they
+    // sweep is still opening.
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    // LAST, once every subsystem is constructed — not interleaved with their startup. The sweep
-    // opens the own catalog and each drive's blobs to build its wanted set, and doing that while
-    // the publish and owned-folder subsystems are still coming up leaves an owner that boots,
-    // answers IPC, and then never serves: a peer's parked download waits forever. This is also the
-    // only context the scan was ever exercised in before — the retired action ran it from a fully
-    // started app. It must still land after the content migrations and the overlay start, which
-    // running last satisfies: migrateCatalogsToEncrypted needs the plaintext catalog it copies
-    // from, and getOverlayLocalDiscoveryKeys returns [] while the overlay is down.
+    // After every subsystem has started, not interleaved with their startup: the sweep opens the
+    // own catalog and each drive's blobs to build its wanted set, and doing that while the publish
+    // and owned-folder subsystems are still coming up leaves an owner that boots, answers IPC, and
+    // never serves. Running here also keeps it after the content migrations and the overlay start,
+    // both load-bearing: migrateCatalogsToEncrypted still needs the plaintext catalog it copies
+    // from (a sweep ahead of it would classify that core as stray and delete it), and
+    // getOverlayLocalDiscoveryKeys returns [] while the overlay is down, which would leave the
+    // index cores out of the wanted set.
     try { await cleanupOrphanedData() } catch (err) {
       log.warn('leftover metadata cleanup failed:', err.message)
     }
@@ -315,7 +306,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, auditLog, ownedFolders, publishService, overlayBackend, activeSpaces,
+      close, store, mounts, intents, ownedFolders, publishService,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,

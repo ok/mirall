@@ -1,7 +1,7 @@
-// One overlay fetch, instrumented. Both consumers — the download engine's task and the mirror's
-// materialize — build the same ticker, the same diag and the same three callbacks. What differs
-// (where the bytes go, what a settle means durably, who owns the row) stays with the caller; only
-// the instrumentation lives here.
+// One overlay fetch, instrumented. The mirror's materialize runs the whole thing (runOverlayFetch);
+// the download engine builds only the instruments (makeFetchInstruments) and keeps its own settle,
+// because its vendor call resolves { ok, code } instead of throwing. What differs (where the bytes
+// go, what a settle means durably, who owns the row) stays with the caller.
 //
 // `attempted` is true once a chunk scheduler ran — i.e. onEnd fired — which is what separates "a
 // holder was asked and the transfer died" (a give-up worth a WARN) from "no holder was ever
@@ -14,9 +14,7 @@ import { createLogger } from '../../../core/logger.js'
 const log = createLogger('overlay-fetch')
 
 // The ticker, the diag, and the three callbacks that wire them together — everything either
-// consumer builds AROUND the vendor call. The engine cannot share runOverlayFetch itself because
-// its vendor call resolves { ok, code } instead of throwing, so it takes these and keeps its own
-// settle; the header's claim that both consumers share this file is true through here.
+// consumer builds AROUND the vendor call.
 export function makeFetchInstruments ({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
   const ticker = makeProgressTicker(size, onProgress)
   const diag = makeFetchDiag(label, relPath, size, contentHash)
@@ -44,21 +42,17 @@ export async function runOverlayFetch (overlay, contentHash, {
     })
     return { res, attempted, diag }
   } catch (err) {
-    // Best-effort: a frozen or primitive rejection makes these assignments throw in strict mode,
-    // and that TypeError would REPLACE the real fault — so a full disk would reach the caller as a
-    // bug in this file instead of the ENOSPC that must pause the mount. The annotation is a
-    // convenience; the fault is not.
+    // Best-effort: a frozen or primitive rejection makes these assignments throw, and that
+    // TypeError would REPLACE the real fault (an ENOSPC that must pause the mount). The annotation
+    // is a convenience; the fault is not.
     let annotated = false
     try {
       err.attempted = attempted
       err.diag = diag
       annotated = true
     } catch { log.debug('could not annotate a fetch rejection:', label, relPath) }
-    // Every caller reaches the diag through `err.diag`, so an annotation that could not land does
-    // not just lose the flag — it strands the diag, `diag?.finish('failed')` no-ops, and the
-    // `start:` line this fetch already logged never gets its terminal `INCOMPLETE … gave up`. That
-    // is precisely the frozen-rejection ENOSPC case above, i.e. the one where the give-up matters
-    // most. Nothing downstream can close it, so close it here.
+    // Callers reach the diag only through `err.diag`, so an annotation that could not land would
+    // strand it and the `start:` line would never get its terminal `INCOMPLETE`. Close it here.
     if (!annotated) diag.finish('failed')
     throw err
   }

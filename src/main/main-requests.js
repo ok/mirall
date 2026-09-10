@@ -6,20 +6,16 @@ const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
 // The worker→main control bus. Keyed off the contract constants rather than string literals, so a
 // rename that touches only one process cannot pass main-request-parity.test.js.
 //
-// The `else` matters as much as the table. Five `if (command === …) return` blocks with nothing
-// after them meant an unrecognised command was indistinguishable from a handled one: the promise
-// resolved, the caller's .catch never fired, and every owned folder simply stopped re-publishing.
-// A worker in a retry loop around an unrecognised command would write one warning per frame into
-// the fixed-size log ring and evict the diagnostics around it. The first sighting of a command is
-// the whole signal; the repeats carry nothing. The cap covers the other shape of the same flood, a
-// stream of DISTINCT unknown commands.
+// The `else` matters as much as the table: an unrecognised command must warn, because a silent
+// no-op here is an owned folder that stops re-publishing. Once per command, capped — a worker
+// retrying an unrecognised command would otherwise write one warning per frame into the fixed-size
+// log ring and evict the diagnostics around it; the cap covers a stream of DISTINCT unknowns.
 const UNKNOWN_WARN_CAP = 16
 
 function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
-  // Null-prototype, because `command` comes off the worker pipe. With a plain object literal
-  // `handlers['toString']` finds Object.prototype's method, `!fn` is false, and the frame resolves
-  // as though it had been routed — the silent success this bus exists to remove, reintroduced by
-  // the lookup itself. 'valueOf' and '__proto__' were worse: they threw where nothing catches.
+  // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
+  // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
+  // been routed — the silent success this bus exists to remove.
   const handlers = Object.assign(Object.create(null), {
     [MAIN_REQUEST.DOWNLOADS_ROOTS]: async (args) => {
       setDownloadRoots(Array.isArray(args?.roots)

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeer, freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { ownCatalog, advertise, listOwnShare, listOwnShareForDisplay } from '../../src/shared/shares/share-catalog.js'
 import { collectStoreCoreInfo, isStorageInconsistency, createDrive } from '../../src/shared/core/store.js'
@@ -89,7 +89,7 @@ test('collectStoreCoreInfo names open cores so a corrupt one can be pinned', asy
 // node" site — as "(opened by key)", indistinguishable from a peer core. createDrive
 // names both the metadata and the blobs core.
 test('FIX-5: createDrive names the drive metadata AND blobs cores', async (t) => {
-  await freshPeerWithIdentity(t) // masterSecret path → metadata core is named too
+  await freshPeer(t) // masterSecret path → metadata core is named too
   const drive = createDrive('diag-test-drive')
   t.teardown(async () => { try { await drive.close() } catch {} })
   await drive.ready()

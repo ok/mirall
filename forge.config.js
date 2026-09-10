@@ -245,12 +245,9 @@ module.exports = {
         )
       }
 
-      // Signing without notarizing is a silent downgrade, not a lesser build: it
-      // goes green and ships a DMG that Gatekeeper blocks on first launch. Every
-      // macOS artifact before 2026-07-12 was signed-but-unnotarized for exactly
-      // this reason — APPLE_TEAM_ID was simply never set, so the osxNotarize gate
-      // above stayed shut and nothing said so. Only a throwaway local build has
-      // any business skipping it, hence the explicit opt-out.
+      // Signing without notarizing is a silent downgrade: the build goes green and ships a DMG that
+      // Gatekeeper blocks on first launch. Only a throwaway local build may skip it, hence the
+      // explicit opt-out.
       if (platform === 'darwin' && missingNotarizeEnv.length > 0 && !process.env.ALLOW_UNNOTARIZED) {
         throw new Error(
           `macOS signing is on (APPLE_SIGNING_IDENTITY is set) but notarization is not: ` +

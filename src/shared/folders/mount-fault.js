@@ -1,10 +1,6 @@
 // The worker's import path for the mount fault vocabulary: the status half comes from the
 // contract package (the renderer reads it too), and this adds the errno half, which needs
 // core/errors.js and so cannot live there.
-//
-// Four copies of this decision existed — the mirror's pause path, the owner's scan settle, the
-// renderer's fault reader, and a source-scanning test standing in for a type — and they had
-// already drifted once ('paused-enospc' reached the mirror before the owned vocabulary knew it).
 import { classifyLocalIoFault } from '../core/errors.js'
 import { statusForFaultCode } from '../contract/mount-fault.js'
 

@@ -17,13 +17,10 @@ const CONTROL_FRAME_PROBE = 64
 const CONTROL_FRAME_MARK = Buffer.from(JSON.stringify(MAIN_REQUEST_FRAME))
 
 // A dropped control frame is the silent-no-watcher failure this module exists to prevent, so it is
-// the one drop that must be said out loud. Everything else the gate refuses is a worker→renderer
-// response main is right to skip, and saying THAT out loud would fill the log ring with ordinary
-// traffic.
-//
-// Once per reader, because the frame that trips this is built from a share's own configuration:
-// the same share re-arming its watcher reproduces it exactly, and a repeat says nothing the first
-// line did not. A reader lives and dies with its worker, so a respawn reports again.
+// the one drop said out loud; an oversized worker→renderer response is one main is right to skip.
+// Once per reader: the frame that trips this is built from a share's own configuration, so the
+// same share re-arming its watcher reproduces it exactly. A reader dies with its worker, so a
+// respawn reports again.
 function createDropWarning () {
   let warned = false
   return (frame) => {
@@ -42,16 +39,10 @@ function isControlFrameCandidate (line) {
   return line.length > 0 && line.length <= MAIN_REQUEST_MAX_LINE
 }
 
-// Frames are split on the newline BYTE, and only a complete frame is ever decoded. 0x0A cannot
-// occur inside a multi-byte UTF-8 sequence (continuation bytes are 0x80–0xBF, lead bytes >= 0xC2),
-// so a byte split is exact — whereas `buffer += chunk.toString()` is not: a chunk ending mid-
-// sequence decodes the split character to U+FFFD on BOTH halves, U+FFFD is legal JSON, so
-// JSON.parse succeeds and main acts on a corrupted string. An owned folder named 'Müller Projekte'
-// had its watcher armed on a path that does not exist, and chokidar reports nothing for a missing
-// path — so the folder silently stopped re-publishing.
-//
-// Deciding on bytes also lets the size gate run BEFORE anything is decoded, which is what the
-// MAIN_REQUEST_MAX_LINE comment above has always claimed.
+// Frames are split on the newline BYTE, and only a complete frame is ever decoded: 0x0A cannot
+// occur inside a multi-byte UTF-8 sequence, so a byte split is exact — whereas concatenating
+// decoded chunks turns a split character into U+FFFD on both halves, which JSON.parse accepts.
+// Deciding on bytes is also what lets the size gate run BEFORE anything is decoded.
 //
 // There is no reset(): a reader lives in the per-worker getWorker() closure, and worker exit
 // deletes the specifier from `workers`, so the next spawn builds a new closure with a new reader.
@@ -63,7 +54,7 @@ function createWorkerFrameReader () {
   // Once an unterminated buffer passes the cap it can no longer become a control frame, so it is
   // dropped and the reader resyncs at the next newline. Without it the tail grows without bound
   // against a worker that never terminates a frame, and every subsequent chunk re-copies all of
-  // it — on main's UI thread. The twin reader in src/shared/core/ipc.js has always had this.
+  // it — on main's UI thread.
   let skipping = false
 
   return {

@@ -1,7 +1,10 @@
 import test from 'brittle'
 import {
-  claimFetch, dropFetchClaim, fetchClaimedBy, isFetchClaimed, registerFetchOwner, resetFetchClaims, FETCH_OWNER_MIRROR,
+  claimFetch, dropFetchClaim, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
 } from '../../src/shared/transfer/backends/overlay/fetch-claims.js'
+import { FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+
+const isFetchClaimed = (transferId) => fetchClaimedBy(transferId) !== null
 
 function fresh (t) {
   resetFetchClaims()

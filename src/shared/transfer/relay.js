@@ -23,9 +23,9 @@ export function relayIdentityKeyPair(seedHex) {
   return crypto.keyPair(b4a.from(seedHex, 'hex'))
 }
 
-// hyperswarm calls this per connection attempt (index.js:210) and hyperdht calls it on
-// the announce path with no arguments (server.js:354). The modes map onto its own
-// semantics:
+// hyperswarm calls this per connection attempt (Hyperswarm._connect, passing
+// peerInfo.forceRelaying) and hyperdht calls it on the announce path with no arguments
+// (Server._addHandshake → selectRelay). The modes map onto its own semantics:
 //   off    — no function at all, byte-identical to a build without relay support
 //   always — every connection, the only honest way to TEST that a relay works
 //   auto   — USE a relay after a punch fails or on a randomized NAT, and OFFER ours to
@@ -39,28 +39,26 @@ export function relayFunctionFor(keyBuffers, mode, onSelected, { offerable = tru
   // `always` offers on the announce path too, so it needs the same guard as `auto` below — a
   // private relay must not be handed to a peer that cannot be admitted to it. Withholding costs
   // nothing between members: hyperdht relays the connection if EITHER side supplies a relay
-  // (server.js:402), and a private relay only works when both ends are members anyway.
+  // (Server._addHandshake takes the relay branch on ours OR the remote payload's), and a private
+  // relay only works when both ends are members anyway.
   if (mode === 'always') return (force) => (force === undefined && !offerable ? null : select())
   if (mode === 'auto') {
     return (force, swarm) => {
-      // `force === undefined` IS the announce path: hyperdht reaches us through
-      // selectRelay(this.relayThrough) with no arguments (server.js:354), while every dial
-      // passes peerInfo.forceRelaying, seeded to a boolean false (peer-info.js:28). The
-      // distinction is a calling convention, not an API — the unit test pins both shapes.
+      // `force === undefined` IS the announce path: Server._addHandshake calls selectRelay with no
+      // arguments, while every dial passes peerInfo.forceRelaying (a boolean from the PeerInfo
+      // constructor). A calling convention, not an API — the unit test pins both shapes.
+      // Offering costs nothing on a healthy link (the handshake returns before touching the relay
+      // when the direct path works) and lets a peer with no relay of its own adopt OURS straight
+      // out of the handshake payload (relayConnection in hyperdht's connect.js).
       //
-      // Offering costs nothing on a healthy link: hyperdht returns before it touches the
-      // relay whenever the direct path works (server.js:395-398). What it buys is a peer
-      // with no relay of its own using OURS, which it adopts straight out of the handshake
-      // payload (connect.js:518,782) with no configuration at either end.
+      // A PRIVATE relay is not offerable: it admits only its roster, so a stranger who adopts this
+      // key gets a handshake refusal it cannot tell from the relay being down, and the operator
+      // sees noise in their refusal counter. Offering a path guaranteed to fail is worse than not
+      // offering.
       //
-      // A PRIVATE relay is not offerable: it admits only its roster, so a stranger who
-      // adopts this key gets a handshake refusal it cannot tell from the relay being down,
-      // and the operator sees it as noise in their refusal counter. Offering a path that is
-      // guaranteed to fail, to someone who can never be admitted, is worse than not offering.
-      //
-      // Deliberately not `select()`: the offer is not a selection, and counting it would
-      // make relaying.selected climb on every inbound connection. hyperdht's own
-      // relaying.attempts (server.js:630) already counts the ones actually taken up.
+      // Not `select()`: the offer is not a selection, and counting it would make relaying.selected
+      // climb on every inbound connection; hyperdht's own stats.relaying.attempts
+      // (Server._relayConnection) counts the ones taken up.
       if (force === undefined) return offerable ? keyBuffers : null
       return force || swarm?.dht?.randomized ? select() : null
     }

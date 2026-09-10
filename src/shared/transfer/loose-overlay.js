@@ -20,7 +20,8 @@ import { getDownloadDir } from '../core/paths.js'
 import { listSpaces, getSpace } from '../spaces/space.js'
 import { makeProgressTicker } from './progress-ticker.js'
 import { nextFreeName } from '../folders/path-keys.js'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { createKeyedLock } from '../core/keyed-lock.js'
 import { getPublishScheduler, registerPublishChannel } from '../folders/publish-service.js'
 import { OP, PRIORITY } from '../folders/work-item.js'
@@ -95,7 +96,7 @@ async function resolveLooseName (spaceId, absPath, fileName) {
   }
   // Cap applies only to genuinely new entries; an update at the cap is allowed.
   if (isNew && takenNames.size >= MAX_LOOSE_FILES_PER_SPACE) {
-    throw new AppError(ErrorCodes.LOOSE_FILE_LIMIT, `Limit of ${MAX_LOOSE_FILES_PER_SPACE} shared files per space reached`)
+    throw new AppError(CODES.LOOSE_FILE_LIMIT, `Limit of ${MAX_LOOSE_FILES_PER_SPACE} shared files per space reached`)
   }
   return relPath
 }
@@ -144,7 +145,7 @@ async function settledWithTail (spaceId, relPath, ticket, absPath) {
   if (outcome.outcome === 'failed' && outcome.error) throw outcome.error
   if (outcome.result?.outcome === 'unlinked') {
     if (absPath && looseSourceFor(absPath, spaceId) === relPath) untrackSource(absPath, spaceId)
-    throw new AppError(ErrorCodes.FILE_SOURCE_MISSING, 'Shared file has no source link')
+    throw new AppError(CODES.FILE_SOURCE_MISSING, 'Shared file has no source link')
   }
   return outcome
 }
@@ -153,15 +154,13 @@ export async function looseCancelPublish (spaceId, drivePath) {
   const relPath = rel(drivePath)
   const { cancelled, exited } = getPublishScheduler().cancelPath(spaceId, LOOSE_SHARE_ID, relPath)
   if (cancelled) await exited
-  // Whatever the cancel caught — a running hash that has now reverted, an item that was still
-  // queued (no executor, so no revert), or nothing (a half-publish orphaned by a restart) — a
+  // Whatever the cancel caught (a running hash, a queued item, or nothing after a restart), a
   // null-hash placeholder left behind is reverted here, so the cancel control always means
   // something. Re-read UNDER the lock and bail if the entry is no longer a placeholder: a resume
-  // that completed meanwhile must not have its finished, replicated share torn down.
-  // Best-effort: a cancel issued as the worker (or a test's store) is closing must not surface its
-  // tail as an unhandled rejection — the boot rehydrate reverts a leftover placeholder anyway.
-  // Announced only when this revert changed something: a live cancel's revert is announced by the
-  // executor's own hook, and a no-op must stay silent (a listener may cancel on every refresh).
+  // that completed meanwhile must not have its finished, replicated share torn down. Best-effort
+  // (a cancel during close must not surface as an unhandled rejection; boot rehydrate reverts a
+  // leftover anyway) and announced only when this revert changed something — a live cancel is
+  // announced by the executor's own hook, and a no-op must stay silent.
   let reverted = false
   try {
     await withSpaceLock(spaceId, async () => {
@@ -427,7 +426,6 @@ export const looseChannel = createOverlayChannel({
   resolvePendingRow: resolveLoosePendingRow,
 })
 
-export function looseHasTransfer (transferId) { return engine().has(transferId) }
 export function looseTransferActive (spaceId, relPath) { return engine().has(looseTransferIdFor(spaceId, relPath)) }
 
 export async function looseDownload (spaceId, member, drivePath) {
@@ -476,15 +474,12 @@ export async function rehydrateLooseFiles () {
   await Promise.allSettled(pending)
 }
 
-// Per-file isolation (parity with the folder boot pass): one entry whose resume fails must not
-// abort the later loose files. A never-hashed entry with no recorded source is an unrecoverable
-// half-publish (an install predating the advertise-time link, or a crash inside the
-// advertise-then-link window): revert it so it stops showing "Adding" forever. A finished entry
-// that merely lost its source is left as-is — it still displays as an owned file. A healthy entry
-// whose source is unchanged is re-registered with the serve gate directly, like the folder boot
-// path, so it is servable and watched the moment the worker is up rather than after a lane slot
-// frees behind a folder backfill. Only an entry that needs the hash — null hash, or a source that
-// changed while offline — goes on the lane.
+// Per-file isolation (parity with the folder boot pass): one entry's failure must not abort the
+// rest. A never-hashed entry with no recorded source is an unrecoverable half-publish — revert it
+// so it stops showing "Adding" forever; a finished entry that merely lost its source stays (it still
+// displays as owned); a healthy, unchanged entry is re-registered with the serve gate directly, like
+// the folder boot path, so it is servable at once rather than after a lane slot frees; only an
+// entry that needs the hash — null hash, or a source changed while offline — goes on the lane.
 async function rehydrateLooseEntry (spaceId, e) {
   try {
     const src = await getOwnedSourcePath(spaceId, drivePathOf(e.relPath))

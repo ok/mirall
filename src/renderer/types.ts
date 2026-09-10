@@ -5,7 +5,7 @@ export interface Profile {
   publicKey: string
 }
 
-export type MemberStatus = 'pending' | 'approved'
+type MemberStatus = 'pending' | 'approved'
 
 export interface SpaceMember {
   publicKey: string
@@ -20,7 +20,7 @@ export interface SpaceMember {
 
 // The slim roster shape spaces:list ships (no avatar / catalog-key fields — those are heavy or
 // worker-internal); the full SpaceMember roster comes from the per-space space:members request.
-export interface SpaceMemberSummary {
+interface SpaceMemberSummary {
   publicKey: string
   driveKey: string | null
   displayName: string
@@ -102,7 +102,7 @@ export interface MirrorParticipant {
   mountedAt: number
 }
 
-export type ShareType = 'owned-folder'
+type ShareType = 'owned-folder'
 
 export type ShareRole = 'mine' | 'browse' | 'mirrored'
 
@@ -119,7 +119,7 @@ export interface Share {
   deletedAt?: number
 }
 
-export type OwnedMountStatus = (typeof OWNED_MOUNT_STATUS)[number]
+type OwnedMountStatus = (typeof OWNED_MOUNT_STATUS)[number]
 
 export interface OwnedFolderMount {
   spaceId: string
@@ -161,9 +161,9 @@ export interface ShareFileEntry {
   transferId?: string
 }
 
-export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
+type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
 
-export interface FileTreeFileNode {
+interface FileTreeFileNode {
   kind: 'file'
   name: string
   path: string
@@ -185,7 +185,7 @@ export interface FileTreeFolderNode {
 
 export type FileTreeNode = FileTreeFileNode | FileTreeFolderNode
 
-export interface MountValidationAdvisory {
+interface MountValidationAdvisory {
   code: string
   message: string
 }
@@ -195,13 +195,13 @@ export interface MountValidationResult {
   advisories: MountValidationAdvisory[]
 }
 
-export interface ScanPreviewEntry {
+interface ScanPreviewEntry {
   relPath: string
   size: number
   conflict?: boolean
 }
 
-export type ScanPreviewFlow = 'add-owned-folder' | 'mount-foreign-folder' | 'move-foreign-folder'
+type ScanPreviewFlow = 'add-owned-folder' | 'mount-foreign-folder' | 'move-foreign-folder'
 
 export interface ScanPreview {
   flow: ScanPreviewFlow
@@ -236,7 +236,7 @@ export interface UpdateInfo {
 
 export type ConnectivityState = 'online' | 'limited' | 'connecting' | 'offline'
 
-export interface NetworkStatusStats {
+interface NetworkStatusStats {
   updates: number
   connects: {
     client: { opened: number; closed: number; attempted: number }
@@ -257,9 +257,9 @@ export type ReachabilityCause =
   | 'peers-unreachable'
   | 'vpn-only-route'
 
-export type CanaryState = 'unavailable' | 'pending' | 'seeder-down' | 'reachable' | 'unreachable'
+type CanaryState = 'unavailable' | 'pending' | 'seeder-down' | 'reachable' | 'unreachable'
 
-export interface ReachabilityEvidence {
+interface ReachabilityEvidence {
   peersDiscovered: number
   peersConnected: number
   peersExhausted: number
@@ -277,13 +277,13 @@ export interface Reachability {
   since: number
 }
 
-export interface PeerReach {
+interface PeerReach {
   discovered: number
   connected: number
   exhausted: number
 }
 
-export interface DhtHealth {
+interface DhtHealth {
   online: boolean
   degraded: boolean
   cold: boolean
@@ -298,7 +298,7 @@ export interface CanaryResult {
   stage2?: { dials: number; opened: number; ms: number }
 }
 
-export interface Liveness {
+interface Liveness {
   failures: number
   checkedAt: number
   interfaceKind: 'none' | 'tunnel-only' | 'physical'
@@ -361,10 +361,10 @@ export interface NetworkStatus {
 }
 
 export type AuditCategory = 'members' | 'files' | 'folders' | 'security' | 'network'
-export type AuditTier = 'A' | 'B' | 'C'
-export type AuditOutcome = 'ok' | 'denied' | 'error'
+type AuditTier = 'A' | 'B' | 'C'
+type AuditOutcome = 'ok' | 'denied' | 'error'
 
-export interface AuditParty {
+interface AuditParty {
   type: 'self' | 'peer' | 'system'
   key: string | null
   name: string | null
@@ -375,7 +375,7 @@ export interface AuditSpaceRef {
   name: string | null
 }
 
-export interface AuditTargetRef {
+interface AuditTargetRef {
   kind: string | null
   id: string | null
   name: string | null

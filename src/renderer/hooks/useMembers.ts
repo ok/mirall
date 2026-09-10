@@ -1,7 +1,6 @@
-// Owns a space's member roster, online-presence set, and pending join requests; re-derives on
-// members- and join-requests-scoped reconcile hints, which the store delivers by invalidating the
-// three entries below. The roster is the SAME store entry useSpaceMembers reads, so one members
-// hint now costs one space:members read between them rather than two.
+// Owns a space's member roster, online-presence set, and pending join requests; re-derives on the
+// members and join-requests scopes (README.md). The roster is the SAME store entry useSpaceMembers
+// reads: one space:members read between them.
 import { useMemo } from 'react'
 import { useQuery } from '../store/useQuery.js'
 import { membersScopes } from './useSpaceMembers.js'

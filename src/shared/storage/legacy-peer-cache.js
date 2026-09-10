@@ -4,7 +4,7 @@ import { listSpaces, getSpaceContentKey } from '../spaces/space.js'
 import { getStore, createLocalBee } from '../core/store.js'
 import { compactStore } from '../transfer/swarm.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { HEX64 } from '../invite-envelope.js'
+import { HEX64 } from '../contract/invite-envelope.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('legacy-peer-cache')

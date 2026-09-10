@@ -1,5 +1,5 @@
 // Consecutive failed attempts per (file, advertised hash), and the point at which a producer should
-// stop asking. Pure, so the rule is asserted directly — no bare-* imports.
+// stop asking.
 //
 // A PERMANENT block is wrong for a multi-source overlay: the first holder to serve corrupt bytes
 // would poison content a second, healthy holder could serve correctly, with no way back short of a

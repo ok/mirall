@@ -1,4 +1,4 @@
-// Owns the spaces list plus create/join/invite actions; refreshes on event:state, membership reconcile hints, and the grant/deny/divergence events.
+// Owns the spaces list plus create/join/invite actions. Holds no subscription: the event:state push and the membership re-reads live in installPushBridges (store/reconcile.ts).
 import { useEffect } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
@@ -28,9 +28,7 @@ function pruneSpaceScopedQueries(liveSpaceIds: string[]) {
 export function useSpaces() {
   const { data, loading: fetching } = useQuery<Space[]>('spaces:list', {}, SPACES_SCOPES)
   const spaces = data ?? []
-  // Only a genuinely cold list reports loading. A reconcile-driven refetch keeps the rows on
-  // screen, and flipping this back to true would blink the "no favorites yet" hero on every member
-  // join, leave or avatar change.
+  // Cold only (README.md): a refetch must not blink the "no favorites yet" hero.
   const loading = data === undefined && fetching
 
   // The prune side-effects follow the list wherever it came from — a fetch or an event:state push.
@@ -41,9 +39,7 @@ export function useSpaces() {
     pruneMirrorCache(ids)
     pruneSpaceCardState(ids)
     pruneShareCache(ids)
-    // The migration moved three more per-space reads into the store. Without this a left space
-    // keeps its online set, pending join requests and storage summary for the session, and
-    // re-joining the same id paints them instantly — what the prune helpers exist to prevent.
+    // Per-space entries are dropped with the space, or re-joining the same id paints stale rows.
     pruneSpaceScopedQueries(ids)
   }, [data])
 
@@ -54,11 +50,7 @@ export function useSpaces() {
     await refetchQuery<Space[]>('spaces:list', {}, SPACES_SCOPES).catch(() => {})
   }
 
-  // No subscriptions and no mount-time refresh. useQuery already fetches on mount, so refetchQuery
-  // here only abandoned that read to issue a second one — five times over, because five components
-  // call this hook and several are mounted together. The event:state push and the three membership
-  // re-reads moved to installPushBridges, which holds one subscription for the app; `refresh` stays
-  // for the mutations below, where one call really is one user action.
+  // `refresh` is for the mutations below only; reads are the store's (README.md).
 
   async function createSpace(name: string, icon: string) {
     const space = await request('space:create', { name, icon }) as Space
@@ -107,5 +99,5 @@ export function useSpaces() {
     await refresh()
   }
 
-  return { spaces, loading, createSpace, joinSpace, createInvite, leaveSpace, updateSpace, toggleFavorite, approveMember, denyMember, refresh }
+  return { spaces, loading, createSpace, joinSpace, createInvite, leaveSpace, updateSpace, toggleFavorite, approveMember, denyMember }
 }

@@ -48,7 +48,7 @@ test('a rect off the bottom edge is refused even though it overlaps horizontally
   t.absent(boundsOnSomeDisplay(belowScreen, [primary]))
 })
 
-test('a window hanging off the TOP is refused however much of its body shows', (t) => {
+test('a window hanging off the TOP is refused however much of its body shows (two stacked displays: park it on the upper one, unplug it)', (t) => {
   // The case a symmetric overlap test lets through: 100px of this window is on the primary
   // display, comfortably over the threshold — but all of it is body. The title bar, the only part
   // that can be dragged, is 800px above the top of the screen.

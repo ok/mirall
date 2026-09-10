@@ -8,9 +8,9 @@ interface ProgressBarProps {
 }
 
 // Presentation-only progress bar. Deliberately renders NO action buttons —
-// pause/cancel/reveal stay with each caller — so it can be reused for folder
-// mirror file rows, which must not expose pause/stop (those downloads are
-// driven by the materialize loop, not a cancellable transfer).
+// pause/cancel/reveal stay with the caller — so it can sit in a dialog that
+// must not expose transfer controls (the scan preview). Rows use
+// DownloadProgressLane instead.
 //
 // Accessibility: relies on role=progressbar + aria-valuenow (announced by
 // assistive tech on focus) rather than an aria-live region, which at the 250ms

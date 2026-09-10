@@ -7,19 +7,17 @@ import ActionMenu, { type ActionMenuItemConfig } from './ActionMenu.js'
 interface DropZoneProps {
   onFilesSelected: (files: File[]) => void
   onFolderSelected?: (folderPath: string) => void
-  folderSupportEnabled?: boolean
   dragActive?: boolean
 }
 
 export default function DropZone({
   onFilesSelected,
   onFolderSelected,
-  folderSupportEnabled,
   dragActive = false,
 }: DropZoneProps) {
   const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
-  const folderEnabled = folderSupportEnabled === true && typeof onFolderSelected === 'function'
+  const folderEnabled = typeof onFolderSelected === 'function'
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
@@ -41,8 +39,6 @@ export default function DropZone({
       onAction: () => {
         if (folderEnabled && onFolderSelected) onFolderSelected('')
       },
-      disabled: !folderEnabled,
-      hint: folderEnabled ? undefined : t('dropZone.folderComingSoon'),
     },
   ]
 

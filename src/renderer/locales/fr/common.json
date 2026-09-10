@@ -84,7 +84,6 @@
     "filesError": "Impossible de charger les fichiers",
     "filesErrorHint": "La liste des fichiers a mis trop de temps à charger. Cela peut arriver pendant la synchronisation des fichiers ou lorsqu'un pair est hors ligne.",
     "filesRetry": "Réessayer",
-    "emptyFiles": "Aucun fichier partagé pour le moment. Déposez des fichiers dans la barre latérale pour commencer.",
     "emptyShareTitle": "Rien n'est encore partagé",
     "emptyShareSubtitle": "Glissez des fichiers ou des dossiers dans la zone à droite pour commencer à partager dans cet espace.",
     "emptyShareDocsTitle": "Ce qui se passe quand vous partagez",
@@ -111,7 +110,6 @@
     "waitingApprovalHint": "Un membre de cet espace doit vous approuver. Vous pouvez laisser cette fenêtre ouverte : vous serez admis automatiquement dès que quelqu'un sera en ligne.",
     "waitingDocsTitle": "Pourquoi cette attente ?",
     "waitingDocsBody": "Une invitation contient l'adresse de l'espace, jamais sa clé. C'est un appareil déjà membre qui la transmet : un membre doit donc être en ligne et joignable avant que vous puissiez entrer. L'approbation automatique supprime la décision, pas la transmission.",
-    "encryptedBadge": "Chiffré",
     "legacyBadge": "Non pris en charge",
     "legacyWarning": "Cet espace a été créé avec une version bien plus ancienne de Mirall et ne peut plus être utilisé. Créez un nouvel espace et partagez-y vos dossiers."
   },
@@ -147,7 +145,6 @@
     "description": "Une copie en lecture seule du dossier de {{owner}} sera maintenue en synchronisation à l'emplacement que vous choisissez.",
     "ownerLine": "{{count}} fichiers · {{size}} · Appartient à {{owner}}",
     "pathLabel": "Emplacement du miroir sur votre disque",
-    "pathPlaceholder": "Parcourir…",
     "readOnlyWarning": "Lecture seule. Les fichiers que vous modifiez ici seront restaurés à la version de {{owner}} lors de la prochaine synchronisation.",
     "next": "Suivant : aperçu",
     "create": "Démarrer le miroir",
@@ -218,7 +215,6 @@
     "subfolderCount_other": "contient {{count}} sous-dossiers",
     "loading": "Chargement des fichiers",
     "unavailable": "Dossier indisponible",
-    "unavailableOfflineHint": "{{owner}} est hors ligne. Les fichiers se chargeront dès que {{owner}} sera de nouveau en ligne.",
     "empty": "Ce dossier est vide.",
     "emptyHintMine": "Ajoutez des fichiers dans votre dossier local : ils apparaîtront automatiquement ici.",
     "emptyHintOther": "Les fichiers apparaîtront ici dès que {{owner}} en ajoutera.",
@@ -383,7 +379,6 @@
     "defaultName": "Espace partagé",
     "alreadyMember": "Vous êtes déjà dans {{name}}",
     "invalidLink": "Ce lien d'invitation n'est pas valide.",
-    "outdatedLink": "Cette invitation a été créée avec une version plus récente de Mirall. Mettez Mirall à jour puis réessayez.",
     "expiredLink": "Ce lien d'invitation a expiré. Demandez-en un nouveau."
   },
   "leaveSpace": {
@@ -476,8 +471,7 @@
     "releaseFiles_one": "Relâchez pour partager {{count}} fichier",
     "releaseFiles_other": "Relâchez pour partager {{count}} fichiers",
     "releaseFolder": "Relâchez pour partager « {{name}} »",
-    "releaseFolderUnnamed": "Relâchez pour partager ce dossier",
-    "button": "Sélectionner des fichiers"
+    "releaseFolderUnnamed": "Relâchez pour partager ce dossier"
   },
   "docs": {
     "opensInBrowser": "Ouvre mirall.app dans votre navigateur",
@@ -690,8 +684,7 @@
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferPausedTitle": "Téléchargement suspendu",
     "transferPausedBody": "{{file}} — expéditeur hors ligne",
-    "transferPausedInterruptedBody": "{{file}} — transfert interrompu",
-    "unknownError": "erreur inconnue"
+    "transferPausedInterruptedBody": "{{file}} — transfert interrompu"
   },
   "format": {
     "etaSecondsLeft": "{{value}} s restantes",
@@ -841,7 +834,6 @@
     "boolNo": "Non",
     "connection": "Connexion",
     "peerCount": "Pairs connectés",
-    "connecting": "Tentatives en cours",
     "topicsJoined": "Espaces rejoints",
     "lastConnected": "Dernière connexion",
     "address": "Adresse",
@@ -849,30 +841,17 @@
     "publicPort": "Port UDP public",
     "localPort": "Port UDP local",
     "publicKey": "Votre clé publique",
-    "nodeId": "ID du nœud DHT",
     "nat": "NAT",
     "firewalled": "Derrière un pare-feu",
     "randomized": "Mappage de port aléatoire",
     "ephemeral": "Nœud DHT éphémère",
     "dht": "DHT",
     "routingTableSize": "Taille de la table de routage",
-    "bootstrapNodes": "Nœuds bootstrap",
-    "stats": "Compteurs",
-    "statsUpdates": "Événements de mise à jour",
-    "statsClientOpened": "Sortantes ouvertes",
-    "statsClientClosed": "Sortantes fermées",
-    "statsServerOpened": "Entrantes ouvertes",
-    "statsServerClosed": "Entrantes fermées",
-    "statsBannedPeers": "Pairs bannis",
     "advice": {
       "title": "Suggestions",
       "osOffline": "Votre système d'exploitation signale qu'il n'y a pas de connexion Internet. Vérifiez votre Wi-Fi ou Ethernet.",
-      "firewalled": "Votre routeur semble bloquer l'UDP entrant. Les pairs ne pourront vous atteindre que via holepunching.",
-      "randomizedNat": "Votre réseau attribue des ports sortants aléatoires. Les connexions directes peuvent échouer.",
       "symmetricNat": "Votre connexion utilise des ports changeants. Les connexions vers de nombreuses personnes échoueront — les routeurs mobiles et le partage de connexion en sont la cause habituelle.",
       "noPublicAddr": "Impossible de déterminer votre IP publique. Vérifiez votre connexion Internet.",
-      "smallRoutingTable": "Peu de pairs DHT connus pour l'instant. Le bootstrap est peut-être en cours.",
-      "stillBootstrapping": "Connexion au DHT en cours — patientez un instant.",
       "symmetricNatFix": "Sur un réseau mobile, aucun réglage du routeur ne corrige cela. Une connexion câble ou DSL fonctionnera.",
       "udpDegraded": "Votre réseau perd en continu du trafic vers le réseau Mirall. Les transferts peuvent se bloquer.",
       "stillSettling": "Nous déterminons encore le comportement de ce réseau — patientez un instant."
@@ -1115,7 +1094,6 @@
     "deleteDone_other": "{{count}} événements supprimés."
   },
   "connectionProblem": {
-    "title": "Problème de connexion",
     "subtitle": {
       "blocked": "Mirall n'atteint aucune autre personne depuis ce réseau.",
       "atRisk": "Mirall n'atteint qu'une partie des autres personnes depuis ce réseau.",

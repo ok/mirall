@@ -40,10 +40,6 @@ export function getContentKey(spaceId) {
   return map.get(spaceId) || null
 }
 
-export function hasContentKey(spaceId) {
-  return map.has(spaceId)
-}
-
 // Every SCK we hold, for the leftover scan: a core encrypted under one of them reads as garbage
 // without it, and a leave keeps the vault entry — which is exactly when its leftovers show up.
 export function listContentKeys() {

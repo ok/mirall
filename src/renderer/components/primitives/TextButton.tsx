@@ -1,13 +1,7 @@
-// The low-emphasis action: amber label, no fill, underline on hover. It exists for the places a
-// filled Button would outweigh what it does — the "Show all / Show fewer" toggles inside the
-// 300px sidebar tiles, where a `px-5 py-2.5` pill would dominate the roster it reveals.
-//
-// `-m-1 p-1` is the focus-ring gutter convention used across the app (see the pane rule in
-// design.md): the padding gives the ring room to sit off the glyphs and the equal negative margin
-// takes it straight back, so the label occupies exactly the box it would with no padding at all
-// and nothing around it shifts. That also means callers must right-align with `justify-end` /
-// `justify-between` on the parent, never `ml-auto` on the button — `ml-auto` and `-m-1` set the
-// same property, and which one wins is stylesheet order, not class order.
+// The low-emphasis action: amber label, no fill, underline on hover — for places a filled Button
+// would outweigh what it does (the "Show all / Show fewer" toggles inside the 300px sidebar tiles).
+// `-m-1 p-1` is the app's focus-ring gutter (design.md): callers right-align with `justify-end` /
+// `justify-between` on the parent, never `ml-auto` here — both set margin, and stylesheet order wins.
 import type { ReactNode } from 'react'
 
 interface TextButtonProps {

@@ -7,8 +7,8 @@
 //
 // The data layer itself — Corestore, bees, migrations, folder subsystems, both swarms, the
 // resume passes and the periodic backstops — is constructed and started by the composition root
-// in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() is last, so
-// no frame is dispatched until every handler is registered.
+// in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
+// every handler is registered, so no frame is dispatched before its handler exists.
 import os from 'bare-os'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
@@ -68,7 +68,7 @@ import {
   isLegacySpace,
 } from '../shared/spaces/space.js'
 import { classifyInvite } from '../shared/spaces/invite-policy.js'
-import { encodeInvite, decodeInvite } from '../shared/invite-envelope.js'
+import { encodeInvite, decodeInvite } from '../shared/contract/invite-envelope.js'
 import {
   joinSpaceTopic,
   leaveSpaceTopic,
@@ -163,18 +163,19 @@ import { listOverlayShareFiles } from '../shared/shares/share-listing.js'
 import { publishMirror } from '../shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../shared/folders/mirror-registry.js'
 import { boot } from './boot.js'
-import { AppError, ErrorCodes } from '../shared/core/errors.js'
+import { AppError } from '../shared/core/errors.js'
+import { CODES } from '../shared/contract/errors.js'
 import { createOwnedMount, getOwnedMount, patchOwnedMount, deleteOwnedMount, listOwnedMounts, listAllMounts } from '../shared/folders/mount-store.js'
 import { validateMountPath, validateDownloadFolderAgainstMounts } from '../shared/folders/mount-validate.js'
 import {
   handleFsEventFromMain,
   initialPublishScan,
   stopOwnedFolder,
-  DEFAULT_IGNORE,
-  mountRootAvailable,
   countFolderFiles,
   getIndexStatus,
 } from '../shared/folders/owned-folders.js'
+import { DEFAULT_IGNORE } from '../shared/folders/path-keys.js'
+import { mountRootAvailable } from '../shared/folders/publish-runner.js'
 
 import { exceedsShareFileLimit, shareFileLimitMessage } from '../shared/folders/share-limits.js'
 import { previewInitialPublishScan } from '../shared/folders/owned-preview.js'
@@ -213,19 +214,11 @@ function dropSpaceDownloadRoot(spaceId) {
 
 // === Crash safety & shutdown ===
 
-// Install the crash backstop FIRST — before any core-opening init below — so that NO
-// boot-time data-layer error can abort the worker and take the whole data layer down with it
-// (the user-visible symptom would be "the app won't start"). The hazard it guards against is a
-// fire-and-forget rejection from a background core open — e.g. corestore opening a
-// derived/announced core by discovery key that isn't stored locally → STORAGE_EMPTY — which
-// Bare's default unhandled-rejection handler would turn into a worker abort. With the backstop
-// up front it is logged and boot continues. (A genuinely fatal *awaited* init can still leave
-// boot incomplete, but the worker stays alive and logs loudly instead of vanishing — strictly
-// better than a silent abort.)
-// Armed only once the worker is LIVE (see isArmed below): the paragraph above is the reason —
-// escalating during boot would re-create the abort this guard exists to prevent. `bootComplete`
-// flips next to the ready broadcast, so the worker and the renderer's respawn policy agree on
-// what "this generation booted" means.
+// Installed FIRST — before any await — so a fire-and-forget rejection during boot (a background
+// core open by discovery key hitting STORAGE_EMPTY, say) is logged instead of aborting the worker.
+// Armed only once the worker is LIVE (`isArmed`): escalating during boot would recreate the abort
+// this guard exists to prevent. `bootComplete` flips next to the ready broadcast, so the worker
+// and the renderer's respawn policy agree on what "this generation booted" means.
 installCrashBackstop(log, {
   isArmed: () => bootComplete && !shuttingDown,
   onUnstable: () => { safeShutdown('unstable', WORKER_EXIT_UNSTABLE) },
@@ -306,8 +299,7 @@ function fileNameOf(path) {
 }
 
 // A peer handed us the space content key — the moment read access was actually granted, and the
-// counterpart to the approver's own `membership.approved` row. Extracted so onGrant, already at
-// the complexity ceiling, gains no branches.
+// counterpart to the approver's own `membership.approved` row.
 async function recordGrantReceived(spaceId, granterKey) {
   // One fresh read for all three fields: onGrant's own `space` was loaded before four awaits
   // (materializeOwnDrive, pinCreatorKey, broadcastProfileUpdate, openMemberView), and the roster
@@ -466,9 +458,6 @@ async function onJoinRequest(msg) {
   }
 }
 
-// The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
-// A grant only reaches a connected peer, so this is the single reliable source (boundSignerKeys is
-// populated from every verified identity frame); no need to thread it through the request record.
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
 // co-member heard it first — and either can arrive first. Both record through here so the row
 // appears regardless of path, and appears once. Cleared when the request resolves, so a later
@@ -493,6 +482,9 @@ function forgetJoinRequestRecord(spaceId, publicKey) {
   recordedJoinRequests.delete(joinRequestKey(spaceId, publicKey))
 }
 
+// The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
+// A grant only reaches a connected peer, so this is the single reliable source (boundSignerKeys is
+// populated from every verified identity frame); no need to thread it through the request record.
 function boundSignerPk(profileKeyHex) {
   const hex = getBoundSignerKey(profileKeyHex)
   return hex ? b4a.from(hex, 'hex') : null
@@ -559,10 +551,9 @@ async function onGrant(msg, ctx = {}) {
   await materializeOwnDrive(spaceId, sckBuf)
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
-  await openMemberView(spaceId)   // space is now approved → derive its membership
-  // verdict.granterKey, not msg.profileKey: the grant frame carries `granterKey` (swarm.js
-  // sendMembershipGrant) and has no profileKey at all, so the row used to record a null actor —
-  // a '?' avatar and a sentence with a hole in it.
+  await openMemberView(spaceId)
+  // verdict.granterKey, not msg.profileKey: the grant frame (swarm.js sendMembershipGrant)
+  // carries `granterKey` and no profileKey at all.
   //
   // How strong that attribution is depends on the same flag `asserted` above is gated on:
   // checkGrantAssertion verifies granterKey against the socket's identity binding only when
@@ -619,7 +610,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
     // the divergence banner's "approvals are paused" claim true.
     if (space.creatorDivergence) {
       log.warn('approval blocked — creator root divergence unresolved:', spaceId)
-      throw new AppError(ErrorCodes.CREATOR_DIVERGENCE_UNRESOLVED, 'approvals are paused while the creator root conflict is unresolved')
+      throw new AppError(CODES.CREATOR_DIVERGENCE_UNRESOLVED, 'approvals are paused while the creator root conflict is unresolved')
     }
     const sck = getSpaceContentKey(spaceId, space)
     if (!sck) return false
@@ -718,7 +709,7 @@ ipc.handle('share:list', async (msg) => {
   return await listSharesForSpace(msg.spaceId)
 })
 
-// Shown for every action refused on a pre-encryption space, so the three call sites cannot drift.
+// Shown for every action refused on a pre-encryption space, so the two call sites cannot drift.
 const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mirall and can no longer be used'
 
 // The share record the space would see, with every refusal already made and nothing written down
@@ -727,13 +718,13 @@ const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mira
 // share's id does not exist until here.
 async function prepareOwnedShare(spaceId, name) {
   const space = await getSpace(spaceId)
-  if (!space) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
+  if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
   const trimmed = (name || '').trim()
-  if (!isValidShareName(trimmed)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
+  if (!isValidShareName(trimmed)) throw new AppError(CODES.SHARE_NAME_INVALID, 'Invalid share name')
 
   const existingOwn = await readOwnShares(spaceId)
   if (existingOwn.some((s) => s.name === trimmed)) {
-    throw new AppError(ErrorCodes.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
+    throw new AppError(CODES.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
   }
 
   const share = {
@@ -747,15 +738,15 @@ async function prepareOwnedShare(spaceId, name) {
   // Overlay is the only content backend: serve straight from the source file (no
   // second copy), advertising into a replicated catalog peers list/fetch from.
   // Stamped at creation (replicates). A build without overlay can't create shares.
-  if (!isOverlayEnabled()) throw new AppError(ErrorCodes.OVERLAY_REQUIRED, 'Folder sharing requires the overlay backend')
+  if (!isOverlayEnabled()) throw new AppError(CODES.OVERLAY_REQUIRED, 'Folder sharing requires the overlay backend')
   // Before the SCK check below, which would otherwise report a pre-encryption space as one we are
   // merely un-approved for.
-  if (isLegacySpace(space)) throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
+  if (isLegacySpace(space)) throw new AppError(CODES.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
   // A space's catalog is SCK-encrypted; without the SCK (a pending, not-yet-approved member)
   // we can't open our own catalog to advertise into. Refuse cleanly rather than let ownCatalog
   // throw a raw Error out of the IPC handler.
   if (!getSpaceContentKey(spaceId, space)) {
-    throw new AppError(ErrorCodes.EOWNERSHIP, 'Cannot share into a space you have not been approved for yet')
+    throw new AppError(CODES.EOWNERSHIP, 'Cannot share into a space you have not been approved for yet')
   }
   share.contentMode = 'overlay'
   const { keyHex, encrypted } = await ownCatalogPublish(spaceId)
@@ -783,11 +774,11 @@ ipc.handle('share:create', async (msg) => {
 
 // The two writes this runs land in different bees, and the FIRST one replicates: publishOwnedShare
 // puts a row into our profile bee that every co-member reads, while the second sits behind a full
-// disk walk that takes seconds to tens of seconds on a large folder. A crash in between left a
+// disk walk that takes seconds to tens of seconds on a large folder. A crash in between leaves a
 // folder advertised to the whole space with no mount behind it — and every owner-side pass skips a
-// mount-less share, so nothing here ever noticed and the user had no folder to delete. The
-// compensation used to live in the renderer, which is the one process that cannot be relied on to
-// still be running when it is needed.
+// mount-less share, so nothing would notice and the user would have no folder to delete. The
+// compensation lives here, not in the renderer: that is the one process that cannot be relied on
+// to still be running when it is needed.
 //
 // Recorded first, cleared last; the next boot finishes whatever this did not.
 ipc.handle('share:create-and-mount', async (msg) => {
@@ -806,9 +797,8 @@ ipc.handle('share:create-and-mount', async (msg) => {
     await intents.complete(intentId)
     return { share, ...result }
   } catch (err) {
-    // The live compensation, now on the durable side of the crash. If THIS fails the intent stays
-    // and the next boot completes it. Same rows the renderer's compensating share:delete used to
-    // produce, so the activity log still explains a folder that appeared and went away again.
+    // The live compensation. If THIS fails the intent stays and the next boot completes it. The
+    // share.deleted row is what lets the activity log explain a folder that appeared and went away.
     try {
       await tombstoneShare(msg.spaceId, share.id)
       record('share.deleted', {
@@ -834,17 +824,17 @@ ipc.handle('share:create-and-mount', async (msg) => {
 // stays put and `displayName` carries what people read; the renderer resolves one from the other.
 ipc.handle('share:rename', async (msg) => {
   const space = await getSpace(msg.spaceId)
-  if (!space) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
+  if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
   const displayName = (msg.name || '').trim()
-  if (!isValidShareName(displayName)) throw new AppError(ErrorCodes.SHARE_NAME_INVALID, 'Invalid share name')
+  if (!isValidShareName(displayName)) throw new AppError(CODES.SHARE_NAME_INVALID, 'Invalid share name')
 
   const own = await readOwnShares(msg.spaceId)
   const share = own.find((s) => s.id === msg.shareId)
-  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
   const labelOf = (s) => s.displayName || s.name
   if (labelOf(share) === displayName) return share
   if (own.some((s) => s.id !== msg.shareId && labelOf(s) === displayName)) {
-    throw new AppError(ErrorCodes.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
+    throw new AppError(CODES.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
   }
 
   const previousName = labelOf(share)
@@ -879,7 +869,7 @@ ipc.handle('share:delete', async (msg) => {
 async function loadShareDescriptor(spaceId, ownerKey, shareId) {
   const all = await listSharesForSpace(spaceId)
   const share = all.find((s) => s.id === shareId && s.owner === ownerKey)
-  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
   return share
 }
 
@@ -902,14 +892,14 @@ ipc.handle('share:reveal-folder', async (msg) => {
   let target
   if (isOwn) {
     const ownedMount = await getOwnedMount(msg.spaceId, msg.shareId)
-    if (!ownedMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
+    if (!ownedMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     target = ownedMount.mountPath
   } else {
     const foreignMount = await getForeignMount(msg.spaceId, msg.shareId)
-    if (!foreignMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
+    if (!foreignMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
     target = foreignMount.mountPath
   }
-  return revealLocalPath(target, ErrorCodes.MOUNT_NOT_ON_DEVICE)
+  return revealLocalPath(target, CODES.MOUNT_NOT_ON_DEVICE)
 })
 
 ipc.handle('share:reveal-file', async (msg) => {
@@ -918,7 +908,7 @@ ipc.handle('share:reveal-file', async (msg) => {
   let target
   if (isOwn) {
     const ownedMount = await getOwnedMount(msg.spaceId, msg.shareId)
-    if (!ownedMount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
+    if (!ownedMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     target = pathFromMount(ownedMount.mountPath, msg.relPath)
   } else {
     const foreignMount = await getForeignMount(msg.spaceId, msg.shareId)
@@ -957,7 +947,7 @@ ipc.handle('share:read-file', async (msg) => {
   const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
   const isOwn = share.owner === getLocalPublicKeyHex()
   const backend = getContentBackend(share)
-  if (backend === UNSUPPORTED) throw new AppError(ErrorCodes.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
+  if (backend === UNSUPPORTED) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
   // overlay: request the file via the backend (catalog/overlay), not a drive
   if (isOwn) return { ok: true, alreadyOwned: true }
   return await backend.requestDownload(msg.spaceId, share, msg.relPath)
@@ -990,8 +980,7 @@ ipc.handle('event:loose-file-fs-event', async (msg) => {
 
 const previewAborts = new Map()
 
-// Both wizards cancel the same way over the same map, so they are one function under two request
-// names — the names are a wire contract (contract/requests.js), the behaviour never differed.
+// Two request names, one function: the names are the wire contract (contract/requests.js).
 const cancelPreview = async (msg) => {
   const sig = previewAborts.get(msg.previewId)
   if (sig) sig.aborted = true
@@ -1036,7 +1025,7 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
   // The modal blocks first; this is the authoritative check.
   const fileCount = await countFolderFiles(mountPath, ignore)
   if (exceedsShareFileLimit(fileCount)) {
-    throw new AppError(ErrorCodes.SHARE_FILE_LIMIT, shareFileLimitMessage(fileCount))
+    throw new AppError(CODES.SHARE_FILE_LIMIT, shareFileLimitMessage(fileCount))
   }
 
   const mount = {
@@ -1059,7 +1048,7 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
 
   mounts.settleScanStatus(initialPublishScan(spaceId, shareId, mountPath, ignore), spaceId, shareId)
     .then(async (result) => {
-      // Cancelled mid-index: whoever cancelled (delete, relocate, leave, cancel-index) owns the
+      // Cancelled mid-index: whoever cancelled (delete, relocate, leave, pause) owns the
       // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.
       if (result?.cancelled) return
       if (result && !result.skipped) ipc.emit('event:owned-folder-scan-completed', { spaceId, shareId, ...result })
@@ -1080,7 +1069,7 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
 ipc.handle('owned-folder:mount', async (msg) => {
   const own = await readOwnShares(msg.spaceId)
   const share = own.find((s) => s.id === msg.shareId)
-  if (!share) throw new AppError(ErrorCodes.SHARE_NOT_FOUND, 'Share not found')
+  if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
 
   const validated = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
   return await mountOwnedShare(msg.spaceId, share, validated, msg.ignore)
@@ -1095,8 +1084,8 @@ ipc.handle('owned-folder:index-status', async (msg) => {
 })
 
 // Pause the index: stop the burst AND the cadence, durably. Nothing resumes this but an explicit
-// resume — which is the whole of the vocabulary now that Stop is gone: a folder is running or the
-// user paused it, and ending it for good is Delete Folder.
+// resume — that is the whole vocabulary: a folder is running or the user paused it, and ending
+// it for good is Delete Folder.
 ipc.handle('owned-folder:pause-index', async (msg) => {
   return await mounts.pauseIndex(msg.spaceId, msg.shareId)
 })
@@ -1111,11 +1100,10 @@ ipc.handle('owned-folder:resume-index', async (msg) => {
 // no churn — this is why relocate beats delete-and-re-add for recovery.
 ipc.handle('owned-folder:relocate', async (msg) => {
   const mount = await getOwnedMount(msg.spaceId, msg.shareId)
-  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
 
-  // Tear down anything still bound to the old (likely missing) path first.
   mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
   // Queued items carry paths under the old root; the executor re-resolves the mount, but they
   // must not burn slots either.
@@ -1145,8 +1133,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // The debt is recorded for BOTH branches, before either pass is armed: the flag is the durable
   // fact, a running pass is not. Locate Folder is not Resume, so a paused index stays paused at its
   // new path and owes the deep pass to its eventual resume; an ACTIVE index owes it to the pass
-  // below, which runs in a floating promise — a quit mid-walk used to lose the debt entirely and
-  // let the next boot's fast reconcile re-advertise the whole tree.
+  // below, which runs in a floating promise a quit mid-walk can end.
   await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
 
   if (!mount.indexPaused) {
@@ -1253,8 +1240,7 @@ ipc.handle('foreign-folder:mount', async (msg) => {
   initialMaterializeScan(mount)
     .catch(async (err) => {
       log.warn('mirror initial scan failed:', err.message)
-      // Through the shared recorder: the message went out on a field the renderer now reads as an
-      // error code, and it wrote nothing durable, so a reload showed a mirror still "scanning".
+      // Through the shared recorder, so the fault is durable and typed (a code, not a message).
       await recordMirrorScanFault(msg.spaceId, msg.shareId, err)
         .catch((e) => log.debug('mirror scan fault record failed:', msg.shareId, '-', e.message))
     })
@@ -1283,7 +1269,7 @@ ipc.handle('foreign-folder:set-enabled', async (msg) => {
 // hash), and anything missing is fetched again.
 ipc.handle('foreign-folder:relocate', async (msg) => {
   const mount = await getForeignMount(msg.spaceId, msg.shareId)
-  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId })
   // Validation normalises the path, so the comparison belongs after it: re-pointing a mount at
   // where it already is would drop the synced set and re-verify the whole folder for nothing.
@@ -1474,9 +1460,9 @@ ipc.handle('space:join', async (msg) => {
 })
 ipc.handle('space:invite', async (msg) => {
   const space = await getSpace(msg.spaceId)
-  // Throw rather than return null: a null resolved as success, so the modal re-enabled its button
-  // with no code and no reason on screen — the same dead end an unhandled rejection used to leave.
-  if (!space?.topic) throw new AppError(ErrorCodes.SPACE_NOT_FOUND, 'Space not found')
+  // Throw rather than return null: a null resolves as success and the modal re-enables its button
+  // with no code and no reason on screen.
+  if (!space?.topic) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
   // Hard block: a member-only capability. While pending we hold no content key, so
   // any invite we minted could never confer read access (the redeemer would stall
   // pending exactly as we do) — but it WOULD leak the space topic to outsiders. Refuse
@@ -1489,7 +1475,7 @@ ipc.handle('space:invite', async (msg) => {
   // We hold no SCK for a pre-encryption space, so nobody redeeming this link could ever be
   // approved — the joiner would mint a v2 pending record (legacy on OUR side, not theirs) and
   // wait forever with no way to learn why.
-  if (isLegacySpace(space)) throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
+  if (isLegacySpace(space)) throw new AppError(CODES.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
   // Embed our identity so the joiner can show us as an offline member before we
   // first connect. Display name is a snapshot at invite time; the handshake later
   // corrects it if we've since renamed.
@@ -1663,10 +1649,9 @@ ipc.handle('files:download', async (msg) => {
 })
 ipc.handle('files:cancel-download', async (msg) => {
   const id = msg.transferId
-  // Route on the id's shape, not on a live transfer — the same defect the pause handler below was
-  // fixed for. A dropped connection settles the fetch a beat before the click lands, and gating on
-  // has() routed a settled row to NEITHER engine: the partial and the pending row survived a
-  // discard that reported ok, and the row auto-resumed on the next reconnect.
+  // Route on the id's shape, not on a live transfer — the same rule as files:pause-download below,
+  // and here a has() gate would leave the partial and the pending row behind a discard that
+  // reported ok.
   if (isLooseTransferId(id)) await looseCancelTransfer(id)
   else await overlayCancel(id)
   return { ok: true }
@@ -1771,11 +1756,9 @@ ipc.handle('network:check-liveness', async () => await checkLivenessNow())
 
 const DIAGNOSTIC_HISTORY_LIMIT = 50
 
-// The in-memory ring dies with the process, so a bundle collected after a restart — precisely the
-// bundle a user sends after "it was broken this morning" — carried no history at all. The two are
-// MERGED rather than one replacing the other: the durable rows are hold-down-deduped, so they drop
-// this session's sub-60s flaps and settling states, which is exactly the detail a bundle collected
-// during a live problem needs.
+// Durable rows + this session's ring, MERGED: the ring dies with the process (a bundle collected
+// after a restart needs the rows), and the rows are hold-down-deduped (a bundle collected during a
+// live problem needs the ring's sub-60 s flaps and settling states).
 async function durableVerdictHistory () {
   const ring = getVerdictHistory()
   try {

@@ -5,7 +5,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
-import { encodeInvite, decodeInvite } from '../../src/shared/invite-envelope.js'
+import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const hex = () => crypto.randomBytes(32).toString('hex')

@@ -6,8 +6,8 @@
 //    them, which is what the over-the-limit banner reports;
 //  - on an INCOMPLETE read (a transient/offline peer read), res.total reflects only the partial
 //    read while `rows` is the reconciled last-good list actually on screen, so it may only ever
-//    RAISE the count, never lower it below those rows. A header reading lower than the visible list
-//    is always wrong — and deriving truncation from it used to make a capped listing look complete.
+//    RAISE the count, never lower it below those rows — a header below the visible list is always
+//    wrong. Truncation is the worker's `truncated` flag, never derived from the count.
 export function deriveFolderInfo(res, rows) {
   const rowBytes = rows.reduce((sum, f) => sum + (Number.isFinite(f.size) ? f.size : 0), 0)
   const reportedCount = typeof res?.total === 'number' ? res.total : 0

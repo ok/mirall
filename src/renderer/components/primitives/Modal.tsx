@@ -95,10 +95,9 @@ function ModalContents({
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
     >
       <CrystalBackdrop onClick={onBackdropClick} />
-      {/* No `autoFocus`: it lands on the first tabbable element, which in a dialog whose header
-          carries the ✕ is the close button — so Enter used to cancel. Without it, a field with its
-          own `autoFocus` still claims focus at commit, and useDialog falls back to focusing the
-          panel, which is what announces the dialog and lets Enter reach the handler below. */}
+      {/* No `autoFocus` on FocusScope: it would land on the header ✕, and Enter would dismiss. A
+          field with its own `autoFocus` still claims focus at commit; otherwise useDialog focuses
+          the panel, which announces the dialog and lets Enter reach the handler below. */}
       <FocusScope contain restoreFocus>
         <div
           {...dialogProps}

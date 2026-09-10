@@ -1,6 +1,5 @@
-// The owner-side unit of file work. The PATH is the identity — never the content hash, which is
-// an output of the work: using its presence as "is this done?" made "already being hashed by
-// another pass" unrepresentable. Pure (no bare-* imports) so the policy unit-tests under Node.
+// The owner-side unit of file work. Keyed by PATH, never by content hash — the hash is an output of
+// the work, and its presence cannot say "already being hashed by another pass".
 
 export const OP = { PUBLISH: 'publish', RETIRE: 'retire' }
 export const STATE = { QUEUED: 'queued', RUNNING: 'running', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' }

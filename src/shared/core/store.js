@@ -124,7 +124,7 @@ export function overlayIndexEncryptionKey() {
 // test mode) this is plain createBee behaviour. The registration assert makes a
 // forgotten LOCAL_BEE_NAMES entry fail loudly instead of silently skipping
 // migration + the leftover wanted-set.
-export function localBeeCore(name) {
+function localBeeCore(name) {
   if (!LOCAL_BEE_NAMES.includes(name)) throw new Error('createLocalBee: unregistered local bee "' + name + '"')
   const core = !masterSecret
     ? store.get({ name })
@@ -205,8 +205,9 @@ export class Store extends Subsystem {
     }
     const closing = store
     store = undefined
-    // storagePath is deliberately kept: nine call sites read it and two path.dirname() the result,
-    // which throws on undefined. It holds nothing open, and initStore() overwrites it.
+    // storagePath is deliberately kept: seven call sites read it through getStoragePath() and two
+    // path.dirname() the result, which throws on undefined. It holds nothing open, and initStore()
+    // overwrites it.
     nameByDk.clear()
     setMasterSecret(null)
     await closing.close()

@@ -1,30 +1,18 @@
-// Pure reconciliation for the foreign-folder listing, extracted from useShareFiles so it
-// is unit-testable. The peer catalog read can transiently return an empty or partial snapshot
-// while the owner is still indexing; the worker tags each read complete:true|false and this
-// applies it without ever flashing the view empty:
+// Pure reconciliation for the foreign-folder listing. A peer catalog read can transiently return an
+// empty or partial snapshot while the owner is still indexing; the worker tags each read
+// complete:true|false and this applies it without ever flashing the view empty:
 //   - complete            → authoritative; adopt wholesale (adds, updates AND removals).
 //   - !complete & empty   → keep the current list (rows are un-replicated, not deleted).
 //   - !complete & partial → union by relPath, preferring the fresh row.
-// Both prev and next arrive sorted by relPath (the catalog read-stream is key-ordered), so the
-// partial-path merge is one O(n) two-pointer pass that returns the prev reference unchanged when
-// nothing moved — letting React skip the re-render.
-//
-// Identity matters as much as content: a row that did not change keeps its PREVIOUS object, so a
-// memoized row component can skip it. Content is still always the fresh row's — see adoptIdentity.
+// Both sides arrive sorted by relPath, so the merge is one two-pointer pass that returns the prev
+// reference when nothing moved. Identity matters as much as content: an unchanged row keeps its
+// PREVIOUS object so a memoized row can skip it — see adoptIdentity.
 
-// Every field toEntry (useShareFiles.ts) puts on a row EXCEPT relPath, which is the merge key and
-// is compared by the callers below.
-//
-// This list is the contract: a row is "unchanged" only if it is unchanged in every field the view
-// can render, because an unchanged row keeps its old object and its old values with it. Adding a
-// field to toEntry without adding it here means that field's updates are silently dropped — the
-// row keeps painting the stale value until one of the fields listed here happens to move.
-//
-// Live transfer progress is deliberately absent — not from this list, and not from the row at all.
-// It reaches the row component as its own prop, looked up per path from the decoration channel, so
-// a frame never touches the row object and this comparison never sees one. Merging it in would have
-// made every active row unequal on every frame and defeated the identity adoption this function
-// exists for.
+// Every field toEntry (useShareFiles.ts) puts on a row EXCEPT relPath (the merge key). This list is
+// the contract: an unchanged row keeps its old object AND its old values, so a field added to
+// toEntry but not here paints stale until some listed field moves. Live transfer progress is
+// deliberately absent from the row entirely — it reaches the row per path from the decoration
+// channel, so a frame never touches the row object and this comparison never sees one.
 function sameRow(a, b) {
   return a.size === b.size && a.hash === b.hash && a.mtime === b.mtime &&
     a.status === b.status && a.localPath === b.localPath &&

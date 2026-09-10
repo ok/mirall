@@ -16,7 +16,7 @@ export interface NotificationPrefs {
   events: NotificationEventPrefs
 }
 
-export const DEFAULT_PREFS: NotificationPrefs = {
+const DEFAULT_PREFS: NotificationPrefs = {
   enabled: true,
   sound: true,
   suppressWhenFocused: true,
@@ -30,8 +30,6 @@ export const DEFAULT_PREFS: NotificationPrefs = {
 }
 
 const LEGACY_STORAGE_KEY = 'mirall:notifications'
-
-const PREFS_LISTENERS = new Set<(prefs: NotificationPrefs) => void>()
 
 function migrateLegacy(): void {
   try {
@@ -73,12 +71,6 @@ export function getPrefs(): NotificationPrefs {
 
 export function setPrefs(next: NotificationPrefs): void {
   setNotificationPrefs(next)
-  PREFS_LISTENERS.forEach((cb) => cb(next))
-}
-
-export function onPrefsChange(cb: (prefs: NotificationPrefs) => void): () => void {
-  PREFS_LISTENERS.add(cb)
-  return () => { PREFS_LISTENERS.delete(cb) }
 }
 
 migrateLegacy()

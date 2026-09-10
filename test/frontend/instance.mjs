@@ -21,17 +21,6 @@ const REPO = path.resolve(import.meta.dirname, '../..')
 // exclude them by title to keep pid-based re-resolution on the main window.
 const NATIVE_PANEL_TITLES = new Set(['Open', 'Save'])
 
-// agent-desktop 0.8.x widened `list-windows`: one dev Electron app now reports the
-// real window plus ~8 helper windows that are titled "Electron", carry the same
-// pid, and are NOT exposed through accessibility (snapshotting one returns
-// ACTION_NOT_SUPPORTED). 0.4.x listed only the real window, so `launch()` could
-// take the last fresh entry and always land on it. Ordering across those entries is
-// not guaranteed, so the last fresh window is now sometimes a phantom — which is
-// why this presented as most-but-not-all scenarios failing at their first snapshot.
-// `visible` separates them cleanly: only the real window reports true. It is also
-// the property we actually depend on, since an off-screen or unpainted window has
-// no usable AX tree either.
-
 // Poll interval for the harness's own wait loops. Each iteration does a ~0.4s
 // snapshot, so the snapshot dominates and a tight sleep just trims dead time
 // between polls without spamming the AX system.
@@ -45,6 +34,7 @@ const PANEL_WAIT_MS = 7000
 async function mirallWindows() {
   const { data } = await ad(['list-windows'])
   return data
+    // `visible` is the property we depend on: helper windows share the pid and answer no AX query.
     .filter((w) => w.app_name === 'Electron' && w.visible === true && !NATIVE_PANEL_TITLES.has(w.title))
     .map((w) => ({ id: w.id, pid: w.pid }))
 }
@@ -117,16 +107,9 @@ export class Instance {
     return this
   }
 
-  // A window appears in list-windows as soon as the OS has it, but Chromium builds
-  // web-content accessibility lazily per renderer process, so for a short window it
-  // is listed, painted, and still unable to answer an AX query. agent-desktop 0.4.x
-  // papered over that by returning an empty tree — the scenarios' own waitText loops
-  // absorbed it — while 0.8.x fails the snapshot outright with ACTION_NOT_SUPPORTED
-  // ("exists but is not exposed through accessibility"). It is a race, not a hard
-  // break: on a fast launch the renderer wins and the scenario passes, which is why
-  // it presents as most-but-not-all scenarios failing at their first step. Block
-  // here until the window actually answers, so every scenario starts from a window
-  // that is known to be drivable.
+  // Chromium attaches a renderer's AX tree lazily, so a window can be listed and painted a beat
+  // before it answers an AX query (ACTION_NOT_SUPPORTED). Block until it does, so every scenario
+  // starts from a window that is known to be drivable.
   async _waitForAx(timeout = 30000) {
     const deadline = Date.now() + timeout
     let last = null
@@ -181,14 +164,9 @@ export class Instance {
     try {
       return await take()
     } catch (e) {
-      // agent-desktop reassigns a window's AX id when the renderer repaints/
-      // reloads, so a cached windowId can go stale mid-scenario even though the OS
-      // window is still there under the same pid. It surfaces two ways: the old id
-      // is gone (WINDOW_NOT_FOUND), or it still resolves to a husk that answers no
-      // AX query (ACTION_NOT_SUPPORTED) — which polling can never clear, because the
-      // live tree now hangs off a different id. Re-resolve by pid and retry once. A
-      // genuine crash (pid gone) still fails, and so does an id that is merely not
-      // ready yet, which the caller's own wait rides out.
+      // agent-desktop reassigns a window's AX id when the renderer repaints or reloads: the old id is
+      // gone (WINDOW_NOT_FOUND) or resolves to a husk that answers no AX query (ACTION_NOT_SUPPORTED),
+      // which polling can never clear. Re-resolve by pid and retry once; a real crash still fails.
       if ((e.code !== 'WINDOW_NOT_FOUND' && e.code !== 'ACTION_NOT_SUPPORTED') || !this.pid) throw e
       const match = (await mirallWindows()).find((w) => w.pid === this.pid)
       if (!match || match.id === this.windowId) throw e
@@ -221,14 +199,10 @@ export class Instance {
       try {
         return await this.ad(['click', ref])
       } catch (e) {
-        // agent-desktop 0.8.x separates semantic delivery (AXPress) from physical
-        // delivery (a real cursor click) and will not cross that line by itself:
-        // an element exposing no usable press action returns POLICY_DENIED instead
-        // of quietly falling back, which is what 0.4.x's activation chain did. A
-        // few of our controls only have the physical path (react-aria composites
-        // whose press handler sits on a wrapper node). Opt into it for exactly
-        // those, rather than running the whole suite --headed — the default stays
-        // cursor-free, and only the elements that need the pointer take it.
+        // Semantic delivery (AXPress) and physical delivery (a cursor click) are separate policies: an
+        // element with no usable press action returns POLICY_DENIED rather than falling back. Opt into
+        // --headed for exactly those elements (react-aria composites whose press handler sits on a
+        // wrapper), so the default run stays cursor-free.
         if (e.code !== 'POLICY_DENIED') throw e
         return await this.ad(['click', ref], { headed: true })
       }
@@ -302,17 +276,9 @@ export class Instance {
   // Case-insensitive: macOS AX reflects CSS text-transform, so uppercased badges
   // ("MIRRORED", "SHARED BY YOU") come through transformed.
   async waitText(substr, timeout = 30000) {
-    // NO native `wait --text` fast path. It used to be worth it for the
-    // single-window case (~0.13s vs a ~0.4s snapshot), but agent-desktop 0.8.x
-    // matches --text against an element's accessible NAME only, while the strings
-    // this suite asserts on are mostly static text — and macOS AX puts static-text
-    // content in `value`, not `name` (see tree.mjs). So the fast path silently
-    // stopped seeing headings and body copy: `wait --text "Settings"` still matched
-    // the nav BUTTON, while `wait --text "Manage your experience"` timed out on a
-    // Settings screen that demonstrably contained it. The snapshot loop below reads
-    // name + description + value via allText(), which is the behaviour every
-    // assertion here was written against, and it is what the multi-instance path
-    // already used — which is exactly why only single-instance scenarios broke.
+    // No native `wait --text` fast path: it matches an element's accessible NAME only, and static
+    // text lives in `value` on macOS AX (tree.mjs), so headings and body copy are invisible to it.
+    // The snapshot loop reads name + description + value via allText().
     const needle = substr.toLowerCase()
     const deadline = Date.now() + timeout
     let last = ''
@@ -451,21 +417,12 @@ export class Instance {
     await this.click({ name: 'Back' })
   }
 
-  // Drive a native NSOpenPanel (file or folder) belonging to THIS instance via
-  // Go-to-folder. The panel surfaces as a window titled "Open" with our pid.
-  //
-  // `trigger` is the action that asks the app for the panel (a menu accelerator
-  // press, or a "Browse…" click) and it is fired HERE rather than by the caller,
-  // because it can be swallowed and then has to be re-fired. A ⌘U / ⌘⇧U goes to
-  // whichever process is frontmost at that instant, so a sibling instance still
-  // finishing its launch or teardown can eat it, and the File-menu items behind
-  // those accelerators are `enabled: inSpace` — disabled, and therefore silently
-  // inert, until the renderer's menu:context-changed IPC has landed. Either way
-  // the panel never opens and no amount of extra waiting produces one: measured
-  // on an idle machine, a panel that is coming takes ~1.6s, and 12/12 tries hit
-  // it, so a multi-second wait that comes back empty means the trigger was LOST,
-  // not late. Re-fire it instead of stretching the deadline (testing.md §5) —
-  // re-firing is safe precisely because it only happens while NO panel is up.
+  // Drive a native NSOpenPanel (file or folder) belonging to THIS instance via Go-to-folder; it
+  // surfaces as a window titled "Open" with our pid. `trigger` is fired HERE, not by the caller,
+  // because it can be LOST: an accelerator goes to whichever process is frontmost, and the File-menu
+  // items behind ⌘U / ⌘⇧U are inert until menu:context-changed lands. A panel that is coming takes
+  // ~1.6 s, so a multi-second empty wait means the trigger was lost, not late — re-fire it (safe:
+  // only while NO panel is up) instead of stretching the deadline.
   async nativeChoosePath(absPath, { trigger = null } = {}) {
     const findPanel = async () => (await ad(['list-windows'])).data.find(
       (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
@@ -707,16 +664,10 @@ export class Instance {
     return file
   }
 
-  // Reap the whole detached process group and WAIT for it to actually exit.
-  // Graceful (default): SIGTERM lets Electron's before-quit tear the worker swarm
-  // down cleanly (~3-5s); if the group is still alive after the grace window — a
-  // wedged renderer or a worker stuck on a busy loop — escalate to SIGKILL. Fire-
-  // and-forget SIGTERM (the old behaviour) let the next scenario launch while two
-  // Electron apps + workers were still shutting down, and over a full run those
-  // overlapping teardowns piled up until a fresh worker's IPC no longer came up in
-  // time (the "IPC timeout" failures). `hard:true` SIGKILLs immediately — a
-  // crash / force-quit that interrupts an in-flight publish/transfer with no
-  // graceful shutdown, which is exactly what the restart-recovery scenarios need.
+  // Reap the whole detached process group and WAIT for it to exit: SIGTERM lets before-quit tear the
+  // swarm down (~3-5 s), then SIGKILL if the group is still alive. Overlapping teardowns from a
+  // fire-and-forget stop starve the next scenario's worker IPC. `hard:true` SIGKILLs immediately —
+  // the crash the restart-recovery scenarios need.
   async _stopProcess({ hard = false } = {}) {
     const proc = this.proc
     this.proc = null

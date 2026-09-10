@@ -1,150 +1,31 @@
-# Layout harness (`npm run test:layout`)
+# Layout harness (`npm run test:layout*`)
 
-A **real-Chromium layout test**, complementary to the agent-desktop suite in
-`test/frontend/` (which drives the AX tree and can't read pixel layout).
+Real-Chromium layout tests, complementary to `test/frontend/` (which drives the AX tree and cannot
+read pixel layout). Each runner mounts REAL components inside the real app-shell wrappers with the
+real built `app.css`; `window.bridge` is faked (`fake-bridge.js`) so `ipc.ts`, the hooks and the
+components run unmodified. `harness-bootstrap.ts` gives every harness the query store's transport.
 
-It mounts the **real** `<FolderView>` inside the **real** app-shell wrappers
-(`min-h-screen` root + `<main>` top-padding + the screen's
-`h-[calc(100vh-5rem-var(--banner-h))]`, which sum to exactly the viewport), with
-the **real** built `app.css`. `window.bridge` is faked (see `fake-bridge.js`) so
-`ipc.ts`, the hooks, and the components all run unmodified — the fake just plays
-the worker end of the bridge and lets the test push `share-file-progress` /
-`share-files-updated` events.
+| `npm run` | Runner | Mounts | Invariant |
+|---|---|---|---|
+| `test:layout` | `run.mjs` | `<FolderView>` under the mirror-download re-render storm | the document never scrolls |
+| `test:layout:members` | `run-members.mjs` | `<SpaceView>` Members box, small + large roster | small hugs its content; large caps at the column and scrolls inside |
+| `test:layout:approval` | `run-approval.mjs` | `<SpaceView>` with a pending join request | the in-flight affordance renders while approve/deny is pending |
+| `test:layout:dropoverlay` | `run-dropoverlay.mjs` | the full-bleed Drop-to-Share overlay | covers the pane edge to edge at the shipped inset |
+| `test:layout:sharecard` | `run-sharecard.mjs` | `<ShareCard>` | the whole card is the hit area; actions stay inside it |
+| `test:layout:progress` | `run-progress.mjs` | progress lanes | ARIA valuenow/valuetext follow the lane's mode |
+| `test:layout:peerdownload` | `run-peerdownload.mjs` | `<PeerDownloadIndicator>` + `<PeerDownloadRow>` at lane width | meta un-clipped; bar right-aligned; name yields before `speed · ETA`; % fallback during warmup |
+| `test:layout:filecard` | `run-filecard.mjs` | three `<FileCard>`s + `<ToastContainer>` | a failed row keeps the resting height; toasts grow to the 720px cap |
+| `test:layout:modaltitle` | `run-modaltitle.mjs` | confirm modals with long names | the title never overflows the panel |
+| `test:layout:logohover` | `run-logohover.mjs` | `<TopNav>` | the logo never greys out on hover |
+| `test:layout:mirrorers` | `run-mirrorers.mjs` | `<FolderPeopleCard>` | facepile cap + "+N"; ring colour encodes state; toggle flush right |
+| `test:layout:indexing` | `run-indexing.mjs` | `<FolderTree>` owner mid-index, member waiting | the indexing label matches the role |
+| `test:layout:memo` | `run-memo.mjs` | a memoized list under the 1 Hz heartbeat | rows whose props did not change do not re-render |
+| `test:layout:spaceoverflow` | `run-spaceoverflow.mjs` | `<SpaceView>` with more rows than the pane | the document never scrolls |
+| `test:layout:stickyheader` | `run-stickyheader.mjs` | `<SpaceView>` with both sections overflowing | pinned headers sit flush on the scrollport; the top control keeps ring room |
+| `test:layout:focusring` | `run-focusring.mjs` | `<FolderView>` | every focusable control's ring is unclipped |
+| `test:layout:truncation` | `run-truncation.mjs` | `<PathRow>` + `<FileName>` in a narrow field | exactly one run truncates; nothing overflows |
+| `test:layout:segments` | `run-segments.mjs` | `<SegmentedControl>` in its three shapes | the track and every segment keep their size across selections |
 
-It then reproduces the mirror-download **re-render storm** and, each frame,
-checks whether the **document** (not the inner list) can be scrolled — i.e.
-whether an OS-level scrollbar appears over empty space. The shell is a
-fixed-viewport surface, so the document must never scroll.
-
-## What it caught
-
-A mirrored folder mid-download grew the document by ~24px and showed a flickering
-OS scrollbar. Cause: the per-row `sr-only` status spans (`position:absolute`) had
-**no positioned ancestor**, so they anchored to the initial containing block
-(`<html>`) and the list's `overflow-y-auto` couldn't clip them — rows scrolled
-below the fold dropped a 1px sr-only span past the viewport bottom. Fix: give the
-file-list scroll pane `position: relative` so it contains (and clips) them.
-
-## Members panel (`npm run test:layout:members`)
-
-A second scenario sharing the same plumbing. It mounts the **real** `<SpaceView>`
-(same shell wrappers, same faked bridge — extended with the few extra routes
-`SpaceView`'s hooks call) in a deliberately **tall** window, expands the Members
-box, and measures the expanded card against its sidebar column:
-
-- **small roster** — the card must *hug its content*: there must be real empty
-  space between the card's bottom and the column's bottom (`gapBelow`), and the
-  list must not be scrolling internally.
-- **large roster** (grown via `member-joined` events) — the card must *cap* at
-  the column height (`gapBelow ≈ 0`) and the list must scroll **inside** it.
-
-### What it caught
-
-The expanded Members card stretched to the bottom of the screen even with two
-members — `flex-1` on the `CollapsibleCard` fill root forced it to consume all
-remaining column height. Removing `flex-1` from the root (and switching the inner
-content wrapper + list region from `flex-1`, i.e. flex-basis `0`, to flex-basis
-`auto`) lets the card size to its content while still shrinking + scrolling when
-the roster overflows.
-
-## Peer-download serve UI (`npm run test:layout:peerdownload`)
-
-Mounts the **real** `<PeerDownloadIndicator>` (collapsed, at the shipped `basis-56` /
-224px lane width) and `<PeerDownloadRow>` — the sender-side "who is downloading my
-file" UI. It asserts the collapsed meta shows `count · speed · ETA` **un-clipped** at
-lane width (and its `aria-valuetext` carries the same tokens), that the per-peer row
-puts the name on the left and **right-aligns the avatar + bar** so the bar hugs the
-row's right edge at ~half width with `speed · ETA` above it (measured via
-`getBoundingClientRect`), that under width pressure the **name** yields while the
-`speed · ETA` stays whole (measured via `scrollWidth`/`clientWidth`, which is why it
-needs real Chromium + real fonts, not the AX tree), and that the row shows a
-**percentage fallback** instead of a blank during speed warmup.
-
-## FileCard error state + toast width (`npm run test:layout:filecard`)
-
-Mounts three **real** `<FileCard>`s — at rest, failed (`TRANSFER_DISK_FULL`), and
-failed with a long error + long file name — plus the **real** `<ToastContainer>`
-with a short and a long message. It asserts a failed row keeps **exactly** the
-resting row height (the error text must ride the existing meta line, not add a
-third text row) while the error stays visible, announced (`role="alert"`), and
-inside the card bounds; and that a long toast message grows the toast to its
-**720px cap** while a short one hugs its content at the 280px floor.
-
-### What it caught
-
-The failed row rendered the error as an extra `<p>` under the meta line, growing
-the card from 88px to 100px; and the toast capped at 480px, wrapping long
-disk-full messages (which embed file names) to three cramped lines.
-
-## Space-screen document overflow (`npm run test:layout:spaceoverflow`)
-
-The twin of the FolderView scenario above, for `<SpaceView>`. Mounts the **real**
-screen with five folder shares and two loose files — more rows than the pane is
-tall — and asserts the **document** never becomes scrollable, at rest and with the
-list scrolled to its end.
-
-### What it caught
-
-The same bug class as the FolderView scenario, one screen over: the space list
-pane was not `relative`, so the `position:absolute` `sr-only` name spans inside
-rows below the fold resolved against the **grid** instead. Removing that grid's
-`overflow-hidden` (to stop it shaving focus rings off the cards) left nothing to
-clip them, and two 1px spans grew the document by 171px — an OS scrollbar down
-the side of the window. Fix: `relative` on the pane, as FolderView already does.
-
-## Space-screen sticky headers (`npm run test:layout:stickyheader`)
-
-Mounts the **real** `<SpaceView>` with both sections overflowing, scrolls the
-list so rows pass behind the pinned "Folders Shared" / "Files Shared" headers,
-and asserts each pinned header sits flush on the scrollport — no band above it
-in which a row stays visible — while the topmost control still has `ring-2`'s
-room at rest.
-
-### What it caught
-
-A 4px slice of the card scrolling behind "Folders Shared" stayed visible above
-the heading, so the list looked cut off mid-row. Chromium pins a `sticky top-0`
-box at the scrollport top **plus the scroll container's own `padding-top`**, and
-the pane carried `pt-1` (with a cancelling `-mt-1`) as room for a focused card's
-ring — 4px the header could never cover. That ring room was dead weight there:
-the first control sits 52px down, below the header's own bottom padding. Fix:
-drop the pane's top padding; the horizontal `-mx-1 pl-1 pr-1` room stays.
-
-## Segmented-control width stability (`npm run test:layout:segments`)
-
-Mounts the **real** `<SegmentedControl>` in the three shapes the app ships
-(text-only, icon + text, and a wrapping multi-row group), clicks every segment in
-turn and asserts the track — and each segment inside it — keeps exactly the same
-size, while the pressed label still paints bolder than the rest. That second half
-matters: without it the harness would pass on a control that simply stopped
-marking its selection.
-
-### What it caught
-
-Selecting a transfer cap resized the whole pill under the pointer. The selected
-segment is `font-semibold` and the rest `font-medium`, so each press widened one
-label and narrowed its neighbour — ~1px on the track per click, and the segment
-you were aiming at moved. Fix: each label renders twice in one grid cell, the
-visible copy plus an `invisible font-semibold` ghost, so every segment is always
-as wide as it will be when selected. Only real Chromium can see this — jsdom has
-no glyph widths and the AX tree the agent-desktop suite drives has no geometry.
-
-## Run
-
-```
-npm run test:layout              # FolderView document-overflow scenario
-npm run test:layout:members      # SpaceView Members-panel sizing scenario
-npm run test:layout:peerdownload # Peer-download serve-UI (meta clip + % fallback)
-npm run test:layout:filecard     # FileCard error-state height + toast width cap
-npm run test:layout:spaceoverflow # SpaceView document-overflow scenario
-npm run test:layout:stickyheader # SpaceView pinned section-header coverage
-npm run test:layout:segments     # SegmentedControl width stability across selections
-node test/frontend-layout/run.mjs --no-build          # reuse the existing bundle
-node test/frontend-layout/run-members.mjs --no-build   # reuse the existing bundle
-```
-
-Exit code `0` = the scenario's invariant held. On failure each runner prints the
-measured metrics so the contributor is self-evident.
-
-**Local/dev-machine only** — they spawn a real (hidden) Electron GUI process, like
-`npm run test:fe`. Headless CI can't run them.
+Append `--no-build` to any runner to reuse the existing bundle. Exit `0` = the invariant held; on
+failure each runner prints the measured metrics. **Local/dev-machine only** — they spawn a real
+(hidden) Electron GUI process, like `npm run test:fe`; headless CI cannot run them.

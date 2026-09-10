@@ -39,9 +39,9 @@ export const CANARY = {
 // verdict is ready when dhtReady is. This short window only covers a consensus still
 // forming and gives the canary room to confirm.
 export const NAT_SETTLE_MS = 5000
-export const DHT_FAILURE_MS = 45000
-export const MIN_ROUTING_TABLE = 8
-export const MIN_EXHAUSTED_PEERS = 1
+const DHT_FAILURE_MS = 45000
+const MIN_ROUTING_TABLE = 8
+const MIN_EXHAUSTED_PEERS = 1
 export const BLOCKED_DWELL_MS = 20000
 // Consecutive liveness-probe failures before the network counts as gone.
 export const LIVENESS_FAILURES_FOR_OFFLINE = 2
@@ -88,10 +88,6 @@ export function routableAddressKind(interfaces) {
     }
   }
   return sawTunnel ? 'tunnel-only' : 'none'
-}
-
-export function hasRoutableAddress(interfaces) {
-  return routableAddressKind(interfaces) !== 'none'
 }
 
 function verdictRank(verdict) {

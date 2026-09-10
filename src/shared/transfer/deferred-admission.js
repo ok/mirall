@@ -7,9 +7,8 @@
 import { getSpace, listSpaces, listJoinRequests, getConvergingMember } from '../spaces/space.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
 
-// 'spaceId:joinerKey' currently being admitted via reconcile. Exists only to keep a concurrent
-// trigger from starting a second identical pass. readmitInflight is declared with its own function
-// further down, where the block already had it.
+// 'spaceId:joinerKey' currently being admitted via reconcile, so a concurrent trigger cannot start
+// a second identical pass.
 const pendingAdmitInflight = new Set()
 
 let getGates = () => null

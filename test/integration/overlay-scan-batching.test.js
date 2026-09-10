@@ -9,8 +9,7 @@ import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { ownCatalog, listOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
@@ -18,7 +17,7 @@ async function bootOverlay (t) {
   const ctx = await freshPeer(t)
   initContentBackendOverlay(ctx.fake.ipc)
   serveIndex.reset()
-  await overlayBackend.init()
+  await initOverlay()
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()

@@ -1,6 +1,6 @@
 // Which authenticated identities ride which content socket.
 //
-// Extracted from content-swarm so the teardown rule is testable without a live swarm: "drop the
+// Kept apart from content-swarm so the teardown rule is testable without a live swarm: "drop the
 // sockets this peer is authenticated on, leave every other socket alone". Both ways of getting it
 // wrong are costly — too lax and we keep streaming a space's bytes to a peer that left it; too
 // eager and we kill a healthy transfer for a peer we still share another space with.

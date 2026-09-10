@@ -1,26 +1,13 @@
-// The app's one-shot install migrations as one ordered list, plus the runner that walks it.
-//
-// Each entry keeps its OWN durable marker and its own idempotence, deliberately — a runner that
-// stamped a flag of its own on every non-throwing pass would break three of the four:
-//   - local-bees-encrypt re-keys every local metadata bee, including the very bee a shared flag
-//     table would have to live in, so its marker cannot live there. It is a file, on purpose.
-//   - catalogs-encrypt closes its global marker only once EVERY space is done and deliberately
-//     defers a space whose content key has not arrived yet, retrying it on later boots. A flag
-//     written on a successful-but-deferred pass would strand that space's catalog in plaintext.
-//   - overlay-index-encrypt reports whether it moved anything, which is what arms the caller's
-//     post-migration compaction.
-//
-// What this list owns instead is ORDER and POSITION, which were previously carried only by where
-// the composition root happened to call each one — so adding a migration that must precede another
-// meant reading all four to find out. `stage` names the boot constraint each one really has:
-//
+// The app's one-shot install migrations as one ordered list, plus the runner that walks it. This
+// list owns ORDER and STAGE only; each entry keeps its OWN durable marker and idempotence, because
+// local-bees-encrypt re-keys the very bee a shared flag table would live in, catalogs-encrypt
+// closes its marker only once EVERY space is done (a space whose content key has not arrived is
+// deferred to a later boot), and overlay-index-encrypt reports whether it moved anything, which
+// arms the caller's compaction. `stage` names the boot constraint:
 //   durable     after the master secret is resolved and BEFORE any local bee is opened.
-//   content     after the durable tier, before the initial publish scans and before the overlay
-//               backend opens its index.
+//   content     after the durable tier, before the initial publish scans and the overlay index.
 //   background  after the swarm is up, and never awaited — nothing here may block boot.
-//
-// `id` is this list's own name for a migration, not a durable key: the durable keys are the frozen
-// markers inside each module and must never change.
+// `id` is this list's own name, not a durable key: the durable keys are frozen inside each module.
 import { migrateLocalBeesToEncrypted } from './metadata-migration.js'
 import { reclaimLegacyPeerCaches } from './legacy-peer-cache.js'
 import { migrateCatalogsToEncrypted } from '../shares/migrate-catalog-encrypt.js'
@@ -35,11 +22,9 @@ export const MIGRATIONS = Object.freeze([
   { id: 'legacy-peer-cache', stage: 'background', run: () => reclaimLegacyPeerCaches() },
 ])
 
-// Runs one stage in list order and returns each migration's own result by id. Never throws: a
-// migration that fails leaves its marker unwritten and retries at the next boot, which is the
-// property every one of them already had individually and the one thing unifying them must not
-// lose. A failure must not stop the stage either — that is what the per-migration guard the
-// composition root used to write four times over is for.
+// Runs one stage in list order and returns each migration's own result by id. Never throws, and a
+// failure never stops the stage: a migration that fails leaves its marker unwritten and retries at
+// the next boot.
 export async function runMigrations(stage, { log } = {}) {
   const results = {}
   for (const migration of MIGRATIONS) {

@@ -1,7 +1,7 @@
 // General settings: minimize-to-tray and open-at-login toggles persisted via main's app prefs.
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { usePrefs } from '../store/usePrefs.js'
+import { useMainQuery } from '../store/useMainQuery.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import Toggle from '../components/primitives/Toggle.js'
@@ -12,7 +12,7 @@ interface GeneralSettingsProps {
 
 export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
   const { t } = useTranslation()
-  const { prefs, update } = usePrefs()
+  const { data: prefs, patch: update } = useMainQuery('main:prefs')
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const isMac = window.bridge.getPlatform() === 'darwin'
   const introKey = isMac ? 'generalSettings.introMac' : 'generalSettings.intro'

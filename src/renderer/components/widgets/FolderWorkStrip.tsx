@@ -122,13 +122,9 @@ export default function FolderWorkStrip({ strip, ownerName, onAction }: FolderWo
       </span>
       {showLane && (
         <span className="basis-40 shrink-0">
-          {/* No ETA token: this lane never resolves one. Indexing cannot have a percentage at all
-              (the queue is still growing while the disk walk discovers files, so a denominator
-              would move), and a mirror is indeterminate only when the listing is truncated — both
-              are unmeasurable, not warming up, so "Estimating…" promised a number that never came.
-              The sentence to the left already carries the verb and a live countdown. An
-              indeterminate bar drops aria-valuenow per the ARIA contract, so the valuetext says
-              what the missing number means. */}
+          {/* No ETA on this lane: indexing has no denominator (the walk is still discovering files)
+              and a truncated mirror listing is unmeasurable, not warming up. The sentence carries the
+              verb and countdown; an indeterminate bar drops aria-valuenow, so valuetext says why. */}
           <DownloadProgressLane
             value={data?.pct ?? 0}
             label={t(data?.kind === 'mirroring' ? 'file.downloadProgress' : 'file.indexingProgress')}

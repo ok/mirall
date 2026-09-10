@@ -8,17 +8,8 @@ import { ANY_SHARES } from '../store/scopes.js'
 import type { OwnedMountRow, OwnedMountState } from '../ownedMount.js'
 import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types.js'
 
-export type { OwnedMountState } from '../ownedMount.js'
-
-// One read, one entry, one policy. This projects the SAME store entry useShares subscribes to, so
-// SpaceView's badge and FolderView's fault strip cannot disagree about a folder: they are two
-// projections of one value, not two reads of one worker. The hand-rolled second read this replaces
-// had no sequence fence, so two concurrent list-all reads resolved in arrival order — a slow
-// mount-point-gone read landing after a fast active one painted "Source folder is missing" over a
-// healthy, actively scanning folder, and it stayed until the next mount-status event.
-//
-// No event subscription: owned mount-status transitions are mapped to the shares scope worker-side,
-// so the one reconcile bridge invalidates this entry and the store refetches behind its fence.
+// Same store entry as useShares: one value, two projections, one fence — SpaceView's badge and
+// FolderView's fault strip cannot disagree. Re-derives on the shares scope (README.md).
 export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
   const enabled = Boolean(spaceId && shareId)
   // Not `loading`: ownedMountSettled carries that reasoning, and not taking the flag at all is
@@ -37,7 +28,7 @@ export async function validateOwnedMount(mountPath: string, shareId?: string): P
 
 let previewSeq = 0
 
-export interface OwnedPreviewHandle {
+interface OwnedPreviewHandle {
   previewId: string
   result: Promise<ScanPreview>
 }

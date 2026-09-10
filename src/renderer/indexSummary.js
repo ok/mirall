@@ -6,9 +6,8 @@
 // disagree: a queued file has no catalog entry yet, so it has no row to count. That gap is the whole
 // reason this notice exists, so the numbers must never be presented as the same measurement.
 //
-// `adding` and `bytesQueued` are PUBLISH work only. The queue carries retires too — a delete is
-// enqueued with the departing file's size — and counting those made removing a folder read as
-// "Adding 300 files to this folder", the same class of mislabelling the indexing pills just fixed.
+// `adding` and `bytesQueued` are PUBLISH work only: the queue carries retires too (a delete is
+// enqueued with the departing file's size), and a retire is not an addition.
 
 const count = (n) => (Number.isFinite(n) && n > 0 ? n : 0)
 

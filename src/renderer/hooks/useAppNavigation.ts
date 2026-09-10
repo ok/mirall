@@ -10,10 +10,8 @@ export interface AppNavigation {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
-  activityLogBackTarget: string
   activityLogPreset: Partial<AuditFilters> | null
   setCurrentScreen: Dispatch<SetStateAction<string>>
-  setSelectedSpaceId: Dispatch<SetStateAction<string | null>>
   setSelectedShare: Dispatch<SetStateAction<ShareWithRole | null>>
   navigateToSpace: (spaceId: string) => void
   openSettings: () => void
@@ -118,10 +116,8 @@ export function useAppNavigation(): AppNavigation {
     preSettingsScreen,
     preAccountScreen,
     storageBackTarget,
-    activityLogBackTarget,
     activityLogPreset,
     setCurrentScreen,
-    setSelectedSpaceId,
     setSelectedShare,
     navigateToSpace,
     openSettings,

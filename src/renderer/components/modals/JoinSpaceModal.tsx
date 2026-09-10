@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
-import { decodeInvite, extractInviteCode } from '../../invite-envelope.js'
+import { decodeInvite, extractInviteCode } from '../../../shared/contract/invite-envelope.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'

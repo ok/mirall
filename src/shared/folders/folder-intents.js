@@ -1,8 +1,6 @@
 // The reconcilers for every folder flow that writes to more than one bee: what the next boot runs
 // against an intent record a crashed process left behind. They live here rather than in the
-// composition root so the tests that assert them exercise the shipped reconciler instead of a copy
-// re-declared in the test file — which is what made the highest-consequence branch below (the
-// "the mount did land" guard) untested.
+// composition root so the tests exercise the shipped reconciler, not a copy in the test file.
 //
 // Every one is idempotent, because recover() may run a reconciler that already half-succeeded.
 import { deleteOwnedMount, getOwnedMount } from './mount-store.js'

@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import z32 from 'z32'
 import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
-import { encodeTicket, parseRelayInput, TICKET_CHARS, TICKET_PREFIX } from '../../src/shared/transfer/relay-ticket.js'
+import { _encodeTicketForTests, parseRelayInput, TICKET_CHARS, TICKET_PREFIX } from '../../src/shared/transfer/relay-ticket.js'
 
 // The frozen vector from the relay↔client contract §2.5, duplicated verbatim in
 // mirall-relay. If this fails, one of the two repos has drifted and the invite format is
@@ -20,7 +20,7 @@ test('the pinned vector encodes exactly', (t) => {
   t.is(idEncoding.encode(crypto.keyPair(RELAY_SEED).publicKey), RELAY_KEY)
   t.is(idEncoding.encode(crypto.keyPair(MEMBER_SEED).publicKey), MEMBER_KEY)
 
-  const payload = encodeTicket(crypto.keyPair(RELAY_SEED).publicKey, MEMBER_SEED)
+  const payload = _encodeTicketForTests(crypto.keyPair(RELAY_SEED).publicKey, MEMBER_SEED)
   t.is(payload.length, TICKET_CHARS)
   t.is(payload, PAYLOAD, 'the wire format is frozen — a mismatch here is a contract break')
 })

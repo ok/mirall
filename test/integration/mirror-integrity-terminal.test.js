@@ -3,7 +3,7 @@ import { setupSelfMirror } from '../helpers/owned.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { runMaterializeTick, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
 import { isTerminalFault } from '../../src/shared/transfer/backends/overlay/fetch-policy.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 // REGRESSION (FIX-MIRROR-CHECKSUM): a holder serving bytes that fail their advertised hash was
 // re-downloaded by the mirror on every 30s tick and every catalog append, forever. integrity-seen
@@ -24,7 +24,7 @@ function badHolder (t, { code = 'EHASHMISMATCH' } = {}) {
 }
 
 test('the shared rule calls a checksum failure terminal', (t) => {
-  t.ok(isTerminalFault(ErrorCodes.TRANSFER_CHECKSUM))
+  t.ok(isTerminalFault(CODES.TRANSFER_CHECKSUM))
 })
 
 test('REGRESSION (FIX-MIRROR-CHECKSUM): a bad holder is not re-fetched every tick', async (t) => {

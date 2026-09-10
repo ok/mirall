@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
 
@@ -76,10 +76,10 @@ const settle = () => new Promise((r) => setTimeout(r, 400)) // past the 250ms re
 
 // Guards every assertion below. The code travels to the renderer as a bare string and is mapped
 // there by literal (errorMessages.js), so this pins the wire contract — and, less obviously, keeps
-// the rest of this file honest: if the constant were missing, `ErrorCodes.TRANSFER_DEST_UNAVAILABLE`
+// the rest of this file honest: if the constant were missing, `CODES.TRANSFER_DEST_UNAVAILABLE`
 // would be undefined and each `t.is(<no error emitted>, undefined)` would pass vacuously.
 test('the destination-unavailable code is the exact string the renderer maps', (t) => {
-  t.is(ErrorCodes.TRANSFER_DEST_UNAVAILABLE, 'TRANSFER_DEST_UNAVAILABLE')
+  t.is(CODES.TRANSFER_DEST_UNAVAILABLE, 'TRANSFER_DEST_UNAVAILABLE')
 })
 
 // === Preflight: the folder is already gone when the download starts ===
@@ -99,7 +99,7 @@ test('REGRESSION (FIX-DLDIR-2: a download into a deleted folder reports the fold
   const res = await engine.start(job)
   await tick()
 
-  t.is(errorsIn(events)[0], ErrorCodes.TRANSFER_DEST_UNAVAILABLE, 'the specific code reaches the renderer')
+  t.is(errorsIn(events)[0], CODES.TRANSFER_DEST_UNAVAILABLE, 'the specific code reaches the renderer')
   t.is(fetches, 0, 'no bytes were requested for a folder that cannot receive them')
   t.ok(res.queued, 'start did not hand back a live transfer')
   t.absent(engine.has(job.transferId), 'no slot left registered')
@@ -107,7 +107,7 @@ test('REGRESSION (FIX-DLDIR-2: a download into a deleted folder reports the fold
   // Optional-chained on purpose: without the fix there is no row at all, and a TypeError here
   // aborts the whole file before the remaining cases get to report.
   const row = await getPendingFor(SPACE, job.pendingKey)
-  t.is(row?.errorCode, ErrorCodes.TRANSFER_DEST_UNAVAILABLE, 'the reason is durable, so a restart still explains it')
+  t.is(row?.errorCode, CODES.TRANSFER_DEST_UNAVAILABLE, 'the reason is durable, so a restart still explains it')
 })
 
 test('REGRESSION (FIX-DLDIR-2: a download folder replaced by a file is refused, not written through)', async (t) => {
@@ -122,7 +122,7 @@ test('REGRESSION (FIX-DLDIR-2: a download folder replaced by a file is refused, 
   await engine.start(makeJob(shadowed))
   await tick()
 
-  t.is(errorsIn(events)[0], ErrorCodes.TRANSFER_DEST_UNAVAILABLE, 'ENOTDIR-shaped case is the same fault to the user')
+  t.is(errorsIn(events)[0], CODES.TRANSFER_DEST_UNAVAILABLE, 'ENOTDIR-shaped case is the same fault to the user')
 })
 
 test('a healthy download folder is untouched by the preflight', async (t) => {
@@ -162,7 +162,7 @@ for (const code of ['ENOENT', 'ENOTDIR', 'EIO', 'EACCES']) {
     await engine.start(job)
     await tick()
 
-    t.is(errorsIn(events)[0], ErrorCodes.TRANSFER_DEST_UNAVAILABLE, `${code} classified by the folder, not the errno`)
+    t.is(errorsIn(events)[0], CODES.TRANSFER_DEST_UNAVAILABLE, `${code} classified by the folder, not the errno`)
   })
 }
 
@@ -185,7 +185,7 @@ test('a local-fs failure with the folder still present keeps its own classificat
   await engine.start(job)
   await tick()
 
-  t.is(errorsIn(events)[0], ErrorCodes.TRANSFER_PERMISSION, 'still a permission error, not a folder fault')
+  t.is(errorsIn(events)[0], CODES.TRANSFER_PERMISSION, 'still a permission error, not a folder fault')
 })
 
 // === The folder-share channel must let this code cross the wire ===
@@ -208,10 +208,10 @@ test('REGRESSION (FIX-DLDIR-2: the folder-share channel emits transfer-error for
     channel.emitError(job, code)
     return emitted.some(([name]) => name === 'event:transfer-error')
   }
-  t.ok(wired(ErrorCodes.TRANSFER_DEST_UNAVAILABLE), 'the code is in the cross-the-wire set')
-  t.ok(wired(ErrorCodes.TRANSFER_DISK_FULL), 'alongside disk-full')
-  t.ok(wired(ErrorCodes.TRANSFER_CHECKSUM), 'and the integrity failure')
-  t.absent(wired(ErrorCodes.DOWNLOAD_FAILED), 'and nothing else — a generic failure stays on the row')
+  t.ok(wired(CODES.TRANSFER_DEST_UNAVAILABLE), 'the code is in the cross-the-wire set')
+  t.ok(wired(CODES.TRANSFER_DISK_FULL), 'alongside disk-full')
+  t.ok(wired(CODES.TRANSFER_CHECKSUM), 'and the integrity failure')
+  t.absent(wired(CODES.DOWNLOAD_FAILED), 'and nothing else — a generic failure stays on the row')
 })
 
 // === Auto-resume suppression ===
@@ -232,7 +232,7 @@ test('REGRESSION (FIX-DLDIR-2: a dest-unavailable row does not re-fail on every 
   await recordPending(SPACE, job.pendingKey, {
     total: job.size, inPlace: false, ownerKey: OWNER, finalPath: job.finalPath,
     contentHash: HASH, bytesTransferred: 0, overlayShare: true, shareId: 'folder1', relPath: job.relPath,
-    errorCode: ErrorCodes.TRANSFER_DEST_UNAVAILABLE,
+    errorCode: CODES.TRANSFER_DEST_UNAVAILABLE,
   })
 
   await engine.resumeForOwner(OWNER, SPACE)

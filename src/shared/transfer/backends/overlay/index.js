@@ -1,11 +1,7 @@
-// The `overlay` content-backend: the 7-method contract over the HyperOverlayV2
-// instance + per-share catalog, plus the optional lifecycle hooks (init/attach/
-// teardown) the worker fans out to every backend. Only overlay implements them.
+// The `overlay` content-backend: the five-method contract over the HyperOverlayV2 instance and the
+// per-share catalog. Lifecycle (init/attach/teardown) is the OverlayBackend subsystem's, not this
+// object's; sweepPresence is the periodic backstop content-backends.js calls.
 import * as A from './overlay-backend.js'
-import { initOverlay, attachOverlay, teardownOverlay } from './overlay-instance.js'
-import { createLogger } from '../../../core/logger.js'
-
-const log = createLogger('overlay')
 
 export const overlayBackend = {
   mode: 'overlay',
@@ -19,19 +15,5 @@ export const overlayBackend = {
   // the test runner without printing an assertion — expensive to diagnose, trivial to avoid.
   catalogVersion: A.overlayCatalogVersion,
   requestDownload: A.overlayRequestDownload,
-  ensureRemote: A.overlayEnsureRemote,
-  releaseRemote: A.overlayReleaseRemote,
-
-  // lifecycle: the OverlayBackend subsystem drives init/attach directly; teardown is still
-  // fanned out by content-backends.js
-  async init() {
-    await initOverlay()
-    // re-registering owned files walks every owned file and chunk-maps
-    // it — don't block worker boot on it. Run in the background; the only cost is
-    // a brief post-boot window where a just-rehydrated file isn't servable yet.
-    A.rehydrateOwnedFiles().catch((err) => log.debug('overlay rehydrate failed:', err.message))
-  },
-  attach: attachOverlay,
-  teardown: teardownOverlay,
-  sweepPresence: A.overlaySweepPresence, // backstop, fanned out by sweepBackends
+  sweepPresence: A.overlaySweepPresence,
 }

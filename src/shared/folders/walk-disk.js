@@ -45,21 +45,13 @@ export async function countDiskFiles(root, ignore) {
   return count
 }
 
-// Enumerates the tree one directory at a time instead of in a single recursive readdir. The
-// recursive form returns nothing until the WHOLE tree has been read: on a large or slow mount that
-// is the longest phase of the pass, it reports no progress for its entire duration, and — being one
-// awaited syscall — the abort signal cannot reach it either. A pass whose supervisor recovers a
-// stall it cannot see is the worst of both: a healthy slow enumeration reads as wedged, and
-// abandoning it frees the key without stopping the walk, so the next pass enumerates the same mount
-// a second time, concurrently. Level by level, every directory is a checkpoint: the pass can say it
-// is still advancing, and a cancel can take effect between directories.
-//
-// A directory that cannot be read PROPAGATES, exactly as the recursive form does (measured: it
-// rejects with EACCES rather than skipping the subtree). Swallowing it would report every file
-// underneath as absent, and the reconcile diff turns absent into tombstones.
-//
-// Breadth-first over an index rather than a shifted queue: same order the recursive form produced,
-// without the O(n²) of shifting a large array.
+// One directory per await, BFS over an index (same order as a recursive readdir, without the O(n²)
+// of shifting a queue). Every directory is a checkpoint: progress is reported and the abort signal
+// is checked between directories, where a single recursive readdir is one un-interruptible syscall
+// that reports nothing until the whole tree is read — a slow enumeration then reads as wedged and a
+// recovery starts a second walk beside it. An unreadable directory PROPAGATES, as the recursive form
+// does (measured: EACCES rejects, it does not skip): swallowing it would report every file beneath
+// as absent, and the reconcile diff turns absent into tombstones.
 async function enumerateFiles(root, onProgress, signal) {
   const files = []
   const dirs = [root]

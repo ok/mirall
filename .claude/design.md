@@ -49,9 +49,9 @@ model: CSS custom properties define the palette, Tailwind maps them to
 ## 2. Color
 
 Defined in `src/renderer/styles/tailwind.css` (`:root` = light, `.dark` = dark),
-exposed as Tailwind utilities in `tailwind.config.js`. Full MD3 ramps exist for
-each key color (`-container`, `-fixed`, `-fixed-dim`, `-fixed-variant`,
-`on-*`). The most-used values:
+exposed as Tailwind utilities in `tailwind.config.js`. Only the ramp steps a component
+reaches for are defined — a new step is added with its consumer (see "Adding a new
+semantic token"), never ahead of it. The most-used values:
 
 ### Brand & surfaces — light
 
@@ -314,7 +314,7 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 `npm run test:layout:focusring` measures the invariant against the real screen.
 
 ### Buttons — `primitives/Button.tsx`
-Three variants only:
+Three variants — `primary`, `secondary` and `danger` (the last is described after the hover rules below):
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover`
 - **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`.
   Shared with the nav "Send feedback" button and used for Cancel/dismiss.
@@ -500,10 +500,13 @@ segments in a `rounded-xl` track, `font-bold` in both states — a different sha
 cannot jitter.
 
 ### Inputs
-No dedicated primitive — inputs are styled inline and consistently:
+No dedicated primitive yet — inputs are styled inline:
 `bg-surface-container-lowest` (or `-low`), `border-none rounded-xl px-4/5 py-4`,
 focus via the universal ring (a **ring**, not a border). See `screens/Onboarding.tsx`,
-`keyboard/CommandPalette.tsx`.
+`keyboard/CommandPalette.tsx`. The copies are **not** consistent: only `AddFolderShareModal`
+and `AddRelayModal` wire `aria-invalid` + `aria-describedby` on an invalid field. A new field
+belongs in a shared `TextField` primitive that owns the label / input / error trio, not in a
+thirteenth copy of the class string.
 
 ### Path field — `widgets/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same
@@ -585,9 +588,10 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
      state machine behind both — validate, scan, commit — is `hooks/useMountWizard.ts`.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
-- Progress modals (Leave / Reclaim / Clear cache) animate through
-  confirm → running (inline `ProgressBar`, `role="status" aria-live="polite"`,
-  close hidden) → done.
+- The one progress modal, `LeaveSpaceModal`, animates confirm → running → done. Its bar is
+  hand-rolled (`role="progressbar"`, the `bg-progress-track` / `bg-on-info` pair, plus the
+  `leave-progress-stripe` overlay once it reaches its 50 % cap) with the step label in a
+  `role="status" aria-live="polite"` line and the close button hidden while running.
 
 ### Toasts — `components/toast/`
 Bottom-center stack: `fixed inset-x-0 bottom-6 z-[60] flex flex-col items-center gap-2`,
@@ -618,15 +622,19 @@ affordances that are neither (a pending join request inside a space) are ordinar
 — see `widgets/JoinRequestBanner.tsx`, which despite its name is a card, not a banner.
 
 ### Cards — `components/cards/`
-All share `bg-surface-container-lowest hover:bg-surface-container-low dark:hover:bg-surface-container transition-colors`,
-**no border, no shadow**:
+Folder rows (`ShareCard`, `widgets/FolderTree`) rest on `bg-surface-container-low dark:bg-surface-container-lowest`;
+file rows (`FileCard`, `ShareFileRow`) on `bg-surface-container-lowest dark:bg-surface-container-low`;
+`SpaceCard` on `bg-surface-container-lowest`. All lift to `hover:bg-surface-container-highest` in both
+themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**:
 - **SpaceCard** — `p-5 rounded-2xl`; flat-color icon tile
   (`gradientForSpaceId`) + overlapping avatar stack (`-space-x-3`).
 - **ShareCard / FileCard** — `rounded-xl`, row layout, action buttons revealed on
   hover (`opacity-0 group-hover:opacity-100`). FileCard uses a container query
   (`@container/row`) to drop the status badge when narrow.
-- **MemberCard** — `flex items-center justify-between`, no hover lift; presence
-  shown via the avatar's status ring.
+- **MemberCard** — `flex items-center justify-between`, no hover lift; presence is a
+  12 px `bg-online` / `bg-offline` dot overlaid on the avatar's bottom-right corner
+  (`border-2 border-surface-container-low` to cut it out of the image), not `Avatar`'s
+  status ring.
 - Lists rely on spacing + surface tiers, **not dividers** — the one exception is
   `screens/StorageSettings.tsx` (`divide-y divide-surface-container-high/30`).
 
@@ -659,8 +667,9 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   and a mirrored folder (browse has the primary alone). No owner avatar: the People tile names them.
 - **Work strip** (`widgets/FolderWorkStrip.tsx`) — a full-width band *outside* the scroll pane,
   present only while the folder is working, paused or broken, so its height returns to the file pane
-  when it clears. One tone per condition (`bg-info/20` busy, `bg-warning/20` paused,
-  `bg-error-container` broken, `bg-surface-container-low` informational) and at most one verb.
+  when it clears. One tone per condition (`bg-info/20` busy, `bg-warning-container` paused — the
+  container pair, per §2 — `bg-error-container` broken, `bg-surface-container-low` informational)
+  and at most one verb.
 - **Controls row** (`widgets/FolderControlsRow.tsx`) — pinned directly above the first file row and
   never scrolling with it: the filter field (count and clear *inside* the field) plus Expand all.
 - **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
@@ -680,8 +689,10 @@ The transfer-row variant — `widgets/DownloadProgressLane.tsx` — adds a meta 
 while the ETA is still warming up (no stable rate yet). Indeterminate renders a
 40%-wide `on-info` segment that sweeps the track
 (`.progress-indeterminate`, keyframe below) and, per the ARIA progressbar contract,
-**drops `aria-valuenow`** while carrying the state in `aria-valuetext` (the
-"Estimating…" string). Determinate mode keeps `aria-valuenow` + the width fill.
+**drops `aria-valuenow`** while carrying the state in `aria-valuetext` — the ETA token when
+one is warming up (`format.etaEstimating`, "Estimating…"), else the caller's `indeterminateText`
+(`format.progressUnknown` for a strip that has no rate to estimate from, as `FolderWorkStrip`
+does). Determinate mode keeps `aria-valuenow` + the width fill.
 
 ### Collapsible card — `primitives/CollapsibleCard.tsx`
 `bg-surface-container-low rounded-2xl p-8`; header is a disclosure button carrying the
@@ -725,7 +736,7 @@ right-pointing chevron, so a closed row reads as "opens downward."
 ### Drop zone — `components/widgets/DropZone.tsx` + `DropOverlay.tsx`
 Resting zone: `border-2 border-dashed border-outline bg-surface-container-low rounded-2xl` —
 the "Drop to Share" title + "Share…" picker. A drag anywhere over the space-view content
-grid promotes it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-0 top-16`,
+grid promotes it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-8 top-16 z-20 rounded-2xl`,
 same dashed `border-secondary` + `bg-surface-container-high/90` tint as the legacy drag-over
 state, scaled up, with the file/folder icon + "Release to share …" subline). The resting
 zone crossfades out (`transition-opacity`) as the overlay fades in. Detection lives at the
@@ -734,7 +745,7 @@ use the "Share…" menu). Crossfade respects `prefers-reduced-motion`.
 
 ### Icons — `primitives/Icon.tsx`
 Inline **Material Symbols** SVG paths (`viewBox="0 -960 960 960"`,
-`fill="currentColor"`), outlined default with a filled subset, ~68 icons.
+`fill="currentColor"`), outlined default with a filled subset; the `IconName` union in `Icon.tsx` is the inventory.
 Default size 24. `aria-hidden` unless `ariaLabel` is provided. No icon font, no
 sprite sheet. File-type icon mapping lives in `src/renderer/fileIcon.js`.
 

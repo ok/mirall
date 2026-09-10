@@ -87,12 +87,9 @@ function MenuItemRow({ node, state, config, showSeparator }: {
 
 interface MenuPosition { top: number; right: number; maxWidth: number }
 
-// Measured from the already-mounted trigger. This runs synchronously for the initial
-// state, not only from the layout effect, so the popup renders its <ul> on the very
-// first render. react-aria's autoFocus effect fires once and then self-disables (as
-// soon as the collection is non-empty), so a first render that bailed out to `null`
-// burned it while menuRef was still empty — focus stayed on the trigger, and Escape,
-// which react-aria binds to the overlay's own onKeyDown, never reached a handler.
+// Measured synchronously for the initial state, not only from the layout effect, so the popup
+// renders its <ul> on the very first render: react-aria's autoFocus effect is one-shot, and a first
+// render that bails to `null` spends it while menuRef is still empty.
 function measurePosition(trigger: HTMLButtonElement | null, menuHeight = 0): MenuPosition | null {
   if (!trigger) return null
   const rect = trigger.getBoundingClientRect()
@@ -100,11 +97,9 @@ function measurePosition(trigger: HTMLButtonElement | null, menuHeight = 0): Men
   const edgeMargin = 16
   const right = Math.max(edgeMargin, window.innerWidth - rect.right)
   const maxWidth = window.innerWidth - right - edgeMargin
-  // Flip above the trigger when the popup would run past the bottom of the window. It only ever
-  // opened downward, so a trigger low in a scrolling pane (a relay row near the end of Settings ▸
-  // Network) pushed its last items — Remove, the destructive one — outside the window, where no
-  // pointer, key or assistive tech could reach them. menuHeight is 0 on the very first measure,
-  // before the <ul> exists; the layout effect re-measures with the real height before paint.
+  // Flip above the trigger when the popup would run past the bottom of the window (a trigger low in
+  // a scrolling pane). menuHeight is 0 on the first measure, before the <ul> exists; the layout
+  // effect re-measures with the real height before paint.
   const below = rect.bottom + gap
   const overflows = menuHeight > 0 && below + menuHeight + edgeMargin > window.innerHeight
   const top = overflows ? Math.max(edgeMargin, rect.top - gap - menuHeight) : below

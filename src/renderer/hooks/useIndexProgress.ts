@@ -19,7 +19,7 @@ interface IndexProgressEvent extends IndexStatus {
   ownerKey?: string
 }
 
-export interface IndexProgressSource {
+interface IndexProgressSource {
   /** Our own share: report locally and read the backstop. */
   own: boolean
   /** The share's owner. A peer frame is accepted only from them. */

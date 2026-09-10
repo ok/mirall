@@ -179,7 +179,7 @@ export function closeMemberView (spaceId) {
   releaseCaptures(spaceId)
   setDerivedRequests(spaceId, null)
   // Returned so the shutdown path can await it — the view holds peer-bee sessions the store
-  // must not close underneath. Every other caller drops the promise, as before.
+  // must not close underneath. Every other caller drops the promise.
   return Promise.resolve(entry.view?.close?.()).catch(() => {})
 }
 
@@ -307,13 +307,11 @@ export function isDeniedJoiner (spaceId, key) {
   return !!entry?.denied?.has(key) && !entry.pending?.has(key)
 }
 
-// Reconcile the derived set into space.members. Membership (add/remove) is decided exactly as
-// before: ADD members in the set we don't hold yet; REMOVE a held member only with positive
-// evidence of leaving (their bee was considered AND says not-a-member AND no live handshake
-// contradicts it) — mere absence never removes anyone → no flicker. What changes here is that each
-// member's IDENTITY (displayName/avatar/driveKey) is hydrated from the replicated profile bee as
-// well as from live swarm meta, so a member we have no live handshake with still shows their real
-// name + photo instead of "Unknown"/initials.
+// Reconcile the derived set into space.members. ADD what the fold holds and we do not; REMOVE a held
+// member only on positive evidence of leaving (their bee was considered AND says not-a-member AND no
+// live handshake contradicts it) — mere absence never removes anyone, so no flicker. Identity
+// (displayName/avatar/driveKey) is hydrated from the replicated profile bee as well as live swarm
+// meta, so a member we have no live handshake with still shows their real name and photo.
 async function reconcile (spaceId, members, considered) {
   // space.members is the OTHER members (the renderer shows self separately; every consumer
   // — warmKnownPeerDrives, cleanupSpaceDrives, isApprovedByPeers — skips self). The fold's

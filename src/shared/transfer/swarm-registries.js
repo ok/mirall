@@ -1,18 +1,13 @@
 // The swarm's shared indexes: who is connected, over which socket, on which topics. Every section of
 // swarm.js reads them, which is exactly why they belong to none of it.
 //
-// Extracted first, before the sections that use them. Measured, the shared registries were the bulk
-// of every remaining section's dependency list — presence needed 11 identifiers from the core and
-// deferred admission 10, of which four each were these Maps. Giving them a home is what makes those
-// sections cheap to move; doing it the other way round means threading Maps through injected
-// dependency objects and calling the result a decomposition.
-//
 // Exported bindings, not accessors: a Map's identity never changes, so importers mutate contents
 // through a stable reference. resetRegistries() is what a teardown calls instead of clearing each
-// one by hand — the reason destroySwarm knew about all of them.
+// one by hand.
 import { createAnnounceLedger } from './announce-ledger.js'
 
-// profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey> }
+// profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey>,
+//                looseCatalogKeys: Map<spaceId, { key, keyEnc }> }
 export const connectedPeers = new Map()
 // socket → Set<profileKey>  (reverse index for disconnect lookup)
 export const socketToPeers = new Map()

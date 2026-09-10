@@ -33,20 +33,16 @@ export function actorInitials(entry) {
   return letters.toUpperCase()
 }
 
-// A badge marks an EXCEPTIONAL row — only a denied or failed outcome qualifies, and it takes the
-// red token, which is that token's sanctioned meaning.
-//
-// Attribution tier deliberately does NOT badge. It did once, when tier C was rare; adding the
-// peer-observed kinds made it the common case for every "a peer did something" row, at which
-// point a badge on most rows is chrome rather than signal — and the sentence already names a peer
-// as the actor, so "REPORTED" restated what the row said. The tier stays on the record for the
-// export and the backend console, it just does not decorate the list.
+// A badge marks an EXCEPTIONAL row: only a denied or failed outcome, in the red token (that token's
+// sanctioned meaning). The attribution tier never badges — a peer-observed row is the common case,
+// so it would be chrome, and the sentence already names the peer. The tier stays on the record for
+// the export and the backend console.
 //
 // A connectivity row keeps outcome 'ok' — the vocabulary answers "did the described ACT succeed",
 // and a network state is not an act, so 'error' would render FAILED and read as a failed transfer.
 // Severity is keyed on the kind instead, reusing the SHIPPED connectivity strings so the log, the
 // status dot and the toast say the same word. Peer rows get none: a member closing a laptop is
-// routine, and by the rule above a badge on a routine row is chrome.
+// routine, and a badge on a routine row is chrome.
 const KIND_BADGE = {
   'network.offline': { labelKey: 'connectivity.offline', tone: 'error' },
   'network.blocked': { labelKey: 'connectivity.offline', tone: 'error' },
@@ -107,14 +103,10 @@ function shortKey(key) {
   return typeof key === 'string' && key ? key.slice(0, 12) : null
 }
 
-// A sentence is ONE translatable string, so interpolating it yields flat text and the entity
-// names inside it lose all emphasis — "You deleted the folder share Large Files" reads as prose.
-//
-// Rather than reach for <Trans> (which would rewrite all ~27 catalogue strings), the sentence is
-// interpolated with sentinels and split back apart. The translator keeps full freedom over word
-// order because we parse THEIR rendered output; and the sentinel is U+001F (unit separator),
-// which cannot occur in a display name, so the split can never be confused by a name that happens
-// to contain other punctuation — or by two fields sharing the same value.
+// A sentence is ONE translatable string, split back into parts around U+001F sentinels so the
+// entity names inside it can carry emphasis. Interpolate-then-split (not <Trans>) keeps the
+// translator's word order because we parse THEIR rendered output; U+001F cannot occur in a display
+// name, so a name containing punctuation or two fields sharing a value can never confuse the split.
 export const FIELD_SENTINEL = '\u001F'
 export const SENTENCE_FIELDS = ['actor', 'space', 'target']
 
@@ -145,8 +137,7 @@ export function splitSentence(rendered, values) {
   return segments
 }
 
-// One byte size means one string everywhere. This used to carry its own decimal-labelled,
-// binary-divided ladder, so the Activity Log read ~7.4% below every other screen for the same file.
+// One byte size means one string everywhere: formatSize.js owns the ladder, and eslint pins it.
 export function formatBytes(bytes, locale) {
   if (!Number.isFinite(bytes) || bytes < 0) return null
   return formatSize(bytes, locale)
@@ -172,10 +163,9 @@ function formatClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// The muted second line: space name first (it is the row's strongest context), then whatever detail
-// the kind carries. Returns STRUCTURED parts — `{ key, values }` for anything that needs
-// translating, `{ text }` for a value that is already a proper noun or a formatted number. It used
-// to return finished strings, which is how a hard-coded English ' files' shipped to five locales.
+// The muted second line: space name first (the row's strongest context), then the kind's detail.
+// Returns STRUCTURED parts — `{ key, values }` for anything translatable, `{ text }` for a proper
+// noun or a formatted number — never a finished string: the component translates.
 export function metaParts(entry, locale) {
   const parts = []
   if (entry.space?.name) parts.push({ text: entry.space.name })

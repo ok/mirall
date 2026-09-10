@@ -1,10 +1,10 @@
 // The swarm's read-only reporting surface: the snapshot builders that describe the live Hyperswarm
-// without changing it. Its only importer is swarm.js, which assembles them into the status object
-// the worker ships over IPC.
+// without changing it. swarm.js constructs it; connectivity.js reads the snapshots into the status
+// object the worker ships over IPC.
 //
 // A factory over accessors rather than plain functions: `swarm` is reassigned by initSwarm and
 // destroySwarm, so a value captured at import time goes stale, and threading the handle through
-// fourteen call sites would put it back in every caller's face.
+// thirteen call sites would put it back in every caller's face.
 //
 // Imports nothing from bare-*, deliberately: that is what lets this load under node and be unit
 // tested. The one impure value it reports — the hyperdht version — is read by swarm.js and passed in.

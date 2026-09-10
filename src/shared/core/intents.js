@@ -1,7 +1,6 @@
 // Durable intent log: a multi-step flow writes what it is about to do as its FIRST durable act and
 // deletes the record as its LAST, so a crash anywhere between them leaves something the next boot
-// can finish. The rule "durable fact first" was already stated independently at four sites, each
-// after its own bug; this is that rule as one mechanism instead of four.
+// can finish — "durable fact first" as one mechanism.
 //
 // No domain knowledge and no bare-* imports: the bee arrives as a dependency, so this unit-tests
 // under Node and the reconcilers live with the flows they complete.
@@ -9,7 +8,7 @@ export const INTENT_PREFIX = 'intent/'
 
 let seq = 0
 
-export function intentId(kind) {
+function intentId(kind) {
   return `${INTENT_PREFIX}${kind}/${Date.now()}-${seq++}`
 }
 

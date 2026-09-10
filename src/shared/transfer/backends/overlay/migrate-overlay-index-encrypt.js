@@ -105,6 +105,6 @@ function approxValueBytes(value) {
 async function purgePlaintextCore(store, nsPlain, name) {
   const core = nsPlain.get({ name, valueEncoding: 'binary' })
   await core.ready()
-  await clearAndPurgeCore(store, store.storage.db, core)
+  await clearAndPurgeCore(store, core)
   await purgeAlias(store, nsPlain.ns, name)
 }

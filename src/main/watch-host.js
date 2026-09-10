@@ -1,18 +1,15 @@
-// The single owner of chokidar in this process. Two watcher modules sit on it —
-// owned-folder-watchers (one recursive root per share) and loose-file-watchers (a scattered
-// set of individual files) — because the three things chokidar makes you learn were learned
-// once on the owned side and never carried across:
-//
-//   1. Native filesystem events do not reach a network mount, so a watch there emits nothing
-//      at all. A file on one silently stops re-publishing: no error, no badge, no log line.
-//   2. An erroring watcher otherwise spins for the life of the process.
-//   3. The option bag itself, which drifted between the two callers.
+// The single owner of chokidar in this process, shared by owned-folder-watchers (one recursive
+// root per share) and loose-file-watchers (scattered individual files). It owns the three things
+// every chokidar caller has to get right: a network mount emits no native events (watch it by
+// polling or not at all — a file there otherwise silently stops re-publishing, with no error, no
+// badge, no log line), an erroring watcher spins for the life of the process (the storm guard),
+// and the option bag (only `atomic` and `ignored` vary per caller, each carrying its reason at
+// the call site).
 //
 // Options are per-INSTANCE in chokidar, not per-path, so `usePolling` cannot vary within one
 // watcher. A host therefore holds up to two instances — native and polling — and routes each
 // target by looksLikeNetworkPath. The polling instance is created lazily, so a user with no
-// network paths pays nothing. Only `atomic` and `ignored` vary per caller; both carry their
-// reason at the call site.
+// network paths pays nothing.
 const chokidar = require('chokidar')
 
 const ERROR_WINDOW_MS = 10_000

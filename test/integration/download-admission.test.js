@@ -101,12 +101,12 @@ test('REGRESSION (FIX-DL-ADMIT): a reconnect backlog never exceeds the admission
   await engine.resumeForOwner(OWNER, SPACE)
   // Wait for the gate to fill rather than for a duration: the assertion is that it never fills
   // PAST the limit, which is checked continuously by the barrier's peak counter.
-  t.ok(await until(() => engine.admissionStats().held >= 2), 'the reconcile admitted its first jobs')
+  t.ok(await until(() => fetchSlotStats().held >= 2), 'the reconcile admitted its first jobs')
   await settle()
 
   t.is(fetches.peak, 2, 'only two fetches ran at once')
-  t.is(engine.admissionStats().held, 2, 'two slots held')
-  t.ok(engine.admissionStats().queued >= 1, 'the rest are parked on the gate, not running')
+  t.is(fetchSlotStats().held, 2, 'two slots held')
+  t.ok(fetchSlotStats().queued >= 1, 'the rest are parked on the gate, not running')
 
   // Drain: every job must still complete once slots free.
   for (let i = 0; i < 40 && fetches.started.length < 8; i++) { fetches.releaseAll(); await settle() }
@@ -127,7 +127,7 @@ test('a job cancelled while queued never reaches the fetch', async (t) => {
   t.ok(await until(() => fetches.started.length === 1), 'the first holds the only slot')
 
   await engine.start(queued)
-  t.ok(await until(() => engine.admissionStats().queued === 1), 'the second is parked')
+  t.ok(await until(() => fetchSlotStats().queued === 1), 'the second is parked')
   t.is(fetches.started.length, 1, 'and never reached the fetch')
 
   engine.cancel(queued.transferId)
@@ -148,7 +148,7 @@ test('an express job starts ahead of a queued bulk backlog', async (t) => {
   await engine.start(makeJob(ctx, 0))
   t.ok(await until(() => fetches.started.length === 1), 'the first job holds the only slot')
   for (let i = 1; i <= 4; i++) await engine.start(makeJob(ctx, i))
-  t.ok(await until(() => engine.admissionStats().queued === 4), 'the bulk backlog is parked behind it')
+  t.ok(await until(() => fetchSlotStats().queued === 4), 'the bulk backlog is parked behind it')
   t.is(fetches.started.length, 1, 'none of the backlog started')
 
   await engine.start(makeJob(ctx, 9, { express: true }))
@@ -168,7 +168,7 @@ test('a limit of zero restores the unbounded behaviour', async (t) => {
 
   for (let i = 0; i < 6; i++) await engine.start(makeJob(ctx, i))
   t.ok(await until(() => fetches.peak === 6), 'every job ran at once')
-  t.is(engine.admissionStats().queued, 0, 'nothing was gated')
+  t.is(fetchSlotStats().queued, 0, 'nothing was gated')
   fetches.releaseAll()
   await settle()
 })
@@ -205,15 +205,15 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
   await engine.start(makeJob(ctx, 1))
   t.ok(await until(() => fetches.started.length === 1), 'the first holds the slot')
   await engine.start(makeJob(ctx, 2))
-  t.ok(await until(() => engine.admissionStats().queued === 1), 'the second is parked on the gate')
+  t.ok(await until(() => fetchSlotStats().queued === 1), 'the second is parked on the gate')
 
   await teardownOverlay()
-  engine.drainAdmission()
+  drainFetchSlots()
   // A negative assertion, so it needs a real pause: the released waiter must NOT reach a fetch.
   await sleep(300)
 
   t.is(fetches.started.length, 1, 'the parked job abandoned instead of fetching')
-  t.is(engine.admissionStats().queued, 0, 'and nothing is left holding close() open')
+  t.is(fetchSlotStats().queued, 0, 'and nothing is left holding close() open')
 })
 
 // The cap used to be built inside createOverlayDownloadEngine, so the two engines the overlay

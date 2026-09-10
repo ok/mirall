@@ -2,10 +2,10 @@ import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getInitials } from '../../utils.js'
 
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-export type AvatarRing = 'none' | 'surface-container-lowest' | 'surface-container-low' | 'status'
-export type AvatarStatus = 'ok' | 'connecting' | 'offline'
-export type AvatarFallback = 'initials' | 'silhouette'
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+type AvatarRing = 'none' | 'surface-container-lowest' | 'surface-container-low' | 'status'
+type AvatarStatus = 'ok' | 'connecting' | 'offline'
+type AvatarFallback = 'initials' | 'silhouette'
 
 interface AvatarProps {
   src?: string | null

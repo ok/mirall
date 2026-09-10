@@ -4,7 +4,7 @@ import type { NotificationPrefs } from './notifications/prefs.js'
 
 export type RelayMode = 'off' | 'auto' | 'always'
 
-export interface RelayTestVerdict {
+interface RelayTestVerdict {
   at: number
   ok: boolean
 }
@@ -72,11 +72,8 @@ const FALLBACK: RendererConfig = {
 // cache must be WRITTEN through a setter here that mutates the cache first.
 // Break it (write via a dedicated IPC channel that skips the cache, or drop the
 // `cache.x = v` line from a setter) and the value looks correct until the
-// control remounts, then silently reverts to the boot value. That was the theme
-// bug: it persisted via the `theme:set` IPC but never touched the cache, so the
-// settings toggle snapped back every visit — fixed by setThemePref() (see
-// theme.ts). Every getXPref below has a matching cache-updating setXPref;
-// keep it that way.
+// control remounts, then silently reverts to the boot value. Every getXPref
+// below has a matching cache-updating setXPref; keep it that way.
 const cache: RendererConfig = window.bridge?.getConfig?.() ?? FALLBACK
 
 function persist(patch: RendererConfigPatch): void {

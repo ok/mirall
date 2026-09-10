@@ -1,12 +1,7 @@
-// Turns a pass-on-retry from an annotation nobody counts into a countable, attributable fact with a
-// budget over it.
-//
-// The flow shards retry a failed file once and go green if the retry passes. That is the right call
-// for a real 6-shard P2P suite on a 2-vCPU runner — verified-known flakiness exists independently
-// of any diff, so failing on the first flake would turn CI into a re-run lottery. What was wrong is
-// that the only trace was a `::warning`: annotation-only, nothing aggregates it, so "is this suite
-// getting flakier" was unanswerable and the failed attempt's output — which the warning text itself
-// pointed at — was thrown away.
+// Makes a pass-on-retry a countable, attributable fact with a budget over it. The flow shards retry a
+// failed file once and go green if the retry passes — right for a 6-shard P2P suite on a 2-vCPU
+// runner, where known flakiness exists independently of any diff — but a retry that leaves only a
+// ::warning is invisible to any trend.
 //
 // Honest limit: this measures ONE run. A file that flakes 30% of the time passes a maxTotal of 1
 // most runs. It makes flakes countable and attributable, which is the precondition for a cross-run

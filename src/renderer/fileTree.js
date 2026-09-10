@@ -3,8 +3,8 @@
 // the same source feeds the esbuild renderer bundle AND the brittle-node unit suite,
 // which imports .js from src/renderer directly. Node shapes are typed in types.ts.
 
-// Coarse category for folder roll-up summaries. Every ShareFileStatus member is mapped
-// so a new status can't silently fall through.
+// Coarse category for folder roll-up summaries. Anything unlisted — a new status included —
+// falls through to 'available', so a status that needs its own bucket must be added here.
 export function statusCategory (status) {
   switch (status) {
     case 'downloaded':

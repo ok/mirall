@@ -245,9 +245,5 @@ function FileCard({
   )
 }
 
-// The decoration heartbeat re-renders SpaceView once a second for as long as any transfer is live.
-// Without this every row re-rendered with it; with it, only the rows whose own file, decoration or
-// download summary actually changed do. The default shallow compare is what we want: every prop is
-// a primitive, a row object reconciled for identity, a per-key value from a Map (decoration,
-// downloadSummary), or a stable handler.
+// memo against the decoration heartbeat: every prop is identity-stable (src/renderer/hooks/README.md).
 export default memo(FileCard)

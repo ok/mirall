@@ -3,12 +3,11 @@ import path from 'node:path'
 import {
   relToDriveKey, driveKeyToSegments,
   stripLongPathPrefix, isAbsoluteDriveKey, relKeyEscapes,
-  sharePrefix, isInsideShare, isInsideAnyShare, relPathInShare,
   pathsOverlap, pathContains, overlapAllowed,
   DEFAULT_IGNORE, shouldIgnore,
   shouldHonorDeletions,
   splitFileName, nextFreeName, conflictCopyName,
-  systemRootViolation, personalRootViolation, isWindowsReservedName, firstWinReservedSegment, cloudSyncHint,
+  systemRootViolation, personalRootViolation, isWindowsReservedName, cloudSyncHint,
 } from '../../src/shared/folders/path-keys.js'
 
 // These pure helpers are the platform-divergent backbone of every file/folder
@@ -81,36 +80,6 @@ test('REGRESSION (FIX-126): `\\\\?\\` prefix mismatch no longer corrupts the dri
   )
   t.is(fixed, '[CLV002]/05_Use It.mp3', 'stripping the prefix restores the in-share relative key')
   t.absent(isAbsoluteDriveKey(fixed), 'the fixed key passes the absolute-key guard')
-})
-
-// ── SEV-1 #2: share prefix + membership ────────────────────────────────────────
-test('sharePrefix wraps a share name in leading/trailing slashes', (t) => {
-  t.is(sharePrefix('Docs'), '/Docs/')
-  t.is(sharePrefix('My Folder 2024'), '/My Folder 2024/')
-})
-
-test('isInsideShare matches files in the folder and its subfolders, not a name-prefix sibling', (t) => {
-  const p = sharePrefix('Docs')
-  t.ok(isInsideShare('/Docs/a.txt', p), 'direct child')
-  t.ok(isInsideShare('/Docs/sub/deep/a.txt', p), 'nested subfolder file')
-  t.absent(isInsideShare('/Docsfoo/a.txt', p), 'name-prefix sibling is NOT inside (the boundary bug)')
-  t.absent(isInsideShare('/Other/a.txt', p), 'unrelated folder')
-  t.absent(isInsideShare('/loose.txt', p), 'loose top-level file')
-})
-
-test('isInsideAnyShare is true iff the key is inside one of the prefixes', (t) => {
-  const prefixes = [sharePrefix('Docs'), sharePrefix('Photos')]
-  t.ok(isInsideAnyShare('/Photos/2024/x.jpg', prefixes))
-  t.ok(isInsideAnyShare('/Docs/a.txt', prefixes))
-  t.absent(isInsideAnyShare('/Music/a.mp3', prefixes))
-  t.absent(isInsideAnyShare('/Photosextra/x.jpg', prefixes), 'name-prefix sibling excluded')
-  t.absent(isInsideAnyShare('/anything', []), 'no shares → never inside')
-})
-
-test('relPathInShare strips the prefix and preserves subfolder structure', (t) => {
-  const p = sharePrefix('Docs')
-  t.is(relPathInShare('/Docs/a.txt', p), 'a.txt')
-  t.is(relPathInShare('/Docs/sub/deep/a.txt', p), 'sub/deep/a.txt')
 })
 
 // ── SEV-1 #3: mount overlap ────────────────────────────────────────────────────
@@ -294,11 +263,6 @@ test('isWindowsReservedName matches device names ignoring extension and case', (
   t.ok(isWindowsReservedName('LPT1'))
   t.absent(isWindowsReservedName('CONSOLE'), 'longer name is not reserved')
   t.absent(isWindowsReservedName('Documents'))
-})
-
-test('firstWinReservedSegment finds a reserved segment anywhere in the path', (t) => {
-  t.is(firstWinReservedSegment('C:\\Users\\me\\NUL\\x', '\\'), 'NUL')
-  t.is(firstWinReservedSegment('C:\\Users\\me\\Docs', '\\'), null)
 })
 
 // ── SEV-3 #8: cloud-sync detection (gates a hard mount rejection) ───────────────

@@ -1,7 +1,5 @@
-// The folder itself, in four facts: it is a folder, this big, this many files, doing this. The
-// status pill borrows the file rows' five-token palette, so "paused" is the same yellow in the tile
-// and in the row beneath it. No buttons and no progress bar — the strip owns the verbs and the
-// moving numbers, and it is on screen for exactly as long as there are any.
+// The status pill borrows the file rows' five-token palette, so "paused" is the same yellow in the
+// tile and in the row beneath it. No buttons and no progress bar — the strip owns the verbs.
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
@@ -45,5 +43,5 @@ function FolderStatsCard({ folderName, totalBytes, fileCount, onDevice, status }
   )
 }
 
-// FolderView re-renders on every progress tick; these tiles change only when the folder does.
+// memo: the tile changes only when the folder does (src/renderer/hooks/README.md).
 export default memo(FolderStatsCard)

@@ -16,6 +16,7 @@ export declare function writeMain<K extends MainQueryName> (
   value: MainQueryValue[K],
   opts?: { payload?: MainQueryValue[K] | Partial<MainQueryValue[K]> },
 ): Promise<MainQueryValue[K]>
+export declare function patchMain<K extends MainQueryName> (name: K, patch: Partial<MainQueryValue[K]>): Promise<MainQueryValue[K]>
 export declare function setMainData<K extends MainQueryName> (name: K, data: MainQueryValue[K] | undefined): void
 export declare function subscribeMain (name: MainQueryName, notify: () => void): () => void
 export declare function peekMain<K extends MainQueryName> (name: K): MainSnapshot<MainQueryValue[K]>

@@ -13,15 +13,18 @@ export const PUBLISH_ORDERS = ['fifo', 'smallest-first', 'largest-first']
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
 // Single source of truth for every runtime-config field. Both the live default state and each
-// setRuntimeConfig(next) call derive from these tables, so every default is declared exactly once.
+// setRuntimeConfig(next) call derive from these tables, so every tabled default is declared once
+// (with-timeout.js repeats two as last-resort fallbacks).
 // The coercion groups are kept distinct because their falsy-handling differs and must not drift:
 //  NULLABLE — `next || null`: any falsy override (including '') collapses to null.
 //  BOOLEAN — `!!next`: a strict boolean, default false.
 //  DEFAULTED — `next ?? default`: nullish-only fallback, so a 0 / Infinity override is honored
 //  (the "disable this cap" escape hatch).
+//  DEFAULT-ON — `next?.x !== false`: only an explicit false disables. Coded inline in buildConfig()
+//  (overlayEnabled, inPlaceFilesEnabled, separateContentPlane, sharePrepareProgressEnabled), as
+//  are the three enum/slot coercers (relayMode, relay, publishOrder).
 
-// Paths / opaque strings; a falsy override means "unset". dhtBootstrap is test-only — a local
-// hyperdht/testnet bootstrap so integration tests stay off the public DHT; null → default.
+// Paths / opaque strings; a falsy override means "unset".
 const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
 
 // Dev toggles + feature flags, all default-off.
@@ -33,8 +36,12 @@ const BOOLEAN = [
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
 // or wall-clock a remote peer (or a huge local folder) can make this process spend. A 0 or Infinity
 // override is meaningful — usually "disable this cap" — so these fall back only on null/undefined.
-// Tests shrink them to exercise the bound deterministically. peerReadTimeoutMs is a test-only
-// override of the per-peer profile-bee read budget; production always uses the default.
+//
+// TEST LEVERS — keys production never sets, each defaulting to "off"; tests set them for a
+// deterministic reproduction: dhtBootstrap (local testnet), peerReadTimeoutMs (a shrunk read
+// budget), testDropIdentityFramesAfter/Count (lossy link), testTruncatePeerDrainAfter (truncated
+// listing), netImpair (shaped connections), peerPresenceDwellMs (absence dwell). Every other key
+// is merely shrunk by tests and has a production default.
 const DEFAULTED = {
   peerReadTimeoutMs: DEFAULT_PEER_READ_TIMEOUT_MS,
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
@@ -67,12 +74,11 @@ const DEFAULTED = {
   publishConcurrency: 2,
   // Concurrent overlay downloads across the WHOLE process — both engines and every mirror draw on
   // one gate. A reconnect can have hundreds of pending rows and each running fetch owns a chunk
-  // scheduler, a watchdog, an fd and a progress ticker. 6, not 3: the cap used to be built per
-  // engine, so two engines meant six bulk slots, and 6 keeps that ceiling while bringing the
-  // mirrors — previously uncounted, one fetch each — inside it. 0 disables the gate.
+  // scheduler, a watchdog, an fd and a progress ticker. 6 = two engines' former 3 each, now one
+  // gate that also counts the mirrors. 0 disables the gate.
   downloadConcurrency: 6,
   // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
-  // and every open core replicates to every socket. 0 = unbounded (the previous behaviour).
+  // and every open core replicates to every socket. 0 = unbounded.
   peerCatalogCacheLimit: 64,
   // Mirror deletion plausibility gate. The owner-online / non-empty / complete-listing gates
   // establish that a listing is authoritative, not that it is plausible: a share shrinking 1000 ->
@@ -124,14 +130,11 @@ const DEFAULTED = {
   // deficit that survives several refreshes is a peer who won't materialize (an approved-then-
   // offline joiner), not a stalled stream a refresh can heal. Reset when the deficit clears.
   convergenceMaxEscalations: 3,
-  // TEST-ONLY (like dhtBootstrap): drop inbound identity frames with 0-based index in
-  // [after, after+count) — a deterministic lossy-link lever for flow tests. count 0 = off.
+  // Drop inbound identity frames with 0-based index in [after, after+count). count 0 = off.
   testDropIdentityFramesAfter: 0,
   testDropIdentityFramesCount: 0,
-  // TEST-ONLY (like dhtBootstrap / testDropIdentityFrames): stop a peer-catalog drain after this
-  // many entries and report the read INCOMPLETE — a deterministic "the listing was truncated"
-  // lever, so the mirror-deletion guard can be exercised without racing a real drain timeout.
-  // 0 = off; production never sets it.
+  // Stop a peer-catalog drain after this many entries and report the read INCOMPLETE, so the
+  // mirror-deletion guard can be exercised without racing a real drain timeout. 0 = off.
   testTruncatePeerDrainAfter: 0,
   maxServerConnections: 32,
   maxClientConnections: 32,
@@ -144,15 +147,15 @@ const DEFAULTED = {
   // real roster bees are tens of blocks. Tests shrink it.
   peerBeeCaptureMaxBlocks: 4096,
   // Bound on peer-controlled avatars (data-URI string length) so a malicious profile can't
-  // balloon memory or the renderer. Keep in sync with AVATAR_MAX_BYTES in identity-limits.js
+  // balloon memory or the renderer. Keep in sync with AVATAR_MAX_BYTES in contract/limits.js
   // (a unit test asserts they match). 0 disables it.
   maxAvatarBytes: 256 * 1024,
   deriveDebounceMs: 150,
-  // Serve-side cache of DECODED chunk maps, in bytes (~160 B per chunk entry). A chunk-need
-  // used to re-read and JSON-decode the file's whole map from the file-index bee, about once
-  // per chunk served. 32 MiB holds ~200k entries: twenty concurrent 10 GiB tier-3 serves or
-  // two 100 GiB ones; a single larger map is still admitted (the cache keeps its newest
-  // entry). 0 disables the cache — the no-build rollback; Infinity unbounds it.
+  // Serve-side cache of DECODED chunk maps, in bytes (~160 B per chunk entry), so a chunk-need does
+  // not re-read and JSON-decode the file's whole map from the file-index bee per chunk served.
+  // 32 MiB holds ~200k entries: twenty concurrent 10 GiB tier-3 serves or two 100 GiB ones; a
+  // single larger map is still admitted (the cache keeps its newest entry). 0 disables the cache;
+  // Infinity unbounds it.
   serveChunkMapCacheBytes: 32 * 1024 * 1024,
   // Foreign-mirror materialize poll cadence. Tests shrink it to assert orphan-mount teardown
   // (owner left → unmount) promptly; production uses the 30s default.
@@ -170,8 +173,7 @@ const DEFAULTED = {
   // costs a re-scan, and by the time it fires the share has made no progress for ten minutes.
   reconcileStallWindowMs: 10 * 60 * 1000,
   // A publish item that has hashed no byte and completed no phase for this long is wedged, not
-  // slow. The same 10 minutes the owner-side reconcile uses, for the same reason: a false recovery
-  // costs a re-hash, and by the time it fires the file has made no progress for ten minutes.
+  // slow — the same window as reconcileStallWindowMs, for the same reason.
   publishStallWindowMs: 10 * 60 * 1000,
   // The convergence tick's own window, rather than a multiple of its interval: its phases are
   // network-bound — a per-space bee read per pending announce, then a discovery refresh per space
@@ -197,9 +199,8 @@ const DEFAULTED = {
   // → smoother, consistent propagation to browsing peers. Tests shrink them.
   catalogFlushMs: 2500,
   catalogFlushMaxOps: 256,
-  // TEST-ONLY (like dhtBootstrap / testDropIdentityFrames): shape THIS peer's swarm
-  // connections to reproduce bad real-world links in flow tests. null = off. Applied per
-  // connection in swarm.js (applyNetImpairment); production never sets it. Shape:
+  // Shape THIS peer's swarm connections (applied per connection in swarm.js, applyNetImpairment).
+  // null = off. Shape:
   //   { latencyMs, jitterMs }       delay every outbound frame (models RTT / loss-retransmit)
   //   { flapEveryMs, flapJitterMs }  periodically destroy each live connection (a flaky link →
   //                                  reconnect churn, handshake re-rate-limiting, state re-sync)
@@ -208,9 +209,8 @@ const DEFAULTED = {
   // protective bounds above these fail OPEN — see getBandwidthLimits.
   downloadKBps: 0,
   uploadKBps: 0,
-  // TEST-ONLY: how long a peer must be unreachable before the audit log records the absence.
-  // 0 = use peer-episodes.js's own default, which is what production always runs. Flow tests
-  // shrink it because five minutes of wall-clock is not a test.
+  // How long a peer must be unreachable before the audit log records the absence. 0 = use
+  // peer-episodes.js's own default (production).
   peerPresenceDwellMs: 0,
 }
 

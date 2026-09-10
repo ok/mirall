@@ -51,21 +51,13 @@ function resolveIcon(iconSpec) {
 }
 
 function focusMainWindow() {
-  if (revealWindowFn) {
-    Promise.resolve(revealWindowFn()).catch((err) => console.error('revealWindow failed:', err))
-    return
-  }
-  const win = BrowserWindow.getAllWindows()[0]
-  if (!win || win.isDestroyed()) return
-  if (win.isMinimized()) win.restore()
-  win.show()
-  win.focus()
+  if (!revealWindowFn) return
+  Promise.resolve(revealWindowFn()).catch((err) => console.error('revealWindow failed:', err))
 }
 
-// The real containment helper, not a copy of it: `src/shared/package.json` marks that tree as
-// ESM, which a CommonJS main can reach with a dynamic import (as deeplink.js already does for
-// invite-envelope). A local reimplementation is what let the home branch and the roots branch
-// of one authorization decision drift to different case-folding rules.
+// The shared containment helper, not a local copy — a copy is how the home branch and the roots
+// branch of one authorization decision drift to different case-folding rules. `src/shared/` is
+// ESM, which a CommonJS main reaches with a dynamic import (as deeplink.js does for invite-envelope).
 // Caught here, not at the await: an unhandled module-scope rejection would take down more than
 // this feature, and an authorization check with no comparator must fail CLOSED.
 const pathKeys = import('../shared/folders/path-keys.js').catch((err) => {
@@ -98,8 +90,6 @@ async function isRevealable(fullPath, roots) {
 function register(opts) {
   if (opts && typeof opts.revealWindow === 'function') revealWindowFn = opts.revealWindow
   if (opts && typeof opts.downloadRoots === 'function') downloadRootsFn = opts.downloadRoots
-
-  ipcMain.handle('notify:isSupported', () => Notification.isSupported())
 
   ipcMain.handle('notify:show', (_evt, spec) => {
     if (!spec || typeof spec !== 'object') return { shown: false }

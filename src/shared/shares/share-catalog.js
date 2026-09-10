@@ -8,7 +8,8 @@ import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
 import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias, isLegacySpace } from '../spaces/space.js'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
 import { getRuntimeConfig, getPeerCatalogCacheLimit } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
@@ -23,21 +24,19 @@ const log = createLogger('share-catalog')
 // metadata only (no bytes): the bytes stay in the owner's mounted folder and are
 // materialised into the drive on demand. The catalog core key is published in the
 // share record so peers open it read-only by key and replicate it.
-export const FILE_PREFIX = 'file/'
+const FILE_PREFIX = 'file/'
 
 const ownCatalogs = new Map()   // spaceId -> Hyperbee (writable)
-// Notified with (spaceId) whenever OUR OWN catalog core appends. Every other party learns of a
-// catalog change from its `append`; the owner alone was refreshed by the publish call sites, which
-// fire BEFORE a batched write reaches the bee (catalog-writer buffers for catalogFlushMs). Through a
-// long hash nothing else fires, so the owner's own listing sat on a pre-flush snapshot while every
-// member watched the indexing row it could not see. Installed by the overlay backend rather than
-// imported, so this module keeps no dependency on the IPC layer (as setOverlayCatalogChangeHook).
+// Notified with (spaceId) whenever OUR OWN catalog core appends, so the owner's listing refreshes
+// when a batched flush lands rather than when publish is called (catalog-writer buffers for
+// catalogFlushMs, and through a long hash nothing else fires). Installed by the overlay backend
+// rather than imported, so this module keeps no dependency on the IPC layer.
 let ownAppendHook = null
 export function setOwnCatalogAppendHook(fn) { ownAppendHook = fn }
 // Bounded: one Hyperbee + Hypercore session per (peer, space), each with an append listener, and
-// every open core replicates to every socket. Unbounded it grew to peers x spaces and was reclaimed
-// only on leave. A watched catalog is PINNED — evicting one would silently stop the mirror loop its
-// append listener drives, trading a memory bound for a correctness bug.
+// every open core replicates to every socket. PIN before any await and while a watcher is armed:
+// inserting into the LRU can evict — and close — an unpinned entry, and an evicted watched catalog
+// silently stops the mirror loop its append listener drives.
 const peerCatalogs = createRefCountedLru({
   limit: () => getPeerCatalogCacheLimit(),
   onEvict: (keyHex, bee) => { bee.close().catch(() => {}) },
@@ -71,11 +70,14 @@ function catalogNameForSpace(space, spaceId) {
 // record it already read rather than letting this re-read it. Publish/advertise callers must
 // ensure the record exists first (see space.js publishLooseCatalogKey) — never call this to
 // derive a name to WRITE into before the record is saved, or you fork a divergent core.
+// test seam
 export async function catalogNameFor(spaceId) {
   return catalogNameForSpace(await getSpace(spaceId), spaceId)
 }
 
-// Used only by the catalog-encryption migration, to read/purge the superseded core.
+// The superseded plaintext core's name. A test seam — the migration itself goes through
+// openLegacyPlaintextCatalog / purgeLegacyPlaintextCatalog below.
+// test seam
 export async function legacyPlaintextCatalogName(spaceId) {
   return plaintextCatalogName(await getSpace(spaceId), spaceId)
 }
@@ -87,13 +89,13 @@ export async function ownCatalog(spaceId) {
   // A pre-encryption space can never obtain an SCK, so say that rather than report a missing key:
   // callers surface a code the UI can explain instead of a raw Error out of the IPC handler.
   if (isLegacySpace(space)) {
-    throw new AppError(ErrorCodes.SPACE_UNSUPPORTED, 'This space was created by an older version of Mirall and can no longer be used')
+    throw new AppError(CODES.SPACE_UNSUPPORTED, 'This space was created by an older version of Mirall and can no longer be used')
   }
   const sck = getSpaceContentKey(spaceId, space)
   // A catalog MUST be SCK-encrypted; an OWN catalog always has an SCK (created ⇒ derivable,
   // joined+approved ⇒ vault), so a missing one is a fault, not plaintext.
   if (!sck) throw new Error('ownCatalog: space ' + spaceId + ' has no SCK')
-  const bee = createBee(catalogNameForSpace(space, spaceId), sck ? { encryptionKey: sck } : {})
+  const bee = createBee(catalogNameForSpace(space, spaceId), { encryptionKey: sck })
   await bee.ready()
   ownCatalogs.set(spaceId, bee)
   // Attached at creation, so no writer or reader can forget it, and read through `ownAppendHook`
@@ -111,7 +113,7 @@ export async function ownCatalogKeyHex(spaceId) {
 }
 
 // The own catalog key. Published into the …Enc field so a reader knows from the FIELD to apply
-// the SCK; the bare field remains readable for records written before catalog encryption.
+// the SCK; the bare field is still read only for a peer whose record predates its own migration.
 export async function ownCatalogPublish(spaceId) {
   return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true }
 }
@@ -149,13 +151,6 @@ export async function* listOwnShare(spaceId, shareId) {
   yield* streamShare(bee, shareId)
 }
 
-// Tolerant listing for DISPLAY paths only (the renderer's file list). A storage
-// inconsistency in the catalog's backing core ("Expected tree node N from storage")
-// yields the partial listing read so far instead of throwing, so a corrupt core
-// degrades the file list rather than blanking the share. MUTATING callers (scan,
-// reconcile, resolveLooseName, presence sweeps, boot rehydrate) keep listOwnShare and
-// still throw — they must never act on a partial listing (e.g. tombstone or overwrite
-// based on entries the fault hid). Any non-inconsistency error propagates here too.
 // Single-pass tolerant fold over an own share: count + sum EVERY non-deleted entry while
 // retaining only the first `limit` rows. The display list AND folder-info both read from
 // this one traversal, so the count can never disagree with the rows it shows, and capping
@@ -183,7 +178,13 @@ export async function collectOwnShare(spaceId, shareId, limit = Infinity) {
   return { entries, total, totalBytes }
 }
 
-// Array contract for the loose listing + the read-resilience callers (no cap/count needed).
+// Tolerant listing for DISPLAY paths only (the renderer's file list). A storage
+// inconsistency in the catalog's backing core ("Expected tree node N from storage")
+// yields the partial listing read so far instead of throwing, so a corrupt core
+// degrades the file list rather than blanking the share. MUTATING callers (scan,
+// reconcile, resolveLooseName, presence sweeps, boot rehydrate) keep listOwnShare and
+// still throw — they must never act on a partial listing (e.g. tombstone or overwrite
+// based on entries the fault hid). Any non-inconsistency error propagates here too.
 export async function listOwnShareForDisplay(spaceId, shareId) {
   return (await collectOwnShare(spaceId, shareId)).entries
 }
@@ -193,14 +194,14 @@ export async function listOwnShareForDisplay(spaceId, shareId) {
 // wrong-length/typed value would throw synchronously out of store.get and break the whole listing.
 const CATALOG_KEY_HEX = /^[0-9a-f]{64}$/
 
-export function isValidCatalogKey(catalogKeyHex) {
+function isValidCatalogKey(catalogKeyHex) {
   return typeof catalogKeyHex === 'string' && CATALOG_KEY_HEX.test(catalogKeyHex)
 }
 
 // The single sink every peer-catalog read funnels through. Returns null on an invalid key so a
 // self-asserted bad key from any peer degrades to "no such catalog" instead of crashing the listing
 // (store.get on a non-32-byte key throws). A v2 catalog is opened with the space SCK so only approved
-// members decrypt it; a v1 plaintext catalog is opened with sck=null. Canonical
+// members decrypt it; sck=null opens the plaintext catalog a not-yet-migrated peer still publishes. Canonical
 // lowercase-only, so one catalog opens one core regardless of hex case — and encrypted vs plaintext
 // cores have distinct keys, so the first open fixes the mode.
 function openPeerCatalog(catalogKeyHex, sck = null) {
@@ -257,8 +258,7 @@ export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null
     if (!bee) return null
     w = { ids: new Set(), cbs: new Set(), bee }
     peerCatalogWatchers.set(catalogKeyHex, w)
-    // Pin for the watcher's lifetime: the listener below is the mirror loop's level signal, and a
-    // cache eviction that closed this bee would stop it with no error anywhere.
+    // Pinned for the watcher's lifetime (see peerCatalogs).
     peerCatalogs.acquire(catalogKeyHex)
     bee.core.on('append', () => { for (const cb of w.cbs) cb(bee) })
   }
@@ -290,30 +290,20 @@ async function syncPeerHead(bee, timeoutMs = peerReadTimeoutMs()) {
   return res !== HEAD_TIMED_OUT
 }
 
-// Single-pass peer read (the consumer analogue of collectOwnShare): head-sync, then drain
-// the prefix retaining the first `limit` rows while counting + summing ALL of them in the one
-// traversal, bounded by peerReadTimeoutMs. Because `total` and `entries` come from the same
-// pass, total >= entries.length always — the renderer can never show a count below the rows it
-// displays. `complete` requires the prefix to drain fully AND the head update to land before the
-// budget AND the core to hold blocks (the per-(owner,space) catalog is shared across shares + the
-// loose channel, so length>0 alone is only a global proxy); a not-yet-replicated, mid-tree-timed-out,
-// or owner-unreachable read is flagged incomplete so the renderer keeps its last good list.
-// Bounded by ONE `timeoutMs` covering head sync and drain together (a spent budget degrades the
-// drain to a local-only read), so an unreachable owner costs the caller one budget, not two.
+// Single-pass peer read (the consumer analogue of collectOwnShare): head-sync, then drain the prefix
+// retaining the first `limit` rows while counting + summing ALL of them, so total >= entries.length.
+// ONE `timeoutMs` covers head sync and drain; a budget spent on the head degrades the drain to a
+// local-only read, so an unreachable owner costs one budget, not two. `complete` needs a full drain,
+// the head landed, and blocks in the core (the catalog is shared across shares + the loose channel,
+// so length>0 alone is a global proxy); a partial read is flagged so the renderer keeps its last list.
 export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, limit = Infinity, timeoutMs = peerReadTimeoutMs(), onEach = null } = {}) {
   const bee = openPeerCatalog(catalogKeyHex, sck)
   if (!bee) return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 }
-  // Pinned for the length of the read: the body awaits, and an eviction triggered by a
-  // concurrent open would otherwise close this bee underneath the gets below.
+  // Pinned for the length of the read (see peerCatalogs).
   peerCatalogs.acquire(catalogKeyHex)
   try {
-    // ONE NETWORK budget per peer: the head sync and the drain share this deadline, so an owner
-    // whose head never arrives costs `timeoutMs` once — not once here and once more inside the
-    // drain. The drain's own timer is floored at LOCAL_DRAIN_MS, so the call can exceed the
-    // deadline by that much; past the deadline the walk is disk-only and cannot park on a peer.
-    // The flip side is that a head sync which eats most of the budget leaves the drain less time
-    // than it used to have, so a very large peer share over a slow link reports complete:false
-    // more readily — the renderer keeps its last list, which is the intended degradation.
+    // The drain's own timer is floored at LOCAL_DRAIN_MS, so the call can exceed the deadline by
+    // that much; past the deadline the walk is disk-only and cannot park on a peer.
     const deadlineAt = Date.now() + timeoutMs
     let headSynced = false
     try { headSynced = await syncPeerHead(bee, timeoutMs) } catch { return { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 } }
@@ -351,9 +341,7 @@ export async function peerCatalogVersion(spaceId, rec, { space } = {}) {
     if (!readable) return null
     const bee = openPeerCatalog(keyHex, sck)
     if (!bee) return null
-    // Pinned across the await for the same reason collectPeerShare pins: inserting into the LRU can
-    // evict — and close — an unpinned entry, including this one, and the pending ready() would then
-    // reject underneath us.
+    // Pinned across the await (see peerCatalogs).
     peerCatalogs.acquire(keyHex)
     try {
       await bee.ready()
@@ -370,6 +358,7 @@ export async function peerCatalogVersion(spaceId, rec, { space } = {}) {
   }
 }
 
+// test seam
 export async function listPeerShareMeta(catalogKeyHex, shareId, { sck = null } = {}) {
   const { entries, complete } = await collectPeerShare(catalogKeyHex, shareId, { sck })
   return { entries, complete }
@@ -420,9 +409,8 @@ export function dropCatalog(spaceId, catalogKeyHex) {
   if (spaceId) ownCatalogs.delete(spaceId)
   if (catalogKeyHex) {
     if (peerCatalogWatchers.delete(catalogKeyHex)) peerCatalogs.release(catalogKeyHex)
-    // Closed, not just forgotten: dropping the reference alone left the core session open for the
-    // life of the process, and every open core replicates to every socket. Fire-and-forget because
-    // every caller is synchronous; a close failure means the store is already going down.
+    // Closed, not just forgotten: every open core replicates to every socket. Fire-and-forget
+    // because every caller is synchronous; a close failure means the store is already going down.
     peerCatalogs.delete(catalogKeyHex)?.close().catch(() => {})
   }
 }
@@ -452,7 +440,7 @@ async function purgeCatalogCore(bee, name) {
   await bee.ready()
   const dk = b4a.toString(bee.core.discoveryKey, 'hex')
   try { await bee.close() } catch {}
-  await purgeCoreDk(cs, cs.storage.db, dk)
+  await purgeCoreDk(cs, dk)
   await purgeAlias(cs, cs.ns, name)
 }
 

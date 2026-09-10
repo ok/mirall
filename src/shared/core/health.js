@@ -1,6 +1,6 @@
-// Process-level health the diagnostics export did not have: five swarm counters were the whole
-// picture. Loop lag is the signal that says the worker is wedged rather than merely busy, which is
-// the one probe a per-subsystem supervisor needs and the one number no per-request metric can give.
+// Process-level health for the diagnostics export. Loop lag is the signal that says the worker is
+// wedged rather than merely busy — the one probe a per-subsystem supervisor needs and the one
+// number no per-request metric can give.
 //
 // The clock and timer are injectable for the same reason the request vocabulary is: a test drives
 // them directly instead of sleeping, which is what keeps this out of check-test-timing.sh.

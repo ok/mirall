@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { encodeInvite } from '../../src/shared/invite-envelope.js'
+import { encodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 const { parseDeepLink } = await import('../../src/main/deeplink.js').then(m => m.default ?? m)
 

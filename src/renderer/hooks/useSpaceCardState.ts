@@ -1,12 +1,9 @@
-// Session-scoped state of the collapsible sidebar cards — Members on SpaceView, People on
-// FolderView — keyed by spaceId. Survives leaving and coming back within a session (the screen
-// unmounts and remounts); resets on app restart. Deliberately not persisted to config.json — this
-// is view state, not a preference.
+// Session state of the collapsible sidebar cards (Members on SpaceView, People on FolderView), keyed
+// by spaceId; survives leaving and returning, resets on restart. View state, so not config.json.
 //
-// The People fold is per SPACE, not per folder, because the store is pruned against the live
-// SPACE list: a shareId key would look like a dead space and be swept on the next spaces list.
-// Per-space is also the better default — collapse People once and every folder in the space
-// agrees, rather than asking for the same collapse folder by folder.
+// The People fold is per SPACE, not per folder: the store is pruned against the live SPACE list, so a
+// shareId key would look like a dead space and be swept. Per-space is also the better default —
+// collapse People once and every folder in the space agrees.
 import { useCallback, useState } from 'react'
 
 export type SpaceCardKey = 'membersOpen' | 'membersExpanded' | 'folderPeopleOpen'

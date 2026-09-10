@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { decodeInvite, encodeInvite, extractInviteCode, NAME_MAX } from '../../src/shared/invite-envelope.js'
+import { decodeInvite, encodeInvite, extractInviteCode, NAME_MAX } from '../../src/shared/contract/invite-envelope.js'
 import * as contract from '../../src/shared/contract/invite-envelope.js'
 
 const HEX = 'a'.repeat(64)
@@ -382,25 +382,19 @@ test('REGRESSION (FIX-PI2-1): the renderer decoder returns every v2 field', (t) 
   const id = 'ab'.repeat(16)
   const code = encodeInvite({ topic: HEX, name: 'Acme', creator: CREATOR, schemaVersion: 2, autoAdmit: true, inviteId: id })
 
-  // The renderer is TypeScript, so the runner cannot import it — but it is a re-export of the
-  // module tested here, which the structural assertions below pin.
+  // The renderer is TypeScript, so the runner cannot import it; the two screens that decode an invite are pinned to the contract import instead.
   const decoded = contract.decodeInvite(code)
   t.is(decoded.creator, CREATOR)
   t.is(decoded.schemaVersion, 2)
   t.is(decoded.autoAdmit, true)
   t.is(decoded.inviteId, id)
 
-  const renderer = readSrc('renderer/invite-envelope.ts')
-  t.ok(/export \{[^}]*decodeInvite[^}]*\} from '\.\.\/shared\/contract\/invite-envelope\.js'/.test(renderer),
-    'the renderer decodeInvite is the contract decodeInvite')
-  t.absent(/function decodeInvite/.test(renderer), 'the renderer declares no decoder of its own')
-})
-
-test('the data layer re-exports the decoder rather than wrapping it', (t) => {
-  t.is(decodeInvite, contract.decodeInvite, 'same function object, so behaviour cannot diverge')
-  t.is(encodeInvite, contract.encodeInvite)
-  t.is(extractInviteCode, contract.extractInviteCode)
-  t.is(NAME_MAX, contract.NAME_MAX)
+  for (const file of ['renderer/app.tsx', 'renderer/components/modals/JoinSpaceModal.tsx']) {
+    const src = readSrc(file)
+    t.ok(/import \{[^}]*decodeInvite[^}]*\} from '(\.\.\/)+shared\/contract\/invite-envelope\.js'/.test(src),
+      `${file}: decodeInvite is the contract decodeInvite`)
+    t.absent(/function decodeInvite/.test(src), `${file}: declares no decoder of its own`)
+  }
 })
 
 // The codec had to lose its b4a dependency to become reachable from the renderer, and Bare has no

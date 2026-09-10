@@ -2,16 +2,11 @@ import { MAIN_QUERIES } from './main-queries.js'
 
 // One shared copy per main-process fact, for the screens that read them.
 //
-// Deliberately NOT the query store: useQuery is typed to RequestName — the WORKER contract — and
-// these are Electron MAIN calls (preload.js). Routing them through it would mean either widening
-// RequestName to a lie or adding an untyped escape hatch. This is the query store's shape with
-// none of its scope/invalidation machinery: a main fact changes when THIS app writes it, or when
-// main pushes a new value, and neither is a reconcile hint.
-//
-// No abort, unlike the query store: ipcRenderer.invoke has no cancellation channel, and these
-// reads are local. `seq` still exists, because "the answer in flight is no longer wanted" is a
-// real state here too — a write or a push can land while a read is outstanding.
-//
+// Not the query store: useQuery is typed to RequestName — the WORKER contract — and these are
+// Electron MAIN calls (preload.js). Same shape, none of the scope/invalidation machinery: a main
+// fact changes when THIS app writes it or main pushes it, and neither is a reconcile hint. No abort
+// (ipcRenderer.invoke has no cancellation channel, and these reads are local), but `seq` stays: a
+// write or a push can land while a read is outstanding.
 // Plain JS with an injected bridge so it unit-tests under brittle-node, like query-store.js.
 const entries = new Map()
 
@@ -126,19 +121,24 @@ export async function writeMain (name, value, { payload = value } = {}) {
     publish(entry)
     return persisted
   } catch (err) {
-    // The rollback restores the last value the app actually read — but the error is deliberately
-    // NOT recorded on the entry. `error` means "there is no value to show, and here is why", which
-    // is how every consumer renders it (`readError`, `folderReadError`, `defaultError`); a write
-    // failure belongs to the caller, and writeMain throws it. Recording it here outlived the
-    // action: fetchMain answers a cached entry without clearing the error, so one failed write
-    // became a permanent banner on that screen AND an alert on every other screen sharing the
-    // entry. Consumers already handle their own write failures (NetworkSettings relies on this
-    // rollback; StorageSettings catches and shows its own message).
+    // Roll back to the last value the app actually read, and do NOT record the error on the entry:
+    // `error` means "there is no value to show, and here is why" (readError, folderReadError,
+    // defaultError). A write failure belongs to the caller — writeMain throws it — and a recorded
+    // one would outlive the action, because fetchMain answers a cached entry without clearing it.
     entry.seq += 1
     entry.data = previous
     publish(entry)
     throw err
   }
+}
+
+// A PATCH over writeMain's REPLACE, for the one fact main merges itself. The merge is what we
+// DISPLAY (a screen keeps the values it already showed while the write is in flight); the bare
+// patch is what main is SENT, so a key main owns and flips on its own — `firstHideNoticeShown` —
+// is never written back over from a stale cached copy.
+export function patchMain (name, patch) {
+  const current = entryFor(name).data
+  return writeMain(name, current ? { ...current, ...patch } : { ...patch }, { payload: patch })
 }
 
 // An out-of-band value: main PUSHES the zoom factor rather than answering a read, and a pushed

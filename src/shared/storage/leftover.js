@@ -81,8 +81,7 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
   // the keys collected before it must still reach the wanted set. Returning an empty list there
   // would let the reclaim treat a live catalog as an orphan and purge it.
   const keys = []
-  // sync:false keeps this a purely local read (no head pull), as before; withPeerBee adds the
-  // close the bare open never had.
+  // sync:false keeps this a purely local read (no head pull); withPeerBee owns the close.
   return withPeerBee(profileKeyHex, async (bee) => {
     const prefix = SHARE_PREFIX + spaceId + '/'
     for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' }, { wait: false })) {
@@ -93,11 +92,6 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
   }, { sync: false, fallback: keys })
 }
 
-// Built entirely from local/deterministic sources — no open-by-key, no swarm
-// reads — so it never blocks. Peer meta cores are added by their deterministic
-// discovery key; peer blobs cores only when the drive is already warmed in
-// memory (an un-warmed peer's blobs core stays out of the purge set, which is
-// safe because nothing here purges non-bee cores anyway).
 // Every core a current member is entitled to keep. The member record's OWN catalog key matters as
 // much as the ones on their share records: localPeerCatalogKeys streams share/<space>/ only, and a
 // peer sharing nothing but LOOSE files publishes their catalog at loosecat*/<space> instead — so
@@ -116,10 +110,10 @@ async function addMemberCores(wanted, member, spaceId) {
 
 const TIMED_OUT = Symbol('timed-out')
 
-// Every core current state still needs. A GAP means the set is INCOMPLETE — something that should
-// be in it is not — so "outside the set" no longer means "unneeded" and no category may be purged.
-// Each failure below used to log a warning (one did not even do that) and let the sweep proceed on
-// the shorter set, which is how a transient read failure became a permanent delete.
+// Every core current state still needs, built from local, deterministic sources only — no
+// open-by-key, no swarm reads — so it never blocks. A GAP means the set is INCOMPLETE — something
+// that should be in it is not — so "outside the set" no longer means "unneeded"; decideSweep
+// refuses on gaps.
 export async function buildWantedKeys({ openSystemBee = null } = {}) {
   const wanted = new Set()
   const gaps = []
@@ -135,9 +129,8 @@ export async function buildWantedKeys({ openSystemBee = null } = {}) {
       }
     }
   }
-  // Was a bare `catch {}`. The most dangerous gap in this function: the live profile bee's own core,
-  // missing from `wanted`, classifies as 'profile' and is purged — the device's identity bee,
-  // deleted by the sweep that exists to protect it.
+  // The most dangerous gap: the live profile bee's own core, missing from `wanted`, classifies as
+  // 'profile' — the device's identity bee, purged by the sweep that exists to protect it.
   const profile = getProfileBee()
   if (profile) {
     try { await addBeeCore(wanted, profile) } catch (err) { gap('profile-bee', err.message) }
@@ -157,10 +150,9 @@ export async function buildWantedKeys({ openSystemBee = null } = {}) {
   for (const space of await listSpaces()) {
     const drive = getDrive(space.spaceId)
     if (drive) {
-      // withReadTimeout RESOLVES the sentinel rather than rejecting, so the `.catch` below never
-      // sees a timeout. A drive whose read merely took too long silently contributed nothing to
-      // `wanted` and recorded nothing at all — the purest form of "couldn't read it just now"
-      // reaching the delete.
+      // withReadTimeout RESOLVES the sentinel instead of rejecting, so the `.catch` never sees a
+      // timeout — check TIMED_OUT explicitly, or a drive that merely read slowly contributes nothing
+      // and records no gap.
       const res = await withReadTimeout(addLocalDriveCores(wanted, drive).then(() => true), INSPECT_MS, TIMED_OUT)
         .catch((err) => { gap('own-drive:' + space.spaceId, err.message); return null })
       if (res === TIMED_OUT) gap('own-drive:' + space.spaceId, 'read timed out after ' + INSPECT_MS + 'ms')
@@ -174,8 +166,7 @@ export async function buildWantedKeys({ openSystemBee = null } = {}) {
       gap('own-catalog:' + space.spaceId, err.message)
     }
 
-    // Wrapped where it never was: a throw here aborts the whole loop, so every space after this one
-    // contributes nothing to `wanted` while still being listed.
+    // Per member: one bad member must not stop every later space from reaching `wanted`.
     for (const member of (space.members || [])) {
       try { await addMemberCores(wanted, member, space.spaceId) } catch (err) {
         gap('member-cores:' + space.spaceId, err.message)
@@ -219,9 +210,8 @@ function probeDrive(store, dkHex, key, encryptionKey = null) {
   return drive
 }
 
-// Both cache keys: probeDrive files an SCK-encrypted probe under `<dk>:enc`, and since v1.7.0
-// that is the common shape — looking up the bare key alone left the handle open across the
-// RocksDB delete this exists to prevent.
+// Both cache keys: probeDrive files an SCK-encrypted probe under `<dk>:enc`, and a handle left open
+// across the RocksDB delete is what this exists to prevent.
 async function closeProbe(dkHex) {
   for (const cacheKey of [dkHex, dkHex + ':enc']) {
     const drive = probeDrives.get(cacheKey)
@@ -231,17 +221,6 @@ async function closeProbe(dkHex) {
   }
 }
 
-// Classify one non-wanted core, each step bounded so a core advertising blocks
-// no longer served (owner gone) can't hang the scan.
-//  - profile/catalog bee keys → leftover metadata.
-//  - the overlay file-index bee → 'other' (protected: never a drive, never purged).
-//  - a readable 'orphan' bee that opens as a Hyperdrive with a NON-EMPTY blobs core →
-//    orphan drive. getBlobs() derives an empty blobs core for ANY bee opened as a
-//    Hyperdrive, so the non-empty check is what separates a real content-bearing drive
-//    from a plain bee — an empty derived core would false-positive to 'drive' → purge →
-//    data loss. The Hyperdrive runs on a store *session* — Hyperdrive._close() closes
-//    the corestore it is handed, so the root db must not be passed.
-//  - everything else (raw blobs core, unreadable, a contentless bee) stays 'other'.
 // Read a core's first keys under `encryptionKey` (null = plaintext) and name the shape they are.
 // `readable` separates "opened, has blocks, made no sense" — worth retrying under a key — from
 // "empty or unopenable", which no key can help.
@@ -268,15 +247,25 @@ async function sampleCore(store, dk, encryptionKey) {
   return { metaBytes, key, beeKind, readable }
 }
 
+// Classify one non-wanted core, each step bounded so a core advertising blocks
+// no longer served (owner gone) can't hang the scan.
+//  - profile/catalog bee keys → leftover metadata.
+//  - the overlay file-index bee → 'other' (protected: never a drive, never purged).
+//  - a readable 'orphan' bee that opens as a Hyperdrive with a NON-EMPTY blobs core →
+//    orphan drive. getBlobs() derives an empty blobs core for ANY bee opened as a
+//    Hyperdrive, so the non-empty check is what separates a real content-bearing drive
+//    from a plain bee — an empty derived core would false-positive to 'drive' → purge →
+//    data loss. The Hyperdrive runs on a store *session* — Hyperdrive._close() closes
+//    the corestore it is handed, so the root db must not be passed.
+//  - everything else (raw blobs core, unreadable, a contentless bee) stays 'other'.
 async function inspectCore(store, dk) {
   let probe = await sampleCore(store, dk, null)
   let sck = null
 
-  // Catalogs and space drives have been SCK-encrypted since v1.7.0, and one opened without its key
-  // is indistinguishable from noise — which is why every encrypted leftover used to classify as
-  // 'other' and outlive the reclaim. Retry under each key the vault holds; a leave keeps the entry,
-  // so the key for a space whose leftovers these are is still there. Only the two shapes that are
-  // actually SCK-encrypted are accepted, so a wrong key's garbage cannot be mistaken for a match.
+  // An SCK-encrypted catalog or drive reads as noise without its key. Retry under each key the
+  // vault holds — a leave keeps the entry, so the key for a space whose leftovers these are is
+  // still there. Only the two shapes that are actually SCK-encrypted are accepted, so a wrong key's
+  // garbage cannot be mistaken for a match.
   if (probe.readable && probe.beeKind === null) {
     for (const candidate of listContentKeys()) {
       const enc = await sampleCore(store, dk, candidate)
@@ -323,9 +312,6 @@ export async function classifyLeftovers(opts = {}) {
   for (const r of inspected) {
     if (r.kind === 'profile') profiles.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
     else if (r.kind === 'catalog') catalogs.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
-    // No longer filtered here by the unopened-drive flag: an unopened drive is now one gap among
-    // several, and a gap withholds EVERY category in purgeLeftovers. Filtering here would only hide
-    // the finding from the scan's own report, which is the one place it can be diagnosed.
     else if (r.kind === 'drive') orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
   }
   if (wanted.gaps.length) log.warn('the wanted set is incomplete —', wanted.gaps.map((g) => g.stage).join(', '))
@@ -338,8 +324,6 @@ export async function classifyLeftovers(opts = {}) {
     totalCores,
     gaps: wanted.gaps,
     scanComplete: wanted.gaps.length === 0,
-    // Retained for existing callers; now derived from the same one rule.
-    withheldDrives: wanted.gaps.length > 0,
   }
 }
 
@@ -360,7 +344,6 @@ function purgeTargets(scan, allowed) {
 
 export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true, openSystemBee = null } = {}) {
   const store = getStore()
-  const db = store.storage.db
   const scan = await classifyLeftovers({ openSystemBee })
   const allowed = categories.filter((c) => PURGEABLE.includes(c))
   const dks = purgeTargets(scan, allowed)
@@ -380,7 +363,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
       refused: decision.reason, targets: dks.length, totalCores: scan.totalCores,
       gaps: scan.gaps, categories: allowed, purged: 0,
     })
-    return { purged: 0, freedEstimate: 0, withheldDrives: true, refused: decision.reason }
+    return { purged: 0, freedEstimate: 0, scanComplete: false, refused: decision.reason }
   }
 
   // Released only once the sweep is known to be going ahead: closing them on a refused pass would
@@ -393,7 +376,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
   for (const dkHex of dks) {
     if (onProgress) onProgress('purging', { done: purged, total: dks.length })
     try {
-      await purgeCoreDk(store, db, dkHex)
+      await purgeCoreDk(store, dkHex)
       purged++
       purgedDks.push(dkHex)
     } catch (err) {
@@ -412,7 +395,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
     await compactStore()
   }
   const freedEstimate = allowed.reduce((n, c) => n + (scan[c]?.bytes || 0), 0)
-  return { purged, freedEstimate, withheldDrives: scan.withheldDrives, refused: null }
+  return { purged, freedEstimate, scanComplete: scan.scanComplete, refused: null }
 }
 
 // The cores a member brought with them: their profile bee, and the one catalog they advertise per
@@ -427,7 +410,6 @@ function peerCoreKeys(member) {
 // a few KB, reclaimed on the next pass.
 export async function forgetUnreferencedPeerCores(removedMembers) {
   const store = getStore()
-  const db = store.storage.db
   const stillReferenced = new Set()
   for (const space of await listSpaces()) {
     // A peer we share ANOTHER space with keeps both cores — the catalog key is per (member,
@@ -442,7 +424,7 @@ export async function forgetUnreferencedPeerCores(removedMembers) {
       const dk = dkOfKey(keyHex)
       if (stillReferenced.has(dk)) continue
       try {
-        await purgeCoreDk(store, db, dk)
+        await purgeCoreDk(store, dk)
         purged++
       } catch (err) {
         log.debug('peer core purge skip:', err.message)

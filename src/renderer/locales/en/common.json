@@ -108,7 +108,6 @@
     "filesError": "Couldn't load files",
     "filesErrorHint": "The file list took too long to load. This can happen while files are still syncing or a peer is offline.",
     "filesRetry": "Try again",
-    "emptyFiles": "No files shared yet. Drop files in the sidebar to get started.",
     "emptyShareTitle": "Nothing shared yet",
     "emptyShareSubtitle": "Drag files or folders into the share area on the right to start sharing with this space.",
     "emptyShareDocsTitle": "What happens when you share",
@@ -135,7 +134,6 @@
     "waitingApprovalHint": "A member of this space needs to approve you. You can leave this open — you'll be let in automatically as soon as someone's online.",
     "waitingDocsTitle": "Why am I waiting?",
     "waitingDocsBody": "An invite carries the address of the space, never the key to it. Someone already inside hands that over — so a member has to be online and reachable before you can be let in. Auto-approve removes the decision, not the hand-over.",
-    "encryptedBadge": "Encrypted",
     "legacyBadge": "Unsupported",
     "legacyWarning": "This space was created by a much older version of Mirall and can no longer be used. Create a new space and share your folders into that one."
   },
@@ -171,7 +169,6 @@
     "description": "A read-only copy of {{owner}}'s folder will be kept in sync at the location you pick.",
     "ownerLine": "{{count}} files · {{size}} · Owned by {{owner}}",
     "pathLabel": "Mirror location on your disk",
-    "pathPlaceholder": "Browse…",
     "readOnlyWarning": "Read-only. Files you edit here will be reverted to {{owner}}'s version on the next sync.",
     "next": "Next: Preview",
     "create": "Start Mirroring",
@@ -242,7 +239,6 @@
     "subfolderCount_other": "contains {{count}} subfolders",
     "loading": "Loading files",
     "unavailable": "Folder unavailable",
-    "unavailableOfflineHint": "{{owner}} is offline. The folder's files will load once they're back online.",
     "empty": "This folder is empty.",
     "emptyHintMine": "Add files to your local folder and they'll show up here automatically.",
     "emptyHintOther": "Files will appear here once {{owner}} adds them.",
@@ -407,7 +403,6 @@
     "defaultName": "Shared Space",
     "alreadyMember": "You're already in {{name}}",
     "invalidLink": "That invite link wasn't valid.",
-    "outdatedLink": "This invite was made by a newer version of Mirall. Update Mirall and try again.",
     "expiredLink": "This invite link has expired. Ask for a new one."
   },
   "leaveSpace": {
@@ -500,8 +495,7 @@
     "releaseFiles_one": "Release to share {{count}} file",
     "releaseFiles_other": "Release to share {{count}} files",
     "releaseFolder": "Release to share “{{name}}”",
-    "releaseFolderUnnamed": "Release to share this folder",
-    "button": "Select Files"
+    "releaseFolderUnnamed": "Release to share this folder"
   },
   "docs": {
     "opensInBrowser": "Opens mirall.app in your browser",
@@ -714,8 +708,7 @@
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferPausedTitle": "Download paused",
     "transferPausedBody": "{{file}} — sender offline",
-    "transferPausedInterruptedBody": "{{file}} — transfer interrupted",
-    "unknownError": "unknown error"
+    "transferPausedInterruptedBody": "{{file}} — transfer interrupted"
   },
   "format": {
     "etaSecondsLeft": "{{value}}s left",
@@ -865,7 +858,6 @@
     "boolNo": "No",
     "connection": "Connection",
     "peerCount": "Connected peers",
-    "connecting": "Attempts in flight",
     "topicsJoined": "Spaces joined",
     "lastConnected": "Last connected",
     "address": "Address",
@@ -873,30 +865,17 @@
     "publicPort": "Public UDP port",
     "localPort": "Local UDP port",
     "publicKey": "Your public key",
-    "nodeId": "DHT node ID",
     "nat": "NAT",
     "firewalled": "Behind firewall",
     "randomized": "Randomised port mapping",
     "ephemeral": "Ephemeral DHT node",
     "dht": "DHT",
     "routingTableSize": "Routing-table size",
-    "bootstrapNodes": "Bootstrap nodes",
-    "stats": "Counters",
-    "statsUpdates": "Update events",
-    "statsClientOpened": "Outbound opened",
-    "statsClientClosed": "Outbound closed",
-    "statsServerOpened": "Inbound opened",
-    "statsServerClosed": "Inbound closed",
-    "statsBannedPeers": "Banned peers",
     "advice": {
       "title": "Suggestions",
       "osOffline": "Your operating system reports no internet connection. Check your Wi-Fi or Ethernet.",
-      "firewalled": "Your router appears to be blocking inbound UDP. Peers will reach you only via holepunching.",
-      "randomizedNat": "Your network randomises outbound ports. Direct connections may fail.",
       "symmetricNat": "Your connection uses changing ports. Connections to many people will fail — mobile routers and tethering are the usual cause.",
       "noPublicAddr": "Couldn't determine your public IP. Check your internet connection.",
-      "smallRoutingTable": "Few DHT peers known so far. Bootstrap may still be in progress.",
-      "stillBootstrapping": "Still joining the DHT — give it a moment.",
       "symmetricNatFix": "On a mobile network there's no router setting that fixes this. A cable or DSL connection will work.",
       "udpDegraded": "Your network keeps dropping traffic to the Mirall network. Transfers may stall.",
       "stillSettling": "Still working out how this network behaves — give it a moment."
@@ -1115,7 +1094,6 @@
     "deleteDone_other": "Deleted {{count}} events."
   },
   "connectionProblem": {
-    "title": "Connection problem",
     "subtitle": {
       "blocked": "Mirall can't reach other people from this network.",
       "atRisk": "Mirall can only reach some people from this network.",

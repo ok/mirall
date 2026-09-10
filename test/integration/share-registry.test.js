@@ -3,13 +3,13 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { publishShare, tombstoneShare, generateShareId, readPeerShareEntry } from '../../src/shared/shares/shares.js'
 import { listSharesForSpace } from '../../src/shared/shares/share-registry.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { mountRootAvailable } from '../../src/shared/folders/owned-folders.js'
+import { mountRootAvailable } from '../../src/shared/folders/publish-runner.js'
 
 function share (name) {
   return { id: generateShareId(), type: 'owned-folder', name, owner: getLocalPublicKeyHex(), createdAt: Date.now() }
@@ -67,7 +67,7 @@ test('REGRESSION (FIX-20): listSharesForSpace skips an unreachable member instea
   await ghostCore.ready()
   await ghostCore.clear(0, len)
 
-  await updateMembers(spaceId, [{ publicKey: ghostKey, driveKey: null, displayName: 'Ghost' }])
+  await mutateMembers(spaceId, () => [{ publicKey: ghostKey, driveKey: null, displayName: 'Ghost' }])
 
   const t0 = Date.now()
   const listed = await listSharesForSpace(spaceId)
@@ -97,7 +97,7 @@ test('REGRESSION (FIX-1): a member\'s tombstoned share is omitted from the listi
   const peerKey = b4a.toString(peer.core.key, 'hex')
   await peer.close()
 
-  await updateMembers(spaceId, [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
+  await mutateMembers(spaceId, () => [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
 
   const listed = await listSharesForSpace(spaceId)
   t.absent(listed.some((s) => s.name === 'Docs'), 'tombstoned peer share omitted even though the peer is a member')

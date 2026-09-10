@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const readSrc = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
@@ -67,12 +67,12 @@ test('the error wire filter is the only behavioural difference between the kinds
     build(kind, r.emit).emitError(JOB, code)
     return r.names().includes('event:transfer-error')
   }
-  for (const code of [ErrorCodes.TRANSFER_DISK_FULL, ErrorCodes.TRANSFER_CHECKSUM, ErrorCodes.TRANSFER_DEST_UNAVAILABLE]) {
+  for (const code of [CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DEST_UNAVAILABLE]) {
     t.ok(surfaced('folder', code), `folder surfaces ${code}`)
     t.ok(surfaced('loose', code), `loose surfaces ${code}`)
   }
-  t.absent(surfaced('folder', ErrorCodes.DOWNLOAD_FAILED), 'a folder row keeps a generic failure inline')
-  t.ok(surfaced('loose', ErrorCodes.DOWNLOAD_FAILED), 'a loose row has no list to keep it in')
+  t.absent(surfaced('folder', CODES.DOWNLOAD_FAILED), 'a folder row keeps a generic failure inline')
+  t.ok(surfaced('loose', CODES.DOWNLOAD_FAILED), 'a loose row has no list to keep it in')
 
   const events = (kind, drive) => {
     const r = recorder()

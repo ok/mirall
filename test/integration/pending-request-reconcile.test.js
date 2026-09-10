@@ -110,7 +110,7 @@ test('an approved joiner is not shown as pending even before its own membership 
   t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'approved joiner excluded from pending')
 })
 
-test('REGRESSION (member-also-pending): listPendingRequests excludes roster members', async (t) => {
+test('REGRESSION (member-also-pending): an already-joined member is never shown stuck as a pending approval', async (t) => {
   await boot(t, 'memberfilter')
   const space = await createSpace('Approval Test')
   const S = space.spaceId

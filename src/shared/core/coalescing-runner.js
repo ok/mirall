@@ -8,9 +8,8 @@
 // coalescing onto a promise that may never settle.
 //
 // EVERY caller of a run is a waiter on its entry — the one that started it as much as the ones that
-// coalesced onto it — because that is what lets an abandoned run settle all of them. Callers held
-// only in a local closure (the shape this replaced) were unreachable from cancel(): abandoning a
-// wedged pass left them parked forever, which is the opposite of what abandoning it is for.
+// coalesced onto it — so cancel() can settle all of them; a caller held only in a local closure
+// would be parked forever by the very abandon that exists to un-wedge it.
 export function createCoalescingRunner({ merge = (queued) => queued, cancelledValue = undefined } = {}) {
   const state = new Map()
 

@@ -28,15 +28,11 @@ interface DetailSnapshot {
   peers: DetailPeer[]
 }
 
-// Tier 2: per-peer progress for ONE file, gated by mount — the worker only streams detail
-// for a (spaceId, path) while this hook is subscribed, so closing the dropdown (unmounting)
-// stops the per-peer firehose. Mount calls detail-subscribe (rendering the returned snapshot
-// immediately); progress frames update live; the worker's ledger sweep pushes the
-// authoritative snapshot (empty included), so a missed "peer gone" frame self-corrects
-// without any renderer poll or silence-TTL guessing. Unmount calls detail-unsubscribe.
-// Deliberately outside the query store: this owns an explicit serving:detail-subscribe /
-// serving:detail-unsubscribe RPC pair, and a subscription with a teardown is not a query. The store
-// caches and refetches answers; it has no concept of telling the worker to stop producing them.
+// Tier 2: per-peer progress for ONE file, gated by mount — the worker streams detail for a
+// (spaceId, path) only while this hook is subscribed (detail-subscribe on mount renders the returned
+// snapshot; detail-unsubscribe on unmount). The ledger sweep pushes the authoritative snapshot, empty
+// included, so a missed "peer gone" frame self-corrects. Outside the query store: a subscription with
+// a teardown is not a query, and the store has no way to tell the worker to stop producing answers.
 export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownloadPeer[] {
   const [peers, setPeers] = useState<PeerDownloadPeer[]>([])
   const samplersRef = useRef(new Map<string, SpeedSampler>())

@@ -37,7 +37,7 @@ import { listSpaces, clearAndPurgeCore } from '../../../spaces/space.js'
 import { getStore } from '../../../core/store.js'
 import { compactStore } from '../../swarm.js'
 import { pathFromMount } from '../../path-guard.js'
-import { shareDecoKey } from '../../decoration-key.js'
+import { shareDecoKey } from '../../../contract/decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
 import { reuseDest } from '../../download-dest.js'
 import { createOverlayChannel } from './overlay-channel.js'
@@ -46,18 +46,13 @@ import { createPresenceSweeper } from '../../presence-sweeper.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
 import { getDownloadDir } from '../../../core/paths.js'
-import { AppError, ErrorCodes } from '../../../core/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay')
 
 // === fetch diagnostics ===
 
-// The deliberate-stop outcomes finish() recognizes — normal control flow, logged
-// at debug (never the give-up WARN). 'done' and 'failed' are handled explicitly;
-// anything NOT in this set is treated as a give-up and WARNed, so a typo'd or
-// renamed outcome can never silently downgrade a real give-up to an invisible
-// debug line.
+// finish()'s deliberate stops — see makeFetchDiag; anything else is a give-up and WARNs.
 const DELIBERATE_STOPS = new Set(['paused', 'cancelled', 'superseded', 'no-holder'])
 
 // Download instrumentation: logs fetch start, throttled mid-download progress
@@ -98,11 +93,8 @@ export function makeFetchDiag(label, relPath, total, contentHash) {
       if (outcome === 'done') {
         log.info(`${label} done:`, relPath, `${total} bytes in ${elapsed}s`)
       } else if (DELIBERATE_STOPS.has(outcome)) {
-        // Deliberate stop (paused / cancelled / superseded / no holder yet) — expected, not a failure.
         log.debug(`${label} ${outcome}:`, relPath, `at ${lastBytes}/${total} bytes after ${elapsed}s`)
       } else {
-        // 'failed', or — fail-safe — any unrecognized outcome (a caller typo / renamed
-        // state): WARN. A possible give-up must never be silently downgraded to debug.
         const tag = outcome !== 'failed' ? ` [outcome='${outcome}']` : ''
         log.warn(`${label} INCOMPLETE:`, relPath, `gave up after ${elapsed}s at ${lastBytes}/${total} bytes${tag}`)
       }
@@ -235,18 +227,15 @@ export async function publishContent(spaceId, shareId, relPath, absPath, { onAdv
   // Awaited: the loose path records the owned-source link here, and it must commit BEFORE the
   // multi-minute hash so a quit mid-hash stays recoverable (the folder callback is synchronous).
   await onAdvertised?.(st.size)
-  // Build the content hash AND the FastCDC chunk map in a single streaming read, so
-  // the first peer fetch serves immediately instead of paying a full-file re-chunk
-  // before the first byte. The by-hash map is durable in FileIndex (survives restart).
+  // Build the content hash AND the FastCDC chunk map in a single streaming read, so the first peer
+  // fetch serves immediately instead of paying a full-file re-chunk before the first byte. The
+  // by-hash map is durable in FileIndex (survives restart).
   //
-  // The entry is now half-advertised (contentHash:null). If the hash fails or yields
-  // nothing — a chunk-map persist that threw on a huge file, a cancel, a vanished source
-  // — undo it so it doesn't linger as a stuck "preparing"/"adding" entry: a re-publish
-  // reverts to the prior version, a first publish is tombstoned. Reverting HERE covers
-  // both the loose (runLoosePublish) and folder (publishOne) callers, which
-  // both advertise through this function. Once setMaterializedHash writes the real hash
-  // the entry is no longer stuck; a later makeServable failure self-heals on the next
-  // reconcile, so it stays outside the revert window.
+  // The entry is now half-advertised (contentHash:null). If the hash fails or yields nothing, undo
+  // it here — the one place both the loose and the folder caller advertise through — so it does
+  // not linger as a stuck "preparing"/"adding" entry (see revertHalfAdvertised). Once
+  // setMaterializedHash writes the real hash the entry is no longer stuck; a later makeServable
+  // failure self-heals on the next reconcile, so it stays outside the revert window.
   let contentHash
   try {
     const prep = await getOverlay()?.prepareForServe(absPath, { onProgress, signal: { get aborted () { return publishesAborting || Boolean(signal?.aborted) } } })
@@ -415,7 +404,7 @@ export async function compactOverlayIndex() {
     const oldCore = await overlay.compactIndex({ isServed: (hash) => served.has(hash) })
     if (!oldCore) return { compacted: false } // nothing droppable — index left untouched
     const cs = getStore()
-    await clearAndPurgeCore(cs, cs.storage.db, oldCore)
+    await clearAndPurgeCore(cs, oldCore)
     await compactStore()
     return { compacted: true }
   } finally {
@@ -520,12 +509,6 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
   })
 }
 
-async function peerEntry(spaceId, share, relPath) {
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, share)
-  if (!readable) return null
-  return await getPeerEntry(keyHex, share.id, relPath, { sck })
-}
-
 // Non-mirrored overlay folder downloads run on the shared overlay consumer engine
 // (single-flight, real pause/resume, stop/cancel, auto-resume) — the same engine the space-root
 // loose path uses, driven by a channel built from the same factory. The pending row carries
@@ -627,21 +610,6 @@ export async function overlayCancelSpace (spaceId) {
 export const resumeOverlayForOwner = (ownerKey, spaceId) => engine().resumeForOwner(ownerKey, spaceId)
 export const overlayHasTransfer = (transferId) => engine().has(transferId)
 
-// Foreign-mirror variant: confirm the file is advertised + hashed and return its
-// contentHash. The overlay mirror read-to-mount (a fetchFile to the mount path)
-// is wired in foreign-folders for backend.mode==='overlay' — there is no
-// peer drive to read from.
-export async function overlayEnsureRemote(spaceId, share, relPath) {
-  const entry = await peerEntry(spaceId, share, relPath)
-  if (!entry?.contentHash) throw new AppError(ErrorCodes.NOT_FOUND, 'not advertised / not yet hashed')
-  return entry.contentHash
-}
-
-export function overlayReleaseRemote() {
-  // No-op — overlay stores nothing on the owner to release; it serves straight
-  // from the source file.
-}
-
 // === boot rehydrate + presence sweep ===
 
 // Boot rehydrate: the facade serve maps (_contentHashPaths) are NOT persisted,
@@ -687,14 +655,13 @@ const folderSweeper = createPresenceSweeper({
     try { return fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch { return false }
   },
   // Onto the shared publish lane, exactly as the loose sweep retires: the runner re-confirms the
-  // file is really gone, the write joins the space's catalog batch, and the eviction rides with
-  // it. Writing the tombstone here instead skipped all three.
+  // file is really gone, the write joins the space's catalog batch, and the eviction rides with it.
   retire: ({ spaceId, shareId, retires }, entry) => {
     const settled = publishLane?.enqueueRetire(spaceId, shareId, entry.relPath)
     // The lane's ticket RESOLVES with a settlement and never rejects — work-item.js's deferred has
-    // no reject path — so a .catch here could not fire, and a failed retire was dropped in silence.
-    // The loose twin may catch because settledWithTail rethrows for it; this one has to read the
-    // outcome. (A cancel is the user stopping it, not a failure.)
+    // no reject path — so this has to read the outcome; a .catch here could never fire. (The loose
+    // twin may catch because settledWithTail rethrows for it. A cancel is the user stopping it, not
+    // a failure.)
     if (settled) {
       retires.push(settled.then((s) => {
         if (s?.outcome === 'failed') log.debug('folder retire failed:', entry.relPath, '-', s.error?.message || 'the publish runner refused it')

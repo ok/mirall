@@ -110,9 +110,8 @@ async function pumpDevice() {
     log.warn('device episode step failed:', err.message)
   } finally {
     running = false
-    // The drain belongs HERE: several paths above return from inside the try, and a return runs
-    // finally and then exits the function — anything after the try/finally is dead code on those
-    // paths, so an observation that arrived mid-step would sit unprocessed until the next emit.
+    // In `finally`: the try returns early on several paths, and an observation that arrived
+    // mid-step must not wait for the next emit.
     if (pending) { pending = false; void pumpDevice() }
   }
 }

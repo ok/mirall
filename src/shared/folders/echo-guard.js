@@ -44,8 +44,7 @@ function purgeExpired(now = Date.now()) {
 }
 
 // Owns the TTL purge, and nothing else: the guard map itself needs no lifecycle, because
-// `has()` expires an entry on read. The purge is only a memory bound — but as a module-level
-// interval it was armed at import, where no shutdown could ever reach it.
+// `has()` expires an entry on read. The purge is only a memory bound.
 export class EchoGuardPurge extends Subsystem {
   async _open() { this.timers.setInterval(purgeExpired, PURGE_INTERVAL_MS) }
 }

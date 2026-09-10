@@ -5,7 +5,7 @@ import { request, addFileToSpace } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery } from '../store/query-store.js'
 import { mergeOptimistic } from '../optimisticRows.js'
-import { useToast } from '../components/toast/useToast.js'
+import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import type { FileEntry } from '../types.js'
 
@@ -16,9 +16,7 @@ interface DownloadFileResult {
   queued?: boolean
 }
 
-// A members change (a peer's catalog key committed post-handshake) can newly reveal that peer's
-// loose files, so the listing re-derives on it too — the handshake's pre-persist files hint races
-// the member persist, but the post-persist members poke does not.
+// Files AND members: a members change can newly reveal a peer's loose files (README.md).
 function filesScopes(spaceId: string) {
   return [{ kind: 'files', spaceId }, { kind: 'members', spaceId }]
 }
@@ -46,8 +44,7 @@ export function useFiles(spaceId: string) {
   )
 
   const files = data ?? EMPTY
-  // Only a genuinely cold space shows "Loading files…". A hint-driven refetch keeps the rows on
-  // screen, which is what stops the list collapsing and resetting scroll.
+  // Cold only (README.md).
   const loading = data === undefined && fetching
   // The rows survive a failed read. The error is passed on as it arrived rather than as its
   // message: the screen renders its own generic block for it, and turning it into text is the
@@ -92,9 +89,7 @@ export function useFiles(spaceId: string) {
     }
   }
 
-  // Stable identities, like useShareFiles' equivalents: these are handed straight to memoized file
-  // rows, and a fresh closure per render made every row's shallow compare fail — so the list
-  // re-rendered whole on each decoration heartbeat. They close over nothing but spaceId.
+  // Stable identities: props of memoized rows (README.md). They close over nothing but spaceId.
   const downloadFile = useCallback(async (file: FileEntry) => {
     const res = await request('files:download', {
       spaceId,

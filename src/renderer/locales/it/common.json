@@ -84,7 +84,6 @@
     "filesError": "Impossibile caricare i file",
     "filesErrorHint": "L'elenco dei file ha impiegato troppo tempo a caricarsi. Può succedere mentre i file sono ancora in sincronizzazione o un peer è offline.",
     "filesRetry": "Riprova",
-    "emptyFiles": "Nessun file condiviso per ora. Trascina i file nella barra laterale per iniziare.",
     "emptyShareTitle": "Niente di condiviso ancora",
     "emptyShareSubtitle": "Trascina file o cartelle nell'area a destra per iniziare a condividerli in questo spazio.",
     "emptyShareDocsTitle": "Cosa succede quando condividi",
@@ -111,7 +110,6 @@
     "waitingApprovalHint": "Un membro di questo spazio deve approvarti. Puoi lasciare questa finestra aperta: verrai ammesso automaticamente non appena qualcuno sarà online.",
     "waitingDocsTitle": "Perché sto aspettando?",
     "waitingDocsBody": "Un invito contiene l'indirizzo dello spazio, mai la sua chiave. A consegnarla è un dispositivo già membro: perciò un membro deve essere online e raggiungibile prima che tu possa entrare. L'approvazione automatica elimina la decisione, non la consegna.",
-    "encryptedBadge": "Crittografato",
     "legacyBadge": "Non supportato",
     "legacyWarning": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato. Crea un nuovo spazio e condividi lì le tue cartelle."
   },
@@ -147,7 +145,6 @@
     "description": "Una copia in sola lettura della cartella di {{owner}} verrà mantenuta sincronizzata nella posizione che scegli.",
     "ownerLine": "{{count}} file · {{size}} · Di proprietà di {{owner}}",
     "pathLabel": "Posizione della copia sul tuo disco",
-    "pathPlaceholder": "Sfoglia…",
     "readOnlyWarning": "Sola lettura. I file modificati qui verranno ripristinati alla versione di {{owner}} alla prossima sincronizzazione.",
     "next": "Avanti: anteprima",
     "create": "Avvia la replica",
@@ -218,7 +215,6 @@
     "subfolderCount_other": "contiene {{count}} sottocartelle",
     "loading": "Caricamento dei file",
     "unavailable": "Cartella non disponibile",
-    "unavailableOfflineHint": "{{owner}} è offline. I file verranno caricati quando {{owner}} tornerà online.",
     "empty": "Questa cartella è vuota.",
     "emptyHintMine": "Aggiungi file alla tua cartella locale: appariranno qui automaticamente.",
     "emptyHintOther": "I file appariranno qui quando {{owner}} li aggiungerà.",
@@ -383,7 +379,6 @@
     "defaultName": "Spazio condiviso",
     "alreadyMember": "Sei già in {{name}}",
     "invalidLink": "Il link di invito non è valido.",
-    "outdatedLink": "Questo invito è stato creato con una versione più recente di Mirall. Aggiorna Mirall e riprova.",
     "expiredLink": "Questo link di invito è scaduto. Chiedine uno nuovo."
   },
   "leaveSpace": {
@@ -476,8 +471,7 @@
     "releaseFiles_one": "Rilascia per condividere {{count}} file",
     "releaseFiles_other": "Rilascia per condividere {{count}} file",
     "releaseFolder": "Rilascia per condividere «{{name}}»",
-    "releaseFolderUnnamed": "Rilascia per condividere questa cartella",
-    "button": "Seleziona file"
+    "releaseFolderUnnamed": "Rilascia per condividere questa cartella"
   },
   "docs": {
     "opensInBrowser": "Apre mirall.app nel tuo browser",
@@ -690,8 +684,7 @@
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferPausedTitle": "Download in pausa",
     "transferPausedBody": "{{file}} — mittente offline",
-    "transferPausedInterruptedBody": "{{file}} — trasferimento interrotto",
-    "unknownError": "errore sconosciuto"
+    "transferPausedInterruptedBody": "{{file}} — trasferimento interrotto"
   },
   "format": {
     "etaSecondsLeft": "{{value}} s rimanenti",
@@ -841,7 +834,6 @@
     "boolNo": "No",
     "connection": "Connessione",
     "peerCount": "Peer connessi",
-    "connecting": "Tentativi in corso",
     "topicsJoined": "Spazi attivi",
     "lastConnected": "Ultima connessione",
     "address": "Indirizzo",
@@ -849,30 +841,17 @@
     "publicPort": "Porta UDP pubblica",
     "localPort": "Porta UDP locale",
     "publicKey": "La tua chiave pubblica",
-    "nodeId": "ID del nodo DHT",
     "nat": "NAT",
     "firewalled": "Dietro un firewall",
     "randomized": "Mappatura porte casuale",
     "ephemeral": "Nodo DHT effimero",
     "dht": "DHT",
     "routingTableSize": "Dimensione tabella di routing",
-    "bootstrapNodes": "Nodi bootstrap",
-    "stats": "Contatori",
-    "statsUpdates": "Eventi di aggiornamento",
-    "statsClientOpened": "In uscita aperte",
-    "statsClientClosed": "In uscita chiuse",
-    "statsServerOpened": "In entrata aperte",
-    "statsServerClosed": "In entrata chiuse",
-    "statsBannedPeers": "Peer banditi",
     "advice": {
       "title": "Suggerimenti",
       "osOffline": "Il sistema operativo segnala l'assenza di connessione a Internet. Controlla Wi-Fi o Ethernet.",
-      "firewalled": "Il router sembra bloccare l'UDP in entrata. I peer ti raggiungeranno solo tramite holepunching.",
-      "randomizedNat": "La rete assegna porte in uscita casuali. Le connessioni dirette possono fallire.",
       "symmetricNat": "La tua connessione usa porte variabili. Le connessioni verso molte persone falliranno: router mobili e tethering sono la causa più comune.",
       "noPublicAddr": "Impossibile determinare l'IP pubblico. Controlla la connessione a Internet.",
-      "smallRoutingTable": "Pochi peer DHT noti finora. Il bootstrap potrebbe essere ancora in corso.",
-      "stillBootstrapping": "Ancora in fase di ingresso nel DHT — attendi un momento.",
       "symmetricNatFix": "Su una rete mobile non esiste un’impostazione del router che risolva il problema. Una connessione via cavo o DSL funzionerà.",
       "udpDegraded": "La tua rete perde di continuo traffico verso la rete Mirall. I trasferimenti possono bloccarsi.",
       "stillSettling": "Stiamo ancora capendo come si comporta questa rete: attendi un momento."
@@ -1115,7 +1094,6 @@
     "deleteDone_other": "{{count}} eventi eliminati."
   },
   "connectionProblem": {
-    "title": "Problema di connessione",
     "subtitle": {
       "blocked": "Mirall non raggiunge altre persone da questa rete.",
       "atRisk": "Mirall raggiunge solo una parte delle altre persone da questa rete.",

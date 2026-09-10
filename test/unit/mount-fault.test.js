@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isMountFault, mountFault } from '../../src/renderer/mountFault.js'
+import { isMountFault, mountFault } from '../../src/shared/contract/mount-fault.js'
 import { OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../../src/shared/contract/statuses.js'
 
 // The projection that decides whether a folder screen shows a fault at all. Before it, both fault

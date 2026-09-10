@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import Hyperdrive from 'hyperdrive'
 import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
 
 async function coreInStore (dkHex) {
@@ -31,7 +31,7 @@ test('REGRESSION (FIX-4): an un-cached current member’s peer drive is never re
   const blobsDk = b4a.toString(blobs.core.discoveryKey, 'hex')
   await peer.close() // a replicated peer drive is not necessarily warmed in memory
 
-  await updateMembers(space.spaceId, [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
+  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
 
   t.ok(await coreInStore(metaDk), 'precondition: peer meta present')
   t.ok(await coreInStore(blobsDk), 'precondition: peer blobs present')

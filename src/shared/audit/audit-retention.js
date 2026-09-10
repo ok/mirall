@@ -11,7 +11,6 @@ export const AGE_HYSTERESIS = 20
 
 export const DEFAULT_RETENTION_DAYS = 90
 export const DEFAULT_MAX_ENTRIES = 200000
-export const RETENTION_CHOICES = [30, 90, 365]
 
 const DAY_MS = 86400000
 

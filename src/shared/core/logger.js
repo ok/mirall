@@ -7,7 +7,7 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 }
 
 // Ordered key=value appended to the message, not JSON: the transport is a console line forwarded
 // to main and read by a human with grep. Tagged with a symbol rather than recognised by shape, so
-// the ~330 positional call sites that already log a plain object keep printing exactly as they do
+// the ~440 positional call sites that already log a plain object keep printing exactly as they do
 // now. Symbol.for and not Symbol(): a module loaded through two specifiers would otherwise mint
 // two tags, and a bag created under one would render as an object under the other.
 const FIELDS = Symbol.for('mirall.logFields')

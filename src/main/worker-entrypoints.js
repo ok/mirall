@@ -15,12 +15,10 @@ function preloadEntrypoints (repoRoot, resolve = require.resolve) {
   for (const spec of WORKER_SPECS) entrypoints.set(spec, resolve(path.join(repoRoot, spec)))
 }
 
-// The allowlist IS the check. A miss used to fall through to
-// `require.resolve(path.join(__dirname, '..', '..', specifier))`, so any string the renderer handed
-// pear:startWorker became a path this process resolved and pear.run() executed — with the bootstrap
-// frame (which ends in identityKEK) handed to it. The renderer is sandboxed and context-isolated,
-// so reaching that needs renderer code execution first: defense in depth, not a live exploit. The
-// fallthrough also never worked, for the noAsar reason above.
+// The allowlist IS the check: an unknown specifier throws and is never resolved. Anything else
+// would let a string the renderer hands pear:startWorker become a path pear.run() executes — with
+// the bootstrap frame (which ends in identityKEK) handed to it. Defense in depth: the renderer is
+// sandboxed and context-isolated, so reaching this needs renderer code execution first.
 function entrypointFor (specifier) {
   const entrypoint = entrypoints.get(specifier)
   if (!entrypoint) throw new Error('refusing to spawn an unknown worker specifier: ' + specifier)

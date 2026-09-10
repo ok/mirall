@@ -8,8 +8,9 @@ interface FileNameProps {
 
 // Renders a filename with middle truncation that keeps the extension visible —
 // the stem ellipsizes while the trailing `.ext` stays pinned, so a long name
-// reads `report_fin….pdf` instead of losing its end. Mirrors FilePath's two-span
-// flex trick (head truncates, tail is shrink-0). Names with no usable extension
+// reads `report_fin….pdf` instead of losing its end. Same head/tail flex split as FilePath
+// (head truncates, tail is shrink-0); FilePath additionally pins only the last PIN characters
+// of a long tail and caps it at the container. Names with no usable extension
 // fall back to plain end truncation. Full name is in the title for hover + a11y.
 //
 // The two visible spans are `aria-hidden` and the full name is carried by a

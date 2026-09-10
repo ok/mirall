@@ -9,7 +9,7 @@ import { boot } from '../../src/worker/boot.js'
 
 const quiet = { debug () {}, info () {}, warn () {}, error () {} }
 import { getStore } from '../../src/shared/core/store.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
 async function coreInStore (discoveryKey) {
@@ -40,7 +40,7 @@ test('REGRESSION (FIX-2): cleanup does not purge a member’s peer drive', async
   await peerDrive.close() // cores stay on disk (a replicated peer drive isn't necessarily open)
 
   // Register it as a member's drive in the space.
-  await updateMembers(space.spaceId, [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
+  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
 
   t.ok(await coreInStore(metaDk), 'precondition: peer meta core present')
   t.ok(await coreInStore(blobsDk), 'precondition: peer blobs core present')

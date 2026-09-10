@@ -20,11 +20,9 @@ export default function DownloadFolderToastBridge({ onChangeFolder }: Props) {
   const { unavailable, faultSeq } = useDownloadRootStatus()
   const { t } = useTranslation()
   const toast = useToast()
-  // Only transitions produce a toast, so a re-probe that finds the same folder still missing
-  // doesn't re-raise one the user has dismissed. A fresh FAILED DOWNLOAD counts as a transition
-  // though (faultSeq): the toast stack keeps at most 4 and evicts the oldest, which a sticky
-  // toast always is, so without that the only surface explaining the fault can disappear on its
-  // own and never come back.
+  // Only transitions produce a toast, so a re-probe that finds the same folder missing does not
+  // re-raise one the user dismissed. A fresh FAILED DOWNLOAD counts as a transition (faultSeq): the
+  // stack keeps 4 and evicts the oldest, which a sticky toast always is.
   const previousRef = useRef<string | null>(null)
   const onChangeFolderRef = useRef(onChangeFolder)
 

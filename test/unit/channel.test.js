@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveChannel } from '../src/shared/core/channel.js'
+import { deriveChannel } from '../../src/shared/core/channel.js'
 
 test('deriveChannel — dev flag wins regardless of version', (t) => {
   t.is(deriveChannel({ dev: true }), 'dev')

@@ -11,7 +11,7 @@ import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.j
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import {
   initContentBackendOverlay, overlayHashFile, overlaySweepPresence, makeServable,
@@ -51,7 +51,7 @@ async function setup (t, { files = {} } = {}) {
   }
   initContentBackendOverlay(ctx.fake.ipc)
   serveIndex.reset()
-  await overlayBackend.init() // initOverlay + rehydrate (nothing published yet)
+  await initOverlay()
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
@@ -403,8 +403,4 @@ test('streaming verify rejects a source whose bytes no longer match the content 
   // mismatched bytes.
   const got = await getOverlay().fetchFile(entry.contentHash, { peerWaitMs: 50 })
   t.is(got, null, 'streamed whole-file verify rejected the mismatched source')
-})
-
-test('releaseRemote is a no-op (overlay stores nothing on the owner)', (t) => {
-  t.execution(() => overlayBackend.releaseRemote('s', { id: 'x' }, 'a.txt'))
 })

@@ -9,7 +9,7 @@
 // RESUME of the open session rather than a new one — that is what collapses a flapping peer's
 // 50 reconnects into a single served-file row.
 
-export const DEFAULT_JOIN_WINDOW_MS = 120000
+const DEFAULT_JOIN_WINDOW_MS = 120000
 
 export function createSessionStore({ joinWindowMs = DEFAULT_JOIN_WINDOW_MS } = {}) {
   const open = new Map()

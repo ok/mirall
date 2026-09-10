@@ -80,7 +80,7 @@ async function migrateOne(name) {
     }
     await enc.close()
     await legacy.close()
-    await purgeCoreDk(getStore(), getStore().storage.db, dkHex)
+    await purgeCoreDk(getStore(), dkHex)
     purged = true
     return hadData
   } finally {

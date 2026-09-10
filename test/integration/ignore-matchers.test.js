@@ -1,7 +1,5 @@
 import test from 'brittle'
-// owned-folders imports bare-fs, so this unit test runs under brittle-bare even
-// though shouldIgnore itself is pure logic.
-import { shouldIgnore, DEFAULT_IGNORE } from '../../src/shared/folders/owned-folders.js'
+import { shouldIgnore, DEFAULT_IGNORE } from '../../src/shared/folders/path-keys.js'
 
 test('DEFAULT_IGNORE: exact basename matches', (t) => {
   t.ok(shouldIgnore('.DS_Store', DEFAULT_IGNORE))

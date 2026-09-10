@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { statusEqual } from '../../src/shared/transfer/swarm.js'
+import { statusEqual } from '../../src/shared/transfer/connectivity.js'
 
 // statusEqual dedups network-status events: a fresh status equal to the last is not re-emitted.
 // It is a flat list of scalar field comparisons; the real refactor risk is dropping or duplicating

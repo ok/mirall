@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { joinSpace, createSpace, listSpaces, getDrive, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
-import { encodeInvite, decodeInvite } from '../../src/shared/invite-envelope.js'
+import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 test('re-joining the same invite topic is idempotent (one space, still pending)', async (t) => {
   await freshPeer(t)

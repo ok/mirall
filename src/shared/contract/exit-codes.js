@@ -1,10 +1,5 @@
-// The worker's exit codes. Main relays the code verbatim to the renderer, and the respawn policy
-// is the only reader — so this is the sole channel distinguishing WHY a worker generation ended.
-//
-// That distinction is load-bearing. A worker killed mid-operation (an OOM on a very large folder)
-// booted fine and earns a fresh respawn budget: booting again is likely to work. A worker that
-// exits because its own fault rate crossed the unstable threshold is reporting the opposite —
-// it booted, reached ready, and then failed anyway, so a budget that resets on every ready is no
-// bound at all. Without a distinct code the two are indistinguishable and the second respawns
-// forever.
+// The worker's exit codes. Main relays the code verbatim and workerRespawn.js is the only reader,
+// so this is the sole channel saying WHY a generation ended. Distinct from a kill (an OOM
+// mid-operation, which earns a fresh respawn budget): a worker that reached ready and then tripped
+// the unstable threshold must not — a budget that resets on every ready is no bound.
 export const WORKER_EXIT_UNSTABLE = 70

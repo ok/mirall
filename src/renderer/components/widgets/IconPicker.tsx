@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import Icon, { type IconName } from '../primitives/Icon.js'
 
-export const iconOptions: Array<{ id: IconName }> = [
+const iconOptions: Array<{ id: IconName }> = [
   { id: 'folder' },
   { id: 'movie' },
   { id: 'science' },

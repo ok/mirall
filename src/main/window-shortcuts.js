@@ -22,4 +22,4 @@ function matchWindowShortcut(input, { isMac }) {
   return null
 }
 
-module.exports = { matchWindowShortcut, isDevtoolsChord }
+module.exports = { matchWindowShortcut }

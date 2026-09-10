@@ -1,15 +1,9 @@
-// Which folder acts the command palette offers, and under what label. Unavailability splits three
-// ways here, and none of the three wants a greyed-out row:
-//   wrong role     — absent. "Mirror" on a folder you already own is not an act that is
-//                    temporarily blocked, it is meaningless, and listing it teaches nothing.
-//   toggle state   — never gated; the LABEL swings instead. A folder that is not syncing offers
-//                    Resume, which is the act the user opened the palette for.
-//   work in flight — not modelled at all. The acts it blocks (Delete, Unmount) are deliberately
-//                    kept out of the palette, so no entry here ever needs a disabled state.
-//
-// The palette renders one flat ranked list with no group headings, so every label carries the
-// folder name: it is the only thing marking these rows as scoped to the folder on screen rather
-// than to the space beside it, and it is what makes the name itself a useful search term.
+// Which folder acts the command palette offers, and under what label. No row is ever disabled:
+//   wrong role     — absent (Mirror on a folder you own is meaningless, not blocked).
+//   toggle state   — never gated; the LABEL swings (a folder that is not syncing offers Resume).
+//   work in flight — not modelled; the acts it blocks (Delete, Unmount) stay out of the palette.
+// Every label carries the folder name: the palette is one flat list with no group headings, so the
+// name is what scopes a row to this folder rather than the space, and makes the name a search term.
 
 export function deriveFolderCommands (input) {
   const { role, paused, sourceMissing, canMirror } = input

@@ -1,7 +1,7 @@
 // Pure, dependency-free state transitions for the in-app update notice. Kept as
 // plain JS (no React/window) so it is the single source of truth shared by the
 // renderer bundle (esbuild/tsc) and the brittle-node unit suite — same pattern
-// as sharePaths.js / shared/channel.js.
+// as sharePaths.js / fileTree.js.
 //
 // Two consumers read this state:
 //   - the dismissable banner (TopNav) shows while `update && !dismissed`

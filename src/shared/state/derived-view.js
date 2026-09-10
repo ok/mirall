@@ -1,14 +1,8 @@
-// Generic durable-state view primitive: watch a set of replicated
-// source bees and, whenever any of them changes — locally OR via replication —
-// recompute a derived view by folding all sources. Bursts collapse into a single
-// recompute. The view is held in memory and emitted via onChange; it is NEVER
-// persisted — it is a pure function of the replicated logs, so it can always be
-// rebuilt by re-folding.
-//
-// Why this works without polling: hyperbee.watch(range) fires on REMOTE (replicated)
-// appends too — it hangs off the underlying core's 'append' event, which fires for a
-// peer's blocks once they replicate. That is the same mechanism the swarm already uses
-// to react to a peer's approval/avatar writes.
+// Durable-state view primitive: watch a set of replicated source bees and, on any change — local
+// or replicated — recompute a derived view by folding all sources, bursts collapsed into one
+// recompute. Held in memory and emitted via onChange, NEVER persisted: it is a pure function of
+// the logs and can always be re-folded. No polling: hyperbee.watch(range) fires on remote appends
+// too, off the core's 'append' event.
 //
 // Caveats baked into the contract:
 //  - watch() only works on a MAIN bee instance, never a sub()/checkout/snapshot — so

@@ -1,5 +1,4 @@
-// Numeric bounds both sides must agree on. Each of these had two or three independent copies whose
-// only guard was a "keep in sync" comment; this is the single declaration they now import.
+// Numeric bounds both sides must agree on: the single declaration each side imports.
 export const AVATAR_MAX_BYTES = 256 * 1024
 
 // The display-name cap applied to a profile name and to the name carried in an invite envelope.
@@ -21,3 +20,7 @@ export const JOIN_REQUEST_FRAME_OVERHEAD = 1024
 // (64 KB): that gate guards the opposite direction (keeping a multi-MB worker->renderer response
 // off main's UI thread) and would reject every avatar update.
 export const IPC_MAX_FRAME_BYTES = 1024 * 1024
+
+// The retention presets the Activity Log settings screen offers. The worker validates whatever it
+// receives, so a divergence would degrade the picker, never the stored value — one declaration.
+export const RETENTION_CHOICES = Object.freeze([30, 90, 365])

@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import url from 'bare-url'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { getRuntimeConfig, setRuntimeConfig, getResourceCaps } from '../../src/shared/core/runtime-config.js'
 import { sanitizeAvatar } from '../../src/shared/identity-limits.js'
 import {
@@ -24,7 +24,7 @@ const dataUri = (n, mime = 'image/png') => `data:${mime};base64,${'A'.repeat(n)}
 // opens by key and doesn't care whose bee it is.
 
 test('REGRESSION (FIX-MIR-12): fold read drops an over-cap / non-image peer avatar', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxAvatarBytes: 1024 })
   const me = getLocalPublicKeyHex()
   const bee = getProfileBee()
@@ -42,14 +42,14 @@ test('REGRESSION (FIX-MIR-12): fold read drops an over-cap / non-image peer avat
 })
 
 test('REGRESSION (FIX-MIR-12): fold read clamps an over-long peer display name', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   await getProfileBee().put('displayName', 'x'.repeat(500))
   t.is((await readProfileRecord(me)).displayName.length, 80, 'displayName clamped on the bee-read path')
 })
 
 test('REGRESSION (FIX-MIR-12): join-request stream clamps name + drops over-cap avatar', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxAvatarBytes: 1024 })
   const me = getLocalPublicKeyHex()
   const S = 'space-req-caps'
@@ -65,7 +65,7 @@ test('REGRESSION (FIX-MIR-12): join-request stream clamps name + drops over-cap 
 })
 
 test('REGRESSION (FIX-MIR-12): setProfile clamps/sanitizes our own write', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxAvatarBytes: 1024 })
   await setProfile({ displayName: 'z'.repeat(500), avatar: dataUri(4096, 'image/jpeg') })
 
@@ -80,7 +80,7 @@ test('REGRESSION (FIX-MIR-12): setProfile clamps/sanitizes our own write', async
 // `data:text/html` or `javascript:` value reached both. The frame budget bounds the size of what
 // arrives; only sanitizeAvatar checks its shape.)
 test('REGRESSION (FIX-AVFRAME-3): a hostile join-request avatar is stored as null', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   const S = 'space-avframe'
 

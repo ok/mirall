@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createBee } from '../../src/shared/core/store.js'
 import { publishMirror } from '../../src/shared/folders/mirror-records.js'
@@ -27,7 +27,7 @@ test('listMirrorsForSpace merges own + members, tagged by mirrorer', async (t) =
   await publishMirror(spaceId, 'shareX', { state: 'synced' })
 
   const peerKey = await memberMirrorBee(spaceId, 'shareX', 'paused')
-  await updateMembers(spaceId, [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
+  await mutateMembers(spaceId, () => [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
 
   const all = await listMirrorsForSpace(spaceId)
   const byMirrorer = new Map(all.map((m) => [m.mirrorer, m]))
@@ -51,7 +51,7 @@ test('a member who stopped mirroring (tombstone) drops out of the listing', asyn
   await freshPeer(t)
   const { spaceId } = await createSpace('Aurora')
   const key = await memberMirrorBee(spaceId, 'shareX', 'synced', { tombstoned: true })
-  await updateMembers(spaceId, [{ publicKey: key, driveKey: null, displayName: 'Peer' }])
+  await mutateMembers(spaceId, () => [{ publicKey: key, driveKey: null, displayName: 'Peer' }])
   t.alike(await listMirrorsForShare(spaceId, 'shareX'), [], 'tombstoned member mirror excluded')
 })
 

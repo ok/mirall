@@ -1,9 +1,7 @@
-// The worker's periodic backstops. Each one is a missed-event catch-up, never the primary path:
-// the live signals (chokidar unlinks, invite expiry checks, the audit retention read) already
+// The worker's periodic backstops: presence, invite expiry, overlay-index compaction (a boot
+// delay plus an interval) and audit prune. Each one is a missed-event catch-up, never the primary
+// path: the live signals (chokidar unlinks, invite expiry checks, the audit retention read) already
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
-//
-// They were three top-level `setInterval`s in the worker entry — armed at load, held in
-// module-level consts that nothing read, and still firing into closed cores after shutdown.
 import { Subsystem } from '../shared/core/subsystem.js'
 import { isInPlaceFilesEnabled } from '../shared/core/runtime-config.js'
 import { sweepBackends } from '../shared/transfer/content-backends.js'
@@ -23,11 +21,9 @@ const INDEX_COMPACT_BOOT_DELAY_MS = 5 * 60 * 1000
 const LAST_COMPACT_KEY = 'overlay-index-compacted'
 
 // The overlay's local index keeps a chunk map per content hash, and a republish supersedes the old
-// hash without retiring its map. Compaction rode the "Free up space" action; with that gone it
-// needs a cadence of its own — and a bare interval is not one. Desktop sessions are routinely
-// shorter than the interval, so a process that never reaches its first tick would never compact at
-// all, and the next launch would restart the clock from zero. The last run is therefore persisted
-// and the schedule is "due?", not "6h since this process started".
+// hash without retiring its map. Desktop sessions are routinely shorter than the interval, so a
+// bare interval would never fire for many users and every launch would restart the clock: the last
+// run is persisted and the schedule is "due?", not "6h since this process started".
 export async function compactIndexIfDue() {
   const bee = createLocalBee('reclaim-meta')
   try {

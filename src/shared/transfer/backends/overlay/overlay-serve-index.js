@@ -6,7 +6,7 @@
 // Refcount by ADVERTISING PATH, not by space : content-addressed dedup means
 // two paths — even two paths in the SAME space — can share one contentHash.
 // Removing one path must NOT stop serving a hash another path still advertises,
-// so each (spaceId, relPath) holds its own reference; a hash is forgotten only
+// so each (spaceId, shareId, relPath) holds its own reference; a hash is forgotten only
 // when its last reference drops. spacesFor returns the DISTINCT spaces among
 // the live references (what the membership check iterates).
 //

@@ -359,7 +359,7 @@ test('REGRESSION (FIX-BW3): a chunk bigger than the whole bucket still gets its 
 // round-robin. The two tests above only catch it through wall-clock ratios; this one pins
 // the ledger itself on a manual clock, so the ordering is decided by arithmetic rather than
 // by how promptly a runner fires a timer.
-test('REGRESSION (FIX-BW10): an uncontended take is charged to the taker, not just the bucket', async (t) => {
+test('REGRESSION (FIX-BW10): an uncontended take is charged to the taker, not just the bucket — unrecorded, a 1 MB/s cap with 2 MB vs 16 KB chunks starves the small stream to 0%', async (t) => {
   const c = clock()
   const l = createBandwidthLimiter(() => 100 * KB, { now: c.now })
   const a = l.stream()

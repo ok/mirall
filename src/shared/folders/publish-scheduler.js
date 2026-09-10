@@ -157,13 +157,10 @@ function dropQueues(queues) {
 export const publishSlotKey = (spaceId, shareId, relPath) => spaceId + '\0' + itemKey(shareId, relPath)
 const slotKey = (item) => publishSlotKey(item.spaceId, item.shareId, item.relPath)
 
-// The lane's wedge bookkeeping: per-item progress, plus the items whose slot was reclaimed while
-// their executor was still on them. A different question from the scheduler's own state — not
-// "what is running" but "what is running and getting nowhere" — and the only one the supervisor
-// asks. An evicted item stays in the queue's byKey map, so the path it holds cannot get a second
-// executor: a later request for it supersedes into one rerun, exactly as it does for an item that
-// kept its slot. It is tracked here only so statusFor can report it rather than drop it from both
-// counts.
+// The lane's wedge bookkeeping — not "what is running" but "what is running and getting nowhere",
+// the only question the supervisor asks — plus the items whose slot was reclaimed while their
+// executor was still on them. An evicted item stays in the queue's byKey map, so its path cannot
+// get a second executor; it is tracked here only so statusFor can report it.
 function createSlotWatch({ running, queues, pump, concurrency }) {
   const liveness = createPassLiveness()
   const evicted = new Set()
@@ -193,14 +190,10 @@ function createSlotWatch({ running, queues, pump, concurrency }) {
       return n
     },
     // Rows carry the share id and the path — the worker log names a unit, the shareable
-    // diagnostics bundle does not.
-    //
-    // An evicted item is still reported, and reported UNCONDITIONALLY rather than through its
-    // heartbeat. Two reasons, and both are the same reason: it is still stuck. Dropping it the
-    // moment we act on it is what let the policy's prune wipe its strike counter, so the recovery
-    // budget reset every time and the give-up line that names the file could never fire; and its
-    // executor still holds the file, so a health report that flips back to ok is a lie. It leaves
-    // this list when its executor finally returns, which is the only event that ends it.
+    // diagnostics bundle does not. An evicted item is reported UNCONDITIONALLY, not through its
+    // heartbeat: it is still stuck, its executor still holds the file, and a row that vanished the
+    // moment we acted on it would take its strike counter with it (the policy prunes counters for
+    // rows nobody reports), so the give-up line that names the file could never fire.
     stalledItems({ now = Date.now(), windowMs } = {}) {
       const out = []
       const row = (item, verdict) => ({ key: slotKey(item), spaceId: item.spaceId, shareId: item.shareId, relPath: item.relPath, ...verdict })
@@ -218,12 +211,10 @@ function createSlotWatch({ running, queues, pump, concurrency }) {
     // return already performs unwinds the accounting for both cases. Publishing resumes for every
     // other file the instant this returns.
     evict(key) {
-      // Bounded, which it was not before: a wedged item used to hold its slot, and that capped the
-      // number of abandoned executors at the width of the lane. Freeing slots without a ceiling
-      // lets a dead mount accumulate one more stuck executor — with its file handle and its read
-      // buffers — every stall window, for the life of the process. At the ceiling the lane goes
-      // back to what it did before this verb existed: the item keeps its slot, and the supervisor
-      // reports it, spends its budget and finally gives up on it by name.
+      // Capped at `concurrency` evictions: every freed slot is one more abandoned executor holding a
+      // file handle and its read buffers, so without a ceiling a dead mount accumulates one per stall
+      // window for the life of the process. Past it the item keeps its slot and the supervisor
+      // reports it, spends its budget and gives up on it by name.
       if (evicted.size >= concurrency()) return false
       for (const item of running) {
         if (slotKey(item) !== key) continue

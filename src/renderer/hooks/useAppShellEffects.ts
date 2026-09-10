@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import i18n from '../i18n.js'
 import { applyTheme, getStoredTheme } from '../theme.js'
-import { restoreWindowBounds, trackWindowBounds } from '../window-bounds.js'
+import { trackWindowBounds } from '../window-bounds.js'
 import { startNotifications } from '../notifications/dispatcher.js'
 import type { Space } from '../types.js'
 
@@ -14,7 +14,7 @@ export function useAppShellEffects(spaces: Space[]) {
 
   useEffect(() => {
     applyTheme(getStoredTheme())
-    restoreWindowBounds().then(() => trackWindowBounds())
+    trackWindowBounds()
   }, [])
 
   // A file dropped outside a registered drop target would otherwise make the

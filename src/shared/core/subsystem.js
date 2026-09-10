@@ -71,8 +71,7 @@ export class Subsystem extends ReadyResource {
     return this.deps
   }
 
-  // True from the instant close() is called — the replacement for the hand-rolled "teardown is
-  // closing cores, don't race it" flags. Async continuations check it before touching state.
+  // True from the instant close() is called; async continuations check it before touching state.
   // ReadyResource assigns `this.closing` only after close() first suspends, which is inside
   // _close, so its own synchronous prefix would read a stale false; the flag above is set first.
   get stopping() { return this._stopping || this.closing !== null }

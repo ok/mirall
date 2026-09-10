@@ -57,9 +57,7 @@ export default function RelaySettingsSection() {
   const latest = useRef({ mode, relay })
   const probed = useRef(false)
   const probeGen = useRef(0)
-  // The master switch restores whatever was on before it was turned off. Mapping on→'auto'
-  // unconditionally discarded an explicit 'always' on every off/on round trip, which the
-  // three-way control it replaced could not do.
+  // Remembers the last non-off mode, so off→on restores an explicit 'always' rather than 'auto'.
   const lastActiveMode = useRef<RelayMode>(mode === 'off' ? 'auto' : mode)
   useEffect(() => () => { alive.current = false }, [])
 
@@ -69,15 +67,11 @@ export default function RelaySettingsSection() {
     setSlot(next.relay)
   }, [])
 
-  // Persist first, then tell the worker: a crash between the two leaves the durable config
-  // correct and the worker re-reads it from the boot frame on respawn.
-  //
-  // A change of PINNED identity cannot be applied live — dht.defaultKeyPair is fixed when the
-  // node is built — so it waits for a restart instead of forcing one. Restarting here would take
-  // the worker down, reload the window and land the user back on the home screen holding no
-  // explanation for why, which is a worse answer than a relay that says what it is waiting for.
-  // Until then the config is stored and the probe honestly reports the relay as unreachable,
-  // because the worker really is still presenting its old identity.
+  // Persist first, then tell the worker: a crash between the two leaves the durable config correct
+  // and the worker re-reads it from the boot frame on respawn. A change of PINNED identity cannot be
+  // applied live (dht.defaultKeyPair is fixed when the node is built) and waits for a reconnect the
+  // user asks for; until then the probe honestly reports Unreachable, because the worker really is
+  // still presenting its old identity.
   const commit = useCallback(async (payload: Parameters<typeof setRelay>[0]) => {
     const result = await setRelay(payload)
     if (!alive.current || !result.ok) return result
@@ -128,9 +122,7 @@ export default function RelaySettingsSection() {
   // Adding a relay while the mode is still 'off' would configure something inert, so the add
   // opts into the library default. The probe then runs on its own, so a key nobody serves is
   // caught at configuration time rather than sitting there as "Not tested".
-  // Reports the failure back to the modal rather than swallowing it: a vault write that throws,
-  // or a code main rejected, used to close the dialog and leave the empty state on screen, which
-  // is indistinguishable from a click that did nothing.
+  // Returns the failure to the modal; it must not close on a rejected save.
   const handleAdd = useCallback(async (input: string, label: string): Promise<RelayParseErrorCode | null> => {
     const nextMode = latest.current.mode === 'off' ? 'auto' : latest.current.mode
     try {
@@ -295,8 +287,7 @@ function RelayRow({ relay, testing, active, canTest, onTest, onReplace, onRemove
             id: 'test',
             label: t('networkSettings.relays.test'),
             icon: 'refresh',
-            // Off, or waiting on a restart: the dial would use an identity nothing is applying,
-            // so the verdict would be about nothing. handleTest refuses in both cases.
+            // Same rule as handleTest: no dial while nothing is applying the identity.
             disabled: testing || !canTest,
             onAction: onTest,
           },

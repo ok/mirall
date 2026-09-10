@@ -7,7 +7,7 @@ import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
 import { deriveFolderCommands } from '../folderCommands.js'
 import type { ShareRole } from '../types.js'
 
-export interface FolderCommandsArgs {
+interface FolderCommandsArgs {
   name: string
   role: ShareRole
   paused: boolean

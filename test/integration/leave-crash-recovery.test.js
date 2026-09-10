@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { createSpace, joinSpace, getSpace, forgetSpaceRecord, markSpaceLeavingDurable, resumeInterruptedLeave } from '../../src/shared/spaces/space.js'
 import { markOwnMembership, clearOwnMembership, readMembershipRecord, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createOwnedMount, createForeignMount, listOwnedMounts, listForeignMounts } from '../../src/shared/folders/mount-store.js'
@@ -16,7 +16,7 @@ async function memberActive (spaceId) {
 // NOT be resurrected at boot. Before the fix, boot's markOwnMembership re-PUT active:true because
 // clearOwnMembership had del'd the record (the "already active? keep" guard misses a del).
 test('REGRESSION (G4): boot completes a mid-leave space instead of re-marking it', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const { spaceId } = await createSpace('Aurora')
   await markOwnMembership(spaceId)
   t.ok(await memberActive(spaceId), 'precondition: active member of own space')
@@ -37,7 +37,7 @@ test('REGRESSION (G4): boot completes a mid-leave space instead of re-marking it
 // The boot loop must EXCLUDE leaving spaces from markOwnMembership: running it on the
 // interrupted space (as the old loop did) revives the membership.
 test('REGRESSION (G4): markOwnMembership on a mid-leave space revives it (proves the exclusion matters)', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const { spaceId } = await createSpace('Boreal')
   await markSpaceLeavingDurable(spaceId)
   await clearOwnMembership(spaceId)
@@ -52,7 +52,7 @@ test('REGRESSION (G4): markOwnMembership on a mid-leave space revives it (proves
 // Own share ads are tombstoned for the same reason folder-teardown does it: a later genuine
 // rejoin must not re-surface them.
 test('REGRESSION (G4): resumeInterruptedLeave drops mount records and tombstones own share ads', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const { spaceId } = await createSpace('Umbra')
   await createOwnedMount({ spaceId, shareId: 'sh-own', mountPath: '/tmp/x', enabled: true })
   await createForeignMount({ spaceId, shareId: 'sh-for', mountPath: '/tmp/y', enabled: true })
@@ -70,7 +70,7 @@ test('REGRESSION (G4): resumeInterruptedLeave drops mount records and tombstones
 // A clean (completed) leave deletes the whole record via forgetSpaceRecord — the live
 // teardown's own completion step — so no marker survives for boot to see.
 test('G4: a completed leave carries no leaving marker', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const { spaceId } = await createSpace('Cirrus')
   await markSpaceLeavingDurable(spaceId)
   await forgetSpaceRecord(spaceId)
@@ -81,7 +81,7 @@ test('G4: a completed leave carries no leaving marker', async (t) => {
 // `leaving` marker (an interrupted leave whose boot completion failed) survived a rejoin —
 // and the NEXT boot silently deleted the space the user just rejoined.
 test('REGRESSION (G4): rejoining a leaving-marked space clears the marker', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const space = await createSpace('Dorado')
   await markSpaceLeavingDurable(space.spaceId)
   t.ok((await getSpace(space.spaceId))?.leaving, 'precondition: marker persisted')

@@ -1,28 +1,19 @@
-// Turns "a peer's bee appended" into "here is exactly what changed".
-//
-// A peer's profile bee and share catalog are append-only logs, so the diff needs no snapshot of
-// their records — just the version we last processed plus createHistoryStream, which replays the
-// put/del operations since then. That is why this is cheap: one integer per bee, and no drift
-// between a stored copy and reality.
-//
-// Two rules keep it honest:
-//   1. BASELINE ON FIRST SIGHT. The first time we see a bee we store its current version and
-//      emit nothing. Without this, adopting a peer would replay their entire history stamped
-//      "now" — a log full of events that did not just happen.
-//   2. TRANSITION DEDUPE, DURABLY. One logical act is many puts — a mirror record is re-written
-//      on every sync-state change and again by ensureMirror at the peer's boot — so a row is
-//      emitted only when the subject's state actually flips. The last recorded state is stored,
-//      not held in memory: an in-memory guard lets a restart on either side emit a duplicate.
-//
-// Classification is pure and exported separately so the key grammar is unit-testable without a
-// Corestore.
+// Turns "a peer's bee appended" into "here is exactly what changed": the bees are append-only logs,
+// so the diff is the version we last processed plus createHistoryStream — one integer per bee, no
+// stored copy to drift. Two rules keep it honest:
+//   1. BASELINE ON FIRST SIGHT: the first time we see a bee, store its version and emit nothing, or
+//      adopting a peer replays their entire history stamped "now".
+//   2. TRANSITION DEDUPE, DURABLY: one act is many puts (a mirror record is re-written on every
+//      sync-state change and at the peer's boot), so a row is emitted only when the subject's state
+//      flips, and the last recorded state is stored — an in-memory guard emits a duplicate on either
+//      side's restart.
 
 // The two record families do NOT share a tombstone field: a share is retired with `deletedAt`
 // (shares.js) and a mirror with `unmirroredAt` (mirror-records.js). Reading the wrong one is
 // silently destructive — an unmirror then looks like a fresh mirror, which both loses the
 // "stopped mirroring" event and invents a duplicate "mirrored" one. Declared per prefix so the
 // coupling is visible rather than assumed.
-export const PROFILE_RECORDS = [
+const PROFILE_RECORDS = [
   { kind: 'share', prefix: 'share/', tombstoneField: 'deletedAt' },
   { kind: 'mirror', prefix: 'mirror/', tombstoneField: 'unmirroredAt' },
 ]
@@ -86,8 +77,7 @@ export function stateOf(removed) {
   return removed ? STATE_OFF : STATE_ON
 }
 
-// Record only on a genuine transition. An unknown previous state counts as a transition, so the
-// first observation of a subject is recorded.
+// An unknown previous state counts as a transition, so a subject's first observation is recorded.
 export function isTransition(previous, next) {
   return previous !== next
 }

@@ -87,9 +87,8 @@ export default async function s106 ({ runDir, bootstrap }) {
     })
 
     await r.ok('the advanced toggle states its cost before it is flipped, not after', async () => {
-      // The consequence rides the control's own description, so it is readable while the switch
-      // is still off. It used to be a separate box a divider away, describing a control the
-      // reader had not reached yet.
+      // The consequence rides the control's own description, so it is readable while the switch is
+      // still off.
       await Relays.waitText('even when a direct one would work', 8000)
       if ((await Relays.nodeValue({ name: 'Route everything through the relay' })) !== '0') {
         throw new Error('route-everything defaults on')

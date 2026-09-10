@@ -1,8 +1,7 @@
 // The slow level-triggered re-drive: one global pass that re-sends identity frames whose implicit
 // ack never arrived, re-folds rosters whose considered records haven't replicated, re-pokes listings
 // that gave up on a peer catalog, and rescues transfers whose owner the swarm has quietly stopped
-// dialing. It is the standing answer to "restart the app and it fixes itself" — every arm here
-// exists because some state used to need a restart to converge.
+// dialing — the standing answer to "restart the app and it fixes itself".
 //
 // A converged, quiet swarm does no work in this module at all: each arm is gated on an observable
 // deficit, and the escalation to a discovery refresh is throttled and budgeted per space on top.
@@ -19,9 +18,8 @@ import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsg
 
 let log = null
 let sendSingleHandshake = null
-// The stalled-owner probe stays a swarm.js slot filled from the Swarm subsystem's constructor deps;
-// this reads it at call time. LIFECYCLE-3d retired the set*Hook seam — a nullable slot with a
-// setter is a silent no-op when nobody sets it — and hook-deps.test.js holds that line by name.
+// The stalled-owner probe is a swarm.js slot filled from the Swarm subsystem's constructor deps,
+// read at call time — a nullable slot with a setter would be a silent no-op when nobody sets it.
 let getStalledOwners = () => null
 // Read at call time, not captured: initSwarm and destroySwarm reassign both handles.
 let getSwarm = () => null
@@ -98,11 +96,8 @@ async function drainAnnounceLedger(beat) {
   }
 }
 
-// One slow, global, deficit-gated pass — the level-triggered re-drive an app restart used
-// to be: re-send unacked identity frames, re-fold rosters whose considered records haven't
-// replicated (escalating a persistent deficit to a throttled discovery refresh — fresh
-// connections mean fresh replication streams), and re-poke listings that gave up on a peer
-// catalog under the read budget. A converged, quiet swarm does nothing here.
+// The pass itself — see the header. Escalation: a persistent roster deficit becomes a throttled
+// discovery refresh, because fresh connections mean fresh replication streams.
 async function runConvergenceTick(pass) {
   // Every phase beats, including the two that await the network: a per-space bee read for each
   // pending announce, and a discovery refresh per space on both planes inside the rescue. A window
@@ -166,21 +161,15 @@ export function forgetSpaceConvergence(spaceId) {
   escalationsSpent.delete(spaceId)
 }
 
-// Hyperswarm stops re-dialing a peer whose connections keep dying young: a link that drops inside
-// its prove-yourself window never resets the peer's attempt counter, and after the fourth such
-// close the peer loses its retry timer altogether — the next automatic dial is a topic re-lookup
-// ten minutes out. The escalation above cannot save us: it is gated on a ROSTER deficit, and a
-// two-peer space whose roster is fully replicated never has one, so a download can sit dead while
-// the swarm believes it is converged.
-//
-// A pending download whose owner we hold no socket for is exactly that state, and a discovery
-// refresh is the one lever that clears it (rediscovering a peer resets its attempts). Both planes
-// need it: the bulk plane carries the bytes, but the control plane carries the presence lease the
-// download's resume gate reads — rescuing only one leaves the transfer gated behind the other.
-// Refresh eagerly at first — a flapping link brings the peer back within a second or two, and every
-// cycle we sit out is a cycle the transfer makes no progress. But an owner who is simply offline
-// would then have us re-announce forever, so each fruitless attempt backs the next one off, up to a
-// quiet ceiling. Any attempt that finds every owner reachable resets it.
+// Hyperswarm stops re-dialing a peer whose connections keep dying young (a close inside the
+// prove-yourself window never resets the attempt counter; after the fourth the retry timer is gone
+// and the next dial is a topic re-lookup ten minutes out). The roster-deficit escalation above
+// cannot save a fully replicated two-peer space, so a download can sit dead while the swarm
+// believes it is converged. A pending download whose owner we hold no socket for is exactly that,
+// and a discovery refresh on BOTH planes is the lever (rediscovery resets attempts; the control
+// plane carries the presence lease the resume gate reads). Eager at first, then backed off per
+// fruitless attempt up to a quiet ceiling — an offline owner must not be re-announced forever —
+// and reset by any attempt that finds every owner reachable.
 const STALL_RESCUE_MIN_MS = 10_000
 const STALL_RESCUE_MAX_MS = 300_000
 let lastStallRescueAt = 0

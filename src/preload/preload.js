@@ -20,7 +20,6 @@ contextBridge.exposeInMainWorld('bridge', {
   getPlatform: () => process.platform,
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
-  applyUpdate: () => ipcRenderer.invoke('pear:applyUpdate'),
   checkForUpdate: () => ipcRenderer.invoke('pear:checkForUpdate'),
   appVersion: () => ipcRenderer.invoke('pear:appVersion'),
   getChangelog: () => ipcRenderer.invoke('app:getChangelog'),
@@ -105,7 +104,6 @@ contextBridge.exposeInMainWorld('bridge', {
   },
 
   notify: (spec) => ipcRenderer.invoke('notify:show', spec),
-  notifyIsSupported: () => ipcRenderer.invoke('notify:isSupported'),
   isWindowFocused: () => ipcRenderer.invoke('notify:isWindowFocused'),
   focusWindow: () => ipcRenderer.invoke('notify:focus'),
   showInFolder: (fullPath) => ipcRenderer.invoke('shell:showInFolder', fullPath),

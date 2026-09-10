@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { generateShareId } from '../../src/shared/shares/shares.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
@@ -22,7 +22,7 @@ test('REGRESSION (FIX-4): the materialize loop unmounts a mirror once its owner 
   const shareId = generateShareId()
 
   // The owner is a member; we hold a foreign mount for its (unreadable — no live bee) share.
-  await updateMembers(spaceId, [{ publicKey: ownerKey, driveKey: null, displayName: 'Owner' }])
+  await mutateMembers(spaceId, () => [{ publicKey: ownerKey, driveKey: null, displayName: 'Owner' }])
   await createForeignMount({
     spaceId, shareId, ownerKey, mountPath: ctx.tmpDir('mirror'),
     enabled: true, status: 'active', syncedPaths: [], renamedPaths: {},
@@ -33,7 +33,7 @@ test('REGRESSION (FIX-4): the materialize loop unmounts a mirror once its owner 
   t.ok(await getForeignMount(spaceId, shareId), 'mount kept while the owner is still a member')
 
   // Owner leaves (dropped from members) → the next tick tears the orphaned mount down.
-  await updateMembers(spaceId, [])
+  await mutateMembers(spaceId, () => [])
   await runMaterializeTick(spaceId, shareId)
   t.absent(await getForeignMount(spaceId, shareId), 'mount removed once the owner left the space')
 })

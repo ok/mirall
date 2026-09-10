@@ -1,24 +1,14 @@
 const fs = require('fs')
 const path = require('path')
 
-// Feature flags ship with the app in feature-flags.json at the package root
-// (the repo root in dev, inside app.asar when packaged). The file is read ONCE
-// at boot (primeFeatureFlags, called from main.js preloadAsarCache) and cached.
-//
-// Why a boot cache instead of reading on demand: the path is asar-internal, and
-// the OTA updater wraps its _update/applyUpdate calls in `process.noAsar = true`
-// (see main.js getPear). Under noAsar, Electron resolves the .asar path on the
-// real filesystem — app.asar is a file, not a directory, so the read throws
-// ENOTDIR. A lazy read that lands in that window would silently fall back to {}
-// and degrade EVERY flag to false for the worker's whole lifetime, including the
-// security gates (membership approval, handshake identity binding). Priming
-// before getPear opens the noAsar window
-// (the same defence preloadAsarCache already uses for the UI cache and the
-// worker entrypoint) makes flag reads immune to the race.
+// Feature flags ship with the app in feature-flags.json at the package root (the repo root in
+// dev, inside app.asar when packaged), read ONCE at boot (primeFeatureFlags, from main.js
+// preloadAsarCache) and cached. A lazy read could land inside the OTA updater's noAsar window
+// (see wrapWithNoAsar in main.js), fall back to {} and silently degrade EVERY flag — including
+// the security gates — to false for the worker's whole lifetime.
 
-// feature-flags.js lives in src/main/, so two levels up is the package root —
-// the same location app.getAppPath() resolves to (dev: repo root; packaged:
-// app.asar root), and the convention preloadAsarCache uses.
+// Two levels up from src/main/ is the package root — what app.getAppPath() resolves to in both
+// dev and packaged builds, and the convention preloadAsarCache uses.
 const DEFAULT_ROOT = path.join(__dirname, '..', '..')
 
 let cache = null

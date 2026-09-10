@@ -172,10 +172,8 @@ function FolderPeopleCard({
           ) : (
             <MirrorStack mirrorers={resolved} label={namesLabel} />
           )}
-          {/* The per-state counts and the toggle share one baseline row, so the toggle sits at the
-              card's right edge in both states — the same place the Members tile puts it. Stacked at
-              the left it landed in the eyebrows' column wearing the eyebrows' colour and weight,
-              and read as a third heading rather than as the one thing here you can press. */}
+          {/* Counts and toggle share one baseline row, so the toggle sits at the card's right edge in
+              both states — the same place the Members tile puts it; run-mirrorers.mjs measures it. */}
           {resolved.length > 1 && (
             <div className="mt-3 flex items-baseline justify-between gap-3">
               <p className="text-xs text-on-surface-variant">{summary}</p>
@@ -190,5 +188,5 @@ function FolderPeopleCard({
   )
 }
 
-// FolderView re-renders on every progress tick; these tiles change only when the folder does.
+// memo: the tile changes only when the folder does (src/renderer/hooks/README.md).
 export default memo(FolderPeopleCard)

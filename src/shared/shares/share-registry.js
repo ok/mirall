@@ -4,9 +4,6 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { readOwnShares, readPeerShares } from './shares.js'
 import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
-import { createLogger } from '../core/logger.js'
-
-const log = createLogger('share-registry')
 
 export async function listSharesForSpace(spaceId) {
   const space = await getSpace(spaceId)
@@ -36,10 +33,6 @@ export async function listSharesForSpace(spaceId) {
   return dedupeByKey(merged)
 }
 
-export async function listOwnSharesForSpace(spaceId) {
-  return await readOwnShares(spaceId)
-}
-
 function dedupeByKey(shares) {
   const seen = new Map()
   for (const share of shares) {
@@ -48,8 +41,4 @@ function dedupeByKey(shares) {
     if (!seen.has(key)) seen.set(key, share)
   }
   return [...seen.values()]
-}
-
-export function logRegistryRefresh(spaceId, count) {
-  log.debug('refreshed shares for', spaceId, '— count:', count)
 }
