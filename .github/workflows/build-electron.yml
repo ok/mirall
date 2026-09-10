@@ -380,5 +380,5 @@ jobs:
             echo "$BASE/win32-x64/unsigned/Mirall.msix    # sign locally, upload to win32-x64/signed/"
             echo '```'
             echo ""
-            echo "Next step (Windows): run scripts/sign-windows-local.ps1 $SIGN_ARGS"
+            echo "Next step (Windows): sign the MSIX out-of-band ($SIGN_ARGS; see .claude/build-process.md, Windows) and upload it to win32-x64/signed/"
           } >> "$GITHUB_STEP_SUMMARY"

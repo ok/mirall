@@ -77,11 +77,6 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | `cleanup-orphans.test.js` | **FIX-2** `cleanupOrphanedData` does not purge a member's replicated peer drive (meta + blobs cores preserved). |
 | `storage-info.test.js` | `getStorageInfo` per-space byte breakdown is internally consistent and grows with content; `getSpaceCacheBytes` (the "X MB will be freed" figure) reports the local-drive footprint and grows with content. |
 
-### I. Membership
-| File | Covers |
-|------|--------|
-| `membership-manifest.test.js` | `markOwnMembership`/`clearOwnMembership`/`readPeerMembership` tri-state — never-published → `null`; mark → `true`; clear → `false` (the leave "sticks"); per-space tracking, with `null` being the global no-manifest case. |
-
 **FIX index:** FIX-2 (cleanup-orphans), FIX-3 (transfers-resolve-dest), FIX-4/FIX-5 (owned-folder-edge), FIX-6 (foreign-del-guard + foreign-materialize), FIX-MIRROR-PROMPT/FIX-MIRROR-ECHO (foreign-prompt-materialize), FIX-UNMOUNT-REFRESH (foreign-unmount), FIX-WATCHER-MISS (owned-concurrent-add).
 
 ---
@@ -91,7 +86,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 The single-peer, integration-testable behaviour of the data layer is covered (groups A–I above). What is *not* covered here is, by design, out of this layer's reach — listed so the boundary is explicit:
 
 - **Multi-peer convergence → `test/flow/`.** Replication, transfers between peers, cross-peer `listFiles` hash-dedup, 3–4-peer share visibility, multiple peers mirroring one folder, same-named folders from two owners, concurrent downloads, and the peer-downloaded portion of `getSpaceCacheBytes`. A test process is one peer, so none of these are reachable in this suite.
-- **Pure path / string / predicate math → `test/unit/`.** Separator round-trips, share-prefix boundaries, the download collision walk, `shouldIgnore`, `shouldHonorDeletions`, system/reserved-path rejection, cloud-sync detection, and share-name validation live in `src/shared/path-keys.js`. The integration tests that touch the same logic — `mount-validate`, `transfers-resolve-dest`, `ignore-matchers`, `foreign-del-guard` — exercise it against a real drive/filesystem.
+- **Pure path / string / predicate math → `test/unit/`.** Separator round-trips, share-prefix boundaries, the download collision walk, `shouldIgnore`, `shouldHonorDeletions`, system/reserved-path rejection, and cloud-sync detection live in `src/shared/folders/path-keys.js` (share-name validation in `src/shared/shares/shares.js`). The integration tests that touch the same logic — `mount-validate`, `transfers-resolve-dest`, `ignore-matchers`, `foreign-del-guard` — exercise it against a real drive/filesystem.
 
 The **`loadDrives` startup-failure path** is covered by `space-record-durability.test.js`: `loadDrives({ openDrive })` injects a failing opener, so both branches are exercised — a transient failure keeps the space record and stamps `driveLoadError` for the next boot, while a positively identified storage inconsistency still drops it.
 

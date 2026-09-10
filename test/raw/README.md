@@ -1,10 +1,10 @@
 # Raw holepunch tests
 
-The lowest test tier: exercises the **holepunch primitives directly** — `Hyperdrive`, `Hyperbee`, `Corestore`, `Hyperswarm`, replicated over a hermetic `hyperdht/testnet` — with **no Mirall code** (`lib/*`, `src/shared/*`, the worker, IPC). No app, no mocks of the storage engine.
+The lowest test tier: exercises the **holepunch primitives directly** — `Hyperdrive`, `Hyperbee`, `Corestore`, `Hyperswarm`, replicated over a hermetic `hyperdht/testnet` — with **no Mirall code** (`src/shared/*`, the worker, IPC). No app, no mocks of the storage engine.
 
 - **Runner:** `npm run test:node` (raw files run under `brittle-node` alongside `test/unit` and `test/flow`). `bare` must be on `PATH`. The raw suite alone: `npx brittle-node "test/raw/*.test.js"` (≈3.5s, exits clean).
 - **What this layer is for:** it is the *trust-but-verify* layer for the dependencies the entire data layer is built on. Every flow/integration test assumes a pile of primitive behaviour — "a `del` replicates as a tombstone", "two keys with identical bytes don't double-store", "a reader that stays joined sees a *later* write" — without ever proving it. When a flow test goes red the question is always *"is it our wiring or did the primitive not do what we assumed?"* These tests pin down the second half so the flow layer can assume it, and so a holepunch dependency bump that changes a guarantee surfaces here, decoupled from our own code.
-- **Boundary:** a raw test must call only holepunch APIs. The moment it imports `lib/*` or `src/shared/*`, it has moved up a layer (single-peer data-layer correctness → `test/integration`; multi-peer convergence → `test/flow`; pure path/string math → `test/unit`).
+- **Boundary:** a raw test must call only holepunch APIs. The moment it imports `src/shared/*` or the worker, it has moved up a layer (single-peer data-layer correctness → `test/integration`; multi-peer convergence → `test/flow`; pure path/string math → `test/unit`).
 
 ### Harness (`_holepunch.js`)
 - **`setupPeer(testnet, label)`** — a `Corestore` + a `Hyperswarm` bound to the testnet bootstrap, replicating every connection into the store. Returns `{ dir, store, swarm }`. **`teardownPeer`** destroys/closes/removes.

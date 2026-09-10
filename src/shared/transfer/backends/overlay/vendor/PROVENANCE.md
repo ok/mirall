@@ -125,9 +125,10 @@ re-diffable against upstream. Categories:
     `AbortController` is not a Bare global) and checks it each chunk, throwing `ECANCELLED` so a
     multi-GB publish hash can be stopped promptly (the streaming read is torn down on abort —
     §4.10 later replaced the read stream with `readFileBlocks`, whose `finally` closes the fd).
-    `HyperOverlayV2.prepareForServe` threads `signal` through. The consumer
-    (`loose-overlay.js#runLoosePublish`) registers a per-publish signal so a renderer Stop can
-    abort the index, then tombstones/reverts the half-advertised catalog entry.
+    `HyperOverlayV2.prepareForServe` threads `signal` through. The consumer — the `loose`
+    publish channel in `loose-overlay.js` (`registerPublishChannel('loose', …)`) — runs each
+    publish under its work item's signal so `looseCancelPublish` can abort the index, then
+    tombstones/reverts the half-advertised catalog entry.
 
 11. **§4.10 — block-read prepare + copy-free chunking (`transfer.js`/`chunker.js`, perf).** The
     publish read no longer uses `fs.createReadStream` (Bare hardcodes 64 KiB reads, which forced
@@ -200,9 +201,10 @@ re-diffable against upstream. Categories:
     on the serve-time `prepareFile`→null path (the vanish-during-read case now routes here),
     so `authorizedServe` stays in lockstep with `_filePaths`. Covered by regression tests in
     `test/integration/overlay-vendor-transfer.test.js`, `overlay-vendor-serve-chunkmap.test.js`,
-    and `overlay-backend.test.js` (makeServable guard). (The folder-scan loop that aborted is
-    hardened in `overlay-backend.js#overlayScan`, and the sibling loose boot-rehydrate loop in
-    `loose-overlay.js#rehydrateLooseFiles` — both Mirall code, not vendored.)
+    and `overlay-backend.test.js` (makeServable guard). (The folder publish path —
+    `folders/publish-runner.js` driving `overlay-backend.js#publishContent` per file — and the
+    loose boot-rehydrate loop `loose-overlay.js#rehydrateLooseFiles` are both Mirall code, not
+    vendored, and handle the null return themselves.)
 
 15. **§4.14 — async + journaled resume (`transfer.js` + `chunk-scheduler.js` + `chunker.js`,
     fix).** Upstream `startReceive` re-verified a same-size partial with a synchronous
@@ -278,7 +280,7 @@ re-diffable against upstream. Categories:
     back-compat cases in `test/unit/overlay-vendor-messages-v2.test.js`.
 
 17. **§4.16 — persistent receive fd + in-memory in-order hashing (`transfer.js`, perf).** Two
-    receiver-side changes, digest- and wire-identical (plan: `.claude/tasks/plan-download-cpu-b1-b2.md`).
+    receiver-side changes, digest- and wire-identical.
     **B1:** `writeChunk` no longer opens+closes a fresh `'r+'` fd per chunk; the state's existing
     `'r+'` handle (renamed `readFd` → `fd`, now opened unconditionally rather than only when
     `meta.contentHash` is set) serves the positioned chunk writes, the hash pump's gap read-back, and
@@ -331,7 +333,7 @@ re-diffable against upstream. Categories:
     (`test/unit/partial-suffix.test.js`); the opt itself is covered by
     `test/integration/partial-suffix-injection.test.js`.
 
-19. **Host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js` + `messages-v2.js`).**
+19. **§4.18 — host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js` + `messages-v2.js`).**
     User-set transfer caps are enforced inside the serve/fetch engine, but the limiter itself lives
     in app code (`src/shared/transfer/bandwidth-limiter.js`) and is **injected** as
     `uploadLimiter` / `downloadLimiter` constructor opts, so `vendor/` gains no app imports and an
@@ -492,7 +494,7 @@ re-diffable against upstream. Categories:
     process-wide singleton, so leaked debt from one flapping fetch throttles every concurrent
     one. Covered by the refund cases in `test/unit/bandwidth-limiter.test.js`.
 
-20. **Serve-side chunk-map cache + per-session async chunk reads (`file-index.js` +
+20. **§4.19 — serve-side chunk-map cache + per-session async chunk reads (`file-index.js` +
     `overlay-v2.js` + `protocol-v2.js` + `transfer.js`, perf).** Upstream's serve loop
     (`_onChunkNeed`) re-read the file's whole chunk map from the FileIndex bee — header, every
     page, a full `JSON.parse` — on every chunk-need, and `ChunkScheduler` re-assigns after each
@@ -523,7 +525,7 @@ re-diffable against upstream. Categories:
     Covered by `test/unit/chunk-map-cache.test.js` and
     `test/integration/overlay-serve-chunkmap-cache.test.js`.
 
-21. **Channel handshake actually reaches the wire (`messages-v2.js` + `protocol-v2.js` +
+21. **§4.20 — channel handshake actually reaches the wire (`messages-v2.js` + `protocol-v2.js` +
     `overlay-v2.js`, correctness).** `attach` called `channel.open({ version, capabilities })`
     but `createChannel` declared no `handshake` encoding, and protomux encodes a handshake only
     when one is declared (`index.js:104,113`) — so the version and capability bits were silently
@@ -560,7 +562,7 @@ re-diffable against upstream. Categories:
     matrix against real protomux, a malformed-tail case, plus a wire-byte pin) and
     `test/integration/overlay-channel-handshake.test.js`.
 
-22. **Protocol teardown split out of `close()` (`overlay-v2.js`, lifecycle).** `HyperOverlayV2`
+22. **§4.21 — protocol teardown split out of `close()` (`overlay-v2.js`, lifecycle).** `HyperOverlayV2`
     gains `closeProtocol()`, which destroys the protocol and nulls it, leaving the file index and
     the sync feed open. Upstream has one teardown (`_close`), which is all-or-nothing: the host
     could either keep everything or lose everything.
@@ -580,6 +582,19 @@ re-diffable against upstream. Categories:
     `test/integration/overlay-vendor-close-protocol.test.js` (the index keeps serving, idempotence,
     `close()` after it, and the peer teardown firing while both sockets are still up); the host-side
     ordering that depends on it is pinned by `test/integration/swarm-lifecycle.test.js`.
+
+23. **§HOL — head-of-line relief on the shared Noise stream (`chunk-scheduler.js` + `protocol-v2.js`).**
+    `chunkData`, `mirall/handshake` and the Corestore replication that carries a peer's freshly
+    shared folder all multiplex over ONE Noise stream, and protomux dispatches every frame from one
+    socket read synchronously. Receiver: `ChunkScheduler` cedes the worker loop every `YIELD_EVERY`
+    (16) accepted chunks, so a burst of buffered chunk frames cannot starve the profile-bee `append`
+    listener that surfaces a new share mid-download. Sender: `_onChunkNeed` stops producing when
+    `send()` reports backpressure and waits on one shared drain waiter per peer (`_waitForDrain`,
+    so concurrent serve loops to the same peer do not each attach listeners); the serve grant is
+    re-checked at the drain boundary. A stream that neither drains nor closes within
+    `DRAIN_TIMEOUT_MS` (60 s) is abandoned — used only when the transport cannot report send
+    progress, since then slow and wedged are indistinguishable and the window has to cover a whole
+    4 MiB tier-3 flush at 1 Mbit/s. Pinned by `test/flow/content-plane-hol.test.js`.
 
 ## Re-diffing against upstream
 

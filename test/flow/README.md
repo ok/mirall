@@ -1,6 +1,6 @@
 # Flow tests (two-or-more-peer)
 
-End-to-end **user-flow** tests: real worker subprocesses (the actual `workers/main.js` + `lib/*` data layer) wired together over a hermetic `hyperdht` testnet, exercised through the **same IPC the renderer uses**. This is the only layer that proves replication, transfers, mirror materialization, and membership convergence — anything that needs **two or more peers talking to each other**.
+End-to-end **user-flow** tests: real worker subprocesses (the actual `src/worker/main.js` entry over the `src/shared/*` data layer) wired together over a hermetic `hyperdht` testnet, exercised through the **same IPC the renderer uses**. This is the only layer that proves replication, transfers, mirror materialization, and membership convergence — anything that needs **two or more peers talking to each other**.
 
 - **Runner:** `npm run test:node` (flow files run under `brittle-node` alongside `test/unit` and `test/raw`). `bare` must be on `PATH`.
 - **Why a separate layer:** `src/shared/*` are process-global singletons, so a single test process hosts exactly one peer (see `test/integration/README.md`). Genuine peer-to-peer behaviour can only be observed by launching **independent worker subprocesses** — that is what this suite does.
@@ -75,6 +75,8 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 ### I. Storage accounting
 | File | Scenario |
 |------|----------|
+| `space-storage-summary.test.js` | The space-storage widget's two-peer contract: both peers agree on the space **total** (owner's folder + loose file) while on-device tracks what each peer holds — the owner everything, the consumer nothing until it mirrors the folder, then exactly the folder's bytes. |
+| `storage-observability.test.js` | Overlay serves from the source file and copies no bytes into the per-space drive: the per-space breakdown crossing the worker IPC reports zero drive content on both the owner and a browsing peer. |
 
 **FIX index:** FIX-1 (leave-teardown), FIX-6 (foreign-sync + share-delete + offline-delete-guard), FIX-9 (remount-mirror), connectivity-gate (foreign-mirror + foreign-sync).
 

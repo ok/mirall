@@ -24,7 +24,7 @@ Not in scope:
 
 - P2P transfer flows (would need a second Mirall instance — separate harness).
 - Windows / Linux. `agent-desktop` is macOS-only and the non-macOS release assets do not change that: the `agent-desktop-ffi-*` artifacts are the C-ABI library, the CLI ships for Darwin only, and upstream's `crates/windows` / `crates/linux` are empty scaffolds whose adapters return `PlatformNotSupported`. Upstream's own README lists every Windows/Linux capability as *Planned*.
-- Worker / Bare-runtime logic (use the brittle suite under `test/index.test.js`).
+- Worker / Bare-runtime logic (the brittle suites under `test/unit`, `test/integration`, `test/flow`, `test/raw` — see `.claude/testing.md`).
 
 ## Preconditions
 
@@ -58,7 +58,7 @@ test/agent-desktop/smoke-test.sh Electron  # against the dev build
 
 The script exits 0 on full pass, non-zero on first failure with a `FAIL: ...` line and the offending JSON error printed to stderr.
 
-Expected output on success (12 lines, all `PASS:`):
+Expected output on success (one `PASS:` line per check):
 
 ```
 PASS: Accessibility permission granted
