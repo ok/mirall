@@ -3,16 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir } from '../helpers/fixtures.js'
-
-async function waitForFile (p, { present = true, ms = 90000, every = 500 } = {}) {
-  const start = Date.now()
-  for (;;) {
-    if (fs.existsSync(p) === present) return
-    if (Date.now() - start > ms) throw new Error(`timeout waiting for ${p} present=${present}`)
-    await new Promise((r) => setTimeout(r, every))
-  }
-}
+import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // owned-folder:delete is the owner's full teardown: it stops the watcher +
 // reconcile, dels every drive entry under the share prefix, removes the owned
@@ -21,7 +13,7 @@ async function waitForFile (p, { present = true, ms = 90000, every = 500 } = {})
 // is the FIX-6 "treat as transient" case) — those files persist as orphans,
 // exactly like an unmount.
 test('owner deletes a share: it vanishes from the peer registry and the mirror files orphan (not wiped)',
-  { timeout: 150000 }, async (t) => {
+  { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

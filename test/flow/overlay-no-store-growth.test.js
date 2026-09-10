@@ -15,7 +15,7 @@ import { scaled } from '../helpers/timing.js'
 const FLAGS = { overlayEnabled: true }
 const SIZE = 8 * 1024 * 1024 // dwarfs RocksDB WAL/compaction + catalog/chunk-map metadata
 
-const flush = (ms = 1500) => new Promise((r) => setTimeout(r, ms))
+const flush = (ms = scaled(1500)) => new Promise((r) => setTimeout(r, ms))
 
 test('overlay: publish imports no blob; download writes no content blocks into the consumer store',
   { timeout: scaled(180000) }, async (t) => {

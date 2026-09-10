@@ -10,7 +10,7 @@ import Hyperswarm from 'hyperswarm'
 import createTestnet from 'hyperdht/testnet.js'
 
 function tmpDir(label) {
-  const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }

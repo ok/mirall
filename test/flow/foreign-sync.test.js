@@ -3,23 +3,15 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
-
-async function waitForFile (p, { present = true, ms = 90000, every = 500 } = {}) {
-  const start = Date.now()
-  for (;;) {
-    if (fs.existsSync(p) === present) return
-    if (Date.now() - start > ms) throw new Error(`timeout waiting for ${p} present=${present}`)
-    await new Promise((r) => setTimeout(r, every))
-  }
-}
+import { mkTmpDir, patternedBytes, mkStoreDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // The materialize engine streams a blob from the owner on demand. If the owner
 // is offline and the blob isn't cached, it must DEFER (try again next tick) —
 // not skip forever (the old has()-only deadlock) and not error/pause. When the
 // owner returns, the poll loop completes the download.
 test('REGRESSION (connectivity gate): mirror defers while owner offline+uncached, then materializes on return',
-  { timeout: 180000 }, async (t) => {
+  { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const aStore = mkStoreDir(t)
     const aDownloads = mkTmpDir(t)
@@ -64,7 +56,7 @@ test('REGRESSION (connectivity gate): mirror defers while owner offline+uncached
 // listing, an owner-side edit propagates to the mirror and an owner-side delete
 // removes the mirrored file.
 test('REGRESSION (FIX-6): owner edit and delete propagate to an online mirror',
-  { timeout: 180000 }, async (t) => {
+  { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -115,7 +107,7 @@ test('REGRESSION (FIX-6): owner edit and delete propagate to an online mirror',
 // sibling — never B's pre-existing file at the natural name. (An anchor file
 // keeps the owner listing non-empty so the deletion gate honors the removal.)
 test('REGRESSION (MIR-07): a peer delete removes only the mirror copy, never the user\'s conflicting file',
-  { timeout: 180000 }, async (t) => {
+  { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
