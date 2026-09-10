@@ -29,4 +29,22 @@ if [ -n "$(printf '%s' "$hits" | tr -d '[:space:]')" ]; then
   exit 1
 fi
 
+# The silent twin of the rule above: a flow test that declares its OWN poll/sleep helper
+# owns the scaling that test/helpers would have done for it. A bare millisecond parameter
+# default there never grows under MIRALL_TEST_TIMEOUT_SCALE, so the deadline stays at its
+# dev-box value on a CI runner three times slower and the wait expires before the work can
+# land. Such a helper carries no `scaled(` for the check above to see, so match the
+# declaration instead: in test/flow a millisecond parameter default is written
+# `ms = scaled(60000)` (or `unscaled(...)` where the bound must stay absolute).
+own="$(grep -rnE "\([^()]*\b[A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline)\b *= *[0-9]{3,}" test/flow/ || true)"
+
+if [ -n "$(printf '%s' "$own" | tr -d '[:space:]')" ]; then
+  echo "ERROR: un-scaled deadline default in a flow helper — it ignores MIRALL_TEST_TIMEOUT_SCALE:" >&2
+  printf '%s\n' "$own" | sort -u >&2
+  echo >&2
+  echo "  fix: (ms = 90000)  ->  (ms = scaled(90000))" >&2
+  echo "       or drop the local copy and import the helper from test/helpers/" >&2
+  exit 1
+fi
+
 echo "test-timing: clean."
