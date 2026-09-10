@@ -4,6 +4,8 @@
 //
 // No domain knowledge and no bare-* imports: the bee arrives as a dependency, so this unit-tests
 // under Node and the reconcilers live with the flows they complete.
+import { prefixRange } from './bee-keys.js'
+
 export const INTENT_PREFIX = 'intent/'
 
 let seq = 0
@@ -56,7 +58,7 @@ export function createIntentLog({ bee, log } = {}) {
 
     async list() {
       const out = []
-      for await (const node of bee().createReadStream({ gte: INTENT_PREFIX, lt: INTENT_PREFIX + '\xff' })) {
+      for await (const node of bee().createReadStream(prefixRange(INTENT_PREFIX))) {
         out.push({ id: node.key, ...node.value })
       }
       return out

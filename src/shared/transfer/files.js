@@ -28,6 +28,7 @@ import { looseShareFile, looseUnshareFile, looseHasOwn, looseListOwn, looseListP
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { unhashedStatusFor } from './transfer-status.js'
 import { claimVerdict } from './download-claim.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('files')
 
@@ -81,7 +82,7 @@ export async function getVerifiedHash(spaceId, key) {
 export async function listVerifiedForShare(spaceId, shareId, { keep = null } = {}) {
   const prefix = 'verified:' + spaceId + ':' + shareId + '|'
   const map = new Map()
-  for await (const node of downloadsBee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+  for await (const node of downloadsBee.createReadStream(prefixRange(prefix))) {
     const relPath = node.key.slice(prefix.length)
     if (keep && !keep.has(relPath)) continue
     if (node.value?.hash) map.set(relPath, node.value.hash)
@@ -101,7 +102,7 @@ export async function listVerifiedForShare(spaceId, shareId, { keep = null } = {
 export async function listDownloadClaimsForShare(spaceId, shareName, { keep = null } = {}) {
   const prefix = spaceId + ':/' + shareName + '/'
   const map = new Map()
-  for await (const node of downloadsBee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+  for await (const node of downloadsBee.createReadStream(prefixRange(prefix))) {
     const drivePath = node.key.slice(spaceId.length + 1)
     if (keep && !keep.has(drivePath)) continue
     if (node.value) map.set(drivePath, node.value)
@@ -501,10 +502,10 @@ export function revealLocalPath(target, missingCode = CODES.FILE_NOT_ON_DEVICE) 
 
 export async function cleanupDownloadHistory(spaceId) {
   const batch = downloadsBee.batch()
-  for await (const entry of downloadsBee.createReadStream({ gte: spaceId + ':', lt: spaceId + ';' })) {
+  for await (const entry of downloadsBee.createReadStream(prefixRange(spaceId + ':'))) {
     await batch.del(entry.key)
   }
-  for await (const entry of downloadsBee.createReadStream({ gte: 'verified:' + spaceId + ':', lt: 'verified:' + spaceId + ';' })) {
+  for await (const entry of downloadsBee.createReadStream(prefixRange('verified:' + spaceId + ':'))) {
     await batch.del(entry.key)
   }
   await batch.flush()

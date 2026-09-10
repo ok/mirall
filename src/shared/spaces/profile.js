@@ -13,6 +13,7 @@ import { voucheesToAdopt } from './member-set.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('membership')
 
@@ -271,7 +272,7 @@ export async function listOwnInvites(spaceId) {
   const prefix = 'invite/' + spaceId + '/'
   const limit = getResourceCaps().invitesPerMember
   const out = []
-  for await (const entry of profileBee.createReadStream({ gte: prefix, lt: prefix.slice(0, -1) + '0' }, limit ? { limit } : undefined)) {
+  for await (const entry of profileBee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
     out.push({ inviteId: entry.key.slice(prefix.length), ...entry.value })
   }
   return out
@@ -335,8 +336,7 @@ export async function readPeerDenials(profileKeyHex, spaceId) {
   catch { return [] }
 }
 
-// Stream one prefix of a peer's replicated bee (the `lt` bound mirrors the approvals stream:
-// '0' (0x30) is the byte after '/' (0x2f)). Cap-gated + bounded like the other peer reads.
+// Stream one prefix of a peer's replicated bee. Cap-gated + bounded like the other peer reads.
 function loadPeerEntries(profileKeyHex, prefix) {
   return withPeerBee(profileKeyHex, async (bee) => {
 
@@ -344,7 +344,7 @@ function loadPeerEntries(profileKeyHex, prefix) {
     if (!cap?.value) return []
     const limit = getResourceCaps().requestsPerMember
     const out = []
-    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix.slice(0, -1) + '0' }, limit ? { limit } : undefined)) {
+    for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
       const joiner = entry.key.slice(prefix.length)
       const v = entry.value || {}
       out.push({
@@ -388,7 +388,7 @@ function loadMembershipRecord(profileKeyHex, spaceId) {
     const limit = getResourceCaps().approvalsPerMember
     const approvals = []
     const approvalSeqs = new Map()
-    for await (const entry of bee.createReadStream({ gte: prefix, lt: 'approved/' + spaceId + '0' }, limit ? { limit } : undefined)) {
+    for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
       const joiner = entry.key.slice(prefix.length)
       approvals.push(joiner)
       if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)

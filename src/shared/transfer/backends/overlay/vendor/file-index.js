@@ -37,6 +37,18 @@ const CHUNKS_PER_PAGE = 32768
 const CHUNK_ENTRY_BYTES = 160
 const CHUNK_MAP_BASE_BYTES = 64
 
+// [mirall] §4.22 Upper bound for a prefix scan. Upstream bounded these with `prefix + '\xff'`,
+// but the index is keyed `utf-8`, where U+00FF encodes to C3 BF: any path whose next character is
+// U+0100 or above (ł, Cyrillic, CJK, emoji) has a lead byte above that bound and is dropped from
+// the scan. UTF-8 preserves code-point order, so the prefix with its final code point incremented
+// bounds every suffix. Prefix-match semantics are upstream's and unchanged. Kept local rather
+// than imported from the app, so this file stays re-diffable; every call site passes a
+// non-empty constant prefix ending ':'. See PROVENANCE.md.
+function prefixUpperBound (prefix) {
+  const lastChar = Array.from(prefix).pop()
+  return prefix.slice(0, prefix.length - lastChar.length) + String.fromCodePoint(lastChar.codePointAt(0) + 1)
+}
+
 // The content hash an owner-side entry is addressed by (page suffix folded in), or
 // null for entries not keyed by a single content hash (real-path file:/chunkmap:,
 // tree:, sync:, config:). compact() drops the content-addressed entries whose hash is
@@ -218,7 +230,7 @@ export class FileIndex extends ReadyResource {
     const prefix = dir ? `file:${dir}` : 'file:'
     const files = []
 
-    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefix + '\xff' })) {
+    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefixUpperBound(prefix) })) {
       files.push({
         path: entry.key.slice('file:'.length),
         ...entry.value
@@ -454,7 +466,7 @@ export class FileIndex extends ReadyResource {
     const prefix = `sync:${peerKey}:`
     const states = []
 
-    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefix + '\xff' })) {
+    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefixUpperBound(prefix) })) {
       states.push({
         path: entry.key.slice(prefix.length),
         ...entry.value
@@ -563,7 +575,7 @@ export class FileIndex extends ReadyResource {
    */
   async listTrees (opts = {}) {
     const trees = []
-    for await (const entry of this._bee.createReadStream({ gt: 'tree:', lt: 'tree:\xff' })) {
+    for await (const entry of this._bee.createReadStream({ gt: 'tree:', lt: prefixUpperBound('tree:') })) {
       trees.push({
         hash: entry.key.slice('tree:'.length),
         entryCount: entry.value.entries.length,

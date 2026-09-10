@@ -17,6 +17,7 @@ import { runLeaveTeardown } from './leave-flow.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('space')
 const { store: keysStore, core: keysCore } = keysMod
@@ -235,7 +236,7 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
 
 export async function listSpaces() {
   const spaces = []
-  for await (const entry of spacesBee.createReadStream({ gte: 'space/', lt: 'space0' })) {
+  for await (const entry of spacesBee.createReadStream(prefixRange('space/'))) {
     const spaceId = entry.key.replace('space/', '')
     spaces.push({ spaceId, ...entry.value })
   }
@@ -410,7 +411,7 @@ export async function resumeInterruptedLeave(spaceId) {
 // Stamped with the leaver's clock so a genuine rejoin (a strictly-later member/<S> ts) self-clears
 // it via tombstoneActive.
 const LEFT_TOMBSTONE_PREFIX = 'left/'
-const leftRange = (spaceId) => ({ gte: LEFT_TOMBSTONE_PREFIX + spaceId + '/', lt: LEFT_TOMBSTONE_PREFIX + spaceId + '0' })
+const leftRange = (spaceId) => prefixRange(LEFT_TOMBSTONE_PREFIX + spaceId + '/')
 // Coerced to a positive finite number: a negative reaching the tombstoneActive comparison would
 // flip it false and re-admit the leaver, so on-disk garbage collapses to an inert 0.
 const sanitizeLeaveTs = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
@@ -461,7 +462,7 @@ export async function clearPendingLeave(spaceId) {
 
 export async function listPendingLeaves() {
   const out = []
-  for await (const entry of spacesBee.createReadStream({ gte: PENDING_LEAVE_PREFIX, lt: PENDING_LEAVE_PREFIX + '\xff' })) {
+  for await (const entry of spacesBee.createReadStream(prefixRange(PENDING_LEAVE_PREFIX))) {
     out.push({
       spaceId: entry.key.slice(PENDING_LEAVE_PREFIX.length),
       topic: entry.value?.topic || null,

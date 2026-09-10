@@ -1149,6 +1149,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/crash-backstop.js` | Installs the pre-first-`await` rejection handler; 10 uncaught errors in 60 s exits the worker for respawn, latched to fire once |
 | `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
 | `src/shared/core/bee-writer.js` | One serialized read-modify-write path over a bee, with `cas` |
+| `src/shared/core/bee-keys.js` | `prefixRange()` — the one upper bound every data-layer bee prefix scan uses; bumps the prefix's final ASCII byte so a suffix above U+00FF is not dropped |
 | `src/shared/core/paths.js` | Download-root resolution: the global root plus the per-space override map (§3.3) |
 | `src/shared/core/handler-table.js` | `createHandlerTable()` + `validateArgs()` — each request's function beside its declared shape (§2) |
 | `src/shared/core/lru.js` | `createRefCountedLru()` — bounded cache of live handles; an entry with readers is never evicted |

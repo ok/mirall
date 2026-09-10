@@ -6,6 +6,7 @@
 import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('shares')
 
@@ -35,7 +36,7 @@ export async function readOwnShares(spaceId) {
   const bee = getProfileBee()
   const prefix = SHARE_PREFIX + spaceId + '/'
   const shares = []
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+  for await (const entry of bee.createReadStream(prefixRange(prefix))) {
     if (!entry.value.deletedAt) shares.push(entry.value)
   }
   return shares
@@ -63,7 +64,7 @@ function collectPeerShares(profileKeyHex, spaceId, timeoutMs) {
     if (!cap?.value) return null
     const prefix = SHARE_PREFIX + spaceId + '/'
     const shares = []
-    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+    for await (const entry of bee.createReadStream(prefixRange(prefix))) {
       if (!entry.value.deletedAt) shares.push(entry.value)
     }
     return shares

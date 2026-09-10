@@ -596,6 +596,20 @@ re-diffable against upstream. Categories:
     progress, since then slow and wedged are indistinguishable and the window has to cover a whole
     4 MiB tier-3 flush at 1 Mbit/s. Pinned by `test/flow/content-plane-hol.test.js`.
 
+24. **§4.22 — prefix-scan upper bound (`file-index.js`, correctness).** `listFiles`, `listSyncStates`
+    and `listTrees` bounded their range scans with `prefix + '\xff'`. The index bee is keyed
+    `utf-8`, where U+00FF encodes to `C3 BF`, so any key whose next character is U+0100 or above
+    (ł, Cyrillic, Greek, CJK, emoji) has a lead byte above the bound and never appears in the scan.
+    The three sites now call a local `prefixUpperBound()` that increments the prefix's final code
+    point — sound because UTF-8 preserves code-point order — leaving upstream's prefix-match
+    semantics (`gt: prefix`) unchanged.
+
+    This is load-bearing on the serve path: `protocol-v2._onContentRequest` falls back to
+    `listFiles()` to resolve a content hash to a disk path, and a miss there is a silent drop that
+    the requester can only observe as a timeout. A shared file whose top-level name starts with such
+    a character was unservable through that fallback. Covered by
+    `test/integration/overlay-vendor-prefix-bound.test.js`.
+
 ## Re-diffing against upstream
 
 ```

@@ -5,6 +5,7 @@ import { createLocalBee, storeEpoch } from '../core/store.js'
 import { createRecordWriter } from '../core/bee-writer.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('mount-store')
 
@@ -84,7 +85,7 @@ export function touchOwnedMountScan(spaceId, shareId) {
 
 export async function listOwnedMounts() {
   const out = []
-  for await (const entry of bee.createReadStream({ gte: OWNED_PREFIX, lt: OWNED_PREFIX + '\xff' })) {
+  for await (const entry of bee.createReadStream(prefixRange(OWNED_PREFIX))) {
     out.push(entry.value)
   }
   return out
@@ -118,7 +119,7 @@ export async function deleteForeignMount(spaceId, shareId) {
 
 export async function listForeignMounts() {
   const out = []
-  for await (const entry of bee.createReadStream({ gte: FOREIGN_PREFIX, lt: FOREIGN_PREFIX + '\xff' })) {
+  for await (const entry of bee.createReadStream(prefixRange(FOREIGN_PREFIX))) {
     out.push(entry.value)
   }
   return out

@@ -24,6 +24,7 @@ import { createLocalBee, getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { buildRecord } from './audit-record.js'
 import { STATE_OFF } from './peer-observer.js'
+import { prefixRange } from '../core/bee-keys.js'
 import {
   AGE_HYSTERESIS,
   DEFAULT_MAX_ENTRIES,
@@ -44,7 +45,6 @@ const CONFIG_KEY = 'config'
 const SEEN = 'seen/'
 const PSTATE = 'pstate/'
 const NSTATE = 'nstate'
-const HIGH = '￿'
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
 // walk far past `limit` to fill it; this bounds the work so one query cannot stall the worker.
@@ -104,14 +104,14 @@ export async function closeAuditLog() {
 
 
 async function newestSeq() {
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true, limit: 1 })) {
+  for await (const entry of bee.createReadStream(prefixRange(EVT), { reverse: true, limit: 1 })) {
     return Number(entry.key.slice(EVT.length))
   }
   return -1
 }
 
 async function oldestSeq() {
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { limit: 1 })) {
+  for await (const entry of bee.createReadStream(prefixRange(EVT), { limit: 1 })) {
     return Number(entry.key.slice(EVT.length))
   }
   return -1
@@ -203,7 +203,7 @@ function matches(rec, { kindSet, catSet, actorKey, needle, since, until }) {
 }
 
 async function* fromIndex(prefix, upper) {
-  const range = { gte: prefix, lt: upper == null ? prefix + HIGH : prefix + upper }
+  const range = { gte: prefix, lt: upper == null ? prefixRange(prefix).lt : prefix + upper }
   for await (const entry of bee.createReadStream(range, { reverse: true })) {
     const node = await bee.get(EVT + pad(entry.value))
     if (node?.value) yield node.value
@@ -243,7 +243,7 @@ async function* walk(spaceId, cursor) {
     yield* mergeDesc(fromIndex(BY_SPACE + spaceId + '/', upper), fromIndex(BY_DEVICE, upper))
     return
   }
-  const range = { gte: EVT, lt: upper == null ? EVT + HIGH : EVT + upper }
+  const range = { gte: EVT, lt: upper == null ? prefixRange(EVT).lt : EVT + upper }
   for await (const entry of bee.createReadStream(range, { reverse: true })) {
     if (entry.value) yield entry.value
   }
@@ -315,7 +315,7 @@ export async function auditSpaces() {
   if (!bee) return []
   const seen = new Map()
   let walked = 0
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true })) {
+  for await (const entry of bee.createReadStream(prefixRange(EVT), { reverse: true })) {
     if (walked++ >= SCAN_BUDGET) break
     const space = entry.value?.space
     if (space?.id && !seen.has(space.id)) seen.set(space.id, space.name || null)
@@ -327,7 +327,7 @@ export async function auditActors() {
   if (!bee) return []
   const seen = new Map()
   let walked = 0
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH }, { reverse: true })) {
+  for await (const entry of bee.createReadStream(prefixRange(EVT), { reverse: true })) {
     if (walked++ >= SCAN_BUDGET) break
     const actor = entry.value?.actor
     if (actor?.key && !seen.has(actor.key)) seen.set(actor.key, actor.name || null)
@@ -433,7 +433,7 @@ export async function pruneAudit({ now = Date.now() } = {}) {
     // scan, using the same hysteresis as the query so a clock jump cannot over-prune.
     let aboveAge = 0
     let firstYoungSeq = null
-    for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) {
+    for await (const entry of bee.createReadStream(prefixRange(EVT))) {
       const rec = entry.value
       if (!rec) continue
       if (rec.ts < cutoff) {
@@ -484,9 +484,9 @@ export async function purgeAudit() {
   await flushAudit()
 
   let purged = 0
-  for await (const _entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) purged += 1
+  for await (const _entry of bee.createReadStream(prefixRange(EVT))) purged += 1
   const seen = []
-  for await (const entry of bee.createReadStream({ gte: SEEN, lt: SEEN + HIGH })) {
+  for await (const entry of bee.createReadStream(prefixRange(SEEN))) {
     seen.push([entry.key, entry.value])
   }
   const keptConfig = { ...config }
@@ -530,7 +530,7 @@ export async function exportAudit({ spaceId = null, since = null, until = null }
   if (!bee) return []
   await flushAudit()
   const out = []
-  for await (const entry of bee.createReadStream({ gte: EVT, lt: EVT + HIGH })) {
+  for await (const entry of bee.createReadStream(prefixRange(EVT))) {
     const rec = entry.value
     if (!rec) continue
     if (spaceId && rec.space?.id !== spaceId) continue

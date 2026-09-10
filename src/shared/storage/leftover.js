@@ -19,6 +19,7 @@ import { decideSweep } from './sweep-decision.js'
 import { recordSweep } from './sweep-journal.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import { listContentKeys } from '../spaces/space-keys.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('leftover')
 
@@ -84,7 +85,7 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
   // sync:false keeps this a purely local read (no head pull); withPeerBee owns the close.
   return withPeerBee(profileKeyHex, async (bee) => {
     const prefix = SHARE_PREFIX + spaceId + '/'
-    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' }, { wait: false })) {
+    for await (const entry of bee.createReadStream(prefixRange(prefix), { wait: false })) {
       const ck = readCatalogKey(entry.value).keyHex
       if (ck && HEX64.test(ck)) keys.push(ck)
     }

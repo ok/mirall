@@ -13,6 +13,7 @@
 // overlay-index-compacted (worker/sweeps.js's last-compaction stamp).
 import { createLocalBee } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('sweep-journal')
 const PREFIX = 'purge/'
@@ -29,7 +30,7 @@ export async function recordSweep (entry) {
     await bee.ready()
     await bee.put(journalKey(Date.now()), { at: Date.now(), ...entry })
     const keys = []
-    for await (const node of bee.createReadStream({ gte: PREFIX, lt: PREFIX + '\xff' })) keys.push(node.key)
+    for await (const node of bee.createReadStream(prefixRange(PREFIX))) keys.push(node.key)
     for (const key of keys.slice(0, Math.max(0, keys.length - KEEP))) await bee.del(key)
   } catch (err) {
     // Never throws. A journal failure must not be the thing that aborts a sweep — or, worse, that
@@ -45,7 +46,7 @@ export async function listRecentSweeps (limit = 20) {
   const out = []
   try {
     await bee.ready()
-    for await (const node of bee.createReadStream({ gte: PREFIX, lt: PREFIX + '\xff', reverse: true })) {
+    for await (const node of bee.createReadStream({ ...prefixRange(PREFIX), reverse: true })) {
       out.push(node.value)
       if (out.length >= limit) break
     }

@@ -7,6 +7,7 @@
 import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
+import { prefixRange } from '../core/bee-keys.js'
 
 const log = createLogger('mirror-records')
 
@@ -85,7 +86,7 @@ export async function readOwnMirrors(spaceId) {
   const bee = getProfileBee()
   const prefix = MIRROR_PREFIX + spaceId + '/'
   const out = []
-  for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+  for await (const entry of bee.createReadStream(prefixRange(prefix))) {
     if (!entry.value.unmirroredAt) out.push(entry.value)
   }
   return out
@@ -127,7 +128,7 @@ function collectPeerMirrors(profileKeyHex, spaceId, timeoutMs) {
   return withPeerMirrorBee(profileKeyHex, async (bee) => {
     const prefix = MIRROR_PREFIX + spaceId + '/'
     const out = []
-    for await (const entry of bee.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
+    for await (const entry of bee.createReadStream(prefixRange(prefix))) {
       if (!entry.value.unmirroredAt) out.push(entry.value)
     }
     return out
