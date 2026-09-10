@@ -6,7 +6,8 @@ import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
 
 function tmpDir () {
-  const dir = path.join(os.tmpdir(), `pb-peer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
+  const dir = path.join(os.tmpdir(), `pb-peer-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }

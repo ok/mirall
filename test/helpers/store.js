@@ -9,7 +9,8 @@ import { createFakeIpc } from './fake-ipc.js'
 
 let seq = 0
 function tmpDir (label) {
-  const rand = Math.random().toString(36).slice(2, 8)
+  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
+  const rand = Math.random().toString(16).slice(2, 8)
   const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${rand}-${seq++}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
