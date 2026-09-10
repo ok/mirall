@@ -20,6 +20,9 @@ const allHandlers = {
   whatsNew: noop,
   sendFeedback: noop,
   openDocs: noop,
+  zoomIn: noop,
+  zoomOut: noop,
+  zoomReset: noop,
 }
 
 const baseOpts = { isDev: false, inSpace: false, appName: 'Mirall', handlers: allHandlers }
@@ -119,15 +122,46 @@ test('Reload / Force Reload visible only in dev; DevTools always visible', (t) =
   t.ok(findInSubmenu(devView, 'toggleDevTools'), 'DevTools in dev')
 })
 
-test('View submenu has zoom roles', (t) => {
+test('View submenu has the zoom items and their chords', (t) => {
   const tpl = buildAppMenuTemplate({ ...baseOpts, platform: 'darwin' })
   const view = find(tpl, 'View').submenu
-  t.ok(findInSubmenu(view, 'zoomIn'), 'zoomIn role present')
-  t.ok(findInSubmenu(view, 'zoomOut'), 'zoomOut role present')
-  t.ok(findInSubmenu(view, 'resetZoom'), 'resetZoom role present')
+  const chords = { 'Zoom In': 'CmdOrCtrl+Plus', 'Zoom Out': 'CmdOrCtrl+-', 'Actual Size': 'CmdOrCtrl+0' }
+  for (const [label, accelerator] of Object.entries(chords)) {
+    const item = findInSubmenu(view, label)
+    t.ok(item, `${label} item present`)
+    t.is(item.accelerator, accelerator, `${label} shows ${accelerator}`)
+  }
   t.ok(findInSubmenu(view, 'togglefullscreen'), 'togglefullscreen role present')
   t.ok(findInSubmenu(view, 'Back'), 'Back item present')
   t.ok(findInSubmenu(view, 'Home'), 'Home item present')
+})
+
+// REGRESSION (FIX-219: the zoom items carried Electron's zoomIn/zoomOut/resetZoom roles, which
+// write webContents.zoomLevel behind main's back — the factor was never persisted, no
+// zoom-changed event was emitted, and main's cached factor went stale). The items must dispatch
+// through the handlers, and must not register their chord a second time on Windows/Linux, where
+// the window's own key handler already applies one step per press.
+test('REGRESSION (FIX-219): zoom items call the handlers instead of the Electron roles', (t) => {
+  for (const platform of ['darwin', 'win32', 'linux']) {
+    const calls = []
+    const handlers = {
+      ...allHandlers,
+      zoomIn: () => calls.push('in'),
+      zoomOut: () => calls.push('out'),
+      zoomReset: () => calls.push('reset'),
+    }
+    const view = find(buildAppMenuTemplate({ ...baseOpts, platform, handlers }), 'View').submenu
+    for (const [label, expected] of [['Zoom In', 'in'], ['Zoom Out', 'out'], ['Actual Size', 'reset']]) {
+      const item = findInSubmenu(view, label)
+      t.absent(item.role, `${platform}: ${label} carries no Electron role`)
+      t.is(item.registerAccelerator, false, `${platform}: ${label} does not register its chord`)
+      item.click()
+      t.is(calls.at(-1), expected, `${platform}: ${label} invoked the ${expected} handler`)
+    }
+  }
+  const roles = ['zoomIn', 'zoomOut', 'resetZoom']
+  const view = find(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin' }), 'View').submenu
+  for (const role of roles) t.absent(findInSubmenu(view, role), `no ${role} role in the View menu`)
 })
 
 test('View submenu exposes Profile and Activity Log with their chords', (t) => {

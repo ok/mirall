@@ -350,6 +350,15 @@ function writeZoom(factor) {
   config().set('window.zoom', factor)
 }
 
+// Every zoom trigger — the View menu, the keyboard chord, the renderer's zoom:set — routes here so
+// applyZoom stays the sole writer of the persisted factor and of currentZoom.
+function zoomByDirection(direction, win = targetWindow()) {
+  if (!win) return currentZoom
+  if (direction === 'in') return applyZoom(win, currentZoom + ZOOM_STEP)
+  if (direction === 'out') return applyZoom(win, currentZoom - ZOOM_STEP)
+  return applyZoom(win, ZOOM_DEFAULT)
+}
+
 function applyZoom(win, factor) {
   const next = clampZoom(factor)
   if (next === currentZoom) return next
@@ -1162,6 +1171,9 @@ function buildAppMenu() {
       whatsNew: send('help.whatsNew'),
       sendFeedback: send('help.feedback'),
       openDocs: send('help.docs'),
+      zoomIn: () => zoomByDirection('in'),
+      zoomOut: () => zoomByDirection('out'),
+      zoomReset: () => zoomByDirection('reset'),
     },
   })
   return Menu.buildFromTemplate(template)
@@ -1245,12 +1257,8 @@ async function createWindow() {
     if (!match) return
     if (match.kind === 'devtools') {
       win.webContents.toggleDevTools()
-    } else if (match.direction === 'in') {
-      applyZoom(win, currentZoom + ZOOM_STEP)
-    } else if (match.direction === 'out') {
-      applyZoom(win, currentZoom - ZOOM_STEP)
     } else {
-      applyZoom(win, ZOOM_DEFAULT)
+      zoomByDirection(match.direction, win)
     }
     event.preventDefault?.()
   })
