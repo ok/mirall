@@ -37,6 +37,7 @@ async function run (flagBee) {
 
   let migrated = 0
   let deferred = 0
+  let failed = 0
   for (const space of await listSpaces()) {
     // A pre-encryption space can never obtain an SCK, so letting it fall into the deferred bucket
     // below would hold the global flag open and re-run this whole pass on every boot, forever.
@@ -50,28 +51,34 @@ async function run (flagBee) {
       migrated += 1
       log.info('migrated space catalog to SCK-encrypted:', spaceId)
     } catch (err) {
+      failed += 1
       log.warn('catalog encrypt migration failed for', spaceId, '-', err.message)
-      return { skipped: false, migrated, retry: true }
     }
   }
-  // Only close out the migration once no space is still waiting on its SCK.
-  if (deferred === 0) await flagBee.put(FLAG, { completedAt: Date.now(), migrated })
+  // Only close out the migration once every space is done: one that failed, and one still waiting
+  // on its SCK, are both retried on a later boot — and neither costs the spaces after it, whose
+  // own markers make the retry a no-op for them.
+  if (deferred === 0 && failed === 0) await flagBee.put(FLAG, { completedAt: Date.now(), migrated })
   if (migrated) log.info('SCK-encrypted', migrated, 'space catalog(s)')
-  return { skipped: false, migrated, deferred }
+  if (failed) log.warn(failed, 'space catalog(s) failed to encrypt — retrying on the next boot')
+  return { skipped: false, migrated, deferred, failed }
 }
 
 async function migrateOneCatalog (space, spaceId) {
   const enc = await ownCatalog(spaceId)
   const legacy = openLegacyPlaintextCatalog(space, spaceId)
-  await legacy.core.ready()
-  if (legacy.core.length > 0) {
-    const batch = enc.batch()
-    for await (const { key, value } of legacy.createReadStream()) await batch.put(key, value)
-    await batch.flush()
-  } else {
-    log.info('no legacy plaintext catalog to copy for', spaceId)
+  try {
+    await legacy.core.ready()
+    if (legacy.core.length > 0) {
+      const batch = enc.batch()
+      for await (const { key, value } of legacy.createReadStream()) await batch.put(key, value)
+      await batch.flush()
+    } else {
+      log.info('no legacy plaintext catalog to copy for', spaceId)
+    }
+  } finally {
+    try { await legacy.close() } catch {}
   }
-  try { await legacy.close() } catch {}
 
   const encKey = await ownCatalogKeyHex(spaceId)
   await markSpaceLooseCatalogKeyEnc(spaceId, encKey)
