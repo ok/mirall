@@ -318,7 +318,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 
 `verifying` also exists in the renderer's `FileStatus` union, surfaced from the `event:decoration` `phase` (§8) rather than derived by the resolver.
 
-Duplicates collapse per **content hash** (`dedupeByHash`): the most-progressed candidate wins by `STATUS_PRIORITY` (`mine` > `downloaded` > `downloading`/`publishing` > `paused-*` > `remote` > `unavailable` > `error`) and the rest fold into a `sharedByCount`.
+Duplicates collapse per **content hash** (`file-dedupe.js#dedupeFileRows`): the most-progressed candidate wins by `STATUS_RANK` (`mine` > `downloaded` > `verifying` > `downloading`/`publishing` > `paused-*` > `remote` > `preparing` > `unavailable` > `error`) and the rest fold into a `sharedByCount`. A candidate whose owner has not finished hashing carries no content hash and keys on **owner + path** instead, so files prepared at the same moment stay separate rows and a shared name alone never merges two owners' copies. Every `FILE_STATUS` member has a rank, asserted by `test/unit/file-dedupe.test.js`.
 
 #### Sharing a file (in-place publish)
 
@@ -1285,6 +1285,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/download-claim.js` | `claimVerdict(...)` — the downloaded / prune ladder for one download-history claim, pure (§3.3) |
 | `src/shared/transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}` over `EtaEstimator`; shared by single-file transfers and folder mirroring |
 | `src/shared/transfer/swarm-registries.js` | The swarm's shared indexes — `connectedPeers`, `socketToPeers`, `spaceTopics`, the pending-requester and handler maps — plus `announceLedger` and `resetRegistries` (§4.4) |
+| `src/shared/transfer/file-dedupe.js` | The pure fold from per-owner loose-file candidates to listing rows: one row per distinct file, the most-progressed copy winning, the rest counted as `sharedByCount` (§3.5) |
 | `src/shared/transfer/transfer-status.js` | The pure consumer-row status ladder (`consumerRowStatusFor` & co.) for a share-file row (§7.3) |
 | `src/shared/transfer/content-backends.js` | The seam: `getContentBackend(share)` → the overlay backend, else `UNSUPPORTED`; the presence-sweep fan-out. Locked by `content-backend-conformance.test.js` (§7.7) |
 | `src/shared/transfer/net-impair.js` | Test-only link shaper (runtime-config `netImpair`) applied to a socket in place; production never sets it |
