@@ -5,7 +5,7 @@ import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '..
 import { applyTheme, getStoredTheme, type ThemeMode } from '../theme.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../store/useMainQuery.js'
-import { useZoom, ZOOM_LEVELS, isSameZoom } from '../hooks/useZoom.js'
+import { useZoom, ZOOM_LEVELS, nearestZoomLevel } from '../hooks/useZoom.js'
 import Icon, { type IconName } from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
@@ -27,6 +27,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
   const { t } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const { zoom, setZoom } = useZoom()
+  const selectedZoomKey = nearestZoomLevel(zoom).key
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const currentLang = i18n.language
   const showMenuBarToggle = window.bridge.getPlatform() !== 'darwin'
@@ -76,7 +77,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                     <Segment
                       key={level.key}
                       label={t(level.labelKey)}
-                      selected={isSameZoom(zoom, level.factor)}
+                      selected={level.key === selectedZoomKey}
                       onSelect={() => setZoom(level.factor)}
                     />
                   ))}
