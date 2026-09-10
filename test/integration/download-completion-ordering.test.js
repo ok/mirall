@@ -20,7 +20,7 @@ const engineSrc = fs.readFileSync(
 // the write order in the engine's done block structurally; the behavior half below pins
 // the masking that makes a lingering pending row harmless.
 test("REGRESSION (FIX-D2: completion records the durable downloaded fact before clearing the resume row)", (t) => {
-  const done = engineSrc.indexOf("diag.finish('done')")
+  const done = engineSrc.indexOf('diag.finish(FETCH_OUTCOME.DONE)')
   t.ok(done > -1, 'completion block found')
   const block = engineSrc.slice(done, engineSrc.indexOf('emitComplete', done))
   const downloadedAt = block.indexOf('markDownloaded')

@@ -70,8 +70,10 @@ test('every audit call site names its outcome through the frozen vocabulary', (t
   }
 })
 
+// The lookbehind keeps the audit vocabulary's own name: a qualified sibling (FETCH_OUTCOME, the
+// overlay's fetch outcomes) is a different vocabulary and must not be judged against this one.
 test('every OUTCOME reference in the data layer resolves to a member', (t) => {
-  const refs = new Set([...dataLayerSource.matchAll(/OUTCOME\.([A-Z_]+)/g)].map((m) => m[1]))
+  const refs = new Set([...dataLayerSource.matchAll(/(?<![A-Z_])OUTCOME\.([A-Z_]+)/g)].map((m) => m[1]))
   t.ok(refs.size > 0, 'found the OUTCOME references')
   for (const key of refs) {
     t.ok(OUTCOMES.includes(OUTCOME[key]), 'OUTCOME.' + key + ' is a member of the outcome vocabulary')

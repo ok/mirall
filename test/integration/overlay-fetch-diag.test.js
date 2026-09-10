@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // Capture console.{log,warn,error} around a body. The logger maps debug/info →
@@ -23,7 +24,9 @@ function setVerbose(t, value) {
   t.teardown(() => setRuntimeConfig(prev))
 }
 
-const STOPS = ['paused', 'cancelled', 'superseded', 'no-holder']
+// Read from the shared vocabulary, so an outcome added there is covered here without an edit —
+// a hand-kept copy is how 'awaiting-republish' went a whole release warning at every user.
+const STOPS = [...DELIBERATE_STOPS]
 
 // REGRESSION (FIX-1: a deliberate pause logged as a WARN "INCOMPLETE … gave up").
 // Pausing an in-flight overlay download cancels the chunk scheduler, which the
@@ -37,6 +40,16 @@ test('REGRESSION: a deliberate-stop outcome never warns (at the default log leve
     t.is(out.warn.length, 0, `finish('${outcome}') emits no WARN`)
     t.absent(out.log.join('\n').includes('gave up'), `finish('${outcome}') never says "gave up"`)
   }
+})
+
+// REGRESSION (FIX-368: the republish park logged a false WARN). The owner re-hashing a source
+// parks the in-flight fetch — normal, documented control flow — but 'awaiting-republish' was
+// missing from the diag's stop set, so every park printed "INCOMPLETE … gave up" into the user's
+// log and into every diagnostics bundle.
+test('REGRESSION: a republish park never warns', (t) => {
+  setVerbose(t, false)
+  const out = capture(() => makeFetchDiag('loose download', 'big.mp4', 100, 'abc').finish('awaiting-republish'))
+  t.is(out.warn.length, 0, 'parking for a republish emits no WARN')
 })
 
 test('a genuine give-up still warns "INCOMPLETE … gave up"', (t) => {
