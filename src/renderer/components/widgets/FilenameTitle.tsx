@@ -7,19 +7,13 @@ interface FilenameTitleProps {
   name: string
 }
 
-// Modal title that carries a user-supplied name (a file, folder, or space name)
-// interpolated into a translated sentence such as `Remove “{{name}}”?`. A long
-// name would overflow the fixed-width modal, so we give the name its own share
-// of the title: the verb phrase can sit on the first line while the quoted name
-// takes the full width below it, middle-truncated to fit — `High.Plains.Dri…
-// BluRay.mp4` — so both the beginning and the ending (with the extension) stay
-// readable. The truncation is measured against the real font and rendered as a
-// single text node, so it can never gap or overlap the surrounding punctuation.
-//
-// The name is interpolated with a private-use sentinel and the result split on
-// it, which locates the name's position per language without touching locale
-// strings. We then peel the opening punctuation (a quote) off the end of the
-// verb phrase so it rides with the name onto its own line instead of dangling.
+// Modal title carrying a user-supplied name interpolated into a translated sentence such as
+// `Remove “{{name}}”?`. The name gets its own line under the verb phrase, middle-truncated to the
+// modal width — `High.Plains.Dri…BluRay.mp4` — so both ends (and the extension) stay readable. The
+// truncation is measured against the real font and rendered as one text node, so it never gaps or
+// overlaps the punctuation. The name is interpolated with a private-use sentinel and the result
+// split on it, which locates it per language without touching locale strings; the opening quote is
+// peeled off the verb phrase so it rides with the name.
 const NAME_SLOT = String.fromCharCode(0xe000)
 
 function peelTitle(raw: string): { verb: string; lead: string; after: string } {

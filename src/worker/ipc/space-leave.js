@@ -1,7 +1,5 @@
-// The space:leave flow, lifted out of the worker entrypoint. The handler is a 200-line, 14-phase
-// state machine reaching ~35 callees across ~10 modules; living in the file whose job is wiring is
-// why the reusable half of this flow (spaces/leave-flow.js, which boot's interrupted-leave pass
-// runs) was written separately and drifted from it. Both now share the step order.
+// The space:leave handler. Its teardown ORDER is shared with boot's interrupted-leave pass through
+// spaces/leave-flow.js (LEAVE_PHASES + runLeaveTeardown), so the two cannot drift.
 import { record } from '../../shared/audit/audit-log.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { unmountForeignFolder } from '../../shared/folders/foreign-folders.js'
@@ -107,30 +105,27 @@ export function registerSpaceLeave(ipc, { log, mounts, selfActor, spaceRef, disc
     log.info('leave starting:', msg.spaceId)
     // markSpaceLeaving already set above (before the getSpace await) so files:list reads short-circuit.
 
-    // Run the full teardown as a background task tracking its current phase. The
-    // load-bearing signals (leave frame, clearOwnMembership) and the durable catalog-record
-    // delete all happen before the heavyweight, occasionally-slow steps (swarm leave, peer
-    // core close/compaction, purge) — so if one of those stalls we can answer the renderer
-    // and let the rest finish in the background, instead of hanging the UI for the full IPC
-    // timeout. `phase` names where it is so a stall is diagnosable from the logs.
+    // The teardown runs as a background task that tracks its phase. The load-bearing signals (leave
+    // frame, clearOwnMembership) and the durable catalog-record delete land before the slow steps
+    // (swarm leave, peer core close/compaction, purge), so a stall there answers the renderer and
+    // finishes in the background instead of holding the UI for the full IPC timeout. `phase` names
+    // where it is so a stall is diagnosable from the logs.
     const tracker = { phase: 'start' }
     let space = null
     const teardown = (async () => {
       try {
-        // Durable leaving marker BEFORE the member del: a quit anywhere in this teardown is now
+        // Durable leaving marker BEFORE the member del: a quit anywhere in this teardown is then
         // completed at the next boot (resumeInterruptedLeave) instead of being reverted by the
-        // markOwnMembership backfill. Best-effort — without it a crash reverts as before.
+        // markOwnMembership backfill. Best-effort.
         tracker.phase = 'mark-leaving'
         try { await markSpaceLeavingDurable(msg.spaceId) } catch (err) {
           log.warn('durable leaving mark failed:', err.message)
         }
-        // Author the durable departure (member/<S> del) BEFORE broadcasting the frame, so it is
-        // written + announced when co-members apply the leave — their member-view live-follow can then
-        // re-host it and serve it to members who were offline at leave time.
-        // Same step order as boot's interrupted-leave pass (shared/spaces/leave-flow.js). The steps
-        // differ: this path also stops the in-memory machinery — a still-live chokidar watcher,
-        // mirror loop, periodic reconcile or publish lane would keep writing to the drive the purge
-        // below closes, and recreate state mid-purge. A fresh boot has none of that to stop.
+        // The durable departure (member/<S> del) is authored BEFORE the frame is broadcast, so it is
+        // written and announced when co-members apply the leave and their live-follow can re-host it
+        // for members offline at leave time. Same step order as boot's pass (spaces/leave-flow.js);
+        // this path also stops the in-memory machinery — watcher, mirror loop, periodic reconcile,
+        // publish lane — that would otherwise keep writing to the drive the purge below closes.
         await runLeaveTeardown(msg.spaceId, {
           clearMembership: async () => {
             // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have

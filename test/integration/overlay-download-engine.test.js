@@ -6,7 +6,7 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends
 import { initPendingTransfers, recordPending, getPendingFor, updatePendingProgress, clearPending } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 
 // The shared overlay consumer engine (used by both loose + folder). The success/
@@ -174,7 +174,7 @@ test('#checksum: an integrity mismatch still records a terminal error (not pause
   await tick()
 
   const row = await getPendingFor('space1', '/Photos/doc.bin')
-  t.is(row.errorCode, ErrorCodes.TRANSFER_CHECKSUM, 'integrity mismatch recorded as a terminal checksum error')
+  t.is(row.errorCode, CODES.TRANSFER_CHECKSUM, 'integrity mismatch recorded as a terminal checksum error')
   t.ok(events.some((e) => e[0] === 'error'), 'emitError fired (terminal)')
   t.absent(events.some((e) => e[0] === 'paused'), 'not paused — a bad-bytes failure is terminal')
 })
@@ -194,7 +194,7 @@ test('#local-error: a copy failure records a terminal error, not paused', async 
   await tick()
 
   const row = await getPendingFor('space1', '/Photos/doc.bin')
-  t.is(row.errorCode, ErrorCodes.DOWNLOAD_FAILED, 'a local copy failure is terminal')
+  t.is(row.errorCode, CODES.DOWNLOAD_FAILED, 'a local copy failure is terminal')
   t.ok(events.some((e) => e[0] === 'error'), 'emitError fired')
   t.absent(events.some((e) => e[0] === 'paused'), 'not paused')
 })
@@ -219,8 +219,8 @@ test('#5: resumeForOwner skips a checksum-errored row, retries a transient one',
   const engine = createOverlayDownloadEngine(channel)
   getOverlay().fetchFile = (_hash, opts) => { started.push(opts.destPath); return new Promise(() => {}) }
 
-  await recordPending('space2', '/checksum.bin', { total: 10, overlayShare: true, ownerKey: 'peer', relPath: 'checksum.bin', errorCode: ErrorCodes.TRANSFER_CHECKSUM, finalPath: '/x' })
-  await recordPending('space2', '/transient.bin', { total: 10, overlayShare: true, ownerKey: 'peer', relPath: 'transient.bin', errorCode: ErrorCodes.PEER_NOT_AVAILABLE, finalPath: '/y' })
+  await recordPending('space2', '/checksum.bin', { total: 10, overlayShare: true, ownerKey: 'peer', relPath: 'checksum.bin', errorCode: CODES.TRANSFER_CHECKSUM, finalPath: '/x' })
+  await recordPending('space2', '/transient.bin', { total: 10, overlayShare: true, ownerKey: 'peer', relPath: 'transient.bin', errorCode: CODES.PEER_NOT_AVAILABLE, finalPath: '/y' })
 
   await engine.resumeForOwner('peer', 'space2')
   await tick()
@@ -474,9 +474,9 @@ test('REGRESSION (FIX-ENOSPC-1): an ENOSPC fetch failure records TRANSFER_DISK_F
   await tick()
 
   const row = await getPendingFor('space1', '/Photos/doc.bin')
-  t.is(row.errorCode, ErrorCodes.TRANSFER_DISK_FULL, 'ENOSPC classified as disk-full, not generic failure')
+  t.is(row.errorCode, CODES.TRANSFER_DISK_FULL, 'ENOSPC classified as disk-full, not generic failure')
   const err = events.find((e) => e[0] === 'error')
-  t.is(err?.[2], ErrorCodes.TRANSFER_DISK_FULL, 'emitError carries the disk-full code')
+  t.is(err?.[2], CODES.TRANSFER_DISK_FULL, 'emitError carries the disk-full code')
   t.absent(events.some((e) => e[0] === 'paused'), 'not paused — disk-full is terminal until space frees')
 })
 
@@ -501,9 +501,9 @@ test('REGRESSION (FIX-ENOSPC-2): preflight refuses a download the volume cannot 
   t.is(fetches, 0, 'no fetch was attempted')
   t.absent(engine.has(job.transferId), 'single-flight slot released')
   const row = await getPendingFor(job.spaceId, job.pendingKey)
-  t.is(row.errorCode, ErrorCodes.TRANSFER_DISK_FULL, 'row records disk-full up front')
+  t.is(row.errorCode, CODES.TRANSFER_DISK_FULL, 'row records disk-full up front')
   const err = events.find((e) => e[0] === 'error')
-  t.is(err?.[2], ErrorCodes.TRANSFER_DISK_FULL, 'emitError carries the disk-full code')
+  t.is(err?.[2], CODES.TRANSFER_DISK_FULL, 'emitError carries the disk-full code')
   t.ok(events.some((e) => e[0] === 'updated'), 'emitUpdated fired so the row re-derives')
 })
 
@@ -534,7 +534,7 @@ test('REGRESSION (FIX-ENOSPC-3): auto-resume skips a disk-full row', async (t) =
   }
   const engine = createOverlayDownloadEngine(channel, { hasOverlay: () => true })
 
-  await recordPending('space4', '/full.bin', { total: 10, overlayShare: true, relPath: 'full.bin', ownerKey: 'peerpub', errorCode: ErrorCodes.TRANSFER_DISK_FULL, finalPath: path.join(ctx.tmpDir('dl'), 'full.bin') })
+  await recordPending('space4', '/full.bin', { total: 10, overlayShare: true, relPath: 'full.bin', ownerKey: 'peerpub', errorCode: CODES.TRANSFER_DISK_FULL, finalPath: path.join(ctx.tmpDir('dl'), 'full.bin') })
   await recordPending('space4', '/other.bin', { total: 10, overlayShare: true, relPath: 'other.bin', ownerKey: 'peerpub', finalPath: path.join(ctx.tmpDir('dl'), 'other.bin') })
 
   await engine.resumeForOwner('peerpub', 'space4')

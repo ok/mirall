@@ -3,8 +3,6 @@
 // verified-download record it wrote itself — but they answer the same dialog, and one component
 // renders both. Keeping the accumulator here makes "the two previews agree on their shape" an
 // assertion rather than a convention.
-//
-// No bare-* imports, so it unit-tests under Node alongside preview-detail.js.
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 
 export function createPreviewTally () {

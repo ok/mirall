@@ -24,12 +24,9 @@
 // tray icons are derived from the files above and would otherwise still show
 // the previous artwork.
 //
-// macOS is the odd one out. Its icons are not edge-to-edge: Apple's grid insets
-// the rounded square to 824² inside a 1024² canvas and casts a shadow into the
-// margin, which is what makes a Dock icon sit at the same optical size as its
-// neighbours. The ambient + directional shadow constants below were fitted
-// against the icon this script replaces, so the treatment carries over
-// unchanged. Every other platform draws the square edge-to-edge.
+// macOS is the odd one out: Apple's grid insets the rounded square to 824² inside a 1024² canvas
+// and casts a shadow into the margin, which is what makes a Dock icon sit at the same optical size
+// as its neighbours. Every other platform draws the square edge-to-edge.
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'

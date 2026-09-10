@@ -1,8 +1,7 @@
 // Every event the worker pushes to the renderer. Emitted names are the source of truth. Nothing in
 // production imports this file: its teeth are test/unit/contract-declarations.test.js, which parses
 // every emit site, every renderer subscription and this list and asserts all three name the same
-// set. The header used to claim the taxonomy test enforced it, which was never true — the taxonomy
-// test compares against its own map — and the two had already drifted by one name.
+// set.
 export const EVENTS = Object.freeze({
   AUDIT_UPDATED: 'event:audit-updated',
   AWARENESS: 'event:awareness',

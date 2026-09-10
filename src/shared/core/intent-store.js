@@ -3,7 +3,7 @@ import { Subsystem } from './subsystem.js'
 
 let bee
 
-export async function initIntents() {
+async function initIntents() {
   bee = createBee('intents')
   await bee.ready()
 }

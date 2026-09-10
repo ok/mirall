@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getLocalPublicKeyHex, markOwnMembership, markApproval } from '../../src/shared/spaces/profile.js'
@@ -37,7 +37,7 @@ const SETTLE_MS = 600
 const settle = () => new Promise((r) => setTimeout(r, SETTLE_MS))
 
 async function foldedRoster (t, spaceId) {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const creator = getLocalPublicKeyHex()
   await markOwnMembership(spaceId)
 
@@ -147,7 +147,7 @@ test('a share append still wakes the share watcher and not the fold', async (t) 
 test('close() releases every watcher on every tracked bee', async (t) => {
   const S = 'space-close'
   const creator = await (async () => {
-    await freshPeerWithIdentity(t)
+    await freshPeer(t)
     const me = getLocalPublicKeyHex()
     await markOwnMembership(S)
     return me

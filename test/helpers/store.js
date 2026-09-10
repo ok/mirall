@@ -57,12 +57,6 @@ export async function freshPeer (t, { displayName = 'Tester' } = {}) {
   return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
 }
 
-// Kept as the explicit spelling for tests whose SUBJECT is the derived-keypair
-// createBee/createDrive that the os-keychain path produces.
-export async function freshPeerWithIdentity (t, { displayName = 'Tester' } = {}) {
-  return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
-}
-
 async function bootPeer (t, { displayName, masterSecret }) {
   const { config, storage, downloads } = peerDirs(t)
   const fake = createFakeIpc()

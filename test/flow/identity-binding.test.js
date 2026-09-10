@@ -7,7 +7,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
-import { decodeInvite } from '../../src/shared/invite-envelope.js'
+import { decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')

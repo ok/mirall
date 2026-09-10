@@ -1,10 +1,8 @@
-// Per-request rollups the router already has the inputs for: it times every request and, before
-// this, threw the number away. Four counts per request answer the three questions worth asking —
-// which request is slow, how often it fails, how many are in flight.
+// Per-request rollups from the numbers the router already has. Four counts per request answer the
+// three questions worth asking — which request is slow, how often it fails, how many are in flight.
 //
-// Bounded by the request vocabulary, which is a closed set of 86 since the contract package landed,
-// so this needs no cap. The failure counters in ipc.js DO have one, because their key includes a
-// caller-supplied type.
+// Bounded by the request vocabulary (a closed set), so this needs no cap. The failure counters in
+// ipc.js DO have one, because their key includes a caller-supplied type.
 export function createRequestMetrics ({ now = Date.now, slowMs = 1000 } = {}) {
   const rows = new Map()
 

@@ -1,39 +1,19 @@
-// Byte-denominated token bucket pacing content-plane transfers. Distinct from
-// handshake-guard's createRateLimiter, which counts EVENTS per peer for abuse control:
-// this one counts BYTES, is global, and delays rather than drops.
+// Byte token bucket pacing content-plane transfers: global, delays rather than drops, and reads
+// its rate through a getter on every call so a settings change reaches in-flight transfers.
+// (handshake-guard's createRateLimiter is the other kind — per-peer EVENT counts for abuse control.)
 //
-// The rate is read through a getter on every call, so a settings change applies to
-// in-flight transfers with no re-plumbing.
-//
-// FAIRNESS. One bucket paces every concurrent transfer, so the bucket — not the caller —
-// decides who gets the next refill. Each consumer takes a `stream()` handle, and the split
-// is DEFICIT ROUND-ROBIN over streams:
-//
-//   - every waiting stream accrues an equal share of each refill into a `deficit`, and is
-//     granted only once its deficit covers what it asked for. Fairness is therefore in
-//     BYTES, not in turns: a stream fetching 4 MB chunks is served 1/64th as often as one
-//     fetching 64 KB chunks and they move the same number of bytes. Arbitrating turns
-//     instead — which an earlier revision of this file did — hands a large-chunk stream
-//     100% of the cap and a small-chunk one exactly zero, because chunk size is derived
-//     from the file-size tier and routinely differs 64x between two concurrent transfers;
-//   - `tryTake` refuses the shared bucket while any stream is waiting, so a transfer that
-//     already has chunks in flight — and therefore re-enters its assign loop on every
-//     arrival — cannot barge past a transfer that is waiting its turn;
-//   - a grant hands the stream CREDIT, so the retry it was woken for cannot lose the bytes
-//     to someone else in between;
-//   - every byte leaves through the ledger, whichever path served it. An uncontended
-//     `tryTake` debits `deficit` exactly as a grant does — bytes taken while the queue
-//     happened to be empty are still bytes this stream owes the next one to arrive.
-//
-// Without all three, the caller with the highest polling rate takes everything: the bucket
-// refills continuously in wall-clock time, so whoever calls most often consumes each
-// increment microseconds after it accrues.
+// FAIRNESS is DEFICIT ROUND-ROBIN over `stream()` handles, in BYTES, not turns: every waiting
+// stream accrues an equal share of each refill into a `deficit` and is granted once it covers what
+// it asked for, so a 4 MB-chunk stream is served 1/64th as often as a 64 KB one and both move the
+// same bytes (chunk size follows the file-size tier and routinely differs 64x between two
+// concurrent transfers). `tryTake` refuses while any stream waits (anti-barge); a grant hands the
+// stream CREDIT so a woken retry cannot lose its bytes; and every byte leaves through the ledger —
+// an uncontended `tryTake` debits `deficit` exactly as a grant does. Without all three the caller
+// with the highest polling rate takes everything, because the bucket refills in wall-clock time.
 
-// Floor for a non-zero cap. This is a USABILITY guard, not a correctness one — it is NOT
-// what keeps a chunk inside ChunkScheduler's idle watchdog, though it was originally
-// documented that way. The arithmetic never worked: 32 KB/s x 30 s = 983,040 bytes, under
-// the 1 MB tier-2 max chunk and far under the 4 MB tier-3 one. What it actually buys is
-// that "slow" stays distinguishable from "dead": the watchdog only runs while bytes are
+// Floor for a non-zero cap. A USABILITY guard, not a correctness one: it does not keep a chunk
+// inside ChunkScheduler's idle watchdog (32 KB/s x 30 s is under the 1 MB tier-2 max chunk). What
+// it buys is that "slow" stays distinguishable from "dead": the watchdog only runs while bytes are
 // outstanding with a peer, so an absurd cap would otherwise crawl forever with no error.
 //
 // The UI clamps to the same value on commit, so a user's stored setting matches what runs.
@@ -149,8 +129,7 @@ function grant(ctx, s, amount) {
 // A handle holds ONE queue entry, but take() may be called concurrently on it — the serve
 // side hands a single handle to every serve loop for a peer, and protomux does not
 // serialise its async onmessage handlers. Extra calls wait in the handle's own backlog and
-// are promoted one at a time, so the handle never appears in ctx.waiting twice (which
-// stranded the earlier entry's request as null and threw out of the pump).
+// are promoted one at a time, so the handle never appears in ctx.waiting twice.
 function promote(ctx, s) {
   if (s.detached || ctx.destroyed || s.request || !s.backlog.length) return
   s.request = s.backlog.shift()
@@ -292,14 +271,9 @@ function createStream(ctx) {
       advance(ctx)
       if (!bucketAllows(ctx, bytes, bps)) return false
       ctx.tokens -= bytes
-      // FIX-BW10 — charge the LEDGER too, not just the bucket. serve() debits `deficit` on
-      // every grant it makes; this path used to debit nothing, so bytes taken while the
-      // queue happened to be empty were invisible to the round-robin. That is not a rare
-      // corner: streams attach long after the limiter is built, so an uncontended take is
-      // the normal way a transfer starts, and an oversized chunk may borrow a whole second
-      // of the cap here. Measured on a 1 MB/s cap with 2 MB chunks against 16 KB ones, the
-      // unrecorded borrow halved the large stream's repayment time and starved the small
-      // one to exactly 0% for the whole run.
+      // Charge the LEDGER too, not just the bucket: every byte leaves through the ledger, and an
+      // uncontended take is the normal way a transfer starts (streams attach long after the
+      // limiter is built) — an oversized chunk may borrow a whole second of the cap here.
       //
       // Floored at one chunk or one second, whichever is larger — the symmetric partner of
       // the ceiling in distribute(). Without a floor a long solo transfer would accrue debt
@@ -347,10 +321,9 @@ function createStream(ctx) {
     },
 
     // Awaited before serving a chunk. Resolves with the number of bytes actually PAID FOR:
-    // `bytes` normally, 0 if the wait was aborted (limiter destroyed, or the handle
-    // detached because the peer went away). A caller must not send on 0 — the old
-    // implementation resolved void, so an aborted wait was indistinguishable from a paid
-    // one and put unmetered bytes on the wire.
+    // `bytes` normally, 0 if the wait was aborted (limiter destroyed, or the handle detached
+    // because the peer went away). A caller must not send on 0: an aborted wait must stay
+    // distinguishable from a paid one, or unmetered bytes go on the wire.
     async take(bytes) {
       if (s.detached || ctx.destroyed) return 0
       const bps = ratePerSecond(ctx)
@@ -358,9 +331,7 @@ function createStream(ctx) {
       if (api.tryTake(bytes)) return bytes
       return new Promise((resolve) => {
         const req = { bytes, cb: () => resolve(spend(bytes) ? bytes : 0) }
-        // A handle holds one queue entry; concurrent take()s wait in its backlog. Pushing a
-        // second entry for the same handle stranded the first request as null and threw out
-        // of the pump — see promote().
+        // A handle holds one queue entry; concurrent take()s wait in its backlog — see promote().
         if (s.request) { s.backlog.push(req); return }
         s.request = req
         ctx.waiting.push(s)

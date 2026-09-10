@@ -177,11 +177,9 @@ function preflight() {
   }
 }
 
-// agent-desktop persists a refmap dir per snapshot under ~/.agent-desktop and
-// never prunes them, so the store grows unbounded across runs (hundreds of dirs
-// pile up — and a bloated store slowly taxes every snapshot's directory ops).
-// Each scenario writes its own fresh snapshots, so nothing carries over: clear
-// the store at the start of every run. The CLI recreates the dirs on next use.
+// agent-desktop never prunes its per-snapshot refmap dirs under ~/.agent-desktop, and a bloated
+// store taxes every snapshot. Nothing carries over between scenarios, so clear it at the start of
+// each run; the CLI recreates the dirs on next use.
 function pruneAgentDesktopStore() {
   const store = path.join(os.homedir(), '.agent-desktop')
   let stale = 0
@@ -189,14 +187,9 @@ function pruneAgentDesktopStore() {
   for (const sub of ['snapshots', 'sessions']) {
     rmSync(path.join(store, sub), { recursive: true, force: true })
   }
-  // The two root-level files are the global "latest snapshot" pointer and its
-  // refmap. agent-desktop <0.5 wrote RefEntry records with a pid but no
-  // process_instance; 0.8.x's deserializer rejects those outright, so a store
-  // carried over from an older CLI makes `agent-desktop status` fail with
-  // INVALID_ARGS ("RefEntry requires a positive pid and process instance") until
-  // they are gone. Nothing here reads them — each Instance uses its own
-  // --session namespace — so clearing them is free and keeps the CLI usable
-  // by hand (and by the agent-desktop skill) after this suite has run.
+  // The root-level "latest snapshot" pointer and refmap go too: a refmap written by an older CLI
+  // makes `agent-desktop status` fail with INVALID_ARGS until it is gone, and nothing here reads
+  // them (each Instance uses its own --session namespace).
   for (const f of ['last_refmap.json', 'latest_snapshot_id']) {
     rmSync(path.join(store, f), { force: true })
   }
@@ -222,7 +215,6 @@ const slugByKey = Object.fromEntries(
   if (!args.includes('--no-build')) execFileSync('npm', ['run', 'build'], { cwd: REPO, stdio: 'inherit' })
   const net = await startTestnet()
   const results = []
-  const live = []
   try {
     for (const [idx, key] of keys.entries()) {
       // Attribute live log output (launch lines, step failures) to a numbered scenario.
@@ -242,14 +234,10 @@ const slugByKey = Object.fromEntries(
       const failedSteps = drainReports()
         .flatMap((r) => r.steps.filter((s) => !s.pass).map((s) => ({ label: s.label, err: s.err })))
       results.push({ key, pass: pass && !crash, crash, failedSteps })
-      // Fully tear down this scenario's instances — and wait for them to exit —
-      // before the next one launches. Without the await, the next scenario's
-      // two Electron apps came up while these were still shutting down, and the
-      // overlap accumulated over a long run until worker IPC timed out.
+      // Tear down and WAIT before the next scenario launches: overlapping teardowns starve worker IPC.
       await Promise.all(instances.map((i) => i.kill()))
     }
   } finally {
-    await Promise.all(live.map((i) => i.kill()))
     await net.destroy()
   }
 

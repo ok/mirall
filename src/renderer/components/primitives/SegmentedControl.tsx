@@ -1,9 +1,5 @@
-// The pill row of `aria-pressed` buttons the settings screens and the Activity Log filter bar
-// select with. It became a primitive to fix one bug in one place: the selected segment paints
-// `font-semibold` and the others `font-medium`, so a segment sized to the weight it is CURRENTLY
-// painting made the whole track resize on every click — the pressed label widened, its neighbour
-// narrowed, and the pill jittered under the pointer. `Segment` reserves its selected width in
-// every state instead, so only the highlight moves.
+// The pill row of `aria-pressed` buttons the settings screens and the Activity Log filter bar select
+// with. `Segment` reserves its selected (semibold) width in every state, so only the highlight moves.
 import type { ReactNode } from 'react'
 import Icon, { type IconName } from './Icon.js'
 

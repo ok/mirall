@@ -8,7 +8,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { runMaterializeTick, recordMirrorScanFault, setForeignEnabled } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 import fs from 'bare-fs'
 
 // REGRESSION (FIX-129): a disk-write failure during an overlay mirror fetch must
@@ -102,7 +102,7 @@ test('a pause records the error code, never the errno message', async (t) => {
   const { spaceId, shareId } = await setupOverlayMirror(t, 'ENOSPC')
   await runMaterializeTick(spaceId, shareId)
   const mount = await getForeignMount(spaceId, shareId)
-  t.is(mount.lastError, ErrorCodes.TRANSFER_DISK_FULL, 'durable, so the folder screen survives a reload')
+  t.is(mount.lastError, CODES.TRANSFER_DISK_FULL, 'durable, so the folder screen survives a reload')
 })
 
 // The mount-time scan is the one producer that is not a pause: its loop still starts, so it must
@@ -117,16 +117,16 @@ test('a failed initial scan records the fault without pausing the mount', async 
   t.is(status, 'paused-error')
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'durable — a reload used to show a mirror still "scanning"')
-  t.is(mount.lastError, ErrorCodes.TRANSFER_PERMISSION)
+  t.is(mount.lastError, CODES.TRANSFER_PERMISSION)
   t.ok(mount.enabled, 'the poll loop still runs, so this is not an auto-pause')
   const last = faultEvents(ctx, shareId).at(-1)
-  t.is(last.error, ErrorCodes.TRANSFER_PERMISSION, 'the wire carries the code the renderer translates')
+  t.is(last.error, CODES.TRANSFER_PERMISSION, 'the wire carries the code the renderer translates')
 })
 
 test('a successful pass clears the reason with the status', async (t) => {
   const { spaceId, shareId } = await setupOverlayMirror(t, 'ENOSPC')
   await runMaterializeTick(spaceId, shareId)
-  t.is((await getForeignMount(spaceId, shareId)).lastError, ErrorCodes.TRANSFER_DISK_FULL, 'precondition')
+  t.is((await getForeignMount(spaceId, shareId)).lastError, CODES.TRANSFER_DISK_FULL, 'precondition')
 
   const overlay = getOverlay()
   overlay.fetchFile = async (hash, { destPath } = {}) => { fs.writeFileSync(destPath, 'ok'); return { destPath } }

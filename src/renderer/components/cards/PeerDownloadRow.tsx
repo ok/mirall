@@ -29,9 +29,7 @@ export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused
 
   return (
     <li className="h-12 flex items-center gap-3 px-1">
-      {/* Name, avatar, and the (speed · ETA over the bar) all cluster at the right edge:
-          ml-auto pulls the name in next to the avatar instead of stranding it on the far
-          left, the avatar sits next to the bar, and the meta is right-aligned above it. */}
+      {/* Everything clusters at the right edge: name, avatar, then the bar with its meta above. */}
       <span className={`min-w-0 ml-auto text-sm font-bold truncate ${online ? 'text-accent' : 'text-outline'}`}>{name}</span>
       <span className="relative shrink-0">
         <Avatar src={member?.avatar} displayName={name} size="sm" />

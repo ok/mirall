@@ -139,7 +139,7 @@ if [ "$OUTPUT" != "$ARCH_OUT" ]; then
 fi
 chmod +x "$ARCH_OUT"
 
-# Issue #44: replace the FUSE-based AppImage runtime with VHSgunzo/uruntime in
+# Replace the FUSE-based AppImage runtime with VHSgunzo/uruntime in
 # extract-and-run mode (URUNTIME_MOUNT=0). The stock runtime that app-builder
 # bakes in requires libfuse2 on the user's machine, which Ubuntu 24.04 and
 # Fedora 40+ no longer ship by default — the app fails to launch silently for

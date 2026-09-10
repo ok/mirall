@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../../src/shared/contract/statuses.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 import {
   AUTO_PAUSE_STATUSES, statusForFaultCode, faultFromError, isAutoPauseStatus, mountFault, isMountFault,
 } from '../../src/shared/folders/mount-fault.js'
@@ -55,8 +55,8 @@ test('the fault statuses both roles share are declared for both', (t) => {
 test('every status mount-fault.js can produce is declared for both roles', (t) => {
   const produced = new Set([
     ...AUTO_PAUSE_STATUSES,
-    statusForFaultCode(ErrorCodes.TRANSFER_DISK_FULL),
-    statusForFaultCode(ErrorCodes.TRANSFER_PERMISSION),
+    statusForFaultCode(CODES.TRANSFER_DISK_FULL),
+    statusForFaultCode(CODES.TRANSFER_PERMISSION),
     statusForFaultCode(null),
   ])
   t.ok(produced.size >= 3, 'the set is non-trivial (guards the assertion itself)')
@@ -68,7 +68,7 @@ test('every status mount-fault.js can produce is declared for both roles', (t) =
 
 test('the errno split both roles depend on', (t) => {
   t.is(faultFromError({ code: 'ENOSPC' }).status, 'paused-enospc')
-  t.is(faultFromError({ code: 'ENOSPC' }).code, ErrorCodes.TRANSFER_DISK_FULL)
+  t.is(faultFromError({ code: 'ENOSPC' }).code, CODES.TRANSFER_DISK_FULL)
   t.is(faultFromError({ code: 'EACCES' }).status, 'paused-error')
   t.is(faultFromError({ code: 'EPERM' }).status, 'paused-error')
   t.is(faultFromError({ code: 'EROFS' }).status, 'paused-error')
@@ -87,8 +87,8 @@ test('a user pause is not an auto-pause', (t) => {
 })
 
 test('the renderer fault reader names a reason even when none was recorded', (t) => {
-  t.alike(mountFault('paused-enospc', null), { status: 'paused-enospc', code: ErrorCodes.TRANSFER_DISK_FULL })
-  t.alike(mountFault('paused-error', ErrorCodes.TRANSFER_PERMISSION), { status: 'paused-error', code: ErrorCodes.TRANSFER_PERMISSION })
+  t.alike(mountFault('paused-enospc', null), { status: 'paused-enospc', code: CODES.TRANSFER_DISK_FULL })
+  t.alike(mountFault('paused-error', CODES.TRANSFER_PERMISSION), { status: 'paused-error', code: CODES.TRANSFER_PERMISSION })
   t.is(mountFault('paused-error', null).code, null, 'a plain error with no reason stays honest rather than guessing')
   t.is(mountFault('mount-point-gone', null), null, 'a missing root is not a fault banner')
   t.is(mountFault('paused', null), null)

@@ -3,7 +3,8 @@
 // updates; spawns the Bare worker (all P2P and data logic) and relays NDJSON
 // IPC frames renderer↔worker in both directions; runs the chokidar folder
 // watchers on the worker's behalf (Bare has no recursive watch). Main holds no
-// application state — durable state lives in the worker's store.
+// durable application state — that lives in the worker's store (preferences aside,
+// which are main's config.json); what main keeps in memory is session-only.
 const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, net, protocol: electronProtocol, screen, shell, webContents } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -55,9 +56,8 @@ const { usableBounds } = require('./window-bounds.js')
 const applyErrors = require('./apply-error.js')
 
 // === Renderer broadcast + log forwarding ===
-// Ahead of everything else on purpose: installMainLogForwarding is what puts main's console into
-// the log ring, and anything logged before it runs is absent from every diagnostics bundle. The
-// argv warnings below were the casualty — the one line that says which argument was dropped.
+// Installed first: installMainLogForwarding puts main's console into the log ring, and anything
+// logged before it (the argv warnings, say) is absent from every diagnostics bundle.
 
 let redactLinePromise = null
 function loadRedactLine() {
@@ -132,11 +132,9 @@ const customStorage = boot.flags.storage
 const updatesEnabled = boot.flags.updates !== false && !!upgrade
 const startHiddenFlag = !!boot.flags.hidden
 
-// When --storage is set, redirect Electron's userData path too so that
-// window-bounds.json, the corestore, and the applied-version marker all
-// live in the same custom dir. This makes multi-instance dev (run two
-// Mirall.apps on the same machine pointing at separate stores) actually
-// work — without this, both instances share userData and clobber state.
+// With --storage, redirect Electron's userData too, so config.json, the corestore and the
+// applied-version marker share one directory: two instances pointed at separate stores must not
+// share (and clobber) one userData.
 if (customStorage) app.setPath('userData', customStorage)
 
 // Test hook: force Chromium to always build the renderer accessibility tree.
@@ -222,9 +220,7 @@ let configStore = null
 // removes them (see config-store.js).
 function config() {
   if (!configStore) {
-    configStore = new ConfigStore(getDataDir(), {
-      readFeatures: () => readFeatureFlags(),
-    }).load()
+    configStore = new ConfigStore(getDataDir()).load()
   }
   return configStore
 }
@@ -246,8 +242,6 @@ function getPear() {
       storage: path.join(dir, 'app-storage'),
       updater: null,
       run: (entrypoint, args = [], opts = {}) => PearRuntime.run(entrypoint, args, opts),
-      on: () => pear,
-      removeListener: () => pear,
     }
     return pear
   }
@@ -379,7 +373,7 @@ function writeWindowBounds(bounds) {
   config().set('window.bounds', bounds)
 }
 
-// Match :root / .dark CSS vars in src/styles/tailwind.css. The native
+// Match --color-background in :root / .dark in src/renderer/styles/tailwind.css. The native
 // BrowserWindow background is what Electron paints on newly-revealed
 // pixels during a fast OS-driven resize before the renderer has a chance
 // to repaint, so it must match the rendered body background — otherwise
@@ -412,9 +406,8 @@ function writePrefs(next) {
 
 // === Tray, autostart, window reveal ===
 
-// The one answer to "which window does this act on". Written five times as a three-way fallback
-// ending in getAllWindows()[0] and twice as a find() that skips destroyed windows — the two
-// disagreed, and setBounds/setZoomFactor on a destroyed window throws.
+// The one answer to "which window does this act on": sender, then focused, then any live window
+// — never a destroyed one (setBounds / setZoomFactor on it throws).
 function targetWindow(evt) {
   const sender = evt && evt.sender ? BrowserWindow.fromWebContents(evt.sender) : null
   const candidates = [sender, BrowserWindow.getFocusedWindow(), ...BrowserWindow.getAllWindows()]
@@ -551,18 +544,13 @@ let workerDownloadRoots = []
 const ownedFolderWatchers = require('./owned-folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
-// The one way main puts a frame on the worker pipe — bootstrap, shutdown and every watcher event
-// alike, so a frame cannot be written with a weaker guard than its neighbours. Returns whether the
-// frame went out, because the callers do not agree on what a failure means: a lost watcher event
-// is survivable, a lost bootstrap is not (see getWorker).
-//
-// This catch does NOT see the EPIPE of a write racing the worker's death — that arrives
-// asynchronously on the stream and is handled by worker.on('error') in getWorker. What lands here
-// is a synchronous failure: an unserialisable frame, or a stream that rejects the write outright.
-//
-// Reported once per worker. Every frame after a pipe goes bad fails for the same reason, and the
-// repeats would evict the crash that explains them from the fixed-size log ring; a respawned
-// worker reports again. Silent during a quit, where a half-written pipe is expected.
+// The one path that puts a frame on the worker pipe — bootstrap, shutdown and every watcher event
+// alike. Returns whether it went out: a lost watcher event is survivable, a lost bootstrap is not
+// (see getWorker). Sync failures only — an unserialisable frame, a stream that rejects the write;
+// the async EPIPE of a write racing the worker's death arrives on worker.on('error') in getWorker.
+// Reported once per worker: every frame after a pipe goes bad fails the same way, and the repeats
+// would evict the crash that explains them from the log ring; a respawned worker reports again.
+// Silent during a quit, where a half-written pipe is expected.
 const writeFailureReported = new WeakSet()
 
 function sendToWorker(worker, frame) {
@@ -580,10 +568,8 @@ function sendToWorker(worker, frame) {
   }
 }
 
-// Above getWorker on purpose. `mainRequests` is a const read from inside the worker's data
-// handler, and it used to be declared ~300 lines BELOW it: that works only while every spawn
-// comes from an ipcMain callback. Any synchronously-dispatched spawn added above the declaration
-// would turn the first worker frame into a TDZ ReferenceError thrown inside a stream listener.
+// Declared before getWorker: the worker's data handler closes over this binding, and a spawn
+// dispatched synchronously would otherwise read it in its temporal dead zone.
 const mainRequests = createMainRequestRouter({
   ownedFolderWatchers,
   looseFileWatchers,
@@ -747,8 +733,7 @@ function getWorker(specifier) {
       }
     }
   })
-  // Streaming decoders: a log line split mid-character would otherwise reach the log ring — the
-  // one artifact used to diagnose exactly this class of bug — with the character mangled.
+  // Streaming decoders: a log line split mid-character must not reach the log ring mangled.
   const stdoutDecoder = new StringDecoder('utf8')
   const stderrDecoder = new StringDecoder('utf8')
   // The renderer gets the raw bytes either way — it has its own streaming decoder, and gating the
@@ -773,15 +758,11 @@ function getWorker(specifier) {
   const onBeforeQuit = () => {
     // 1. Ask the worker to exit cleanly (it closes the swarm, then Bare.exit).
     sendToWorker(worker, { type: 'shutdown' })
-    // 2. Escalate if it's still alive. NOTE: the bare-sidecar Duplex has no
-    //  kill method — the previous `worker.kill` threw and was swallowed by
-    //  the catch, so a wedged worker was never reaped and orphaned itself at
-    //  100% CPU. destroy sends SIGTERM via the sidecar's _destroy; a worker
-    //  whose event loop is starved by a busy loop can't process the shutdown
-    //  IPC OR a SIGTERM bare dispatches on that loop, so follow up with an
-    //  uncatchable SIGKILL on the underlying child. Timers are unref'd so they
-    //  never delay a clean exit; the process.on('exit') backstop is the real
-    //  guarantee when the main process exits before these fire.
+    // 2. Escalate if it is still alive. The bare-sidecar Duplex has no kill(): destroy() sends
+    //  SIGTERM via the sidecar; a worker whose loop is starved cannot process the shutdown frame
+    //  OR a SIGTERM bare dispatches on that loop, so follow up with SIGKILL on the child. Timers
+    //  are unref'd so they never delay a clean exit; process.on('exit') is the backstop when main
+    //  exits before these fire.
     const child = worker._process
     setTimeout(() => { try { worker.destroy() } catch {} ; try { child?.kill('SIGTERM') } catch {} }, 3000).unref?.()
     setTimeout(() => { try { child?.kill('SIGKILL') } catch {} }, 5000).unref?.()
@@ -912,12 +893,6 @@ ipcMain.handle('relay:set', async (_evt, payload) => {
   return { ok: true, network, identityChanged: before?.kind === 'private' || parsed.kind === 'private' }
 })
 
-ipcMain.handle('pear:applyUpdate', async () => {
-  const u = getPear().updater
-  if (!u) return
-  await u.applyUpdate()
-})
-
 ipcMain.handle('pear:appVersion', async () => {
   const p = getPear()
   if (!p?.updater?.drive) return { length: 0, fork: 0, semver: null }
@@ -937,11 +912,6 @@ ipcMain.handle('pear:appVersion', async () => {
 
 ipcMain.handle('app:identityProtection', () => identityProtection)
 
-// Live verbose-logging toggle for main. Flips `debug` (so main's if(debug) logs
-// fire even on a production build) and the `verbose` worker-spawn seed (so a
-// respawned worker inherits it). The renderer flips the already-running worker
-// separately over the worker IPC channel. A non-boolean arg leaves state
-// untouched and just reports it; turning off reverts to the build default.
 // net.online is documented as asymmetric: false is a strong indicator the user cannot
 // reach remote sites, true is inconclusive. So it is only ever used to declare offline —
 // never to declare healthy.
@@ -980,6 +950,11 @@ ipcMain.handle('diagnostics:lastApplyError', async (_evt, opts) => {
   return applyErrors.readLiveApplyError(getDataDir(), { version, redactLine })
 })
 
+// Live verbose-logging toggle for main. Flips `debug` (so main's if(debug) logs
+// fire even on a production build) and the `verbose` worker-spawn seed (so a
+// respawned worker inherits it). The renderer flips the already-running worker
+// separately over the worker IPC channel. A non-boolean arg leaves state
+// untouched and just reports it; turning off reverts to the build default.
 ipcMain.handle('app:setVerbose', (_evt, on) => setVerbose(on))
 
 ipcMain.handle('app:getChangelog', async () => {
@@ -1262,10 +1237,9 @@ async function createWindow() {
     }
   })
 
-  // DevTools shortcut. With the application menu disabled (Win/Linux), the
-  // default F12 / Ctrl-Shift-I accelerators don't fire because they were
-  // bound to menu items. Wire them directly to the webContents instead so
-  // we can still debug field installs.
+  // DevTools shortcut, bound straight to the webContents rather than left to the View menu's
+  // toggleDevTools accelerator: the menu bar can be auto-hidden on Win/Linux (appMenuAutoHide),
+  // and F12 / Ctrl-Shift-I must keep working in a field install whatever the menu state.
   win.webContents.on('before-input-event', (event, input) => {
     const match = matchWindowShortcut(input, { isMac })
     if (!match) return
@@ -1387,13 +1361,9 @@ const APP_PROTOCOL_MIME = {
   '.txt': 'text/plain; charset=utf-8',
 }
 
-// Preloaded at boot (see preloadAsarCache) — the protocol handler serves
-// from this map instead of doing fs.readFile per request. The ui/ tree
-// lives inside app.asar; reading it on demand races with the OTA updater's
-// process.noAsar = true window (see getPear), which causes fs.readFile
-// to return ENOTDIR for asar paths. Caching at boot, before any updater
-// work can start, makes renderer asset loads independent of the noAsar
-// global. Total ui/ payload is ~3 MB → negligible RAM.
+// Preloaded at boot (see preloadAsarCache): the protocol handler serves from this map instead of
+// reading app.asar per request, which would race the OTA updater's noAsar window (see
+// wrapWithNoAsar). The assets/ payload is small enough to hold in RAM.
 const APP_PROTOCOL_CACHE = new Map()
 
 function preloadAsarCache() {
@@ -1417,23 +1387,15 @@ function preloadAsarCache() {
   }
   walk(uiRoot)
 
-  // feature-flags.json is asar-internal too: read + cache it here, before
-  // getPear opens the updater's noAsar window, so worker bootstrap's flag reads
-  // never hit an ENOTDIR fallback that would silently disable every flag.
+  // feature-flags.json is asar-internal too: read + cache it here, before getPear opens the
+  // noAsar window, or a flag read in that window silently disables every flag.
   primeFeatureFlags(repoRoot)
 
-  // pear-runtime-updater.applyUpdate does a lazy `require('msix-manager')`
-  // on the win32 branch — and our wrapWithNoAsar (see getPear) flips
-  // process.noAsar = true around that call, which breaks Electron's
-  // asar-as-virtual-dir resolution and surfaces as
-  // `Cannot find module 'msix-manager'` (MODULE_NOT_FOUND, recorded to
-  // last-apply-error.json so OTA never applies). Warm the cache here, before
-  // getPear opens the noAsar window, so the lazy require returns from
-  // Module._cache without touching the filesystem. Node's pathCache key
-  // includes the requiring module's parent.paths — so we must preload from
-  // pear-runtime-updater's OWN context (Module.createRequire(updaterIndex)),
-  // not main.js's, otherwise the later resolution under noAsar still misses
-  // and falls through to a fresh (failing) walk.
+  // pear-runtime-updater.applyUpdate lazily require()s msix-manager on win32 — inside the noAsar
+  // window wrapWithNoAsar opens, where the resolution fails MODULE_NOT_FOUND and OTA never applies.
+  // Warm Module._cache here, from the updater's OWN context (Module.createRequire(updaterIndex)):
+  // Node's pathCache key includes the requiring module's parent.paths, so a preload from main.js's
+  // context would not satisfy the updater's later lookup.
   if (isWindows) {
     const Module = require('module')
     const updaterIndex = require.resolve('pear-runtime-updater')
@@ -1507,9 +1469,7 @@ if (!lock) {
     } catch (err) {
       console.error('[xdg] integration failed:', err.message)
     }
-    // Preload before getPear runs — getPear installs the noAsar
-    // wrappers on the OTA updater, after which any read of an asar path
-    // can race with _update and return ENOTDIR.
+    // Before getPear, which opens the noAsar window: see wrapWithNoAsar.
     preloadAsarCache()
     registerAppProtocol()
     startNetOnlineWatch()

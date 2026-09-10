@@ -1,8 +1,5 @@
 import test from 'brittle'
-import {
-  loadPrefs, peekPrefs, subscribePrefs, writePrefs, resetPrefsStore,
-} from '../../src/renderer/store/prefs-store.js'
-import { configureMainStore } from '../../src/renderer/store/main-store.js'
+import { fetchMain, patchMain, peekMain, resetMainStore, subscribeMain, configureMainStore } from '../../src/renderer/store/main-store.js'
 
 // A bridge that records every call and lets a test settle each one by hand, so the dedup is
 // asserted structurally rather than by timing — same shape as query-store.test.js's transport.
@@ -22,10 +19,10 @@ function fakeBridge () {
 const LOADED = { minimizeToTray: true, openAtLogin: false, showMenuBar: true }
 
 function setup (t) {
-  resetPrefsStore()
+  resetMainStore()
   const bridge = fakeBridge()
   configureMainStore(bridge)
-  t.teardown(() => resetPrefsStore())
+  t.teardown(() => resetMainStore())
   return bridge
 }
 
@@ -35,9 +32,9 @@ function setup (t) {
 test('REGRESSION (FIX-R04-8): concurrent consumers share ONE prefs:get round-trip', async (t) => {
   const bridge = setup(t)
 
-  const a = loadPrefs()
-  const b = loadPrefs()
-  const c = loadPrefs()
+  const a = fetchMain('main:prefs')
+  const b = fetchMain('main:prefs')
+  const c = fetchMain('main:prefs')
   t.is(bridge.getCalls.length, 1, 'three consumers, one request')
 
   bridge.settleGet(0, LOADED)
@@ -49,11 +46,11 @@ test('REGRESSION (FIX-R04-8): concurrent consumers share ONE prefs:get round-tri
 
 test('a warm cache serves later consumers without another round-trip', async (t) => {
   const bridge = setup(t)
-  const first = loadPrefs()
+  const first = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await first
 
-  t.alike(await loadPrefs(), LOADED, 'served from cache')
+  t.alike(await fetchMain('main:prefs'), LOADED, 'served from cache')
   t.is(bridge.getCalls.length, 1, 'no second prefs:get')
 })
 
@@ -61,30 +58,30 @@ test('a write publishes to EVERY subscriber, not only the writer', async (t) => 
   const bridge = setup(t)
   let writerNotified = 0
   let otherNotified = 0
-  subscribePrefs(() => { writerNotified++ })
-  subscribePrefs(() => { otherNotified++ })
+  subscribeMain('main:prefs', () => { writerNotified++ })
+  subscribeMain('main:prefs', () => { otherNotified++ })
 
-  const load = loadPrefs()
+  const load = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await load
   t.is(otherNotified, 1, 'the load reached the second subscriber')
 
-  await writePrefs({ openAtLogin: true })
+  await patchMain('main:prefs', { openAtLogin: true })
   t.ok(writerNotified >= 2, 'the writer saw the write')
   t.is(writerNotified, otherNotified, 'both subscribers saw exactly the same notifications')
-  t.is(peekPrefs().openAtLogin, true, 'and the cache carries the new value')
+  t.is(peekMain('main:prefs').data.openAtLogin, true, 'and the cache carries the new value')
 })
 
 test('a write is optimistic, then authoritative', async (t) => {
   const bridge = setup(t)
   const seen = []
-  subscribePrefs(() => { seen.push(peekPrefs().openAtLogin) })
+  subscribeMain('main:prefs', () => { seen.push(peekMain('main:prefs').data.openAtLogin) })
 
-  const load = loadPrefs()
+  const load = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await load
 
-  await writePrefs({ openAtLogin: true })
+  await patchMain('main:prefs', { openAtLogin: true })
   // The optimistic publish paints before the round-trip; the authoritative one confirms it.
   t.alike(seen, [false, true, true], 'load, optimistic, authoritative')
   // The bare PATCH goes over the wire — main owns the merge, because it owns prefs it writes
@@ -96,59 +93,52 @@ test('a write is optimistic, then authoritative', async (t) => {
 // getSnapshot that allocates warns in DEV and can loop forever.
 test('peekPrefs returns a cached value, never a fresh object', async (t) => {
   const bridge = setup(t)
-  t.is(peekPrefs(), null, 'null before the first load, and the SAME null every call')
-  t.is(peekPrefs(), peekPrefs(), 'stable while cold')
+  t.is(peekMain('main:prefs').data, undefined, 'undefined before the first load, and the SAME undefined every call')
+  t.is(peekMain('main:prefs').data, peekMain('main:prefs').data, 'stable while cold')
 
-  const load = loadPrefs()
+  const load = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await load
 
-  t.is(peekPrefs(), peekPrefs(), 'stable while warm — no allocation per read')
+  t.is(peekMain('main:prefs').data, peekMain('main:prefs').data, 'stable while warm — no allocation per read')
 })
 
 test('unsubscribing the last consumer does not clear the cache', async (t) => {
   const bridge = setup(t)
-  const unsubscribe = subscribePrefs(() => {})
-  const load = loadPrefs()
+  const unsubscribe = subscribeMain('main:prefs', () => {})
+  const load = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await load
 
   unsubscribe()
-  t.alike(peekPrefs(), LOADED, 'the value survives the last unsubscribe')
-  t.alike(await loadPrefs(), LOADED, 'and a remounting screen paints instantly')
+  t.alike(peekMain('main:prefs').data, LOADED, 'the value survives the last unsubscribe')
+  t.alike(await fetchMain('main:prefs'), LOADED, 'and a remounting screen paints instantly')
   t.is(bridge.getCalls.length, 1, 'with no fresh round-trip')
 })
 
 test('a failed load leaves the store cold and retryable', async (t) => {
-  resetPrefsStore()
+  resetMainStore()
   let attempts = 0
   configureMainStore({
     getPrefs: () => { attempts++; return attempts === 1 ? Promise.reject(new Error('main is not up')) : Promise.resolve(LOADED) },
     setPrefs: (patch) => Promise.resolve({ ...LOADED, ...patch }),
   })
-  t.teardown(() => resetPrefsStore())
+  t.teardown(() => resetMainStore())
 
-  await t.exception(loadPrefs(), 'the rejection reaches the caller')
-  t.is(peekPrefs(), null, 'nothing cached')
-  t.alike(await loadPrefs(), LOADED, 'a later mount retries rather than being stuck on the dead promise')
-})
-
-test('peekPrefs returns null, not undefined, before the first load', (t) => {
-  setup(t)
-  // usePrefs types prefs as AppPrefs | null and AppearanceSettings branches on it, so undefined
-  // would quietly change the contract of both.
-  t.is(peekPrefs(), null, 'null, not undefined')
+  await t.exception(fetchMain('main:prefs'), 'the rejection reaches the caller')
+  t.is(peekMain('main:prefs').data, undefined, 'nothing cached')
+  t.alike(await fetchMain('main:prefs'), LOADED, 'a later mount retries rather than being stuck on the dead promise')
 })
 
 test('writePrefs shows the merge but sends only the patch', async (t) => {
   const bridge = setup(t)
-  const load = loadPrefs()
+  const load = fetchMain('main:prefs')
   bridge.settleGet(0, LOADED)
   await load
 
-  await writePrefs({ openAtLogin: true })
+  await patchMain('main:prefs', { openAtLogin: true })
   t.alike(bridge.setCalls, [{ openAtLogin: true }], 'main is sent the bare patch — it owns the merge')
-  t.alike(peekPrefs(), { ...LOADED, openAtLogin: true }, 'while the screen keeps every pref it showed')
+  t.alike(peekMain('main:prefs').data, { ...LOADED, openAtLogin: true }, 'while the screen keeps every pref it showed')
 })
 
 // REGRESSION (FIX-PREFS-CLOBBER: writePrefs sent the renderer's MERGED record. `main:prefs` has no
@@ -157,7 +147,7 @@ test('writePrefs shows the merge but sends only the patch', async (t) => {
 // over main's true, firing the tray notice a second time.)
 test('REGRESSION (FIX-PREFS-CLOBBER): a write never clobbers a pref main owns', async (t) => {
   const bridge = setup(t)
-  const load = loadPrefs()
+  const load = fetchMain('main:prefs')
   // What the renderer read at boot: the notice had not been shown yet.
   bridge.settleGet(0, { ...LOADED, firstHideNoticeShown: false })
   await load
@@ -168,8 +158,8 @@ test('REGRESSION (FIX-PREFS-CLOBBER): a write never clobbers a pref main owns', 
     return Promise.resolve({ ...LOADED, firstHideNoticeShown: true, ...patch })
   }
 
-  const persisted = await writePrefs({ openAtLogin: true })
+  const persisted = await patchMain('main:prefs', { openAtLogin: true })
   t.is(persisted.firstHideNoticeShown, true, "main's value survived the write")
-  t.is(peekPrefs().firstHideNoticeShown, true, 'and the cache took main\'s record as authoritative')
-  t.is(peekPrefs().openAtLogin, true, 'while still carrying the change the user made')
+  t.is(peekMain('main:prefs').data.firstHideNoticeShown, true, 'and the cache took main\'s record as authoritative')
+  t.is(peekMain('main:prefs').data.openAtLogin, true, 'while still carrying the change the user made')
 })

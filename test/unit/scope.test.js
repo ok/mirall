@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import test from 'brittle'
@@ -71,12 +71,13 @@ test('REGRESSION (FIX-EDA-13: the matcher agrees with its documented rule pairwi
   t.alike(mismatches, [], 'every (hint, view) pair decides as the documented rule says')
 })
 
-// The twin is gone: src/renderer/scope.ts re-exports the contract's implementation, so there is no
-// second copy to disagree with. Asserted structurally, since a future re-introduction would be
-// silent otherwise.
-test('the renderer re-exports the contract rather than reimplementing it', (t) => {
-  const src = readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'scope.ts'), 'utf8')
-  t.ok(/export \{ Scope, scopeMatches \} from '\.\.\/shared\/contract\/scope\.js'/.test(src),
-    'scope.ts is an import path, not an implementation')
-  t.absent(/function scopeMatches/.test(src), 'no second implementation crept back in')
+// The twin is gone: src/renderer/scope.ts is deleted, and the two renderer consumers import the
+// contract's implementation directly. Asserted structurally, since a future re-introduction would
+// be silent otherwise.
+test('the renderer holds no scope twin', (t) => {
+  t.absent(existsSync(path.join(here, '..', '..', 'src', 'renderer', 'scope.ts')), 'the shim is gone')
+  for (const file of ['renderer/components/modals/MirrorFolderModal.tsx', 'renderer/hooks/useAuditLog.ts']) {
+    const src = readFileSync(path.join(here, '..', '..', 'src', file), 'utf8')
+    t.ok(/from '(\.\.\/)+shared\/contract\/scope\.js'/.test(src), `${file}: imports the contract directly`)
+  }
 })

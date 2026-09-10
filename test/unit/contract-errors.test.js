@@ -17,7 +17,7 @@ function walk (dir, out = []) {
   return out
 }
 
-// Comments are stripped first: a doc comment naming `ErrorCodes.X` is prose, not a throw site, and
+// Comments are stripped first: a doc comment naming `CODES.X` is prose, not a throw site, and
 // counting it would make this test fail on its own explanation.
 function stripComments (src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
@@ -29,14 +29,14 @@ function thrownCodes () {
   const found = new Set()
   for (const f of [...walk(path.join(root, 'src', 'shared')), ...walk(path.join(root, 'src', 'worker'))]) {
     const src = stripComments(readFileSync(f, 'utf8'))
-    for (const m of src.matchAll(/ErrorCodes\.([A-Z_]+)/g)) found.add(m[1])
+    for (const m of src.matchAll(/\bCODES\.([A-Z_]+)/g)) found.add(m[1])
     for (const m of src.matchAll(/\.code = '([A-Z_]+)'/g)) found.add(m[1])
     for (const m of src.matchAll(/code: '([A-Z_]+)'/g)) found.add(m[1])
   }
   return found
 }
 
-// REGRESSION (FIX-CONTRACT-CODES: space:join throws INVITE_INVALID while ErrorCodes declared
+// REGRESSION (FIX-CONTRACT-CODES: space:join throws INVITE_INVALID while CODES declared
 // INVALID_INVITE. Nothing mapped the thrown spelling, so JoinSpaceModal showed raw English.)
 test('REGRESSION (FIX-CONTRACT-CODES): every code the worker can throw is declared', (t) => {
   const undeclared = [...thrownCodes()].filter((c) => !CODES[c]).sort()

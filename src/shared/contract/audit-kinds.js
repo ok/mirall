@@ -79,23 +79,19 @@ export const KINDS = {
   'network.peer_back': { category: CATEGORY.NETWORK, tier: 'B' },
 }
 
-// Also absent, because nothing can currently produce them: `invite.revoked` (the only revoke
-// path is the expiry sweep — housekeeping, not a user act) and `share.unmounted` (an owned folder
-// is removed through owned-folder:delete, already covered by share.deleted). A kind that can
-// never fire is worse than a missing one: it still appears in the search labels and the i18n
-// catalogue.
-//
-// Also absent: `network.unknown` — an unknown verdict means boot, suspend, or a consensus still
-// forming, so it would put one contentless row in the log per app launch. And no canary kind:
-// reachability.js's governing rule is that a canary failure is indistinguishable from OUR seeder
-// being down, so it may confirm a verdict but never create one — a row would blame the user for
-// our outage.
-//
-// Deliberately absent: app.updated, app.worker_crashed, storage.cleanup,
-// settings.download_folder, feedback.sent — app housekeeping, not "which user did what in a
-// space". Also absent: any per-file folder-sync record. The deliberate act is mounting the
-// folder (share.mounted carries fileCount + totalBytes); the recurring reconcile and the
-// watcher's per-file publishes produce no rows at all.
+// Absent on purpose — a kind that can never fire still shows in the search labels and the i18n
+// catalogue:
+//   invite.revoked      the only revoke path is the expiry sweep (housekeeping, not a user act)
+//   share.unmounted     owned-folder:delete already records share.deleted
+//   network.unknown     an unknown verdict is boot, suspend or a forming consensus — one empty
+//                       row per launch
+//   any canary kind     reachability.js: a canary failure is indistinguishable from OUR seeder
+//                       being down, so it may confirm a verdict but never create one — a row
+//                       would blame the user for our outage
+//   app.updated, app.worker_crashed, storage.cleanup, settings.download_folder, feedback.sent
+//                       app housekeeping, not "which user did what in a space"
+//   per-file folder sync  the deliberate act is mounting (share.mounted carries the totals); the
+//                       reconcile and the watcher's per-file publishes produce no rows
 
 export const CATEGORIES = Object.values(CATEGORY)
 

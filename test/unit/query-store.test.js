@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  configureQueryStore, fetchQuery, invalidate, keyOf, peek, subscribeKey, resetQueryStore, storeStats,
+  configureQueryStore, fetchQuery, invalidate, keyOf, peek, subscribeKey, resetQueryStore,
   setQueryData, refetchQuery, invalidateKey,
 } from '../../src/renderer/store/query-store.js'
 
@@ -179,16 +179,6 @@ test('the snapshot is a stable reference between changes and a new one after', a
   const after = peek(key)
   t.not(after, before, 'a settle produces a new snapshot')
   t.is(peek(key), after, 'which is then stable again')
-})
-
-test('storeStats reports live entries and in-flight reads', async (t) => {
-  const tr = setup(t)
-  fetchQuery('spaces:list')
-  fetchQuery('files:list', { spaceId: 'S1' })
-  t.alike(storeStats(), { entries: 2, inFlight: 2 })
-  tr.settle(0, [])
-  await tick()
-  t.is(storeStats().inFlight, 1, 'a settled read is no longer in flight')
 })
 
 async function settleAll (tr, promises) {

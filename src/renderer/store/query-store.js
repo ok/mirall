@@ -6,7 +6,7 @@ import { CODES } from '../../shared/contract/errors.js'
 // they are per-view decisions (useShareFiles keeps its last good rows when a peer read comes back
 // incomplete), and a store that interpreted responses would blank the most-used screen on a blip.
 //
-// Plain JS with an injected transport so it unit-tests under brittle-node, like the 13 other
+// Plain JS with an injected transport so it unit-tests under brittle-node, like the other
 // renderer modules that carry a .d.ts.
 const entries = new Map()
 
@@ -79,8 +79,7 @@ function publish (entry) {
   for (const notify of entry.subscribers) notify()
 }
 
-// Every site that bumps `seq` is saying "the answer in flight is no longer wanted". Until now the
-// only party that did not learn it was the worker doing the work.
+// Bumping `seq` says "the answer in flight is no longer wanted" — to the worker too, via the abort.
 function abandon (entry) {
   entry.seq += 1
   entry.promise = null
@@ -116,12 +115,10 @@ export function fetchQuery (type, params = {}, scopes = null, { coalesceMs } = {
     },
     (err) => {
       release()
-      // A read WE abandoned coming back cancelled is our own doing, not a failure the caller asked
-      // about — so it resolves with the entry's value, exactly as the success path's stale-seq
-      // branch does. Aborting the worker's work is an optimisation and must stay invisible: without
-      // this, turning cancellation on would convert every invalidate-during-a-read into a rejection
-      // callers never used to see. Any OTHER error, and any error on a read still current, is
-      // rethrown untouched — the caller decides whether it is terminal.
+      // A read WE abandoned coming back cancelled is our own doing: it resolves with the entry's
+      // value, as the success path's stale-seq branch does, so aborting the worker's work stays
+      // invisible to callers. Any OTHER error, or any error on a read still current, is rethrown
+      // untouched — the caller decides whether it is terminal.
       if (seq !== entry.seq && err?.code === CODES.ECANCELLED) return entry.data
       if (seq === entry.seq) {
         entry.error = err
@@ -154,7 +151,7 @@ export function invalidate (hint) {
   return touched
 }
 
-// Per-entry coalescing with the LEADING + TRAILING shape makeCoalescer uses, not a resettable
+// Per-entry coalescing with a LEADING + TRAILING shape, not a resettable
 // debounce: a hint arriving faster than the window would restart the timer forever and the view
 // would never refresh at all — the opposite of what the window is for. The first hint refetches
 // immediately; further hints inside the window collapse into one trailing refetch.
@@ -194,12 +191,6 @@ export function resetQueryStore () {
   entries.clear()
 }
 
-export function storeStats () {
-  let inFlight = 0
-  for (const entry of entries.values()) if (entry.promise) inFlight += 1
-  return { entries: entries.size, inFlight }
-}
-
 // An out-of-band value: event:state PUSHES the space list rather than answering a fetch, and a
 // pushed value must land in the same entry a fetch would fill or the two disagree. Bumps seq so an
 // in-flight read cannot overwrite fresher pushed data.
@@ -225,12 +216,9 @@ export function refetchQuery (type, params = {}, scopes = null) {
 }
 
 // Drop entries whose key a predicate rejects — a space that was left must not keep its roster (and
-// its avatars) cached for the rest of the session. A drop, not an invalidate: there is no view left
-// to re-derive, so keeping the stale value would only hold the memory.
-// Forget the VALUE, keep the entry: a component may be subscribed to this key right now (SpaceView
-// prunes while useShares and useMembers are mounted), and deleting the object would orphan those
-// subscribers — they would never be notified again and never refetch, leaving the view stuck.
-// An entry with no subscribers is removed outright, which is what bounds the map.
+// avatars) cached for the session. Forget the VALUE but keep any entry that still has subscribers
+// (SpaceView prunes while useShares and useMembers are mounted): deleting it would orphan them,
+// never notified and never refetching. An entry with no subscribers is removed, which bounds the map.
 export function invalidateKey (shouldDrop) {
   const dropped = []
   for (const [key, entry] of [...entries]) {

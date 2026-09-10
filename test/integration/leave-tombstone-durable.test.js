@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getLocalPublicKeyHex, markOwnMembership, markApproval, readMembershipRecord, markRequest, readPeerRequests } from '../../src/shared/spaces/profile.js'
 import {
@@ -45,7 +45,7 @@ function replicate (a, b, t) {
 const K = 'a'.repeat(64)
 
 test('REGRESSION (FIX-240b): leave tombstones persist, load, and clear durably', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const S = 'spacetomb0000000'
 
   t.is((await loadLeftTombstones(S)).size, 0, 'no tombstones initially')
@@ -65,7 +65,7 @@ test('REGRESSION (FIX-240b): leave tombstones persist, load, and clear durably',
 // negative/non-numeric — a negative would flip tombstoneActive false and actively re-admit the
 // leaver (undoing the fix). Persist/load clamp it to 0 at both ends.
 test('REGRESSION (FIX-240d): persistLeftTombstone sanitizes a negative / non-numeric stamp', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   await persistLeftTombstone('spacexxxx0000000', K, -1)
   t.is((await loadLeftTombstones('spacexxxx0000000')).get(K), 0, 'negative stamp clamped to 0')
   await persistLeftTombstone('spaceyyyy0000000', K, 'abc')
@@ -75,7 +75,7 @@ test('REGRESSION (FIX-240d): persistLeftTombstone sanitizes a negative / non-num
 })
 
 test('forgetSpaceRecord purges only that space’s leave tombstones', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   await persistLeftTombstone('spaceaaaa0000000', 'k1'.padEnd(64, '0'), 1)
   await persistLeftTombstone('spaceaaaa0000000', 'k2'.padEnd(64, '0'), 2)
   await persistLeftTombstone('spacebbbb0000000', 'k3'.padEnd(64, '0'), 3)
@@ -86,7 +86,7 @@ test('forgetSpaceRecord purges only that space’s leave tombstones', async (t) 
 })
 
 test('REGRESSION (FIX-240b): openMemberView re-seeds the in-memory tombstone from disk', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
 
   const { spaceId } = await createSpace('Durable')
   // Simulate a co-member that applied a leave for K in a prior session (durable tombstone on disk),
@@ -104,7 +104,7 @@ test('REGRESSION (FIX-240b): openMemberView re-seeds the in-memory tombstone fro
 // on a fresh view open (post-restart), then SELF-CLEARS when it genuinely rejoins with a newer
 // member/<S> ts — was previously exercised nowhere end-to-end. Drive it through the real fold.
 test('REGRESSION (FIX-240b): a durable tombstone suppresses on open, then self-clears on a newer rejoin', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   const { spaceId } = await createSpace('Rejoin')
   await markOwnMembership(spaceId)                 // creator is an active member (fold root)
@@ -138,7 +138,7 @@ test('REGRESSION (FIX-240b): a durable tombstone suppresses on open, then self-c
 // co-members every restart) yet force a strictly-newer ts on a (re)join (so a co-member that
 // tombstoned us self-clears even if the prior leave's clearOwnMembership was swallowed).
 test('markOwnMembership: idempotent by default, refresh forces a newer ts', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   const S = 'spaceidmp0000000'
   await markOwnMembership(S)
@@ -158,7 +158,7 @@ test('markOwnMembership: idempotent by default, refresh forces a newer ts', asyn
 // leave stamp, so a co-member reading it via replication suppresses the rejoin forever. `refresh`
 // (set from onJoinRequest's hadLeft) advances the receipt past the leave.
 test('REGRESSION (FIX-240c): markRequest refresh advances a lingering receipt ts', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   const S = 'spacereq00000000'
   const J = 'b'.repeat(64)

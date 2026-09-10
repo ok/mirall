@@ -42,9 +42,8 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
   const [error, setError] = useState<RelayParseErrorCode | null>(null)
   const [checking, setChecking] = useState(false)
   const [saving, setSaving] = useState(false)
-  // This component is mounted for the life of the section, so closing it does not cancel an
-  // in-flight parse. Without a generation, a reply landing after a close reopened the modal on
-  // the confirm step with an empty input behind it.
+  // Mounted for the life of the section, so closing does not cancel an in-flight parse; the
+  // generation drops a stale reply.
   const parseGen = useRef(0)
 
   function reset() {

@@ -4,10 +4,9 @@ const MIGRATION_FLAG = 'legacy-orphan-drive-reclaim-v1'
 
 // A drive holding file blobs cannot be created any more — the overlay serves from the source file
 // and copies nothing into a space drive — so any on disk were left by a pre-overlay build whose
-// space was dropped without purging its cores. Reclaiming them was the one job of the retired
-// "Free up space" action that must not become a recurring sweep: it can free gigabytes, which is
-// why it used to be user-driven with a preview. One pass against a shape nothing produces any
-// more is the safe form of that, so the boot sweep widens its categories exactly once.
+// space was dropped without purging its cores. Reclaiming them can free gigabytes, so it is one
+// pass against a shape nothing produces any more, never a recurring sweep: the boot sweep widens
+// its categories exactly once.
 export async function shouldReclaimOrphanDrives() {
   const flagBee = createLocalBee('app-migrations')
   try {

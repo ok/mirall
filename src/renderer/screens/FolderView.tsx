@@ -24,7 +24,7 @@ import FolderStatsCard from '../components/cards/FolderStatsCard.js'
 import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
 import { filterTree } from '../folderFilter.js'
 import { deriveStrips } from '../folderStrips.js'
-import { mountFault } from '../mountFault.js'
+import { mountFault } from '../../shared/contract/mount-fault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
 import { deriveMirrorSync } from '../mirrorSync.js'
 import { rowBytesOnDevice } from '../rowView.js'
@@ -36,7 +36,7 @@ import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
-import { useToast } from '../components/toast/useToast.js'
+import { useToast } from '../components/toast/ToastProvider.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { FileTreeNode, ShareRole } from '../types.js'
 import { useErrorText } from '../hooks/useErrorText.js'
@@ -92,6 +92,8 @@ function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal
 
 interface FolderViewProps {
   spaceId: string
+  /** Navigation snapshot: first-paint fallback only. Live state comes from useOwnedMount /
+   *  useForeignMount / useShares; the router owns the name (onRenamed). */
   share: ShareWithRole
   onBack: () => void
   onMirror?: (share: ShareWithRole) => void
@@ -116,7 +118,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     getDecoration, isSeeded,
     downloadFile, revealFile,
     pauseDownload, cancelDownload, discardPartial,
-  } = useShareFiles(spaceId, share.owner, share.id, share.role)
+  } = useShareFiles(spaceId, share.owner, share.id)
   // The worker reports whether it capped the rows. Never inferred from (fileCount > files.length):
   // on an incomplete peer read the count is itself partial, so that inference silently goes false
   // exactly when the listing was truncated.
@@ -139,8 +141,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const anyExpanded = allFolderPaths.some(isExpanded)
   // Expansion has exactly one home — the session store — so a disclosure button always toggles what
   // it says it toggles. A reveal writes THROUGH it, and the pre-filter set is snapshotted, so
-  // clearing the filter puts back what the user had. An override read on top of the store would
-  // have made every chevron under a filter a no-op whose aria-expanded never changed.
+  // clearing the filter puts back what the user had.
   const expandedRef = useRef(expanded)
   expandedRef.current = expanded
   const preFilterRef = useRef<Set<string> | null>(null)
@@ -172,10 +173,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
   const foreignEnabled = share.role === 'mirrored' && (foreignMount?.enabled ?? true) && foreignStatus !== 'paused'
   const manualControls = share.role === 'browse'
-  // Live while this view is mounted: useOwnedMount re-derives from owned-folder:list-all (a live
-  // mountRootAvailable disk check) on every mount-status event — the useShares projection covers
-  // SpaceView only, and the `share` prop is a frozen navigation snapshot (its fallback covers the
-  // first render before derive() resolves).
+  // Live while mounted: owned-folder:list-all (a live mountRootAvailable check) re-derives on every
+  // mount-status event; the useShares projection covers SpaceView only.
   const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, indexPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
@@ -191,15 +190,11 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     () => deriveIndexSummary(indexProgress, { indexPaused, scanning }),
     [indexProgress, indexPaused, scanning],
   )
-  // `share` is a frozen navigation snapshot, so it is the FIRST-PAINT fallback only: once the live
-  // read has landed it wins outright, including when it says "healthy". Reading `ownedStatus ??
-  // share.mountStatus` instead meant a folder entered while faulted could never clear on screen —
-  // the hook returns null for a healthy mount, and the stale snapshot filled the hole back in.
+  // Live read wins once loaded, including "healthy": the hook returns null for a healthy mount, so
+  // `??` would resurrect the snapshot.
   const ownedMountStatus = ownedLoaded ? ownedStatus : (share.mountStatus ?? null)
   const sourceMissing = isYou && ownedMountStatus === 'mount-point-gone'
-  // The durable local fault, from whichever role owns this folder. Both statuses were recorded
-  // before this screen could show them: every other consumer compares mount.status against
-  // 'mount-point-gone' or 'paused' only, so a full disk had nowhere to appear once its toast went.
+  // The durable local fault, from whichever role owns this folder.
   const fault = useMemo(
     () => (isYou
       ? mountFault(ownedMountStatus, ownedError)
@@ -320,8 +315,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
   async function handleRename(name: string) {
     await request('share:rename', { spaceId, shareId: share.id, name })
-    // `share` is a frozen navigation snapshot, so the header would keep the old name until the
-    // user left the screen and came back. The router owns that state; hand the new name up.
+    // The router owns the name; hand it up.
     onRenamed?.(name)
     toast.success(t('share.renameSuccess', { name }))
   }
@@ -433,12 +427,10 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
         {workAnnouncement}
       </div>
 
-      {/* No `overflow-hidden` on either box: a `focus-visible:ring-2` is painted OUTSIDE the border
-          box, so any clipper flush against a focusable control shaves the ring off — which is what
-          ate the filter field's left edge and Expand all's right edge. `min-h-0` is what actually
-          constrains the height here, and `min-w-0` keeps the automatic minimum size that
-          `overflow-hidden` was silently providing, so a long file name still can't stretch the
-          1fr track. The rings now paint into the page gutter and the column gap, which are empty. */}
+      {/* No `overflow-hidden` on either box: a `focus-visible:ring-2` paints OUTSIDE the border box,
+          so any clipper flush against a focusable control shaves the ring off. `min-h-0` constrains
+          the height; `min-w-0` keeps the automatic minimum size `overflow-hidden` was providing, so
+          a long file name cannot stretch the 1fr track. Rings paint into the gutter and column gap. */}
       <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
         <div className="flex flex-col min-w-0 min-h-0">
           <FolderControlsRow
@@ -450,23 +442,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
             onToggleExpand={() => (anyExpanded ? collapseAll() : expandAll([...expanded, ...allFolderPaths]))}
             showExpand={allFolderPaths.length > 0}
           />
-          {/* `relative` establishes a positioning context for this scroll pane.
-              Without it, the absolutely-positioned `sr-only` status spans inside
-              the rows (e.g. the "syncing"/"preparing" spinner text) have no
-              positioned ancestor and anchor to the initial containing block
-              (<html>), so the pane's overflow can't clip them: a row scrolled
-              below the fold lands its 1px sr-only span past the viewport bottom
-              and grows the *document* — an OS scrollbar that flickered as rows
-              entered/left transfer states during a download. Containing them
-              here keeps the document pinned to the viewport. */}
+          {/* Scroll-pane rules: see SpaceView's pane. `pt-1` is allowed here — no sticky header. */}
           <div
             ref={filesRef}
-            /* A scroll pane clips both axes, and the rows sit flush against it, so a focused row
-               lost its ring on all four sides. The 4px of interior room is cancelled by an equal
-               negative margin: the clip box grows, the rows do not move, so nothing has to be
-               re-aligned against the tiles on the right. `pr-4` is the shared scrollbar gutter —
-               the same 16px the tiles column uses, so both bars sit off their content by an equal
-               margin. */
             className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
           >
             {loading ? (

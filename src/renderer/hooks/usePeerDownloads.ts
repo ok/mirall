@@ -13,22 +13,17 @@ interface SummaryEvent {
   total: number
 }
 
-// The worker re-announces every live serve row (active AND paused) on its 10s ledger sweep;
-// this TTL only covers missed frames, so it spans ≥3 sweep periods. The explicit peers:[]
-// clearing frame remains the fast removal path. Shared with usePeerDownloadDetail so both tiers
-// expire "who is downloading" at the same time.
+// The worker re-announces every live serve row (active AND paused) on its ledger sweep; this TTL
+// covers missed frames only, so it spans ≥3 sweep periods. `peers: []` stays the fast removal path.
+// Shared with usePeerDownloadDetail so both tiers expire together.
 export const SERVE_TTL_MS = 35000
 
-// Deliberately outside the query store. `serving:summary-list` is a SEED for the awareness feed
-// below, not a query: no scope invalidates it, no second consumer dedups with it, and its answer is
-// superseded by the first live frame — which is why the seed skips any row already seen live. The
-// guard flag below protects a Map mutation, not a fetched value overwriting a fresher one.
-//
-// Tier 1: the always-on summary of who is downloading each file WE serve in this
-// space (peer set + aggregate bytes). Cheap — one event per file, throttled on the
-// worker. Speed is derived here with the same SpeedSampler the download bar uses.
-// Wired by both SpaceView (loose rows, keyed by '/'+relPath) and FolderView (owned
-// folder rows, keyed by the bare relPath).
+// Outside the query store: `serving:summary-list` is a SEED for the live feed, not a query — no scope
+// invalidates it, nothing dedups with it, and the first live frame supersedes it (the seed skips any
+// row already seen live). Tier 1: who is downloading each file WE serve in this space — peer set +
+// aggregate bytes, one throttled event per file; speed is derived here with the download bar's sampler.
+// Keys follow the worker's rows: a loose row is '/'+relPath, an owned-folder row the bare relPath —
+// a caller keying its rows any other way sees no peers.
 export function usePeerDownloads(spaceId: string) {
   const [byPath, setByPath] = useState(new Map<string, PeerDownloadSummary>())
   const samplersRef = useRef(new Map<string, SpeedSampler>())

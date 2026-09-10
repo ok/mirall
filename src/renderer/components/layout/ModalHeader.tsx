@@ -2,15 +2,10 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import IconButton from '../primitives/IconButton.js'
 
-// The block every dialog opens with, and the one design.md fixes the anatomy of. Seventeen dialogs
-// wrote it out by hand: two drifted off the documented padding, one titled itself with an <h2>, and
-// twelve were missing the gap that keeps a long title off the close button.
-//
-// Two axes are real variation and stay props. The title is either a plain sentence or a
-// <FilenameTitle> carrying a name someone typed, and the close button can be disabled (an operation
-// is running) or absent (the dialog has passed the point where dismissing it means anything). The
-// description's two sizes are NOT a rule — nothing separates the seven base ones from the six small
-// ones — so the prop records the split rather than restyling thirteen dialogs inside a refactor.
+// The block every dialog opens with; design.md fixes its anatomy. Two axes are real variation: the
+// title is a sentence or a <FilenameTitle> carrying a typed name, and the close button is enabled,
+// disabled (an operation is running) or absent (dismissing no longer means anything).
+// `descriptionSize` records the split the dialogs already carry; it is not a design rule.
 type ModalHeaderProps = {
   description?: ReactNode
   descriptionSize?: 'base' | 'sm'

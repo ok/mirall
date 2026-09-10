@@ -1,11 +1,11 @@
 // The relay invite ticket: the wire format shared with mirall-relay. 69 bytes —
 // version, relay public key, member seed, checksum — as z-base-32 behind a
-// mirall://relay/ prefix. The format is frozen by plans/mirall-relay/relay-client-contract.md.
+// mirall://relay/ prefix. The format is frozen: mirall-relay pins the same vector.
 //
 // Not in src/shared/contract/ despite being a cross-repo contract: that package imports
 // nothing (contract-declarations.test.js enforces it) so it can load in the renderer, and
-// this needs blake2b. The renderer gets a shape-only classifier instead (renderer/relay-key.ts)
-// and the authoritative verdict from main over relay:parse.
+// this needs blake2b. The renderer gets its verdict from main over relay:parse (parseRelayInput
+// through the bridge); renderer/relay-key.ts only truncates a key for display.
 //
 // CHANGING THIS FILE IS A PROTOCOL CHANGE. test/unit/relay-ticket.test.js pins the
 // vector mirall-relay pins too; if it fails, one side has drifted.
@@ -46,7 +46,7 @@ function checksum(body) {
 
 // The app never mints a ticket; this exists so the pinned vector is asserted against the
 // codec rather than against a copied constant.
-export function encodeTicket(relayPublicKey, memberSeed) {
+export function _encodeTicketForTests(relayPublicKey, memberSeed) {
   if (!b4a.isBuffer(relayPublicKey) || relayPublicKey.byteLength !== 32) throw new Error('relay key must be 32 bytes')
   if (!b4a.isBuffer(memberSeed) || memberSeed.byteLength !== 32) throw new Error('member seed must be 32 bytes')
   const bytes = b4a.alloc(TICKET_BYTES)

@@ -48,8 +48,8 @@ export function makeServeAuthorizer({ peerSocket, socketAuthorized, isApprovedMe
     // 3) membership: the asker must be an approved member of a space advertising this hash.
     //    A hash NO space advertises is not a refusal of anyone — we hold nothing to refuse. A
     //    multi-source fetch broadcasts its content-request to EVERY connected peer rather than
-    //    querying holders first, so a non-holder is asked as a matter of course; answering that
-    //    with NOT_A_MEMBER turned an ordinary folder mirror into one security row per file.
+    //    querying holders first, so a non-holder is asked as a matter of course; NOT_A_MEMBER
+    //    there would file one security row per file of an ordinary mirror.
     let advertised = false
     for (const spaceId of serveIndex.spacesFor(contentHash)) {
       advertised = true

@@ -1,10 +1,10 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
-import { useToast } from '../components/toast/useToast.js'
+import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 
-export interface LocatableShare {
+interface LocatableShare {
   id: string
   name: string
 }

@@ -1,10 +1,6 @@
-// The display listing for one folder share: catalog entries in, renderable rows out. It lives
-// here rather than in the worker entrypoint so its read pattern is assertable — the property this
-// module holds is "reads do not scale with rows", and that cannot be tested through a closure in
-// an entrypoint no test can import.
-//
-// Data-layer calls arrive as an injected bundle with production defaults for the same reason: a
-// test counts calls by passing doubles, production passes nothing.
+// The display listing for one folder share: catalog entries in, renderable rows out. The property
+// this module holds is "reads do not scale with rows"; data-layer calls arrive as an injected
+// bundle with production defaults so a test can count them with doubles.
 import fs from 'bare-fs'
 import { createLogger } from '../core/logger.js'
 import { getListFilesCap } from '../core/runtime-config.js'
@@ -68,12 +64,10 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     // fully-mirrored file as 'remote'.
     const abs = pathFromMount(foreignMount.mountPath, localRelOf(foreignMount, entry.relPath))
     if (statSizeOrNull(abs) === entry.size) return { status: 'synced', localPath: abs, verified: isVerified }
-    // The mirror loop is pulling this row right now — 'downloading' so FolderView's
-    // bar/speed/verify lane (all gated on the status) render during materialization. Gated on
-    // reachability: a fetch parked on the overlay's peer wait is not pulling anything, and the
-    // renderer paints a downloading row with no bytes as "Preparing…" — which read as a rotating
-    // badge beside the banner saying the owner is offline. The strip and the folder tile already
-    // apply this rule; the row was the one surface that did not.
+    // The mirror loop is pulling this row right now — 'downloading', so FolderView's bar/speed/
+    // verify lane render. Gated on reachability, like the strip and the folder tile: a fetch parked
+    // on the overlay's peer wait pulls nothing, and a downloading row with no bytes paints as
+    // "Preparing…" beside a banner saying the owner is offline.
     if (ownerOnline && deps.foreignFetchActive(spaceId, share.id, entry.relPath)) {
       return { status: 'downloading', localPath: null, pendingBytes: 0 }
     }
@@ -119,11 +113,9 @@ async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, 
   return { verified, claims: await deps.listDownloadClaimsForShare(spaceId, share.name, { keep }) }
 }
 
-// `signal` is the router's cancellation token. The checkpoints sit at the await boundaries and
-// NOT inside the row loop: that loop is synchronous, so the event loop never turns during it and
-// `aborted` cannot change mid-pass — a per-row check would be dead code that reads like diligence.
-// The one that pays is the catalog read above it, which for a peer share is network-bound and
-// carries its own timeout.
+// `signal` is the router's cancellation token. The checkpoints sit at the await boundaries, not in
+// the row loop: that loop is synchronous, so `aborted` cannot change mid-pass. The one that pays is
+// the catalog read above it, network-bound for a peer share and carrying its own timeout.
 export async function listOverlayShareFiles(spaceId, share, backend, deps = productionDeps, { signal = null } = {}) {
   throwIfAborted(signal)
   const isOwn = share.owner === deps.getLocalPublicKeyHex()
@@ -146,10 +138,8 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   throwIfAborted(signal)
 
   const prune = []
-  // One probe for the whole pass: a detached download folder is one question, not one per row.
-  // Built here rather than injected — it is a memo this pass makes for itself, not a collaborator
-  // a caller could meaningfully substitute, so it stays out of `deps` where every test double
-  // would otherwise have to know about it.
+  // One probe for the whole pass: a detached download folder is one question, not one per row. A
+  // memo this pass makes for itself, so it stays out of `deps` and every test double.
   const dirProbe = createDirProbe()
   const out = []
   for (const entry of entries) {

@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -44,7 +44,7 @@ function spaceWith (peerKey) {
 // auto link fell back to the manual banner. With the captured contiguous prefix, the
 // snapshot fallback still resolves it.
 test('REGRESSION (FIX-3): captured record resolves after the minter goes offline', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/aaaa', AUTO)
@@ -71,7 +71,7 @@ test('REGRESSION (FIX-3): captured record resolves after the minter goes offline
 // REGRESSION (FIX-3, control): without a capture, a sparse replica cannot answer once
 // the minter is offline — the pre-fix reality this feature exists to remove.
 test('REGRESSION (FIX-3, control): without capture the offline read fails', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/bbbb', AUTO)
@@ -89,7 +89,7 @@ test('REGRESSION (FIX-3, control): without capture the offline read fails', asyn
 })
 
 test('capture is idempotent and complete on a small bee', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/cccc', AUTO)
   replicate(peer.store, getStore(), t)
@@ -105,7 +105,7 @@ test('capture is idempotent and complete on a small bee', async (t) => {
 // A bee larger than the sweep budget is as captured as it will ever be: it must report
 // `capped` so the scheduler retires it, instead of an eternal incomplete deficit.
 test('capture honors the block cap, reports capped, and does not hang', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   await grow(peer, 60, 'cap')
   replicate(peer.store, getStore(), t)
@@ -117,7 +117,7 @@ test('capture honors the block cap, reports capped, and does not hang', async (t
 })
 
 test('capture leaves no open core sessions behind', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/sess', AUTO)
   replicate(peer.store, getStore(), t)
@@ -136,7 +136,7 @@ test('capture leaves no open core sessions behind', async (t) => {
 
 // captureMemberRecordMs<=0 is the documented kill switch for capture work.
 test('captureMemberRecordMs 0 disables the approval-time capture', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   replicate(peer.store, getStore(), t)
   withConfig(t, { captureMemberRecordMs: 0 })
@@ -144,7 +144,7 @@ test('captureMemberRecordMs 0 disables the approval-time capture', async (t) => 
 })
 
 test('captureJoinerMembership captures the joiner durably via explicit gets', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   await peer.bee.put('member/' + SPACE, { active: true, ts: 1 })
   const streams = replicate(peer.store, getStore(), t)
@@ -159,7 +159,7 @@ test('captureJoinerMembership captures the joiner durably via explicit gets', as
 })
 
 test('growth re-capture picks up records minted after the first capture', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/dddd', AUTO)
@@ -180,7 +180,7 @@ test('growth re-capture picks up records minted after the first capture', async 
 })
 
 test('a revocation replicated before going offline is honored by the snapshot', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/ffff', AUTO)
@@ -202,7 +202,7 @@ test('a revocation replicated before going offline is honored by the snapshot', 
 // The test would then fail on precisely the outcome it exists to forbid. The 8s default
 // costs nothing here, because these reads resolve promptly when they resolve at all.
 test('live-absent is authoritative: a revoked link is not resurrected from a stale snapshot', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/gggg', AUTO)
   replicate(peer.store, getStore(), t)
@@ -220,7 +220,7 @@ test('live-absent is authoritative: a revoked link is not resurrected from a sta
 })
 
 test('an expired record stays expired when read from the snapshot', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   shrinkPeerReads(t)
   const peer = await makePeer(t)
   await peer.bee.put('invite/' + SPACE + '/hhhh', { autoApprove: true, expiresAt: 5, created: 1 })

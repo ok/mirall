@@ -12,7 +12,7 @@ import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 const CONTRACT = [
   'publishAdd', 'publishDelete',
   'listOwn', 'listPeerWithMeta',
-  'requestDownload', 'ensureRemote', 'releaseRemote',
+  'requestDownload',
 ]
 
 // Members a backend MAY implement. A caller must reach every one of these through `?.` and behave
@@ -20,7 +20,7 @@ const CONTRACT = [
 // simply the behaviour before it existed. Kept separate from CONTRACT deliberately: promoting one of
 // these to required breaks every hand-written double at once, and that is a decision to take on
 // purpose rather than by adding a line to the wrong list.
-const OPTIONAL = ['catalogVersion', 'init', 'attach', 'teardown', 'sweepPresence']
+const OPTIONAL = ['catalogVersion', 'sweepPresence']
 
 test('absent / legacy / unknown content modes are UNSUPPORTED', (t) => {
   for (const share of [{ contentMode: 'eager' }, {}, null, { contentMode: 'deferred' }, { contentMode: 'future-mode' }]) {

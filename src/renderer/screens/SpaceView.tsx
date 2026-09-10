@@ -27,7 +27,7 @@ import AddFolderShareModal from '../components/modals/AddFolderShareModal.js'
 import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
 import MirrorFolderModal from '../components/modals/MirrorFolderModal.js'
 import { setForeignMountEnabled, unmountForeignMount } from '../hooks/useForeignMount.js'
-import { useToast } from '../components/toast/useToast.js'
+import { useToast } from '../components/toast/ToastProvider.js'
 import { request } from '../ipc.js'
 import ActionMenu from '../components/widgets/ActionMenu.js'
 import InviteModal from '../components/modals/InviteModal.js'
@@ -409,16 +409,12 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       >
         <div
           ref={filesRef}
-          /* `relative` makes this pane the containing block for the `sr-only` spans inside the
-             rows (a file's full name, via FileName). They are `position: absolute`, so without it
-             they resolve against the grid above — which no longer clips anything — and a row
-             below the fold drops its 1px span past the viewport bottom, growing the DOCUMENT into
-             an OS scrollbar down the whole window. FolderView's pane carries it for the same
-             reason. The 4px of interior room is for a focused card's ring, cancelled by an equal
-             negative margin so no card moves; `pr-4` is the shared scrollbar gutter. That room is
-             horizontal only: a `sticky top-0` header pins at the scrollport top PLUS this box's
-             padding-top, so any `pt-*` here leaves a band above the pinned header that scrolled
-             cards stay visible in. FolderView's pane can afford `pt-1` — it has no sticky header. */
+          /* SCROLL-PANE RULES (the one statement; FolderView and ActivityLog point here).
+             `relative`: `sr-only` spans are `position: absolute` and clip only from their containing
+             block, so an unpositioned pane lets rows below the fold grow the DOCUMENT into an OS
+             scrollbar. `-mx-1 pl-1 pr-1`: 4px of ring room for a focused card, cancelled by the
+             negative margin so nothing moves; `pr-4` is the shared scrollbar gutter. No `pt-*` under
+             a `sticky top-0` header: it pins at the scrollport top PLUS the pane's padding-top. */
           className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 pl-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
         >
           {showSpaceEmptyState(pane) ? (
@@ -551,7 +547,6 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
             <div className="shrink-0">
               <DropZone
                 onFilesSelected={(files) => addFiles(files)}
-                folderSupportEnabled
                 onFolderSelected={handleShareFolderRequest}
                 dragActive={dragActive}
               />

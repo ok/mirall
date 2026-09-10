@@ -18,7 +18,7 @@ const log = createLogger('publish-service')
 
 // A channel is a pure function of the share id: the loose pseudo-share, else a folder share.
 const channels = {}
-export const channelFor = (shareId) => channels[shareId === LOOSE_SHARE_ID ? 'loose' : 'folder']
+const channelFor = (shareId) => channels[shareId === LOOSE_SHARE_ID ? 'loose' : 'folder']
 
 export function registerPublishChannel(kind, channel) {
   channels[kind] = channel
@@ -30,7 +30,7 @@ export function registerPublishChannel(kind, channel) {
 const batches = new Map()
 const settling = new Map()
 
-export function catalogFor(spaceId) {
+function catalogFor(spaceId) {
   let batch = batches.get(spaceId)
   if (!batch) batches.set(spaceId, (batch = createCatalogBatch(spaceId)))
   return batch
@@ -38,7 +38,7 @@ export function catalogFor(spaceId) {
 
 // Resolves once the batch's last flush has landed. With no batch open it still joins a close in
 // progress, so an awaited "flush before X" holds whichever state the space is in.
-export function closeBatch(spaceId) {
+function closeBatch(spaceId) {
   const batch = batches.get(spaceId)
   if (!batch) return settling.get(spaceId) ?? Promise.resolve()
   batches.delete(spaceId)
@@ -104,7 +104,6 @@ export class PublishService extends Subsystem {
     this.scheduler?.evict(key)
   }
 
-  // Counts, not identifiers: diagnostics:export is user-shareable.
   health() {
     const open = !this.closed && !this.stopping
     if (!open) return { ok: false, detail: null }

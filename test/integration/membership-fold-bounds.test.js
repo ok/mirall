@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, markRequest, readMembershipRecord, readPeerRequests,
@@ -15,7 +15,7 @@ function withConfig (t, patch) {
 }
 
 test('REGRESSION (MIR-29): approved/* read stream is clamped to maxApprovalsPerMember', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxApprovalsPerMember: 4 })
   const me = getLocalPublicKeyHex()
   const S = 'space-approval-bounds'
@@ -29,7 +29,7 @@ test('REGRESSION (MIR-29): approved/* read stream is clamped to maxApprovalsPerM
 })
 
 test('REGRESSION (MIR-29): request/* read stream is clamped to maxRequestsPerMember', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxRequestsPerMember: 3 })
   const me = getLocalPublicKeyHex()
   const S = 'space-request-bounds'
@@ -42,7 +42,7 @@ test('REGRESSION (MIR-29): request/* read stream is clamped to maxRequestsPerMem
 })
 
 test('a 0 cap disables the bound (escape hatch)', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { maxApprovalsPerMember: 0 })
   const me = getLocalPublicKeyHex()
   const S = 'space-uncapped'

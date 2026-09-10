@@ -107,8 +107,8 @@ export function buildDiagnostics(ctx, redact = true) {
 
     // Per-request call counts, failures, in-flight and timing, plus the failure tally keyed by
     // type:code. Neither identifies anyone — the keys are the closed request vocabulary — so
-    // neither is redacted. Carried explicitly because a key the builder does not name is dropped,
-    // which is how the failure counters shipped dead.
+    // neither is redacted. The builder is an allow-list: an unnamed key is dropped, so every
+    // section is spelled out.
     requests: { metrics: requestMetrics, failures: requestFailures },
 
     health,

@@ -2,11 +2,6 @@
 // an interval per key, at most one pass in flight, a dirty flag so a request arriving mid-pass
 // costs exactly one follow-up, a cancellation generation a long pass checks between files, and the
 // liveness heartbeat the supervisor reads.
-//
-// The owner side gained this shape when its publish queue was extracted; the mirror kept it inline
-// through every later change. Same discipline, opposite direction of travel.
-//
-// No bare-* imports, so the scheduling rules unit-test under Node against a fake pass.
 import { createPassLiveness } from '../core/pass-liveness.js'
 
 export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onError = () => {} }) {

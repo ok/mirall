@@ -6,7 +6,7 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
-import { HEX64 } from '../invite-envelope.js'
+import { HEX64 } from '../contract/invite-envelope.js'
 
 export { clampDisplayName } from '../identity-limits.js'
 

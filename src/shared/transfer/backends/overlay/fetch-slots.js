@@ -1,8 +1,6 @@
 // One gate for every overlay fetch in the process — both download engines and every mirror. The
 // limit bounds what an in-flight fetch owns (a chunk scheduler, a watchdog, an fd and a ticker),
-// and that cost is per fetch, not per producer. It used to live inside createOverlayDownloadEngine,
-// which is called once per channel, so the configured cap was silently doubled and the mirrors were
-// not counted against it at all.
+// and that cost is per fetch, not per producer.
 //
 // Named fetch-slots rather than admission: src/shared/transfer/ already has admission-gates.js and
 // deferred-admission.js, and both are about admitting PEERS.

@@ -1,5 +1,4 @@
-// Whether a mirror tick must walk, kept pure so the rule is asserted directly rather than through a
-// live loop and a real catalog.
+// Whether a mirror tick must walk.
 //
 // The order is the safety argument: every branch that cannot prove nothing changed costs a walk.
 // A skip is only ever authorised by a known version that matches a watermark a converged pass set.

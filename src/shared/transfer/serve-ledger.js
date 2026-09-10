@@ -74,9 +74,8 @@ function forEachServeEntry(contentHash, from, fn) {
   }
 }
 
-// Every recordServeSession() still in flight. The write is a spaces-bee read followed by an
-// audit-bee write in a microtask nobody holds, so without this the shutdown can close either bee
-// between the two — which is why a transfer interrupted by quitting recorded nothing.
+// Every recordServeSession() still in flight, held so shutdown drains it: the write is a
+// spaces-bee read then an audit-bee write in a microtask nobody else holds.
 const recording = new Set()
 
 // One audit row per file served, not one per chunk or per reconnect. `from` is the requester's
@@ -337,7 +336,7 @@ export function subscribeServeDetail(spaceId, path) {
 
 // Read the current serve detail without touching the subscription refcount — used by the
 // integration suite to assert snapshots without arming a stream.
-export function getServeDetail(spaceId, path) {
+export function _getServeDetailForTests(spaceId, path) {
   return serveSnapshot(fileKey(spaceId, path))
 }
 

@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { getIdentitySigner, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/transfer/handshake-guard.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -16,7 +16,7 @@ const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 // layout, or getIdentitySigner returns the wrong namespace, this fails immediately
 // instead of only surfacing as a network partition.
 test('a binding from the real profile signer verifies against the real profileKey', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const signer = getIdentitySigner()
   t.ok(signer?.secretKey && signer?.publicKey && signer?.namespace, 'identity signer is available in identity mode')
 
@@ -34,7 +34,7 @@ test('a binding from the real profile signer verifies against the real profileKe
 })
 
 test('a different signer cannot claim our profileKey', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const signer = getIdentitySigner()
   const noise = crypto.keyPair()
   const other = crypto.keyPair()

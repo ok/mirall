@@ -1,16 +1,16 @@
-// Forensic record of every leftover sweep: what it deleted, or why it refused to.
+// Forensic record of every leftover sweep: what it deleted, or why it refused to. The sweep is the
+// only path that destroys user data with no user action behind it; this is what makes a boot where
+// spaces went missing reconstructable, read through diagnostics:export. Kept in `reclaim-meta` (an
+// existing at-rest-encrypted LOCAL_BEE_NAMES bee, already in the sweep's own wanted set), so it adds
+// no core for the sweep to be wrong about. Not an audit row: contract/audit-kinds.js excludes
+// `storage.cleanup` as housekeeping, and that stands.
 //
-// The sweep is the only path in the app that destroys user data with no user action behind it, and
-// until now it left nothing behind but a log line that a release build discards. This is the record
-// that makes a boot where spaces went missing reconstructable.
-//
-// Kept in `reclaim-meta` — an existing LOCAL_BEE_NAMES bee (at-rest encrypted, already in the
-// sweep's own wanted set), so this adds no new core and therefore no new surface for the sweep to
-// be wrong about itself.
-//
-// Deliberately NOT an audit row: contract/audit-kinds.js excludes `storage.cleanup` as app
-// housekeeping rather than "which user did what in a space", and that decision stands. This answers
-// a different question — "what did the sweep do on boot N" — and is read through diagnostics:export.
+// Entry (written by leftover.js purgeLeftovers, one per sweep):
+//   { at, refused: <decideSweep reason> | null, targets, totalCores, gaps: [{ stage, detail }],
+//     categories: ('profiles' | 'catalogs' | 'orphanDrives')[], purged, purgedDks?: dkHex[] }
+//   A refused sweep carries its gaps and purged: 0; a sweep that ran carries gaps: [] and purgedDks.
+// Keys in `reclaim-meta`: purge/<at, 16 digits>-<seq, 4 digits> (this journal, chronological) and
+// overlay-index-compacted (worker/sweeps.js's last-compaction stamp).
 import { createLocalBee } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 

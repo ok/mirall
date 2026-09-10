@@ -2,9 +2,9 @@
 // handshake asks before it registers anyone — approval (does any member vouch for them?) and the
 // creator root (do we and they agree on who founded the space?).
 //
-// Extracted from swarm.js. A factory over three collaborators: `connectedPeers` is swarm.js's peer
-// registry, `log` its named logger, and `getIpc` reaches the pipe lazily — the IPC handle is null until
-// the worker wires it, so it must be read at emit time, not captured at construction.
+// A factory over three collaborators: `connectedPeers` is the shared peer registry
+// (swarm-registries.js), `log` the swarm's named logger, and `getIpc` reaches the pipe lazily —
+// the IPC handle is null until the worker wires it, so it is read at emit time, not captured.
 import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite } from '../spaces/profile.js'
 import { getSpace, recordJoinRequest, pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/space.js'
 import { isHandshakeIdentityBindingEnabled } from '../core/runtime-config.js'
@@ -18,9 +18,8 @@ export function createAdmissionGates({ connectedPeers, log, getIpc }) {
   // via replication — no gossip). This is the read gate; the derived set governs the list.
   async function isApprovedByPeers(space, joinerKey) {
     const me = getLocalPublicKeyHex()
-    // Our OWN approval counts — without this the owner can't admit a peer it approved itself once the
-    // upserted member is dropped by a fold that hasn't read the joiner's (not-yet-replicated) record,
-  // leaving the joiner stuck as a pending request on the very peer that approved them.
+    // Our OWN approval counts: the fold may not yet hold the joiner's (not-yet-replicated) record,
+    // and without this the owner could not admit a peer it approved itself.
     if (await hasOwnApproval(space.spaceId, joinerKey)) return true
     for (const m of space.members || []) {
       if (m.publicKey === joinerKey || m.publicKey === me) continue

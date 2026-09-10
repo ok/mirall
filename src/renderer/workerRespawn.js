@@ -1,23 +1,8 @@
-// Decides whether to respawn the Bare worker after it exits, and how long to wait.
-//
-// A worker that OOMs (a very large folder) or otherwise dies must NOT leave the app
-// permanently dead — without a respawn, every later request just writes into the
-// void and rejects after the 30s IPC timeout. So recovery is automatic. But a
-// worker that re-crashes on boot must not respawn forever: consecutive crashes
-// are capped and backed off exponentially.
-//
-// The streak resets only after the worker actually reached "ready" since the last exit
-// (recordReady) — NOT merely because some wall-clock interval passed. So a worker that
-// boots, works, then dies starts with a fresh budget, while one that crashes BEFORE ever
-// becoming ready (a boot loop — the dangerous case) accumulates the streak until the cap
-// and we give up.
-//
-// That reset is exactly wrong for one exit, which is why WORKER_EXIT_UNSTABLE gets a budget of
-// its own. A worker reporting its own fault rate as unstable HAS reached ready — every time —
-// so the reset above hands it an unlimited budget and it respawns forever. Each of those
-// respawns also reloads the window (ipc.ts markReady), so the user sees the app restart itself
-// every time the worker gives up. The unstable budget is deliberately NOT cleared by recordReady;
-// only quiet time clears it, because an unstable exit an hour apart is not a loop.
+// Respawn after a crash — without it every later request rejects after the IPC timeout — capped at
+// 5 with exponential backoff. The streak resets only after a generation reached ready
+// (recordReady): a boot loop accumulates to the cap, boot-work-die earns a fresh budget.
+// WORKER_EXIT_UNSTABLE keeps a SEPARATE budget of 3 per 10 min that recordReady never clears (an
+// unstable worker HAS reached ready, every time); only quiet time clears it.
 import { WORKER_EXIT_UNSTABLE } from '../shared/contract/exit-codes.js'
 
 export function makeRespawnPolicy({

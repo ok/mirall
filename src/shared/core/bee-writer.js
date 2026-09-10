@@ -1,20 +1,12 @@
-// One serialized write path for a hyperbee whose records are read-modified-written. The pattern it
-// replaces — `get` → spread → `put` — loses a field whenever two continuations interleave, and the
-// lost field is always a status latch (paused, enabled, an error, a path), which is why the same
-// bug kept coming back in a different helper each time. A fresh read narrows that window; only
-// ordering closes it.
+// Serialized read-modify-write per key. The lock orders the writes; `cas` asserts nothing bypassed
+// it and turns a silent lost update into a retry. A fresh read only narrows the lost-update
+// window — ordering is what closes it.
 //
-// The lock is the mechanism and `cas` is an assertion on top, not the other way round: within one
-// process the lock is what orders the writes, and one worker owns each local bee. `cas` catches the
-// case the lock cannot — a writer that bypassed it — and turns a silent lost update into a retry.
-//
-// Two hyperbee facts this depends on (2.27.3):
-//   - cas(prev, next) is invoked ONLY when the key already exists, so it cannot express "create if
-//     absent"; that is why mutate() refuses a missing record up front and creation goes through
-//     put(). It is also why deletes take the lock: an unmount landing between a mutate's read and
-//     its write would otherwise be undone by that write, with no cas call to notice.
-//   - a falsy cas return makes put() a SILENT no-op, so the retry has to be driven by a flag set
-//     inside the callback, not by put()'s return value.
+// Two hyperbee facts this depends on (2.27.3): cas(prev, next) runs ONLY when the key exists, so
+// mutate() refuses a missing record and creation goes through put() — and deletes take the lock,
+// or an unmount landing between a mutate's read and its write is undone with no cas to notice;
+// and a falsy cas return makes put() a SILENT no-op, so the retry is driven by a flag set inside
+// the callback, not by put()'s return value.
 //
 // No domain knowledge and no bare-* imports: the bee arrives as a dependency, so this loads under
 // Node and unit-tests without a store.

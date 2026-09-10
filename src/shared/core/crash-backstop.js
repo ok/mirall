@@ -1,18 +1,12 @@
-// Last-resort backstop for the Bare worker. A single unhandled rejection / uncaught
-// exception in any fire-and-forget data-layer task — a corestore replication callback
-// serving a half-written ("zombie") core by discovery key, a peer handshake, a timer —
-// must not abort the worker and take the whole data layer down with it (the Electron main
-// process carries the same guard for its side). Log loudly and keep serving.
-// Returns a disposer (used by tests; production installs once for the worker's lifetime).
+// Last-resort backstop for the Bare worker: an unhandled rejection or uncaught exception in a
+// fire-and-forget data-layer task (a replication callback serving a zombie core, a peer handshake,
+// a timer) is logged and the worker keeps serving — the same guard Electron main carries for its
+// side. Returns a disposer (tests; production installs once).
 //
-// Keeping the worker alive is right for an ISOLATED fault and wrong for a stream of them: a
-// subsystem throwing out of its own state machine stays wedged silently, and the folder simply
-// stops syncing with nothing reporting it. So the count is tracked against a window, and a worker
-// producing faults faster than the threshold exits instead — which hands recovery to the renderer's
-// respawn supervisor, a mechanism that until now could only see an OOM or a deliberate exit.
-//
-// A rate rather than a total: a long session legitimately accumulates isolated recoverable faults
-// over hours, so a total would eventually trip on a healthy worker.
+// Alive is right for an ISOLATED fault and wrong for a stream of them: a subsystem throwing out of
+// its own state machine stays wedged silently. So faults are counted against a window — a RATE,
+// not a total, because a long session legitimately accumulates isolated faults over hours — and a
+// worker over the threshold exits, handing recovery to the renderer's respawn supervisor.
 const DEFAULT_WINDOW_MS = 60_000
 const DEFAULT_THRESHOLD = 10
 
@@ -34,13 +28,10 @@ export function installCrashBackstop(log, {
     // array can never hold more than one window's worth of arrivals.
     stamps = stamps.filter((s) => t - s <= windowMs)
     if (stamps.length < threshold || escalated) return
-    // Not armed = boot has not finished, or a shutdown is already running. Deliberately NOT
-    // latched here: this is the one case where the backstop's original job still applies in full.
-    // The whole reason it is installed before the first await is that a boot-time storm of
-    // background core opens must not kill the worker — escalating there would turn "the app is
-    // slow to start" into "the app will not start", and a boot-crash loop is exactly what the
-    // renderer's give-up budget stops by leaving the app dead. A storm that continues past boot
-    // escalates on its next fault, because the stamps keep rolling.
+    // Not armed = boot has not finished, or a shutdown is already running. NOT latched: a boot-time
+    // storm of background core opens must not kill the worker (that would turn "slow to start"
+    // into "will not start", which the renderer's give-up budget makes permanent); a storm that
+    // continues past boot escalates on its next fault, because the stamps keep rolling.
     if (!onUnstable || !isArmed()) return
     // Latch: escalation fires exactly once. Without it every subsequent throw re-enters the exit
     // path, and the shutdown that path runs would race itself.

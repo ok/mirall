@@ -4,7 +4,7 @@ import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { RETENTION_CHOICES } from '../auditRetentionChoices.js'
+import { RETENTION_CHOICES } from '../../shared/contract/limits.js'
 import type { AuditConfig, AuditEntry, AuditStats } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
@@ -30,9 +30,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const { t } = useTranslation()
   const errorText = useErrorText()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  // The same two store entries the Account screen reads, so the two screens cannot report
-  // different numbers for one log. Scope-less for the reason stated there: the audit scope would
-  // repaint these rows on every recorded event, and they are a summary, not a live counter.
+  // The same two entries Account reads, scope-less for the reason stated there.
   const { data: config } = useQuery<AuditConfig>('audit:get-config', {}, null)
   const { data: stats } = useQuery<AuditStats>('audit:stats', {}, null)
   const [busy, setBusy] = useState(false)

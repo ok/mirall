@@ -1,6 +1,6 @@
 import type { IconName } from './components/primitives/Icon.js'
 import type { ShareRole } from './types.js'
-import type { MountFault } from './mountFault.js'
+import type { MountFault } from '../shared/contract/mount-fault.js'
 
 export type StripId = 'source-missing' | 'fault' | 'paused' | 'working' | 'peer-indexing' | 'owner-offline' | 'over-limit'
 export type StripTone = 'error' | 'warning' | 'info' | 'neutral'

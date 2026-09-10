@@ -4,9 +4,7 @@ import type { QuerySnapshot } from './query-store.js'
 import type { ScopePattern } from '../../shared/contract/scope.js'
 import type { RequestName } from '../../shared/contract/requests.js'
 
-// useSyncExternalStore rather than a useState mirror: the store already holds the value, and the
-// five hand-rolled module caches this replaces each kept a second copy in component state that
-// could disagree with it.
+// useSyncExternalStore, not a useState mirror: a second copy in component state can disagree with the store.
 export function useQuery<T>(
   type: RequestName,
   params: Record<string, unknown> = {},

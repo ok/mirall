@@ -1,6 +1,6 @@
 export type ToastVariant = 'error' | 'warning' | 'success' | 'info'
 
-export interface ToastAction {
+interface ToastAction {
   label: string
   onClick: () => void
 }
@@ -17,7 +17,6 @@ export interface ToastItem {
   message: string
   duration: number
   action?: ToastAction
-  createdAt: number
 }
 
 export interface ToastApi {

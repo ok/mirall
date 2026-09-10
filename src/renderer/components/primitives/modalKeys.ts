@@ -1,8 +1,5 @@
-// The dialog keyboard contract, as a pure decision so it can be tested without a DOM.
-//
-// Enter belongs to the dialog, not to its fields. Every modal used to answer Enter differently —
-// five of them hand-rolled it on their own <input>, three without a modifier check, so ⌘Enter ran
-// the submit twice in one dispatch. One rule, one place:
+// The dialog keyboard contract, as a pure decision so it can be tested without a DOM. Enter belongs
+// to the dialog, not to its fields:
 //
 //   Escape                 dismiss, when the dialog is dismissable
 //   Cmd/Ctrl+Enter         confirm, always — the escape hatch for a textarea

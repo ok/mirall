@@ -8,7 +8,7 @@ export interface ChangelogEntry {
 
 const HEADING_RE = /^## v(\S+)\s*$/
 
-export function parseChangelog(text: string): ChangelogEntry[] {
+function parseChangelog(text: string): ChangelogEntry[] {
   const entries: ChangelogEntry[] = []
   let current: ChangelogEntry | null = null
   for (const line of text.split('\n')) {
@@ -35,7 +35,7 @@ function cmp(a: string, b: string): number {
   return 0
 }
 
-export function entriesBetween(
+function entriesBetween(
   entries: ChangelogEntry[],
   fromExclusive: string,
   toInclusive: string,

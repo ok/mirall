@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { createLocalBee } from '../../src/shared/core/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { buildWantedKeys, classifyLeftovers } from '../../src/shared/storage/leftover.js'
@@ -23,7 +23,7 @@ function leftoverDkSet (scan) {
 }
 
 test('REGRESSION (MIR-40): encrypted /v2 metadata bees are wanted, never leftovers', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   await createSpace('Aurora') // populates the encrypted spaces-meta v2 core
 
   const spacesDk = await localDk('spaces-meta')

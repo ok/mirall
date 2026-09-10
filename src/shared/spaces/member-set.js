@@ -24,15 +24,18 @@
 // simply absent from `records` — it (and anyone only it approved) stays out until it arrives, then
 // the next fold self-heals.
 //
-// `records`: Map<peerKeyHex, { active, approvals, memberSeq?, approvalSeqs? }>.
-//   `active`       — p's own `member/S.active` (false ⇒ departed, absent ⇒ never joined).
-//   `approvals`    — the joiner keys p authored `approved/S/<joiner>` for.
-//   `memberSeq`    — log position of p's own `member/S` record, when known.
-//   `approvalSeqs` — Map<joinerKey, seq> for those approvals, when known.
-
-// Members plus the authorization tree behind them. Callers that only need the roster take
-// `.members`; discovery takes `.authorized`, since it must open the bees of a departed member's
-// approvees too or they are never fetched and can never heal.
+/**
+ * Members plus the authorization tree behind them. Callers that only need the roster take
+ * `.members`; discovery takes `.authorized`, since it must open the bees of a departed member's
+ * approvees too or they are never fetched and can never heal.
+ *
+ * @param {Map<string, { active: boolean, approvals: Iterable<string>, memberSeq?: number, approvalSeqs?: Map<string, number> }>} records
+ *   keyed by peer key hex. `active` is p's own `member/S.active` (false ⇒ departed, absent ⇒ never
+ *   joined); `approvals` the joiner keys p authored `approved/S/<joiner>` for; `memberSeq` the log
+ *   position of p's own `member/S` record; `approvalSeqs` the position of each approval, when known.
+ * @param {string} creatorKey the permanent root of authorization
+ * @returns {{ members: Set<string>, authorized: Set<string>, approved: Set<string> }}
+ */
 export function foldMembership (records, creatorKey) {
   const norm = new Map()
   for (const [k, rec] of records) {
@@ -76,6 +79,7 @@ function vouchStands (rec, joiner) {
   return seq === undefined || seq < rec.memberSeq
 }
 
+// test seam
 export function foldMemberSet (records, creatorKey) {
   return foldMembership(records, creatorKey).members
 }

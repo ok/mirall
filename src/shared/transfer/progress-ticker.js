@@ -1,6 +1,6 @@
-// Throttled byte-progress ticker shared by the single-file transfer path
-// (transfers.js) and the folder-mirror path (foreign-folders.js), so the two
-// don't drift in how they compute speed/ETA or how often they emit.
+// Throttled byte-progress ticker shared by every overlay fetch path — the download engine, the
+// loose-file path and the mirror's materialize (through fetch-run.js) — so they don't drift in
+// how they compute speed/ETA or how often they emit.
 //
 // Feed it chunk lengths via `push(len)`; it calls `emit({ bytes, total, speed,
 // eta })` at most once per `intervalMs`. The first chunk always emits (lastEmit

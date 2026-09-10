@@ -1,7 +1,5 @@
 // Per-key progress bookkeeping for supervised work: one pass at a time per key, a heartbeat the
-// pass bumps as it advances, and a verdict from the shared stall rule. The rule lived in
-// stall-verdict.js already; the bookkeeping around it was hand-rolled twice (the mirror loop, the
-// derived-view fold) and missing entirely on the owner side, where a wedged diff reads as healthy.
+// pass bumps as it advances, and a verdict from the shared stall rule (stall-verdict.js).
 //
 // Progress, not elapsed time: a legitimate pass over thousands of files is genuinely slow, so only
 // a pass that is in flight AND not advancing is stalled.

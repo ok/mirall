@@ -1,9 +1,8 @@
-// The overlay as one lifetime: the instance, the serve index, and the two download engines that
-// were previously constructed at module level inside this package's import cycle.
+// The overlay as one lifetime: the instance, the serve index, and the two download engines,
+// constructed in _open rather than at module level so nothing here runs during import.
 //
-// It lives outside that cycle — nothing in it imports this file, only the boot root does — so
-// wiring the four modules together here adds no edge to the cycle test/integration/import-time
-// guards.
+// Nothing in the package imports this file — only the boot root does — so wiring the four
+// modules together here adds no edge to the import graph test/integration/import-time guards.
 import { Subsystem } from '../../../core/subsystem.js'
 import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-config.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'

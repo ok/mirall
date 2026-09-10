@@ -1,6 +1,5 @@
 // The status vocabularies the worker produces and the renderer renders. Frozen arrays rather than
-// TypeScript unions so all three runtimes can read them; types.ts derives its unions from these,
-// which is what stops the two from drifting the way the review found them.
+// TypeScript unions so all three runtimes can read them; types.ts derives its unions from these.
 
 export const FILE_STATUS = Object.freeze([
   'mine',

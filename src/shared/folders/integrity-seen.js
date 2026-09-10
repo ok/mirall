@@ -29,12 +29,6 @@ export function createIntegritySeen({ limit = DEFAULT_INTEGRITY_ROW_CAP, onCap =
       if (seen.size === limit) onCap(mountKey, limit)
       return true
     },
-    // Read-only twin of admit, for a second instance used as a memo rather than a rate gate. At the
-    // cap admit refuses to record, so this answers false for a claim that was never admitted — the
-    // fail-open direction: a capped mount keeps syncing rather than silently refusing every file.
-    has(mountKey, relPath, contentHash) {
-      return byMount.get(mountKey)?.has(relPath + '\0' + (contentHash || '')) ?? false
-    },
     // An unmount/remount is a fresh session: the user re-pointing the mount is a new decision and
     // deserves to be told the folder is still corrupt.
     forget(mountKey) { byMount.delete(mountKey) },

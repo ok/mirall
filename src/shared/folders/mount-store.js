@@ -137,11 +137,6 @@ export async function findOwnedMountByShareId(shareId) {
   return all.find((m) => m.shareId === shareId) ?? null
 }
 
-export async function findForeignMountByShareId(shareId) {
-  const all = await listForeignMounts()
-  return all.find((m) => m.shareId === shareId) ?? null
-}
-
 export class MountsBee extends Subsystem {
   async _open() { await initMounts() }
 

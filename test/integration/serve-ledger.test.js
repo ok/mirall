@@ -4,7 +4,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
-  subscribeServeDetail, getServeDetail, unsubscribeServeDetail, listServeSummaries,
+  subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, listServeSummaries,
 } from '../../src/shared/transfer/serve-ledger.js'
 
 const HASH = 'h'.repeat(64)
@@ -79,7 +79,7 @@ test('a STOPPED control drops a previously-paused peer from the ledger', async (
   t.alike(last.peers, [], 'and emitted an authoritative empty summary')
 })
 
-test('getServeDetail reads the snapshot without touching the detailSubs refcount', async (t) => {
+test('_getServeDetailForTests reads the snapshot without touching the detailSubs refcount', async (t) => {
   const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
 
@@ -88,13 +88,13 @@ test('getServeDetail reads the snapshot without touching the detailSubs refcount
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   t.ok(details(fake).length > 0, 'positive control: detail streams while subscribed')
 
-  const read = getServeDetail(SID, PATH)
+  const read = _getServeDetailForTests(SID, PATH)
   t.is(read.peers.length, 1, 'get returns the snapshot')
 
   unsubscribeServeDetail(SID, PATH)
 
   // Refcount back at zero after ONE unsubscribe: a forced ledger emit must not stream
-  // detail frames — proving getServeDetail did not increment the count.
+  // detail frames — proving _getServeDetailForTests did not increment the count.
   const detailBefore = details(fake).length
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   t.is(details(fake).length, detailBefore, 'no detail frame after the single unsubscribe')

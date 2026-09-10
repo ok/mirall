@@ -41,11 +41,8 @@ export async function waitForWorkerExit (pid, ms = 5000, every = 50) {
   }
 }
 
-// Backstop mirroring production's process.on('exit') reaper. brittle-node runs the
-// whole flow suite in one process; an uncaught error (e.g. an `until` timeout)
-// aborts it before pending teardowns run, which would orphan every live worker
-// subprocess — and those orphans then starve the machine and flake later runs.
-// Track live children and SIGKILL any survivors when the orchestrator exits.
+// Backstop mirroring production's exit reaper: brittle-node runs the whole flow suite in one process,
+// and an uncaught error aborts it before teardowns run — orphaned workers then starve later runs.
 const liveChildren = new Set()
 let exitBackstopInstalled = false
 function installExitBackstop () {

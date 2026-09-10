@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import {
@@ -24,7 +24,7 @@ function keepLoopAlive (t) {
 // without it a SUCCESSFUL load parks instead of returning.
 async function setup (t) {
   keepLoopAlive(t)
-  const ctx = await freshPeerWithIdentity(t)
+  const ctx = await freshPeer(t)
   await initDownloads()
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })

@@ -1,48 +1,23 @@
 import { execFile } from 'node:child_process'
 
 const BIN = 'agent-desktop'
-// STALE_REF / WINDOW_NOT_FOUND are transient AX conditions. ACTION_FAILED ("All
-// chain steps exhausted") is agent-desktop reporting that every click strategy
-// missed — almost always because the element moved or animated (e.g. a react-aria
-// menu sliding in) between the snapshot that resolved its ref and the click. The
-// retry re-snapshots and re-resolves the ref, so a settled element is hit on the
-// next pass; a genuinely unclickable element still fails after the tries run out.
-// ELEMENT_NOT_FOUND is retryable too: a click/type right after opening a menu or
-// advancing a modal can snapshot a frame before the new element has rendered. The
-// retry re-snapshots, so a just-appearing element is caught on the next pass —
-// which lets the menu/modal helpers settle with a short fixed wait instead of a
-// long conservative one. A genuinely-absent element still fails after the tries.
-// ACTION_NOT_SUPPORTED covers "window exists but is not exposed through
-// accessibility": Chromium attaches a renderer's AX tree lazily, so a window can be
-// listed and painted a beat before it answers AX queries. agent-desktop 0.4.x
-// returned an empty tree in that gap and the scenarios' own waits rode it out;
-// 0.8.x makes it an error. Instance.launch() closes the gap explicitly, and this
-// entry covers the mid-scenario case (a repaint or reload re-attaching AX).
-// SNAPSHOT_INCOMPLETE is ours, not agent-desktop's: 0.7.0 stopped returning a
-// TIMEOUT error for a snapshot that exhausts its walk budget and now returns
-// ok:true with data.complete=false. instance.snap() turns that into this code so a
-// partial tree retries (and ultimately fails loudly) instead of being asserted
-// against as if it were the whole window.
+// Retryable: the retry re-snapshots and re-resolves the ref, so a settled element is hit next pass.
+//   STALE_REF, WINDOW_NOT_FOUND  transient AX state
+//   ACTION_FAILED                every click strategy missed — the element moved between snapshot and click
+//   ELEMENT_NOT_FOUND            the snapshot ran a frame before a menu/modal element rendered
+//   ACTION_NOT_SUPPORTED         window listed and painted but its AX tree not attached yet (Chromium attaches lazily)
+//   SNAPSHOT_INCOMPLETE          ours: instance.snap() maps ok:true + complete:false to it, so a truncated tree
+//                                is never asserted against
 export const RETRYABLE = new Set(['STALE_REF', 'WINDOW_NOT_FOUND', 'ACTION_FAILED', 'ELEMENT_NOT_FOUND', 'SNAPSHOT_INCOMPLETE', 'ACTION_NOT_SUPPORTED'])
 
-// agent-desktop's activation chain (the AXPress → AXOpen → physical-fallback
-// ladder a ref action walks) gives up after AGENT_DESKTOP_CHAIN_TIMEOUT_MS,
-// default 10_000. When an action targets an element that can't settle (an
-// animating popover, a press with no observable AX state change) it stalls for
-// that full deadline before returning ACTION_FAILED — and withRetry then re-tries
-// up to 3× (≈30s). This harness already settles animations with its own waits and
-// re-snapshots on ACTION_FAILED, so it never needs the long default: cap it low so
-// an unsettled action fails fast into the retry instead of stalling. Overridable.
+// The activation chain (AXPress → AXOpen → physical fallback) gives up after this; at the default
+// 10 s an element that cannot settle stalls the full deadline before ACTION_FAILED, times 3 retries.
+// The harness settles animations itself and re-snapshots on failure, so fail fast into the retry.
 const CHAIN_TIMEOUT_MS = process.env.AGENT_DESKTOP_CHAIN_TIMEOUT_MS ?? '2500'
 
-// agent-desktop 0.5.0+ also auto-waits for ref resolution and transient
-// actionability on every ref action (--timeout-ms, default 5000) — a SEPARATE
-// budget that runs BEFORE the chain above. Left at the default it stacks: a
-// genuinely-absent element burns 5s here, then the chain, then withRetry does it
-// all twice more. This harness re-snapshots and re-resolves the ref on every
-// retry, so waiting long inside one CLI process only delays the re-resolution
-// that would have fixed it. Cap it low and let the retry do the settling.
-// Only these subcommands accept the flag (verified against 0.8.1 --help).
+// Ref actions also auto-wait for resolution/actionability (--timeout-ms, default 5000) BEFORE the
+// chain above; at the default the two budgets stack across every retry. The retry re-resolves the
+// ref, so a long in-process wait only delays the fix. Only these subcommands accept the flag.
 const AUTO_WAIT_CMDS = new Set(['click', 'type', 'focus', 'set-value', 'scroll', 'hover', 'toggle', 'select'])
 export const ACTION_TIMEOUT_MS = process.env.AGENT_DESKTOP_ACTION_TIMEOUT_MS ?? '1500'
 

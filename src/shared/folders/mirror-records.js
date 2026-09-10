@@ -11,7 +11,7 @@ import { createLogger } from '../core/logger.js'
 const log = createLogger('mirror-records')
 
 const MIRRORS_CAP = 'caps/folder-mirrors'
-export const MIRROR_PREFIX = 'mirror/'
+const MIRROR_PREFIX = 'mirror/'
 
 const keyFor = (spaceId, shareId) => MIRROR_PREFIX + spaceId + '/' + shareId
 
@@ -115,9 +115,7 @@ export async function readPeerMirror(profileKeyHex, spaceId, shareId, timeoutMs 
   }
 }
 
-// Cap-gated bounded read. The previous shape returned an OPEN bee to its two callers, neither of
-// which closed it — the clearest form of the per-read session leak. withPeerBee owns the open,
-// the head sync and the close.
+// Cap-gated bounded read. withPeerBee owns the open, the head sync and the close.
 function withPeerMirrorBee(profileKeyHex, fn, opts) {
   return withPeerBee(profileKeyHex, async (bee) => {
     const cap = await bee.get(MIRRORS_CAP)

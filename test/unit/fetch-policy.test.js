@@ -1,12 +1,12 @@
 import test from 'brittle'
 import { isTerminalFault, classifyMiss, nextRetryDelay } from '../../src/shared/transfer/backends/overlay/fetch-policy.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 test('the terminal set is exactly the faults no retry can fix', (t) => {
-  for (const c of [ErrorCodes.TRANSFER_CHECKSUM, ErrorCodes.TRANSFER_DISK_FULL, ErrorCodes.TRANSFER_DEST_UNAVAILABLE]) {
+  for (const c of [CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_DEST_UNAVAILABLE]) {
     t.ok(isTerminalFault(c), `${c} is terminal`)
   }
-  for (const c of [ErrorCodes.TRANSFER_NETWORK, ErrorCodes.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
+  for (const c of [CODES.TRANSFER_NETWORK, CODES.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
     t.absent(isTerminalFault(c), `${String(c)} stays retryable`)
   }
 })

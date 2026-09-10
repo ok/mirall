@@ -1,6 +1,5 @@
 // Generated from requests.js. A literal union, not `string`: REQUESTS declared as
-// Record<string, RequestSpec> makes `keyof` useless — request('spces:list') would compile, which
-// is how a handler name escaped the contract once already. Same lesson as the status tuples.
+// Record<string, RequestSpec> makes `keyof` useless — request('spces:list') would compile.
 export type RequestName =
   | 'audit:actors'
   | 'audit:configure'

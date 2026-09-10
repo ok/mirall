@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  classify, stabilise, hasRoutableAddress, routableAddressKind, VERDICT, CAUSE, CONFIDENCE, CANARY,
+  classify, stabilise, routableAddressKind, VERDICT, CAUSE, CONFIDENCE, CANARY,
   NAT_SETTLE_MS, BLOCKED_DWELL_MS, LIVENESS_FAILURES_FOR_OFFLINE,
 } from '../../src/shared/core/reachability.js'
 
@@ -170,17 +170,17 @@ test('REGRESSION (FIX-12: link-local addresses are not a network)', (t) => {
     llw0:  [{ address: 'fe80::e482:1eff:fe96:a870', internal: false }],
     en0:   [{ address: 'fe80::14ea:3c2a:be88:403', internal: false }],
   }
-  t.absent(hasRoutableAddress(linkLocalOnly), 'link-local only is not a network')
+  t.is(routableAddressKind(linkLocalOnly), 'none', 'link-local only is not a network')
 
-  t.absent(hasRoutableAddress({ en1: [{ address: '169.254.5.5', internal: false }] }), 'IPv4 link-local either')
-  t.absent(hasRoutableAddress({}), 'no interfaces at all')
-  t.absent(hasRoutableAddress(null), 'a missing table is not a network')
+  t.is(routableAddressKind({ en1: [{ address: '169.254.5.5', internal: false }] }), 'none', 'IPv4 link-local either')
+  t.is(routableAddressKind({}), 'none', 'no interfaces at all')
+  t.is(routableAddressKind(null), 'none', 'a missing table is not a network')
 
   const connected = { ...linkLocalOnly, en0: [
     { address: 'fe80::14ea:3c2a:be88:403', internal: false },
     { address: '192.168.178.140', internal: false },
   ] }
-  t.ok(hasRoutableAddress(connected), 'a real routable address counts')
+  t.is(routableAddressKind(connected), 'physical', 'a real routable address counts')
 })
 
 test('a VPN holding the only route is classified as tunnel-only', (t) => {
@@ -193,7 +193,7 @@ test('a VPN holding the only route is classified as tunnel-only', (t) => {
     utun4: [{ address: '192.168.178.201', internal: false }],
   }
   t.is(routableAddressKind(wifiOff), 'tunnel-only')
-  t.ok(hasRoutableAddress(wifiOff), 'it genuinely does have a route — we cannot call this offline')
+  t.not(routableAddressKind(wifiOff), 'none', 'it genuinely does have a route — we cannot call this offline')
 
   t.is(routableAddressKind({ ...wifiOff, en0: [{ address: '192.168.178.140', internal: false }] }), 'physical')
   t.is(routableAddressKind({ lo0: [{ address: '127.0.0.1', internal: true }] }), 'none')

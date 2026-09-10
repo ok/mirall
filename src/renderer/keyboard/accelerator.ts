@@ -4,7 +4,7 @@ import type { CommandContext } from './registry.js'
 export const isMacRuntime: boolean =
   typeof window !== 'undefined' && window.bridge?.getPlatform?.() === 'darwin'
 
-export interface ParsedAccelerator {
+interface ParsedAccelerator {
   mod: boolean
   shift: boolean
   alt: boolean
@@ -58,11 +58,6 @@ export function acceleratorParts(spec: string): string[] {
   else keyLabel = a.key.toUpperCase()
   parts.push(keyLabel)
   return parts
-}
-
-export function formatAccelerator(spec: string): string {
-  const parts = acceleratorParts(spec)
-  return isMacRuntime ? parts.join(' ') : parts.join('+')
 }
 
 export function shouldIgnore(e: KeyboardEvent, allowList: ReadonlyArray<string>): boolean {

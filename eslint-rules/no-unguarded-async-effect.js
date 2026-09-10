@@ -1,16 +1,12 @@
 // An effect that writes React state after an await is a race by default: React does not cancel the
-// continuation, so a response issued for the PREVIOUS deps can land after a newer one and win. The
-// renderer already has the correct answer — store/query-store.js carries a per-entry `seq` and an
-// AbortController, and useQuery/useMainQuery inherit both — so a hook that reaches past it owes the
-// same guarantee by hand, or an entry in the exemption table with a reason.
+// continuation, so a response issued for the PREVIOUS deps can land after a newer one and win.
+// store/query-store.js carries the fence (per-entry `seq` + AbortController) and useQuery/useMainQuery
+// inherit it; a hook that reaches past it owes the same guarantee by hand, or an exemption with a reason.
 //
-// This is a RULE and not a `no-restricted-syntax` selector (the shape the rest of eslint.config.mjs
-// uses) because the property is not a syntactic shape. It needs three things esquery cannot do:
-// reachability from an async boundary to a setter, scope resolution of `setX` to a useState
-// binding, and one hop of call-graph following into a useCallback. The predecessor guard was a
-// regex for `let cancelled = false`, which measured a spelling — it saw four of the eleven
-// hand-rolled guards in the tree and, more to the point, could never see a site with no guard at
-// all, which is the only thing that is actually forbidden.
+// A RULE, not a `no-restricted-syntax` selector: the property is not a syntactic shape. It needs
+// reachability from an async boundary to a setter, scope resolution of `setX` to a useState binding,
+// and one hop into a useCallback — none of which esquery can do. What is forbidden is a site with no
+// guard at all; a guard's spelling is no evidence either way.
 
 const EFFECT_HOOKS = new Set(['useEffect', 'useLayoutEffect'])
 const CONTINUATIONS = new Set(['then', 'catch', 'finally'])
@@ -94,10 +90,8 @@ module.exports = {
       return hook === 'useState' || hook === 'useReducer'
     }
 
-    // One hop, deliberately: the three out-of-order defects this rule was written for all put the
-    // async work in a `const refresh = useCallback(async …)` that the effect merely invokes, so a
-    // rule that only walks the effect body misses exactly the highest-risk class. Two hops is the
-    // known residual.
+    // One hop, deliberately: the highest-risk shape puts the async work in a `const refresh =
+    // useCallback(async …)` that the effect merely invokes. Two hops is the known residual.
     function resolveCalledFunction (callee) {
       if (!callee || callee.type !== 'Identifier') return null
       const variable = lookup(callee.name, callee)
@@ -126,9 +120,8 @@ module.exports = {
       return first
     }
 
-    // Three acceptors, all name-blind: a flag flipped in the cleanup closure, a ref compared against
-    // a captured generation, or an abort signal. Renaming `cancelled` to `alive` — which is what
-    // four hooks in this tree already did — changes nothing here.
+    // Three acceptors, all name-blind: a cleanup flag, a ref compared against a captured generation,
+    // or an abort signal.
     function hasGuardEvidence (region, effectFn) {
       const cleanups = []
       walk(effectFn, (node) => {

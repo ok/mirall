@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace, getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -14,7 +14,7 @@ import {
 
 // A v2 (membership-gated) peer: identity keypair + the flags createSpace reads to pick schema v2.
 async function v2Peer (t) {
-  const ctx = await freshPeerWithIdentity(t)
+  const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx
 }

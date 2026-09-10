@@ -1,16 +1,10 @@
-// Who is fetching a given transferId right now, across every producer. The download engine's
-// registry answers only for its own instance, which is why the mirror had to probe it defensively
-// — and why the answer was wrong for the loose engine's rows anyway.
-//
-// An engine is registered as a PROBE rather than copied into a second map: its registry already has
-// exactly the lifetime of its fetch, and mirroring that into a claims map would mean clearing it at
-// each of start()'s bail sites. Only a producer with no registry of its own — the mirror — holds a
-// claim here, so there is one place that adds and one that removes — plus dropFetchClaim, for the
-// pass that is abandoned rather than finished.
+// Who is fetching a given transferId right now, across every producer — an engine's registry
+// answers only for its own instance. An engine is registered as a PROBE rather than copied into a
+// second map: its registry already has exactly the lifetime of its fetch. Only a producer with no
+// registry of its own — the mirror — holds a claim here, so there is one place that adds and one
+// that removes, plus dropFetchClaim for a pass abandoned rather than finished.
 const held = new Map()
 const probes = new Map()
-
-export const FETCH_OWNER_MIRROR = 'mirror'
 
 export function registerFetchOwner(label, has) {
   probes.set(label, has)
@@ -25,18 +19,14 @@ export function fetchClaimedBy(transferId) {
   return null
 }
 
-export const isFetchClaimed = (transferId) => fetchClaimedBy(transferId) !== null
-
 // Returns a release, or null when someone else already owns the file. The release is guarded on
 // the claim's own token rather than its owner label: a restart drops the claim of the pass it
 // abandons, and that pass may still run its finally afterwards — with a label guard it would then
 // free the claim the fresh pass had already taken.
 export function claimFetch(transferId, owner) {
   const holder = fetchClaimedBy(transferId)
-  // Re-entrant for one owner. The question this registry answers is cross-producer — may the mirror
-  // fetch what an engine is already fetching — and a mirror's own overlapping passes (a poll tick
-  // and an adopted initial scan) are serialised by activeOverlayFetches, not by this. Refusing them
-  // here would change behaviour FIX-R09-2 pins, which is out of scope for the guard this replaces.
+  // Re-entrant for one owner: the question here is cross-producer (may the mirror fetch what an
+  // engine is fetching); a mirror's own overlapping passes are serialised by activeOverlayFetches.
   if (holder === owner) return () => {}
   if (holder) return null
   const token = {}

@@ -54,7 +54,7 @@ test('REGRESSION (FIX-D1-1): a gap in the wanted set withholds every category', 
   t.ok(await coreInStore(strayDk), 'the stray survived — "unwanted" did not mean "unneeded"')
 })
 
-test('REGRESSION (FIX-D1-2): the device profile core survives a failed read of itself', async (t) => {
+test('REGRESSION (FIX-D1-2): the identity bee is never deleted by the sweep that exists to protect it', async (t) => {
   await freshPeer(t)
   await createSpace('Aurora')
   const profileDk = b4a.toString(getProfileBee().core.discoveryKey, 'hex')

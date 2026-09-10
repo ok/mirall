@@ -5,10 +5,9 @@
 // handler bodies rather than the names — files:download reads like a query and is not one.
 //
 // EVERY FIELD IS OPTIONAL. The validator checks the type of what is present and demands nothing,
-// because requiredness needs evidence that every caller supplies the field and that evidence does
-// not exist yet: a first pass marked spaceId and shareId required and broke three real flows —
-// owned-folder:validate is called with no shareId before the share exists, and owned-folder:preview
-// is called with an explicit null. Tighten a field only with its call sites in hand.
+// because requiredness needs evidence that every caller supplies the field, and that evidence does
+// not exist yet — owned-folder:validate runs with no shareId before the share exists, and
+// owned-folder:preview passes an explicit null. Tighten a field only with its call sites in hand.
 //
 // There is no hexKey type for the same reason: ownerKey is a plain string at the boundary and can
 // legitimately be '' (useFiles builds an optimistic row with an empty owner key), so a format

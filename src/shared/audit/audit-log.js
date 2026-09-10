@@ -1,23 +1,25 @@
 // The on-device audit log: a local-only Hyperbee, registered in LOCAL_BEE_NAMES so it inherits
 // the M-derived at-rest encryption. It is never replicated, never announced, and never leaves
-// the device.
-//
-// This module imports only from core/. The instrumentation call sites live across spaces/,
-// transfer/ and folders/, so any import back into those would close a dependency cycle.
+// the device. Imports core/ and its audit/ siblings only: the instrumentation call sites live
+// across spaces/, transfer/ and folders/, so an import back into those closes a cycle.
 //
 // Key layout (both pure appends — no read-modify-write on the hot path):
 //   evt/<seq padded>            -> the record. Zero-padded so lexicographic order is numeric
 //                                  order, which makes a reverse range scan both the
 //                                  newest-first listing and the pagination cursor.
 //   by-space/<spaceId>/<seq>    -> seq. Serves the space filter without a full scan.
-//   by-device/<seq>             -> seq. The same index for the rows that have NO space (device
-//                                  connectivity). An outage is why the file never arrived, so it
-//                                  belongs in a space's timeline — but attributing it TO the space
-//                                  would be wrong, hence a second index rather than a fan-out.
-//   seen/<beeKeyHex>            -> the version of a peer's bee we have already turned into rows.
-//                                  Working state, not a record: audit:purge deliberately leaves
-//                                  it, because resetting it would replay every peer's whole
-//                                  history as if it had just happened.
+//   by-device/<seq>             -> seq. The same index for rows with NO space (device
+//                                  connectivity): an outage belongs in a space's timeline but
+//                                  is not attributable TO the space, hence a second index.
+//   seen/<beeKeyHex>            -> the version of a peer's bee already turned into rows. Working
+//                                  state: audit:purge keeps it, or every peer's history replays.
+//   pstate/<subject>            -> 'on' for the last RECORDED state of a peer subject (a share or
+//                                  mirror record); 'off' is the absence of the key. Durable so a
+//                                  restart does not re-emit an act whose record merely got re-written.
+//   nstate                      -> the last RECORDED device connectivity episode; healthy is the
+//                                  absence of the key. Both are observed state: audit:purge drops
+//                                  them and restates the standing fact once.
+//   config                      -> retention settings — user preferences, kept by audit:purge.
 import { createLocalBee, getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { buildRecord } from './audit-record.js'
@@ -408,18 +410,15 @@ export async function setAuditConfig(patch = {}) {
   return { ...config }
 }
 
-// NOTE — byte-level reclamation is deliberately NOT done here. A Hyperbee `del` only appends a
-// tombstone, so pruned rows stop being readable but their blocks stay on disk. Releasing them
-// with core.clear() is unsafe as written: Hyperbee interleaves B-tree index nodes with value
-// blocks, so a range clear can drop a node the live index still points at — measured, clearing a
-// pruned prefix leaves a fresh open reading back zero rows and stalling on a missing block.
-// Growth is bounded in the meantime by `maxEntries`, which caps the row count regardless of the
-// age window; the residue is ~1KB per pruned row after compaction.
-//
-// A TOTAL wipe can reclaim, because it need not preserve any index — see purgeAudit, which
-// truncates the core to zero instead. That does not generalize to a partial prune: keeping the
-// newest N rows would mean copy-forward (read the survivors, truncate, re-append), whose cost
-// scales with `maxEntries` on every prune. Worth building only if the residue is shown to matter.
+// Bytes: a Hyperbee `del` appends a tombstone, and a range core.clear() is unsafe — Hyperbee
+// interleaves index nodes with value blocks, so a cleared prefix can drop a node the live index still
+// points at (measured: a fresh open reads zero rows and stalls on a missing block). So prune reclaims
+// no bytes — growth is bounded by `maxEntries`, with ~1KB of residue per pruned row — and purge
+// does, via `truncate(0)`: it empties the tree in place AND drops the blocks while the bee handle
+// stays valid, where purge-and-recreate reopens corestore's stale cached tracker and every later
+// read hangs (no `clear()` after it: hypercore early-returns once start >= length). Purge writes
+// back `config` (a preference) and `seen/` (dropping the watermarks replays every peer's history)
+// and drops `pstate/`/`nstate`: observed state, so restating a standing fact after a wipe is right.
 
 export async function pruneAudit({ now = Date.now() } = {}) {
   if (!bee) return { removed: 0 }
@@ -478,27 +477,8 @@ export async function pruneAudit({ now = Date.now() } = {}) {
   return { removed }
 }
 
-// The user's explicit wipe — and the ONE place bytes are actually reclaimed. Deleting the rows
-// key-by-key would free nothing (see the NOTE above pruneAudit): a `del` is an append, so a
-// row-wise purge left every original block on disk and added a tombstone per row on top, ending
-// with a bigger store than before. A purge discards the whole event set, so it can do what a
-// partial prune cannot — reset the core itself.
-//
-// `truncate(0)` (not a core purge-and-recreate) is the primitive: it empties the tree in place AND
-// drops the blocks, so the bee handle stays valid and corestore never has to resolve a same-key
-// core it still has cached — recreating the core instead reopens a stale in-memory tracker entry
-// whose storage is gone, and every later read hangs. No `clear()` follows it: hypercore's clear
-// early-returns once `start >= length`, so after a truncate to zero it is a measured no-op.
-//
-// Two keys are written back rather than being lost with the reset:
-//   config  — retention settings are user preferences, not log content.
-//   seen/   — the peer-bee watermarks. Dropping them makes first contact re-read every peer's
-//             whole history and replay it as if it had just happened (see the header), turning
-//             "delete my activity" into "flood it with a decade of theirs".
-// `pstate/` and `nstate` are deliberately NOT written back: both mirror observed state, so they are
-// log content, and keeping them would suppress the next standing-state row. The cost is one row
-// after a purge if the network is still degraded, which is right — the log was emptied, and the
-// standing fact is worth restating.
+// The user's explicit wipe — the ONE place bytes are reclaimed; the header above pruneAudit says how
+// and which keys survive it.
 export async function purgeAudit() {
   if (!bee) return { purged: 0 }
   await flushAudit()

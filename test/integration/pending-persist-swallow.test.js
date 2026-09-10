@@ -7,7 +7,7 @@ import {
   initPendingTransfers, recordPending, recordPendingError, updatePendingProgress, getPendingFor, _pendingBeeForTests,
 } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads, isDownloadedFile, markDownloaded } from '../../src/shared/transfer/files.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 
 // A write that encodes STATUS or INTENT may fail loudly, never silently. These pin the four
@@ -130,7 +130,7 @@ test('REGRESSION (FIX-PENDING-SWALLOW-1): a checksum failure whose verdict canno
   await engine.resumeForOwner('peerpub', 'space1')
   await settleTick()
   t.is(started.length, 2, 'a deliberate Resume re-attempts')
-  t.is((await getPendingFor('space1', '/Photos/doc.bin')).errorCode, ErrorCodes.TRANSFER_CHECKSUM, 'with writes restored the verdict lands durably')
+  t.is((await getPendingFor('space1', '/Photos/doc.bin')).errorCode, CODES.TRANSFER_CHECKSUM, 'with writes restored the verdict lands durably')
 })
 
 // REGRESSION (FIX-PENDING-SWALLOW-2: clearPending after a completed download was swallowed. The
@@ -231,12 +231,12 @@ test('REGRESSION (FIX-PENDING-SWALLOW-RMW): a progress tick issued after the err
 
   // Both writes are issued in the same turn, error first — the order the engine issues them in
   // when chunks are still landing as the mismatch is classified.
-  const verdict = recordPendingError('space9', '/late.bin', ErrorCodes.TRANSFER_CHECKSUM)
+  const verdict = recordPendingError('space9', '/late.bin', CODES.TRANSFER_CHECKSUM)
   const lateTick = updatePendingProgress('space9', '/late.bin', 9999)
   await Promise.all([verdict, lateTick])
 
   const row = await getPendingFor('space9', '/late.bin')
-  t.is(row.errorCode, ErrorCodes.TRANSFER_CHECKSUM, 'the verdict survives a progress tick issued after it')
+  t.is(row.errorCode, CODES.TRANSFER_CHECKSUM, 'the verdict survives a progress tick issued after it')
   t.is(row.bytesTransferred, 9999, 'and the tick still recorded its bytes')
 })
 

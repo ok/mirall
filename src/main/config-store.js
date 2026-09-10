@@ -38,17 +38,6 @@ function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
-// Per-field allowlist, deliberately not a spread of feature-flags.json: main is the only
-// writer of flags, and the renderer must never receive one it could echo back. Empty since
-// the relay flag retired — add a name here to expose the next renderer-visible flag.
-const RENDERER_FEATURES = []
-
-function featureSnapshot(flags) {
-  const out = {}
-  for (const name of RENDERER_FEATURES) out[name] = flags?.[name] === true
-  return out
-}
-
 // Overlay stored values onto the default tree so a config written by an older
 // version self-heals: keys it never knew about appear with their defaults while
 // the values it did set are preserved.
@@ -76,10 +65,6 @@ class ConfigStore {
     this._storageDir = opts.storageDir || path.join(dataDir, 'app-storage')
     this._file = path.join(dataDir, CONFIG_FILENAME)
     this._data = defaults()
-    // A thunk, not a value: the store is constructed before primeFeatureFlags runs, so
-    // latching flags here would capture the degraded lazy-read result and could
-    // disagree with the copy the worker gets from the primed cache.
-    this._readFeatures = opts.readFeatures || (() => ({}))
     this._dirty = false
     this._timer = null
   }
@@ -108,13 +93,10 @@ class ConfigStore {
     if (!isPlainObject(data.network)) data.network = defaults().network
     data.network.relayMode = normalizeRelayMode(data.network.relayMode)
     data.network.relay = sanitizeRelay(data.network.relay)
-    // Every config.json written before the single-slot change carries `relays: []`, and
-    // mergeDefaults keeps stored keys the defaults no longer name, so without this the dead
-    // array outlives the feature. Nothing is folded: the relay UI has never been reachable
-    // in a shipped build, so no config.json in the wild holds a relay to lose. Scheduled
-    // rather than written here, and only when there is something to drop — load() does not
-    // otherwise persist, and rewriting the file on every boot to change nothing is worse
-    // than leaving a dead key one more launch.
+    // Drops the pre-single-slot `relays` key, which mergeDefaults would otherwise keep forever.
+    // Never folded — no shipped build could write a relay into it. Scheduled rather than written
+    // here, and only when there is something to drop: load() does not otherwise persist, and
+    // rewriting the file on every boot to change nothing is worse than a dead key one more launch.
     if ('relays' in data.network) {
       delete data.network.relays
       this._schedule()
@@ -189,7 +171,7 @@ class ConfigStore {
         relayMode: d.network.relayMode,
         relay: d.network.relay ? { ...d.network.relay } : null,
       },
-      features: featureSnapshot(this._readFeatures()),
+      features: {},
     }
   }
 

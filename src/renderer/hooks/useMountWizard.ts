@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePreviewFlow, type PreviewHandle } from './usePreviewFlow.js'
-import { useToast } from '../components/toast/useToast.js'
+import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import type { MountValidationResult, PreviewProgress } from '../types.js'
 
-export type MountWizardStepName = 'edit' | 'preview'
+type MountWizardStepName = 'edit' | 'preview'
 
-export interface MountWizardOps {
+interface MountWizardOps {
   isOpen: boolean
   initialPath?: string
   // The identity the form belongs to. Changing it while the wizard is open starts it over, which is
@@ -20,9 +20,7 @@ export interface MountWizardOps {
 }
 
 // The two folder-mount wizards are one state machine over three injected calls — validate a path,
-// scan it, commit it. They had a copy each: the same step/submitting pair, the same reset-on-open
-// effect, the same point-in-time validation probe with its own cancel flag, the same "cancelling the
-// scan returns you to the edit step", and the same swallow of PREVIEW_CANCELLED.
+// scan it, commit it.
 export function useMountWizard({
   isOpen,
   initialPath = '',
@@ -42,11 +40,9 @@ export function useMountWizard({
   const [submitting, setSubmitting] = useState(false)
   const { preview, progress, loading, run, cancel, reset } = usePreviewFlow(cancelPreview)
 
-  // The injected calls are read through a ref, never through a dependency list. Both callers build
-  // them from props as inline arrows, so their identity changes every render; a validate() in the
-  // deps below would clear the verdict, re-render, and spin. This is the same technique
-  // useRegisterCommand uses for `run`, and it keeps both effects' deps exactly what the two modals
-  // had before they shared one machine.
+  // The injected calls are read through a ref, never through a dependency list: both callers build
+  // them as inline arrows, so a validate() in the deps would clear the verdict, re-render and spin
+  // (the technique useRegisterCommand uses for `run`; mount-wizard-single-source.test.js pins it).
   const opsRef = useRef({ validate, startPreview, commit, onCommitted })
   opsRef.current = { validate, startPreview, commit, onCommitted }
 

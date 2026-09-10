@@ -6,9 +6,8 @@ import { setupSelfMirror } from '../helpers/owned.js'
 import { getDrive } from '../../src/shared/spaces/space.js'
 import { applyChange, initialMaterializeScan } from '../../src/shared/folders/foreign-folders.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { sharePrefix } from '../../src/shared/folders/path-keys.js'
 import { pathFromMount } from '../../src/shared/transfer/path-guard.js'
-import { ErrorCodes } from '../../src/shared/core/errors.js'
+import { CODES } from '../../src/shared/contract/errors.js'
 
 // MIR-06: a malicious owner writes a RAW Hyperbee entry under Hyperdrive's
 // SubEncoder('files','utf-8') keyspace (hyperdrive/index.js:16), bypassing the
@@ -73,7 +72,7 @@ test('REGRESSION (MIR-06): the materialize scan drops a poisoned key, keeps sync
   const drive = getDrive(ctx.spaceId)
   const outside = ctx.tmpDir('outside')
   const evil = path.join(outside, 'evil.txt')
-  await injectRawKey(drive, sharePrefix('Docs') + relToSibling(ctx.mirrorPath, evil))
+  await injectRawKey(drive, '/Docs/' + relToSibling(ctx.mirrorPath, evil))
 
   await initialMaterializeScan(ctx.mount)
 
@@ -104,7 +103,7 @@ test('the mirror and the content backend reject an escaping key identically', as
 
   t.ok(fromMirror, 'the mirror refused it')
   t.ok(fromBackend, 'and so did the backend')
-  t.is(fromMirror.code, ErrorCodes.EPATH)
+  t.is(fromMirror.code, CODES.EPATH)
   t.is(fromMirror.code, fromBackend.code, 'one guard, one code')
   t.is(fromMirror.message, fromBackend.message, 'and one message — the merge did not fork the contract')
 })

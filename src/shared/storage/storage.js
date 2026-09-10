@@ -1,7 +1,5 @@
 // Storage accounting behind the Storage screen: measure the store's disk footprint (per-space
-// drives, overlay index, database remainder), plus the boot-time metadata sweep. Reclaim is no
-// longer user-driven — the overlay copies no file bytes into the store, so there was nothing
-// left for a "free up space" action to free.
+// drives, overlay index, database remainder), plus the boot-time metadata sweep.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
@@ -104,7 +102,7 @@ export async function getSpaceCacheBytes(spaceId) {
 export async function cleanupOrphanedData() {
   const withDrives = await shouldReclaimOrphanDrives()
   const categories = withDrives ? ['profiles', 'catalogs', 'orphanDrives'] : ['profiles', 'catalogs']
-  const { purged, withheldDrives, refused } = await purgeLeftovers({ categories, compact: false })
+  const { purged, scanComplete, refused } = await purgeLeftovers({ categories, compact: false })
   // A refused sweep looked at nothing, so it must not consume the one-shot orphan-drive pass below
   // — that flag is the only chance this build ever gets to reclaim pre-overlay drive blobs.
   if (refused) {
@@ -112,9 +110,9 @@ export async function cleanupOrphanedData() {
     return { purged: 0, refused }
   }
   log.info('leftover metadata cleanup done, pruned', purged, 'cores')
-  // A scan that withheld the drive category looked away on purpose — a space drive had not opened
-  // — so spending the single pass here would strand those bytes for good. Retry on a later boot.
-  if (withDrives && !withheldDrives) {
+  // A scan with gaps looked away on purpose — a space drive had not opened — so spending the single
+  // pass here would strand those bytes for good. Retry on a later boot.
+  if (withDrives && scanComplete) {
     await markOrphanDrivesReclaimed(purged)
     // Awaited, not deferred: a compaction left running behind a short-lived process races the
     // store's close, and RocksDB does not survive that politely.

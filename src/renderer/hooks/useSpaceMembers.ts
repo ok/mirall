@@ -1,7 +1,5 @@
 // Shared per-space roster (avatars included) for card facepiles: spaces:list ships slim rosters, so
-// avatar-rendering consumers read space:members once per space. The store holds the cache and the
-// latest-wins guard now, and — because useMembers reads the same entry — the two hooks that both
-// fetched this per members hint issue ONE request between them.
+// avatar-rendering consumers read space:members once per space — the entry useMembers also reads.
 import { useQuery } from '../store/useQuery.js'
 import { invalidateKey } from '../store/query-store.js'
 import type { SpaceMember } from '../types.js'

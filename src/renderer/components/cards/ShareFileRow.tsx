@@ -143,8 +143,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
         onToggleDownloaders={() => setShowDownloaders((v) => !v)}
         dropdownId={dropdownId}
       />
-      {/* Right edge is actions only; the verified badge is information and sits with
-          the status pill above (so pills stay right-aligned across rows). */}
+      {/* Right edge is actions only (FileCard's rule); the verified badge sits with the status pill above. */}
       <div className="flex items-center gap-1 shrink-0">
         <FileRowActions
           action={action}
@@ -173,8 +172,6 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
   )
 }
 
-// Same reason as FileCard: the folder tree's rows must not repaint on every decoration heartbeat.
-// `file` keeps its identity across a listing refetch (shareFilesReconcile.js), `members` is the
-// memoized roster, `decoration` and `downloadSummary` are per-path Map values, and the five
-// handlers are stable.
+// memo against the decoration heartbeat (src/renderer/hooks/README.md): `file` is identity-reconciled,
+// `members` memoized, decoration/downloadSummary per-path Map values, the five handlers stable.
 export default memo(ShareFileRow)

@@ -16,9 +16,7 @@ interface RowLaneProps {
   /** The file's own display name. The badge sits apart from it in the row, so on its own it
       announces a bare state with nothing tying it to what it describes. */
   rowName: string
-  /** The indicator lane's width. The share row's name column is narrower (it carries a leading
-      gutter and a filter), so its indicator gets more basis and sheds it faster. The 180px floor
-      is shared and is the part that keeps speed·ETA fitting. */
+  /** Which row this lane sits in; picks the lane width below. */
   kind: RowKind
   members?: SpaceMember[]
   downloadSummary?: PeerDownloadSummary | null
@@ -152,6 +150,9 @@ function IndicatorLane({ summary, members, rowName, kind, open, onToggle, contro
   controlsId: string
 }) {
   const { t } = useTranslation()
+  // The share row's name column is narrower (it carries a leading gutter and a filter), so its
+  // indicator gets more basis and sheds it faster. The 180px floor is shared and is the part that
+  // keeps speed·ETA fitting.
   const width = kind === 'share' ? 'basis-72 shrink-[2]' : 'basis-56 shrink'
   return (
     <>

@@ -45,8 +45,7 @@ export function createAnnounceLedger () {
 
 // The status a space contributes to the re-announce settle decision. A PRESENT space with no
 // status field (owner-created and v1 spaces carry none) is 'active' — a normal member space we
-// must keep re-announcing for — NOT settled; only a genuinely-absent space (getSpace null) is
-// null. Conflating "statusless but present" with "gone" silently killed the owner's re-announce.
+// must keep re-announcing for — NOT settled; only a genuinely-absent space (getSpace null) is null.
 export function announceStatus (space) {
   return space ? (space.status || 'active') : null
 }

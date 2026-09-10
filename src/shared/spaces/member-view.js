@@ -127,25 +127,14 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
   const shareRange = { gte: SHARE_PREFIX + spaceId + '/', lt: SHARE_PREFIX + spaceId + '/\xff' }
   const shareWatchers = new Map()
 
-  // The fold's read set expressed as watch ranges — one per read deriveMemberSet actually issues.
-  // Without them createDerivedView watches the WHOLE bee, and every profile write a peer makes
-  // wakes a full serial roster re-fold at one network-bounded readMembershipRecord per member.
-  // displayName, avatar, publicKey, invite/, drive/, loosecat*/, mirror/ and share/ are read by no
-  // part of this fold, and share/ is doubly wasteful because shareRange above already covers it.
-  // viewSignature does not save this: it suppresses the emit AFTER the fold has already run.
-  //
-  // This range set IS the membership convergence guarantee. A key family the fold reads but this
-  // set omits yields a view that is correct at fold time and then silently never re-folds when
-  // that key changes. It is enforced by test/integration/member-view-watch-range.test.js, which
-  // drives a write into each of these prefixes and asserts a re-fold, and into each excluded
-  // prefix and asserts none. The bounds mirror profile.js's read streams byte-for-byte, including
-  // the '0' upper bound (0x30, the byte after '/').
-  //
-  // The two exact-key ranges are exact on purpose. member/<spaceId> must NOT be a prefix range:
-  // member/<other> is another space's membership and must not wake this space's fold.
-  // caps/membership-manifest is written once and so almost never fires, but stays a wake reason in
-  // its own right — a peer publishing its manifest after we first folded it reads as "unknown /
-  // not replicated yet" until something re-folds.
+  // The fold's read set as watch ranges — one per read deriveMemberSet issues. Watching the WHOLE
+  // bee instead would wake a full serial roster re-fold (one network-bounded read per member) on
+  // every profile write a peer makes. This range set IS the membership convergence guarantee: a key
+  // family the fold reads but this set omits yields a view that is correct at fold time and then
+  // silently never re-folds. The bounds mirror profile.js's read streams byte-for-byte, including
+  // the '0' upper bound (the byte after '/'). member/<spaceId> is an exact key, not a prefix:
+  // member/<other> is another space's membership. caps/membership-manifest is exact and almost
+  // never fires, but a peer publishing its manifest after we first folded it must re-fold us.
   const foldRanges = [
     { gte: CAP_MEMBERSHIP_MANIFEST, lte: CAP_MEMBERSHIP_MANIFEST },
     { gte: 'member/' + spaceId, lte: 'member/' + spaceId },
@@ -211,7 +200,7 @@ export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onE
           if (prev == null || d.ts > prev) denied.set(d.joiner, d.ts)
         }
       }))
-      return { ...result, requests, denied }   // { members, considered, approved, requests, denied }
+      return { ...result, requests, denied }
     },
     onChange: emit,   // receives { members, considered, approved, requests, denied }
     onError,

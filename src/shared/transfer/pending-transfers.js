@@ -67,18 +67,6 @@ export function recordPendingError(spaceId, filePath, errorCode) {
   })
 }
 
-export function clearPendingError(spaceId, filePath) {
-  const key = rowKey(spaceId, filePath)
-  return exclusive(key, async () => {
-    const cur = await bee.get(key)
-    if (!cur?.value?.errorCode) return
-    const next = { ...cur.value }
-    delete next.errorCode
-    delete next.erroredAt
-    await bee.put(key, next)
-  })
-}
-
 export async function listPending() {
   const out = []
   for await (const entry of bee.createReadStream()) {

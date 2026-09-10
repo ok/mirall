@@ -6,7 +6,8 @@
 import path from 'bare-path'
 import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
 import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './mount-store.js'
-import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
+import { AppError, classifyLocalIoFault } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { liveHandle, ownedScheduler } from '../core/timers.js'
@@ -18,14 +19,12 @@ import { ensureServable, setFolderPublishLane } from '../transfer/backends/overl
 import { pathFromMount } from '../transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../state/coalesce.js'
 import { countDiskFiles, walkDisk } from './walk-disk.js'
-import { relToDriveKey as relToKey, shouldIgnore, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
+import { relToDriveKey as relToKey, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'
 import { mountRootAvailable } from './publish-runner.js'
 import { statFacts } from './disk-presence.js'
 import { registerPublishChannel, settleCatalog } from './publish-service.js'
 import { getReconcileStallWindowMs } from '../core/runtime-config.js'
-
-export { shouldIgnore, DEFAULT_IGNORE, mountRootAvailable }
 
 const log = createLogger('owned-folders')
 
@@ -53,45 +52,38 @@ function sched() {
 let subsystem = null
 
 const reconcileTimers = new Map()
-// Diff passes currently reading a mount. A pause or a stop must reach the pass itself, not just the
-// queue it is about to fill: cancelShare empties a queue, and the pass then hands enqueueMany
-// everything it walked — so on a large tree the index restarts the moment that read lands.
+// Diff passes currently reading a mount: a pause or a stop must reach the pass itself, not just the
+// queue it is about to fill, or the pass hands enqueueMany everything it walked and the index restarts.
 const scanSignals = new Map()
-// Catch-up passes currently walking a mount, and the latch that stops new ones being armed. A
-// catch-up re-arms ITSELF while files are still settling, so clearing the timers is not enough:
-// without the latch a pass that resolves during teardown schedules another one on a closed store.
+// Catch-up passes in flight, and the latch that stops new ones being armed: a catch-up re-arms
+// ITSELF while files are still settling, so clearing the timers alone leaves one to fire on a
+// closed store.
 const catchupInFlight = new Set()
 let stopping = false
 const POST_EVENT_RECONCILE_MS = 2000
-// A catch-up that deferred a still-settling file re-arms itself with this backoff, so a file
-// written for minutes on end (a log) costs a stat walk every minute, not every two seconds.
+// Backoff for a catch-up that deferred a still-settling file, so a log written for minutes costs a
+// stat walk every minute, not every two seconds.
 const CATCHUP_BACKOFF_MAX_MS = 60000
 // Longer than chokidar's awaitWriteFinish stabilityThreshold, so a catch-up diff that runs
 // mid-copy leaves the file to the watcher instead of reading it and reverting.
 const SCAN_SETTLE_MS = 2000
-// How often a phase that iterates without touching the disk (the catalog drain, the diff) bumps the
-// pass heartbeat. Often enough that no phase can go quiet for the stall window, rare enough that the
-// bookkeeping is not itself the cost.
+// How often a phase that iterates without touching the disk (catalog drain, diff) bumps the pass
+// heartbeat: often enough that no phase goes quiet for the stall window, rare enough to be free.
 const LIVENESS_EVERY = 500
-// Tracked on the PASS, not on the coalescing wrapper: a caller that joins a run in flight must
-// not re-stamp its heartbeat and make a stalled pass read as fresh.
+// Tracked on the PASS, not the coalescing wrapper: a caller joining a run in flight must not
+// re-stamp its heartbeat and make a stalled pass read as fresh.
 const passLiveness = createPassLiveness()
-// Shares whose reconcile pass the supervisor abandoned and which have not been scanned since.
-// Kept because a unit that vanishes the moment we act on it takes its strike counter with it: the
-// policy prunes counters for rows nobody reports any more, so the recovery budget reset on every
-// attempt, `maxRecoveries` could never be reached, and the one error line that names the folder we
-// have given up on could never print. It is also the honest state — nothing is scanning that
-// folder, and the periodic reconcile is six hours away.
+// Shares whose reconcile pass the supervisor abandoned and which have not been scanned since. Kept
+// reported: the policy prunes the strike counter of any row nobody reports, so a unit that vanished
+// the moment we acted on it could never reach `maxRecoveries` or be given up on by name.
 const abandoned = new Set()
 
 const shareCache = new Map()
 
-// The worst classified I/O fault seen since the last pass settled, per (space, share). Every item
-// that failed used to be counted by the scheduler and then dropped, so a pass whose every publish
-// hit a full disk still resolved as a clean scan and settled the mount to 'active'. A full disk
-// outranks a permission fault: it is the one that stops the whole device rather than one subtree.
-// Drained by whichever pass settles next rather than cleared when one starts — a watcher item that
-// failed between passes is the live case, and clearing at the start would throw exactly that away.
+// The worst classified I/O fault since the last pass settled, per (space, share). A full disk
+// outranks a permission fault (it stops the whole device, not one subtree). Drained by the pass that
+// settles next, never cleared when one starts: a watcher item that failed between passes is the live
+// case, and clearing at the start would throw exactly that away.
 const passFaults = new Map()
 const faultKey = (spaceId, shareId) => spaceId + '\0' + shareId
 
@@ -99,7 +91,7 @@ function recordPassFault(spaceId, shareId, err) {
   const code = classifyLocalIoFault(err)
   if (!code) return
   const key = faultKey(spaceId, shareId)
-  if (passFaults.get(key) === ErrorCodes.TRANSFER_DISK_FULL) return
+  if (passFaults.get(key) === CODES.TRANSFER_DISK_FULL) return
   passFaults.set(key, code)
 }
 
@@ -114,7 +106,7 @@ async function loadShareForMount(mount) {
   const { readOwnShares } = await import('../shares/shares.js')
   const own = await readOwnShares(mount.spaceId)
   const share = own.find((s) => s.id === mount.shareId)
-  if (!share) throw new AppError(ErrorCodes.NOT_FOUND, 'Share missing for mount')
+  if (!share) throw new AppError(CODES.NOT_FOUND, 'Share missing for mount')
   return { ...share, spaceId: mount.spaceId }
 }
 
@@ -350,11 +342,9 @@ async function reconcileShare(spaceId, shareId, mountPath, ignore, { deep = fals
     // key was recovered would otherwise clear the heartbeat of the fresh pass that replaced it,
     // and that pass would then be invisible to the supervisor for the rest of its life.
     const pass = passLiveness.started(key)
-    // Registered for the whole pass rather than only for the read half. abortScan reaches whatever
-    // is in scanSignals, and the read half used to hand its signal back the moment it returned — so
-    // a pause, a stop or a supervisor recovery arriving during the self-heal loop that follows
-    // (the long pole on a large, fully synced share) stopped nothing at all, while the key it
-    // freed let a second pass start over the same mount.
+    // Registered for the WHOLE pass, not only the read half: abortScan reaches whatever is in
+    // scanSignals, and a pause, stop or recovery must also end the self-heal loop that follows the
+    // read — the long pole on a large, fully synced share.
     const signal = { aborted: false }
     scanSignals.set(key, signal)
     try {
@@ -405,9 +395,9 @@ async function readBothSides(spaceId, shareId, mountPath, ignore, pass, signal) 
   const key = spaceId + ':' + shareId
   try {
     const walk = await walkDisk(mountPath, ignore, { signal, onProgress: () => passLiveness.progress(key, pass) })
-    // Every phase after the walk beats too. The walk is the only one that reports per file, so a
-    // pass whose catalog side is the slow half — a large share, a flush window that just closed —
-    // used to go quiet for the whole stall window and be reported as wedged while it was working.
+    // Every phase after the walk beats too: the walk is the only one that reports per file, and a
+    // pass whose catalog side is the slow half (a large share, a flush window that just closed) must
+    // not go quiet for the stall window and read as wedged.
     passLiveness.progress(key, pass)
     // Commit the space batch first, or this read misses every hash materialized in the last flush
     // window and re-enqueues those files.
@@ -432,7 +422,7 @@ async function readBothSides(spaceId, shareId, mountPath, ignore, pass, signal) 
 async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, deferFresh }, pass, signal) {
   const key = spaceId + ':' + shareId
   const mount = await getOwnedMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount missing')
+  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount missing')
   // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
   // It is also what makes a pause survive a restart by construction — boot's resume pass, the
   // reconcile timer and the watcher's catch-up all call in through here.
@@ -543,9 +533,9 @@ export function getIndexStatus(spaceId, shareId) {
   return sched().statusFor(spaceId, shareId)
 }
 
-// Stops a walk in progress. walk-disk honours the signal per file (it is how cancel-preview
-// works); the scan path simply never passed one.
-export function abortScan(spaceId, shareId) {
+// Stops a walk in progress: walk-disk honours the signal per file (it is how cancel-preview
+// works), and the scan passes its own token through readBothSides the same way.
+function abortScan(spaceId, shareId) {
   const signal = scanSignals.get(spaceId + ':' + shareId)
   if (signal) signal.aborted = true
   return !!signal
@@ -637,12 +627,9 @@ export class OwnedFolders extends Subsystem {
     return rows
   }
 
-  // Abandon the wedged diff and let the cadence start a fresh one. Three steps, none optional: the
-  // abort signal stops the walk at its next file, the runner drops the key so the next request does
-  // not coalesce onto a promise that may never settle, and forgetting the heartbeat is what stops
-  // the abandoned pass being reported wedged forever. Deliberately does NOT await a fresh pass: the
-  // periodic reconcile and the watcher both re-arm one, and awaiting here would hold the
-  // supervisor's recovery budget open on the same mount that just wedged.
+  // Abandon the wedged diff. Three steps, none optional: the abort signal stops the walk at its next
+  // checkpoint, the runner drops the key so the next request does not coalesce onto a promise that
+  // may never settle, and forgetting the heartbeat stops the abandoned pass being reported forever.
   async recover(key) {
     if (this.stopping) return
     const [spaceId, shareId] = splitPassKey(key)
@@ -651,25 +638,19 @@ export class OwnedFolders extends Subsystem {
     runDiff.cancel(key)
     passLiveness.forget(key)
     abandoned.add(key)
-    // Re-armed here rather than left to the cadence. The periodic reconcile is six hours out and
-    // the watcher only fires on a filesystem event, so an idle share would sit unscanned until
-    // then — the abandoned row above would report it, truthfully, for six hours. Safe to start now
-    // that the abort signal spans the whole pass: the pass we just abandoned bails at its next
-    // checkpoint instead of walking the same mount beside this one.
+    // Re-armed here, not left to the cadence: the periodic reconcile is six hours out and the watcher
+    // fires only on a filesystem event. Safe because the abort signal spans the whole pass.
     const mount = await getOwnedMount(spaceId, shareId)
     // Nothing to scan and nothing to report: the share is no longer mounted here.
     if (!mount) { abandoned.delete(key); return }
-    // Deliberately NOT awaited: a fresh pass over a large share legitimately outlives the
-    // supervisor's recovery budget, and holding that budget open on the mount that just wedged is
-    // the one thing a recovery must not do. If this pass wedges too, the next probe sees it and
-    // the strike counter — kept alive by the row above — reaches the give-up limit.
+    // NOT awaited: a fresh pass over a large share outlives the supervisor's recovery budget, and
+    // holding that budget open on the mount that just wedged is the one thing a recovery must not
+    // do. If this pass wedges too, the strike counter — kept alive by the abandoned row — reaches the
+    // give-up limit.
     periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE)
       .catch((err) => log.debug('reconcile after recovery failed:', shareId, '-', err.message))
   }
 
-  // The mirror side has reported pass liveness since the supervision contract landed; the owner
-  // side never did, so a diff that never settles read as healthy. Counts, not identifiers —
-  // diagnostics:export is user-shareable and redacts space and share ids.
   health() {
     const open = !this.closed && !this.stopping
     if (!open) return { ok: false, detail: null }
@@ -681,5 +662,3 @@ export class OwnedFolders extends Subsystem {
     }
   }
 }
-
-export { walkDisk }

@@ -4,8 +4,6 @@ import FilePath from './FilePath.js'
 
 interface PathRowProps {
   path: string | null
-  /** Shown in place of the path when there is none yet. Defaults to the pick-a-location hint. */
-  placeholder?: string
   /**
    * A path exists but its text has not arrived yet. Distinct from having none: the field says so
    * instead of offering a first pick, and the button already reads as a re-pick, so the label does
@@ -31,23 +29,12 @@ const FILL = {
   lowest: 'bg-surface-container-lowest',
 } as const
 
-// One filesystem path, presented the same way everywhere it appears: the path in a filled field,
-// with an optional button beside it that re-picks it. Add Folder, Mirror to Disk, Edit Folder,
-// Storage settings and Edit Space all show the same thing and had drifted — three shared this
-// markup while two rendered a bare line of text next to a shorter, dimmer button, so the same fact
-// looked like a different kind of thing depending on how you arrived at it.
-//
-// Display-only keeps the field rather than falling back to bare text: a path is a value either
-// way, and the button's presence is what says whether you can change it.
-//
-// The label follows the state rather than the caller: nothing picked yet is a first pick
-// ("Browse…"), a path already in the field — or one still loading — is a re-pick ("Change").
-// Callers used to choose, and chose four different strings for the one action.
-//
-// The placeholder is muted TEXT, not an outline: `outline` is the badge/dropzone border token and
-// fails AA against every fill in both themes (2.5:1 and worse in dark), which is what a field
-// showing its hint as its only content was rendering.
-export default function PathRow({ path, placeholder, loading = false, onAction, ariaDescribedBy, actionRef, fill = 'low' }: PathRowProps) {
+// One filesystem path, presented the same way everywhere: the path in a filled field, with an
+// optional button beside it that re-picks it. Display-only keeps the field — a path is a value
+// either way; the button's presence says whether you can change it. The label follows the state,
+// not the caller: nothing picked is "Browse…", a path (or one still loading) is "Change". The
+// placeholder is muted TEXT, not `outline`: that token fails AA against every fill in both themes.
+export default function PathRow({ path, loading = false, onAction, ariaDescribedBy, actionRef, fill = 'low' }: PathRowProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center gap-3">
@@ -56,7 +43,7 @@ export default function PathRow({ path, placeholder, loading = false, onAction, 
           <FilePath path={path} className="flex-1 text-sm text-accent font-medium" />
         ) : (
           <span className="text-sm text-on-surface-variant italic">
-            {loading ? t('pathField.loading') : placeholder ?? t('pathField.placeholder')}
+            {loading ? t('pathField.loading') : t('pathField.placeholder')}
           </span>
         )}
       </div>

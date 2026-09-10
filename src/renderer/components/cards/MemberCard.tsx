@@ -31,7 +31,6 @@ function MemberCard({ member }: MemberCardProps) {
   )
 }
 
-// `member` is the only prop and it keeps its identity while the roster is unchanged (useMembers
-// memoizes the projection), so this row sits out the decoration heartbeat entirely. A presence
-// transition rebuilds every member object and re-renders the roster, which is correct.
+// memo: `member` keeps its identity while the roster is unchanged (useMembers memoizes it); a
+// presence transition rebuilds the roster, which is correct (src/renderer/hooks/README.md).
 export default memo(MemberCard)

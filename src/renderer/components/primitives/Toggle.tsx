@@ -9,7 +9,7 @@ interface ToggleProps {
 }
 
 // The full-width row form: the whole control is one button, so it cannot sit in a row
-// beside other buttons. Use CompactToggle for that.
+// beside other buttons.
 export default function Toggle({ label, description, checked, disabled, onChange }: ToggleProps) {
   const labelId = useId()
   const descId = useId()
@@ -30,33 +30,6 @@ export default function Toggle({ label, description, checked, disabled, onChange
         <p id={labelId} className="font-semibold text-accent">{label}</p>
         {description && <p id={descId} className="text-sm text-on-surface-variant mt-1">{description}</p>}
       </div>
-      <ToggleSwitch checked={checked} />
-    </button>
-  )
-}
-
-interface CompactToggleProps {
-  ariaLabel: string
-  checked: boolean
-  disabled?: boolean
-  onChange: (next: boolean) => void
-}
-
-// Just the switch, named by aria-label instead of a sibling text node, so it can be one
-// control among several in a row.
-export function CompactToggle({ ariaLabel, checked, disabled, onChange }: CompactToggleProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`shrink-0 rounded-full transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
-        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
-      }`}
-    >
       <ToggleSwitch checked={checked} />
     </button>
   )

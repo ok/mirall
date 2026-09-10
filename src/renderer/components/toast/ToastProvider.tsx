@@ -65,7 +65,6 @@ export function ToastProvider({ children }: Props) {
         message,
         duration,
         action: opts.action,
-        createdAt: Date.now(),
       }
       const previous = timersRef.current.get(id)
       if (previous !== undefined) {

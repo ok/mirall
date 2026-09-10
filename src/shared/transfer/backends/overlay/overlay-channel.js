@@ -1,8 +1,7 @@
 // The consumer-side channel the download engine drives, built from the small set of facts that
 // actually differ between the loose pseudo-share and a folder share. Every member the engine calls
-// is derived here, so a policy that holds for one channel holds for both by construction. The two
-// hand-written bags this replaces had already drifted on the paused event and the error filter,
-// and nothing could have caught it: from the compiler's point of view they were unrelated objects.
+// is derived here, so a policy that holds for one channel holds for both by construction — two
+// hand-written bags are unrelated objects to the compiler, and nothing could catch their drift.
 //
 // Imports nothing from `bare-*` (and nothing from the two modules that build channels), so it
 // loads under plain Node and unit-tests directly.

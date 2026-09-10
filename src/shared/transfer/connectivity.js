@@ -2,10 +2,6 @@
 // DHT's readiness and NAT verdict, the canary probe that distinguishes "blocked" from "quiet", the
 // liveness poll and interface watch that catch a silently-dead link, and the debounced status frame
 // the renderer renders from. It reads the swarm handle and reports; it never joins, dials or admits.
-//
-// Extracted because none of it is connection handling. Its sixteen counters and timers were the
-// single largest group destroySwarm cleared by hand, and every one is private to this file — the
-// connection layer only ever announced three events into it, which are now three note* calls.
 import b4a from 'b4a'
 import os from 'bare-os'
 import crypto from 'hypercore-crypto'
@@ -268,10 +264,6 @@ async function runCanaryProbe(upgradeKey) {
 // not on a timer: this fires once per swarm, and every other probe is user-initiated.
 let firstProbeTimer = null
 
-// Only runs while nothing else can produce evidence — with peers connected, their presence
-// IS the liveness signal, and a periodic ping from every idle client would be pointless
-// DHT traffic. Targets our own routing table (public infrastructure built for exactly
-// this), never the seeder.
 // A local syscall, not a network round-trip: if the machine has no non-internal address
 // there is definitively no network, and we can say so instantly instead of waiting for
 // probes to time out — and say the *right* thing, rather than blaming a VPN or a router.
@@ -323,6 +315,10 @@ function livenessTarget() {
   return null
 }
 
+// Only runs while nothing else can produce evidence — with peers connected, their presence
+// IS the liveness signal, and a periodic ping from every idle client would be pointless
+// DHT traffic. Targets our own routing table (public infrastructure built for exactly
+// this), never the seeder.
 async function checkLiveness() {
   const swarm = getSwarm()
   const dht = swarm?.dht
@@ -601,13 +597,10 @@ export async function reconnectAll() {
   return { ok: true }
 }
 
-// What destroySwarm calls instead of clearing sixteen counters and six timers by hand.
+// What destroySwarm calls. The SET is closed, not the six handles, so a timer added later is
+// stopped too; the handles are still nulled because the arm sites guard on them. A fresh set
+// replaces the closed one — destroySwarm and initSwarm cycle within one process.
 export function resetConnectivity() {
-  // The set, not the six handles: close() disarms every timer armed through it, including one added
-  // later that nobody thought to name here. The handles are still nulled, because the arm sites
-  // guard on them and a stale handle would block the re-arm after a restart. A fresh set replaces
-  // the closed one — destroySwarm and initSwarm cycle within one process, and arming through a
-  // closed set throws.
   timers.close()
   timers = createTimers()
   dwellTimer = null

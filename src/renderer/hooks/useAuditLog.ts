@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { request, subscribe } from '../ipc.js'
-import { Scope, scopeMatches } from '../scope.js'
+import { Scope, scopeMatches } from '../../shared/contract/scope.js'
 import { useQuery } from '../store/useQuery.js'
 import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types.js'
 import { useErrorText } from './useErrorText.js'
@@ -99,12 +99,9 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
   return { entries, loading, loadingMore, error, hasMore: cursor !== null, loadMore, reload }
 }
 
-// Both come from the LOG, not from spaces:list — a space the user has left keeps its rows and must
-// stay filterable, but its record is gone.
-//
-// Two entries rather than one Promise.all: they re-derive on the same hint but are separately
-// cacheable, and a failure in one no longer blanks the other. Module constants for the empty case,
-// because a fresh [] per render would break memo identity in the filter bar.
+// Both come from the LOG, not spaces:list — a left space keeps its rows and must stay filterable.
+// Two entries, not one Promise.all: same hint, separately cacheable, and one failure cannot blank
+// the other. Module constants for the empty case, so a fresh [] cannot break memo identity in the filter bar.
 const AUDIT_SCOPES = [Scope.audit()]
 const NO_SPACES: AuditSpaceRef[] = []
 const NO_ACTORS: AuditActorRef[] = []

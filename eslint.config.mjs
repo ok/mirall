@@ -19,28 +19,20 @@ const unusedVars = {
   'no-unused-vars': ['warn', { args: 'none', ignoreRestSiblings: true, varsIgnorePattern: '^_' }],
 }
 
-// EDA invariant: renderer event handlers decorate rows (progress/verifyFraction), they never
-// construct row STATUS — status is worker-derived per read (level-triggered). Scoped to
-// ObjectExpression so destructured READS of a payload's status field stay legal; the second
-// selector closes the quoted/computed-key bypass. Exported so
-// test/unit/renderer-status-invariant.test.js enforces the same grammar through eslint's parser.
+// EDA invariant: event handlers decorate rows, never construct row STATUS (worker-derived per read).
+// Scoped to ObjectExpression so destructured reads stay legal; the second selector closes the
+// quoted/computed-key bypass. Exported so test/unit/renderer-status-invariant.test.js parses the same
+// grammar. Rationale: .claude/testing.md, "Lint invariants".
 const statusMessage = 'Do not construct row status in an event handler — status is worker-derived (level-triggered). Decorate instead.'
 export const rendererStatusRestrictions = [
   { selector: "CallExpression[callee.name='subscribe'] ObjectExpression > Property[key.name='status']", message: statusMessage },
   { selector: "CallExpression[callee.name='subscribe'] ObjectExpression > Property[key.value='status']", message: statusMessage },
 ]
 
-// Lifecycle invariant: a timer armed at module level runs at import, so no close() can ever
-// reach it. Exported so test/unit/module-level-timers.test.js enforces the same grammar through
-// eslint's parser.
-//
-// This is the import-time corner of the lifecycle rule, and only that. The message used to say
-// "arm it in a Subsystem _open so close() can clear it", which reads as a promise that every
-// periodic call dies with its subsystem — a property no selector can decide, since three of the
-// eleven module-scoped handles in the data layer belong to module singletons that are not
-// Subsystems at all. The broad property is measured where it is actually observable: at runtime, in
-// test/integration/timer-lifecycle.test.js, with test/unit/module-scoped-timer-handles.test.js as
-// the decidable static companion.
+// Lifecycle invariant, import-time corner only: a timer armed at module level runs at import, so no
+// close() can reach it. The broad property (every periodic call dies with its subsystem) is not
+// decidable statically; test/integration/timer-lifecycle.test.js measures it at runtime. Exported so
+// test/unit/module-level-timers.test.js parses the same grammar.
 export const moduleLevelTimerRestrictions = [{
   // `:not(:function *)` alone is the whole rule: it matches a set*() call that has no function
   // ancestor, i.e. one that runs at import. Scoping it to top-level statement types instead would
@@ -50,26 +42,12 @@ export const moduleLevelTimerRestrictions = [{
   message: 'No timer armed at import — nothing can clear it. Arm it inside a Subsystem _open through this.timers, or inside a function whose module holds a matching clear.',
 }]
 
-// The shape the rule above cannot see, and which slipped past it twelve times: a timer armed
-// INSIDE a function but held in a long-lived handle. The handle outlives every call, so nothing
-// scoped to a call can clear it — the same un-owned timer, wearing a function as a disguise.
-//
-// The storage is not the defect; arming from the GLOBAL is. A module still needs somewhere to keep
-// the handle it re-arms, so the rule targets the assignment: `x Timer = setTimeout(...)` is
-// un-owned, `x Timer = timers.setTimeout(...)` (or `this.timers.`) is owned, and only the first
-// matches. That also means the fix and the rule agree — the twelve migrated sites keep their
-// bindings and stop matching.
-//
-// The name pattern is the camelCase COMPOUND — `announceTimer`, `presenceBeat` — and deliberately
-// not a bare `timer`. A bare local handle inside a function is owned by that function, which
-// clears it on both exits; the compound names are the ones that belong to a module and outlive
-// every call. Three legitimate function-local `timer` variables in the data layer make that
-// distinction load-bearing rather than cosmetic.
-//
-// Known blind spot, stated rather than papered over: this is a naming heuristic, so a module-scope
-// handle called `pending` or `h` slips through. Its job is to stop the thirteenth, not to have
-// found the twelve, and a genuine exception is one inline disable with a reason written next to
-// it.
+// The shape the rule above cannot see: a timer armed INSIDE a function but held in a long-lived
+// handle, which outlives every call. `xTimer = setTimeout(...)` is un-owned; `xTimer =
+// timers.setTimeout(...)` (or `this.timers.`) is owned and does not match. The name pattern is the
+// camelCase COMPOUND (`announceTimer`, `presenceBeat`), never a bare `timer` — a bare local is owned
+// by its function. Blind spot, stated: a module-scope handle called `pending` slips through; a
+// genuine exception is one inline disable with a reason next to it.
 const timerHandleMessage = 'This timer handle outlives the call that arms it — arm it through a Subsystem\'s `this.timers` (or a createTimers() the module\'s own reset closes), so one call clears every one of them.'
 export const moduleScopeTimerHandleRestrictions = [
   {
@@ -89,51 +67,59 @@ export const moduleScopeTimerHandleRestrictions = [
   },
 ]
 
-// Mechanism invariant: chokidar's options are per-INSTANCE, not per-path, and its sharp edges —
-// native events never reach a network mount, an erroring watcher spins forever — were learned
-// once on the owned-folder watcher and never carried to the loose-file watcher, so a file shared
-// from /Volumes, /mnt, /media or a UNC path silently stopped re-publishing. src/main/watch-host.js
-// is now the single owner of every chokidar decision; a second `require('chokidar')` is exactly how
-// that divergence would come back. Exported so test/unit/watch-host-single-owner.test.js enforces
-// the same grammar through eslint's parser.
+// Mechanism invariant: chokidar's options are per-INSTANCE (network mounts need polling, an erroring
+// watcher spins), and src/main/watch-host.js is the single owner of every chokidar decision; a second
+// require('chokidar') is how a divergence comes back. Exported so
+// test/unit/watch-host-single-owner.test.js parses the same grammar.
 const chokidarMessage = 'Only src/main/watch-host.js may load chokidar — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
 export const chokidarSingleOwnerRestrictions = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='chokidar']", message: chokidarMessage },
   { selector: "ImportDeclaration[source.value='chokidar']", message: chokidarMessage },
 ]
 
-// Presentation invariant: one byte size means one string. src/renderer/formatSize.js owns the
-// decimal (SI) ladder because the divisor and the labels have to agree — a binary 1024 divisor
-// under KB/MB/GB labels reads ~7-10% below what the OS shows for the same file. auditRow.js grew a
-// second ladder that did exactly that, so the Activity Log printed every size ~7.4% low while
-// every other screen printed it right, and a unit test pinned the wrong numbers. A unit-ladder
-// array literal is the shape a re-implementation always takes; naming the array differently
-// changes nothing here. Exported so test/unit/byte-formatter-single-owner.test.js enforces the
-// same grammar through eslint's parser.
+// Boundary invariant: the renderer may import the contract package and nothing else under
+// src/shared/. The data layer imports bare-*, Hyper* and Node modules the sandboxed renderer cannot
+// bundle, and every renderer "twin" this codebase has deleted began as an import that was not
+// allowed and a copy that was. The re-export shims that used to stand in for this rule are gone;
+// the rule is what replaces them. Exported so test/unit/renderer-contract-only-imports.test.js
+// enforces the same grammar through eslint's parser.
+export const rendererContractOnlyImports = [{
+  regex: '(^|/)shared/(?!contract/)',
+  message: 'The renderer may import src/shared/contract/** and nothing else under src/shared/ — move the rule into the contract package or ask the worker over IPC.',
+}]
+
+// Presentation invariant: one byte size means one string. src/renderer/formatSize.js owns the decimal
+// ladder because the divisor and the labels must agree; a unit-ladder array literal is the shape a
+// re-implementation always takes, whatever it is named. Exported so
+// test/unit/byte-formatter-single-owner.test.js parses the same grammar.
 const byteLadderMessage = 'Only src/renderer/formatSize.js may declare a byte-unit ladder — call formatSize so the divisor and the labels stay in one place.'
 export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB', 'TiB'].map((unit) => ({
   selector: `ArrayExpression > Literal[value='${unit}']`,
   message: byteLadderMessage,
 }))
 
-// Stale-response invariant, split into two tables because the two cases are not the same risk and
-// must not share a number. The predecessor guard grepped for `let cancelled = false` and counted
-// four files: it missed six hand-rolled guards spelled `alive`/`active`/`sawFrame`/`runRef`, and —
-// the point — it could never see an effect with no guard at all, which is the only thing actually
-// forbidden. Six such effects were live while it reported the property covered.
-//
-// UNMOUNT_ONLY: the effect has [] deps and one in-flight read, so nothing can supersede it — the
-// only race is a write after unmount, which React tolerates.
+// Stale-response invariant, two tables because the two cases are not the same risk. What is
+// forbidden is an async effect with NO guard; the tables name the exceptions.
+// UNMOUNT_ONLY: [] deps and one in-flight read, so nothing can supersede it — the only race is a
+// write after unmount, which React tolerates.
 export const unmountOnlyAsyncEffects = Object.freeze({
   'src/renderer/hooks/useConnectionStatus.tsx': { effects: 1, why: 'The net.online probe has [] deps and one read; transitions arrive on onNetOnlineChange. (The other effect in this file carries a cleanup flag and is not exempt.)' },
   'src/renderer/screens/Account.tsx': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the screen is open.' },
 })
 
-// OUT_OF_ORDER must stay EMPTY. An effect that re-fires — on a dep change or from a subscription —
-// can have two reads in flight, and the older one can win. That is wrong data on screen, not a
-// warning in a console. Allowlisting one of these would repeat the mistake this whole guard exists
-// to undo: a green test standing over a live defect.
+// OUT_OF_ORDER must stay EMPTY: an effect that re-fires can have two reads in flight and the older
+// can win — wrong data on screen. Allowlisting one would be a green test over a live defect.
 export const outOfOrderAsyncEffects = Object.freeze({})
+
+// Pure folder policy: these modules import no bare-* so they load under plain Node, where test/unit
+// drives them. This list IS the statement — no file header repeats it. A module that needs bare-fs or
+// bare-path belongs in the engine that calls the policy, not in the policy. Exported so
+// test/unit/folder-module-boundaries.test.js can check that each one really has a unit test.
+export const pureFolderPolicyModules = [
+  'echo-guard', 'fetch-attempts', 'integrity-seen', 'mirror-health', 'mirror-loop', 'mirror-ownership',
+  'mirror-reach', 'mirror-walk', 'mount-fault', 'path-keys', 'preview-detail', 'preview-tally',
+  'publish-queue', 'publish-scheduler', 'share-limits', 'temp-paths', 'work-item',
+]
 
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
@@ -156,6 +142,7 @@ export default [
       'jsx-a11y/label-has-associated-control': ['error', { depth: 3 }],
       'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel', 'region'] }],
       'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions],
+      'no-restricted-imports': ['error', { patterns: rendererContractOnlyImports }],
       'local/no-unguarded-async-effect': ['error', {
         allow: [...Object.keys(unmountOnlyAsyncEffects), ...Object.keys(outOfOrderAsyncEffects)],
       }],
@@ -172,13 +159,22 @@ export default [
       globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
     },
     rules: {
-      // The data layer has no typechecker over it — tsconfig only includes src/renderer — so an
-      // identifier left behind by a refactor resolves to nothing and surfaces only as a swallowed
-      // runtime warning. Two such bugs shipped green through every gate before this was turned on.
+      // The data layer has no typechecker over it (tsconfig covers src/renderer only), so an
+      // identifier left behind by a refactor surfaces only as a swallowed runtime warning.
       'no-undef': 'error',
       ...unusedVars,
       ...complexityBudget,
       'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions],
+    },
+  },
+
+  // The pure half of folders/ — see pureFolderPolicyModules.
+  {
+    files: pureFolderPolicyModules.map((name) => `src/shared/folders/${name}.js`),
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
+      }],
     },
   },
 

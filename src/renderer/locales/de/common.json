@@ -84,7 +84,6 @@
     "filesError": "Dateien konnten nicht geladen werden",
     "filesErrorHint": "Die Dateiliste hat zu lange zum Laden gebraucht. Das kann passieren, während Dateien noch synchronisiert werden oder ein Peer offline ist.",
     "filesRetry": "Erneut versuchen",
-    "emptyFiles": "Noch keine Dateien geteilt. Lege Dateien in der Seitenleiste ab.",
     "emptyShareTitle": "Noch nichts geteilt",
     "emptyShareSubtitle": "Zieh Dateien oder Ordner in den Bereich rechts, um sie in diesem Raum zu teilen.",
     "emptyShareDocsTitle": "Was beim Teilen passiert",
@@ -111,7 +110,6 @@
     "waitingApprovalHint": "Ein Mitglied dieses Space muss dich freigeben. Du kannst dieses Fenster offen lassen — sobald jemand online ist, wirst du automatisch hinzugefügt.",
     "waitingDocsTitle": "Warum warte ich?",
     "waitingDocsBody": "Eine Einladung enthält die Adresse des Raums, nie den Schlüssel dazu. Den übergibt jemand, der schon drin ist — deshalb muss ein Mitglied online und erreichbar sein, bevor du hineinkommst. Automatische Freigabe nimmt die Entscheidung ab, nicht die Übergabe.",
-    "encryptedBadge": "Verschlüsselt",
     "legacyBadge": "Nicht unterstützt",
     "legacyWarning": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden. Erstelle einen neuen Raum und teile deine Ordner dort erneut."
   },
@@ -147,7 +145,6 @@
     "description": "Eine schreibgeschützte Kopie des Ordners von {{owner}} wird am gewählten Ort synchron gehalten.",
     "ownerLine": "{{count}} Dateien · {{size}} · Besitzer: {{owner}}",
     "pathLabel": "Spiegel-Ort auf deiner Festplatte",
-    "pathPlaceholder": "Durchsuchen…",
     "readOnlyWarning": "Schreibgeschützt. Hier bearbeitete Dateien werden bei der nächsten Synchronisierung auf die Version von {{owner}} zurückgesetzt.",
     "next": "Weiter: Vorschau",
     "create": "Spiegelung starten",
@@ -218,7 +215,6 @@
     "subfolderCount_other": "enthält {{count}} Unterordner",
     "loading": "Lade Dateien",
     "unavailable": "Ordner nicht verfügbar",
-    "unavailableOfflineHint": "{{owner}} ist offline. Die Dateien werden geladen, sobald {{owner}} wieder online ist.",
     "empty": "Dieser Ordner ist leer.",
     "emptyHintMine": "Lege Dateien in deinem lokalen Ordner ab – sie erscheinen automatisch hier.",
     "emptyHintOther": "Dateien erscheinen hier, sobald {{owner}} sie hinzufügt.",
@@ -383,7 +379,6 @@
     "defaultName": "Geteilter Raum",
     "alreadyMember": "Du bist bereits in {{name}}",
     "invalidLink": "Der Einladungslink ist ungültig.",
-    "outdatedLink": "Dieser Einladungslink wurde mit einer neueren Mirall-Version erstellt. Bitte Mirall aktualisieren und erneut versuchen.",
     "expiredLink": "Dieser Einladungslink ist abgelaufen. Bitte um einen neuen."
   },
   "leaveSpace": {
@@ -476,8 +471,7 @@
     "releaseFiles_one": "Loslassen, um {{count}} Datei zu teilen",
     "releaseFiles_other": "Loslassen, um {{count}} Dateien zu teilen",
     "releaseFolder": "Loslassen, um „{{name}}“ zu teilen",
-    "releaseFolderUnnamed": "Loslassen, um diesen Ordner zu teilen",
-    "button": "Dateien wählen"
+    "releaseFolderUnnamed": "Loslassen, um diesen Ordner zu teilen"
   },
   "docs": {
     "opensInBrowser": "Öffnet mirall.app in deinem Browser",
@@ -690,8 +684,7 @@
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferPausedTitle": "Download pausiert",
     "transferPausedBody": "{{file}} — Absender offline",
-    "transferPausedInterruptedBody": "{{file}} — Übertragung unterbrochen",
-    "unknownError": "unbekannter Fehler"
+    "transferPausedInterruptedBody": "{{file}} — Übertragung unterbrochen"
   },
   "format": {
     "etaSecondsLeft": "{{value}} Sek. übrig",
@@ -841,7 +834,6 @@
     "boolNo": "Nein",
     "connection": "Verbindung",
     "peerCount": "Verbundene Peers",
-    "connecting": "Laufende Versuche",
     "topicsJoined": "Beigetretene Räume",
     "lastConnected": "Letzte Verbindung",
     "address": "Adresse",
@@ -849,30 +841,17 @@
     "publicPort": "Öffentlicher UDP-Port",
     "localPort": "Lokaler UDP-Port",
     "publicKey": "Dein öffentlicher Schlüssel",
-    "nodeId": "DHT-Knoten-ID",
     "nat": "NAT",
     "firewalled": "Hinter einer Firewall",
     "randomized": "Zufällige Port-Zuordnung",
     "ephemeral": "Ephemerer DHT-Knoten",
     "dht": "DHT",
     "routingTableSize": "Größe der Routing-Tabelle",
-    "bootstrapNodes": "Bootstrap-Knoten",
-    "stats": "Zähler",
-    "statsUpdates": "Update-Ereignisse",
-    "statsClientOpened": "Ausgehend geöffnet",
-    "statsClientClosed": "Ausgehend geschlossen",
-    "statsServerOpened": "Eingehend geöffnet",
-    "statsServerClosed": "Eingehend geschlossen",
-    "statsBannedPeers": "Gesperrte Peers",
     "advice": {
       "title": "Vorschläge",
       "osOffline": "Dein Betriebssystem meldet keine Internetverbindung. WLAN oder Ethernet prüfen.",
-      "firewalled": "Dein Router scheint eingehende UDP-Pakete zu blockieren. Peers erreichen dich nur über Holepunching.",
-      "randomizedNat": "Dein Netzwerk vergibt zufällige ausgehende Ports. Direkte Verbindungen können fehlschlagen.",
       "symmetricNat": "Deine Verbindung nutzt wechselnde Ports. Verbindungen zu vielen Teilnehmern werden fehlschlagen — Mobilfunk-Router und Tethering sind die übliche Ursache.",
       "noPublicAddr": "Öffentliche IP konnte nicht ermittelt werden. Prüfe deine Internetverbindung.",
-      "smallRoutingTable": "Bisher wenige DHT-Peers bekannt. Bootstrap läuft möglicherweise noch.",
-      "stillBootstrapping": "Tritt noch dem DHT bei — bitte einen Moment Geduld.",
       "symmetricNatFix": "Im Mobilfunknetz lässt sich das nicht am Router einstellen. Ein DSL- oder Kabelanschluss funktioniert.",
       "udpDegraded": "Dein Netzwerk verwirft laufend Datenverkehr zum Mirall-Netzwerk. Übertragungen können stocken.",
       "stillSettling": "Wir ermitteln noch, wie sich dieses Netzwerk verhält — einen Moment bitte."
@@ -1115,7 +1094,6 @@
     "deleteDone_other": "{{count}} Ereignisse gelöscht."
   },
   "connectionProblem": {
-    "title": "Verbindungsproblem",
     "subtitle": {
       "blocked": "Mirall erreicht aus diesem Netzwerk keine anderen Teilnehmer.",
       "atRisk": "Mirall erreicht aus diesem Netzwerk nur einen Teil der anderen Teilnehmer.",

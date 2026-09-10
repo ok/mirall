@@ -1,9 +1,8 @@
-// Profile screen: edit display name and avatar; this device's connection, identity protection and
-// activity log; app version and resources (absorbed from the former About screen).
+// Profile screen: display name and avatar; this device's connection, identity protection and
+// activity log; app version and resources.
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../utils.js'
-import { request } from '../ipc.js'
 import { connectionDesc, activityDesc } from '../profileRows.js'
 import type { AuditConfig, AuditStats, Profile } from '../types.js'
 import type { IdentityProtection } from '../global.js'
@@ -184,11 +183,9 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
   const [identity, setIdentity] = useState<IdentityProtection | null>(null)
-  // Through the query store for the dedup and the cache — but with NO scopes, deliberately. The
-  // audit scope exists and would invalidate on every event:audit-updated; this is a summary line,
-  // not a live counter, and a subscription would repaint the row on every recorded event for no
-  // user benefit. Scope-less still re-reads on each mount (fetchQuery only dedups an in-flight
-  // request), so the row is as fresh as the hand-rolled effect was — minus its cancel flag.
+  // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
+  // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
+  // re-reads on each mount. ActivityLogSettings reads the same two entries.
   const { data: auditConfig } = useQuery<AuditConfig>('audit:get-config', {}, null)
   const { data: auditStats } = useQuery<AuditStats>('audit:stats', {}, null)
 
@@ -205,7 +202,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           desc={connectionDesc(t, connectivityState, networkStatus?.peerCount)}
           leading={(
             <span className="w-10 h-10 flex items-center justify-center shrink-0">
-              <NetworkStatusIndicator state={connectivityState} size="lg" />
+              <NetworkStatusIndicator state={connectivityState} />
             </span>
           )}
           onClick={onOpenNetworkStatus}
@@ -236,11 +233,9 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
 
   useEffect(() => {
     const sem = window.bridge.pkg().version || '0.0.0'
-    // The baked package.json version uniquely identifies the running build on every channel
-    // (`-beta.N` = CI run, bare semver = prod tag, `(dev)` = source). Do NOT append appVersion()'s
-    // (fork.length): that reads the OTA drive head — the latest length available on the seed — not
-    // the version installed here, so it read as a confusing mismatch (e.g. "v1.6.0-beta.82
-    // (0.22326)") whenever an update was staged but not yet run.
+    // The baked package.json version identifies the running build on every channel (`-beta.N` = CI
+    // run, bare semver = prod tag, `(dev)` = source). Do NOT append appVersion(): it reads the OTA
+    // drive head, not the installed build.
     setVersion(window.bridge.isDev() ? `v${sem} (dev)` : `v${sem}`)
   }, [])
 

@@ -3,7 +3,7 @@ import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { freshPeerWithIdentity, offlineMemberRegistry } from '../helpers/store.js'
+import { freshPeer, offlineMemberRegistry } from '../helpers/store.js'
 import { createSpace, pinCreatorKey } from '../../src/shared/spaces/space.js'
 import { markOwnMembership } from '../../src/shared/spaces/profile.js'
 import {
@@ -31,7 +31,7 @@ const randomKey = () => b4a.toString(crypto.keyPair().publicKey, 'hex')
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function spaceWithView (t) {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: READ_BUDGET_MS })
   const { spaceId } = await createSpace('Aurora')
   await markOwnMembership(spaceId)
@@ -79,7 +79,7 @@ test('REGRESSION (FIX-SUP-2: a recovery preserves a leave tombstone that never r
 })
 
 test('a recovery for a space with no open view is a no-op', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const views = new MemberViews('member-views', { overlayBackend: {}, ...offlineMemberRegistry })
   await views.recover('no-such-space')
   t.alike(views.supervise(), [], 'nothing to supervise, nothing to recover')

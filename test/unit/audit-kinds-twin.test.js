@@ -1,20 +1,19 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const TWIN = path.join(here, '..', '..', 'src', 'renderer', 'auditKinds.ts')
+const renderer = path.join(here, '..', '..', 'src', 'renderer')
 
-// This test used to diff two hand-maintained lists. The vocabulary now lives once in the contract
-// package and the renderer re-exports it, so the divergence it watched for cannot occur — what is
-// worth guarding instead is that nobody reintroduces the twin.
-test('the renderer re-exports the audit vocabulary instead of mirroring it', (t) => {
-  const src = readFileSync(TWIN, 'utf8')
-  t.ok(/from '\.\.\/shared\/contract\/audit-kinds\.js'/.test(src), 'imported from the contract')
-  const literals = src.match(/'[a-z_]+(?:\.[a-z_]+)+'/g) || []
-  t.alike(literals, [], 'no kind names are re-listed here — that list is what used to drift')
+// This test used to diff two hand-maintained lists, then guarded a re-export shim. The vocabulary
+// lives once in the contract package and the one renderer consumer imports it directly — what is
+// worth guarding is that nobody reintroduces a twin.
+test('the renderer holds no audit-kind twin', (t) => {
+  t.absent(existsSync(path.join(renderer, 'auditKinds.ts')), 'the shim is gone')
+  const screen = readFileSync(path.join(renderer, 'screens', 'ActivityLog.tsx'), 'utf8')
+  t.ok(/from '\.\.\/\.\.\/shared\/contract\/audit-kinds\.js'/.test(screen), 'ActivityLog imports the contract')
 })
 
 test('every kind has a label and a sentence key in the English catalogue', (t) => {

@@ -55,6 +55,5 @@ module.exports = {
   isValidRelayKey,
   normalizeRelayMode,
   sanitizeRelay,
-  RELAY_MODES,
   MAX_LABEL_LENGTH,
 }

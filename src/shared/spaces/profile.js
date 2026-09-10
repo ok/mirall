@@ -84,12 +84,10 @@ export function getIdentitySigner() {
 
 // `timeoutMs` is a SESSION-level hypercore timeout: every block read under this session (and the
 // snapshot sessions hyperbee opens per get) settles with REQUEST_TIMEOUT instead of waiting for a
-// block that may never arrive — so an abandoned read cannot pin the core through a hung batch.
-// 0 keeps hypercore's default (wait forever), which the long-lived holders want.
-// `active` marks the session as one that wants replication. An inactive session does not count
-// toward the core's replicator activity, so the core is not force-attached to every open muxer
-// (corestore's per-connection attach pass skips it). Defaults TRUE so every syncing read behaves
-// exactly as before: a read that needs blocks and opens inactive would simply never get them.
+// block that may never arrive, so an abandoned read cannot pin the core through a hung batch. 0
+// keeps hypercore's default (wait forever), which the long-lived holders want. `active:false` opts
+// the session out of the core's replicator activity, so corestore's per-connection attach pass does
+// not force-attach it to every open muxer; a read that needs blocks must stay active or never gets them.
 export function openProfileBee(publicKeyBuffer, { timeoutMs = 0, active = true } = {}) {
   const store = getStore()
   const opts = { key: publicKeyBuffer, ...(timeoutMs ? { timeout: timeoutMs } : {}), ...(active ? {} : { active: false }) }
@@ -129,31 +127,6 @@ export async function markOwnMembership(spaceId, { refresh = false } = {}) {
 export async function clearOwnMembership(spaceId) {
   await ensureMembershipManifestCap()
   await profileBee.put('member/' + spaceId, { active: false, ts: Date.now() })
-}
-
-// Tri-state read of a peer's own `member/<S>.active` manifest (true / false=left /
-// null=no manifest). The canonical manifest reader; the membership fold reads the same
-// records via readMembershipRecord.
-export async function readPeerMembership(profileKeyHex, spaceId) {
-  try {
-    // Whole read is bounded: direct reads usually resolve in ~one RTT, so this doesn't
-    // slow the happy path; the deadline matters when the manifest blocks are advertised
-    // but never replicated (offline peer) — the post-update bee.get calls would otherwise
-    // wait forever.
-    return await withReadTimeout(loadPeerMembership(profileKeyHex, spaceId), peerReadTimeoutMs(), null)
-  } catch {
-    return null
-  }
-}
-
-function loadPeerMembership(profileKeyHex, spaceId) {
-  return withPeerBee(profileKeyHex, async (bee) => {
-
-    const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
-    if (!cap?.value) return null
-    const entry = await bee.get('member/' + spaceId)
-    return entry ? !!entry.value?.active : false
-  })
 }
 
 // Authored approval record in our own profile bee: the approver vouches that
@@ -292,6 +265,7 @@ export async function readPeerInviteSnapshot(profileKeyHex, spaceId, inviteId) {
   }
 }
 
+// test seam
 export async function listOwnInvites(spaceId) {
   if (!profileBee) return []
   const prefix = 'invite/' + spaceId + '/'
@@ -423,21 +397,13 @@ function loadMembershipRecord(profileKeyHex, spaceId) {
   })
 }
 
-// Durably pull a joiner's OWN profile core into our store while the joiner is still connected —
-// called from the approve path, the one window the joiner is guaranteed reachable. Without it, a
-// joiner that disconnects right after a co-member's approval leaves NO peer holding its own
-// record, and the OR-Set fold (which requires the joiner's own `member/<S>.active`) can never
-// converge it on anyone — the owner included (the joiner is offline and the approver never
-// replicated it).
-//
-// We download the WHOLE (tiny) core to a COMPLETE contiguous copy — not a sparse record-read.
-// A sparse read fetches only the blocks on the record's B-tree path, leaving gaps; the owner
-// then opens the joiner's core against US (the only holder) and its contiguous live follow can't
-// reconstruct the record from a sparse remote, so it stalls (peers=1 yet no blocks ever land).
-// Holding the full core lets us serve every block the owner asks for.
-//
-// Best-effort and bounded: never throws, never blocks approval past `timeoutMs`; on timeout we
-// fall back to the pre-existing (race-prone) live follow. timeoutMs<=0 disables capture.
+// Pull a joiner's OWN profile core into our store while it is still connected — the approve path is
+// the one window the joiner is guaranteed reachable. Without it, a joiner that disconnects right
+// after a co-member's approval leaves NO peer holding its own record, and the OR-Set fold (which
+// needs the joiner's own `member/<S>.active`) can never converge it on anyone, the owner included.
+// The WHOLE core, contiguous: a sparse record-read leaves gaps the owner's live follow cannot
+// reconstruct from us (peers=1 yet no blocks ever land). Best-effort and bounded: never throws,
+// never blocks approval past `timeoutMs`, and timeoutMs<=0 disables capture.
 export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs = getCaptureMemberRecordMs() } = {}) {
   if (!(timeoutMs > 0)) return false
   const startedAt = Date.now()
@@ -455,13 +421,12 @@ async function boundedUpdate(core, ms) {
   await withReadTimeout(core.update({ wait: true }).catch(() => {}), ms, undefined)
 }
 
-// One bounded read of a peer's profile bee: open, pull the head, run `fn`, close — whatever fn
-// does. Closing releases only THIS session; the core stays open for every other holder (a member
-// view's follow, the avatar listener), and once the last session goes corestore reclaims it on
-// its idle GC, which also takes it off every replication stream. A close while update() is in
-// flight cancels that request (REQUEST_CANCELLED), which the callers already map to the
-// fallback. Mirrors the capture paths, which always closed. One budget covers the head sync and
-// the read together, so a caller's deadline is charged once rather than once per phase.
+// One bounded read of a peer's profile bee: open, pull the head, run `fn`, close. Closing releases
+// only THIS session; the core stays open for every other holder (a member view's follow, the avatar
+// listener), and corestore reclaims it on idle GC once the last session goes, which also takes it
+// off every replication stream. A close while update() is in flight cancels it (REQUEST_CANCELLED),
+// which callers already map to the fallback. One budget covers the head sync and the read together,
+// so a caller's deadline is charged once rather than once per phase.
 export async function withPeerBee(profileKeyHex, fn, {
   timeoutMs = peerReadTimeoutMs(),
   fallback = null,

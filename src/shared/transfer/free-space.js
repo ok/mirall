@@ -1,10 +1,6 @@
 // Whether a volume can hold what a transfer is about to write. Pure, so the arithmetic is asserted
 // directly rather than through a live filesystem — the probe itself stays with the caller, which is
 // what keeps this Node-loadable.
-//
-// It lived inside createOverlayDownloadEngine, so the mirror could not reach it and learned about a
-// full disk only by failing a write — by which point the volume is already at zero and the worker's
-// own bee writes are at risk.
 
 // Headroom beyond the file itself: the journal, rocksdb writes and the OS all need working space,
 // and filling the volume to the last byte wedges more than the transfer.

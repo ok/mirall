@@ -12,12 +12,9 @@ export function unhealthyOwnedStatus (m) {
   return null
 }
 
-// Has an answer for this listing landed? Deliberately NOT given the store's `loading`: the store
-// settles an entry on an ERROR as well as on data, so a failed read reports loading:false with no
-// data — which the old expression read as "settled", i.e. as a healthy folder with no row. A
-// durably paused-error or mount-point-gone folder then painted with no fault strip at all, because
-// FolderView takes this projection outright once it says loaded. Undefined data is the unsettled
-// answer whatever the reason; a share that was simply never mounted still arrives as [].
+// Settled means an answer LANDED — data or error — not `!loading`: the store settles an entry on an
+// error too, so a failed read is loading:false with no data, and FolderView takes this projection
+// outright once loaded. Undefined is unsettled whatever the reason; a never-mounted share is [].
 export function ownedMountSettled (enabled, rows) {
   return Boolean(enabled) && rows !== undefined
 }

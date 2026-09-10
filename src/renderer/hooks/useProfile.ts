@@ -6,9 +6,8 @@ import { setQueryData } from '../store/query-store.js'
 import { projectProfile } from '../profileGate.js'
 import type { Profile } from '../types.js'
 
-// Three screens call this hook, so the hand-rolled read it replaces was three `profile:get` round
-// trips per session for one fact. Scope-less deliberately: the profile changes only when this app
-// writes it, and saveProfile pushes the new record into the entry rather than re-reading it.
+// Scope-less deliberately: the profile changes only when this app writes it, and saveProfile pushes
+// the new record into the entry rather than re-reading it.
 //
 // The store's `loading` is deliberately not read here — see profileGate.js for why gating the app
 // shell on it turns every re-read into a full remount of the tree.

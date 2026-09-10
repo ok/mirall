@@ -1,11 +1,5 @@
 // Pure path / share-key / prefix / predicate helpers — the single source of truth
-// for the path math behind sharing, subfolders, moves, copies and deletes.
-//
-// This module pulls in NO `bare-*` and no storage, and imports only modules that
-// hold to the same rule. `bare-path`/`bare-fs`/`bare-os` don't load under plain
-// Node, so anything that imports them can only be tested under Bare
-// (`test/integration`). By staying free of them this logic loads under both runtimes
-// and is unit-tested directly under Node (`test/unit/path-keys.test.js`). The heavy
+// for the path math behind sharing, subfolders, moves, copies and deletes. The heavy
 // data-layer modules import from here so the platform-divergent string math lives in
 // exactly one place.
 //
@@ -92,27 +86,6 @@ export function dropUnsafeEntries (entries, onDropped = () => {}) {
   })
 }
 
-// ─── share prefix + membership ────────────────────────────────────────────────
-export function sharePrefix (name) {
-  return '/' + name + '/'
-}
-
-export function isInsideShare (key, prefix) {
-  return key.startsWith(prefix)
-}
-
-export function isInsideAnyShare (key, sharePrefixes) {
-  for (const prefix of sharePrefixes) {
-    if (key.startsWith(prefix)) return true
-  }
-  return false
-}
-
-// Strip the share prefix to get the in-share relative path (subfolders preserved).
-export function relPathInShare (key, prefix) {
-  return key.slice(prefix.length)
-}
-
 // ─── containment / mount overlap ──────────────────────────────────────────────
 // True when `child` is `parent` or sits inside it. The separator boundary prevents
 // the classic false positive: `/a/bc` is not inside `/a/b`. `fold` compares
@@ -173,26 +146,16 @@ function matchPattern (input, pattern) {
 }
 
 // ─── mirror deletion safety ───────────────────────────────────────────────────
-// Deletions are propagated to a mirror ONLY when the owner is online (the listing is live), the
-// listing is non-empty (an all-empty listing is treated as a transient replication gap, never
-// "owner deleted everything"), AND the listing was read to completion. A catalog drain that timed
-// out mid-tree returns a PARTIAL, non-empty list — indistinguishable from a real deletion unless
-// completeness is checked, and acting on it deletes files the owner still has. The likelihood of
-// such a drain grows with the file count, so the bigger the folder, the likelier the wrong delete.
-// The three gates above are TRUST gates: they establish that the listing is authoritative. None of
-// them establishes that it is PLAUSIBLE, and those are different questions. A share going from 1000
-// files to 3 passes all three, and the caller then unlinks 997 local files. At this layer a catalog
-// that legitimately shrank by 99% is indistinguishable from one read against a half-replicated
-// core — and only one of those two readings is recoverable, so the tie goes to keeping the files.
-//
-// `minDeletions` is a floor, not a ratio, so ordinary tidying (and a small mirror emptying out) is
-// never withheld. Above it, a pass may never remove more than `maxDeletionRatio` of what the mirror
-// owns. Both are parameters rather than a config read, so this stays a pure function the unit test
-// can drive with its own caps.
-//
-// Defaults keep an un-migrated caller on the old behaviour: passing no counts yields deletionCount
-// 0, which is under any floor. A guard that silently withheld everything the moment a caller forgot
-// an argument would be its own outage.
+// Three TRUST gates say the listing is authoritative: owner online (the listing is live), non-empty
+// (an all-empty listing is a replication gap, never "owner deleted everything"), and read to
+// completion (a drain that timed out mid-tree is a PARTIAL list, indistinguishable from a real
+// deletion, and likelier the bigger the folder). Two caps say it is PLAUSIBLE: `minDeletions` is a
+// floor so ordinary tidying (and a small mirror emptying out) is never withheld; above it a pass may
+// remove at most `maxDeletionRatio` of what the mirror owns, because a catalog that legitimately
+// shrank by 99% and one read against a half-replicated core look the same here, and only one is
+// recoverable. Tie goes to keeping the files. Both caps are parameters, not a config read, so the
+// unit test drives its own; a caller that passes no counts gets deletionCount 0, under any floor —
+// a guard that withheld everything when an argument was forgotten would be its own outage.
 export function shouldHonorDeletions ({
   ownerOnline, driveCount, listingComplete,
   syncedCount = 0, deletionCount = 0,
@@ -238,13 +201,13 @@ export function conflictCopyName (fileName, isTaken) {
 }
 
 // ─── mount path rejection rules ───────────────────────────────────────────────
-export const SYSTEM_FOLDERS = {
+const SYSTEM_FOLDERS = {
   darwin: ['/System', '/usr', '/bin', '/sbin', '/Library/Apple', '/private/var'],
   win32: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData'],
   linux: ['/proc', '/sys', '/dev', '/etc', '/boot', '/var/lib'],
 }
 
-export const WIN_RESERVED = new Set([
+const WIN_RESERVED = new Set([
   'CON', 'PRN', 'AUX', 'NUL',
   'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
@@ -276,15 +239,6 @@ export function personalRootViolation (normalized, home, sep, ci = false) {
 // A segment is reserved when its name before the first dot is a Windows device name.
 export function isWindowsReservedName (segment) {
   return WIN_RESERVED.has(segment.split('.')[0].toUpperCase())
-}
-
-// Returns the first path segment that is a reserved Windows device name, or null.
-export function firstWinReservedSegment (normalized, sep) {
-  for (const seg of normalized.split(sep)) {
-    if (!seg) continue
-    if (isWindowsReservedName(seg)) return seg
-  }
-  return null
 }
 
 const CLOUD_HINTS = ['dropbox', 'onedrive', 'google drive', 'icloud', 'box', 'nextcloud', 'mega', 'proton drive', 'pcloud']

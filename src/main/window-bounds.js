@@ -20,9 +20,7 @@ function boundsOnSomeDisplay (bounds, displays) {
     if (overlap(bounds.x, bounds.width, area.x, area.width) < MIN_VISIBLE) continue
     // Vertically it will not: the title bar is the only draggable part and it is at the TOP, so a
     // window hanging off the top of the work area is unreachable no matter how much of its body
-    // shows. Measuring plain overlap on this axis accepts exactly that window. Two displays
-    // stacked vertically is how it happens — park the window on the upper one, unplug it, and the
-    // saved y is above everything that is left.
+    // shows. Measuring plain overlap on this axis accepts exactly that window.
     if (bounds.y < area.y) continue
     if (area.y + area.height - bounds.y < MIN_VISIBLE) continue
     return true

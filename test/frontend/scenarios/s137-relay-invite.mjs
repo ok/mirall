@@ -57,9 +57,8 @@ export default async function s137 ({ runDir, bootstrap }) {
       await Relays.shot('s137-configured', runDir)
     })
 
-    // REGRESSION: committing used to take the worker down on the spot, which reloaded the window
-    // and left the user on the home screen with no account of what had happened. The identity now
-    // waits for a reconnect the user asks for, and the section says so and stays put.
+    // REGRESSION: committing a pinned identity must not take the worker down (that reloads the window
+    // onto the home screen); it waits for a reconnect the user asks for, and the section says so.
     await r.ok('the pending reconnect is explained in place, not performed behind the user', async () => {
       await Relays.waitText('It takes effect when Mirall reconnects', 8000)
       if (!(await Relays.has({ name: 'Reconnect now' }))) throw new Error('no way to apply the new identity')
@@ -67,10 +66,9 @@ export default async function s137 ({ runDir, bootstrap }) {
       await Relays.shot('s137-pending', runDir)
     })
 
-    // REGRESSION (FIX-3: the probe used to run straight away, dialling with the identity the
-    // worker booted with rather than the one just stored. It always failed, wrote Unreachable to
-    // config, and the `!relay.lastTest` guard then suppressed the probe forever — so a private
-    // relay that worked after the restart read Unreachable for good.)
+    // REGRESSION (FIX-3: a probe dialled with the identity the worker booted with — not the one just
+    // stored — always failed, wrote Unreachable to config, and the `!relay.lastTest` guard then
+    // suppressed the probe forever.)
     await r.ok('no probe is burned while the identity is still pending', async () => {
       await Relays.waitText('Not tested', 10000)
       if (await Relays.hasText('Unreachable')) throw new Error('probed with the pre-restart identity')

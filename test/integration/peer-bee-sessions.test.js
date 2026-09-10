@@ -1,10 +1,10 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { freshPeerWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { openProfileBee, readPeerMembership, readPeerApproval, readProfileRecord } from '../../src/shared/spaces/profile.js'
+import { openProfileBee, readMembershipRecord, readPeerApproval, readProfileRecord } from '../../src/shared/spaces/profile.js'
 import { readPeerShares, readPeerShareEntry } from '../../src/shared/shares/shares.js'
 
 const SPACE = 'space-sessions'
@@ -31,7 +31,7 @@ async function peerWithRecords (t) {
 // every replication stream. Twelve read paths did this; these are the ones a normal session
 // drives repeatedly.)
 test('REGRESSION (FIX-PEERBEE-SESSIONS): repeated peer reads do not accumulate core sessions', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { peerReadTimeoutMs: 500, interactiveReadTimeoutMs: 500 })
   const peer = await peerWithRecords(t)
   replicate(getStore(), peer.store, t)
@@ -43,7 +43,7 @@ test('REGRESSION (FIX-PEERBEE-SESSIONS): repeated peer reads do not accumulate c
   const before = probe.core.sessions.length
 
   for (let i = 0; i < 20; i++) {
-    await readPeerMembership(peer.key, SPACE)
+    await readMembershipRecord(peer.key, SPACE)
     await readPeerApproval(peer.key, SPACE, 'j'.repeat(64))
     await readProfileRecord(peer.key, SPACE)
     await readPeerShares(peer.key, SPACE)
@@ -58,7 +58,7 @@ test('REGRESSION (FIX-PEERBEE-SESSIONS): repeated peer reads do not accumulate c
 // Closing a read's session must not disturb any other holder — that is what makes the bracket
 // safe to add to twelve call sites.
 test('a bounded read closing its session leaves another holder readable', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { peerReadTimeoutMs: 500 })
   const peer = await peerWithRecords(t)
   replicate(getStore(), peer.store, t)
@@ -68,7 +68,7 @@ test('a bounded read closing its session leaves another holder readable', async 
   await holder.core.update({ wait: true })
   t.teardown(async () => { try { await holder.close() } catch {} })
 
-  t.is(await readPeerMembership(peer.key, SPACE), true, 'the bounded read answered')
+  t.is((await readMembershipRecord(peer.key, SPACE))?.active, true, 'the bounded read answered')
   t.absent(holder.core.closed, 'the shared core is still open')
   const still = await holder.get('displayName')
   t.is(still?.value, 'Peer', 'the surviving holder still reads')
@@ -77,7 +77,7 @@ test('a bounded read closing its session leaves another holder readable', async 
 // An unreachable peer must not pin a core through an abandoned batch: the session-level timeout
 // makes every block read under a bounded read settle instead of waiting forever.
 test('a read of an unreplicated peer is bounded and leaves nothing open', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { peerReadTimeoutMs: 300 })
   const ghostKey = 'c'.repeat(64)
 
@@ -87,7 +87,7 @@ test('a read of an unreplicated peer is bounded and leaves nothing open', async 
   const before = probe.core.sessions.length
 
   const t0 = Date.now()
-  t.is(await readPeerMembership(ghostKey, SPACE), null, 'an unreachable peer reads as unknown')
+  t.is(await readMembershipRecord(ghostKey, SPACE), null, 'an unreachable peer reads as unknown')
   const dt = Date.now() - t0
   t.ok(dt < 1500, 'and it is bounded (' + dt + 'ms)')
   t.is(probe.core.sessions.length, before, 'with no session left behind')
@@ -97,7 +97,7 @@ test('a read of an unreplicated peer is bounded and leaves nothing open', async 
 // stay partial: a peer bee is only ever partially replicated, and the keys collected before a
 // missing block must still reach the wanted set or a live catalog scans as an orphan.
 test('a peer catalog read that aborts mid-stream keeps the keys it already collected', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   withConfig(t, { peerReadTimeoutMs: 500 })
   const peer = await makePeer(t)
   await peer.bee.put('caps/folder-shares', true)

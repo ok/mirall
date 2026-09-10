@@ -1,10 +1,9 @@
 // Clamp/sanitize rules for peer-supplied identity fields (display name, avatar),
-// shared by every ingest path and mirrored by the renderer.
-import { NAME_MAX } from './invite-envelope.js'
+// shared by every worker ingest path.
 
 // 256 KB data-URI string length. Tunable per-ingest via runtime-config getResourceCaps().avatarMaxBytes;
-// this is the production default and the renderer mirror's source of truth.
-import { AVATAR_MAX_BYTES } from './contract/limits.js'
+// this is the production default. The renderer reads the same constant from contract/limits.js.
+import { AVATAR_MAX_BYTES, NAME_MAX } from './contract/limits.js'
 export { AVATAR_MAX_BYTES }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i

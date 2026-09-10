@@ -4,13 +4,12 @@
 // become a per-append full re-drain.
 import { useQuery } from '../store/useQuery.js'
 
-export interface SpaceStorageSummary {
+interface SpaceStorageSummary {
   totalBytes: number
   onDeviceBytes: number
 }
 
-// Three change signals feed the space-wide total: loose files, folder-share files, and share
-// add/remove/mirror — all mapped to reconcile scopes worker-side (share-files as a wildcard).
+// Loose files, folder-share files (wildcard) and share add/remove/mirror all move the total (README.md).
 function storageScopes(spaceId: string) {
   return [
     { kind: 'files', spaceId },

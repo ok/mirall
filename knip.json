@@ -10,6 +10,7 @@
     "test/helpers/**/*.{js,mjs}"
   ],
   "project": ["src/**/*.{js,ts,tsx}"],
+  "ignore": ["src/**/*.d.ts", "src/shared/transfer/backends/overlay/vendor/**"],
   "rules": {
     "dependencies": "off",
     "devDependencies": "off",

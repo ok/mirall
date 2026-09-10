@@ -20,7 +20,6 @@ export function getContentBackend(share) {
   return UNSUPPORTED
 }
 
-// True iff a usable backend object exists (i.e. not UNSUPPORTED).
 export function hasContentBackend(share) {
   return getContentBackend(share) !== UNSUPPORTED
 }
@@ -29,16 +28,9 @@ export function isUnsupportedShare(share) {
   return getContentBackend(share) === UNSUPPORTED
 }
 
-// Backends with lifecycle hooks (init/attach/teardown). Overlay is the only one.
-const LIFECYCLE = [overlayBackend]
-
-export async function teardownBackends() {
-  for (const b of LIFECYCLE) await b.teardown?.()
-}
-
-// Periodic missed-event backstop fan-out (e.g. tombstone catalog entries whose
-// source vanished without a chokidar unlink). No-ops for backends without it.
+// Periodic missed-event backstop (e.g. tombstone catalog entries whose source vanished without a
+// chokidar unlink).
 export async function sweepBackends() {
   if (!isOverlayEnabled()) return
-  for (const b of LIFECYCLE) await b.sweepPresence?.()
+  await overlayBackend.sweepPresence()
 }

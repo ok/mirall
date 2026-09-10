@@ -1,7 +1,7 @@
 // Insertion-ordered Map as an LRU: delete+set moves a key to the end, so the first key is the
 // oldest. Refcounted because the values here are live handles — an entry a caller is currently
 // reading must never be closed underneath it, so eviction only ever considers refs === 0.
-// A limit of 0 (or less) never evicts, which is the unbounded behaviour this replaces.
+// A limit of 0 (or less) never evicts.
 export function createRefCountedLru({ limit, onEvict = () => {} } = {}) {
   const capOf = typeof limit === 'function' ? limit : () => limit
   const entries = new Map()

@@ -5,7 +5,7 @@ import b4a from 'b4a'
 import Hyperbee from 'hyperbee'
 import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
-import { createSpace, updateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { initDownloads, addFile, markVerified, listVerifiedForShare } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
@@ -65,7 +65,7 @@ async function seedRemoteShare (t, ctx, spaceId, entries) {
     contentMode: 'overlay', catalogKey: b4a.toString(catalogCore.key, 'hex'),
   })
   replicate(peer.store, getStore(), t)
-  await updateMembers(spaceId, [{ publicKey: peer.key, driveKey: null, displayName: 'Owner' }])
+  await mutateMembers(spaceId, () => [{ publicKey: peer.key, driveKey: null, displayName: 'Owner' }])
   await waitFor(async () => (await listSharesForSpace(spaceId)).some((s) => s.id === shareId))
   return { shareId, ownerKey: peer.key, catalogKeyHex: b4a.toString(catalogCore.key, 'hex') }
 }

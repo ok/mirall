@@ -6,6 +6,11 @@
 // leaving-space marker, the purged-topic join/leave helpers and the ack-eligibility bookkeeping,
 // and nothing outside them touches those — which is what makes this a module rather than a section.
 //
+// Membership removal is the member-set fold's job (member-registry): a peer drops from the set
+// when their replicated `del member/S` (leave) lands, and stays an offline member otherwise. This
+// layer never prunes membership on disconnect — admission is separate from membership display,
+// and a dead socket says nothing about membership.
+//
 // Takes its collaborators through init() rather than importing swarm.js: the swarm handle and the
 // IPC channel are both reassigned across a restart, and getLocalBinding caches per-drive-key
 // signatures that only the connection layer can mint.
@@ -47,6 +52,8 @@ export function isSpaceLeaving(spaceId) { return leavingSpaces.has(spaceId) }
 // spaceId (we are leaving) → Set<profileKeyHex> of co-members that applied our leave
 const leaveAcks = new Map()
 
+// Captured before the teardown drops the member from the roster: the audit row has to stay
+// readable once the record is gone.
 function memberSnapshot (space, publicKey) {
   return {
     spaceName: space?.name ?? null,
@@ -379,8 +386,3 @@ export function resetLeaveProtocol() {
   onPendingLeaveApplied = null
   onPendingCancelApplied = null
 }
-
-// Membership removal is the member-set fold's job (member-registry): a peer drops from the
-// set when their replicated `del member/S` (leave) lands, and stays an offline member
-// otherwise. This layer deliberately never prunes membership on disconnect — admission is
-// separate from membership display, and a dead socket says nothing about membership.

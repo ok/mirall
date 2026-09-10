@@ -235,23 +235,6 @@ test('the renderer snapshot exposes network and a read-only features group', (t)
   t.alike(snap.features, {}, 'the group survives with no flags in it')
 })
 
-// The group is kept deliberately (a future renderer-visible flag), and its value is that main
-// stays the only writer. A spread of feature-flags.json would leak every flag; an unguarded
-// setRenderer would let the renderer mint one. Neither may become possible by accident, so
-// both are asserted while the allowlist is empty.
-test('an unknown flag cannot reach the renderer through the features group', (t) => {
-  const store = new ConfigStore(tmpDir(), {
-    readFeatures: () => ({ relay: true, somethingNew: true }),
-  }).load()
-  t.alike(store.rendererSnapshot().features, {}, 'only RENDERER_FEATURES entries are exposed')
-})
-
-test('setRenderer cannot write a feature flag', (t) => {
-  const store = new ConfigStore(tmpDir(), { readFeatures: () => ({}) }).load()
-  store.setRenderer({ features: { anything: true } })
-  t.alike(store.rendererSnapshot().features, {}, 'the renderer is not a trust boundary')
-})
-
 // Not a migration — the relay UI has never been reachable in a shipped build, so no
 // config.json in the wild holds a relay to lose. This asserts only that the dead `relays: []`
 // every existing file carries is dropped rather than outliving the feature, and that the
@@ -389,18 +372,4 @@ test('relay and bandwidth coexist in the network group', (t) => {
   const snap = reopened.rendererSnapshot().network
   t.alike(Object.keys(snap).sort(), ['downloadKBps', 'relay', 'relayMode', 'uploadKBps'],
     'the snapshot carries the whole group, not just one writer half')
-})
-
-// The store is constructed before primeFeatureFlags runs (main.js: readPrefs at app-ready,
-// preloadAsarCache six lines later). Latching flags at construction would capture the degraded
-// pre-prime read. The allowlist is empty today, so the property is asserted on the thunk
-// itself: it must be called per snapshot, not once.
-test('feature flags are read lazily, not latched at construction', (t) => {
-  let reads = 0
-  const store = new ConfigStore(tmpDir(), { readFeatures: () => { reads++; return {} } }).load()
-
-  const before = reads
-  store.rendererSnapshot()
-  store.rendererSnapshot()
-  t.is(reads, before + 2, 'each snapshot re-reads the flags')
 })

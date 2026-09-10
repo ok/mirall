@@ -58,11 +58,9 @@ export function createCatalogBatch(spaceId, {
     const gen = cur
     cur = newGen()
     inflight.push(gen)
-    // Chain via .then (single-flight) but NEVER re-throw: a flush is best-effort — the scan
-    // driving it must survive a failed write. Re-throwing would poison `flushing` (every later
-    // flush/close would reject and silently drop its ops), surface as an unhandled rejection on
-    // the void-flush paths, and abort the whole scan. Log and continue; dropped ops self-heal
-    // on the next full scan.
+    // Chained via .then (single-flight) and NEVER re-thrown: a flush is best-effort and the scan
+    // driving it must survive a failed write. A rejection here would poison `flushing` for every
+    // later flush/close. Log and continue; dropped ops self-heal on the next full scan.
     flushing = flushing.then(async () => {
       const bee = await resolveBee()
       const batch = bee.batch()

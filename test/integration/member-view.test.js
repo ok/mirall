@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
-import { freshPeerWithIdentity, freshDurableWithIdentity } from '../helpers/store.js'
+import { freshPeer, freshDurableWithIdentity } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, clearOwnMembership, readMembershipRecord,
@@ -75,7 +75,7 @@ test('readMembershipRecord returns { active, approvals }, cap-gated', async (t) 
 })
 
 test('a left member reads active:false (leave tombstone)', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const me = getLocalPublicKeyHex()
   const S = 'space-leave'
 
@@ -86,7 +86,7 @@ test('a left member reads active:false (leave tombstone)', async (t) => {
 })
 
 test('createMemberView derives a replicated co-member and re-derives transitively', async (t) => {
-  await freshPeerWithIdentity(t)              // local peer = the creator
+  await freshPeer(t)              // local peer = the creator
   const creator = getLocalPublicKeyHex()
   const S = 'space-view'
   await markOwnMembership(S)
@@ -115,7 +115,7 @@ test('createMemberView derives a replicated co-member and re-derives transitivel
 })
 
 test('onBeeAppend fires per share-record append and ignores non-share appends (range-scoped)', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const creator = getLocalPublicKeyHex()
   const S = 'space-append'
   await markOwnMembership(S)
@@ -151,7 +151,7 @@ test('onBeeAppend fires per share-record append and ignores non-share appends (r
 })
 
 test('createMemberView drops a co-member when their record flips to inactive', async (t) => {
-  await freshPeerWithIdentity(t)
+  await freshPeer(t)
   const creator = getLocalPublicKeyHex()
   const S = 'space-drop'
   await markOwnMembership(S)

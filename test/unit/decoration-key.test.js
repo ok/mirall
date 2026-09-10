@@ -1,18 +1,18 @@
 import test from 'brittle'
-import { readFileSync, readdirSync, statSync } from 'fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { shareDecoKey } from '../../src/shared/transfer/decoration-key.js'
-import { shareDecoKey as rendererShareDecoKey } from '../../src/renderer/decoration-key.js'
-import { shareDecoKey as contractShareDecoKey } from '../../src/shared/contract/decoration-key.js'
+import { shareDecoKey } from '../../src/shared/contract/decoration-key.js'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const srcRoot = path.join(here, '..', '..', 'src')
 
 // The worker emits folder-share decoration frames under this key and the renderer looks them up
-// with it, so any disagreement silently drops every folder progress bar. This used to diff two
-// hand-maintained copies; both sides now re-export the contract package, so the divergence it
-// watched for cannot occur and what is worth guarding is that the twin does not come back.
-test('the worker and renderer builders are the same function', (t) => {
-  t.is(shareDecoKey, contractShareDecoKey, 'the data layer re-exports rather than wraps')
-  t.is(rendererShareDecoKey, contractShareDecoKey, 'the renderer re-exports rather than wraps')
+// with it, so any disagreement silently drops every folder progress bar. Both sides import the
+// contract module directly; what is worth guarding is that neither grows a copy back.
+test('neither side holds a decoration-key twin', (t) => {
+  t.absent(existsSync(path.join(srcRoot, 'renderer', 'decoration-key.js')), 'the renderer imports the contract directly')
+  t.absent(existsSync(path.join(srcRoot, 'shared', 'transfer', 'decoration-key.js')), 'so does the data layer')
 })
 
 test('the key still keys by share and path', (t) => {
@@ -25,9 +25,6 @@ test('the key still keys by share and path', (t) => {
     t.is(shareDecoKey(shareId, relPath), expected, `${shareId}:${relPath}`)
   }
 })
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const srcRoot = path.join(here, '..', '..', 'src')
 
 function walk (dir, out = []) {
   for (const name of readdirSync(dir)) {

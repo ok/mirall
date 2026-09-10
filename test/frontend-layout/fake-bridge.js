@@ -136,7 +136,6 @@
     browseShareFolder: asyncNoop,
     onZoomChanged: noop,
     notify: asyncNoop,
-    notifyIsSupported: () => Promise.resolve(false),
     isWindowFocused: () => Promise.resolve(true),
     focusWindow: asyncNoop,
     showInFolder: asyncNoop,

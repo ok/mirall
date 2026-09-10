@@ -6,7 +6,7 @@
 import { useCallback, useMemo } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { invalidateKey, refetchQuery } from '../store/query-store.js'
+import { invalidateKey } from '../store/query-store.js'
 import { unhealthyOwnedStatus } from '../ownedMount.js'
 import { ANY_SHARES, sharesScope } from '../store/scopes.js'
 import type { OwnedMountRow } from '../ownedMount.js'
@@ -85,23 +85,10 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
     }
   }), [shares.data, myPublicKey, mirrored, mirrorStatus, ownedStatus])
 
-  // All three reads gate it, as the pre-store refresh() did with Promise.all: with share:list alone,
-  // a warm listing could paint before foreign-folder:list-all arrived, roleFor would see an empty
-  // mirror map, and an already-mirrored folder would render as a browse card offering "Mirror".
+  // Cold only (README.md), over all three reads: with share:list alone a warm listing could paint an
+  // already-mirrored folder as a browse card before foreign-folder:list-all arrived.
   const cold = shares.data === undefined || foreign.data === undefined || owned.data === undefined
   const loading = cold && (shares.loading || foreign.loading || owned.loading)
-
-  // Through the store, not around it: calling request() directly would pay three worker reads
-  // (share:list alone costs per-member head-pulls) and throw every result away, because the entries
-  // the hook renders from would never see them.
-  const refresh = useCallback(async () => {
-    if (!spaceId) return
-    await Promise.all([
-      refetchQuery('share:list', { spaceId }),
-      refetchQuery('foreign-folder:list-all', {}),
-      refetchQuery('owned-folder:list-all', {}),
-    ]).catch(() => {})
-  }, [spaceId])
 
   const createShare = useCallback(
     async (name: string) => (await request('share:create', { spaceId, name })) as Share,
@@ -113,7 +100,7 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
     [spaceId],
   )
 
-  return { shares: spaceId ? withRole : [], loading, refresh, createShare, deleteShare }
+  return { shares: spaceId ? withRole : [], loading, createShare, deleteShare }
 }
 
 function roleFor(share: Share, myPublicKey: string | null, mirrored: Map<string, boolean>): ShareRole {

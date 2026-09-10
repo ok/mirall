@@ -6,7 +6,8 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import os from 'bare-os'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { getStoragePath } from '../core/store.js'
 import { listDownloadRoots } from '../core/paths.js'
 import { listAllMounts } from './mount-store.js'
@@ -41,13 +42,13 @@ function checkWindowsSegments(normalized, platform) {
   for (const seg of normalized.split(path.sep)) {
     if (!seg) continue
     if (isWindowsReservedName(seg)) {
-      throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
+      throw new AppError(CODES.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
     }
     if (/[<>:"|?*\x00-\x1f]/.test(seg.slice(2))) {
-      throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
+      throw new AppError(CODES.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
     }
     if (seg.endsWith(' ') || seg.endsWith('.')) {
-      throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
+      throw new AppError(CODES.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
     }
   }
 }
@@ -86,10 +87,10 @@ function rejectIfOverlapsAnyDownloadRoot (normalized, role) {
   const fold = caseInsensitive(os.platform())
   for (const dl of listDownloadRoots()) {
     if (pathContains(dl, normalized, path.sep, fold)) {
-      throw new AppError(ErrorCodes.MOUNT_INSIDE_DOWNLOADS, dl)
+      throw new AppError(CODES.MOUNT_INSIDE_DOWNLOADS, dl)
     }
     if (pathContains(normalized, dl, path.sep, fold)) {
-      throw new AppError(ErrorCodes.MOUNT_CONTAINS_DOWNLOADS, dl)
+      throw new AppError(CODES.MOUNT_CONTAINS_DOWNLOADS, dl)
     }
   }
 }
@@ -104,11 +105,11 @@ export async function validateDownloadFolderAgainstMounts (folder) {
   const fold = caseInsensitive(os.platform())
   for (const mount of await listAllMounts()) {
     if (pathsOverlap(normalized, mount.mountPath, path.sep, fold)) {
-      throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_OVERLAPS_MOUNT, mount.mountPath)
+      throw new AppError(CODES.DOWNLOAD_FOLDER_OVERLAPS_MOUNT, mount.mountPath)
     }
   }
   if (!writeProbe(normalized)) {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
   }
   return normalized
 }
@@ -117,31 +118,30 @@ export async function validateDownloadFolderAgainstMounts (folder) {
 // have rejections to run can order the probe last.
 function checkDownloadFolderShape (folder) {
   if (typeof folder !== 'string' || folder.length === 0) {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Path is empty')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is empty')
   }
   if (!path.isAbsolute(folder)) {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Path must be absolute')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path must be absolute')
   }
   let stat
   try {
     stat = fs.statSync(folder)
   } catch {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Folder does not exist')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder does not exist')
   }
   if (!stat.isDirectory()) {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Path is not a directory')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is not a directory')
   }
   return folder
 }
 
-// The shape+writability rules ALONE, kept in parity with the main-process
-// validateDownloadFolder (src/main/main.js) that pre-screens the folder picker. Every worker
-// entry point goes through validateDownloadFolderAgainstMounts instead — this is the twin the
-// parity tests pin, so main's copy can't drift unnoticed.
+// The shape+writability rules ALONE, a hand-kept twin of the main-process validateDownloadFolder
+// (src/main/main.js) that pre-screens the folder picker. Every worker entry point goes through
+// validateDownloadFolderAgainstMounts instead. No test compares the two bodies — change both.
 export function validateDownloadFolder (folder) {
   checkDownloadFolderShape(folder)
   if (!writeProbe(folder)) {
-    throw new AppError(ErrorCodes.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
+    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
   }
   return folder
 }
@@ -186,24 +186,24 @@ function collectAdvisories(absPath) {
 
 export function validateMountPath(absPath, role, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
-    throw new AppError(ErrorCodes.MOUNT_PATH_MISSING, 'No path provided')
+    throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
   const platform = os.platform()
 
   const sysRoot = systemRootViolation(normalized, platform, path.sep)
-  if (sysRoot) throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
+  if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
 
   const appData = getStoragePath()
   if (appData && (normalized === appData || normalized.startsWith(appData + path.sep))) {
-    throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_APP_DATA, appData)
+    throw new AppError(CODES.MOUNT_FORBIDDEN_APP_DATA, appData)
   }
 
   const personalRoot = personalRootViolation(normalized, os.homedir(), path.sep, caseInsensitive(platform))
-  if (personalRoot) throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
+  if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
 
   if (cloudSyncHint(normalized.toLowerCase())) {
-    throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
+    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
   }
 
   checkWindowsSegments(normalized, platform)
@@ -217,14 +217,14 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
     if (m.role === role && m.shareId === ctx.shareId) continue
     if (overlaps(normalized, m.mountPath) &&
         !overlapAllowed(normalized, role, m.mountPath, m.role)) {
-      throw new AppError(ErrorCodes.MOUNT_OVERLAPS, m.mountPath)
+      throw new AppError(CODES.MOUNT_OVERLAPS, m.mountPath)
     }
   }
 
   rejectIfOverlapsAnyDownloadRoot(normalized, role)
 
   if (!writeProbe(normalized)) {
-    throw new AppError(ErrorCodes.MOUNT_NOT_WRITABLE, normalized)
+    throw new AppError(CODES.MOUNT_NOT_WRITABLE, normalized)
   }
 
   return { mountPath: normalized, advisories: collectAdvisories(normalized) }
@@ -232,24 +232,24 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
 
 export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
-    throw new AppError(ErrorCodes.MOUNT_PATH_MISSING, 'No path provided')
+    throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
   const platform = os.platform()
 
   const sysRoot = systemRootViolation(normalized, platform, path.sep)
-  if (sysRoot) throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
+  if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
 
   const appData = getStoragePath()
   if (appData && (normalized === appData || normalized.startsWith(appData + path.sep))) {
-    throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_APP_DATA, appData)
+    throw new AppError(CODES.MOUNT_FORBIDDEN_APP_DATA, appData)
   }
 
   const personalRoot = personalRootViolation(normalized, os.homedir(), path.sep, caseInsensitive(platform))
-  if (personalRoot) throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
+  if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
 
   if (cloudSyncHint(normalized.toLowerCase())) {
-    throw new AppError(ErrorCodes.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
+    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
   }
 
   checkWindowsSegments(normalized, platform)
@@ -258,14 +258,14 @@ export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
     if (m.role === role && m.shareId === ctx.shareId) continue
     if (overlaps(normalized, m.mountPath) &&
         !overlapAllowed(normalized, role, m.mountPath, m.role)) {
-      throw new AppError(ErrorCodes.MOUNT_OVERLAPS, m.mountPath)
+      throw new AppError(CODES.MOUNT_OVERLAPS, m.mountPath)
     }
   }
 
   rejectIfOverlapsAnyDownloadRoot(normalized, role)
 
   if (!writeProbe(normalized)) {
-    throw new AppError(ErrorCodes.MOUNT_NOT_WRITABLE, normalized)
+    throw new AppError(CODES.MOUNT_NOT_WRITABLE, normalized)
   }
 
   return { mountPath: normalized, advisories: collectAdvisories(normalized) }

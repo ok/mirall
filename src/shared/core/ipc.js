@@ -7,7 +7,8 @@ import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
 import { FRAME } from '../contract/frames.js'
-import { AppError, ErrorCodes } from './errors.js'
+import { AppError } from './errors.js'
+import { CODES } from '../contract/errors.js'
 import { createCancellation } from './cancellation.js'
 import { createHandlerTable, validateArgs } from './handler-table.js'
 import { createRequestMetrics } from './request-metrics.js'
@@ -65,9 +66,8 @@ const requestFailures = new Map()
 // counterpart on the sender's side, so unlike IPC_MAX_FRAME_BYTES it is NOT contract vocabulary.
 const MAX_QUEUED_FRAMES = 1000
 
-// Per-request timing and outcomes. The router already had the numbers and discarded them; keeping
-// them is what makes a claim like "one member change costs eleven round-trips" checkable instead of
-// estimated.
+// Per-request timing and outcomes: the router has the numbers, so a cost claim is checkable rather
+// than estimated.
 const requestMetrics = createRequestMetrics()
 
 export function getRequestMetrics() {
@@ -78,12 +78,9 @@ export function resetRequestMetrics() {
   requestMetrics.reset()
 }
 
-// Ordered key=value rather than JSON: the transport is a console line forwarded to main and read by
-// a human with grep. The router is the one place with enough structure to be worth it — converting
-// the other 400 positional call sites is a separate, mechanical change.
-// Every part of the line is key=value now, message included — the previous format concatenated the
-// type and id into one `req=boom #2` token, which is unreadable to anything but a human. The error's
-// own fields are spread FIRST so the router's canonical keys win a name clash.
+// Ordered key=value rather than JSON, message included: the transport is a console line forwarded
+// to main and read by a human with grep. The error's own fields are spread FIRST so the router's
+// canonical keys win a name clash.
 function logRequestFailure(log, { req, id, code, ms, message, extra }) {
   const bag = fields({ ...(extra || {}), req, id, code, ms, msg: message })
   if (EXPECTED.has(code)) log.debug('req-failed', bag)
@@ -104,8 +101,8 @@ export function resetRequestFailureCounters() {
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
 export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES } = {}) {
-  // The table owns the request metadata; `handle` below is a thin shim onto it so all 85 existing
-  // registrations keep working while domains move onto register(ipc, deps) one at a time.
+  // The table owns the request metadata; `handle` is a thin shim onto it so registrations keep
+  // working while domains move onto register(ipc, deps).
   const table = createHandlerTable(requests ? { requests } : {})
   // One entry per dispatched-but-unsettled request, keyed by the caller's id. Not a new unbounded
   // structure: it holds exactly the set the pending promise chain already holds, and makes it
@@ -126,13 +123,10 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const bootstrapPromise = new Promise((resolve) => { bootstrapResolve = resolve })
 
   pipe.on('data', (chunk) => {
-    // Bytes, not text. `buffer += chunk.toString()` decoded every chunk independently, so a chunk
-    // ending mid-sequence turned the split character into U+FFFD on both halves — and U+FFFD is
-    // legal JSON, so the frame parsed cleanly and the handler ran on a corrupted string (a space
-    // name, a path, a memo, the bootstrap frame's downloadFolder). Splitting on the newline BYTE is
-    // exact: 0x0A cannot occur inside a multi-byte UTF-8 sequence, so every complete line is
-    // complete UTF-8. It is also the only portable answer here — Bare has no TextDecoder, and its
-    // apparent `string_decoder` is a devDependency artefact absent from a production install.
+    // Bytes, not text: split on the newline BYTE, which cannot occur inside a multi-byte UTF-8
+    // sequence, so every complete line is complete UTF-8. Also the only portable answer — Bare has
+    // no TextDecoder, and its apparent `string_decoder` is a devDependency artefact absent from a
+    // production install.
     //
     // `owned` tracks whether `buffer` is memory of ours or still the caller's chunk, which the
     // pipe is free to reuse once this handler returns. Only an owned buffer may be held across
@@ -151,15 +145,11 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     }
 
     // A frame with no terminator in sight cannot be waited out: refused here, before it is ever
-    // materialised as a JSON string, and before the read buffer can grow without bound. Every
-    // TERMINATED frame is measured individually in the loop below — scoping the cap to one frame
-    // rather than to the read buffer, which legitimately carries many small frames at once.
-    //
-    // Measured in BYTES. The old `.length` on a decoded string was UTF-16 code units, so a
-    // multi-byte frame measured smaller than the bytes it actually occupied and the bound did not
-    // hold for the traffic most likely to strain it. Nothing computes a size before writing —
-    // emit/respond/hintBus all write whatever JSON.stringify produced — so this cap is enforced
-    // here alone, and the sender learns of it only through the failure counter.
+    // materialised as a JSON string and before the read buffer can grow without bound. Every
+    // TERMINATED frame is measured individually in the loop below — the cap is per frame, not per
+    // read buffer, which legitimately carries many small frames at once. Measured in BYTES, per
+    // frame; nothing on the write side measures, so this cap is enforced here alone and the sender
+    // learns of it only through the failure counter.
     if (buffer.length > maxFrameBytes && buffer.indexOf(NEWLINE) === -1) {
       log.warn('oversized frame discarded:', buffer.length, 'bytes exceeds', maxFrameBytes)
       countFailure('oversized-frame', INVALID_ARGUMENT)
@@ -181,9 +171,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       const line = complete.subarray(start, nl)
       start = nl + 1
       if (line.length === 0) continue
-      // The cap, measured on the frame itself. Enforcing it only on the unterminated path above
-      // made refusal depend on whether a frame's terminator happened to land in the same chunk:
-      // the same frame passed or was discarded by chunk boundaries alone.
+      // The cap, measured on the frame itself, so refusal cannot depend on where a chunk boundary
+      // fell.
       if (line.length > maxFrameBytes) {
         log.warn('oversized frame discarded:', line.length, 'bytes exceeds', maxFrameBytes)
         countFailure('oversized-frame', INVALID_ARGUMENT)
@@ -240,9 +229,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // logging shows what the UI is actually driving, with per-request timing.
     const label = msg.id != null ? `${msg.type} #${msg.id}` : msg.type
 
-    // Validated from the contract's arg shape before the handler sees it: four `typeof msg.` checks
-    // were spread across 85 handlers, so a malformed payload used to surface as an internal error
-    // from somewhere deep in a handler body instead of a refusal at the boundary.
+    // Validated from the contract's arg shape before the handler sees it, so a malformed payload is
+    // a refusal at the boundary rather than an internal error from deep in a handler body.
     const invalid = validateArgs(entry.spec.args, msg)
     if (invalid) {
       log.warn('req-invalid', label, invalid)
@@ -262,10 +250,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     // "already settled" and silently do nothing.
     const done = () => { if (msg.id != null) inFlight.delete(msg.id) }
     // `new Promise(resolve => resolve(...))`, not `Promise.resolve(...)`: the latter EVALUATES the
-    // handler before the promise exists, so a handler that throws synchronously unwound into the
-    // frame-parse catch around dispatch() — reported as an unparseable frame at debug, never
-    // answered (the caller hung to the renderer's 30s timeout), never counted, and with the
-    // in-flight metric already incremented and no settle to match it.
+    // handler before the promise exists, so a synchronous throw would unwind into the frame-parse
+    // catch — unanswered, uncounted, in-flight never settled.
     new Promise((resolve) => resolve(entry.fn(msg, { id: msg.id ?? null, signal: cancellation?.signal ?? null }))).then(
       (data) => { done(); log.debug('res', label, 'ok', `${settle(true)}ms`); respond(msg.id, data) },
       (err) => {
@@ -297,13 +283,13 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       log.debug('cancel', id, `(${dropped.type}, dropped from the pre-start queue)`)
       // Answered, unlike an in-flight cancel: nothing else ever will, and a caller that has not yet
       // discarded its pending entry would otherwise wait out the renderer's full request timeout.
-      respond(id, null, 'cancelled before dispatch', ErrorCodes.ECANCELLED)
+      respond(id, null, 'cancelled before dispatch', CODES.ECANCELLED)
       return
     }
     const entry = inFlight.get(id)
     if (!entry) { log.debug('cancel', id, '(already settled or unknown)'); return }
     log.debug('cancel', id, '(in flight)')
-    entry.abort(new AppError(ErrorCodes.ECANCELLED, 'cancelled by the caller'))
+    entry.abort(new AppError(CODES.ECANCELLED, 'cancelled by the caller'))
   }
 
   // Every outstanding request, aborted before the data layer closes under it. Without this a handler
@@ -315,7 +301,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     const n = inFlight.size
     log.debug('aborting', n, 'in-flight requests')
     for (const entry of [...inFlight.values()]) {
-      entry.abort(new AppError(ErrorCodes.ECANCELLED, reason || 'worker is shutting down'))
+      entry.abort(new AppError(CODES.ECANCELLED, reason || 'worker is shutting down'))
     }
     return n
   }

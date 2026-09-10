@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { subscribe } from '../../ipc.js'
 import { useToast } from '../toast/ToastProvider.js'
 import { basename } from '../../sharePaths.js'
-import { isMountFault } from '../../mountFault.js'
+import { isMountFault } from '../../../shared/contract/mount-fault.js'
 import { mountFaultReasonKey } from '../../errorMessages.js'
 
 interface TransferSupersededMessage {
@@ -65,10 +65,8 @@ export default function WorkerToastBridge() {
           })
         }
       }),
-      // Both fault statuses, and the reason translated: `error` carries an error CODE now, and
-      // passing it through raw is how "ENOSPC: no space left on device, write '/Users/…'" reached
-      // the user in every language. The folder screen's fault strip is the durable surface; this
-      // stays as the notice you get while looking at something else.
+      // `error` is a CODE; translate it. The folder screen's fault strip is the durable surface —
+      // this is the notice you get while looking at something else.
       subscribe<MountStatusMessage>('event:owned-folder-mount-status', (msg) => {
         if (!isMountFault(msg.status)) return
         toast.error(t('folder.syncPausedToast', { reason: tErr(mountFaultReasonKey(msg.error)) }), {

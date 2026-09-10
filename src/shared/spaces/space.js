@@ -1,7 +1,8 @@
 // Space lifecycle: create/join/leave of spaces and their local spaces-meta records,
-// per-space drive management (create, load, purge of on-disk cores), serialized
-// member-roster mutation, durable leave tombstones, pending join requests, and
-// pinning of the creator root the membership fold trusts.
+// per-space drive management (create, load, purge of on-disk cores — purgeCoreDk is the
+// shared core-purge primitive), the invite-code format, serialized member-roster mutation,
+// durable leave tombstones, pending join requests, and pinning of the creator root the
+// membership fold trusts.
 import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
@@ -22,7 +23,7 @@ const { store: keysStore, core: keysCore } = keysMod
 
 // Publish our per-space loose-catalog key alongside the drive key so co-members fold
 // it from records (the same path driveKey uses). Requires the space RECORD to exist
-// (the key derives from it via catalogNameFor); callers pass the record they already
+// (the key derives from it via share-catalog's catalogNameForSpace); callers pass the record they already
 // hold, so this adds no extra read and never publishes before the record is saved.
 async function publishLooseCatalogKey (spaceId, space) {
   if (!space) { log.warn('skipping loose-catalog key publish — no space record:', spaceId); return }
@@ -46,7 +47,7 @@ export async function ownLooseCatalogPublish (spaceId) {
 // range. hypercore-storage's built-in deleteCore short-circuits when auth
 // is missing, which leaves zombie aliases behind and crashes later opens
 // with unslab / STORAGE_EMPTY. Writing the deletions directly avoids that.
-export async function purgeCoreDk(cs, _db, dkHex) {
+export async function purgeCoreDk(cs, dkHex) {
   const dkBuf = b4a.from(dkHex, 'hex')
   const storage = await cs.storage.resumeCore(dkBuf)
   if (!storage) return
@@ -67,12 +68,12 @@ export async function purgeCoreDk(cs, _db, dkHex) {
 // RocksDB blob-file garbage) then delete the header/alias. A bare purgeCoreDk
 // range-delete leaves blob-separated values stranded — no compaction frees them
 // (garbage stays 0); the clear is what makes them reclaimable. Caller compacts.
-export async function clearAndPurgeCore(cs, db, core) {
+export async function clearAndPurgeCore(cs, core) {
   await core.ready()
   try { await core.clear(0, core.length) } catch (err) { log.warn('core.clear before purge failed:', err.message) }
   const dkHex = b4a.toString(core.discoveryKey, 'hex')
   try { await core.close() } catch {}
-  await purgeCoreDk(cs, db, dkHex)
+  await purgeCoreDk(cs, dkHex)
 }
 
 // Removes the TL_CORE_BY_ALIAS entry that maps a (namespace, name) pair to
@@ -104,10 +105,12 @@ function makeDriveSuffix() {
   return b4a.toString(crypto.randomBytes(8), 'hex')
 }
 
+// test seam
 export function formatInviteCode(topicHex) {
   return topicHex.match(/.{1,8}/g).join('-')
 }
 
+// test seam
 export function parseInviteCode(code) {
   return code.replace(/-/g, '')
 }
@@ -244,12 +247,6 @@ export async function getSpace(spaceId) {
   return entry ? { spaceId, ...entry.value } : null
 }
 
-export async function updateMembers(spaceId, members) {
-  const entry = await spacesBee.get('space/' + spaceId)
-  if (!entry) return
-  await spacesBee.put('space/' + spaceId, { ...entry.value, members })
-}
-
 // Per-space serialization of every read-modify-write of the member list. A peer
 // joining a space that already has 2+ members fires several handshakes at once,
 // and leave-frames / reconcile-prunes can land concurrently with them. Writing
@@ -284,12 +281,11 @@ export function mutateMembers(spaceId, mutate) {
   return next
 }
 
-// The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection
-// state is rebuilt from scratch on every boot, so recording at handshake time re-reported every
-// known member as a fresh arrival on each app start. This is the one funnel every path runs
-// through — approval, handshake upsert, the join-time inviter pre-seed, and the replicated
-// membership fold — so an arrival is recorded exactly once regardless of which lands first.
-// Fire-and-forget: auditing must never delay or fail a membership write.
+// The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection state
+// is rebuilt on every boot, so a handshake-time row would re-report every known member as a fresh
+// arrival at each start. This is the one funnel every path runs through — approval, handshake
+// upsert, the join-time inviter pre-seed, the replicated membership fold — so an arrival is recorded
+// exactly once whichever lands first. Fire-and-forget: auditing must never delay or fail a write.
 function auditArrivals(spaceId, space, added) {
   if (!added.length) return
   // While we are still pending we are not a member ourselves, so the roster we adopt during our
@@ -355,6 +351,7 @@ export function removeMember(spaceId, publicKey) {
   })
 }
 
+// test seam
 export async function removeSpace(spaceId) {
   await clearAllLeftTombstones(spaceId)
   await spacesBee.del('space/' + spaceId)
@@ -407,26 +404,21 @@ export async function resumeInterruptedLeave(spaceId) {
   }, { log })
 }
 
-// Durable, LOCAL-only leave tombstones: we record that we observed a peer leave a space so the
-// member-view fold keeps subtracting it after a restart (the in-memory tombstone would be gone),
-// including the creator/root where revokeApproval cannot help. Never replicated, so it can only
-// ever suppress the leaver in OUR OWN fold — no cross-peer eviction. Stamped with the leaver's
-// clock so a genuine rejoin (a strictly-later member/<S> ts) self-clears it via tombstoneActive.
+// Durable, LOCAL-only leave tombstones: we observed a peer leave, so the member-view fold keeps
+// subtracting it after a restart (including the creator/root, where revokeApproval cannot help).
+// Never replicated, so it only ever suppresses the leaver in OUR OWN fold — no cross-peer eviction.
+// Stamped with the leaver's clock so a genuine rejoin (a strictly-later member/<S> ts) self-clears
+// it via tombstoneActive.
 const LEFT_TOMBSTONE_PREFIX = 'left/'
 const leftRange = (spaceId) => ({ gte: LEFT_TOMBSTONE_PREFIX + spaceId + '/', lt: LEFT_TOMBSTONE_PREFIX + spaceId + '0' })
-// Coerce to a positive finite number, so a corrupt stored value (negative/NaN/non-numeric) can
-// never reach the tombstoneActive comparison as a negative — a negative would flip tombstoneActive
-// false and actively re-admit the leaver. A garbage value collapses to a benign inert 0 (a member
-// with any real ts>0 then reads as un-suppressed; the leave frame's own ts is validated positive at
-// ingest, so this only guards genuine on-disk corruption).
+// Coerced to a positive finite number: a negative reaching the tombstoneActive comparison would
+// flip it false and re-admit the leaver, so on-disk garbage collapses to an inert 0.
 const sanitizeLeaveTs = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
 
-// One tiny (~1 record) local, never-replicated tombstone per lifetime departure. Grow-only, cleared
-// on the leaver's rejoin (dropTombstone) and on space deletion (clearAllLeftTombstones) — bounded in
-// practice by the distinct members who ever left. Not count-pruned: evicting "the oldest" is unsafe
-// (a tombstone is load-bearing exactly when its del hasn't replicated, and a long-gone unreachable
-// leaver is the most likely to be un-replicated), and a per-leave range read to prune costs more
-// than the tail it would trim.
+// One ~1-record tombstone per lifetime departure, cleared on the leaver's rejoin (dropTombstone) and
+// on space deletion (clearAllLeftTombstones). Not count-pruned: a tombstone is load-bearing exactly
+// when its del has not replicated, and a long-gone unreachable leaver is the likeliest to be
+// un-replicated, so "evict the oldest" is the unsafe choice.
 export async function persistLeftTombstone(spaceId, key, leaveTs) {
   await spacesBee.put(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key, { leaveTs: sanitizeLeaveTs(leaveTs) })
 }
@@ -533,9 +525,9 @@ export async function purgeSpaceDrive(spaceId, onProgress, { compact = true } = 
     // A space drive opens by keyPair, not name (see releaseDriveCores), so there is no
     // (namespace, 'db') alias to purge — drive.corestore.ns is the root namespace, which
     // purgeAlias must not touch.
-    await purgeCoreDk(cs, db, metaDk)
+    await purgeCoreDk(cs, metaDk)
     emit('purgingLocalBlobs')
-    if (blobsDk) await purgeCoreDk(cs, db, blobsDk)
+    if (blobsDk) await purgeCoreDk(cs, blobsDk)
 
     emit('compactingLocalCache')
     // The cores are already tombstoned (purgeCoreDk above); the compaction only reclaims the
@@ -589,10 +581,8 @@ export async function updateSpace(spaceId, name, icon, { downloadFolder } = {}) 
   return updated ? { spaceId, ...updated } : null
 }
 
-// Routed through mutateSpace for the same reason as updateSpace: a raw get/put here would
-// not serialize against it, and a star clicked while a space:update is still validating a
-// download folder (statSync + write probe + a mount scan) would write back the record it read
-// BEFORE that update landed — silently dropping the folder the user just chose.
+// Serialized with updateSpace via mutateSpace: a raw get/put would write back a record read BEFORE a
+// concurrent space:update landed, silently dropping the download folder the user just chose.
 export async function toggleFavorite(spaceId) {
   let updated = null
   await mutateSpace(spaceId, (space) => {
@@ -712,9 +702,8 @@ export function listJoinRequests(spaceId) {
 }
 
 // Pending requests for the UI, excluding anyone already in the roster: a member can never also be
-// "pending". Guards against a stale live/derived entry for a peer admitted via the handshake gate
-// (which clears only the live cache) or whose approval was learned from records before the gate ran —
-// the source of an owner seeing an already-joined member stuck as a pending approval.
+// "pending" (a stale live/derived entry can outlive the handshake gate, which clears only the live
+// cache, or an approval learned from records before the gate ran).
 export function listPendingRequests(spaceId, memberKeys = null) {
   const reqs = listJoinRequests(spaceId)
   if (!memberKeys || !memberKeys.size) return reqs
@@ -734,8 +723,6 @@ export function clearJoinRequest(spaceId, profileKey) {
   return pendingRequests.get(spaceId)?.delete(profileKey) || false
 }
 
-// Approve a joiner: write the authored approval record, mark them an approved
-// member, and drop any pending request.
 export async function recordApproval(spaceId, joinerKey) {
   await markApproval(spaceId, joinerKey)
   await upsertMember(spaceId, { publicKey: joinerKey, status: 'approved' })
@@ -754,7 +741,6 @@ export async function materializeOwnDrive(spaceId, sck) {
     await drive.ready()
     drives.set(spaceId, drive)
   }
-  // Publish our drive key so co-members (incl. ones who only derive us from records) can open it.
   await markSpaceDriveKey(spaceId, b4a.toString(drives.get(spaceId).key, 'hex'))
   await publishLooseCatalogKey(spaceId, space)
   await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))

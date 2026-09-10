@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useAuditLog, useAuditFacets, hasActiveFilters, EMPTY_FILTERS, AUDIT_CATEGORIES } from '../hooks/useAuditLog.js'
 import { actorInitials, avatarKind, denialReasonKey, groupByDay, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence, systemIcon, emptyStateFor } from '../auditRow.js'
-import { AUDIT_KINDS } from '../auditKinds.js'
+import { KINDS } from '../../shared/contract/audit-kinds.js'
 import type { AuditCategory, AuditEntry, AuditFilters } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
@@ -11,6 +11,10 @@ import SegmentedControl, { Segment } from '../components/primitives/SegmentedCon
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
+
+// The kind names, so a search term typed in any locale can be matched against the TRANSLATED
+// labels and turned into a `kinds` filter: the stored search blob is proper nouns only.
+const AUDIT_KINDS: readonly string[] = Object.keys(KINDS)
 
 interface ActivityLogProps {
   onBack: () => void
@@ -65,15 +69,9 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
       </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          {/* The entity names carry the meaning of the row, so they are set apart from the
-              surrounding prose — otherwise "You deleted the folder share Large Files" reads as
-              one undifferentiated line. Emphasis is weight + the accent colour, the app's
-              existing in-body emphasis; a highlight fill would collide with the status palette's
-              five fixed meanings. */}
-          {/* One logical string = one accessible node. The emphasis above splits the sentence
-              across spans, which macOS surfaces as separate AXStaticText leaves — VoiceOver then
-              reads "Alice", "gave you access to", "Aurora" as three fragments. The whole sentence
-              is exposed once for assistive tech, and the visible pieces are hidden from it. */}
+          {/* Entity names get weight + accent (the app's in-body emphasis; a fill would collide with
+              the status palette). One logical string = one accessible node: the sentence is exposed
+              once via sr-only and the visible spans are aria-hidden, so VoiceOver reads it whole. */}
           <p className="text-sm text-on-surface-variant min-w-0">
             <span className="sr-only">{t(sentenceKey(entry), sentenceValues(entry))}</span>
             <span aria-hidden="true">
@@ -296,12 +294,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                     would otherwise stretch the screen without limit as pages are appended. It
                     also makes the day headings pin the way they are meant to — against the list,
                     not the page. */}
-                {/* `relative` makes this pane the containing block for the `sr-only` spans inside
-                    the rows (each row's full sentence). They are `position: absolute`, so without
-                    it they resolve against the initial containing block, the pane cannot clip
-                    them, and a row below the fold drops its span past the viewport bottom —
-                    growing the DOCUMENT into an OS scrollbar. SpaceView and FolderView carry it
-                    on their panes for exactly this. */}
+                {/* `relative`: the scroll-pane rule, see SpaceView's pane. */}
                 <div className="relative max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
                 <ul>
                   {groups.map((group) => (

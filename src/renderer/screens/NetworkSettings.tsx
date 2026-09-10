@@ -18,9 +18,8 @@ interface NetworkSettingsProps {
 
 type Direction = 'download' | 'upload'
 
-// Usability floor for a non-zero cap — below this the app looks broken. The worker clamps
-// to the same value (bandwidth-limiter.js), which carries the full rationale; note it is
-// NOT what keeps a chunk inside the transfer watchdog, as this comment used to claim.
+// Usability floor for a non-zero cap — below this the app looks broken. The worker clamps to the
+// same value (bandwidth-limiter.js, which carries the rationale).
 const MIN_KBPS = 32
 const PRESET_KBPS = [0, 1024, 5120, 25600]
 const COMMIT_DEBOUNCE_MS = 400

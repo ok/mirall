@@ -27,14 +27,11 @@ interface IpcEnvelope {
 
 import { makeRespawnPolicy } from './workerRespawn.js'
 
-// Mutable: recreated on worker exit so a worker that died mid-multibyte UTF-8 chunk
-// can't leave dangling continuation state that corrupts the next worker's first frame. Main needs
-// no counterpart reset — its reader lives in the per-worker getWorker() closure and dies with the
-// worker, whereas this decoder is module-level and bound once for the app's lifetime.
+// Recreated on worker exit: a worker that died mid-multibyte UTF-8 chunk must not leave
+// continuation state that corrupts the next worker's first frame (main needs no reset — its reader
+// lives in the per-worker getWorker() closure). One decoder per stream: stdout and stderr
+// interleave, and a log line split mid-character would render U+FFFD on both halves.
 let decoder = new TextDecoder('utf-8')
-// The worker's stdout and stderr are the same class of stream and need the same treatment: decoded
-// per chunk, a log line split mid-character renders as U+FFFD on BOTH halves — in the console
-// artifact this bug class is diagnosed from. One decoder per stream, because they interleave.
 let stdoutDecoder = new TextDecoder('utf-8')
 let stderrDecoder = new TextDecoder('utf-8')
 const encoder = new TextEncoder()

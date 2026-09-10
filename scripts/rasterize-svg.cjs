@@ -1,25 +1,13 @@
 #!/usr/bin/env electron
-// Rasterizes an SVG to a square PNG using Chromium, via the Electron already in
-// devDependencies:
-//
+// Rasterizes an SVG to a PNG with the Electron already in devDependencies:
 //   electron scripts/rasterize-svg.cjs <in.svg> <out.png> <size>
+// <size> is `N` for N x N or `WxH` (the wordmark is 2835:844 and must not be squared).
 //
-// where <size> is `N` for an N x N square or `WxH` for anything else (the
-// wordmark is 2835:844, and forcing it square would distort it).
-//
-// Why not ImageMagick, which the icon pipeline already depends on: `magick` only
-// renders SVG itself when librsvg is absent, and its built-in renderer flattens
-// Béziers with a tolerance measured in the path's own coordinate space. The
-// brand icon draws its rounded square as a unit-scale path (coordinates in 0..1)
-// blown up ~147x by a transform matrix, so the curve gets a handful of segments
-// and the transform magnifies each into a visible facet — shipped once, on every
-// corner of every icon. Nothing warns about it: `magick` falls back silently, so
-// the output quality depended on whether the machine happened to have librsvg.
-//
-// Chromium has no such failure mode, needs no system install, and is the same
-// engine that paints the app's own UI. Drawing into a canvas rather than
-// screenshotting a window keeps the result independent of window size, display
-// scaling and compositing.
+// Not ImageMagick: `magick` renders SVG itself only when librsvg is absent, and its own renderer
+// flattens Béziers in the path's coordinate space — the brand icon is a unit-scale path scaled ~147x,
+// so every corner comes out faceted, silently. Chromium has no such mode, needs no system install,
+// and is the engine that paints the app; drawing into a canvas keeps the result independent of
+// window size, display scaling and compositing.
 const { app, BrowserWindow } = require('electron')
 const fs = require('node:fs')
 

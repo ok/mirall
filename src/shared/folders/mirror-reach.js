@@ -1,5 +1,4 @@
-// Whether a mirror pass may reach for content at all, kept pure so the rule is asserted directly
-// rather than through a live swarm — the same shape as mirror-walk.js.
+// Whether a mirror pass may reach for content at all.
 //
 // A self-mirror is always reachable: presence leases track REMOTE peers only, so our own key is
 // never in the map and a bare isOwnerOnline(ownerKey) reads every self-mirror as permanently

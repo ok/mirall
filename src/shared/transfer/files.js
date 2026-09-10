@@ -12,7 +12,8 @@ import { isOwnerOnline } from './swarm.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { markListIncomplete } from './list-deficits.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { AppError, ErrorCodes } from '../core/errors.js'
+import { AppError } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { isEphemeralSourcePath } from '../folders/temp-paths.js'
 import b4a from 'b4a'
 import fs from 'bare-fs'
@@ -252,14 +253,6 @@ export async function getOwnedSourcePath(spaceId, filePath) {
   return entry?.value?.sourcePath || null
 }
 
-export async function* listOwnedSources(spaceId) {
-  const gte = 'src:' + spaceId + ':'
-  for await (const node of downloadsBee.createReadStream({ gte, lt: gte + '\xff' })) {
-    const sourcePath = node.value?.sourcePath
-    if (sourcePath) yield { drivePath: node.key.slice(gte.length), sourcePath }
-  }
-}
-
 export async function clearOwnedSource(spaceId, filePath) {
   await downloadsBee.del('src:' + spaceId + ':' + filePath)
 }
@@ -269,28 +262,27 @@ export async function clearOwnedSource(spaceId, filePath) {
 // (unsaved screenshots / Photo Booth captures), and anything that isn't a
 // readable file on disk. Without this, addFile would happily stream an ephemeral
 // source that vanishes moments later, leaving the share pointing at nothing.
-export async function assertSharableSource(filePath) {
+async function assertSharableSource(filePath) {
   if (!filePath || isEphemeralSourcePath(filePath)) {
-    throw new AppError(ErrorCodes.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
+    throw new AppError(CODES.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
   }
   let stat
   try {
     stat = await fs.promises.stat(filePath)
   } catch {
-    throw new AppError(ErrorCodes.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
+    throw new AppError(CODES.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
   }
   if (!stat.isFile()) {
-    throw new AppError(ErrorCodes.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
+    throw new AppError(CODES.SOURCE_NOT_ON_DISK, 'File is not saved on disk')
   }
 }
 
 export async function addFile(spaceId, filePath, fileName) {
   const drive = getDrive(spaceId)
-  if (!drive) throw new AppError(ErrorCodes.DRIVE_NOT_FOUND, 'Drive not found for space')
+  if (!drive) throw new AppError(CODES.DRIVE_NOT_FOUND, 'Drive not found for space')
 
   await assertSharableSource(filePath)
 
-  // Loose files are served in place via the overlay (no second copy into a drive).
   await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
 }
 
@@ -470,7 +462,7 @@ export async function revealFile(spaceId, filePath) {
 
 // missingCode is the caller's, because the same walk backs revealing a file and revealing a folder
 // and "This file isn't on this device yet." is the wrong sentence for a folder.
-export function revealLocalPath(target, missingCode = ErrorCodes.FILE_NOT_ON_DEVICE) {
+export function revealLocalPath(target, missingCode = CODES.FILE_NOT_ON_DEVICE) {
   const platform = os.platform()
   const exists = fs.existsSync(target)
   const folder = path.dirname(target)
@@ -497,7 +489,7 @@ export function revealLocalPath(target, missingCode = ErrorCodes.FILE_NOT_ON_DEV
     }
   } catch (err) {
     log.error('reveal spawn threw:', err.message)
-    throw new AppError(ErrorCodes.UNKNOWN, 'Could not reveal file')
+    throw new AppError(CODES.UNKNOWN, 'Could not reveal file')
   }
 
   child.on('error', (err) => log.error('reveal subprocess error:', err.message))

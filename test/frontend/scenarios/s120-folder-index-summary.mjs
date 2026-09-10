@@ -94,12 +94,9 @@ export default async function s120 ({ runDir, bootstrap }) {
       // The summary is ephemeral: a departing owner sends no closing frame, so the member has to
       // drop it on the owner's liveness rather than wait to be told.
       //
-      // Not covered here, and not cheaply coverable: the RESURRECTION case, where the owner returns
-      // with an empty queue and the member re-paints a count from before the outage. Reproducing it
-      // needs the member to miss the closing frames while the owner drains — a network partition,
-      // not a quit, since an owner that restarts mid-scan simply re-enqueues and sends fresh ones,
-      // which self-heals the buggy code too. It is prevented by construction instead: liveness is
-      // part of the hook's reset key, so the value is dropped, never merely hidden.
+      // Not covered, and not cheaply coverable: RESURRECTION (the owner returns with an empty queue and
+      // the member re-paints a pre-outage count) needs a partition, not a quit. Prevented by
+      // construction — liveness is part of the hook's reset key, so the value is dropped, never hidden.
       //
       // A smaller second wave — six is already past the lane's three slots, which is all this step
       // needs, and the suite pays for every byte twice (fixture plus what the owner publishes).

@@ -15,11 +15,12 @@ import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import {
-  getForeignMount, mutateForeignMount, deleteForeignMount, patchForeignMount, findForeignMountByShareId,
+  getForeignMount, mutateForeignMount, deleteForeignMount, patchForeignMount,
 } from './mount-store.js'
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
-import { mountRootAvailable } from './owned-folders.js'
-import { AppError, ErrorCodes, classifyLocalIoFault } from '../core/errors.js'
+import { mountRootAvailable } from './publish-runner.js'
+import { AppError, classifyLocalIoFault } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { faultFromError, statusForFaultCode, isAutoPauseStatus, STATUS_MOUNT_GONE } from './mount-fault.js'
@@ -30,7 +31,7 @@ import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
 import { acquireFetchSlot, drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overlay/fetch-slots.js'
 import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/backends/overlay/fetch-claims.js'
 import { createPausedHolders } from '../transfer/backends/overlay/paused-holders.js'
-import { shareDecoKey } from '../transfer/decoration-key.js'
+import { shareDecoKey } from '../contract/decoration-key.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { markVerified, isVerifiedUnchanged, getVerifiedHash } from '../transfer/files.js'
 import { createLogger } from '../core/logger.js'
@@ -100,7 +101,7 @@ export function onPeerDriveChanged(spaceId) {
 
 // A member handshaked into this space. Any mirror of theirs has been skipping its passes on the
 // reachability gate, so re-drive now rather than at the next tick.
-export function onOwnerOnline(_ownerKey, spaceId) {
+function onOwnerOnline(_ownerKey, spaceId) {
   pokeSpaceMirrors(spaceId)
 }
 
@@ -213,11 +214,10 @@ export async function resumeAutoPausedForeignMount(spaceId, shareId) {
   return true
 }
 
-// The containment-guarded materialize primitive. pathFromMount rejects any
-// owner-controlled relPath that escapes the mount BEFORE any local write/unlink —
-// the path-traversal guard the security suite exercises (foreign-path-containment).
-// Puts are fetched by the overlay path (materializeOverlayFile); this remains the
-// delete primitive used by the catalog deletion reconcile.
+// The containment-guarded delete primitive, used by the catalog deletion reconcile. pathFromMount
+// rejects any owner-controlled relPath that escapes the mount BEFORE the unlink — the
+// path-traversal guard the security suite exercises (foreign-path-containment). Puts never come
+// here: they are fetched by materializeOverlayFile.
 export async function applyChange(mount, change) {
   const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
   if (change.action === 'del') {
@@ -260,12 +260,6 @@ const activeOverlayFetches = new Map()
 // The paused-stop markers this mount left with holders, so a later unmount can still tell them we
 // stopped rather than leaving their "who is downloading" row paused until the 5-min sweep.
 const pausedHolders = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
-// One in-memory Set of synced owner keys per mount — the authoritative copy while the process
-// lives. mount.syncedPaths (the persisted array) is its boot-time seed and durable snapshot,
-// written back only when the Set changed. Membership is asked once per catalog entry per tick,
-// so it must be O(1): the array scan it replaces made a fully-synced tick quadratic. The Set
-// outlives pause/resume (a stopped pass has already written files it must keep owning) and is
-// dropped only on unmount, with the record.
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
 // derivation so a materializing mirror row reports 'downloading'.
 export function foreignFetchActive(spaceId, shareId, relPath) {
@@ -328,11 +322,10 @@ const integritySeen = createIntegritySeen({
     '— further hash mismatches on this mount are logged but not audited until it is remounted'),
 })
 
-// How many times this mount has failed to land a given (file, hash), and when to stop asking. The
-// mirror used to retry a corrupt file on every 30s tick and every catalog append, forever. A budget
-// rather than an outright block because the overlay is multi-source: the first holder serving bad
-// bytes must not condemn content a second holder can serve. In memory rather than durable — the
-// mirror is catalog-driven and must not grow a row per file — so a remount forgives it.
+// How many times this mount has failed to land a given (file, hash), and when to stop asking.
+// Budgeted, not blocked: the overlay is multi-source, and the first holder serving bad bytes must
+// not condemn content a second holder can serve. In memory rather than durable — the mirror is
+// catalog-driven and must not grow a row per file — so a remount forgives it.
 const attempts = createAttemptBudget()
 
 // The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
@@ -356,15 +349,12 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
   }).catch((err) => log.debug('mirror integrity audit failed:', err.message))
 }
 
-// A mirror is owner-authoritative: the owner's bytes belong at the natural name, and that is what
-// test/flow/mirror-local-edit.test.js pins. What was never intended is the other half of the old
-// behaviour — that the user's bytes were DESTROYED to get there, with no copy, no warning and no
-// audit row.
-//
-// So before the fetch renames over the local file, prove the file is one we delivered. The verified
-// record is that ancestor and `diskHash` is already computed, so the check costs one bee read on a
-// file that was going to be overwritten anyway. Anything we cannot vouch for is moved aside first;
-// the owner's version then lands at the canonical path exactly as before.
+// A mirror is owner-authoritative: the owner's bytes belong at the natural name (pinned by
+// mirror-local-edit.test.js) — but never at the cost of the user's. Before the fetch renames over
+// the local file, prove it is one we delivered: the verified record is that ancestor and `diskHash`
+// is already computed, so the check costs one bee read on a file about to be overwritten anyway.
+// Anything we cannot vouch for is moved aside first; the owner's version then lands at the
+// canonical path.
 async function preserveLocalEdit (mount, entry, verifyKey, diskHash, abs) {
   const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey).catch(() => null)
   if (mayOverwriteInPlace(classifyLocalCopy({ diskHash, ownerHash: entry.contentHash, ancestorHash }))) return
@@ -384,7 +374,7 @@ async function preserveLocalEdit (mount, entry, verifyKey, diskHash, abs) {
     // Could not move it aside, so do not overwrite it either: leaving the mirror one file stale is
     // recoverable on the next tick, and destroying the edit is not.
     log.error('could not preserve a locally-edited mirror file — leaving it untouched:', entry.relPath, '-', err.message)
-    throw new AppError(ErrorCodes.TRANSFER_PERMISSION, 'could not preserve a local edit')
+    throw new AppError(CODES.TRANSFER_PERMISSION, 'could not preserve a local edit')
   }
 }
 
@@ -400,7 +390,7 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
   // blame a holder for our own full disk.
   if (await pauseMountForIoError(mount, err)) return
   diag?.finish('failed')
-  const code = err?.code === 'EHASHMISMATCH' ? ErrorCodes.TRANSFER_CHECKSUM : null
+  const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
     log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
     return
@@ -443,9 +433,9 @@ function createMountProbe(mount) {
   }
 }
 
-// The two preflights the engine has run since FIX-DLDIR-2, which the mirror never had. Without the
-// first, fetchOverlayEntry's mkdir -p silently RECREATES a mount root the user deleted and
-// materializes into a resurrected empty tree.
+// The same two preflights the download engine runs (download-root-unavailable.test.js pins them
+// there). Without the first, fetchOverlayEntry's mkdir -p silently RECREATES a mount root the user
+// deleted and materializes into a resurrected empty tree.
 //
 // They settle differently on purpose. A missing root and an exhausted volume are mount-wide, so
 // they pause. A single file that will not fit is about THAT file: pausing the mount for it would
@@ -458,11 +448,11 @@ async function mountCanTake(mount, entry, abs, probe) {
   const freeBytes = probe.freeBytes()
   // Short of the headroom with nothing requested at all: the volume is out, not this file.
   if (shortfall({ freeBytes, needBytes: 0 }) > 0) {
-    await pauseMount(mount, statusForFaultCode(ErrorCodes.TRANSFER_DISK_FULL), ErrorCodes.TRANSFER_DISK_FULL)
+    await pauseMount(mount, statusForFaultCode(CODES.TRANSFER_DISK_FULL), CODES.TRANSFER_DISK_FULL)
     return false
   }
   // A resumed partial has already taken its bytes from the volume; charging for them twice would
-  // refuse — and before this split, terminally pause — a transfer that is nearly done.
+  // refuse a transfer that is nearly done.
   let allocatedBytes = 0
   try { allocatedBytes = fs.statSync(abs + PARTIAL_SUFFIX).blocks * 512 || 0 } catch {}
   if (shortfall({ freeBytes, needBytes: entry.size || 0, allocatedBytes }) > 0) {
@@ -495,8 +485,8 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
       log.debug('could not stat a mirror path before materializing:', entry.relPath, '-', err.message)
     }
   }
-  // Retained past the checks below: it is the evidence the ancestor comparison needs, and hashing
-  // a multi-GB file twice in one pass to re-derive it would undo FIX-MIRROR-REHASH.
+  // Retained past the checks below: it is the evidence the ancestor comparison needs, and a pass
+  // hashes a file at most once (foreign-mirror-rehash.test.js).
   let diskHash = null
   if (onDisk?.isFile() && entry.contentHash) {
     // Already-mirrored file: the verified record skips the full re-hash the poll
@@ -516,7 +506,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // here too would interleave two producers on one decoration key and duplicate the bytes. A cheap
   // early-out so we do not queue for a slot to do it; the claim taken past the gate decides. Another
   // OWNER only — our own overlapping pass (a tick racing an adopted initial scan) is serialised by
-  // activeOverlayFetches, and refusing it here would change what FIX-R09-2 pins.
+  // activeOverlayFetches and must not be refused here (foreign-mirror-inflight.test.js).
   const claimedBy = fetchClaimedBy(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))
   if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
   // Below the claim check on purpose: charging a file the download engine already owns against our
@@ -534,16 +524,12 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   }
 }
 
-// A parked pass is in flight as far as pass-liveness is concerned, so mirrorVerdict would condemn
-// it after pollInterval x STALL_FACTOR (10 minutes) and the Supervisor would restart it — churn
-// whose cause is a queue, not a wedge. Stamping progress either side of the wait is not enough:
-// the wait is unbounded and can outlast the window on its own. Heartbeat through it instead, so
-// the verdict measures the fetch rather than the queue. Before this gate the mirror never waited.
-//
-// Never express: a background materialize must not outrank a click. Taken BEFORE the in-flight
-// record, because cancelInflightFetch reads that record — a stop landing while this is parked
-// would ask the vendor layer to cancel a fetch that never started, and would tell the holder we
-// paused a transfer we never began.
+// Heartbeat while parked: a parked pass is in flight as far as pass-liveness is concerned, and a
+// queue wait longer than the stall window would read as a wedge and be restarted. The wait is
+// unbounded, so stamping progress either side of it is not enough. Never express: a background
+// materialize must not outrank a click. Taken BEFORE the in-flight record, because
+// cancelInflightFetch reads that record — a stop landing while parked would ask the vendor layer to
+// cancel a fetch that never started, and tell the holder we paused a transfer we never began.
 async function acquireMirrorSlot(streamKey) {
   loops.noteProgress(streamKey)
   const beat = setInterval(() => loops.noteProgress(streamKey), getResourceCaps().foreignPollIntervalMs)
@@ -570,8 +556,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   const overlay = getOverlay()
   if (!overlay) return 'missing'
   await fs.promises.mkdir(path.dirname(abs), { recursive: true })
-  // Mirror download bar with speed/ETA. The overlay scheduler reports CUMULATIVE
-  // bytes; ticker.pushTo diffs them.
+  // Mirror download bar with speed/ETA.
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
   // Taken past the gate, not before it: holding it while queued would make the engine attach to a
@@ -804,8 +789,7 @@ async function materializeOnceCatalog(mount, share) {
   const caps = getResourceCaps()
   const honorDeletions = shouldHonorDeletions({
     // mayFetch, not raw isOwnerOnline: presence never leases our own key, so a self-mirror read as
-    // offline here would refuse the owner's deletions forever. Same rule and same reason as the
-    // fetch gate — this was the third call site and the last to be converted.
+    // offline here would refuse the owner's deletions forever. Same rule as the fetch gate.
     ownerOnline: mayFetch(mount),
     driveCount: onDrive.size,
     listingComplete,
@@ -827,17 +811,15 @@ async function materializeOnceCatalog(mount, share) {
     }
     state.pruneRenamedPaths(mount, onDrive)
   }
-  // Once per pass and only when something changed — the old code wrote the whole record on every
-  // tick of an owner-online mirror, whether or not anything moved.
+  // Once per pass, only when dirty.
   await state.persist(mount, key, gen)
-  // Nothing left to do: every file present, the listing a full read, and no path still owned that the
-  // catalog no longer lists. Every entry in the listing was recorded into `synced` above, so the
-  // listing is a subset of the Set and equal sizes prove the two agree — an O(1) test for
-  // "no deletions pending".
+  // Converged = every file present, the listing a full read, and no owned path the catalog no longer
+  // lists. Every listed entry was recorded into `synced` above, so the listing is a subset of the Set
+  // and equal sizes prove "no deletions pending" in O(1).
   //
   // Deliberately NOT gated on `honorDeletions`: that gate says whether this pass was ALLOWED to act
   // on deletions, not whether any exist. An offline owner cannot append, so it is exactly when
-  // skipping is safest — and if deletions really are outstanding the size check catches them and the
+  // skipping is safest; if deletions really are outstanding the size check catches them and the
   // mirror keeps walking. A cancelled pass proves nothing, and a version we could not read cannot
   // authorise a later skip.
   const converged = allPresent && listingComplete && synced.size === onDrive.size
@@ -878,8 +860,7 @@ async function ownerLeftSpace(spaceId, ownerKey) {
   return !space.members.some((m) => m.publicKey === ownerKey)
 }
 
-// One verdict per mount that has a live loop. A mount with no loop is not reported: it is paused,
-// unmounted or gone, none of which this can or should recover.
+// One verdict per mount with a live loop (loops.entries() says why the others are not reported).
 export function mirrorHealth({ now = Date.now() } = {}) {
   const pollIntervalMs = getResourceCaps().foreignPollIntervalMs
   return loops.entries().map((loop) => ({
@@ -927,8 +908,7 @@ function stopAllForeignLoops({ settleMs = 5000 } = {}) {
   return loops.stopAll({ settleMs })
 }
 
-// Owns the mirror loops as a set: _open is the module's wiring, _close is the bulk stop the
-// per-mount stopForeignLoop never had a caller for.
+// Owns the mirror loops as a set: _open is the module's wiring, _close is the bulk stop.
 export class ForeignMirrors extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc'); this.units = new Map() }
   async _open() { initForeignFolders(this.deps.ipc) }
@@ -966,9 +946,8 @@ export class ForeignMirrors extends Subsystem {
     }
   }
 
-  // One unit per mount with a live loop. A mount without one is not reported: it is paused,
-  // unmounted or gone, none of which a recovery can or should address. The ids are remembered so
-  // recover() needs no key parsing — a share id is opaque and splitting it would be a guess.
+  // One unit per mount with a live loop. The ids are remembered so recover() needs no key parsing —
+  // a share id is opaque and splitting it would be a guess.
   supervise({ now = Date.now() } = {}) {
     if (this.closed || this.stopping) return []
     const rows = mirrorHealth({ now })
@@ -984,9 +963,8 @@ export class ForeignMirrors extends Subsystem {
   }
 }
 
-// Every cache here is keyed by mount PATH in effect, not by path itself: the synced Set records
-// which entries this mount already owns on disk. Both unmount and relocate must drop them — an
-// inherited Set would claim files exist at a path the mount no longer uses.
+// Unmount and relocate both come through here: the caches are keyed by the mount path in effect
+// (state.reset says why).
 function resetForeignSyncState(spaceId, shareId) {
   const key = loopKey(spaceId, shareId)
   state.reset(key)
@@ -1003,8 +981,6 @@ export async function unmountForeignFolder(spaceId, shareId) {
   // source), so there is no per-share blob cache to reclaim on unmount — the
   // materialized files stay on disk, matching owner-delete behaviour.
   await deleteForeignMount(spaceId, shareId)
-  // The Set's lifetime is the record's: drop it with the record so a re-mount starts from the
-  // persisted array again rather than inheriting this mount's ownership.
   resetForeignSyncState(spaceId, shareId)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, 'idle')
@@ -1020,7 +996,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
 // than one with no loop, no caches and a record that disagrees with both.
 export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   const mount = await getForeignMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   const enabled = mount.enabled !== false
   // A disabled mount keeps the status it was disabled WITH. Collapsing an auto-pause
@@ -1031,7 +1007,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
   // putting it back would resurrect an `enabled`/`status` a concurrent pause had already written.
   const patched = await patchForeignMount(spaceId, shareId, { mountPath, status, syncedPaths: [], renamedPaths: {} })
-  if (!patched) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  if (!patched) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   stopForeignLoop(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
@@ -1053,7 +1029,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
 
 export async function setForeignEnabled(spaceId, shareId, enabled) {
   const mount = await getForeignMount(spaceId, shareId)
-  if (!mount) throw new AppError(ErrorCodes.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const wasEnabled = mount.enabled !== false
   mount.enabled = enabled
   mount.status = enabled ? 'active' : 'paused'
@@ -1081,8 +1057,4 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   }
   emitStatus(spaceId, shareId, mount.status)
   return mount
-}
-
-export async function findForeignMount(shareId) {
-  return await findForeignMountByShareId(shareId)
 }

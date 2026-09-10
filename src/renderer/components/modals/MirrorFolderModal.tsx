@@ -14,7 +14,7 @@ import type { SpaceMember } from '../../types.js'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 import { formatSize } from '../../utils.js'
 import { useQuery } from '../../store/useQuery.js'
-import { Scope } from '../../scope.js'
+import { Scope } from '../../../shared/contract/scope.js'
 
 interface MirrorFolderModalProps {
   isOpen: boolean
@@ -73,8 +73,7 @@ export default function MirrorFolderModal({
   // same pair useShareFiles lists: share-files carries our own changes to this share, but an
   // append to a PEER's catalog — the only thing that moves these totals for a share we neither own
   // nor mirror — surfaces as event:files-updated, i.e. the space-wide files scope
-  // (ensurePeerCatalogWatch). Pinning share-files alone left the cached totals frozen for the
-  // whole app session, where the pre-cache per-open fetch had refreshed them.
+  // (ensurePeerCatalogWatch).
   const infoScopes = useMemo(
     () => [Scope.shareFiles(share.spaceId, share.id), Scope.files(share.spaceId)],
     [share.spaceId, share.id],

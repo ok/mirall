@@ -1,10 +1,10 @@
-import { AppError, ErrorCodes } from './errors.js'
+import { AppError } from './errors.js'
+import { CODES } from '../contract/errors.js'
 
 // The worker's cancellation token. A plain object with an `aborted` boolean, because AbortController
-// is not a Bare global and three call sites already settled on this shape — walk-disk.js,
-// publish-queue.js and the vendored prepareFile. Adopting it means every existing
-// `if (signal?.aborted)` keeps working against a token that now also carries a reason and a
-// subscription.
+// is not a Bare global and every `if (signal?.aborted)` check in the data layer (seven files, from
+// walk-disk to the vendored transfer) already reads that shape. The token adds a reason and a
+// subscription without changing it.
 //
 // `onAbort` exists for the one thing the ad-hoc version could not do: hand the abort to something
 // that is BLOCKED rather than looping — a peer read parked on a socket cannot poll a boolean.
@@ -40,5 +40,5 @@ export function createCancellation() {
 export function throwIfAborted(signal) {
   if (!signal?.aborted) return
   if (signal.reason instanceof Error) throw signal.reason
-  throw new AppError(ErrorCodes.ECANCELLED, 'cancelled by the caller')
+  throw new AppError(CODES.ECANCELLED, 'cancelled by the caller')
 }
