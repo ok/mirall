@@ -33,6 +33,7 @@ import {
   normalizeConfig,
   pruneUpTo,
 } from './audit-retention.js'
+import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 const log = createLogger('audit')
 
@@ -160,8 +161,8 @@ export function record(kind, fields = {}) {
 }
 
 function withSelfIdentity(actor) {
-  if (!actor || actor.type !== 'self') return actor
-  return { type: 'self', key: actor.key ?? selfIdentity.key, name: actor.name ?? selfIdentity.name }
+  if (!actor || actor.type !== ACTOR_TYPE.SELF) return actor
+  return { type: ACTOR_TYPE.SELF, key: actor.key ?? selfIdentity.key, name: actor.name ?? selfIdentity.name }
 }
 
 async function append(kind, fields, target = bee) {

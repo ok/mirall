@@ -13,6 +13,7 @@ import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 const log = createLogger('serve-ledger')
 
@@ -98,7 +99,7 @@ function recordServeSession(session) {
     const live = getConnectedMemberMeta(meta.spaceId, meta.from)
     const persisted = (space?.members || []).find((m) => m.publicKey === meta.from)
     record('serve.completed', {
-      actor: { type: 'peer', key: meta.from ?? null, name: live?.displayName || persisted?.displayName || null },
+      actor: { type: ACTOR_TYPE.PEER, key: meta.from ?? null, name: live?.displayName || persisted?.displayName || null },
       space: { id: meta.spaceId, name: space?.name ?? null },
       target: { kind: 'file', id: meta.contentHash ?? null, name: meta.fileName ?? null },
       subject: { bytes: session.bytes, total: session.total || null, durationMs: session.durationMs, path: meta.path ?? null },

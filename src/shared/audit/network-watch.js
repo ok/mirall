@@ -11,6 +11,7 @@ import { createLogger } from '../core/logger.js'
 import { record, getNetworkState, setNetworkState } from './audit-log.js'
 import { createEpisodeTracker, evidenceFor } from './network-episodes.js'
 import { createPeerPresenceTracker } from './peer-episodes.js'
+import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 const log = createLogger('network-watch')
 
@@ -97,7 +98,7 @@ async function pumpDevice() {
     if (!row) return
 
     const written = record(row.kind, {
-      actor: { type: 'system', key: null, name: null },
+      actor: { type: ACTOR_TYPE.SYSTEM, key: null, name: null },
       code: row.code,
       subject: { ...row.subject, ...evidenceFor(row.kind, last.evidence) },
     })
@@ -166,7 +167,7 @@ function writePeerRow(row) {
     return
   }
   const written = record(row.kind, {
-    actor: { type: 'peer', key: row.publicKey, name },
+    actor: { type: ACTOR_TYPE.PEER, key: row.publicKey, name },
     space,
     target: { kind: 'member', id: row.publicKey, name },
     subject: row.subject,

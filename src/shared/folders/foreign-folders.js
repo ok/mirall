@@ -45,6 +45,7 @@ import { mirrorMayFetch } from './mirror-reach.js'
 import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetch-policy.js'
 import { shortfall } from '../transfer/free-space.js'
 import { freeBytesFor } from '../transfer/free-space-probe.js'
+import { ACTOR_TYPE, OUTCOME } from '../contract/audit-kinds.js'
 
 const log = createLogger('foreign-folders')
 
@@ -334,7 +335,7 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
   if (!integritySeen.admit(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
   getSpace(mount.spaceId).then((space) => {
     record('security.integrity_failure', {
-      actor: { type: 'self' },
+      actor: { type: ACTOR_TYPE.SELF },
       space: { id: mount.spaceId, name: space?.name ?? null },
       target: { kind: 'file', id: entry.relPath ?? null, name: path.basename(entry.relPath || '') || null },
       subject: {
@@ -343,7 +344,7 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
         folder: share?.displayName || share?.name || null,
         shareId: mount.shareId ?? null,
       },
-      outcome: 'error',
+      outcome: OUTCOME.ERROR,
       code: 'TRANSFER_CHECKSUM',
     })
   }).catch((err) => log.debug('mirror integrity audit failed:', err.message))

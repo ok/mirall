@@ -10,6 +10,7 @@ import path from 'bare-path'
 import { record } from '../audit/audit-log.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
+import { ACTOR_TYPE, OUTCOME } from '../contract/audit-kinds.js'
 
 const log = createLogger('transfer-audit')
 
@@ -25,14 +26,14 @@ const INTEGRITY_CODES = new Set(['TRANSFER_CHECKSUM', 'EHASHMISMATCH'])
 
 function kindFor(outcome, errorCode) {
   if (INTEGRITY_CODES.has(errorCode)) return 'security.integrity_failure'
-  return outcome === 'ok' ? 'transfer.completed' : 'transfer.failed'
+  return outcome === OUTCOME.OK ? 'transfer.completed' : 'transfer.failed'
 }
 
 export function recordTransferOutcome(job, outcome, errorCode) {
   const fileName = path.basename(job.relPath || job.path || '')
   const write = getSpace(job.spaceId).then((space) => {
     record(kindFor(outcome, errorCode), {
-      actor: { type: 'self' },
+      actor: { type: ACTOR_TYPE.SELF },
       space: { id: job.spaceId, name: space?.name ?? null },
       target: { kind: 'file', id: job.path ?? null, name: fileName || null },
       // `folder` is null for a loose file and is what lets the viewer name the folder without a
@@ -43,7 +44,7 @@ export function recordTransferOutcome(job, outcome, errorCode) {
         folder: job.folderName ?? null,
         shareId: job.shareId ?? null,
       },
-      outcome: outcome === 'ok' ? 'ok' : 'error',
+      outcome: outcome === OUTCOME.OK ? OUTCOME.OK : OUTCOME.ERROR,
       code: errorCode || null,
     })
   }).catch((err) => log.debug('transfer audit failed:', err.message))
