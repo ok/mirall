@@ -1,6 +1,10 @@
 import test from 'brittle'
+import fs from 'bare-fs'
+import path from 'bare-path'
+import url from 'bare-url'
 import { freshPeerWithIdentity } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { getRuntimeConfig, setRuntimeConfig, getResourceCaps } from '../../src/shared/core/runtime-config.js'
+import { sanitizeAvatar } from '../../src/shared/identity-limits.js'
 import {
   getLocalPublicKeyHex, getProfileBee, setProfile, getProfile,
   readProfileRecord, markRequest, readPeerRequests,
@@ -68,4 +72,46 @@ test('REGRESSION (FIX-MIR-12): setProfile clamps/sanitizes our own write', async
   const p = await getProfile()
   t.is(p.displayName.length, 80, 'own displayName clamped before store')
   t.is(p.avatar, null, 'own over-cap avatar stored as null')
+})
+
+// REGRESSION (FIX-AVFRAME-3: the live membership:request frame was the one avatar ingress that
+// did NOT sanitize — the display name beside it was clamped, the avatar was taken raw. It is
+// written durably into the replicated profile bee and emitted to the renderer, so a peer-supplied
+// `data:text/html` or `javascript:` value reached both. The frame budget bounds the size of what
+// arrives; only sanitizeAvatar checks its shape.)
+test('REGRESSION (FIX-AVFRAME-3): a hostile join-request avatar is stored as null', async (t) => {
+  await freshPeerWithIdentity(t)
+  const me = getLocalPublicKeyHex()
+  const S = 'space-avframe'
+
+  // Exactly the expression the worker's join-request ingest applies to msg.avatar.
+  const avatar = sanitizeAvatar('data:text/html;base64,PHN2Zz4=', getResourceCaps().avatarMaxBytes)
+  t.is(avatar, null, 'a non-image data URI is not an avatar')
+
+  await markRequest(S, 'joiner-hostile', { displayName: 'Mallory', avatar })
+  const [r] = await readPeerRequests(me, S)
+  t.is(r.avatar, null, 'the replicated request receipt carries no avatar')
+  t.is(r.displayName, 'Mallory', 'and the rest of the receipt is intact')
+})
+
+// The half above proves the sanitizer's verdict is what the receipt stores; this proves the worker
+// ingest actually routes every consumer through it. worker/main.js is the process entry — it cannot
+// be imported into a test — so the wiring is asserted over its source, as the other worker-entry
+// invariants in this suite are.
+test('REGRESSION (FIX-AVFRAME-3): the ingest sanitizes before all three consumers', (t) => {
+  const here = path.dirname(url.fileURLToPath(import.meta.url))
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+  const ingest = src.slice(src.indexOf('const displayName = clampDisplayName(msg.displayName)'),
+    src.indexOf('auditJoinRequest(spaceId, msg.profileKey, displayName)'))
+
+  const sanitizeAt = ingest.indexOf('const avatar = sanitizeAvatar(msg.avatar,')
+  t.ok(sanitizeAt >= 0, 'the frame avatar is sanitized on arrival')
+  t.ok(/getResourceCaps\(\)\.avatarMaxBytes/.test(ingest.slice(sanitizeAt, ingest.indexOf('\n', sanitizeAt))),
+    'against the STORAGE cap — an arrived frame is already under the frame cap; the shape is what is missing')
+
+  const consumers = ingest.slice(ingest.indexOf('\n', sanitizeAt))
+  t.absent(/msg\.avatar/.test(consumers), 'no consumer reads the raw frame value')
+  for (const consumer of ['recordJoinRequest(', 'markRequest(', "ipc.emit('event:member-join-request'"]) {
+    t.ok(consumers.includes(consumer), consumer + ' is inside the sanitized region')
+  }
 })

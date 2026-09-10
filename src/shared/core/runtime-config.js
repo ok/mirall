@@ -1,3 +1,5 @@
+import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
+
 const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
 // Upper bound on how long an approver waits to durably capture a joiner's own membership
 // record at approval time (the joiner is connected then; see captureJoinerMembership).
@@ -365,6 +367,18 @@ export function getPublishConcurrency() {
 
 export function getPeerFrameMaxBytes() {
   return finiteAtLeast(config.peerFrameMaxBytes, 0, DEFAULTED.peerFrameMaxBytes)
+}
+
+// The avatar budget for an avatar that travels INLINE in a peer frame, which is a different
+// question from what may be stored at rest: the receiver charges the whole frame against
+// peerFrameMaxBytes before it parses it, so an avatar sized by avatarMaxBytes (4x larger) makes
+// the frame carrying it disappear unread. Never returns 0 while the frame cap is on —
+// sanitizeAvatar reads 0 as "no size bound", so a budget eaten entirely by the overhead clamps to
+// 1 byte, which is below the shortest possible data URI and therefore admits nothing.
+export function joinRequestAvatarMaxBytes() {
+  const frameMax = getPeerFrameMaxBytes()
+  if (frameMax === 0) return getResourceCaps().avatarMaxBytes
+  return Math.max(1, frameMax - JOIN_REQUEST_FRAME_OVERHEAD)
 }
 
 export function getPeerFrameLimits() {

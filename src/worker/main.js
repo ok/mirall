@@ -25,6 +25,7 @@ import {
   isOverlayEnabled,
   isInPlaceFilesEnabled,
   setRelayConfig,
+  getResourceCaps,
 } from '../shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
@@ -98,6 +99,7 @@ import {
   hasPendingLeave,
 } from '../shared/transfer/swarm.js'
 import { clampDisplayName, checkGrantAssertion } from '../shared/transfer/handshake-guard.js'
+import { sanitizeAvatar } from '../shared/identity-limits.js'
 import { openSealedSck } from '../shared/transfer/sck-seal.js'
 import { reconcileAssertedRoot } from '../shared/spaces/creator-root.js'
 import { getConnectedMemberMeta, readmitConnectedMembers } from '../shared/transfer/swarm.js'
@@ -443,7 +445,13 @@ async function onJoinRequest(msg) {
     return
   }
   const displayName = clampDisplayName(msg.displayName)
-  const changed = recordJoinRequest(spaceId, msg.profileKey, displayName, msg.avatar)
+  // The frame budget already bounded the SIZE of what arrived; what it cannot check is the shape.
+  // Every other avatar ingress sanitizes, and this one writes durably into the replicated profile
+  // bee, so a peer-supplied `javascript:` or `data:text/html` value would replicate to co-members
+  // and reach the renderer. Bounded by the storage cap, not the frame budget: an arrived frame is
+  // by definition already under the frame cap.
+  const avatar = sanitizeAvatar(msg.avatar, getResourceCaps().avatarMaxBytes)
+  const changed = recordJoinRequest(spaceId, msg.profileKey, displayName, avatar)
   // The durable receipt runs on EVERY knock — markRequest short-circuits on an existing one,
   // so a re-announced (heartbeat) request is nearly free while a first write that failed
   // self-heals. A departed peer (hadLeft) that re-requests must write a FRESH receipt ts, so
@@ -451,9 +459,9 @@ async function onJoinRequest(msg) {
   // against our leave stamp. Only the renderer emit is deduped: an unchanged heartbeat
   // keeps the banner quiet, and this sits strictly AFTER the replay branches above, so a
   // re-knock still replays a lost grant/deny.
-  await markRequest(spaceId, msg.profileKey, { displayName, avatar: msg.avatar || null, refresh: hadLeft })
+  await markRequest(spaceId, msg.profileKey, { displayName, avatar, refresh: hadLeft })
   if (changed || hadLeft) {
-    ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar: msg.avatar || null })
+    ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
     auditJoinRequest(spaceId, msg.profileKey, displayName)
   }
 }

@@ -22,7 +22,7 @@ import {
 import {
   getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits } from '../core/runtime-config.js'
+import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
 import { enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair, decodeRelayKey } from './relay.js'
 import BlindRelay from 'blind-relay'
 import { catalogKeyField } from '../shares/share-catalog.js'
@@ -838,6 +838,23 @@ function getLocalBinding(driveKeyHex = '') {
   return binding
 }
 
+// Send path for the frames carrying variable-length content (an identity's name, avatar and
+// catalog keys). Each is judged by the same byte cap we enforce on receive, and one over it is
+// dropped there before it is parsed — so the only trace of the failure would be a warn line on the
+// OTHER machine, which is the wrong one to diagnose from. Say it here, at error level, on the
+// machine that built the frame.
+function sendFrame(msgHandler, frame) {
+  const str = JSON.stringify(frame)
+  const maxBytes = getPeerFrameMaxBytes()
+  // Measured the way the intake measures it: in BYTES, so a frame of multi-byte characters that
+  // is under the cap by string length is still caught here rather than silently on the far side.
+  const size = b4a.byteLength(str)
+  if (maxBytes > 0 && size > maxBytes) {
+    log.error('built an oversize', frame.type, 'frame:', size, 'bytes over a', maxBytes, 'cap — the receiver will drop it unparsed')
+  }
+  msgHandler.send(str)
+}
+
 async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
   const profile = await getProfile()
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
@@ -852,7 +869,7 @@ async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
     // field to decide whether to apply the SCK. A v1/plaintext key travels in the plain field.
     const loose = await ownLooseCatalogPublish(spaceId)
     const looseField = loose ? catalogKeyField(loose.keyHex, loose.encrypted, 'looseCatalogKey') : {}
-    msgHandler.send(JSON.stringify({
+    sendFrame(msgHandler, {
       type: 'handshake',
       profileKey: profileKeyHex,
       driveKey: driveKeyHex,
@@ -861,7 +878,7 @@ async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
       ...looseField,
       ...(space?.creatorKey ? { creator: space.creatorKey } : {}),
       ...(getLocalBinding(driveKeyHex) || {}),
-    }))
+    })
     announceLedger.recordSend(socket, spaceId, 'handshake', Date.now())
     return
   }
@@ -869,15 +886,21 @@ async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
   // (single-use) auto-admit nonce from the invite so an auto-admit invite resolves.
   const space = await getSpace(spaceId)
   if (space?.status === 'pending') {
-    msgHandler.send(JSON.stringify({
+    sendFrame(msgHandler, {
       type: 'membership:request',
       profileKey: profileKeyHex,
       displayName,
-      avatar: profile?.avatar || null,
+      // Not avatarMaxBytes: this is the one frame carrying peer-supplied unbounded content, and it
+      // is charged against peerFrameMaxBytes on the far side BEFORE it is parsed. An avatar sized
+      // for storage would take the whole join request over that cap, and the request would be
+      // dropped unread — no banner for the owner, no feedback for us, pending forever. Over budget
+      // the joiner arrives with initials instead of a picture, which is what an avatar-less peer
+      // already renders as.
+      avatar: sanitizeAvatar(profile?.avatar, joinRequestAvatarMaxBytes()),
       spaceTopic: topicHex,
       inviteId: space.inviteId || null,
       ...(getLocalBinding() || {}),
-    }))
+    })
     announceLedger.recordSend(socket, spaceId, 'request', Date.now())
   }
 }
@@ -1081,14 +1104,14 @@ export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyH
   if (!handler || !recipientSignerPkEd) return false
   try {
     const sckSealed = b4a.toString(sealSck(b4a.from(sckHex, 'hex'), recipientSignerPkEd), 'hex')
-    handler.send(JSON.stringify({
+    sendFrame(handler, {
       type: 'membership:grant',
       spaceTopic: topicHex,
       sckSealed,
       creator: creatorKeyHex || null,
       granterKey: b4a.toString(getProfileKey(), 'hex'),
       ...(getLocalBinding() || {}),
-    }))
+    })
     return true
   } catch {
     return false

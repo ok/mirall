@@ -7,6 +7,11 @@ import path from 'bare-path'
 import url from 'bare-url'
 import b4a from 'b4a'
 import { validFrameShape, createRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
+import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../../src/shared/core/runtime-config.js'
+import { NAME_MAX } from '../../src/shared/contract/limits.js'
+
+// The intake predicate, as swarm.js spells it: a cheap UTF-16 lower bound, then the real byte count.
+const rejects = (str, maxBytes) => maxBytes > 0 && (str.length > maxBytes || b4a.byteLength(str) > maxBytes)
 
 function makeDuplex () {
   let aWrite, bWrite
@@ -87,11 +92,51 @@ test('the size cap counts UTF-8 bytes, not UTF-16 units', (t) => {
   const overBoth = 'x'.repeat(maxBytes + 1)
   const underCharsOverBytes = '€'.repeat(40)   // 40 UTF-16 units, 120 UTF-8 bytes
 
-  const rejects = (str) => str.length > maxBytes || b4a.byteLength(str) > maxBytes
-  t.ok(rejects(overBoth), 'a plainly oversized frame is rejected by the cheap check')
+  t.ok(rejects(overBoth, maxBytes), 'a plainly oversized frame is rejected by the cheap check')
   t.ok(underCharsOverBytes.length <= maxBytes, 'this one slips past a UTF-16 length check')
   t.ok(b4a.byteLength(underCharsOverBytes) > maxBytes, 'while really being over the byte cap')
-  t.ok(rejects(underCharsOverBytes), 'and the intake rejects it')
+  t.ok(rejects(underCharsOverBytes, maxBytes), 'and the intake rejects it')
+})
+
+// The property a send-side budget exists to hold: no frame we build may exceed the cap we enforce
+// on receive. membership:request is the only frame carrying peer-supplied unbounded content, and
+// the intake charges it BEFORE the parse — so an over-budget one is not a degraded join, it is a
+// join request that never existed as far as every recipient is concerned.
+test('a maximal join request is admitted by the intake that judges it', (t) => {
+  const maxBytes = getPeerFrameMaxBytes()
+  const hex = (n) => 'a'.repeat(n)
+  const avatar = 'data:image/png;base64,' + 'A'.repeat(joinRequestAvatarMaxBytes() - 'data:image/png;base64,'.length)
+  const frame = JSON.stringify({
+    type: 'membership:request',
+    profileKey: hex(64),
+    displayName: 'ä'.repeat(NAME_MAX),
+    avatar,
+    spaceTopic: hex(64),
+    inviteId: hex(64),
+    sig: hex(128),
+    signerKey: hex(64),
+    signerNs: hex(64),
+  })
+
+  t.absent(rejects(frame, maxBytes), 'the largest join request the send path can build survives the intake')
+  t.ok(validFrameShape(JSON.parse(frame)), 'and is still a well-shaped frame once parsed')
+})
+
+// Should a future field break the property above, the failure must be diagnosable from the machine
+// that caused it. The receiver's warn line is on the wrong machine, and it names no frame type.
+test('an oversize frame is reported by its sender, at error level', (t) => {
+  const here = path.dirname(url.fileURLToPath(import.meta.url))
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'swarm.js'), 'utf8')
+  const sender = src.slice(src.indexOf('function sendFrame('), src.indexOf('async function sendSingleHandshake('))
+
+  t.ok(/getPeerFrameMaxBytes\(\)/.test(sender), 'the send path measures against the same cap the intake enforces')
+  t.ok(/log\.error\(/.test(sender), 'and says so at error level, not warn')
+  t.ok(/frame\.type/.test(sender), 'naming the frame type that overflowed')
+  for (const frameType of ["type: 'membership:request'", "type: 'handshake'", "type: 'membership:grant'"]) {
+    const at = src.indexOf(frameType)
+    t.ok(src.lastIndexOf('sendFrame(', at) > src.lastIndexOf('.send(JSON.stringify(', at),
+      frameType + ' goes out through the measured send path')
+  }
 })
 
 test('every frame type is metered, not just the two identity types', async (t) => {
