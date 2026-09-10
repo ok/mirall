@@ -126,9 +126,15 @@ test('a path field on a settings screen is filled a step below its card', (t) =>
   t.ok(pathRow.includes(`low: '${CARD_FILL}'`), "PathRow's default fill is the settings-card token")
   for (const f of files) {
     if (!f.rel.startsWith('screens/')) continue
-    for (const m of f.src.matchAll(/<PathRow\b/g)) {
-      const row = f.src.slice(m.index, f.src.indexOf('/>', m.index))
-      t.ok(/fill="lowest"/.test(row),
+    // Match the opening tag itself. Slicing to the next `/>` bounded the tag by a delimiter that
+    // need not belong to it, and every way that went wrong went wrong SILENTLY, in the direction
+    // of a green tick: a PathRow written `<PathRow ...>` rather than self-closed ran on to the
+    // next element's `/>` and borrowed its attributes, so a row with no fill at all passed on a
+    // sibling's. With no `/>` after it anywhere, indexOf returned -1 and slice(i, -1) swallowed
+    // the rest of the file, which passes on any `fill="lowest"` further down — and inverts to a
+    // false failure only in the one case where the file ends on the token and -1 truncates it.
+    for (const m of f.src.matchAll(/<PathRow\b[^>]*>/g)) {
+      t.ok(/fill="lowest"/.test(m[0]),
         `${f.rel} renders a PathRow inside a settings card and must pass fill="lowest"`)
     }
   }
@@ -175,6 +181,40 @@ test('the path field separates from its ground in BOTH themes', (t) => {
     for (const [name, fill] of [['low', low], ['lowest', lowest]]) {
       const d = Math.abs(lstar(control) - lstar(fill))
       t.ok(d >= NEUTRAL_STEP, `${theme}: the button is ${d.toFixed(2)} L* off the ${name} fill`)
+    }
+  }
+})
+
+// The test above names the token; this one measures it. A token can be the right one and still
+// fail AA after a palette nudge — the pairing is what has to hold, not the name. This component
+// has already been bitten once by an unmeasured pairing: `outline` was rejected as the placeholder
+// treatment (see PathRow.tsx) precisely because it lands at 2.5:1 and worse.
+const ratio = (fg, bg) => {
+  const [a, b] = [lum(fg), lum(bg)]
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+const AA_NORMAL_TEXT = 4.5
+
+// Every piece of text the row renders, against every ground it can render on. `accent` carries the
+// path itself and the button's label; `on-surface-variant` carries the placeholder. Measuring only
+// the placeholder would guard the one string that matters least.
+const FILLS = ['color-surface-container-low', 'color-surface-container-lowest']
+
+test('every text token the path field renders clears WCAG AA in BOTH themes', (t) => {
+  for (const theme of [':root', '.dark']) {
+    const k = tokensFor(theme)
+    // The field: the path (accent) and the empty-state hint (on-surface-variant) sit on the fill.
+    for (const fg of ['color-accent', 'color-on-surface-variant']) {
+      for (const fill of FILLS) {
+        const r = ratio(k[fg], k[fill])
+        t.ok(r >= AA_NORMAL_TEXT, `${theme}: ${fg} on ${fill} is ${r.toFixed(2)}:1`)
+      }
+    }
+    // The button beside it is its own ground, and it has a hover state that darkens it further —
+    // the hover fill is the tighter of the two, so an unmeasured hover is where this would go first.
+    for (const bg of ['color-surface-control', 'color-surface-control-hover']) {
+      const r = ratio(k['color-accent'], k[bg])
+      t.ok(r >= AA_NORMAL_TEXT, `${theme}: the button label on ${bg} is ${r.toFixed(2)}:1`)
     }
   }
 })
