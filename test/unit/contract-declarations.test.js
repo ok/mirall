@@ -185,6 +185,17 @@ test('the declared RequestName union matches the request rows exactly', (t) => {
   t.alike(declared, Object.keys(REQUESTS).sort(), 'every request row has a declared name and vice versa')
 })
 
+// The same rule as RequestName, for the same reason: subscribe() takes an EventName, so the union
+// is what turns a mistyped event name into a compile error instead of a listener that never fires.
+// Declared as `string` it would compile; drifted from EVENT_NAMES it would accept a name nothing
+// emits and reject one that is emitted.
+test('the declared EventName union matches the emitted names exactly', (t) => {
+  const dts = readFileSync(path.join(dir, 'events.d.ts'), 'utf8')
+  const block = dts.slice(dts.indexOf('export type EventName ='), dts.indexOf('export declare const EVENT_NAMES'))
+  const declared = [...block.matchAll(/\|\s*'([^']+)'/g)].map((m) => m[1]).sort()
+  t.alike(declared, [...EVENT_NAMES].sort(), 'every declared event name is emitted and vice versa')
+})
+
 // The decoder grew four fields the renderer's hand-written copy never learned, and a .d.ts that
 // omits a field the decoder emits hands the renderer a type that cannot see it. Derived from the
 // source, so a fifth field fails here rather than in whatever screen reads it.

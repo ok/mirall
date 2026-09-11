@@ -1,4 +1,5 @@
 import type { RequestName } from '../shared/contract/requests.js'
+import type { EventName } from '../shared/contract/events.js'
 import { FRAME } from '../shared/contract/frames.js'
 import { MAIN_WORKER_SPEC } from '../shared/contract/workers.js'
 import { CODES } from '../shared/contract/errors.js'
@@ -11,7 +12,7 @@ import { CODES } from '../shared/contract/errors.js'
 // subscribe()'s listeners — except event:worker-ready, which the channel consumes itself and which
 // arrives once per worker boot.
 //
-// subscribe() takes an unchecked name and allows any number of listeners per name. They are called
+// subscribe() takes a declared EventName and allows any number of listeners per name. They are called
 // synchronously, each inside its own try: a throwing subscriber must not starve the listeners after
 // it, nor abort the chunk loop — which would drop the request responses sharing that read.
 const WORKER_SPEC = MAIN_WORKER_SPEC
@@ -360,7 +361,7 @@ export async function request(
 }
 
 export function subscribe<T = Record<string, unknown>>(
-  eventType: string,
+  eventType: EventName,
   callback: (msg: T) => void,
 ): () => void {
   if (!listeners.has(eventType)) listeners.set(eventType, new Set())
