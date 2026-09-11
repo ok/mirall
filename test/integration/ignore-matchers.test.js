@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { shouldIgnore, DEFAULT_IGNORE } from '../../src/shared/folders/path-keys.js'
+import { shouldIgnore, shouldPruneDir, DEFAULT_IGNORE } from '../../src/shared/folders/path-keys.js'
 
 test('DEFAULT_IGNORE: exact basename matches', (t) => {
   t.ok(shouldIgnore('.DS_Store', DEFAULT_IGNORE))
@@ -31,4 +31,11 @@ test('shouldIgnore: ordinary files pass through', (t) => {
 test('shouldIgnore: empty/missing patterns ignore nothing', (t) => {
   t.absent(shouldIgnore('.DS_Store', []))
   t.absent(shouldIgnore('.DS_Store', undefined))
+})
+
+test('the walk skips the same directory trees chokidar does', (t) => {
+  for (const dir of ['node_modules', 'src/node_modules', '.git', 'sub/.git']) {
+    t.ok(shouldIgnore(dir, DEFAULT_IGNORE), 'the watcher withholds it')
+    t.ok(shouldPruneDir(dir, DEFAULT_IGNORE), 'and the walk does not descend into it')
+  }
 })

@@ -29,7 +29,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | `owned-folder-edge.test.js` | **FIX-4** an unreadable file isn't deleted by reconcile; **FIX-5** an unlink for a path still present on disk (atomic save) doesn't delete. |
 | `owned-concurrent-add.test.js` | A burst of concurrent `add`s in a new subfolder all publish; **FIX-WATCHER-MISS** a dropped watcher add is recovered by the catch-up reconcile. |
 | `owned-fs-event.test.js` | `onFsEvent` add/change branch — republish-on-edit; hash short-circuit (unchanged = no-op); echo-guard skip (our own write doesn't loop); non-file / missing path and unreadable file are not published. |
-| `ignore-matchers.test.js` | `shouldIgnore` / `DEFAULT_IGNORE` — basename, suffix-glob, `dir/**` matching; empty patterns ignore nothing. |
+| `ignore-matchers.test.js` | `shouldIgnore` / `DEFAULT_IGNORE` — basename, suffix-glob, `dir/**` matching; empty patterns ignore nothing; watcher and disk walk skip the same directory trees. |
 
 ### B. Foreign mirrors — materialize (peer side)
 | File | Covers |

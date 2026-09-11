@@ -2,7 +2,7 @@
 // ready for catalog comparison (Windows long-path prefixes stripped, ignores applied).
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { relToDriveKey, isAbsoluteDriveKey, shouldIgnore, stripLongPathPrefix } from './path-keys.js'
+import { relToDriveKey, isAbsoluteDriveKey, shouldIgnore, shouldPruneDir, stripLongPathPrefix } from './path-keys.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('walk-disk')
@@ -49,6 +49,15 @@ export async function countDiskFiles(root, ignore) {
   return count
 }
 
+// Whether a directory's whole subtree is ignored, so the descent can be skipped. Conservative at
+// every uncertainty: an unrepresentable or out-of-root directory is descended into, leaving the
+// stat pass to warn about its files and discard them.
+function dirIsPruned(abs, cleanRoot, ignore) {
+  const rel = relToDriveKey(path.relative(cleanRoot, stripLongPathPrefix(abs)), path.sep)
+  if (!rel || rel === '..' || rel.startsWith('../') || isAbsoluteDriveKey(rel)) return false
+  return shouldPruneDir(rel, ignore)
+}
+
 // One directory per await, BFS over an index (same order as a recursive readdir, without the O(n²)
 // of shifting a queue). Every directory is a checkpoint: progress is reported and the abort signal
 // is checked between directories, where a single recursive readdir is one un-interruptible syscall
@@ -56,18 +65,22 @@ export async function countDiskFiles(root, ignore) {
 // recovery starts a second walk beside it. An unreadable directory PROPAGATES, as the recursive form
 // does (measured: EACCES rejects, it does not skip): swallowing it would report every file beneath
 // as absent, and the reconcile diff turns absent into tombstones.
-async function enumerateFiles(root, onProgress, signal) {
+//
+// A directory whose whole subtree is ignored is not descended into; ignores are otherwise applied
+// per FILE in the stat pass below, because only some glob shapes cover everything beneath the
+// directory they name. The stat pass stays the authority on what publishes — pruning only avoids
+// reading what that pass would discard.
+async function enumerateFiles(root, cleanRoot, ignore, onProgress, signal) {
   const files = []
   const dirs = [root]
   for (let i = 0; i < dirs.length; i++) {
     if (signal?.aborted) throw new AbortError()
     const dir = dirs[i]
     for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) dirs.push(path.join(dir, entry.name))
-      // Ignores are applied per FILE in the stat pass below, never by pruning a directory here: a
-      // glob is matched against a file's whole relative key, so pruning by a directory's own name
-      // would silently change which files a given glob covers.
-      else if (entry.isFile()) files.push({ name: entry.name, parentPath: dir })
+      const abs = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!dirIsPruned(abs, cleanRoot, ignore)) dirs.push(abs)
+      } else if (entry.isFile()) files.push({ name: entry.name, parentPath: dir })
     }
     onProgress?.({ phase: 'enumerating', scanned: 0, total: files.length, bytes: 0 })
   }
@@ -86,7 +99,7 @@ export async function walkDisk(root, ignore, { onProgress = null, signal = null 
   // parentPath while `root` has none; normalising both sides keeps path.relative
   // from emitting the absolute target verbatim as a key.
   const cleanRoot = stripLongPathPrefix(root)
-  const files = await enumerateFiles(root, onProgress, signal)
+  const files = await enumerateFiles(root, cleanRoot, ignore, onProgress, signal)
   const total = files.length
   let scanned = 0
   let bytes = 0
