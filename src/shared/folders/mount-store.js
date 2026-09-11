@@ -1,6 +1,13 @@
 // Persistence for mount records in the local `mounts-meta` bee: which disk path
 // backs which share (a "mount"), on both the owned and the foreign/mirror side,
 // plus per-mount sync state (enabled, status, syncedPaths, renamedPaths).
+//
+// Two key namespaces, one record shape: `owned-folder-mount/<spaceId>/<shareId>` and
+// `foreign-folder-mount/<spaceId>/<shareId>`. A record is created whole with spaceId, shareId,
+// mountPath, enabled and status, and every later writer patches it — which is why no single site
+// shows the shape. What the patches add: `lastError` and `indexPaused` (contract/statuses.js states
+// what the three status fields mean together), `syncedPaths` and `renamedPaths` from the mirror's
+// pass, and `lastScanCompletedAt` from the owner's.
 import { createLocalBee, storeEpoch } from '../core/store.js'
 import { createRecordWriter } from '../core/bee-writer.js'
 import { createLogger } from '../core/logger.js'

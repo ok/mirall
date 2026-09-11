@@ -5,6 +5,11 @@
 // must be in the row itself. Live state cannot be joined against — leaving a space deletes its
 // record, and a peer's name needs that peer online or replicated — so a row holding only ids
 // would render raw hex forever. Hence a name snapshot on every participant, taken at write time.
+//
+// buildRecord below IS the v1 row schema — every `audit-log` bee row is one of its results, and
+// nothing else writes one. The renderer carries a hand-written copy of the shape in its types, so a
+// field added here has to be added there too; bumping SCHEMA_VERSION without doing so leaves the
+// two disagreeing with no gate between them.
 import { isKnownKind, categoryOf, tierOf, OUTCOME, OUTCOMES } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
 
