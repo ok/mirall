@@ -12,7 +12,7 @@ import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
-import { setOwnedMountStatus, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
+import { setOwnedActivity, setOwnedFault, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { periodicReconcile, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
 import { mountRootAvailable } from '../shared/folders/publish-runner.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
@@ -67,7 +67,7 @@ export class MountsRuntime extends Subsystem {
         if (!mountRootAvailable(mount.mountPath)) {
           this.log.warn('owned mount path missing at startup:', mount.mountPath)
           this.lastMountPointStatus.set('owned-folder:' + mount.shareId, false)
-          await this.setOwnedStatus(mount.spaceId, mount.shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
+          await this.recordFault(mount.spaceId, mount.shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
           continue
         }
         this.lastMountPointStatus.set('owned-folder:' + mount.shareId, true)
@@ -81,7 +81,7 @@ export class MountsRuntime extends Subsystem {
         // The scan would decline itself anyway, but an interval that can never do work reads as a
         // bug later. Re-assert the status so a restart repaints the badge from the durable record.
         if (mount.indexPaused) {
-          await this.setOwnedStatus(mount.spaceId, mount.shareId, MOUNT_STATUS.PAUSED)
+          await this.recordPause(mount.spaceId, mount.shareId, true)
           continue
         }
         this.armCatchUpScan(mount.spaceId, mount.shareId, mount)
@@ -143,14 +143,30 @@ export class MountsRuntime extends Subsystem {
     this.reconcileCounters.clear()
   }
 
-  // Persist + announce an owned mount's status in one step. The durable field is what a
-  // boot or refresh re-derives the badge from — a transient-only event vanishes on reload —
-  // and the event stays as the live decoration.
-  async setOwnedStatus(spaceId, shareId, status, error) {
-    try { await setOwnedMountStatus(spaceId, shareId, status, error ?? null) } catch (err) {
+  // Persist + announce in one step. The durable field is what a boot or refresh re-derives the badge
+  // from — a transient-only event vanishes on reload — and the event stays as the live decoration.
+  // The event carries what the RECORD says, which after the precedence is applied is not always
+  // what the caller named.
+  async _announce(spaceId, shareId, write) {
+    try { await write() } catch (err) {
       this.log.debug('owned mount status persist failed:', shareId, '-', err.message)
     }
-    this.deps.ipc.emit('event:owned-folder-mount-status', { spaceId, shareId, status, ...(error ? { error } : {}) })
+    const mount = await getOwnedMount(spaceId, shareId)
+    if (!mount) return
+    this.deps.ipc.emit('event:owned-folder-mount-status',
+      { spaceId, shareId, status: mount.status, ...(mount.lastError ? { error: mount.lastError } : {}) })
+  }
+
+  recordActivity(spaceId, shareId, activity) {
+    return this._announce(spaceId, shareId, () => setOwnedActivity(spaceId, shareId, activity))
+  }
+
+  recordFault(spaceId, shareId, status, code) {
+    return this._announce(spaceId, shareId, () => setOwnedFault(spaceId, shareId, status, code ?? null))
+  }
+
+  recordPause(spaceId, shareId, paused) {
+    return this._announce(spaceId, shareId, () => setOwnedIndexPaused(spaceId, shareId, paused))
   }
 
   // Everything that must happen once an owned source folder is known to be missing, from whichever
@@ -165,7 +181,7 @@ export class MountsRuntime extends Subsystem {
     this.cancelPeriodicReconcile(spaceId, shareId)
     // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
     stopOwnedFolder(spaceId, shareId)
-    await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
+    await this.recordFault(spaceId, shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
   }
 
   // Map a reconcile/scan outcome to the durable owned-mount status. A scan RESOLVES (not rejects)
@@ -182,13 +198,13 @@ export class MountsRuntime extends Subsystem {
       if (result?.skipped === MOUNT_STATUS.MOUNT_POINT_GONE) await this.handleOwnedMountGone(spaceId, shareId)
       // A paused index is a decision, not a fault: it carries no lastError and must not reach the
       // paused-error branch below, which raises an error toast and an unhealthy badge.
-      else if (result?.skipped === 'index-paused') await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.PAUSED)
-      else if (result?.skipped) await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.PAUSED_ERROR, result.skipped)
+      else if (result?.skipped === 'index-paused') await this.recordActivity(spaceId, shareId, MOUNT_STATUS.SCANNING)
+      else if (result?.skipped) await this.recordFault(spaceId, shareId, MOUNT_STATUS.PAUSED_ERROR, result.skipped)
       // A pass whose items failed on a classified fault is not a healthy scan. The pass resolving
       // does not mean its files reached the catalog — publish failures are per item — and reading
       // that resolution as 'active' is what made a full disk invisible to the owner.
-      else if (result?.faultCode) await this.setOwnedStatus(spaceId, shareId, statusForFaultCode(result.faultCode), result.faultCode)
-      else await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.ACTIVE)
+      else if (result?.faultCode) await this.recordFault(spaceId, shareId, statusForFaultCode(result.faultCode), result.faultCode)
+      else await this.recordActivity(spaceId, shareId, MOUNT_STATUS.ACTIVE)
       return result
     } catch (err) {
       this.log.warn('owned reconcile failed for', shareId, '-', err.message)
@@ -204,7 +220,7 @@ export class MountsRuntime extends Subsystem {
   async recordScanFault(spaceId, shareId, err) {
     const fault = faultFromError(err)
     if (fault) {
-      await this.setOwnedStatus(spaceId, shareId, fault.status, fault.code)
+      await this.recordFault(spaceId, shareId, fault.status, fault.code)
       return
     }
     // A root that vanished mid-pass: the probe would notice within its interval anyway, but going
@@ -216,7 +232,7 @@ export class MountsRuntime extends Subsystem {
         return
       }
     }
-    await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.PAUSED_ERROR, err.message)
+    await this.recordFault(spaceId, shareId, MOUNT_STATUS.PAUSED_ERROR, err.message)
   }
 
   // One catch-up pass for an owned mount, honouring any deep-scan debt a relocate left behind: the
@@ -278,13 +294,11 @@ export class MountsRuntime extends Subsystem {
     if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
     // The flag first: an item enqueued between the cancel and the write must be declined by the
     // publish channel rather than published.
-    await setOwnedIndexPaused(spaceId, shareId, true)
+    await this.recordPause(spaceId, shareId, true)
     const cancelled = cancelIndex(spaceId, shareId)
     this.cancelPeriodicReconcile(spaceId, shareId)
-    // A missing source folder outranks the pause as a status — but the event must fire either way:
-    // it is the only thing that tells the renderer to re-read the mount.
     const gone = !mountRootAvailable(mount.mountPath)
-    await this.setOwnedStatus(spaceId, shareId, gone ? MOUNT_STATUS.MOUNT_POINT_GONE : MOUNT_STATUS.PAUSED)
+    if (gone) await this.recordFault(spaceId, shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
     return { cancelled, paused: true, mountPointGone: gone }
   }
 
@@ -298,13 +312,13 @@ export class MountsRuntime extends Subsystem {
       await this.handleOwnedMountGone(spaceId, shareId)
       throw new AppError(CODES.SOURCE_FOLDER_MISSING, 'Source folder is missing — locate it before resuming')
     }
-    await setOwnedIndexPaused(spaceId, shareId, false)
+    await this.recordPause(spaceId, shareId, false)
     // A relocate that landed while this was paused recorded a debt: its deep pass never ran, and
     // the fast diff would re-advertise every entry on the new tree's fresh mtimes.
     const deep = !!mount.deepScanOwed
     // Before the pass, not after: on a large folder the walk is minutes, and a badge still reading
     // 'paused' makes the click look ignored.
-    await this.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.SCANNING)
+    await this.recordActivity(spaceId, shareId, MOUNT_STATUS.SCANNING)
     this.armCatchUpScan(spaceId, shareId, mount)
     this.schedulePeriodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore)
     return { resumed: true, deep }
@@ -334,14 +348,10 @@ export class MountsRuntime extends Subsystem {
             command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
             args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
           })
-          // A path coming back is not the user pressing Resume, so a paused index stays paused —
-          // without this, unplug + replug is a silent resume. The status is re-asserted because
-          // handleOwnedMountGone overwrote it when the path vanished.
-          const paused = (await getOwnedMount(mount.spaceId, mount.shareId))?.indexPaused
-          if (paused) {
-            await this.setOwnedStatus(mount.spaceId, mount.shareId, MOUNT_STATUS.PAUSED)
-            continue
-          }
+          // A path coming back is not the user pressing Resume: clearing the gone fault returns the
+          // mount to whatever it was, which for a paused index is still paused.
+          await this.recordActivity(mount.spaceId, mount.shareId, MOUNT_STATUS.SCANNING)
+          if ((await getOwnedMount(mount.spaceId, mount.shareId))?.indexPaused) continue
           this.armCatchUpScan(mount.spaceId, mount.shareId, mount)
           this.schedulePeriodicReconcile(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore)
         }

@@ -43,3 +43,26 @@ test('a mount path that is still a directory is left alone', async (t) => {
   t.not(read.status, 'mount-point-gone', 'a healthy mount is not torn down by the probe')
   t.is(ctx.root.mounts.lastMountPointStatus.get('owned-folder:' + mount.shareId), true)
 })
+
+// REGRESSION (A.4): the probe's return edge clears the gone fault, and a paused index returns to
+// paused rather than being silently resumed by a folder reappearing.
+test('REGRESSION (A.4): a paused mount returns to paused when its source comes back', async (t) => {
+  const { ctx, mount } = await plantedMount(t, {
+    makePath: (p) => fs.mkdirSync(p, { recursive: true }),
+  })
+  await ctx.root.mounts.pauseIndex(mount.spaceId, mount.shareId)
+  t.is((await getOwnedMount(mount.spaceId, mount.shareId)).status, 'paused', 'precondition: paused')
+
+  fs.rmSync(mount.mountPath, { recursive: true, force: true })
+  await ctx.root.mounts.probeMountPoints()
+  t.is((await getOwnedMount(mount.spaceId, mount.shareId)).status, 'mount-point-gone',
+    'the missing source outranks the pause')
+
+  fs.mkdirSync(mount.mountPath, { recursive: true })
+  await ctx.root.mounts.probeMountPoints()
+  const back = await getOwnedMount(mount.spaceId, mount.shareId)
+  t.is(back.status, 'paused', 'and the pause the user set is what it returns to')
+  t.ok(back.indexPaused)
+  t.absent(ctx.root.mounts.periodicTimers.has(mount.spaceId + ':' + mount.shareId),
+    'a returning folder is not a resume, so no cadence is armed')
+})

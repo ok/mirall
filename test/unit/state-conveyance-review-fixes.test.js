@@ -33,8 +33,9 @@ test('REGRESSION (FIX-6/7/8: scan outcomes drive owned status; probe never blank
   t.ok(/async settleScanStatus\(/.test(mountsRuntime), 'the settleScanStatus method exists')
   t.ok(/result\?\.skipped === MOUNT_STATUS\.MOUNT_POINT_GONE/.test(mountsRuntime) && /else if \(result\?\.skipped\)/.test(mountsRuntime),
     'a skipped scan is not recorded as active')
-  // The probe's owned branch must not assert a durable status purely from path presence.
-  t.absent(/setOwnedStatus\(mount\.spaceId, mount\.shareId, exists \? 'active'/.test(mountsRuntime),
+  // The probe's owned branch must not assert a durable status purely from path presence: it may
+  // clear the gone fault on the return edge, never write an outcome the pass has not reached.
+  t.absent(/record(Activity|Fault)\(mount\.spaceId, mount\.shareId, exists \?/.test(mountsRuntime),
     'the probe no longer blanket-writes active/gone from path presence')
 })
 

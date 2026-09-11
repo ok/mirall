@@ -77,3 +77,55 @@ test('the pause survives a restart, and boot arms no cadence for it', async (t) 
     && e.payload.command === MAIN_REQUEST.OWNED_FOLDER_START_WATCHER && e.payload.args.shareId === share.id),
   'and the watcher is still started')
 })
+
+// REGRESSION (A.4): both facts are durable, so a restart re-derives the same one thing the screen
+// showed before it — the fault — and the pass that clears the fault returns the folder to paused.
+test('REGRESSION (A.4): a paused and faulted mount comes back showing the fault', async (t) => {
+  t.teardown(() => timers.restore())
+  const root = tmp('store2')
+  const storage = path.join(root, 'app-storage')
+  fs.mkdirSync(storage, { recursive: true })
+  const downloads = tmp('dl2')
+  t.teardown(() => {
+    for (const dir of [root, downloads]) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }
+  })
+  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, overlayEnabled: true }
+  const masterSecret = crypto.randomBytes(32)
+
+  const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
+  await setProfile({ displayName: 'Tester' })
+  const space = await createSpace('Aurora')
+  const share = {
+    id: generateShareId(),
+    type: 'owned-folder',
+    name: 'Vault',
+    owner: getLocalPublicKeyHex(),
+    contentMode: 'overlay',
+    catalogKeyEnc: await ownCatalogKeyHex(space.spaceId),
+    createdAt: Date.now(),
+  }
+  await publishShare(space.spaceId, share)
+  const mountPath = tmp('mount2')
+  t.teardown(() => { try { fs.rmSync(mountPath, { recursive: true, force: true }) } catch {} })
+  fs.writeFileSync(path.join(mountPath, 'a.txt'), 'x')
+  await createOwnedMount({ spaceId: space.spaceId, shareId: share.id, mountPath, ignore: [], createdAt: Date.now() })
+
+  await first.mounts.pauseIndex(space.spaceId, share.id)
+  await first.mounts.settleScanStatus(
+    Promise.reject(Object.assign(new Error('no space'), { code: 'ENOSPC' })), space.spaceId, share.id)
+  await first.close()
+
+  const fake = createFakeIpc()
+  const second = await boot(config, { ipc: fake.ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
+  t.teardown(() => second.close())
+
+  const restored = await getOwnedMount(space.spaceId, share.id)
+  t.is(restored.status, 'paused-enospc', 'the fault is what a restart repaints')
+  t.ok(restored.indexPaused, 'and the pause is still recorded')
+  t.absent(second.mounts.periodicTimers.has(space.spaceId + ':' + share.id),
+    'boot still arms no reconcile for a paused index')
+
+  await second.mounts.settleScanStatus(Promise.resolve({}), space.spaceId, share.id)
+  t.is((await getOwnedMount(space.spaceId, share.id)).status, 'paused',
+    'and the pass that clears the fault returns it to the pause the user set')
+})

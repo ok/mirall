@@ -1,7 +1,7 @@
 import test from 'brittle'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { createOwnedMount, getOwnedMount, listOwnedMounts, setOwnedMountStatus, touchOwnedMountScan } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, listOwnedMounts, setOwnedActivity, setOwnedFault, touchOwnedMountScan } from '../../src/shared/folders/mount-store.js'
 
 async function plantedMount(t) {
   const ctx = await freshPeer(t)
@@ -22,7 +22,7 @@ async function plantedMount(t) {
 test('REGRESSION (FIX-F1: an owned-mount scan failure persists on the mount record)', async (t) => {
   const mount = await plantedMount(t)
 
-  t.ok(await setOwnedMountStatus(mount.spaceId, mount.shareId, 'paused-error', 'EACCES: permission denied'),
+  t.ok(await setOwnedFault(mount.spaceId, mount.shareId, 'paused-error', 'EACCES: permission denied'),
     'status write lands on the existing record')
 
   const read = await getOwnedMount(mount.spaceId, mount.shareId)
@@ -36,9 +36,9 @@ test('REGRESSION (FIX-F1: an owned-mount scan failure persists on the mount reco
 
 test('a healthy transition clears the persisted error', async (t) => {
   const mount = await plantedMount(t)
-  await setOwnedMountStatus(mount.spaceId, mount.shareId, 'paused-error', 'boom')
+  await setOwnedFault(mount.spaceId, mount.shareId, 'paused-error', 'boom')
 
-  await setOwnedMountStatus(mount.spaceId, mount.shareId, 'active')
+  await setOwnedActivity(mount.spaceId, mount.shareId, 'active')
 
   const read = await getOwnedMount(mount.spaceId, mount.shareId)
   t.is(read.status, 'active')
@@ -48,7 +48,7 @@ test('a healthy transition clears the persisted error', async (t) => {
 test('a status write for an unmounted share is a no-op', async (t) => {
   await plantedMount(t)
 
-  t.absent(await setOwnedMountStatus('space1', 'no-such-share', 'active'), 'reports the miss')
+  t.absent(await setOwnedActivity('space1', 'no-such-share', 'active'), 'reports the miss')
   t.absent(await getOwnedMount('space1', 'no-such-share'), 'no record conjured for a deleted mount')
 })
 
@@ -60,7 +60,7 @@ test('REGRESSION (FIX-15: the scan stamp merge preserves a status written mid-sc
 
   // Simulate: the scan started (record read), then a probe persisted 'paused-error' mid-scan,
   // then the scan completes and stamps its scan time.
-  await setOwnedMountStatus(mount.spaceId, mount.shareId, 'paused-error', 'disk full')
+  await setOwnedFault(mount.spaceId, mount.shareId, 'paused-error', 'disk full')
   await touchOwnedMountScan(mount.spaceId, mount.shareId)
 
   const read = await getOwnedMount(mount.spaceId, mount.shareId)

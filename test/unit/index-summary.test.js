@@ -44,16 +44,16 @@ test('wire numbers are clamped', (t) => {
 // re-hashed), so a paused folder reports the same adding: 0 a finished one reports. Only the mount
 // tells them apart — which is why `paused` is independent of `active` rather than derived from it.
 test('a paused index renders as paused, not as idle', (t) => {
-  const s = deriveIndexSummary({ adding: 0, bytesQueued: 0 }, { indexPaused: true })
+  const s = deriveIndexSummary({ adding: 0, bytesQueued: 0 }, { paused: true })
   t.absent(s.active, 'no work is queued')
   t.ok(s.paused, 'but the folder is paused, and the notice must say so')
 })
 
 test('pausing is not the same as finishing', (t) => {
-  t.absent(deriveIndexSummary({ adding: 0 }, { indexPaused: false }).paused)
+  t.absent(deriveIndexSummary({ adding: 0 }, { paused: false }).paused)
   t.absent(deriveIndexSummary({ adding: 0 }, null).paused, 'no mount yet is not a pause')
   t.absent(deriveIndexSummary({ adding: 0 }, undefined).paused)
-  t.ok(deriveIndexSummary({ adding: 12 }, { indexPaused: true }).paused, 'a pause mid-queue still reads paused')
+  t.ok(deriveIndexSummary({ adding: 12 }, { paused: true }).paused, 'a pause mid-queue still reads paused')
 })
 
 test('the summary is unchanged when no mount is passed', (t) => {
@@ -84,7 +84,7 @@ test('a filled queue supersedes the walk phase', (t) => {
 test('a paused index is never reported as scanning', (t) => {
   // Pause cancels the pass, so a stale 'scanning' status must not outrank the durable pause and
   // put the folder back into the busy notice.
-  const s = deriveIndexSummary({ adding: 0 }, { indexPaused: true, scanning: true })
+  const s = deriveIndexSummary({ adding: 0 }, { paused: true, scanning: true })
   t.ok(s.paused)
   t.absent(s.scanning)
   t.absent(s.active, 'the paused banner renders instead of the busy one')

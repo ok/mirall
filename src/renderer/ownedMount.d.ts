@@ -9,7 +9,7 @@ export interface OwnedMountState {
    *  it means "not read yet", and a caller that cannot tell them apart falls back to a frozen
    *  navigation snapshot forever. */
   loaded: boolean
-  indexPaused: boolean
+  paused: boolean
   /** The scan is walking the disk. It fills no queue, so nothing else can report that phase. */
   scanning: boolean
   mountPath: string | null

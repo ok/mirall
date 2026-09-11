@@ -1181,6 +1181,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/statuses.js` | The status tuples the worker produces and the renderer derives its unions from (§3.5, §7.3) |
 | `src/shared/contract/events.js` | Every `event:*` name; emit sites stay the source of truth and `contract-declarations.test.js` compares both directions |
 | `src/shared/contract/mount-fault.js` | Fault code ↔ mount status bridge (the errno half lives in `folders/mount-fault.js`) |
+| `src/shared/contract/mount-precedence.js` | The order an owned mount's two facts resolve in: `mount-point-gone` > fault > `paused` > `scanning` > `active`. `status` is derived from it, never assigned |
 | `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
 | `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
 | `src/shared/contract/frames.js` | The non-request frames: `bootstrap`, `response`, `cancel` |

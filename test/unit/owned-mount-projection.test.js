@@ -27,7 +27,7 @@ test('an unsettled read is distinguishable from a share with no row', (t) => {
   // so reporting it for a folder that simply was never mounted would freeze that folder forever.
   t.alike(
     projectOwnedMount([], 'sp1', 'sh1', true),
-    { status: null, lastError: null, loaded: true, indexPaused: false, scanning: false, mountPath: null },
+    { status: null, lastError: null, loaded: true, paused: false, scanning: false, mountPath: null },
     'settled with no row → loaded:true, healthy',
   )
 })
@@ -72,17 +72,33 @@ test('every field is read from the row, so nothing latches across a share change
     row({ shareId: 'sh2', status: 'scanning', mountPath: '/b' }),
   ]
 
+  // REGRESSION (A.4): the row holds both facts and the projection resolves them — the fault is what
+  // shows, and `paused` is false while it does.
   t.alike(projectOwnedMount(rows, 'sp1', 'sh1', true), {
-    status: 'paused-error', lastError: 'ENOSPC', loaded: true, indexPaused: true, scanning: false, mountPath: '/a',
+    status: 'paused-error', lastError: 'ENOSPC', loaded: true, paused: false, scanning: false, mountPath: '/a',
   })
   // The same call for the sibling share carries none of sh1's state — the leak the hand-rolled
   // hook had, where `loaded` and `status` survived a navigation because only the effect reset them.
   t.alike(projectOwnedMount(rows, 'sp1', 'sh2', true), {
-    status: null, lastError: null, loaded: true, indexPaused: false, scanning: true, mountPath: '/b',
+    status: null, lastError: null, loaded: true, paused: false, scanning: true, mountPath: '/b',
   })
 })
 
 test('rows from another space are never matched', (t) => {
   const rows = [row({ spaceId: 'sp2', status: 'paused-error' })]
   t.is(projectOwnedMount(rows, 'sp1', 'sh1', true).status, null, 'same shareId, different space')
+})
+
+test('REGRESSION (A.4): a paused row projects paused, and the fault over it projects the fault', (t) => {
+  const paused = [row({ status: 'active', indexPaused: true })]
+  t.is(projectOwnedMount(paused, 'sp1', 'sh1', true).status, 'paused', 'the pause shows')
+  t.ok(projectOwnedMount(paused, 'sp1', 'sh1', true).paused)
+
+  const faulted = [row({ status: 'paused-enospc', indexPaused: true })]
+  t.is(projectOwnedMount(faulted, 'sp1', 'sh1', true).status, 'paused-enospc', 'the fault outranks it')
+  t.absent(projectOwnedMount(faulted, 'sp1', 'sh1', true).paused, 'so the screen offers Try again, not Resume')
+
+  const missing = [row({ status: 'active', indexPaused: true, mountPointMissing: true })]
+  t.is(projectOwnedMount(missing, 'sp1', 'sh1', true).status, 'mount-point-gone', 'and a missing source outranks both')
+  t.absent(projectOwnedMount(missing, 'sp1', 'sh1', true).paused)
 })

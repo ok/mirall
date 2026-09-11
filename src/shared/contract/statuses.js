@@ -77,12 +77,11 @@ export const MIRROR_STATES = Object.freeze(Object.values(MIRROR_STATE))
 //   owner   scanning → active on a clean pass, scanning → paused-* when the pass hit a fault. The
 //           cadence keeps retrying either way.
 //
-// Three fields sit beside `status`, and none is derivable from it: `enabled` is the mirror's loop
-// switch (false plus an auto-pause status is what isAutoPaused reads), `indexPaused` is the owner's
-// durable pause — a field rather than a status, because four writers overwrite status and a pause
-// recorded there would be lost at the next settle — and `lastError` is the code a fault status
-// names itself by. folders/mount-store.js is the only write path; folders/foreign-folders.js and
-// worker/mounts-runtime.js are the callers that decide.
+// The two roles' status fields are differently authoritative. A MIRROR's is assigned: `enabled` is
+// its loop switch, and false plus an auto-pause status is what isAutoPaused reads. An OWNER's is
+// derived by contract/mount-precedence.js from the two facts beside it — `indexPaused`, the user's
+// durable pause, and `lastError`, the code a fault status names itself by — so an owner's pause and
+// its fault are both recorded while only one of them shows.
 export const MOUNT_STATUS = Object.freeze({
   IDLE: 'idle',
   SCANNING: 'scanning',
