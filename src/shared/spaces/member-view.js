@@ -18,6 +18,7 @@ import { prefixRange } from '../core/bee-keys.js'
 // algorithm is unit-testable without a store; the live wiring (createMemberView) passes
 // the bee-backed reader. A null record means "unknown / not replicated yet" — the peer
 // (and anyone only it approved) stays out until its bee arrives, then a later fold heals.
+// test seam
 export async function deriveMemberSet({ creatorKey, selfKey, readRecord }) {
   const records = new Map()
   const fetched = new Set()

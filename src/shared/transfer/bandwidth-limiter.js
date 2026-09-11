@@ -22,6 +22,7 @@
 // the advisory text has no other way to learn why its cap is not being honoured. Keep the
 // value in step with `MIN_KBPS` in `NetworkSettings.tsx`; the renderer may not import from
 // `src/shared/`, so the two constants are necessarily duplicated.
+// test seam
 export const MIN_BYTES_PER_SECOND = 32 * 1024
 
 // Longest a waiting stream goes before the bucket re-evaluates it. Bounds how long a live

@@ -35,4 +35,5 @@ function usableBounds(bounds, displays) {
   return { width: bounds.width, height: bounds.height }
 }
 
+// test seam: boundsOnSomeDisplay and MIN_VISIBLE are exported for tests only.
 module.exports = { boundsOnSomeDisplay, usableBounds, MIN_VISIBLE }

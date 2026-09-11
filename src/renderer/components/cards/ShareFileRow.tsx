@@ -15,6 +15,7 @@ import { deriveRowView } from '../../rowView.js'
 import type { Decoration } from '../../hooks/useDecorations.js'
 import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
+// test seam
 export interface ShareFileRowProps {
   file: ShareFileEntry
   /** This row's live transfer frame, looked up by useShareFiles. Two scalar props rather than one

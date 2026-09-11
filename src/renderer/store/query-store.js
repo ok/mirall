@@ -187,6 +187,7 @@ export function peek(key) {
   return entries.get(key)?.snapshot ?? EMPTY_SNAPSHOT
 }
 
+// test seam
 export function resetQueryStore() {
   entries.clear()
 }

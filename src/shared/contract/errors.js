@@ -65,6 +65,7 @@ export const CODES = Object.freeze({
   WORKER_UNAVAILABLE: 'WORKER_UNAVAILABLE',  // the renderer's channel has no worker behind it
 })
 
+// test seam — the declaration-parity guard's list
 export const CODE_NAMES = Object.freeze(Object.keys(CODES))
 
 // Ordinary control flow rather than faults: the user cancelled, or a bounded read gave up as
@@ -76,6 +77,7 @@ export const EXPECTED_CODES = Object.freeze(['ECANCELLED', 'PREVIEW_CANCELLED'])
 // rather than something the user did. The renderer shows its generic sentence for these and logs
 // the detail. Listed here so the mapping test can assert ZERO unmapped codes rather than pin a
 // number, and so copy for a code nobody can reach cannot creep back in.
+// test seam — the declaration-parity guard's allow-list
 export const INTERNAL_CODES = Object.freeze([
   'EHASHMISMATCH',
   'EIO',
@@ -91,6 +93,7 @@ export const INTERNAL_CODES = Object.freeze([
 // Declared but thrown nowhere. Kept rather than deleted: several are the
 // vocabulary a planned feature will use, and deleting them would make the parity test pass by
 // shrinking the contract instead of fixing the code. The test asserts this list only shrinks.
+// test seam — the declaration-parity guard's allow-list
 export const UNUSED_CODES = Object.freeze([
   'INVALID_INVITE',
   'MOUNT_INSIDE_SELF',

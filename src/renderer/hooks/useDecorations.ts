@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { subscribe } from '../ipc.js'
 import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
 
+// test seam
 export type DecorationPhase = 'verifying' | 'preparing' | 'publishing'
 
 export interface Decoration {

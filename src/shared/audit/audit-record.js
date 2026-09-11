@@ -8,6 +8,7 @@
 import { isKnownKind, categoryOf, tierOf, OUTCOME, OUTCOMES } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
 
+// test seam
 export const SCHEMA_VERSION = 1
 
 const SEARCH_MAX = 300

@@ -23,6 +23,7 @@ const records = createRecordWriter({ bee: () => bee, log })
 
 const mutateOwned = (spaceId, shareId, apply) => records.mutate(ownedKey(spaceId, shareId), apply)
 
+// test seam — production opens the mounts bee through this file's own _open()
 export async function initMounts() {
   if (bee && beeStore === storeEpoch() && !bee.core.closed) return
   beeStore = storeEpoch()

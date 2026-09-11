@@ -45,4 +45,5 @@ class LogRing {
   }
 }
 
-module.exports = { LogRing, logRing: new LogRing(), MAX_LINES, MAX_BYTES, MAX_LINE_LENGTH }
+// test seam: LogRing, MAX_LINES and MAX_LINE_LENGTH are exported for tests only.
+module.exports = { LogRing, logRing: new LogRing(), MAX_LINES, MAX_LINE_LENGTH }

@@ -290,6 +290,7 @@ async function inspectCore(store, dk) {
   return { kind: 'other', bytes: metaBytes }
 }
 
+// test seam
 export async function classifyLeftovers(opts = {}) {
   const store = getStore()
   const wanted = await buildWantedKeys(opts)

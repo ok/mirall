@@ -2,6 +2,7 @@
 //
 // The order is the safety argument: every branch that cannot prove nothing changed costs a walk.
 // A skip is only ever authorised by a known version that matches a watermark a converged pass set.
+// test seam
 export const DEFAULT_FULL_WALK_EVERY = 10
 
 export function shouldWalk({ watermark = null, version = null, skipped = 0, fullWalkEvery = DEFAULT_FULL_WALK_EVERY } = {}) {

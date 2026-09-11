@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
-import { primeFeatureFlags, readFeatureFlags, __resetForTest } from '../../src/main/feature-flags.js'
+import { primeFeatureFlags, readFeatureFlags, _resetForTests } from '../../src/main/feature-flags.js'
 
 // The shipped bug: feature-flags.json is asar-internal, and the OTA updater
 // wraps _update/applyUpdate in `process.noAsar = true` (see main.js getPear).
@@ -39,7 +39,7 @@ function resetEnv(t) {
 }
 
 test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the boot cache holds even after the file becomes unreadable', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, handshakeIdentityBinding: true })
 
@@ -57,7 +57,7 @@ test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the bo
 })
 
 test('primeFeatureFlags parses the on-disk flags', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const dir = tmpRootWith({ overlay: true })
   primeFeatureFlags(dir)
@@ -66,7 +66,7 @@ test('primeFeatureFlags parses the on-disk flags', (t) => {
 })
 
 test('a missing/unreadable file falls back to {} AND logs a warning (never silent)', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const warns = captureWarn(t)
   const dir = tmpRootWith(undefined) // no feature-flags.json written
@@ -77,7 +77,7 @@ test('a missing/unreadable file falls back to {} AND logs a warning (never silen
 })
 
 test('invalid (non-object) JSON falls back to {} with a warning', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const warns = captureWarn(t)
   const dir = tmpRootWith('"a string, not an object"')
@@ -87,7 +87,7 @@ test('invalid (non-object) JSON falls back to {} with a warning', (t) => {
 })
 
 test('MIRALL_FEATURE_FLAGS overrides the cached base (dev/test escape hatch)', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const dir = tmpRootWith({ overlay: true, inPlaceFiles: true })
   primeFeatureFlags(dir)
@@ -98,7 +98,7 @@ test('MIRALL_FEATURE_FLAGS overrides the cached base (dev/test escape hatch)', (
 })
 
 test('malformed MIRALL_FEATURE_FLAGS is ignored (with a warning), base preserved', (t) => {
-  __resetForTest()
+  _resetForTests()
   resetEnv(t)
   const warns = captureWarn(t)
   const dir = tmpRootWith({ overlay: true })

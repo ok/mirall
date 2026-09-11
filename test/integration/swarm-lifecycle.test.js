@@ -7,7 +7,7 @@ import {
   markSpaceLeaving, isSpaceLeaving, getSwarmDht,
 } from '../../src/shared/transfer/swarm.js'
 import { ContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
-import { compactStoreForTest } from '../../src/shared/transfer/swarm.js'
+import { _compactStoreForTests } from '../../src/shared/transfer/swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 
 const stubOverlayBackend = {
@@ -110,7 +110,7 @@ test('a store compaction in flight is waited for, but only briefly', async (t) =
 
   let released = null
   const blocked = new Promise((resolve) => { released = resolve })
-  compactStoreForTest(() => blocked)
+  _compactStoreForTests(() => blocked)
 
   const t0 = Date.now()
   await swarm.close()

@@ -5,6 +5,7 @@
 
 // Coarse category for folder roll-up summaries. Anything unlisted — a new status included —
 // falls through to 'available', so a status that needs its own bucket must be added here.
+// test seam
 export function statusCategory(status) {
   switch (status) {
     case 'downloaded':

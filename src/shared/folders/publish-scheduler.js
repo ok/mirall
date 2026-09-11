@@ -154,6 +154,7 @@ function dropQueues(queues) {
 // spaces holding a same-named loose file would collide on a single entry: one space's settle would
 // delete the other's heartbeat, and the still-running item would read healthy for the rest of its
 // life. The space is what makes it an identity rather than a name.
+// test seam
 export const publishSlotKey = (spaceId, shareId, relPath) => spaceId + '\0' + itemKey(shareId, relPath)
 const slotKey = (item) => publishSlotKey(item.spaceId, item.shareId, item.relPath)
 

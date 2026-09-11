@@ -182,6 +182,7 @@ function parseUpgradeKey(raw) {
 
 // Exported for the keypair-isolation test: the guarantee below is invisible at every
 // layer above this function.
+// test seam
 export function dialOnce(dht, peer) {
   return new Promise((resolve) => {
     let socket = null
@@ -519,6 +520,7 @@ const STATUS_FIELDS = [
   (s) => s.reachability.confidence,
 ]
 
+// test seam
 export function statusEqual(a, b) {
   if (a === b) return true
   if (!a || !b) return false

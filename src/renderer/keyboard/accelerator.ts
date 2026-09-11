@@ -13,6 +13,7 @@ interface ParsedAccelerator {
 
 const MODIFIER_TOKENS = new Set(['mod', 'shift', 'alt', 'opt'])
 
+// test seam
 export function parseAccelerator(spec: string): ParsedAccelerator {
   const parts = spec.toLowerCase().split('+')
   const mod = parts.includes('mod')

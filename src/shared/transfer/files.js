@@ -36,6 +36,7 @@ const log = createLogger('files')
 let downloadsBee
 let downloadsStore = -1
 
+// test seam — production opens downloads through this file's own _open()
 export async function initDownloads() {
   if (downloadsBee && downloadsStore === storeEpoch() && !downloadsBee.core.closed) return
   downloadsStore = storeEpoch()
@@ -167,6 +168,7 @@ export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSiz
 // A downloaded overlay file is "verified" when the hash recorded on landing (the
 // overlay verifies it byte-for-byte during transfer) still equals the currently
 // advertised content hash. key = `<shareId>|<relPath>` (loose uses LOOSE_SHARE_ID).
+// test seam
 export async function isVerifiedDownload(spaceId, key, contentHash) {
   if (!contentHash) return false
   return (await getVerifiedHash(spaceId, key)) === contentHash
@@ -301,6 +303,7 @@ export async function addFile(spaceId, filePath, fileName) {
 }
 
 // The display status of a peer-held file, most-progressed first. Exported for unit coverage.
+// test seam
 export function peerFileStatus(downloaded, pendingRow, ownerOnline, isActive) {
   if (downloaded) return 'downloaded'
   if (isActive) return 'downloading'
@@ -432,6 +435,7 @@ export function claimedPathFor(filePath, rec) {
 // do we guess <Downloads>/<name> — a last resort, since for an owned file that
 // guess points at a Downloads folder the file was never in (which is why
 // markOwnedSource records the real source at share time).
+// test seam
 export async function resolveRevealTarget(spaceId, filePath) {
   return (await getDownloadedPath(spaceId, filePath))
     || (await getOwnedSourcePath(spaceId, filePath))
