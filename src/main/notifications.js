@@ -143,4 +143,5 @@ function register(opts) {
   })
 }
 
+// test seam: toastSafeId and isRevealable are exported for tests only.
 module.exports = { register, toastSafeId, isRevealable }

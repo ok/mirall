@@ -24,6 +24,7 @@ export const CAUSE = {
   VPN_ONLY_ROUTE: 'vpn-only-route',
 }
 
+// test seam
 export const CONFIDENCE = { MEASURED: 'measured', PREDICTED: 'predicted' }
 
 export const CANARY = {

@@ -51,8 +51,9 @@ function readFeatureFlags() {
 }
 
 // Test-only: drop the boot cache between cases.
-function __resetForTest() {
+function _resetForTests() {
   cache = null
 }
 
-module.exports = { primeFeatureFlags, readFeatureFlags, __resetForTest }
+// test seam: _resetForTests is exported for tests only.
+module.exports = { primeFeatureFlags, readFeatureFlags, _resetForTests }

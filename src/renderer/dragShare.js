@@ -13,6 +13,7 @@ export function isFolderDrop(items) {
 // null; only kind/type are readable. A directory item has an empty MIME type, so a
 // lone typeless file-kind item is treated as a folder. Single-item only, so a batch
 // of extensionless files isn't misread; the drop handler has real entries to correct it.
+// test seam
 export function looksLikeFolderDrag(items) {
   let sawEntry = false
   for (let i = 0; i < items.length; i++) {

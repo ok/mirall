@@ -193,6 +193,7 @@ export function shouldHonorDeletions({
 // Split a basename into { base, ext } the way `path.extname` does for a leaf name:
 // extension is the substring from the last dot, except a leading dot (dotfile) or
 // no dot yields no extension. 'a.tar.gz' → ext '.gz'; 'LICENSE'/'.bashrc' → ext ''.
+// test seam
 export function splitFileName(fileName) {
   const dot = fileName.lastIndexOf('.')
   if (dot <= 0) return { base: fileName, ext: '' }

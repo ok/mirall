@@ -52,6 +52,9 @@
     return { fileCount: files.length, totalBytes, blobsLength: null }
   }
 
+  // Tracks the request vocabulary in src/shared/contract/requests.js: a request with no case here
+  // resolves null, which the screen renders as an empty state rather than an error — so a harness
+  // missing a route fails as a wrong layout assertion instead of as a missing route.
   function route(type, payload) {
     switch (type) {
       case 'ping': return { ok: true }

@@ -12,6 +12,7 @@
 // There is no hexKey type for the same reason: ownerKey is a plain string at the boundary and can
 // legitimately be '' (useFiles builds an optimistic row with an empty owner key), so a format
 // assertion here would reject traffic the app already sends.
+// test seam
 export const ARG = Object.freeze({
   string: 'string',
   number: 'number',
@@ -250,8 +251,10 @@ export const REQUESTS = Object.freeze({
   'storage:info': { kind: 'query', args: {} },
 })
 
+// test seam — the declaration-parity guard's list; production reads the table above it
 export const REQUEST_NAMES = Object.freeze(Object.keys(REQUESTS))
 
 // Handlers with no caller anywhere in src/ or test/. Recorded rather than deleted: removing one is
 // a behaviour change and belongs in its own commit. The test asserts this list only shrinks.
+// test seam — the declaration-parity guard's allow-list
 export const UNREFERENCED_REQUESTS = Object.freeze([])

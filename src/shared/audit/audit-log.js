@@ -186,6 +186,7 @@ async function append(kind, fields, target = bee) {
 
 // Awaits everything queued so far. Tests and the export path need the log settled; production
 // call sites never do.
+// test seam
 export async function flushAudit() {
   await writeChain.catch(() => {})
 }

@@ -8,7 +8,9 @@
 // Bounded by EVICTION, not by refusing to record. A memo that stops recording at its cap silently
 // stops blocking, which is exactly how the loop this exists to end would come back on a mount with
 // more corrupt files than the cap.
+// test seam
 export const DEFAULT_ATTEMPT_LIMIT = 3
+// test seam
 export const DEFAULT_MAX_KEYS = 512
 
 export function createAttemptBudget({ limit = DEFAULT_ATTEMPT_LIMIT, maxKeys = DEFAULT_MAX_KEYS } = {}) {

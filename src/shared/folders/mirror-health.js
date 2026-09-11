@@ -3,6 +3,7 @@
 // permanently while the interval keeps firing.
 import { stallVerdict } from '../core/stall-verdict.js'
 
+// test seam
 export const STALL_FACTOR = 20
 
 export function mirrorVerdict(liveness, { now, pollIntervalMs, stallFactor = STALL_FACTOR }) {

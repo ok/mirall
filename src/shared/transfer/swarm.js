@@ -956,7 +956,7 @@ export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact
 const COMPACTION_SETTLE_MS = 250
 
 // Lets a test park the compaction tail so the bounded wait in destroySwarm is observable.
-export function compactStoreForTest(makeTail) {
+export function _compactStoreForTests(makeTail) {
   compactionTail = makeTail()
 }
 let compactionTail = Promise.resolve()
@@ -1051,6 +1051,7 @@ export function getBoundSignerKey(profileKeyHex) {
   return boundSignerKeys.get(profileKeyHex) || null
 }
 
+// test seam
 export function getSwarmDht() {
   return swarm?.dht || null
 }

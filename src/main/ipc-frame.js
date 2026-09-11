@@ -110,4 +110,5 @@ function createWorkerFrameReader() {
   }
 }
 
+// test seam: MAIN_REQUEST_MAX_LINE and isControlFrameCandidate are exported for tests only.
 module.exports = { MAIN_REQUEST_MAX_LINE, isControlFrameCandidate, createWorkerFrameReader }

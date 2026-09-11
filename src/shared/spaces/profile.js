@@ -22,6 +22,7 @@ export const CAP_MEMBERSHIP_MANIFEST = 'caps/membership-manifest'
 let profileBee
 let profileStore = -1
 
+// test seam — production opens the profile bee through this file's own _open()
 export async function initProfile() {
   if (profileBee && profileStore === storeEpoch() && !profileBee.core.closed) return
   profileStore = storeEpoch()

@@ -21,6 +21,7 @@
 // routinely mid-transfer when a peer asks for chunks faster than the budget allows, and NOT_HELD
 // is simply a request for content this device does not advertise. Conflating them makes a busy
 // mirror look like a stream of security incidents.
+// test seam
 export const DENY = {
   NO_SOCKET: 'no-socket',
   UNAUTHENTICATED: 'unauthenticated',

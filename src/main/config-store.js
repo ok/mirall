@@ -253,4 +253,5 @@ class ConfigStore {
   }
 }
 
+// test seam: CONFIG_VERSION is exported for tests only.
 module.exports = { ConfigStore, CONFIG_VERSION }

@@ -15,6 +15,7 @@ import { migrateOverlayIndexToEncrypted } from '../transfer/backends/overlay/mig
 
 export const STAGES = Object.freeze(['durable', 'content', 'background'])
 
+// test seam
 export const MIGRATIONS = Object.freeze([
   { id: 'local-bees-encrypt', stage: 'durable', run: () => migrateLocalBeesToEncrypted() },
   { id: 'catalogs-encrypt', stage: 'content', run: () => migrateCatalogsToEncrypted() },

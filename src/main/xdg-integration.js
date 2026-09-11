@@ -67,4 +67,5 @@ function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.
   return true
 }
 
+// test seam: desktopEntryFor, writeIfChanged and copyFileIfChanged are exported for tests only.
 module.exports = { integrateXdgLinux, desktopEntryFor, writeIfChanged, copyFileIfChanged }

@@ -50,6 +50,7 @@ function sanitizeRelay(entry) {
   }
 }
 
+// test seam: isValidRelayKey and MAX_LABEL_LENGTH are exported for tests only.
 module.exports = {
   decodeRelayKey,
   isValidRelayKey,

@@ -8,6 +8,7 @@ import { formatSize } from './formatSize.js'
 
 // Which participant a row is "about". `actorLabelKey` distinguishes the three cases the copy
 // has to handle: you did it, a named peer did it, or the app did it on its own.
+// test seam
 export function actorLabel(entry) {
   const actor = entry.actor
   if (!actor || actor.type === 'system') return { key: 'activityLog.actorSystem', name: null }
@@ -62,6 +63,7 @@ export function systemIcon(entry) {
   return entry.category === 'network' ? 'hub' : 'history'
 }
 
+// test seam
 export function isSystemRow(entry) {
   return !entry.actor || entry.actor.type === 'system'
 }
@@ -107,7 +109,9 @@ function shortKey(key) {
 // entity names inside it can carry emphasis. Interpolate-then-split (not <Trans>) keeps the
 // translator's word order because we parse THEIR rendered output; U+001F cannot occur in a display
 // name, so a name containing punctuation or two fields sharing a value can never confuse the split.
+// test seam
 export const FIELD_SENTINEL = '\u001F'
+// test seam
 export const SENTENCE_FIELDS = ['actor', 'space', 'target']
 
 export function sentinelValues() {
@@ -138,11 +142,13 @@ export function splitSentence(rendered, values) {
 }
 
 // One byte size means one string everywhere: formatSize.js owns the ladder, and eslint pins it.
+// test seam
 export function formatBytes(bytes, locale) {
   if (!Number.isFinite(bytes) || bytes < 0) return null
   return formatSize(bytes, locale)
 }
 
+// test seam
 export function formatCount(n, locale) {
   return Number.isFinite(n) ? n.toLocaleString(locale) : null
 }
@@ -202,6 +208,7 @@ export function metaParts(entry, locale) {
 
 // Day buckets for the grouped list. Uses the viewer's current locale day boundaries, not the
 // tzOffset stored on the row: the grouping answers "when did this happen for me, now".
+// test seam
 export function dayKey(ts, now = Date.now()) {
   const day = 86400000
   const startOfToday = new Date(now)

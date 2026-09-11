@@ -153,6 +153,7 @@ function armIndexAnnounce() {
   }, announceMs)
 }
 
+// test seam
 export function stopIndexAnnounce() {
   if (announceTimer) subsystem?.timers.clear(announceTimer)
   announceTimer = null
@@ -220,6 +221,7 @@ registerPublishChannel('folder', {
   },
 })
 
+// test seam — production starts owned folders through this file's own _open()
 export function initOwnedFolders(_ipc, { settleScan = null, broadcastIndex = null, indexAnnounceMs = INDEX_ANNOUNCE_MS } = {}) {
   ipcRef = _ipc
   settleScanRef = settleScan
@@ -282,6 +284,7 @@ export async function handleFsEventFromMain(event) {
 
 // Resolves once the event's work item has settled (or its rerun, when the item was already
 // running), so a caller that awaits it observes the effect.
+// test seam
 export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
   const mount = await getOwnedMount(spaceId, shareId)
   if (!mount) {
