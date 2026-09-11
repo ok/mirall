@@ -3,6 +3,12 @@
 // loose files, the aggregated file listing (rows folded by file-dedupe), and
 // reveal-in-file-manager. "On your device" is always re-verified against
 // the disk before it is reported — the bee rows are claims, the file is the truth.
+//
+// The `downloads-meta` bee holds three namespaces, distinguished by prefix rather than by
+// separator, so a scan of one must not see another:
+//   <spaceId>:<filePath>            the downloaded-copy claim
+//   verified:<spaceId>:<key>        a hash-verified record: { hash, at }
+//   src:<spaceId>:<filePath>        the owned source path of a loose file: { sourcePath, addedAt }
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { getDrive, getSpace } from '../spaces/space.js'
