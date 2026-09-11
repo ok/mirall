@@ -133,6 +133,18 @@ export function shouldIgnore(rel, ignorePatterns) {
   return false
 }
 
+// The subset of `shouldIgnore` a directory walk may act on: true only when every path beneath the
+// directory is ignored too, so the descent can be skipped without changing which files a glob
+// covers. Always a subset of `shouldIgnore` — a directory pruned here is one the per-file pass
+// would have discarded anyway.
+export function shouldPruneDir(rel, ignorePatterns) {
+  if (!ignorePatterns || ignorePatterns.length === 0) return false
+  for (const pat of ignorePatterns) {
+    if (coversDescendants(pat) && matchPattern(rel, pat)) return true
+  }
+  return false
+}
+
 // Plain string comparisons, never a compiled regular expression: patterns arrive from a share's
 // configuration and are matched against every path of every scan, where a backtracking pattern
 // would be a stall the user cannot explain.
@@ -157,6 +169,21 @@ function matchPattern(input, pattern) {
       input.endsWith('/' + prefix) || input.includes('/' + prefix + '/')
   }
   return matchSegment(input, pattern)
+}
+
+// True when matching a path implies matching everything beneath it — the property a prune needs.
+// `X/**` has it by construction: each of its four disjuncts survives appending a segment. A `**/`
+// prefix naming ONE segment has it because a descendant keeps every segment its ancestor had; a
+// multi-segment remainder is answered on its own terms, as `matchPattern` answers it. Every other
+// shape is matched against a whole key or a basename, so it covers the directory entry and nothing
+// under it. This mirrors `matchPattern`'s branches one for one and changes with it.
+function coversDescendants(pattern) {
+  if (pattern.startsWith('**/')) {
+    const rest = pattern.slice(3)
+    if (rest === '') return false
+    return rest.includes('/') ? coversDescendants(rest) : true
+  }
+  return pattern.endsWith('/**') && pattern.length > '/**'.length
 }
 
 // Exact name, leading-`*` suffix glob, or trailing-`*` prefix glob — the whole vocabulary a
