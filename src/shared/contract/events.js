@@ -1,7 +1,8 @@
-// Every event the worker pushes to the renderer. Emitted names are the source of truth. Nothing in
-// production imports this file: its teeth are test/unit/contract-declarations.test.js, which parses
-// every emit site, every renderer subscription and this list and asserts all three name the same
-// set.
+// Every event the worker pushes to the renderer. Emitted names are the source of truth. The
+// renderer imports EventName from the sidecar, so a mistyped subscribe() fails tsc; the worker's
+// emit sites are plain .js that no compiler reads, so they are policed instead by
+// test/unit/contract-declarations.test.js, which parses every emit site, every renderer
+// subscription and this list and asserts all three name the same set.
 const EVENTS = Object.freeze({
   AUDIT_UPDATED: 'event:audit-updated',
   AWARENESS: 'event:awareness',

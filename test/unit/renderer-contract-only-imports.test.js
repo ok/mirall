@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { readFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
@@ -25,6 +25,24 @@ function verify(linter, source, filename) {
     rules: { 'no-restricted-imports': ['error', { patterns: rendererContractOnlyImports }] },
   }, filename)
 }
+
+// The other half of the same rule: a contract module the renderer imports carries a hand-written
+// .d.ts, because the renderer is the only consumer TypeScript reads. The per-file parity test walks
+// .d.ts files, so a module with NO sidecar is invisible to it — which is how contract/events.js
+// reached the renderer's door with no EventName to import.
+test('every contract module the renderer imports has a .d.ts twin', (t) => {
+  const contractDir = path.join(here, '..', '..', 'src', 'shared', 'contract')
+  const imported = new Set()
+  for (const file of walk(rendererDir)) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/shared\/contract\/([a-z0-9-]+)\.js/g)) imported.add(m[1])
+  }
+
+  t.ok(imported.size >= 10, `the renderer imports ${imported.size} contract modules`)
+  for (const name of [...imported].sort()) {
+    t.ok(existsSync(path.join(contractDir, name + '.d.ts')), `contract/${name}.js has a .d.ts twin`)
+  }
+})
 
 // The renderer may import the contract package and nothing else under src/shared/. Every renderer
 // twin of a data-layer rule began as an import that was not allowed and a copy that was; the

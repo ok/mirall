@@ -48,7 +48,7 @@ export function installPushBridges(): () => void {
     }),
     // One-shot user-level signals rather than view pokes, which is why they stay named events
     // instead of riding event:reconcile.
-    ...['event:membership-granted', 'event:membership-denied', 'event:membership-creator-divergence']
+    ...(['event:membership-granted', 'event:membership-denied', 'event:membership-creator-divergence'] as const)
       .map((name) => subscribe(name, () => reread('spaces:list', SPACES_SCOPES))),
   ]
   return () => { for (const off of unsubs) off() }
