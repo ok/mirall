@@ -5,7 +5,7 @@
 // The badge projection of an owned mount's durable state: a live missing path wins, then any
 // persisted non-healthy status (paused-error / mount-point-gone survive a restart); healthy states
 // (active / scanning) render no badge.
-export function unhealthyOwnedStatus (m) {
+export function unhealthyOwnedStatus(m) {
   if (!m) return null
   if (m.mountPointMissing) return 'mount-point-gone'
   if (m.status && m.status !== 'active' && m.status !== 'scanning') return m.status
@@ -15,7 +15,7 @@ export function unhealthyOwnedStatus (m) {
 // Settled means an answer LANDED — data or error — not `!loading`: the store settles an entry on an
 // error too, so a failed read is loading:false with no data, and FolderView takes this projection
 // outright once loaded. Undefined is unsettled whatever the reason; a never-mounted share is [].
-export function ownedMountSettled (enabled, rows) {
+export function ownedMountSettled(enabled, rows) {
   return Boolean(enabled) && rows !== undefined
 }
 
@@ -28,7 +28,7 @@ export function ownedMountSettled (enabled, rows) {
 //
 // Nothing here latches. Every field is read from the row on each call, so a share change re-derives
 // rather than carrying the previous folder's state into this one's header.
-export function projectOwnedMount (rows, spaceId, shareId, settled) {
+export function projectOwnedMount(rows, spaceId, shareId, settled) {
   if (!settled || !spaceId || !shareId) return NO_OWNED_MOUNT
   const m = (rows || []).find((x) => x.spaceId === spaceId && x.shareId === shareId)
   // Both from one row: the badge projection AND the durable intent behind it. The status alone

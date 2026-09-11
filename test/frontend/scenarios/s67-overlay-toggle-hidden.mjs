@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // are turned off because overlayEnabled is overlay||inPlaceFiles; leaving in-place on would
 // keep the overlay backend (and the segment) available. This guards the feature gate. Single
 // instance, no peer — only the modal is inspected.
-export default async function s67 ({ runDir }) {
+export default async function s67({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1, flags: { overlay: false, inPlaceFiles: false } })

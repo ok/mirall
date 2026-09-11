@@ -15,14 +15,14 @@ const K = 'a'.repeat(64)
 
 // Bare reports a deadlock when only unref'd handles remain; the worker's IPC pipe plays this
 // role in production, so a bare test has to hold the loop open itself.
-function keepLoopAlive (t) {
+function keepLoopAlive(t) {
   const keep = setInterval(() => {}, 500)
   t.teardown(() => clearInterval(keep))
 }
 
 // loadDrives' post-load backfill publishes the loose-catalog key, which needs the overlay —
 // without it a SUCCESSFUL load parks instead of returning.
-async function setup (t) {
+async function setup(t) {
   keepLoopAlive(t)
   const ctx = await freshPeer(t)
   await initDownloads()
@@ -31,7 +31,7 @@ async function setup (t) {
   return ctx
 }
 
-function captureLog (t, method, prefix) {
+function captureLog(t, method, prefix) {
   const lines = []
   const real = console[method]
   console[method] = (...a) => { const s = a.join(' '); if (s.startsWith(prefix)) lines.push(s); else real(...a) }
@@ -39,7 +39,7 @@ function captureLog (t, method, prefix) {
   return lines
 }
 
-function failSpacesDel (t, pred) {
+function failSpacesDel(t, pred) {
   const bee = _spacesBeeForTests()
   const realDel = bee.del.bind(bee)
   bee.del = (key, opts) => pred(key) ? Promise.reject(new Error('EIO: injected del failure')) : realDel(key, opts)
@@ -97,7 +97,7 @@ test('a post-load backfill failure keeps the drive and the record', async (t) =>
   const space = await createSpace('Backfill Space')
   const before = (await listSpaces()).length
   const open = getDrive(space.spaceId)
-  const warns = captureLog(t, 'warn', '[space]')
+  captureLog(t, 'warn', '[space]')
   // markSpaceDriveKey / publishLooseCatalogKey both write the profile bee; fail every write.
   const { getProfileBee } = await import('../../src/shared/spaces/profile.js')
   const bee = getProfileBee()

@@ -6,10 +6,10 @@ import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]
@@ -17,14 +17,14 @@ function makeDuplex () {
 
 const settle = (ms = 400) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function overlay (t, label, opts = {}) {
+async function overlay(t, label, opts = {}) {
   const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), ...opts })
   await o.ready()
   t.teardown(async () => { try { await o.close() } catch {} })
   return o
 }
 
-function fileOnDisk (label, bytes = 4096) {
+function fileOnDisk(label, bytes = 4096) {
   const dir = tmpDir(label)
   const content = crypto.randomBytes(bytes)
   const p = path.join(dir, 'f.bin')

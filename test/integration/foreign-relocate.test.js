@@ -11,7 +11,7 @@ import { relocateForeignFolder, stopForeignLoop, isAutoPaused } from '../../src/
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
-async function setupMirror (t, { enabled = true, status = null } = {}) {
+async function setupMirror(t, { enabled = true, status = null } = {}) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()

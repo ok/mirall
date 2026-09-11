@@ -13,7 +13,7 @@ import { createContentPeerSockets } from '../../src/shared/transfer/content-peer
 // hasPeer is what lets the tick SEE the stall: a pending download whose owner has no content socket
 // left is the signal to refresh discovery, which resets hyperswarm's attempts and re-dials now.
 
-const fakeSocket = (name) => ({ name, destroyed: false, destroy () { this.destroyed = true } })
+const fakeSocket = (name) => ({ name, destroyed: false, destroy() { this.destroyed = true } })
 
 test('hasPeer reports whether an owner is still reachable on any content socket', (t) => {
   const reg = createContentPeerSockets()

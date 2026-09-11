@@ -3,9 +3,9 @@
 // can't poison the chain; the returned promise still rejects so the caller sees errors.
 // A key's entry is dropped once its chain drains, so the map stays bounded by the keys
 // actually in flight rather than by every key the process has ever touched.
-export function createKeyedLock () {
+export function createKeyedLock() {
   const chains = new Map()
-  function runExclusive (key, fn) {
+  function runExclusive(key, fn) {
     const prev = chains.get(key) ?? Promise.resolve()
     const next = prev.then(fn, fn)
     const tail = next.then(() => {}, () => {})

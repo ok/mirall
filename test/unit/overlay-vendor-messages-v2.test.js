@@ -2,11 +2,10 @@
 // verbatim EXCEPT the contentRequest cases, updated for the [mirall] §4.1 `from`
 // field. See src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
 import test from 'brittle'
-import c from 'compact-encoding'
 import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
 import crypto from 'hypercore-crypto'
 
-function roundTrip (t, codec, value) {
+function roundTrip(t, codec, value) {
   const state = { start: 0, end: 0, buffer: null }
   codec.preencode(state, value)
   state.buffer = Buffer.alloc(state.end)

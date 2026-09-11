@@ -12,7 +12,7 @@ export {
 // null means "not a fault this classifies" — the caller falls through to its own handling rather
 // than pausing a mount on something transient. Whether a root actually vanished stays the
 // caller's question, because only it knows which path to stat.
-export function faultFromError (err) {
+export function faultFromError(err) {
   const code = classifyLocalIoFault(err)
   return code ? { status: statusForFaultCode(code), code } : null
 }

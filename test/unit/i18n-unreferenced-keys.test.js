@@ -12,7 +12,7 @@ const PLURAL = /_(one|other|zero|two|few|many)$/
 // that merely stopped being used does not belong here — delete it from all five locales instead.
 const ALLOW = []
 
-function flatten (obj, prefix = '', out = []) {
+function flatten(obj, prefix = '', out = []) {
   for (const [k, v] of Object.entries(obj)) {
     const key = prefix ? prefix + '.' + k : k
     if (v && typeof v === 'object') flatten(v, key, out)
@@ -21,7 +21,7 @@ function flatten (obj, prefix = '', out = []) {
   return out
 }
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'locales' && name !== 'vendor') walk(p, out) }
@@ -37,7 +37,7 @@ const PREFIX_SHAPE = /^[a-zA-Z][\w-]*(\.[\w-]+)*\.$/
 // prefix (`leaveSpace.phases.${phase}`, `networkSettings.${dir}CustomLabel`) and a literal ending
 // in a dot ('activityLog.kindLabel.' + kind). A template with no such head (`${a}.${b}`) says
 // nothing about which keys exist and is ignored rather than allowed to match everything.
-function references () {
+function references() {
   const corpus = SCAN.flatMap((d) => walk(path.join(root, d))).map((f) => readFileSync(f, 'utf8')).join('\n')
   const literals = new Set()
   const patterns = []

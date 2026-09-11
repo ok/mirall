@@ -8,7 +8,7 @@ import { flatten } from '../tree.mjs'
 // halves of the a11y contract: the top bar's logo is decorative inside an
 // already-named button (one node, still named, still navigates home), while the
 // onboarding header carries the name itself because nothing around it does.
-export default async function s110 ({ runDir, bootstrap }) {
+export default async function s110({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

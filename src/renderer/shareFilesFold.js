@@ -10,7 +10,7 @@ import { deriveFolderInfo } from './folderInfo.js'
 // answers into the list.
 export const emptyFold = Object.freeze({ res: null, rows: [], info: null })
 
-export function foldListing (prev, res, toEntry) {
+export function foldListing(prev, res, toEntry) {
   if (!res) return prev
   if (res === prev.res) return prev
   const mapped = res.entries.map(toEntry)
@@ -22,7 +22,7 @@ export function foldListing (prev, res, toEntry) {
 
 // FolderView is reused rather than keyed per share, so a share change must clear the fold or the
 // previous share's rows merge into the next one.
-export function resetFold () {
+export function resetFold() {
   return emptyFold
 }
 
@@ -35,7 +35,7 @@ export function resetFold () {
 // translator, and this module stays pure so the never-blank rule is testable without React.
 const TERMINAL_CODES = new Set(['SHARE_NOT_FOUND', 'EOWNERSHIP'])
 
-export function resolveListing (fold, error) {
+export function resolveListing(fold, error) {
   const terminal = !!error && TERMINAL_CODES.has(error.code)
   if (terminal) return { rows: emptyFold.rows, info: null, error, terminal }
   const surfaced = error && fold.rows.length === 0 ? error : null

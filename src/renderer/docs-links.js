@@ -3,7 +3,7 @@
 // with no scroll rather than failing visibly. The unions in docs-links.d.ts are the guard.
 const DOCS_BASE = 'https://mirall.app/docs'
 
-export function docsUrl (target) {
+export function docsUrl(target) {
   if (target.page === 'hub') return DOCS_BASE
   return `${DOCS_BASE}/${target.page}#${target.anchor}`
 }

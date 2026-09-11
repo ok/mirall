@@ -20,10 +20,10 @@ import { scaled } from '../helpers/bare-timing.js'
 // empty maps, never registerFile'd) and asserts it still serves — exactly the
 // post-restart condition that currently breaks cross-machine LFS serving.
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]

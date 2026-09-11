@@ -15,7 +15,7 @@ export const SWEEP_REFUSAL = {
   OVER_RATIO_CAP: 'over-ratio-cap',
 }
 
-export function decideSweep ({ gaps = [], targetCount = 0, totalCores = 0, caps = {} } = {}) {
+export function decideSweep({ gaps = [], targetCount = 0, totalCores = 0, caps = {} } = {}) {
   const minCores = caps.minSweepPurgeCores ?? 8
   const maxCores = caps.maxSweepPurgeCores ?? 64
   const ratio = caps.maxSweepPurgeRatio ?? 0.5

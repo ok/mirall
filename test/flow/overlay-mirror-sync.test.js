@@ -10,7 +10,7 @@ const FLAGS = { overlayEnabled: true }
 
 // Poll a mirrored file's CONTENT (waitForFile only checks presence) until it
 // matches, or fail — for asserting the mirror re-fetched an owner edit.
-async function waitForContent (file, want, ms = scaled(70000)) {
+async function waitForContent(file, want, ms = scaled(70000)) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     try { if (fs.readFileSync(file).equals(want)) return } catch {}

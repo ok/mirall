@@ -11,7 +11,7 @@ import { scaled } from '../helpers/timing.js'
 // → 'remote'; after an on-demand download → 'downloaded'; owner offline and not
 // local → 'unavailable'; foreign mirror with the file present → 'synced'.
 
-function statusOf (list, rel) {
+function statusOf(list, rel) {
   return list?.entries?.find((f) => f.relPath === rel)?.status
 }
 

@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // KEEPS its copy: the file stays on disk, full-size, and the row still reflects a local
 // copy. The RemoveFileModal promises exactly this ("Members who already downloaded it
 // will keep their copy"). 128 MB — a real transfer that still completes promptly.
-export default async function s91 ({ runDir, bootstrap }) {
+export default async function s91({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

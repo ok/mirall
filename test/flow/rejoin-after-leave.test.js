@@ -29,7 +29,7 @@ const hasShare = async (peer, spaceId, shareId) =>
   (await peer.request('share:list', { spaceId })).some((s) => s.id === shareId)
 const settle = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function createApprovedSpace (A, B) {
+async function createApprovedSpace(A, B) {
   const aKey = (await A.request('profile:get')).publicKey
   const bKey = (await B.request('profile:get')).publicKey
   const space = await A.request('space:create', { name: 'Vault' })
@@ -48,7 +48,7 @@ async function createApprovedSpace (A, B) {
   return { spaceId, invite, aKey, bKey }
 }
 
-async function shareFolder (t, sharer, spaceId, name) {
+async function shareFolder(t, sharer, spaceId, name) {
   const share = await sharer.request('share:create', { spaceId, name })
   const folder = mkTmpDir(t)
   fs.writeFileSync(path.join(folder, 'note.txt'), 'mirror me')
@@ -58,7 +58,7 @@ async function shareFolder (t, sharer, spaceId, name) {
   return share
 }
 
-async function mirrorFolder (t, mirrorer, spaceId, share, ownerKey) {
+async function mirrorFolder(t, mirrorer, spaceId, share, ownerKey) {
   await mirrorer.until('share:list', { spaceId }, (l) => l.some((s) => s.id === share.id), { ms: 60000 })
   const mirrorDir = mkTmpDir(t)
   const active = mirrorer.waitFor('event:foreign-folder-mount-status',

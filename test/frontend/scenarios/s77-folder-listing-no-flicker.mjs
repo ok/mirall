@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // read can transiently return empty/partial; the renderer now keeps its last good list and merges
 // (reconcileFiles) instead of a wholesale replace. Proven by: an early file stays present after a
 // late file appears — i.e. the list never blanked/reset mid-index.
-export default async function s77 ({ runDir, bootstrap }) {
+export default async function s77({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

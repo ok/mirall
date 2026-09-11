@@ -135,7 +135,6 @@ export function getPublishScheduler() {
   return current.scheduler
 }
 
-
 export async function stopPublishingForSpace(spaceId) {
   await current?.scheduler.cancelSpace(spaceId)
   await closeBatch(spaceId)

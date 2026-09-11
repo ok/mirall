@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // partial does not land at the destination. This is the FolderView equivalent
 // of the FileCard cancel flow — same IPC, different surface, separate a11y
 // guarantee per row.
-export default async function s49 ({ runDir, bootstrap }) {
+export default async function s49({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

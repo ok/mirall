@@ -17,7 +17,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // the multi-peer convergence itself is exercised by the flow suite + the raw transitive test.
 // Root cause + design: .claude/tasks/plan-offline-member-convergence-fix.md.
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `capture-jm-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir

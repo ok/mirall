@@ -305,7 +305,7 @@ function RelayRow({ relay, testing, active, canTest, onTest, onReplace, onRemove
             onAction: onRemove,
           },
         ]}
-  />
+      />
     </div>
   )
 }

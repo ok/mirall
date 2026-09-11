@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // Profile page (was Account): the groups render, each row reaches its destination, the identity row
 // stays out of the interactive tree, and the Profile command lands here now that About's screen is gone.
-export default async function s108 ({ runDir, bootstrap }) {
+export default async function s108({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

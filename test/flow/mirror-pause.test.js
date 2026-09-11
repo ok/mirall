@@ -12,7 +12,7 @@ import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suf
 const OWNER_FLAGS = { overlayEnabled: true }
 const MIRROR_FLAGS = { overlayEnabled: true, foreignPollIntervalMs: 1500 }
 
-async function waitForSize (file, want, ms = scaled(60000)) {
+async function waitForSize(file, want, ms = scaled(60000)) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     try { if (fs.statSync(file).size === want) return } catch {}

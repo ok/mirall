@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // G1 — re-share idempotency: a loose file shared, unshared, then added again shares
 // cleanly (no stuck tombstone blocks the re-add). The peer sees it, loses it, then sees it
 // again. A share/unshare/re-share visibility flow, not a transfer — so a small file.
-export default async function s100 ({ runDir, bootstrap }) {
+export default async function s100({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -7,7 +7,7 @@ import { makeReport, assert } from '../assert.mjs'
 // invite carries the address of the space and not the key to it, with deep links into the
 // documentation. The withdraw path must keep working alongside it.
 // Local-only (real Electron + AX).
-export default async function s114 ({ runDir, bootstrap }) {
+export default async function s114({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

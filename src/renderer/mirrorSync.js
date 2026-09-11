@@ -10,7 +10,7 @@
 
 const ON_DEVICE = new Set(['downloaded', 'synced'])
 
-export function deriveMirrorSync (files, opts = {}) {
+export function deriveMirrorSync(files, opts = {}) {
   const truncated = !!opts.truncated
   const enabled = opts.enabled !== false
   // How many bytes of a not-yet-complete file are already here. The live decoration when there is

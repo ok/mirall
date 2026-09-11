@@ -7,7 +7,7 @@ import { activeSlotAction } from '../../supersede-decision.js'
 //
 // Per-id best-effort: cancel throws when the row cannot be cleared, and the leave's own
 // clearPendingForSpace purges the rows a beat later — one failed discard must not abort the leave.
-export async function cancelSpaceOn (engine, spaceId, log) {
+export async function cancelSpaceOn(engine, spaceId, log) {
   const ids = []
   for (const [transferId, slot] of engine.activeSlots()) {
     if (slot.spaceId === spaceId) ids.push(transferId)
@@ -18,7 +18,7 @@ export async function cancelSpaceOn (engine, spaceId, log) {
 // Re-resolve every active slot this owner's catalog append could have invalidated, and apply the
 // one decision ladder to each. `entryStateFor(slot)` reads the owner's current entry for the slot's
 // path; `buildJob(slot, state)` produces the supersede job (null when it cannot be rebuilt).
-export async function reconcileActiveSlots ({ engine, spaceId, ownsSlot, entryStateFor, buildJob, log }) {
+export async function reconcileActiveSlots({ engine, spaceId, ownsSlot, entryStateFor, buildJob, log }) {
   for (const [transferId, slot] of engine.activeSlots()) {
     if (slot.spaceId !== spaceId || !ownsSlot(slot)) continue
     const inflightHash = slot.contentHash

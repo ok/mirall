@@ -9,7 +9,7 @@ import { initialMaterializeScan, runMaterializeTick, unmountForeignFolder } from
 // Count Array.prototype.includes calls for the duration of a pass. A subclassed array cannot be
 // used here: the record round-trips through the bee's JSON encoding, which hands the loop a plain
 // array — a counting wrapper would silently never be consulted and the test would pass either way.
-function countIncludes (t) {
+function countIncludes(t) {
   const real = Array.prototype.includes
   const counter = { n: 0 }
   Array.prototype.includes = function (...a) { counter.n++; return real.apply(this, a) }
@@ -19,7 +19,7 @@ function countIncludes (t) {
 
 // The mounts bee is append-only, so its block count is what a redundant per-tick record write
 // actually costs. A second handle reads the same underlying core.
-async function mountsBeeLength () {
+async function mountsBeeLength() {
   const bee = createLocalBee('mounts-meta')
   await bee.ready()
   const len = bee.core.length

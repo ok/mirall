@@ -7,12 +7,12 @@ import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { boot } from '../../src/worker/boot.js'
 
-const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 import { getStore } from '../../src/shared/core/store.js'
 import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
-async function coreInStore (discoveryKey) {
+async function coreInStore(discoveryKey) {
   const dkHex = b4a.toString(discoveryKey, 'hex')
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true

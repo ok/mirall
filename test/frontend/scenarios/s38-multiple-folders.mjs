@@ -11,7 +11,7 @@ import { workDir } from '../paths.mjs'
 // per-owner name-uniqueness property enforced in the worker and covered at
 // test/integration/share-registry — it can't be driven here because two
 // identically-named cards expose ambiguous "Open <name>" selectors.)
-export default async function s38 ({ runDir, bootstrap }) {
+export default async function s38({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

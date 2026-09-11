@@ -18,7 +18,7 @@ function bootScheme({ configTheme = null, legacyTheme = null, prefersDark = fals
   if (hasBridge) window.bridge = { getConfig: () => ({ appearance: { theme: configTheme } }) }
   const document = { documentElement: html }
   const localStorage = { getItem: (k) => (k === 'mirall:theme' ? legacyTheme : null) }
-  // eslint-disable-next-line no-new-func
+   
   new Function('window', 'document', 'localStorage', SRC)(window, document, localStorage)
   return scheme
 }

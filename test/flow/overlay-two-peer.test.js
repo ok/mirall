@@ -12,7 +12,7 @@ import { scaled } from '../helpers/timing.js'
 // membership). The headline proof: no drive blob import on the owner, ever.
 const FLAGS = { overlayEnabled: true }
 
-function spaceLive (info, spaceId) {
+function spaceLive(info, spaceId) {
   const s = (info?.spaces || []).find((x) => x.spaceId === spaceId)
   return s ? s.contentBytes : 0
 }

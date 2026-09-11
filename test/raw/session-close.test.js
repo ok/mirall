@@ -9,7 +9,7 @@ import crypto from 'hypercore-crypto'
 // Trust-but-verify of the hypercore primitive the peer-bee read bracket depends on: closing ONE
 // session of a core that has other sessions must leave the core open and readable. If this ever
 // stops holding, every bounded peer read would tear down a member view's follow.
-function tmpStore (t) {
+function tmpStore(t) {
   const dir = path.join(os.tmpdir(), 'raw-sess-' + crypto.randomBytes(6).toString('hex'))
   fs.mkdirSync(dir, { recursive: true })
   const store = new Corestore(dir)

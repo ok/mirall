@@ -19,13 +19,13 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function seeRemote (peer, spaceId, name) {
+async function seeRemote(peer, spaceId, name) {
   await peer.until('files:list', { spaceId },
     (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.inPlace && e.status === 'remote'),
     { ms: 60000 })
 }
 // Start a loose download and resolve once real bytes are flowing (genuinely mid-transfer).
-async function startAndFlow (peer, spaceId, name, ownerKey) {
+async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })

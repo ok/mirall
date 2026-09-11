@@ -4,7 +4,7 @@
 // liveness heartbeat the supervisor reads.
 import { createPassLiveness } from '../core/pass-liveness.js'
 
-export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onError = () => {} }) {
+export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onError = () => {} }) {
   const loops = new Map()      // key -> { timer, spaceId, shareId }
   const inFlight = new Map()   // key -> Promise
   const dirty = new Set()
@@ -17,14 +17,14 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
 
   // Identity-guarded: a stale pass settling after a restart replaced the entry must not delete the
   // LIVE one, which would un-serialise two passes over the same mount.
-  function settle (key, p, ctx) {
+  function settle(key, p, ctx) {
     if (inFlight.get(key) !== p) return
     inFlight.delete(key)
     liveness.ended(key)
     if (dirty.delete(key)) tick(key, ctx).catch(onError)
   }
 
-  function track (key, p, ctx) {
+  function track(key, p, ctx) {
     const tracked = p.finally(() => settle(key, tracked, ctx))
     inFlight.set(key, tracked)
     liveness.started(key)
@@ -34,7 +34,7 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
   // Serialised per key: the poll and any event-driven trigger must never overlap, or two passes
   // act on stale snapshots and each re-does what the other just undid. A request arriving while a
   // pass runs sets the dirty flag so exactly one follow-up runs after it.
-  function tick (key, ctx) {
+  function tick(key, ctx) {
     const running = inFlight.get(key)
     if (running) {
       dirty.add(key)
@@ -53,18 +53,18 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
   // It takes the ctx for the same reason `tick` does: a request arriving while the boot scan runs
   // sets the dirty flag, and without a ctx to run it with, that follow-up was consumed and dropped
   // — so a resume landing during the initial materialize scan did nothing at all.
-  function adopt (key, promise, ctx) {
+  function adopt(key, promise, ctx) {
     return track(key, promise, ctx)
   }
 
-  function start (key, ctx) {
+  function start(key, ctx) {
     if (loops.has(key)) return
     const timer = setInterval(() => { tick(key, ctx).catch(onError) }, intervalMs())
     timer.unref?.()
     loops.set(key, { timer, spaceId: ctx.spaceId, shareId: ctx.shareId })
   }
 
-  function debounce (key, ctx, ms) {
+  function debounce(key, ctx, ms) {
     if (pending.has(key)) return
     const timer = setTimeout(() => {
       pending.delete(key)
@@ -77,7 +77,7 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
   // Invalidate the pass in flight (it bails at its next checkpoint) and disarm the cadence.
   // Deliberately does NOT clear inFlight: a pause must still be able to await the tail, and a
   // restart is what clears it.
-  function stop (key, opts = {}) {
+  function stop(key, opts = {}) {
     gen.set(key, generationOf(key) + 1)
     onStop(key, opts)
     dirty.delete(key)
@@ -96,7 +96,7 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
   // The un-wedge: clearing inFlight is the part `stop` does not do, and without it a fresh
   // interval coalesces straight back onto the dead promise — and because a coalesced call never
   // marks a pass started, the liveness probe would report the mirror healthy.
-  function restart (key, ctx) {
+  function restart(key, ctx) {
     stop(key)
     inFlight.delete(key)
     dirty.delete(key)
@@ -107,7 +107,7 @@ export function createMirrorLoops ({ intervalMs, runPass, onStop = () => {}, onE
 
   // Each stop bumps the loop's generation so a pass mid-iteration bails at its next checkpoint;
   // the bounded wait lets that bail land before the caller closes the resources the pass reads.
-  async function stopAll ({ settleMs = 5000 } = {}) {
+  async function stopAll({ settleMs = 5000 } = {}) {
     for (const key of [...loops.keys()]) stop(key)
     const running = [...inFlight.values()]
     if (running.length === 0) return

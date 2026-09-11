@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // The diagnostics card: both toggles reachable by accessible name, and the preview modal
 // shows the real bundle before anything is written.
-export default async function s113 ({ runDir, bootstrap }) {
+export default async function s113({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

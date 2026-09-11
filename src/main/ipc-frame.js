@@ -21,7 +21,7 @@ const CONTROL_FRAME_MARK = Buffer.from(JSON.stringify(MAIN_REQUEST_FRAME))
 // Once per reader: the frame that trips this is built from a share's own configuration, so the
 // same share re-arming its watcher reproduces it exactly. A reader dies with its worker, so a
 // respawn reports again.
-function createDropWarning () {
+function createDropWarning() {
   let warned = false
   return (frame) => {
     if (warned) return
@@ -35,7 +35,7 @@ function createDropWarning () {
 // a Buffer (the reader below gates before decoding), so `.length` is BYTES — the same number the
 // worker computed with Buffer.byteLength when it wrote the frame. A string is still accepted, and
 // there `.length` is UTF-16 code units, which is looser.
-function isControlFrameCandidate (line) {
+function isControlFrameCandidate(line) {
   return line.length > 0 && line.length <= MAIN_REQUEST_MAX_LINE
 }
 
@@ -48,7 +48,7 @@ function isControlFrameCandidate (line) {
 // deletes the specifier from `workers`, so the next spawn builds a new closure with a new reader.
 // The renderer needs an explicit reset (src/renderer/ipc.ts) only because its decoder is
 // module-level and survives a respawn by design.
-function createWorkerFrameReader () {
+function createWorkerFrameReader() {
   const warnIfControlFrame = createDropWarning()
   let tail = EMPTY
   // Once an unterminated buffer passes the cap it can no longer become a control frame, so it is
@@ -58,7 +58,7 @@ function createWorkerFrameReader () {
   let skipping = false
 
   return {
-    push (chunk) {
+    push(chunk) {
       let buf = chunk
       // Whether `buf` is memory of ours or still the caller's chunk, which the pipe is free to
       // reuse once this handler returns. Only an owned buffer may be held across ticks as-is.
@@ -106,7 +106,7 @@ function createWorkerFrameReader () {
 
     // The memory bound this reader promises: the bytes it holds across chunks. Read by the test —
     // the difference the resync makes is a bound, and a bound is not visible in the frames out.
-    get bufferedBytes () { return tail.length },
+    get bufferedBytes() { return tail.length },
   }
 }
 

@@ -8,7 +8,7 @@ import { boot, bootDurable } from '../../src/worker/boot.js'
 import { createFakeIpc } from './fake-ipc.js'
 
 let seq = 0
-function tmpDir (label) {
+function tmpDir(label) {
   // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
   const rand = Math.random().toString(16).slice(2, 8)
   const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${rand}-${seq++}`)
@@ -16,7 +16,7 @@ function tmpDir (label) {
   return dir
 }
 
-const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
 // A single-peer test has no swarm, so the registry's connection-backed collaborators answer
 // "nobody is connected". Passed explicitly rather than defaulted, so the degradation is visible
@@ -35,7 +35,7 @@ export const offlineMemberRegistry = {
 // Production layout: the store sits at <peerDir>/app-storage, so identity.enc and space-keys.enc —
 // which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
 // tmpdir shared with every other peer of every other test.
-function peerDirs (t) {
+function peerDirs(t) {
   const home = tmpDir('peer')
   const storage = path.join(home, 'app-storage')
   fs.mkdirSync(storage, { recursive: true })
@@ -54,11 +54,11 @@ function peerDirs (t) {
 // Spin up a clean single-peer backend: the whole data layer, composed exactly as the worker
 // composes it, minus the network. NOTE: src/shared modules are process-global singletons — one
 // peer per test process; the integration files are loaded one-per-thread under `brittle-bare -j`.
-export async function freshPeer (t, { displayName = 'Tester' } = {}) {
+export async function freshPeer(t, { displayName = 'Tester' } = {}) {
   return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
 }
 
-async function bootPeer (t, { displayName, masterSecret }) {
+async function bootPeer(t, { displayName, masterSecret }) {
   const { config, storage, downloads } = peerDirs(t)
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
@@ -76,11 +76,11 @@ async function bootPeer (t, { displayName, masterSecret }) {
 
 // The durable tier alone, for a test whose subject is what boot() does AFTER it — a content
 // migration, the manifest caps — which must not already have run.
-export async function freshDurableWithIdentity (t, opts = {}) {
+export async function freshDurableWithIdentity(t, opts = {}) {
   return freshDurable(t, { ...opts, masterSecret: crypto.randomBytes(32) })
 }
 
-export async function freshDurable (t, { displayName = 'Tester', masterSecret = null, storage = null } = {}) {
+export async function freshDurable(t, { displayName = 'Tester', masterSecret = null, storage = null } = {}) {
   let config
   let dirs
   if (storage) {

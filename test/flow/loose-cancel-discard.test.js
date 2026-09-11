@@ -16,7 +16,7 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function setup (t) {
+async function setup(t) {
   const bootstrap = await localTestnet(t)
   const aSrc = mkTmpDir(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
@@ -25,14 +25,14 @@ async function setup (t) {
   const aKey = (await A.request('profile:get')).publicKey
   return { A, B, spaceId, aKey, aSrc }
 }
-async function shareAndSee (A, B, spaceId, aSrc, name, seed) {
+async function shareAndSee(A, B, spaceId, aSrc, name, seed) {
   const bytes = patternedBytes(8 * 1024 * 1024, seed)
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
   await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
   return bytes
 }
-async function startFlowGetTransfer (B, spaceId, name, aKey) {
+async function startFlowGetTransfer(B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
     B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })

@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // App info after the About screen was dissolved into the Profile page's App group: the version is
 // copyable and the What's New modal opens, and Settings no longer offers an About tile.
-export default async function s18 ({ runDir, bootstrap }) {
+export default async function s18({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

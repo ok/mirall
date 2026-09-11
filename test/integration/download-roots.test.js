@@ -16,7 +16,7 @@ const GLOBAL = path.join(os.tmpdir(), 'mirall-dl-global')
 const A = path.join(os.tmpdir(), 'mirall-dl-a')
 const B = path.join(os.tmpdir(), 'mirall-dl-b')
 
-function withGlobal (t) {
+function withGlobal(t) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, downloadFolder: GLOBAL })
   t.teardown(() => { setRuntimeConfig(prev); hydrateDownloadRoots([]) })

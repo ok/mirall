@@ -21,7 +21,7 @@ const memberKeys = async (peer, spaceId) => {
   return new Set((s?.members || []).map((m) => m.publicKey))
 }
 
-async function topicFor (peer, spaceId) {
+async function topicFor(peer, spaceId) {
   const inviteCode = await peer.request('space:invite', { spaceId })
   return decodeInvite(inviteCode).topic
 }

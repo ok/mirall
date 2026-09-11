@@ -8,13 +8,13 @@ import { TransferManager, PARTIAL_SUFFIX as VENDOR_DEFAULT_SUFFIX } from '../../
 import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'
 import fs from 'bare-fs'
 
-async function setup (transferOpts) {
+async function setup(transferOpts) {
   const index = new FileIndex(tmpStore('partial-suffix'))
   await index.ready()
   return new TransferManager(index, { journalDir: tmpDir('journals'), ...transferOpts })
 }
 
-function senderChunks (transfer, dir, data) {
+function senderChunks(transfer, dir, data) {
   const filePath = path.join(dir, 'doc.txt')
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(filePath, data)

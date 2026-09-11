@@ -11,7 +11,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 // TypeScript the Node runner can't import directly. Its React and store imports are stubbed:
 // only the hook body reads them, and the ladder under test is plain data.
-function loadModule (relPath) {
+function loadModule(relPath) {
   const src = readFileSync(join(root, relPath), 'utf8')
   const { code } = transformSync(src, { loader: 'ts', format: 'cjs' })
   const mod = { exports: {} }

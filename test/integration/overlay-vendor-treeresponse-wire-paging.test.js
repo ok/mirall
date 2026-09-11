@@ -10,7 +10,7 @@ import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/ve
 
 const MAX_ATOMIC_WRITE = 256 * 256 * 256 - 1
 
-function encodedSize (msg) {
+function encodedSize(msg) {
   const state = { start: 0, end: 0, buffer: null }
   m.treeResponse.preencode(state, msg)
   return state.end
@@ -18,7 +18,7 @@ function encodedSize (msg) {
 
 // A tree big enough that one frame blows MAX_ATOMIC_WRITE. Distinct names + sizes let us
 // assert order is preserved across pages; the long name inflates each entry (~240 B).
-function bigTree (count) {
+function bigTree(count) {
   const childHash = 'a'.repeat(64)
   const entries = new Array(count)
   for (let i = 0; i < count; i++) {
@@ -27,11 +27,11 @@ function bigTree (count) {
   return entries
 }
 
-function fakePeer () {
-  return { pendingTrees: new Map(), msgs: { treeRequest: { send () {} } } }
+function fakePeer() {
+  return { pendingTrees: new Map(), msgs: { treeRequest: { send() {} } } }
 }
 
-async function rejection (promise) {
+async function rejection(promise) {
   try { await promise; return null } catch (err) { return err }
 }
 

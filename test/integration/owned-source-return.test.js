@@ -18,7 +18,7 @@ const CATCHUP_SETTLED_MS = 4000   // POST_EVENT_RECONCILE_MS (2s) plus room for 
 
 // Stand-in for the worker's settleScanStatus: records every settled outcome and applies the same
 // outcome → status mapping (durable write + live event) the worker installs in production.
-function recordingSettle (ctx) {
+function recordingSettle(ctx) {
   const settled = []
   const settleScan = async (scan, spaceId, shareId) => {
     let status = 'active'
@@ -44,7 +44,7 @@ function recordingSettle (ctx) {
 
 // Returns whether an outcome landed. Callers bail out on false: with nothing recorded, every
 // assertion after it would throw on an empty array and bury the real failure.
-async function waitForSettle (settled, timeout = CATCHUP_SETTLED_MS) {
+async function waitForSettle(settled, timeout = CATCHUP_SETTLED_MS) {
   const deadline = Date.now() + scaled(timeout)
   while (Date.now() < deadline && settled.length === 0) await delay(50)
   return settled.length > 0

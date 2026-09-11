@@ -8,6 +8,8 @@
     "outDir": "./assets/dist",
     "rootDir": "./src/renderer",
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,

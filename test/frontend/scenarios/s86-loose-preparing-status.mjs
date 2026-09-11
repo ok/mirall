@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // no-flicker guarantee (s77). Catching the transient "Preparing…" is best-effort (fast
 // hashing can beat the AX poll); the hard guarantees are the settle to Available, the
 // successful download, and that the row never shows a broken "Failed" during indexing.
-export default async function s86 ({ runDir, bootstrap }) {
+export default async function s86({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

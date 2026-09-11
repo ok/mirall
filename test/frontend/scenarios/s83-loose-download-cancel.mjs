@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // separate a11y guarantee. Loose downloads are inPlace, so the row's secondary Cancel
 // is offered while running (unlike a folder-mirror row). 256 MB gives a comfortable
 // mid-flight window so the Cancel control is caught.
-export default async function s83 ({ runDir, bootstrap }) {
+export default async function s83({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

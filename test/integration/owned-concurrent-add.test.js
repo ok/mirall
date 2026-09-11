@@ -5,7 +5,7 @@ import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent, initialPublishScan, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-async function waitUntil (fn, ms = 6000) {
+async function waitUntil(fn, ms = 6000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
@@ -59,4 +59,3 @@ test('a dropped watcher add is recovered by the catch-up reconcile', async (t) =
     (await listRelPaths(share, spaceId)).includes('subfolder/garden-2.jpg'))
   t.ok(recovered, 'catch-up reconcile published the dropped file')
 })
-

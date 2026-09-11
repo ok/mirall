@@ -4,7 +4,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 // Onboarding validation: a whitespace-only display name keeps Continue disabled;
 // a real name enables it and advances to the spaces screen.
-export default async function s22 ({ runDir, bootstrap }) {
+export default async function s22({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

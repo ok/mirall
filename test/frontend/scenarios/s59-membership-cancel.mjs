@@ -7,7 +7,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // showing "wants to join". Regression for the un-gossiped cancellation. The sticky
 // request toast keeps its text, so the assertion targets the banner's Approve control.
 // Local-only (real Electron + AX).
-export default async function s59 ({ runDir, bootstrap }) {
+export default async function s59({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

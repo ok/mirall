@@ -12,7 +12,7 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 // rethrowing a coded fetchContent rejection while still treating an uncoded stall
 // as null.
 
-async function setupTransfer () {
+async function setupTransfer() {
   const store = tmpStore('disk-error')
   const index = new FileIndex(store)
   await index.ready()
@@ -66,7 +66,7 @@ test('REGRESSION (FIX-129): fetchFile rethrows a local I/O error code; an uncode
   // Skip readiness/networking and present a peer so fetchFile proceeds to fetchContent.
   // The fake peer carries the shape the protocol's destroy() touches at teardown.
   overlay._ensure = async () => {}
-  overlay._protocol._peers = new Map([['p', { pendingTrees: new Map(), channel: { close () {} } }]])
+  overlay._protocol._peers = new Map([['p', { pendingTrees: new Map(), channel: { close() {} } }]])
 
   overlay._protocol.fetchContent = async () => { const e = new Error('no space left'); e.code = 'ENOSPC'; throw e }
   await t.exception(

@@ -17,19 +17,19 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function startAndFlow (peer, spaceId, name, ownerKey) {
+async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
   await peer.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey })
   await flowing
 }
-async function share (A, spaceId, dir, name, seed) {
+async function share(A, spaceId, dir, name, seed) {
   const bytes = patternedBytes(32 * 1024 * 1024, seed)
   fs.writeFileSync(path.join(dir, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(dir, name), fileName: name, fileSize: bytes.length })
 }
-async function seeRemote (peer, spaceId, name) {
+async function seeRemote(peer, spaceId, name) {
   await peer.until('files:list', { spaceId },
     (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
 }

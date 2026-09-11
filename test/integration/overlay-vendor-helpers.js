@@ -9,17 +9,17 @@ import os from 'bare-os'
 import crypto from 'hypercore-crypto'
 import Corestore from 'corestore'
 
-export function mkdtempSync (prefix) {
+export function mkdtempSync(prefix) {
   const dir = prefix + crypto.randomBytes(6).toString('hex')
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-export function tmpStore (label = 'overlay') {
+export function tmpStore(label = 'overlay') {
   return new Corestore(mkdtempSync(path.join(os.tmpdir(), label + '-')))
 }
 
-export function tmpDir (label = 'overlay') {
+export function tmpDir(label = 'overlay') {
   return mkdtempSync(path.join(os.tmpdir(), label + '-'))
 }
 

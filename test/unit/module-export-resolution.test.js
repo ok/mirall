@@ -6,7 +6,7 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const roots = ['shared', 'worker', 'main', 'preload'].map((d) => path.join(here, '..', '..', 'src', d))
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
@@ -16,7 +16,7 @@ function walk (dir, out = []) {
 
 // The names a module actually provides. `export *` is a wildcard we cannot resolve without
 // following the chain, so a module carrying one opts out rather than reporting false misses.
-export function exportedNames (source) {
+export function exportedNames(source) {
   const names = new Set()
   for (const m of source.matchAll(/(?:^|\n)export\s+(?:async\s+)?function\s*\*?\s*(\w+)/g)) names.add(m[1])
   for (const m of source.matchAll(/(?:^|\n)export\s+(?:const|let|var|class)\s+(\w+)/g)) names.add(m[1])
@@ -32,7 +32,7 @@ export function exportedNames (source) {
 }
 
 // Named imports from a relative specifier, which are the only ones we can resolve on disk.
-export function relativeNamedImports (source) {
+export function relativeNamedImports(source) {
   const out = []
   for (const m of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(\.[^']+)'/g)) {
     const names = m[1].split(',').map((p) => p.trim()).filter(Boolean)

@@ -8,7 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const ROLES = ['mine', 'mirrored', 'browse']
 const BOOL = [false, true]
 
-function each (fn) {
+function each(fn) {
   for (const role of ROLES) {
     for (const paused of BOOL) {
       for (const sourceMissing of BOOL) {

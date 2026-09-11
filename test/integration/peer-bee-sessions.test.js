@@ -9,13 +9,13 @@ import { readPeerShares, readPeerShareEntry } from '../../src/shared/shares/shar
 
 const SPACE = 'space-sessions'
 
-function withConfig (t, patch) {
+function withConfig(t, patch) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))
 }
 
-async function peerWithRecords (t) {
+async function peerWithRecords(t) {
   const peer = await makePeer(t)
   await peer.bee.put('caps/folder-shares', true)
   await peer.bee.put('member/' + SPACE, { active: true, ts: 1 })

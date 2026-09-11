@@ -15,7 +15,7 @@ import {
 // The sender-side download ledger: who is pulling our files and how far, with the
 // two-tier emission contract — a cheap always-on summary, and a per-peer detail
 // stream that fires ONLY while a row is subscribed (the dropdown is open).
-async function harness (t) {
+async function harness(t) {
   serveIndex.reset()
   const events = []
   const ledger = new ServeLedger('serve-ledger', { ipc: { emit: (type, payload) => events.push({ type, payload }) } })

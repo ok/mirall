@@ -14,7 +14,7 @@ import { workDir } from '../paths.mjs'
 // DOM order is — so this asserts the arrangement (verified badge BEFORE the pill
 // BEFORE the actions) plus the a11y outcome that every control is reachable by
 // accessible name.
-export default async function s69 ({ runDir, bootstrap }) {
+export default async function s69({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

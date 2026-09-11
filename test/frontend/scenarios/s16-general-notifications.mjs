@@ -4,7 +4,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 // Settings toggles (role=switch, aria-checked) round-trip: "Launch at login" in
 // General and "Play sound" in Notifications flip when clicked.
-export default async function s16 ({ runDir, bootstrap }) {
+export default async function s16({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

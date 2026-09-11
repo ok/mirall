@@ -28,7 +28,6 @@ const OVERLAY_NAMESPACE = 'mirall-overlay'
 
 const mb = (n) => (n / 1e6).toFixed(2).padStart(9) + ' MB'
 const short = (hex) => (hex ? hex.slice(0, 12) : '—'.padEnd(12))
-const jsonBytes = (v) => b4a.byteLength(JSON.stringify(v))
 
 function guessKind(sample) {
   if (!sample || sample.length === 0) return 'empty/unreadable'

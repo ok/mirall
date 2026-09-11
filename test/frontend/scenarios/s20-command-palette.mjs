@@ -5,7 +5,7 @@ import { makeReport } from '../assert.mjs'
 // Command palette (Cmd+K): typing a query and pressing Enter executes the matched
 // command; the Cmd+N shortcut opens the same Create Space flow directly. Also covers
 // the screens and system commands the palette must be able to reach.
-export default async function s20 ({ runDir, bootstrap }) {
+export default async function s20({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

@@ -204,10 +204,10 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const mirrorSync = useMemo(
     () => (share.role === 'mirrored'
       ? deriveMirrorSync(files, {
-          truncated: listingTruncated,
-          enabled: foreignEnabled,
-          bytesOf: (f) => rowBytesOnDevice(f, getDecoration(f.relPath)),
-        })
+        truncated: listingTruncated,
+        enabled: foreignEnabled,
+        bytesOf: (f) => rowBytesOnDevice(f, getDecoration(f.relPath)),
+      })
       : null),
     [share.role, files, listingTruncated, foreignEnabled, getDecoration],
   )

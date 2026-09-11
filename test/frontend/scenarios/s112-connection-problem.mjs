@@ -7,7 +7,7 @@ import { makeReport } from '../assert.mjs'
 // "Create Space" beside "your network is blocking Mirall" is the incoherence it exists
 // to fix. Reached here through the Network status screen, which is available regardless
 // of the live verdict.
-export default async function s112 ({ runDir, bootstrap }) {
+export default async function s112({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

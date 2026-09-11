@@ -20,11 +20,11 @@ import { patchForeignMount } from './mount-store.js'
 // a collision-free sibling). Exported free-standing because share-listing must ask the same
 // question from a mount record alone: deriving it from the owner key renders a renamed-but-synced
 // file as 'remote'.
-export function localRelOf (mount, ownerKey) {
+export function localRelOf(mount, ownerKey) {
   return mount.renamedPaths?.[ownerKey] || ownerKey
 }
 
-export function createMirrorState ({ keyOf, isStopped }) {
+export function createMirrorState({ keyOf, isStopped }) {
   // loopKey -> Set<ownerKey>. Membership is asked once per catalog entry per tick, so it must be
   // O(1): the array scan it replaces made a fully-synced tick quadratic. The set outlives
   // pause/resume (a stopped pass has already written files it must keep owning) and is dropped
@@ -35,7 +35,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
   const convergedHeads = new Map()
   const skippedTicks = new Map()
 
-  function syncedSetFor (mount) {
+  function syncedSetFor(mount) {
     const key = keyOf(mount.spaceId, mount.shareId)
     let set = syncedSets.get(key)
     if (!set) {
@@ -45,7 +45,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
     return set
   }
 
-  function syncFields (mount) {
+  function syncFields(mount) {
     return { syncedPaths: [...syncedSetFor(mount)], renamedPaths: mount.renamedPaths || {} }
   }
 
@@ -57,7 +57,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
   //  3) on-disk bytes already equal the share's hash -> natural (this is what lets
   //     unmount -> re-mount adopt the prior copy);
   //  4) a genuine pre-existing user file -> a free sibling, recorded in renamedPaths.
-  async function resolveLocalRelPath (mount, ownerKey, ownerHash, hashOf, synced = syncedSetFor(mount), fresh = null) {
+  async function resolveLocalRelPath(mount, ownerKey, ownerHash, hashOf, synced = syncedSetFor(mount), fresh = null) {
     const mapped = mount.renamedPaths?.[ownerKey]
     if (mapped) return mapped
 
@@ -92,7 +92,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
 
   // Drop conflict mappings whose owner key the share no longer carries, so the map can't
   // accumulate stale entries across ticks.
-  function pruneRenamedPaths (mount, onDrive) {
+  function pruneRenamedPaths(mount, onDrive) {
     if (!mount.renamedPaths) return
     for (const ownerKey of Object.keys(mount.renamedPaths)) {
       if (onDrive.has(ownerKey)) continue
@@ -112,13 +112,13 @@ export function createMirrorState ({ keyOf, isStopped }) {
     // a path as NOT-yet-ours — otherwise a pre-existing user file at the natural name is adopted
     // instead of getting a sibling. The persisted record and the "did we write this before?"
     // question are two different things.
-    recordSynced (key, set, ownerKey, fresh) {
+    recordSynced(key, set, ownerKey, fresh) {
       if (set.has(ownerKey)) return
       set.add(ownerKey)
       fresh?.add(ownerKey)
       dirty.add(key)
     },
-    forgetSynced (key, set, ownerKey) {
+    forgetSynced(key, set, ownerKey) {
       if (set.delete(ownerKey)) dirty.add(key)
     },
     markClean: (key) => dirty.delete(key),
@@ -126,7 +126,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
     // Persist once per pass, only when something changed, and never from a pass that was
     // cancelled: a pause persists the set itself, and unmount deleted the record. An unconditional
     // write costs ~36 B per path per tick in the mounts bee.
-    async persist (mount, key, gen) {
+    async persist(mount, key, gen) {
       if (!dirty.has(key) || isStopped(key, gen)) return
       if (await patchForeignMount(mount.spaceId, mount.shareId, syncFields(mount))) dirty.delete(key)
     },
@@ -135,7 +135,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
     setWatermark: (key, version) => convergedHeads.set(key, version),
     skipped: (key) => skippedTicks.get(key) || 0,
     noteSkipped: (key, n) => skippedTicks.set(key, n),
-    forgetConverged (key) {
+    forgetConverged(key) {
       convergedHeads.delete(key)
       skippedTicks.delete(key)
     },
@@ -143,7 +143,7 @@ export function createMirrorState ({ keyOf, isStopped }) {
     // Every cache here is keyed by mount PATH in effect, not by path itself: the synced set
     // records which entries this mount already owns on disk. Both unmount and relocate must drop
     // them — an inherited set would claim files exist at a path the mount no longer uses.
-    reset (key) {
+    reset(key) {
       syncedSets.delete(key)
       dirty.delete(key)
       convergedHeads.delete(key)

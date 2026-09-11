@@ -7,7 +7,7 @@ import { REQUESTS, REQUEST_NAMES, UNREFERENCED_REQUESTS, ARG } from '../../src/s
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -16,7 +16,7 @@ function walk (dir, out = []) {
   return out
 }
 
-function handlerNames () {
+function handlerNames() {
   const files = [path.join(root, 'src', 'worker', 'main.js'), ...walk(path.join(root, 'src', 'worker', 'ipc'))]
   const names = []
   for (const f of files) {

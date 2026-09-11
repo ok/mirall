@@ -14,7 +14,7 @@ import type { Share, ShareRole, ForeignFolderMount } from '../types.js'
 
 // Dropped when a space leaves the roster, so re-joining the same id never renders the rows it held
 // before (the twin of pruneRosterCache / pruneMirrorCache, called from the same place).
-export function pruneShareCache (liveSpaceIds: string[]) {
+export function pruneShareCache(liveSpaceIds: string[]) {
   const live = new Set(liveSpaceIds)
   invalidateKey((key) => {
     if (!key.startsWith('share:list?')) return false
@@ -29,7 +29,6 @@ export interface ShareWithRole extends Share {
   mountStatus?: string
   mirrorStatus?: string
 }
-
 
 const NO_SHARES: Share[] = []
 const NO_FOREIGN: ForeignFolderMount[] = []

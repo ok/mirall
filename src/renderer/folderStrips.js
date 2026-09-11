@@ -6,7 +6,7 @@
 // counts change about twice a second, which would spam a screen reader) — a separate count-free
 // sr-only sentence carries that announcement instead.
 
-function sourceMissingStrip (input) {
+function sourceMissingStrip(input) {
   if (!input.isYou || !input.sourceMissing) return null
   return { id: 'source-missing', tone: 'error', icon: 'warning', live: 'alert', action: 'locate', data: null }
 }
@@ -19,7 +19,7 @@ function sourceMissingStrip (input) {
 // cadence is six-hourly, so after freeing the disk the only thing that would clear the strip is a
 // file event the user has no reason to produce. The verb re-runs the pass, which either clears the
 // fault or records it again.
-function faultStrip (input) {
+function faultStrip(input) {
   if (!input.fault) return null
   return {
     id: 'fault',
@@ -31,18 +31,18 @@ function faultStrip (input) {
   }
 }
 
-function isPaused (input) {
+function isPaused(input) {
   if (input.fault) return false
   if (input.isYou) return !!input.indexing?.paused
   return input.role === 'mirrored' && input.foreignEnabled === false
 }
 
-function pausedStrip (input) {
+function pausedStrip(input) {
   if (!isPaused(input)) return null
   return { id: 'paused', tone: 'warning', icon: 'pause', live: 'status', action: 'resume', data: { role: input.role } }
 }
 
-function workingStrip (input) {
+function workingStrip(input) {
   if (isPaused(input)) return null
   if (input.isYou && input.indexing?.active) {
     const indexing = input.indexing
@@ -72,7 +72,7 @@ function workingStrip (input) {
 }
 
 // A peer's scan is a statement, never a control: there is nothing here for a member to pause.
-function peerIndexingStrip (input) {
+function peerIndexingStrip(input) {
   const indexing = input.indexing
   if (input.isYou || !indexing?.active || indexing.paused) return null
   return {
@@ -85,12 +85,12 @@ function peerIndexingStrip (input) {
   }
 }
 
-function ownerOfflineStrip (input) {
+function ownerOfflineStrip(input) {
   if (input.isYou || input.ownerOnline !== false) return null
   return { id: 'owner-offline', tone: 'neutral', icon: 'cloud', live: 'status', action: null, data: null }
 }
 
-function overLimitStrip (input) {
+function overLimitStrip(input) {
   const listing = input.listing
   if (!listing?.truncated) return null
   return {
@@ -114,7 +114,7 @@ const BUILDERS = [sourceMissingStrip, faultStrip, pausedStrip, workingStrip, pee
 // what failed, so they go.
 const SURVIVES_ERROR = new Set(['source-missing', 'fault', 'paused'])
 
-export function deriveStrips (input) {
+export function deriveStrips(input) {
   if (input.loading) return []
   const strips = []
   for (const build of BUILDERS) {

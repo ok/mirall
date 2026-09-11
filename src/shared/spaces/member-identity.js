@@ -8,13 +8,13 @@
 // for the name it can actually stand behind. Audit rows snapshot names at write time and never
 // join at render, so an 'Unknown' written into one is a fake name pinned forever — null lets the
 // viewer degrade to the short key, which is at least correlatable.
-export function displayNameOrNull (name) {
+export function displayNameOrNull(name) {
   return name && name !== UNKNOWN_NAME ? name : null
 }
 
 export const UNKNOWN_NAME = 'Unknown'
 
-export function mergeMemberIdentity ({ publicKey, meta, profile, held }) {
+export function mergeMemberIdentity({ publicKey, meta, profile, held }) {
   const m = meta || {}
   const p = profile || {}
   const h = held || {}

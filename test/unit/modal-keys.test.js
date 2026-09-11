@@ -13,7 +13,7 @@ import { transformSync } from 'esbuild'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 // TypeScript the Node runner can't import directly; it imports nothing but types.
-function loadModule (relPath) {
+function loadModule(relPath) {
   const src = readFileSync(join(root, relPath), 'utf8')
   const { code } = transformSync(src, { loader: 'ts', format: 'cjs' })
   const mod = { exports: {} }
@@ -23,7 +23,7 @@ function loadModule (relPath) {
 
 const { modalKeyAction } = loadModule('src/renderer/components/primitives/modalKeys.ts')
 
-function press (key, over = {}) {
+function press(key, over = {}) {
   return {
     key,
     metaKey: false,

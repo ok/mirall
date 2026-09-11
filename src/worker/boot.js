@@ -275,11 +275,10 @@ export async function boot(bootstrap, {
 
     await sweepOrphans(log)
 
-
     if (swarm) {
       for (const space of activeSpaces) {
         await joinSpaceTopic(space.spaceId)
-    }
+      }
     }
     await replayPendingLeaves(swarm, log)
 
@@ -314,8 +313,6 @@ export async function boot(bootstrap, {
   }
 }
 
-
-
 async function resumeInterruptedLeaves(knownSpaces, log) {
   // Finish any leave a prior process interrupted (durable `leaving` marker still present) BEFORE
   // the membership backfill — otherwise markOwnMembership below re-asserts active:true and silently
@@ -333,7 +330,7 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
       try { await persistPendingLeave(space.spaceId, space.topic, Date.now()) } catch (err) {
         log.warn('interrupted-leave replay arm failed:', space.spaceId, '-', err.message)
       }
-  }
+    }
     try {
       await resumeInterruptedLeave(space.spaceId)
       // The live teardown also purges these spaceId-keyed rows; nothing else ever reclaims them
@@ -347,7 +344,7 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
       log.info('completed interrupted leave at boot:', space.spaceId)
     } catch (err) {
       log.warn('resume interrupted leave failed:', space.spaceId, '-', err.message)
-  }
+    }
   }
 }
 
@@ -356,7 +353,7 @@ async function backfillMembership(activeSpaces, log) {
   for (const space of activeSpaces) {
     try { await markOwnMembership(space.spaceId) } catch (err) {
       log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
-  }
+    }
   }
   // One-time, idempotent backfill: stamp the member-set root (creatorKey) on self-created
   // spaces whose records predate the field. The OR-Set membership fold (conflict-free
@@ -376,7 +373,6 @@ async function backfillMembership(activeSpaces, log) {
   const legacy = activeSpaces.filter(isLegacySpace)
   if (legacy.length) log.warn('unsupported pre-encryption space(s):', legacy.map((s) => s.spaceId).join(', '))
 }
-
 
 // Crash leftovers: partials, retired peer-cache cores, orphaned receive journals. All
 // best-effort — a failure here defers reclamation, it never blocks boot.
@@ -424,7 +420,7 @@ async function replayPendingLeaves(swarm, log) {
       registerPendingLeave(pl.spaceId, pl.topic, pl.ts || Date.now())
       if (swarm) joinPendingLeaveTopic(pl.spaceId, pl.topic)
       log.info('replaying pending leave for space', pl.spaceId)
-  }
+    }
   } catch (err) {
     log.warn('pending-leave replay setup failed:', err.message)
   }

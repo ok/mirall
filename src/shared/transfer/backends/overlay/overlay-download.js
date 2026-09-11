@@ -47,7 +47,7 @@ const STALL_RETRY_DRY_LIMIT = 3
 
 // Is `dir` a usable destination folder right now? Anything other than a live directory —
 // missing, or a plain file sitting where the folder belongs — reads as unavailable.
-function defaultDirExists (dir) {
+function defaultDirExists(dir) {
   try { return fs.statSync(dir).isDirectory() } catch { return false }
 }
 
@@ -58,7 +58,7 @@ function defaultDirExists (dir) {
 // fault and from a folder the user deleted, ejected or replaced with a file, and only probing the
 // folder separates them — on macOS /Volumes is root-owned, so a fetch into an ejected volume fails
 // EACCES and would otherwise send the user to check permissions that are fine.
-function terminalCodeFor (r, job, dirExists) {
+function terminalCodeFor(r, job, dirExists) {
   if (r.code === 'EHASHMISMATCH') return CODES.TRANSFER_CHECKSUM
   if (isLocalDestFault(r.cause?.code) && !dirExists(path.dirname(job.finalPath))) {
     return CODES.TRANSFER_DEST_UNAVAILABLE
@@ -70,7 +70,7 @@ function terminalCodeFor (r, job, dirExists) {
 // Remove a partial + its app-private journal by destination path, independent of
 // whether the overlay singleton is currently live (cancel/discard can race startup
 // or teardown). Reuses the vendor path helpers so the naming stays in one place.
-function discardPartial (finalPath) {
+function discardPartial(finalPath) {
   try { fs.unlinkSync(partialPathFor(finalPath)) } catch {}
   const jd = getJournalDir()
   if (jd) { try { fs.unlinkSync(path.join(jd, journalNameFor(finalPath))) } catch {} }
@@ -87,7 +87,7 @@ function discardPartial (finalPath) {
 // }
 // job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq,
 //        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
-export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
+export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
   const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
   // Paused-transfer markers whose single-flight slot was released (the fetch IIFE deletes it on
   // settle). The marker is the user's intent — it outranks every automatic resume — and its hash
@@ -105,7 +105,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // isTerminalFault names are remembered — anything else would grow the map for the life of the
   // worker without ever being read.
 
-  async function recordTerminal (job, code) {
+  async function recordTerminal(job, code) {
     try {
       await recordPendingError(job.spaceId, job.pendingKey, code)
       terminalCodes.delete(job.transferId)
@@ -118,7 +118,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // The single terminal-failure exit. Every failing path lands here so the audit row cannot
   // depend on which channel is driving. `recordTerminal` stays at its own call sites: three of the
   // four await it and the supersede-restart deliberately does not.
-  function failTerminal (job, code) {
+  function failTerminal(job, code) {
     recordTransferOutcome(job, 'error', code)
     channel.emitError(job, code)
     channel.emitUpdated(job.spaceId)
@@ -131,9 +131,9 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   const stallRetries = new Map()
   const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerPublicKey))
 
-  function has (transferId) { return registry.has(transferId) }
+  function has(transferId) { return registry.has(transferId) }
 
-  function cancelStallRetry (transferId) {
+  function cancelStallRetry(transferId) {
     const st = stallRetries.get(transferId)
     if (!st) return
     clearTimeout(st.timer)
@@ -143,7 +143,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Schedule a retry of a stalled fetch. TRUE means one is pending, and the caller passes
   // `retrying` to emitPaused so the row still settles its decoration while the OS notification
   // is withheld — one notification per attempt would turn a slow transfer into a stream of them.
-  async function scheduleStallRetry (job) {
+  async function scheduleStallRetry(job) {
     const { transferId } = job
     const retryBaseMs = stallRetry.baseMs ?? STALL_RETRY_BASE_MS
     const retryMaxMs = stallRetry.maxMs ?? STALL_RETRY_MAX_MS
@@ -182,7 +182,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // CURRENT download folder, and a source tombstoned, re-added or re-hashed under us. A replayed
   // job would undo all of that, and its `recordPending` would re-create rows a leave just purged
   // (during a backoff there is no registry slot for a teardown path to find).
-  async function retryNow (job, bytes, dry) {
+  async function retryNow(job, bytes, dry) {
     const { transferId } = job
     // A manual resume, a reconcile-driven start, or a pause may have landed in the window; all
     // of them outrank this. The record stays so the dry counter keeps measuring
@@ -201,7 +201,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Give up on a retry without a fetch to settle it: the row must still land in a terminal paused
   // state, or the transfer is left with no event at all — emitPaused is what terminates the
   // decoration, on either channel.
-  function settleRetryAsPaused (job) {
+  function settleRetryAsPaused(job) {
     cancelStallRetry(job.transferId)
     channel.emitPaused?.(job, pauseReasonFor(job))
     channel.emitUpdated(job.spaceId)
@@ -212,7 +212,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Drop every trace of the OLD content (partial, journal, a finalPath the fetch may have completed
   // before the abort) but keep the pending ROW, so status derives 'preparing' and the
   // materialized-hash append restarts it.
-  function finishRepublishRelease (transferId, tr) {
+  function finishRepublishRelease(transferId, tr) {
     registry.delete(transferId)
     discardPartial(tr.finalPath)
     try { fs.unlinkSync(tr.finalPath) } catch {} // a completed old-content file is stale — abandon it
@@ -227,7 +227,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // 'unavailable' from the null-hash head, and the setMaterializedHash append restarts the download
   // via runReconcile ('restart'), however long the re-hash takes. A user pause/cancel or a
   // supersede that already claimed the slot outranks this.
-  function releaseForRepublish (transferId) {
+  function releaseForRepublish(transferId) {
     const tr = registry.get(transferId)
     if (!tr || tr.cancelled || tr.paused || tr.restartJob || tr.republishing) return false
     tr.republishing = true
@@ -240,7 +240,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // A fetch that ended with { ok:false }: either the holder went away (no r.code → keep the partial
   // + row so the status derives paused and auto-resume re-fetches on reconnect) or a terminal
   // failure (disk-full / checksum / permission → record + surface the error).
-  async function settleFailed (job, r, diag) {
+  async function settleFailed(job, r, diag) {
     if (!r.code) {
       diag.finish(FETCH_OUTCOME.NO_HOLDER)
       log.debug('overlay fetch interrupted — holder gone or throttled:', job.relPath, 'at', job.prevBytes || 0, 'bytes')
@@ -267,7 +267,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // per producer, which is why the gate is process-wide (fetch-slots.js) rather than built here.
   // start() has already reserved the registry slot synchronously, so a queued job still reads as
   // active and a second trigger cannot start a duplicate fetch while this waits.
-  async function runFetchTask (slot, job, transferId) {
+  async function runFetchTask(slot, job, transferId) {
     const releaseSlot = await acquireFetchSlot({ express: !!job.express })
     try {
       // The wait above is unbounded, so re-check every reason to abandon that the pre-fetch path
@@ -310,7 +310,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Resolve a finished fetch. Reads the LIVE slot, because a pause/cancel/supersede/republish may
   // have landed while the bytes were in flight — the fetch's own result is only half the story, and
   // which of these applies decides whether the slot is restarted or released.
-  async function settleFetch (transferId, job, r, diag) {
+  async function settleFetch(transferId, job, r, diag) {
     const s = registry.get(transferId)
     const wasPaused = s?.paused
     const wasCancelled = s?.cancelled
@@ -376,7 +376,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     channel.emitComplete(job, job.finalPath)
   }
 
-  function missingFreeSpaceFor (job) {
+  function missingFreeSpaceFor(job) {
     let allocatedBytes = 0
     try { allocatedBytes = fs.statSync(partialPathFor(job.finalPath)).blocks * 512 || 0 } catch {}
     return shortfall({
@@ -386,7 +386,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     }) > 0
   }
 
-  async function start (job) {
+  async function start(job) {
     if (!hasOverlay() || !job.contentHash) return { queued: true }
     const { transferId } = job
     pausedHashes.supersede(transferId)
@@ -489,7 +489,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // slot the fetch already settled (a dropped connection beat the click) — the row is still
   // pending, so record the intent anyway: without the marker the next reconnect auto-resumes a
   // download the user just paused.
-  function pause (transferId) {
+  function pause(transferId) {
     const tr = registry.get(transferId)
     if (!tr) {
       cancelStallRetry(transferId)   // a pause during the retry backoff
@@ -507,7 +507,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // than only in start(), because an attempt that dies before start() (an unreadable catalog, an
   // owner that just went offline) would otherwise leave the marker set — and a set marker makes
   // runReconcile skip the row as "manually paused" forever, so no reconnect ever resumes it.
-  function clearPauseMarker (transferId) {
+  function clearPauseMarker(transferId) {
     pausedHashes.supersede(transferId)
     terminalCodes.delete(transferId)
     // A deliberate Resume/download click starts a fresh retry budget; inheriting a dry counter from
@@ -518,7 +518,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Discard: stop + drop the partial + pending row. Works in-flight (the slot is left
   // for start()'s guard / the fetch IIFE to honor `cancelled`) and on a paused/restart-
   // orphaned row (no slot; partial resolved from the pending finalPath).
-  async function cancelByKey (spaceId, pendingKey, transferId) {
+  async function cancelByKey(spaceId, pendingKey, transferId) {
     const tr = registry.get(transferId)
     const pending = await getPendingFor(spaceId, pendingKey)
     if (tr) {
@@ -556,7 +556,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // pendingKey, which embeds the share NAME the id does not carry. Bailing out here would leave the
   // partial and the row behind, and the row would auto-resume on the next reconnect. false only
   // when neither a slot nor a row exists: a transfer that is genuinely gone.
-  async function cancel (transferId) {
+  async function cancel(transferId) {
     const tr = registry.get(transferId)
     if (tr) {
       await cancelByKey(tr.spaceId, tr.pendingKey, transferId)
@@ -581,7 +581,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // while the old fetch is still settling. expectedHash guards the read-decide-supersede
   // gap: if the slot completed or was replaced (id reused) during the caller's awaits,
   // tr.contentHash no longer matches and the supersede is a no-op.
-  function supersede (transferId, newJob, expectedHash) {
+  function supersede(transferId, newJob, expectedHash) {
     const tr = registry.get(transferId)
     if (!tr || !newJob) return false
     if (expectedHash !== undefined && tr.contentHash !== expectedHash) return false
@@ -604,7 +604,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // but one that can't start (owner went offline → queued) surfaces as paused-offline,
   // and one that throws surfaces as an error. Without this the row stays at the zeroed
   // 'preparing' state forever with no follow-up event.
-  function restartAfterSupersede (job) {
+  function restartAfterSupersede(job) {
     start(job).then(
       (res) => { if (res && res.queued) channel.emitPaused?.(job, pauseReasonFor(job)) },
       (err) => {
@@ -617,12 +617,12 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // Keyed, single-flighted, debounced scan scaffold: the first poke per (owner, space) fires
   // after the debounce; overlapping scans can't stack (one queued trailing re-run absorbs pokes
   // that land mid-scan). Shared by the resume (reconnect) and reconcile (append) drivers below.
-  function makeSingleFlightScan (fn) {
+  function makeSingleFlightScan(fn) {
     let inFlight = false
     const queued = new Map()
     const poke = makeKeyedCoalescer((ownerKey, spaceId) => { run(ownerKey, spaceId) },
       { intervalMs: 250, keyOf: (ownerKey, spaceId) => ownerKey + '|' + spaceId })
-    async function run (ownerKey, spaceId) {
+    async function run(ownerKey, spaceId) {
       if (inFlight) { queued.set(ownerKey + '|' + spaceId, [ownerKey, spaceId]); return }
       inFlight = true
       try { await fn(ownerKey, spaceId) } catch (err) { log.debug('overlay reconcile scan failed:', err.message) }
@@ -646,7 +646,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
   // manually-paused or errored download. The RECONNECT path (resumeForOwner) is shallow — a
   // manually-paused (pausedHashes) or terminally-errored row costs zero I/O (no head-pull for a
   // row that won't resume anyway); its removal is caught on the next append.
-  async function runReconcile (ownerKey, spaceId, deep) {
+  async function runReconcile(ownerKey, spaceId, deep) {
     if (!hasOverlay()) return
     for (const row of await listPendingForSpace(spaceId)) {
       if (!channel.ownsPendingRow(row) || row.ownerKey !== ownerKey) continue
@@ -706,15 +706,15 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
 
   const pokeResume = makeSingleFlightScan((ownerKey, spaceId) => runReconcile(ownerKey, spaceId, false))
   const pokeAppend = makeSingleFlightScan((ownerKey, spaceId) => runReconcile(ownerKey, spaceId, true))
-  async function resumeForOwner (ownerKey, spaceId) { pokeResume(ownerKey, spaceId) }
-  async function reconcileOnAppend (ownerKey, spaceId) { pokeAppend(ownerKey, spaceId) }
+  async function resumeForOwner(ownerKey, spaceId) { pokeResume(ownerKey, spaceId) }
+  async function reconcileOnAppend(ownerKey, spaceId) { pokeAppend(ownerKey, spaceId) }
 
   // Teardown for a deliberately removed OR re-published source: same mechanics as a user discard
   // (abort the fetch + discard the partial + clear the row + pause marker), then signal it so the
   // renderer can tell the user why the download stopped. cancelByKey returns the row it cleared
   // (it names the file for the toast). A download that COMPLETED under the reconcile's read window
   // is left alone — it is genuinely on disk (marked downloaded), not removed.
-  async function dropRemoved (spaceId, pendingKey, transferId) {
+  async function dropRemoved(spaceId, pendingKey, transferId) {
     if (await isDownloadedFile(spaceId, pendingKey)) return
     const pending = await cancelByKey(spaceId, pendingKey, transferId)
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)

@@ -13,7 +13,7 @@ import {
 } from '../../src/shared/shares/share-catalog.js'
 
 // A v2 (membership-gated) peer: identity keypair + the flags createSpace reads to pick schema v2.
-async function v2Peer (t) {
+async function v2Peer(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx

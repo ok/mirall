@@ -13,7 +13,7 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/
 // auto-resume. A transient null (mid-rehash / offline owner) is left intact. Covers the shared
 // overlay engine (loose + folder both ride it) with a fake channel.
 
-function testChannel (events) {
+function testChannel(events) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -31,7 +31,7 @@ function testChannel (events) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -40,7 +40,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (ctx, over = {}) {
+function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', catalogKey: 'cat-hex', transferId: 'space1|folder1|doc.bin',

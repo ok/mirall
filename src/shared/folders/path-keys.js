@@ -12,18 +12,18 @@ import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 // Drive keys are always POSIX-style ('/'-joined). On Windows the on-disk relative
 // path uses '\'; this is the conversion that every nested (subfolder) file crosses
 // twice — once on publish (rel → key) and once on materialize (key → rel).
-export function relToDriveKey (relPath, sep) {
+export function relToDriveKey(relPath, sep) {
   return relPath.split(sep).join('/')
 }
 
-export function driveKeyToSegments (key) {
+export function driveKeyToSegments(key) {
   return key.split('/')
 }
 
 // Leaf name of a drive key or drive path. Distinct from `path.basename`, which
 // also honours the platform separator: a drive key is POSIX-shaped on every
 // platform, so a Windows `\` inside one is part of the name, not a separator.
-export function driveBaseName (key) {
+export function driveBaseName(key) {
   if (typeof key !== 'string') return ''
   return key.slice(key.lastIndexOf('/') + 1)
 }
@@ -38,7 +38,7 @@ export function driveBaseName (key) {
 // '/'-separated). Normalizing both sides through this before `path.relative`
 // keeps the key relative. POSIX paths and any string without the prefix pass
 // through untouched.
-export function stripLongPathPrefix (p) {
+export function stripLongPathPrefix(p) {
   if (typeof p !== 'string') return p
   if (p.startsWith('\\\\?\\UNC\\')) return '\\\\' + p.slice('\\\\?\\UNC\\'.length) // \\?\UNC\srv\sh → \\srv\sh
   if (p.startsWith('\\\\?\\')) return p.slice('\\\\?\\'.length)                    // \\?\E:\x → E:\x
@@ -50,7 +50,7 @@ export function stripLongPathPrefix (p) {
 // leading '/' or '\' (POSIX root / UNC / stray prefix), or a `X:` drive letter.
 // Last line of defence so a `\\?\`-prefix mismatch (see `stripLongPathPrefix`) can
 // never publish an absolute path as a key. A clean key like `sub/a.txt` is safe.
-export function isAbsoluteDriveKey (key) {
+export function isAbsoluteDriveKey(key) {
   if (typeof key !== 'string' || key === '') return true
   if (key.startsWith('/') || key.startsWith('\\')) return true
   if (/^[a-zA-Z]:/.test(key)) return true
@@ -66,7 +66,7 @@ export function isAbsoluteDriveKey (key) {
 // when the key is unsafe and must be rejected; callers raise AppError (this module
 // stays import-free, see the header). A POSIX file literally named with a '\' is
 // rejected too — vanishingly rare, and worth far less than blocking traversal.
-export function relKeyEscapes (relPath) {
+export function relKeyEscapes(relPath) {
   if (isAbsoluteDriveKey(relPath)) return true
   for (const seg of relPath.split('/')) {
     if (seg === '' || seg === '.' || seg === '..') return true
@@ -78,7 +78,7 @@ export function relKeyEscapes (relPath) {
 // Drop poisoned peer entries at ingest so they never reach a materialize batch or a synced
 // record — one bad key must not abort a tick or DoS a mirror. `onDropped` is the caller's logger;
 // this module stays import-free (see the header), so it cannot log for itself.
-export function dropUnsafeEntries (entries, onDropped = () => {}) {
+export function dropUnsafeEntries(entries, onDropped = () => {}) {
   return entries.filter((e) => {
     if (!relKeyEscapes(e.relPath)) return true
     onDropped(e.relPath)
@@ -90,7 +90,7 @@ export function dropUnsafeEntries (entries, onDropped = () => {}) {
 // True when `child` is `parent` or sits inside it. The separator boundary prevents
 // the classic false positive: `/a/bc` is not inside `/a/b`. `fold` compares
 // case-insensitively, for the filesystems that case-fold (darwin/win32).
-export function pathContains (parent, child, sep, fold = false) {
+export function pathContains(parent, child, sep, fold = false) {
   if (!parent || !child) return false
   let root = fold ? parent.toLowerCase() : parent
   while (root.length > 1 && root.endsWith(sep)) root = root.slice(0, -1)
@@ -103,7 +103,7 @@ export function pathContains (parent, child, sep, fold = false) {
 
 // True when one path is the other, or one is an ancestor of the other. `fold` is passed
 // through to pathContains for the filesystems that case-fold (darwin/win32).
-export function pathsOverlap (a, b, sep, fold = false) {
+export function pathsOverlap(a, b, sep, fold = false) {
   return pathContains(a, b, sep, fold) || pathContains(b, a, sep, fold)
 }
 
@@ -113,7 +113,7 @@ export function pathsOverlap (a, b, sep, fold = false) {
 // rejected: nesting (a parent scan would absorb the child share's tree) and any
 // overlap touching a foreign-folder (mirrors write to disk, so co-locating with an
 // owned source feedback-loops and two mirrors on one path double-write).
-export function overlapAllowed (aPath, aRole, bPath, bRole) {
+export function overlapAllowed(aPath, aRole, bPath, bRole) {
   return aPath === bPath && aRole === 'owned-folder' && bRole === 'owned-folder'
 }
 
@@ -123,7 +123,7 @@ export function overlapAllowed (aPath, aRole, bPath, bRole) {
 // implementation is a share where a file one side withholds the other publishes.
 export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX, '*~', '.git/**', 'node_modules/**']
 
-export function shouldIgnore (rel, ignorePatterns) {
+export function shouldIgnore(rel, ignorePatterns) {
   if (!ignorePatterns || ignorePatterns.length === 0) return false
   const base = rel.split('/').pop() ?? rel
   for (const pat of ignorePatterns) {
@@ -136,7 +136,7 @@ export function shouldIgnore (rel, ignorePatterns) {
 // Plain string comparisons, never a compiled regular expression: patterns arrive from a share's
 // configuration and are matched against every path of every scan, where a backtracking pattern
 // would be a stall the user cannot explain.
-function matchPattern (input, pattern) {
+function matchPattern(input, pattern) {
   // `**/x` is the gitignore spelling of "x wherever it sits in the tree" — the form a user is
   // likeliest to type. It names one segment, so it is answered per segment: any path holding a
   // matching segment is covered, which withholds a matching directory's contents too. A `**/`
@@ -161,7 +161,7 @@ function matchPattern (input, pattern) {
 
 // Exact name, leading-`*` suffix glob, or trailing-`*` prefix glob — the whole vocabulary a
 // pattern without a `**` has.
-function matchSegment (input, pattern) {
+function matchSegment(input, pattern) {
   if (pattern === input) return true
   if (pattern.startsWith('*')) return input.endsWith(pattern.slice(1))
   if (pattern.endsWith('*')) return input.startsWith(pattern.slice(0, -1))
@@ -179,7 +179,7 @@ function matchSegment (input, pattern) {
 // recoverable. Tie goes to keeping the files. Both caps are parameters, not a config read, so the
 // unit test drives its own; a caller that passes no counts gets deletionCount 0, under any floor —
 // a guard that withheld everything when an argument was forgotten would be its own outage.
-export function shouldHonorDeletions ({
+export function shouldHonorDeletions({
   ownerOnline, driveCount, listingComplete,
   syncedCount = 0, deletionCount = 0,
   minDeletions = 8, maxDeletionRatio = 0.5,
@@ -193,7 +193,7 @@ export function shouldHonorDeletions ({
 // Split a basename into { base, ext } the way `path.extname` does for a leaf name:
 // extension is the substring from the last dot, except a leading dot (dotfile) or
 // no dot yields no extension. 'a.tar.gz' → ext '.gz'; 'LICENSE'/'.bashrc' → ext ''.
-export function splitFileName (fileName) {
+export function splitFileName(fileName) {
   const dot = fileName.lastIndexOf('.')
   if (dot <= 0) return { base: fileName, ext: '' }
   return { base: fileName.slice(0, dot), ext: fileName.slice(dot) }
@@ -202,7 +202,7 @@ export function splitFileName (fileName) {
 // Pick a name that `isTaken` reports free, suffixing " (1)", " (2)", … before the
 // extension. `isTaken(name)` is supplied by the caller (it checks the filesystem
 // for both the final file and an in-flight partial).
-export function nextFreeName (fileName, isTaken) {
+export function nextFreeName(fileName, isTaken) {
   if (!isTaken(fileName)) return fileName
   const { base, ext } = splitFileName(fileName)
   let n = 1
@@ -218,7 +218,7 @@ export function nextFreeName (fileName, isTaken) {
 // back over the canonical path. A mirror is owner-authoritative — the owner's bytes belong at the
 // natural name — but that does not require destroying what the user wrote. Same shape as every
 // other file manager's conflict copy, and `nextFreeName` handles the second and third collision.
-export function conflictCopyName (fileName, isTaken) {
+export function conflictCopyName(fileName, isTaken) {
   const { base, ext } = splitFileName(fileName)
   return nextFreeName(`${base} (conflicted copy)${ext}`, isTaken)
 }
@@ -237,7 +237,7 @@ const WIN_RESERVED = new Set([
 ])
 
 // Returns the offending system root (for the error message) or null.
-export function systemRootViolation (normalized, platform, sep) {
+export function systemRootViolation(normalized, platform, sep) {
   const roots = SYSTEM_FOLDERS[platform] || []
   for (const root of roots) {
     if (normalized === root || normalized.startsWith(root + sep)) return root
@@ -250,7 +250,7 @@ export function systemRootViolation (normalized, platform, sep) {
 // content amid the user's own files. Equality only — never a prefix test — so a
 // subfolder stays allowed. `ci` lower-cases on case-insensitive filesystems
 // (darwin/win32) so a hand-typed `~/documents` still matches the real root.
-export function personalRootViolation (normalized, home, sep, ci = false) {
+export function personalRootViolation(normalized, home, sep, ci = false) {
   if (!home) return null
   const norm = ci ? normalized.toLowerCase() : normalized
   for (const root of [home, home + sep + 'Desktop', home + sep + 'Documents', home + sep + 'Downloads']) {
@@ -260,7 +260,7 @@ export function personalRootViolation (normalized, home, sep, ci = false) {
 }
 
 // A segment is reserved when its name before the first dot is a Windows device name.
-export function isWindowsReservedName (segment) {
+export function isWindowsReservedName(segment) {
   return WIN_RESERVED.has(segment.split('.')[0].toUpperCase())
 }
 
@@ -268,7 +268,7 @@ const CLOUD_HINTS = ['dropbox', 'onedrive', 'google drive', 'icloud', 'box', 'ne
 
 // Returns the matched cloud-sync provider hint (lower-case) if the path looks like
 // it sits inside a cloud-sync folder, else null.
-export function cloudSyncHint (lowerPath) {
+export function cloudSyncHint(lowerPath) {
   for (const hint of CLOUD_HINTS) {
     if (lowerPath.includes(hint)) return hint
   }

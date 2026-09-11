@@ -17,19 +17,19 @@ import fs from 'bare-fs'
 // Network-free: the overlay's fetchFile is stubbed to throw the fs error code that
 // (post-fix) now propagates out of the real fetch.
 
-function statuses (ctx, shareId) {
+function statuses(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
     .map((e) => e.payload.status)
 }
 
-function faultEvents (ctx, shareId) {
+function faultEvents(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
     .map((e) => e.payload)
 }
 
-async function setupOverlayMirror (t, code) {
+async function setupOverlayMirror(t, code) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()

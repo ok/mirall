@@ -22,7 +22,7 @@ const settleTick = () => tick(400) // the reconcile coalescer window plus its sw
 
 // Capture only the module under test's warn lines; everything else still reaches the real
 // console (brittle's TAP rides on it — a blanket stub miscounts and hides diagnostics).
-function captureLog (t, method, prefix) {
+function captureLog(t, method, prefix) {
   const lines = []
   const real = console[method]
   console[method] = (...a) => { const s = a.join(' '); if (s.startsWith(prefix)) lines.push(s); else real(...a) }
@@ -32,7 +32,7 @@ function captureLog (t, method, prefix) {
 
 // Make selected writes to the pending bee fail. Predicates see (key, value) for put and (key)
 // for del; a predicate that returns false lets the write through unchanged.
-function failPendingWrites (t, { put = () => false, del = () => false } = {}) {
+function failPendingWrites(t, { put = () => false, del = () => false } = {}) {
   const bee = _pendingBeeForTests()
   const realPut = bee.put.bind(bee)
   const realDel = bee.del.bind(bee)
@@ -45,7 +45,7 @@ function failPendingWrites (t, { put = () => false, del = () => false } = {}) {
 
 // Folder-style channel whose resolvePendingRow returns a live job, so resumeForOwner can
 // re-drive a row. `started` collects every fetch the engine actually begins.
-function channelFor (ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
+function channelFor(ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -75,7 +75,7 @@ function channelFor (ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -84,7 +84,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (ctx, over = {}) {
+function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: 'space1|folder1|doc.bin',

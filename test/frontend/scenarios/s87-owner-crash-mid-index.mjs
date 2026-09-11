@@ -15,7 +15,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // ABSENT on reboot ("Nothing shared yet"); the stuck-"Adding" zombie lives on the graceful-quit
 // path where the advertise persisted but the hash did not. Needs the relaunch harness (kill()
 // wipes the store). See plan-loose-publish-restart-recovery.md.
-export default async function s87 ({ runDir, bootstrap }) {
+export default async function s87({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

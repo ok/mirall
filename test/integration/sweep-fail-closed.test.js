@@ -18,14 +18,14 @@ import { listRecentSweeps } from '../../src/shared/storage/sweep-journal.js'
 // purged regardless. A transient read failure was therefore promoted to "the user no longer needs
 // this", permanently and silently.
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }
   return false
 }
 
-async function plantStray (name, key, value) {
+async function plantStray(name, key, value) {
   const bee = createBee(name)
   await bee.ready()
   await bee.put(key, value)

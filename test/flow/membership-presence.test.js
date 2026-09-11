@@ -27,7 +27,7 @@ const seesMembers = (spaceId, keys) => (list) => {
 }
 
 // Join `joiner` to a space owned by `owner` and approve it, returning when the owner lists it.
-async function joinAndApprove (t, owner, joiner, sid, invite) {
+async function joinAndApprove(t, owner, joiner, sid, invite) {
   const jKey = await keyOf(joiner)
   const saw = owner.waitFor('event:member-join-request', (m) => m.publicKey === jKey)
   await joiner.request('space:join', { inviteCode: invite })

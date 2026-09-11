@@ -17,7 +17,7 @@ test('presenceFrameKind: offline flag → clear, heartbeat → mark, malformed �
 })
 
 // Controllable clock so lease expiry is deterministic.
-function fakeClock (start = 1000) {
+function fakeClock(start = 1000) {
   let t = start
   return { now: () => t, advance: (ms) => { t += ms } }
 }

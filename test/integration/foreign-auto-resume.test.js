@@ -12,13 +12,13 @@ import {
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
-function statuses (ctx, shareId) {
+function statuses(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
     .map((e) => e.payload.status)
 }
 
-async function setupMirror (t, { fetchImpl } = {}) {
+async function setupMirror(t, { fetchImpl } = {}) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
@@ -44,7 +44,7 @@ async function setupMirror (t, { fetchImpl } = {}) {
   return { ctx, spaceId, shareId, mountPath }
 }
 
-async function planted (spaceId, shareId, mountPath, status) {
+async function planted(spaceId, shareId, mountPath, status) {
   await createForeignMount({
     spaceId, shareId, ownerKey: getLocalPublicKeyHex(), mountPath,
     enabled: false, status, attachedAt: Date.now(), syncedPaths: [],

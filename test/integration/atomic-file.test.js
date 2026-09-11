@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { writeFileAtomic } from '../../src/shared/core/atomic-file.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `atomic-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir

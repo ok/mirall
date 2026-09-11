@@ -11,7 +11,7 @@ import { overlayListOwn } from '../../src/shared/transfer/backends/overlay/overl
 // `limit` rows while counting + summing ALL of them, so the heap is bounded by the cap yet
 // the true total is still known — and because rows and total come from the same traversal,
 // total can never be below the rows shown (no "first 5000 of 3200" banner).
-async function seed (spaceId, shareId, n) {
+async function seed(spaceId, shareId, n) {
   let totalBytes = 0
   for (let i = 0; i < n; i++) {
     const size = i + 1

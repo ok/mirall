@@ -5,7 +5,7 @@ import { createBee, getStore } from '../../src/shared/core/store.js'
 import { createSpace, getSpace, upsertMember, purgeSpace } from '../../src/shared/spaces/space.js'
 import { forgetUnreferencedPeerCores } from '../../src/shared/storage/leftover.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }
@@ -14,7 +14,7 @@ async function coreInStore (dkHex) {
 
 // Real cores, not synthetic keys: purgeCoreDk no-ops on a discovery key with nothing behind it,
 // so a test built on invented keys would pass without deleting anything.
-async function plantCore (name, key, value) {
+async function plantCore(name, key, value) {
   const bee = createBee(name)
   await bee.ready()
   await bee.put(key, value)

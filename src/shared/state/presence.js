@@ -10,12 +10,12 @@
 //
 // `now` is injectable for tests.
 
-export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire = () => {} } = {}) {
+export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire = () => {} } = {}) {
   const leases = new Map()   // peerKey -> Map<spaceId, expiry>
 
   // Returns true when this mark flipped the peer online (fresh lease or an expired
   // lease being restored) — the caller mirrors the onExpire emit for that transition.
-  function mark (peerKey, spaceId) {
+  function mark(peerKey, spaceId) {
     let spaces = leases.get(peerKey)
     if (!spaces) { spaces = new Map(); leases.set(peerKey, spaces) }
     const exp = spaces.get(spaceId)
@@ -24,13 +24,13 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
     return !wasLive
   }
 
-  function isOnline (peerKey, spaceId) {
+  function isOnline(peerKey, spaceId) {
     const exp = leases.get(peerKey)?.get(spaceId)
     return exp != null && now() < exp
   }
 
   // Online anywhere (any space) — for "is this peer reachable at all" checks.
-  function isOnlineAnywhere (peerKey) {
+  function isOnlineAnywhere(peerKey) {
     const spaces = leases.get(peerKey)
     if (!spaces) return false
     const t = now()
@@ -38,7 +38,7 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
     return false
   }
 
-  function onlineIn (spaceId) {
+  function onlineIn(spaceId) {
     const out = new Set()
     const t = now()
     for (const [peerKey, spaces] of leases) {
@@ -51,7 +51,7 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
   // Drop a peer's lease(s). spaceId omitted ⇒ everywhere (used on disconnect). Returns true when
   // this dropped a live (unexpired) lease — a real online→offline flip the caller can gate on
   // (mirror of mark's flip return), so repeated/late clears don't re-emit.
-  function clear (peerKey, spaceId) {
+  function clear(peerKey, spaceId) {
     const spaces = leases.get(peerKey)
     if (!spaces) return false
     if (spaceId == null) { leases.delete(peerKey); return true }
@@ -66,7 +66,7 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
   // silent-death offline transition (the socket lingered but the peer went quiet), so fire onExpire
   // — the caller re-emits a reconcile hint, otherwise the UI would show the peer online until an
   // unrelated refresh (the "expiry never re-emits" seam).
-  function prune () {
+  function prune() {
     const t = now()
     for (const [peerKey, spaces] of leases) {
       for (const [spaceId, exp] of spaces) if (t >= exp) { spaces.delete(spaceId); onExpire(peerKey, spaceId) }
@@ -74,7 +74,7 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
     }
   }
 
-  function clearAll () { leases.clear() }
+  function clearAll() { leases.clear() }
 
   return { mark, isOnline, isOnlineAnywhere, onlineIn, clear, prune, clearAll }
 }
@@ -82,7 +82,7 @@ export function createPresence ({ ttl = 15000, now = () => Date.now(), onExpire 
 // Classify an inbound presence frame by shape alone (no swarm state): a well-formed frame with
 // offline:true is a graceful-quit departure → 'clear'; a well-formed heartbeat → 'mark'; anything
 // malformed → 'ignore'. The caller still applies the anti-spoof guard + spaceId resolution.
-export function presenceFrameKind (msg) {
+export function presenceFrameKind(msg) {
   if (!msg || typeof msg.profileKey !== 'string' || typeof msg.spaceTopic !== 'string') return 'ignore'
   return msg.offline === true ? 'clear' : 'mark'
 }

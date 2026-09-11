@@ -22,7 +22,7 @@ const ON_DEVICE = new Set(['downloaded', 'synced'])
 // arrived. Shaped exactly like a decoration — `eta: null` above all, which is what makes the bar
 // read "Estimating…" (resolveEta) instead of freezing at a static 0%. It can only ever be built
 // when `decoration` is null, so a real frame outranks it by construction rather than by a rule.
-function seedFrame (row, seeded) {
+function seedFrame(row, seeded) {
   if (!seeded) return null
   if (row.status !== 'downloading' && row.status !== 'preparing') return null
   if (!(row.size > 0)) return null
@@ -38,7 +38,7 @@ function seedFrame (row, seeded) {
   }
 }
 
-function pickDecorations (decoration) {
+function pickDecorations(decoration) {
   // The decoration channel is shared by key across phases; a lingering cross-phase frame paints
   // the CURRENT phase only. Downloads read only download/verify frames, never a stale publish/prepare one.
   const downloadDecor =
@@ -48,7 +48,7 @@ function pickDecorations (decoration) {
   return { downloadDecor, publishDecor, preparingDecor }
 }
 
-function deriveProgress (row, downloadDecor) {
+function deriveProgress(row, downloadDecor) {
   const isDownloading = row.status === 'downloading'
   const isVerifying = isDownloading && downloadDecor?.phase === 'verifying'
   const waiting = isDownloading && (downloadDecor?.bytes ?? 0) === 0
@@ -66,7 +66,7 @@ function deriveProgress (row, downloadDecor) {
   return { isDownloading, isVerifying, waiting, displayStatus, progressBytes, progressTotal, showDownloadProgress }
 }
 
-function deriveLane (row, progress, preparingDecor, downloadSummary) {
+function deriveLane(row, progress, preparingDecor, downloadSummary) {
   const hasDownloaders = (downloadSummary?.peerKeys.length ?? 0) > 0
   const peerPreparingActive = row.status === 'preparing' && preparingDecor != null && preparingDecor.total > 0
   const downloadProgressActive =
@@ -92,13 +92,13 @@ function deriveLane (row, progress, preparingDecor, downloadSummary) {
 // row: the decoration key is shared across phases, so a publishing/preparing frame is the hash
 // walking the file (no bytes arrived here), and a frame left on a row that has moved on is stale.
 // Counting either would make a mirror's "still to fetch" read a whole un-fetched file as done.
-export function rowBytesOnDevice (row, decoration) {
+export function rowBytesOnDevice(row, decoration) {
   const { downloadDecor } = pickDecorations(decoration)
   if (row.status === 'downloading' && downloadDecor) return downloadDecor.bytes
   return row.pendingBytes ?? 0
 }
 
-export function deriveRowView (row, decoration, downloadSummary, opts = {}) {
+export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   const { kind = 'loose', isOwn = false, seeded = false } = opts
   const frame = decoration ?? seedFrame(row, seeded)
   const { downloadDecor, publishDecor, preparingDecor } = pickDecorations(frame)

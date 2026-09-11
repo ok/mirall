@@ -18,7 +18,7 @@ import { prefixRange } from '../core/bee-keys.js'
 // algorithm is unit-testable without a store; the live wiring (createMemberView) passes
 // the bee-backed reader. A null record means "unknown / not replicated yet" — the peer
 // (and anyone only it approved) stays out until its bee arrives, then a later fold heals.
-export async function deriveMemberSet ({ creatorKey, selfKey, readRecord }) {
+export async function deriveMemberSet({ creatorKey, selfKey, readRecord }) {
   const records = new Map()
   const fetched = new Set()
 
@@ -74,7 +74,7 @@ export async function deriveMemberSet ({ creatorKey, selfKey, readRecord }) {
 // fires on EVERY append to a roster bee, including ones that don't change membership
 // (avatar/displayName/drive writes share the same bee); an identical signature means the
 // fold produced the same view, so the downstream reconcile + IPC emit can be skipped.
-export function viewSignature ({ members, approved, requests, denied, memberTs, inactive, unread }) {
+export function viewSignature({ members, approved, requests, denied, memberTs, inactive, unread }) {
   const keys = (set) => [...(set || [])].sort().join(',')
   const stamped = (map) => [...(map || [])].map(([k, v]) => k + ':' + (typeof v === 'number' ? v : v?.ts ?? 0)).sort().join(',')
   // memberTs is folded in so a rejoin (a strictly-later member/<S> ts, without any member-set change)
@@ -96,7 +96,7 @@ const FOLD_STALL_FACTOR = 20
 // fold discovers the rest transitively and the view watches every bee it reads, so a newly
 // approved member's record re-derives the set on its own once it replicates — no gossip.
 // Call trackKey(key) to fold in a roster key learned out-of-band.
-export function createMemberView ({ spaceId, creatorKey, selfKey, onMembers, onError, onBeeAppend, onFollow }) {
+export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onError, onBeeAppend, onFollow }) {
   const self = selfKey ?? getLocalPublicKeyHex()
   // One bee per roster key, kept so close() can release them. A derived view stores the WATCHER,
   // not the bee, and corestore tracks a session per open until it is closed — an unclosed one is

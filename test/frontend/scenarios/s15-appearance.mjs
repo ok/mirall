@@ -9,7 +9,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 const ZOOM_TILES = ['Compact', 'Cozy', 'Default', 'Spacious']
 
-async function pressedZoomTiles (A) {
+async function pressedZoomTiles(A) {
   const pressed = []
   for (const label of ZOOM_TILES) {
     if ((await A.nodeValue({ name: label })) === '1') pressed.push(label)
@@ -21,7 +21,7 @@ async function pressedZoomTiles (A) {
 // file nobody will rewrite. Read it back anyway: main's config flush rewrites the WHOLE file, so if
 // that guarantee ever regresses the clobber fails here by name instead of as a mystery timeout
 // further down.
-async function seedPersistedZoom (A, factor) {
+async function seedPersistedZoom(A, factor) {
   const configPath = join(A.store, 'config.json')
   const config = JSON.parse(readFileSync(configPath, 'utf8'))
   config.window.zoom = factor
@@ -33,7 +33,7 @@ async function seedPersistedZoom (A, factor) {
   }
 }
 
-export default async function s15 ({ runDir, bootstrap }) {
+export default async function s15({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

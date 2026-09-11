@@ -2,7 +2,6 @@
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../store/useMainQuery.js'
-import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import Toggle from '../components/primitives/Toggle.js'
 

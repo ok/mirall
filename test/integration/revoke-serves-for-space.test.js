@@ -11,7 +11,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 const HASH_SHARED = 'a'.repeat(64) // advertised by spaceLeave AND spaceKeep
 const HASH_LEAVE_ONLY = 'b'.repeat(64) // advertised only by spaceLeave
 
-function grant (proto, hash, from) {
+function grant(proto, hash, from) {
   // One peer per grant is enough — revokeServes walks every peer's authorizedServe. pendingTrees is
   // the minimal shape teardown's _failPendingTrees walks over these injected fakes.
   const peer = { authorizedServe: new Map(), pendingTrees: new Map() }
@@ -20,7 +20,7 @@ function grant (proto, hash, from) {
   return peer
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initOverlay()
   serveIndex._reset?.()

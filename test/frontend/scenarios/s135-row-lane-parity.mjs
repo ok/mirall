@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // 512 MB so the owner's hash and the transfer both outlast the AX poll window; the badge/indicator
 // catches are still best-effort (loopback can finish inside the poll), so each is polled with a
 // deadline and the deterministic state changes are what always gets asserted.
-export default async function s135 ({ runDir, bootstrap }) {
+export default async function s135({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -15,7 +15,7 @@ const settle = () => new Promise((r) => setTimeout(r, scaled(30)))
 test('REGRESSION (FIX-INTENT-1): a half-finished owned delete is completed at the next boot', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Photos')
-  const share = await publishShare(space.spaceId, { name: 'Album', id: 'sh-1' })
+  await publishShare(space.spaceId, { name: 'Album', id: 'sh-1' })
   await createOwnedMount({ spaceId: space.spaceId, shareId: 'sh-1', mountPath: ctx.tmpDir('src') })
 
   // Simulate the crash: the intent is written, the mount record is dropped, and the process dies

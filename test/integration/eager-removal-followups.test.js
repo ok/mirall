@@ -11,7 +11,6 @@ import { reclaimLegacyPeerCaches } from '../../src/shared/storage/legacy-peer-ca
 import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { onFsEvent, periodicReconcile } from '../../src/shared/folders/owned-folders.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { getOverlay, initOverlay, teardownOverlay, getJournalDir } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { journalNameFor } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
 import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'

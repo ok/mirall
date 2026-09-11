@@ -25,7 +25,7 @@ import {
 // both in-flight guards, and the identity the replay hands to the handshake.
 
 const hex = () => b4a.toString(crypto.randomBytes(32), 'hex')
-const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
 // Both entry points dispatch their replay without awaiting it, so an assertion has to let the
 // microtask chain drain first.
@@ -33,13 +33,13 @@ const settle = async (turns = 4) => {
   for (let i = 0; i < turns; i++) await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `defadm-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function boot (t, label) {
+async function boot(t, label) {
   const root = tmp(label)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {
@@ -57,7 +57,7 @@ async function boot (t, label) {
 
 // The five dependencies swarm.js injects, replaced by recorders. `gate` counts approval re-checks,
 // `handshakes` the direct replays, `prompts` the "send ours to draw a fresh one" fallbacks.
-function wire (t, { isApprovedByPeers = async () => true, onPrompt = null } = {}) {
+function wire(t, { isApprovedByPeers = async () => true, onPrompt = null } = {}) {
   const calls = { handshakes: [], prompts: 0, gate: 0 }
   initDeferredAdmission({
     getGates: () => ({
@@ -78,7 +78,7 @@ function wire (t, { isApprovedByPeers = async () => true, onPrompt = null } = {}
 // A peer whose handshake was bounced into a join request and whose socket is still live. A driveKey
 // means the bounce came from the handshake gate (a member converging); without one all we ever saw
 // was a membership:request.
-function parkJoiner (spaceId, topic, { driveKey = null, displayName = 'Bob', connected = true } = {}) {
+function parkJoiner(spaceId, topic, { driveKey = null, displayName = 'Bob', connected = true } = {}) {
   const joiner = hex()
   const socket = {}
   if (connected) connectedPeers.set(joiner, { socket })

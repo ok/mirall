@@ -6,7 +6,7 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const roots = ['shared', 'worker'].map((d) => path.join(here, '..', '..', 'src', d))
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
@@ -19,7 +19,7 @@ function walk (dir, out = []) {
 // swarm and overlay take their collaborators explicitly.
 const CEILINGS = { 'getStore(': 20, 'getOverlay(': 18, 'getProfileBee(': 12, 'getContentSwarm(': 1 }
 
-function countCalls (needle) {
+function countCalls(needle) {
   let n = 0
   for (const file of roots.flatMap((r) => walk(r))) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {

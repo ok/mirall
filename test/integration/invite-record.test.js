@@ -13,7 +13,7 @@ import { classifyInvite } from '../../src/shared/spaces/invite-policy.js'
 // classification (by timestamp, not pruned on read), the sweep, and revoke. The cross-member union
 // read is multi-peer and lives in the flow suite.
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `invite-rec-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
@@ -21,7 +21,7 @@ function tmp (label) {
 
 const S = 'spaceabc00000000'
 
-async function bootstrap (t) {
+async function bootstrap(t) {
   const root = tmp('store')
   await openStore(path.join(root, 'app-storage'))
   await initProfile()

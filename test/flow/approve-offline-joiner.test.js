@@ -13,7 +13,7 @@ const hasMember = (sid, key) => (list) => {
   return !!(s && (s.members || []).some((m) => m.publicKey === key))
 }
 
-async function knockThenGoOffline (t, { expiresInMs } = {}) {
+async function knockThenGoOffline(t, { expiresInMs } = {}) {
   const bootstrap = await localTestnet(t)
   const bStorage = path.join(mkTmpDir(t), 'app-storage')
   const bDownloads = mkTmpDir(t)

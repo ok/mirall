@@ -25,7 +25,7 @@ const FIELD_PATHS = [
   'reachability.verdict', 'reachability.cause', 'reachability.confidence',
 ]
 
-function makeStatus () {
+function makeStatus() {
   return {
     state: 'connected', dhtReady: true, announced: true, peerCount: 3, connecting: false,
     suspended: false, lastConnectionAt: 1000, bootedAt: 500,
@@ -48,7 +48,7 @@ function makeStatus () {
 }
 
 const clone = (o) => JSON.parse(JSON.stringify(o))
-function setPath (obj, path, val) {
+function setPath(obj, path, val) {
   const keys = path.split('.')
   let o = obj
   for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]]

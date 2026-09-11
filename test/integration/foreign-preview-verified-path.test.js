@@ -15,7 +15,7 @@ const listing = (dir) => fs.readdirSync(dir).sort()
 
 // A pre-existing user file of the same size as the share's copy: the size check cannot separate
 // them, so the verified record decides.
-function plantUserFile (abs, content) {
+function plantUserFile(abs, content) {
   fs.writeFileSync(abs, content)
   const past = new Date(Date.now() - 60000)
   fs.utimesSync(abs, past, past)

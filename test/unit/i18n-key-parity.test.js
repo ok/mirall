@@ -12,7 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const LOCALES_DIR = path.resolve(here, '../../src/renderer/locales')
 const REF = 'en'
 
-function flattenKeys (obj, prefix = '') {
+function flattenKeys(obj, prefix = '') {
   const keys = []
   for (const [k, v] of Object.entries(obj)) {
     const full = prefix ? `${prefix}.${k}` : k
@@ -22,7 +22,7 @@ function flattenKeys (obj, prefix = '') {
   return keys
 }
 
-function loadKeys (locale, ns) {
+function loadKeys(locale, ns) {
   return new Set(flattenKeys(JSON.parse(fs.readFileSync(path.join(LOCALES_DIR, locale, `${ns}.json`), 'utf8'))))
 }
 

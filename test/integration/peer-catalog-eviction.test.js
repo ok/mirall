@@ -6,7 +6,7 @@ import { getPeerEntry, getPeerEntryState, watchPeerCatalog, dropCatalog, peerCat
 
 const keyFor = (n) => crypto.keyPair(Buffer.alloc(32, n)).publicKey.toString('hex')
 
-async function withLimit (t, limit, fn) {
+async function withLimit(t, limit, fn) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, peerCatalogCacheLimit: limit })
   t.teardown(() => setRuntimeConfig(prev))
@@ -15,7 +15,7 @@ async function withLimit (t, limit, fn) {
 
 // Opening a peer catalog is what caches it; a read on a key we hold no data for still opens the
 // core, which is exactly the cost being bounded.
-async function touch (keyHex) {
+async function touch(keyHex) {
   await getPeerEntry(keyHex, 'share1', 'file.bin').catch(() => null)
 }
 

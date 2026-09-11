@@ -17,7 +17,7 @@ const SCHEDULER_END = {
 }
 
 // Count fetches without changing what they do: setupSelfMirror already installs a working stub.
-function countFetches (t) {
+function countFetches(t) {
   const overlay = getOverlay()
   const inner = overlay.fetchFile
   const state = { calls: 0 }
@@ -91,12 +91,12 @@ test('a pass stopped early never converges', async (t) => {
 
 // Staged offline. The override replaces the VERDICT, not isOwnerOnline: a self-mirror is reachable
 // by rule (presence never leases our own key), so overriding presence alone would change nothing.
-function offline (t) {
+function offline(t) {
   setMirrorReachability(() => false)
   t.teardown(() => setMirrorReachability(null))
 }
 
-function countFetchesOn (t) {
+function countFetchesOn(t) {
   const overlay = getOverlay()
   const inner = overlay.fetchFile
   const state = { calls: 0 }

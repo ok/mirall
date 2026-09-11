@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { createPausedHolders } from '../../src/shared/transfer/backends/overlay/paused-holders.js'
 
-function spy () {
+function spy() {
   const calls = []
   return { fn: (h) => calls.push(h), calls }
 }

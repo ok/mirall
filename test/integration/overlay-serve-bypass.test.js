@@ -12,10 +12,10 @@ import { scaled } from '../helpers/bare-timing.js'
 // configured) those must be refused, or a connected peer could (S1) pull bytes
 // via path-based fileRequest / direct chunkNeed without passing the gate, or (S2)
 // overwrite the owner's source file via an unsolicited chunkHashes push.
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]

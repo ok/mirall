@@ -11,7 +11,7 @@ const settle = (ms = 600) => new Promise((res) => setTimeout(res, ms))
 // (3) the invite modal's "Auto-approve new members" toggle is present, off by default,
 // and togglable. Exercises the deny path, sticky-toast persistence, and the InviteModal
 // toggle component. Local-only (real Electron + AX).
-export default async function s56 ({ runDir, bootstrap }) {
+export default async function s56({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

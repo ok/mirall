@@ -3,13 +3,13 @@ import { createIntentLog, INTENT_PREFIX } from '../../src/shared/core/intents.js
 
 // A minimal in-memory stand-in for the Hyperbee surface the log uses: put, del, createReadStream
 // over a key range. Keeps this a Node unit test — the log has no bare-* imports by design.
-function fakeBee () {
+function fakeBee() {
   const map = new Map()
   return {
     map,
-    async put (k, v) { map.set(k, v) },
-    async del (k) { map.delete(k) },
-    async * createReadStream ({ gte, lt }) {
+    async put(k, v) { map.set(k, v) },
+    async del(k) { map.delete(k) },
+    async * createReadStream({ gte, lt }) {
       for (const key of [...map.keys()].sort()) {
         if (key >= gte && key < lt) yield { key, value: map.get(key) }
       }

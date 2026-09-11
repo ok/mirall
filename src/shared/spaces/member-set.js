@@ -36,7 +36,7 @@
  * @param {string} creatorKey the permanent root of authorization
  * @returns {{ members: Set<string>, authorized: Set<string>, approved: Set<string> }}
  */
-export function foldMembership (records, creatorKey) {
+export function foldMembership(records, creatorKey) {
   const norm = new Map()
   for (const [k, rec] of records) {
     norm.set(k, {
@@ -73,14 +73,14 @@ export function foldMembership (records, creatorKey) {
 }
 
 // A departed peer's vouch stands only if the log shows it was authored before the departure.
-function vouchStands (rec, joiner) {
+function vouchStands(rec, joiner) {
   if (rec.active || rec.memberSeq === null || !rec.approvalSeqs) return true
   const seq = rec.approvalSeqs.get(joiner)
   return seq === undefined || seq < rec.memberSeq
 }
 
 // test seam
-export function foldMemberSet (records, creatorKey) {
+export function foldMemberSet(records, creatorKey) {
   return foldMembership(records, creatorKey).members
 }
 
@@ -89,7 +89,7 @@ export function foldMemberSet (records, creatorKey) {
 // so the observer re-parents that subtree onto itself — it had already authorized them
 // transitively, so no new trust is conferred. Never the leaver itself (that would re-vouch the
 // very peer being revoked) and never us (the fold roots authorization elsewhere).
-export function voucheesToAdopt (approvals, selfKey, leaverKey) {
+export function voucheesToAdopt(approvals, selfKey, leaverKey) {
   const out = []
   for (const k of approvals || []) {
     if (k === selfKey || k === leaverKey) continue
@@ -98,7 +98,7 @@ export function voucheesToAdopt (approvals, selfKey, leaverKey) {
   return out
 }
 
-function toSet (it) {
+function toSet(it) {
   return it instanceof Set ? it : new Set(it || [])
 }
 
@@ -107,7 +107,7 @@ function toSet (it) {
 // Only a peer we still hold AND have NOT observed leaving: a just-left peer (leave-tombstone set)
 // can still linger in the member set while handleLeaveFrame's removeMember has not yet committed,
 // so re-granting it there would silently re-admit it — it must go through fresh approval instead.
-export function reconnectGrantAllowed (isMember, hasLeft) {
+export function reconnectGrantAllowed(isMember, hasLeft) {
   return isMember && !hasLeft
 }
 
@@ -115,7 +115,7 @@ export function reconnectGrantAllowed (isMember, hasLeft) {
 // re-asserted a NEWER membership than the one we saw it leave (memberTs from the leaver's own
 // clock is monotonic, so a genuine rejoin writes a strictly-later member/<S> ts and self-clears
 // the tombstone). leaveTs == null means "not tombstoned".
-export function tombstoneActive (leaveTs, memberTs) {
+export function tombstoneActive(leaveTs, memberTs) {
   return leaveTs != null && (memberTs || 0) <= leaveTs
 }
 
@@ -123,7 +123,7 @@ export function tombstoneActive (leaveTs, memberTs) {
 // tombstone, mirroring handleLeaveFrame): they were in OUR member set last fold AND their read
 // record now says not-a-member. Both gates are positive evidence — a stranger, an unreplicated
 // peer, or a cascade victim never qualifies.
-export function observedLeavers (prevMembers, inactive) {
+export function observedLeavers(prevMembers, inactive) {
   if (!inactive || !inactive.size || !prevMembers || !prevMembers.size) return []
   const out = []
   for (const k of inactive) if (prevMembers.has(k)) out.push(k)

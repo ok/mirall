@@ -8,7 +8,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // shows only its name, member count, date, and the facepile avatars, so a member's name there
 // comes ONLY from a facepile avatar's accessible label — a targeted check that the async roster
 // path actually populates the card.
-export default async function s81 ({ runDir, bootstrap }) {
+export default async function s81({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

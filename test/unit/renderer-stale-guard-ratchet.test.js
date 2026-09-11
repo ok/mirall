@@ -11,7 +11,7 @@ import { MAIN_QUERIES, MAIN_QUERY_NAMES } from '../../src/renderer/store/main-qu
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -24,7 +24,7 @@ function walk (dir, out = []) {
 
 // Driven with NO allowances — the `allow` option in eslint.config.mjs only keeps CI and the editor
 // quiet about the files below, and cannot hide anything from this scan.
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.{js,ts,tsx}'],
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

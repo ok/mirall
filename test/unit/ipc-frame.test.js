@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { MAIN_REQUEST_MAX_LINE, isControlFrameCandidate, createWorkerFrameReader } from '../../src/main/ipc-frame.js'
 
-function muteWarn (t) {
+function muteWarn(t) {
   const original = console.warn
   const lines = []
   console.warn = (...args) => lines.push(args.join(' '))

@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // is unlink(old)+add(new); a mishandled pair leaves a stale duplicate on the
 // mirror or drops the file entirely. The mirror must end with the file ONLY at
 // the new nested path.
-export default async function s29 ({ runDir, bootstrap }) {
+export default async function s29({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -12,7 +12,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // gate) — the peer stays paused and the file does not complete on its own, while a manual
 // Resume still works. Best-effort on catching the download to pause it (loopback can
 // finish first); when the pause is established, the no-auto-resume guarantee is asserted.
-export default async function s94 ({ runDir, bootstrap }) {
+export default async function s94({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -20,7 +20,7 @@ const ALLOWED_BG = [
   'bg-success', 'bg-info', 'bg-warning', 'bg-error-container', 'bg-surface-container-highest',
 ]
 
-function allAppearances () {
+function allAppearances() {
   return [
     ...FILE_STATUSES.map((s) => badgeStyle(fileStatusToBadge(s))),
     ...SHARE_STATUSES.flatMap((s) => [

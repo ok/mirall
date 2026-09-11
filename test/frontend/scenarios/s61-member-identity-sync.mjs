@@ -10,7 +10,7 @@ const settle = (ms = 600) => new Promise((res) => setTimeout(res, ms))
 // placeholder that appeared when identity was only ever read from a live handshake. Avatar
 // bytes (Symptom 1) are covered at the unit/integration/flow layers (no avatar-upload UI in
 // onboarding); this asserts the visible "Unknown" regression (Image 3). Local-only.
-export default async function s61 ({ runDir, bootstrap }) {
+export default async function s61({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })

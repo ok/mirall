@@ -13,6 +13,15 @@ const complexityBudget = {
   'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
 }
 
+// Whitespace, applied to every source area. These are ERRORS, not warnings: each one is fully
+// autofixable, so a violation costs a --fix rather than a judgement call, and the warning ceiling in
+// lint:ci stays a measure of complexity debt alone.
+const whitespace = {
+  indent: ['error', 2, { SwitchCase: 1 }],
+  'space-before-function-paren': ['error', { anonymous: 'always', named: 'never', asyncArrow: 'always' }],
+  'no-multiple-empty-lines': ['error', { max: 1, maxBOF: 0, maxEOF: 0 }],
+}
+
 // Unused-symbol hygiene for the (previously unlinted) data layer. Warn-level and lenient on
 // args/rest-siblings so it flags genuinely-dead locals, not deliberate signature shapes.
 const unusedVars = {
@@ -147,6 +156,7 @@ export default [
         allow: [...Object.keys(unmountOnlyAsyncEffects), ...Object.keys(outOfOrderAsyncEffects)],
       }],
       ...complexityBudget,
+      ...whitespace,
     },
   },
 
@@ -164,6 +174,7 @@ export default [
       'no-undef': 'error',
       ...unusedVars,
       ...complexityBudget,
+      ...whitespace,
       'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions],
     },
   },
@@ -189,6 +200,7 @@ export default [
     rules: {
       ...unusedVars,
       ...complexityBudget,
+      ...whitespace,
       'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
     },
   },
@@ -204,5 +216,29 @@ export default [
   {
     files: ['src/renderer/formatSize.js'],
     rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions] },
+  },
+
+  // Harness and tooling. Neither tree is typechecked, so an identifier left behind by a refactor
+  // surfaces only when the code runs — which for a test helper means a wrong failure symptom rather
+  // than an error. The a11y, boundary and lifecycle invariants are deliberately absent: they are
+  // statements about shipped code, and a fixture exists to violate them.
+  {
+    files: ['test/**/*.{js,mjs}', 'scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
+    },
+    rules: {
+      'no-undef': 'error',
+      ...unusedVars,
+      ...whitespace,
+    },
+  },
+
+  // The renderer fixture: it runs inside the packaged harness page, not under Node.
+  {
+    files: ['test/frontend-layout/fake-bridge.js'],
+    languageOptions: { globals: { ...globals.browser } },
   },
 ]

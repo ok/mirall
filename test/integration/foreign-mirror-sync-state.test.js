@@ -21,7 +21,7 @@ const ONE_FILE = [{ relPath: 'a.bin', contentHash: 'a'.repeat(64), size: 1024 }]
 // can't fetch a file leaves it 'syncing'. This is what lets a share's owner (and any member) tell a
 // fully-merged mirror from one still catching up, even while the mirrorer is offline. Deterministic:
 // the overlay's fetchFile is stubbed to succeed or to find no holder.
-async function setupMirror (t, { fetchResult, entries = ONE_FILE } = {}) {
+async function setupMirror(t, { fetchResult, entries = ONE_FILE } = {}) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initDownloads()
@@ -63,7 +63,7 @@ async function setupMirror (t, { fetchResult, entries = ONE_FILE } = {}) {
 const stateOf = async (spaceId) => (await readOwnMirrors(spaceId))[0]?.state
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
-async function waitForState (spaceId, want, ms = 5000) {
+async function waitForState(spaceId, want, ms = 5000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await stateOf(spaceId) === want) return want

@@ -6,7 +6,7 @@ import { makeReport } from '../assert.mjs'
 // Profile edit: A changes its display name and saves; the new name broadcasts and B sees it on
 // A's member card. (Avatar upload goes through a native picker + crop and isn't asserted here; the
 // input-file size guard + worker-side clamp are covered by the unit/integration layers.)
-export default async function s14 ({ runDir, bootstrap }) {
+export default async function s14({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

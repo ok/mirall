@@ -6,14 +6,14 @@ const tick = () => new Promise((r) => setTimeout(r, 10))
 
 // A fake hyperbee whose watch() returns a closable async-iterable that never yields on
 // its own — lets us exercise track()/close() wiring without a real store.
-function fakeBee (onClose) {
+function fakeBee(onClose) {
   return {
-    watch () {
+    watch() {
       let release
       const until = new Promise((r) => { release = r })
       return {
-        async * [Symbol.asyncIterator] () { await until }, // ends only on close
-        async close () { release(); onClose?.() },
+        async * [Symbol.asyncIterator]() { await until }, // ends only on close
+        async close() { release(); onClose?.() },
       }
     },
   }
@@ -170,14 +170,14 @@ test('a watched bee change schedules a coalesced recompute', async (t) => {
   let folds = 0
   let fire
   const bee = {
-    watch () {
+    watch() {
       return {
-        async * [Symbol.asyncIterator] () {
+        async * [Symbol.asyncIterator]() {
           // yield once when the test fires, then end
           await new Promise((r) => { fire = r })
           yield 1
         },
-        async close () {},
+        async close() {},
       }
     },
   }
@@ -319,15 +319,15 @@ test('noteProgress does nothing while no fold is in flight', async (t) => {
 
 // A fake bee that records the range each watch() was opened with and how many were closed, so a
 // multi-range view can be asserted on watcher count rather than on behaviour it cannot fake.
-function recordingBee (log) {
+function recordingBee(log) {
   return {
-    watch (range) {
+    watch(range) {
       log.opened.push(range)
       let release
       const until = new Promise((r) => { release = r })
       return {
-        async * [Symbol.asyncIterator] () { await until },
-        async close () { log.closed += 1; release() },
+        async * [Symbol.asyncIterator]() { await until },
+        async close() { log.closed += 1; release() },
       }
     },
   }
@@ -404,12 +404,12 @@ test('a change inside any of several ranges schedules a fold', async (t) => {
   let folds = 0
   const emitters = []
   const bee = {
-    watch () {
+    watch() {
       let push = null
       const queue = []
       emitters.push((v) => { if (push) { push(v); push = null } else queue.push(v) })
       return {
-        async * [Symbol.asyncIterator] () {
+        async * [Symbol.asyncIterator]() {
           for (;;) {
             if (queue.length) { yield queue.shift(); continue }
             const v = await new Promise((r) => { push = r })
@@ -417,7 +417,7 @@ test('a change inside any of several ranges schedules a fold', async (t) => {
             yield v
           }
         },
-        async close () { if (push) { push(null); push = null } },
+        async close() { if (push) { push(null); push = null } },
       }
     },
   }

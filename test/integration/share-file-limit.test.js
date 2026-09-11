@@ -10,19 +10,19 @@ import { collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { exceedsShareFileLimit } from '../../src/shared/folders/share-limits.js'
 
-function writeFiles (dir, n, from = 0) {
+function writeFiles(dir, n, from = 0) {
   for (let i = from; i < from + n; i++) {
     fs.writeFileSync(path.join(dir, 'f' + String(i).padStart(3, '0') + '.txt'), 'x')
   }
 }
 
-function withLimit (t, limit) {
+function withLimit(t, limit) {
   const saved = getRuntimeConfig()
   t.teardown(() => setRuntimeConfig(saved))
   setRuntimeConfig({ ...saved, maxFilesPerShare: limit })
 }
 
-async function catalogTotal (spaceId, shareId) {
+async function catalogTotal(spaceId, shareId) {
   return (await collectOwnShare(spaceId, shareId, 0)).total
 }
 

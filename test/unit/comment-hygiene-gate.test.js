@@ -11,7 +11,7 @@ const SCRIPT = path.join(here, '..', '..', 'scripts', 'check-comment-hygiene.sh'
 // The gate cds to its own parent's parent, so the copy sits under <tmp>/scripts/ and the fake tree
 // under <tmp>/src/ — the same shape it scans in the repo. One file per violation class, so a class
 // the gate stops seeing fails by name.
-function tree (t, files) {
+function tree(t, files) {
   const root = mkdtempSync(path.join(tmpdir(), 'comment-hygiene-'))
   t.teardown(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(path.join(root, 'scripts'))
@@ -24,7 +24,7 @@ function tree (t, files) {
   return root
 }
 
-function run (root, args = []) {
+function run(root, args = []) {
   const r = spawnSync('bash', [path.join(root, 'scripts', 'check-comment-hygiene.sh'), ...args], { encoding: 'utf8' })
   return { code: r.status, out: r.stdout + r.stderr }
 }

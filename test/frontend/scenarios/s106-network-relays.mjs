@@ -12,7 +12,7 @@ const OTHER_KEY = 'usdgj55ym13jkwz7nyrn4tf9yog5ocqhgbzpmiapfunqoj398xqo'
 // mount before addressing an item, the way s13 does for the space overflow menu.
 const settle = () => new Promise((res) => setTimeout(res, 400))
 
-export default async function s106 ({ runDir, bootstrap }) {
+export default async function s106({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const Relays = new Instance({ name: 'Relays', bootstrap, slot: 0, total: 1 })

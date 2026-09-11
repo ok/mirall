@@ -7,8 +7,8 @@ import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/ve
 // The protocol's fetchContent owns the per-contentHash scheduler: the cancel-before-
 // scheduler window (#1b) and the same-hash join (#2). A minimal transfer stub is
 // enough — fetchContent only hands it to the ChunkScheduler.
-function fakeTransfer () {
-  return { startReceive () { return { received: new Set() } }, writeChunk () { return { ok: true } }, finalize () { return { ok: true } }, cancel () {}, pause () {} }
+function fakeTransfer() {
+  return { startReceive() { return { received: new Set() } }, writeChunk() { return { ok: true } }, finalize() { return { ok: true } }, cancel() {}, pause() {} }
 }
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'p2-'))
 
@@ -60,13 +60,13 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
 
 // ── transfer-control (message 12): downloader→holder pause/stop signal ─────────
 
-function fakePeer (sent) {
+function fakePeer(sent) {
   return { msgs: { transferControl: { send: (m) => sent.push(m) } }, authorizedServe: new Map() }
 }
 
 // cancelContent only signals when a scheduler exists (an active fetch); seed one.
-function seedScheduler (proto, contentHash) {
-  proto._schedulers.set('content:' + contentHash, { destPath: '/x', cancel () {} })
+function seedScheduler(proto, contentHash) {
+  proto._schedulers.set('content:' + contentHash, { destPath: '/x', cancel() {} })
 }
 
 test('REGRESSION (FIX-1): cancelContent pause broadcasts transferControl PAUSED', (t) => {

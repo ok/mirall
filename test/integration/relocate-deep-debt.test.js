@@ -18,11 +18,11 @@ const { ownCatalogKeyHex } = await import('../../src/shared/shares/share-catalog
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
 // The debt is cleared by the pass, not by the call that armed it, so the assertion has to wait for
 // the pass rather than read straight after the boot returns.
-async function untilDebtClears (spaceId, shareId, deadlineMs = 5000) {
+async function untilDebtClears(spaceId, shareId, deadlineMs = 5000) {
   const until = Date.now() + scaled(deadlineMs)
   while (Date.now() < until) {
     if (!(await getOwnedMount(spaceId, shareId)).deepScanOwed) return true
@@ -33,7 +33,7 @@ async function untilDebtClears (spaceId, shareId, deadlineMs = 5000) {
 const tmp = (label) => fs.mkdtempSync(path.join(os.tmpdir(), `mirall-deep-debt-${label}-`))
 
 // A store that survives close/reopen, the way the two real boots below need it to.
-function peerDirs (t) {
+function peerDirs(t) {
   const root = tmp('store')
   const storage = path.join(root, 'app-storage')
   fs.mkdirSync(storage, { recursive: true })
@@ -50,7 +50,7 @@ function peerDirs (t) {
   }
 }
 
-async function seedMount (mountPath) {
+async function seedMount(mountPath) {
   await setProfile({ displayName: 'Tester' })
   const space = await createSpace('Aurora')
   const share = {

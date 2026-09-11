@@ -13,14 +13,13 @@ import { CANARY } from '../core/reachability.js'
 
 const DEFAULT_BOOTSTRAP = ['node1.hyperdht.org:49737', 'node2.hyperdht.org:49737', 'node3.hyperdht.org:49737']
 
-
 export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVersion }) {
   function getBootstrapList() {
     try {
       const list = global.Pear?.config?.dht?.bootstrap
       if (Array.isArray(list)) return list.map(String)
     } catch {}
-      // A copy: this array is handed to every status reader, and the fallback must not be mutable
+    // A copy: this array is handed to every status reader, and the fallback must not be mutable
     // through one of them.
     return DEFAULT_BOOTSTRAP.slice()
   }

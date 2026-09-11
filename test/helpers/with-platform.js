@@ -3,7 +3,7 @@
 // asserts that routing has to PIN the platform rather than inherit the machine's — CI runs
 // Linux and development happens on macOS, so an unpinned '/Volumes/…' test passes locally and
 // fails there. That is exactly how it went the first time.
-export function withPlatform (name, fn) {
+export function withPlatform(name, fn) {
   const real = process.platform
   Object.defineProperty(process, 'platform', { value: name, configurable: true })
   try { return fn() } finally {

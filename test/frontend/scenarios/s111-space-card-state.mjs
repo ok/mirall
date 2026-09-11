@@ -16,7 +16,7 @@ const settle = (ms = 600) => new Promise((res) => setTimeout(res, ms))
 //
 // Foldout and navigation clicks repaint the renderer (which can reassign the window's
 // AX id), so re-focus + settle after each one before asserting.
-export default async function s111 ({ runDir, bootstrap }) {
+export default async function s111({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

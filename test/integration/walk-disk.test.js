@@ -5,7 +5,7 @@ import path from 'bare-path'
 import { walkDisk } from '../../src/shared/folders/walk-disk.js'
 
 let seq = 0
-function tmp () {
+function tmp() {
   const dir = path.join(os.tmpdir(), `mirall-walk-${Date.now()}-${seq++}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir

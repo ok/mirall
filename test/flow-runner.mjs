@@ -28,7 +28,7 @@ const records = []
 // is internal to a caret-ranged dependency. A release that renames it or stops routing through
 // it would leave the wrapper installed on nothing, restoring the silent-skip behaviour with no
 // signal — so the shape is a hard precondition, not a best effort.
-function patchTarget () {
+function patchTarget() {
   const target = Test?.prototype?._run
   if (typeof Test !== 'function' || typeof target !== 'function' || target.length !== 2) {
     say(`not ok - flow runner cannot wrap brittle ${brittleVersion}: Test.prototype._run(fn, opts) is not the shape it patches`)
@@ -68,16 +68,16 @@ Test.prototype._run = async function (fn, opts) {
 
 // The runner's own lines are written synchronously: an exit handler's console.log to a pipe
 // can be dropped as the process leaves, and these lines are the whole point of the runner.
-function say (line) {
+function say(line) {
   writeSync(1, line + '\n')
 }
 
-function describe (err) {
+function describe(err) {
   if (err instanceof Error) return err.stack || err.message
   return 'threw a non-Error value: ' + inspect(err)
 }
 
-function inspect (value) {
+function inspect(value) {
   try {
     return typeof value === 'string' ? value : JSON.stringify(value) ?? String(value)
   } catch {
@@ -85,7 +85,7 @@ function inspect (value) {
   }
 }
 
-function onFatal (label) {
+function onFatal(label) {
   return (err) => {
     say(`not ok - flow run died mid-suite (${label})`)
     say('# ' + describe(err).replace(/\n/g, '\n# '))
@@ -95,7 +95,7 @@ function onFatal (label) {
 }
 
 let reported = false
-function reportAccounting () {
+function reportAccounting() {
   if (reported) return
   reported = true
   const expected = records.filter((r) => r.expected)

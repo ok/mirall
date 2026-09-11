@@ -10,7 +10,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // Hold every publish open for `ms` so the queue's SHAPE stops changing: with both slots filled and
 // nothing settling, the only thing that can still speak is the re-announce timer. Mirrors the
 // slowHash helper in owned-publish-queue.test.js.
-function slowHash (t, ms) {
+function slowHash(t, ms) {
   const overlay = getOverlay()
   const orig = overlay.prepareForServe.bind(overlay)
   overlay.prepareForServe = async (diskPath, opts) => { await sleep(ms); return orig(diskPath, opts) }

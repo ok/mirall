@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P0 / G5 — deletion inside a subfolder. Removing one nested file must remove
 // exactly that file from the mirror and leave its siblings (and the rest of the
 // tree) intact; nested deletion can take a different path than flat deletion.
-export default async function s30 ({ runDir, bootstrap }) {
+export default async function s30({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

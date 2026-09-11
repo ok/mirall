@@ -8,7 +8,7 @@ import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errorMessages.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) }
@@ -19,13 +19,13 @@ function walk (dir, out = []) {
 
 // Comments are stripped first: a doc comment naming `CODES.X` is prose, not a throw site, and
 // counting it would make this test fail on its own explanation.
-function stripComments (src) {
+function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 }
 
 // Both the enum form and the bare-string form, because the bug this guards was a code thrown as a
 // string that no enum member matched.
-function thrownCodes () {
+function thrownCodes() {
   const found = new Set()
   for (const f of [...walk(path.join(root, 'src', 'shared')), ...walk(path.join(root, 'src', 'worker'))]) {
     const src = stripComments(readFileSync(f, 'utf8'))

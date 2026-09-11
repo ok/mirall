@@ -12,7 +12,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // "Waiting for approval" is unique to the list pill (the detail view reads "Waiting to be
 // let into …"), so matching it confirms we're seeing the card, not the detail screen.
 // Requires identity mode (real keychain).
-export default async function s60 ({ runDir, bootstrap }) {
+export default async function s60({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

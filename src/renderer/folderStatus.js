@@ -8,7 +8,7 @@
 // No live region here. Every state worth announcing already has a strip above the listing, and a
 // second announcement from the tile would read the same change twice.
 
-export function deriveFolderStatus (input) {
+export function deriveFolderStatus(input) {
   const { role, sourceMissing, fault, indexPaused, mirrorEnabled, indexing, mirrorSyncing, ownerOnline, incomplete } = input
   if (sourceMissing) return { labelKey: 'folder.statusMissing', badge: 'paused' }
   // Above both pauses, for the same reason the fault strip is: an auto-paused mirror is

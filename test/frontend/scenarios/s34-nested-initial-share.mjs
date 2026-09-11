@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // across several nested subfolders. The whole tree must replicate and
 // materialize at the right depths (the existing owner-folder scenarios use only
 // 1–2 flat files). Exact preview counts are covered at test/integration/preview-scan.
-export default async function s34 ({ runDir, bootstrap }) {
+export default async function s34({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -1,17 +1,15 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import fs from 'bare-fs'
-import path from 'bare-path'
 import Hyperdrive from 'hyperdrive'
 import { freshPeer, freshDurableWithIdentity } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { createSpace, getDrive, listSpaces } from '../../src/shared/spaces/space.js'
-import { initDownloads, addFile } from '../../src/shared/transfer/files.js'
+import { initDownloads } from '../../src/shared/transfer/files.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   let found = false
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) found = true

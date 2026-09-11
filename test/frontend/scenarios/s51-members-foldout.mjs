@@ -10,7 +10,7 @@ const settle = (ms = 600) => new Promise((res) => setTimeout(res, ms))
 // "Show less" stays pinned inside the box. A foldout click repaints the renderer
 // (which can reassign the window's AX id), so we re-focus + settle after a click
 // before snapshotting, and assert in one direction rather than toggling.
-export default async function s51 ({ runDir, bootstrap }) {
+export default async function s51({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // own unrelated file. That file must survive the initial scan AND a later
 // owner-side deletion (the mirror may only remove files it itself synced). This
 // is the UI counterpart of the data-loss fix verified at test/flow/foreign-sync.
-export default async function s32 ({ runDir, bootstrap }) {
+export default async function s32({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

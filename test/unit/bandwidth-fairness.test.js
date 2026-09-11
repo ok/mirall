@@ -32,7 +32,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // One transfer: a scheduler, its own limiter stream (exactly how OverlayProtocolV2 wires a
 // scheduler up), one peer, and a byte counter.
-function startTransfer (limiter, name, { chunkSize = CHUNK, mute = false } = {}) {
+function startTransfer(limiter, name, { chunkSize = CHUNK, mute = false } = {}) {
   const rec = { name, bytes: 0, chunkSize }
   const peer = { id: `peer-${name}` }
   const sched = new ChunkScheduler({
@@ -354,7 +354,7 @@ test('a cancelled transfer detaches its stream and returns unspent budget', asyn
 
 // A holder serving one receiver, paced by ITS OWN upload limiter. `announce` decides whether
 // it speaks FIX-BW9 keep-alives while parked (a new holder) or stays silent (a v1.8.0 one).
-function startSender (limiter, sched, peer, { chunkSize, announce, everyMs = 40 }) {
+function startSender(limiter, sched, peer, { chunkSize, announce, everyMs = 40 }) {
   const stream = limiter.stream()
   const rec = { stream, delivered: 0 }
   rec.serve = (indices) => {
@@ -373,7 +373,7 @@ function startSender (limiter, sched, peer, { chunkSize, announce, everyMs = 40 
   return rec
 }
 
-function startCappedFetch (limiter, { announce, chunkSize = 128 * KB, window = 400, maxSilence }) {
+function startCappedFetch(limiter, { announce, chunkSize = 128 * KB, window = 400, maxSilence }) {
   const peer = { id: 'holder' }
   const state = { rejection: null }
   let sender = null
@@ -490,7 +490,7 @@ test('FIX-BW9: keep-alives are bounded — a holder that never sends bytes is st
 
 // A transport counter that ticks `bytes` every `everyMs`. Returns the reader the scheduler gets
 // and a stop(), so a finished test leaves no interval behind.
-function rxTicker (bytes, everyMs) {
+function rxTicker(bytes, everyMs) {
   let rx = 0
   const timer = setInterval(() => { rx += bytes }, everyMs)
   timer.unref?.()

@@ -4,7 +4,7 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import nodePath from 'path'
 
-function build ({ present = () => false, pending = () => false } = {}) {
+function build({ present = () => false, pending = () => false } = {}) {
   const retired = []
   const sweeper = createPresenceSweeper({
     keyOf: (ctx, e) => ctx.spaceId + '\0' + e.relPath,

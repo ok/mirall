@@ -2,7 +2,7 @@ import test from 'brittle'
 import { createTimers } from '../../src/shared/core/timers.js'
 import { Subsystem, createLifecycle } from '../../src/shared/core/subsystem.js'
 
-const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const tick = () => new Promise((r) => setImmediate(r))
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -37,9 +37,9 @@ test('createTimers: close() clears everything, is idempotent, and rejects schedu
 })
 
 class Probe extends Subsystem {
-  constructor (name, deps, trace) { super(name, deps); this.trace = trace }
-  async _open () { this.trace.push('open:' + this.name); this.timers.setInterval(() => {}, 1) }
-  async _close () { this.trace.push('close:' + this.name) }
+  constructor(name, deps, trace) { super(name, deps); this.trace = trace }
+  async _open() { this.trace.push('open:' + this.name); this.timers.setInterval(() => {}, 1) }
+  async _close() { this.trace.push('close:' + this.name) }
 }
 
 test('Subsystem: close() twice is safe, flips stopping synchronously, and clears its timers', async (t) => {
@@ -61,7 +61,7 @@ test('Subsystem: close() twice is safe, flips stopping synchronously, and clears
 // before the throw would otherwise be unreachable forever.
 test('Subsystem: a failed _open still clears the timers it armed', async (t) => {
   class Broken extends Subsystem {
-    async _open () { this.timers.setInterval(() => {}, 1); throw new Error('boom') }
+    async _open() { this.timers.setInterval(() => {}, 1); throw new Error('boom') }
   }
   const s = new Broken('broken')
   await t.exception(s.ready(), /boom/)
@@ -82,7 +82,7 @@ test('Subsystem: ready() after close() is a no-op — a closed subsystem is neve
 
 test('Subsystem: close() while opening waits for _open, then runs _close', async (t) => {
   const trace = []
-  class Slow extends Probe { async _open () { await sleep(20); return super._open() } }
+  class Slow extends Probe { async _open() { await sleep(20); return super._open() } }
   const s = new Slow('slow', {}, trace)
   const opening = s.ready()
   await s.close()
@@ -100,7 +100,7 @@ test('Subsystem: close() while opening waits for _open, then runs _close', async
 // coin flip. The 5000 ms / 2000 ms gap is what makes this deterministic.
 test('createLifecycle: a slow close cannot outrun the shutdown budget', async (t) => {
   const trace = []
-  class Slow extends Probe { async _close () { trace.push('close:' + this.name); await sleep(5000) } }
+  class Slow extends Probe { async _close() { trace.push('close:' + this.name); await sleep(5000) } }
   const life = createLifecycle({ log: quiet })
   await life.start(new Probe('a', {}, trace))
   await life.start(new Slow('slow', {}, trace))
@@ -115,7 +115,7 @@ test('createLifecycle: a slow close cannot outrun the shutdown budget', async (t
 })
 
 test('Subsystem: require() names the missing collaborator', (t) => {
-  class Needs extends Subsystem { constructor (deps) { super('needs', deps); this.require('ipc', 'store') } }
+  class Needs extends Subsystem { constructor(deps) { super('needs', deps); this.require('ipc', 'store') } }
   t.exception(() => new Needs({ ipc: {} }), /needs: missing dep "store"/)
   t.execution(() => new Needs({ ipc: {}, store: {} }))
   t.exception(() => new Subsystem(''), /name is required/)
@@ -126,8 +126,8 @@ test('Subsystem: require() names the missing collaborator', (t) => {
 // life.close() with its interval still firing and nothing but a warn line to say so.
 test('Subsystem: a _close that throws still clears the timers', async (t) => {
   class Throws extends Subsystem {
-    async _open () { this.timers.setInterval(() => {}, 1) }
-    async _close () { throw new Error('nope') }
+    async _open() { this.timers.setInterval(() => {}, 1) }
+    async _close() { throw new Error('nope') }
   }
   const s = new Throws('throws')
   await s.ready()
@@ -139,7 +139,7 @@ test('Subsystem: a _close that throws still clears the timers', async (t) => {
 
 test('createLifecycle: closes in the reverse of start order and survives one failure', async (t) => {
   const trace = []
-  class Bad extends Probe { async _close () { trace.push('close:' + this.name); throw new Error('nope') } }
+  class Bad extends Probe { async _close() { trace.push('close:' + this.name); throw new Error('nope') } }
   const life = createLifecycle({ log: quiet })
   await life.start(new Probe('a', {}, trace))
   const bad = await life.start(new Bad('b', {}, trace))

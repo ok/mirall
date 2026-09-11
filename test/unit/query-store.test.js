@@ -6,7 +6,7 @@ import {
 
 // A transport that records every call and lets a test settle each one by hand, so concurrency is
 // asserted structurally rather than by timing.
-function fakeTransport () {
+function fakeTransport() {
   const calls = []
   const pending = []
   const aborted = []
@@ -33,7 +33,7 @@ function fakeTransport () {
   }
 }
 
-function setup (t) {
+function setup(t) {
   resetQueryStore()
   const transport = fakeTransport()
   configureQueryStore({ request: transport.request })
@@ -181,7 +181,7 @@ test('the snapshot is a stable reference between changes and a new one after', a
   t.is(peek(key), after, 'which is then stable again')
 })
 
-async function settleAll (tr, promises) {
+async function settleAll(tr, promises) {
   promises.forEach((_, i) => tr.settle(i, []))
   await Promise.all(promises)
 }

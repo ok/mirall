@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // always-checked bookends are no-indicator-at-rest and indicator-clears-after, plus
 // the file landing on the peer. The two-tier event gating + byte accounting are
 // proven in test/integration/peer-download-ledger and the flow tests.
-export default async function s73 ({ runDir, bootstrap }) {
+export default async function s73({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -7,7 +7,7 @@ import { parseSource, forEachNode } from '../helpers/ast-scan.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
@@ -18,7 +18,7 @@ function walk (dir, out = []) {
 // The population, measured by a parser rather than by a grep: a class is a class however the
 // `extends` clause is spelled or wrapped, and a method is declared or it is not. Every subsystem
 // class in src/ is read this way, with the methods its body declares.
-function subsystemClasses () {
+function subsystemClasses() {
   const found = new Map()
   for (const file of walk(path.join(root, 'src'))) {
     const { ast, visitorKeys } = parseSource(readFileSync(file, 'utf8'), file)

@@ -139,7 +139,6 @@ test('get() reads through staged and in-flight ops (read-your-writes)', async (t
   t.is(bee.store.get(fileKey('sh', 'b')).contentHash, 'h2', 'and it lands')
 })
 
-
 // Like fakeBee, but a batch's puts land only on flush() — a real Hyperbee batch is atomic, and
 // the read-your-writes tests below are about the window in which a flush has NOT landed.
 function txBee(initial = {}) {

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
@@ -14,7 +14,7 @@ const read = (p) => { try { return readFileSync(p, 'utf8') } catch { return null
 //      next sync reverts it to the owner's version. The mirror has no watcher in
 //      v1, so the revert is driven by the periodic reconcile (~30s) — hence the
 //      longer wait on that step.
-export default async function s31 ({ runDir, bootstrap }) {
+export default async function s31({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

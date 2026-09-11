@@ -7,7 +7,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // actually costs. The vector is the frozen one from the relay↔client contract §2.5.
 const TICKET = 'mirall://relay/ygqac38xcbqmffk19weyomkrzhny5qbt5oag7iqzbwscj4b88h7758musqus5hrut9afmj5qjorsaigcrtpumig5gg4af6i4uzxjjm1qhz55ppy'
 
-export default async function s137 ({ runDir, bootstrap }) {
+export default async function s137({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const Relays = new Instance({ name: 'Invite', bootstrap, slot: 0, total: 1 })

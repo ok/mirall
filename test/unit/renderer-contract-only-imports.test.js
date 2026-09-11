@@ -9,7 +9,7 @@ import { rendererContractOnlyImports } from '../../eslint.config.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'locales') walk(p, out) }
@@ -18,7 +18,7 @@ function walk (dir, out = []) {
   return out
 }
 
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.ts', '**/*.tsx', '**/*.js'],
     languageOptions: { parser: tsParser, parserOptions: { ecmaFeatures: { jsx: true } } },

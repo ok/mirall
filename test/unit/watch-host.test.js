@@ -5,7 +5,7 @@ import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.
 const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js'])
 const { createWatchHost, looksLikeNetworkPath } = modules[0]
 
-function host (opts = {}) {
+function host(opts = {}) {
   created.length = 0
   const events = []
   const errors = []

@@ -13,10 +13,10 @@ import { scaled } from '../helpers/timing.js'
 // it. The status must reflect what is actually on disk, and an upstream removal
 // must reset the claim (while keeping any file the peer already downloaded).
 
-function statusOf (list, rel) {
+function statusOf(list, rel) {
   return list?.entries?.find((f) => f.relPath === rel)?.status
 }
-function localOf (list, rel) {
+function localOf(list, rel) {
   return list?.entries?.find((f) => f.relPath === rel)?.localPath
 }
 

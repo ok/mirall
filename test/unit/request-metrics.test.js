@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { createRequestMetrics } from '../../src/shared/core/request-metrics.js'
 
-function clock (start = 0) {
+function clock(start = 0) {
   let t = start
   return { now: () => t, advance: (ms) => { t += ms } }
 }

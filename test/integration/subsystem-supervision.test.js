@@ -16,9 +16,9 @@ import { wedgedMirror, waitUntil, delay } from '../helpers/wedged-mirror.js'
 // rule, the recovery budget and the teardown guards, all of which used to be hand-built inside
 // MountsRuntime and are now shared by every subsystem that declares supervisable units.
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
-async function supervised (t, opts) {
+async function supervised(t, opts) {
   const wedge = await wedgedMirror(t, opts)
   // A probe interval long enough that only the explicit probe() calls below drive the policy.
   setRuntimeConfig({ ...getRuntimeConfig(), supervisionProbeIntervalMs: 3_600_000 })

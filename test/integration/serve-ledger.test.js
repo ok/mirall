@@ -18,7 +18,7 @@ const details = (fake) => fake.emitted('event:awareness').filter((e) => e.payloa
 
 // The sender-side "who is downloading" ledger is in-memory and event-fed; these tests
 // drive it directly (no store, no network).
-async function setup (t) {
+async function setup(t) {
   const fake = createFakeIpc()
   serveIndex.reset()
   const ledger = new ServeLedger('serve-ledger', { ipc: fake.ipc })

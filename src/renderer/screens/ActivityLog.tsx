@@ -296,22 +296,22 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                     not the page. */}
                 {/* `relative`: the scroll-pane rule, see SpaceView's pane. */}
                 <div className="relative max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
-                <ul>
-                  {groups.map((group) => (
-                    <li key={group.key}>
-                      <h3 className="sticky top-0 z-10 bg-surface-container-low px-6 pt-5 pb-2 text-xs font-bold uppercase tracking-wide text-secondary">
-                        {group.key === 'today' || group.key === 'yesterday'
-                          ? t('activityLog.' + group.key)
-                          : new Date(group.entries[0].ts).toLocaleDateString()}
-                      </h3>
-                      <ul>
-                        {group.entries.map((entry) => (
-                          <AuditRow key={entry.seq} entry={entry} />
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
+                  <ul>
+                    {groups.map((group) => (
+                      <li key={group.key}>
+                        <h3 className="sticky top-0 z-10 bg-surface-container-low px-6 pt-5 pb-2 text-xs font-bold uppercase tracking-wide text-secondary">
+                          {group.key === 'today' || group.key === 'yesterday'
+                            ? t('activityLog.' + group.key)
+                            : new Date(group.entries[0].ts).toLocaleDateString()}
+                        </h3>
+                        <ul>
+                          {group.entries.map((entry) => (
+                            <AuditRow key={entry.seq} entry={entry} />
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 {hasMore && (
                   <div className="px-6 py-4 border-t border-outline-variant/40 flex justify-center">

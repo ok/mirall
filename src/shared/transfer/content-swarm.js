@@ -40,7 +40,6 @@ let contentAttachHook = null
 let contentResumeHook = null
 let contentBinding = null
 
-
 // Null between worker boot and initContentSwarm, and again after destroyContentSwarm
 // has run during shutdown. Callers must tolerate both.
 export function getContentSwarm() { return contentSwarm }

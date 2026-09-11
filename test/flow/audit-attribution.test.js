@@ -10,7 +10,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
 
-async function rows (peer, query = {}) {
+async function rows(peer, query = {}) {
   const page = await peer.request('audit:list', { limit: 200, ...query })
   return page.entries
 }

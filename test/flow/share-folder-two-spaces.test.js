@@ -36,7 +36,7 @@ test('one folder shared into two spaces reaches a mirror in each, independently'
   await scan2
   t.pass('same folder mounted into a second space without MOUNT_OVERLAPS')
 
-  async function mirror (peer, spaceId, shareId) {
+  async function mirror(peer, spaceId, shareId) {
     await peer.until('share:list', { spaceId }, (l) => l.some((s) => s.id === shareId), { ms: 90000 })
     const dir = mkTmpDir(t)
     const active = peer.waitFor('event:foreign-folder-mount-status',

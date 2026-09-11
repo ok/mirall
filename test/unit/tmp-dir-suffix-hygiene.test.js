@@ -17,7 +17,7 @@ const testRoot = path.join(here, '..')
 const SCANNED = ['flow', 'helpers', 'raw']
 const HEX = /^[0-9a-f]*$/
 
-function scannedFiles () {
+function scannedFiles() {
   const out = []
   for (const dir of SCANNED) {
     for (const name of readdirSync(path.join(testRoot, dir))) {

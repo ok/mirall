@@ -6,7 +6,7 @@ import { collectStoreCoreInfo, isStorageInconsistency, createDrive } from '../..
 
 // Patch a catalog bee so its read stream yields one entry then throws — simulating a
 // backing core whose merkle tree is inconsistent (the exact error the replicator hits).
-function patchCatalogFault (bee, makeError) {
+function patchCatalogFault(bee, makeError) {
   const real = bee.createReadStream.bind(bee)
   bee.createReadStream = (opts) => {
     const inner = real(opts)

@@ -16,7 +16,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
-function spaceLive (info, spaceId) {
+function spaceLive(info, spaceId) {
   const s = (info?.spaces || []).find((x) => x.spaceId === spaceId)
   return s ? s.contentBytes : 0
 }

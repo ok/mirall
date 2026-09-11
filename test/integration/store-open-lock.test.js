@@ -4,7 +4,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore } from '../../src/shared/core/store.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `store-lock-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir

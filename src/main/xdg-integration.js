@@ -6,12 +6,12 @@ const path = require('path')
 
 const ICON_SIZES = [16, 32, 48, 64, 128, 256]
 
-function writeIfChanged (dest, contents) {
+function writeIfChanged(dest, contents) {
   try { if (fs.readFileSync(dest, 'utf8') === contents) return } catch {}
   fs.writeFileSync(dest, contents)
 }
 
-function copyFileIfChanged (src, dest) {
+function copyFileIfChanged(src, dest) {
   try {
     const s = fs.statSync(src), d = fs.statSync(dest)
     if (s.size === d.size && s.mtimeMs <= d.mtimeMs) return
@@ -22,7 +22,7 @@ function copyFileIfChanged (src, dest) {
 // Rewrites Exec= to the absolute AppImage path so the launcher entry self-heals if the user moves
 // the AppImage, and declares the scheme handler so xdg-mime can pick this entry for mirall:// URLs.
 // %U is what lets the desktop environment pass the URL through at all.
-function desktopEntryFor (source, { appimage, mimeToken }) {
+function desktopEntryFor(source, { appimage, mimeToken }) {
   let desktop = source.replace(/^Exec=.*$/m, `Exec="${appimage}" %U`)
   if (/^MimeType=/m.test(desktop)) {
     return desktop.replace(/^MimeType=(.*)$/m, (_m, list) => {
@@ -34,7 +34,7 @@ function desktopEntryFor (source, { appimage, mimeToken }) {
   return desktop.replace(/(\n?)$/, `\nMimeType=${mimeToken};\n`)
 }
 
-function integrateXdgLinux ({ appName, protocol, isLinux, homedir, env = process.env, spawn }) {
+function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.env, spawn }) {
   if (!isLinux || !env.APPIMAGE || !env.APPDIR) return false
   const appdir = env.APPDIR
   const appimage = env.APPIMAGE

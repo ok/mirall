@@ -4,7 +4,7 @@ import os from 'bare-os'
 import path from 'bare-path'
 import { resolveDest } from '../../src/shared/transfer/download-dest.js'
 
-function tmpDir (t) {
+function tmpDir(t) {
   const d = path.join(os.tmpdir(), 'rd-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
   fs.mkdirSync(d, { recursive: true })
   if (t) t.teardown(() => { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} })

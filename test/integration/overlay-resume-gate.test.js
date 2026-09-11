@@ -27,7 +27,7 @@ const SPACE = 'space1'
 const OWNER = 'ownerpub'
 const HASH = 'a'.repeat(64)
 
-function testChannel (events, over = {}) {
+function testChannel(events, over = {}) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -46,7 +46,7 @@ function testChannel (events, over = {}) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -55,7 +55,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (ctx, over = {}) {
+function makeJob(ctx, over = {}) {
   return {
     spaceId: SPACE, pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: SPACE + '|folder1|doc.bin',
@@ -65,7 +65,7 @@ function makeJob (ctx, over = {}) {
 }
 
 // Seeds the row a dropped connection leaves behind: intent recorded, partial on disk, no live slot.
-async function seedInterruptedRow (job, bytesTransferred) {
+async function seedInterruptedRow(job, bytesTransferred) {
   await recordPending(SPACE, job.pendingKey, {
     total: job.size, inPlace: false, ownerKey: OWNER, finalPath: job.finalPath,
     contentHash: HASH, bytesTransferred, overlayShare: true, shareId: 'folder1', relPath: job.relPath,

@@ -7,7 +7,7 @@ import { encodeInvite } from '../../../src/shared/contract/invite-envelope.js'
 // JoinSpaceModal displayed err.message — the worker's English — in every locale. An English run
 // cannot see the bug, so this one switches to German first: the worker's strings appearing here
 // IS the regression.
-export default async function s128 ({ runDir, bootstrap }) {
+export default async function s128({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

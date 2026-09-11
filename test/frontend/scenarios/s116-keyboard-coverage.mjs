@@ -6,7 +6,7 @@ import { makeReport } from '../assert.mjs'
 // served by the native Go-to-Space menu rather than the renderer's keydown listener —
 // Chromium claims ⌘1-9 before the page sees them — so this exercises that wiring end
 // to end, along with Profile, the Activity Log, and the Activity Log's Find.
-export default async function s116 ({ runDir, bootstrap }) {
+export default async function s116({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

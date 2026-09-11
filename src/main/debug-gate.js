@@ -12,24 +12,24 @@ let debug = false
 
 // Called once main knows whether this is a dev run. Until then the gate reads false, which only
 // suppresses forwarding — the log ring is written unconditionally by the caller either way.
-function initDebugGate ({ isDev = false, env = process.env } = {}) {
+function initDebugGate({ isDev = false, env = process.env } = {}) {
   baseDebug = env.MIRALL_DEBUG === '1' || isDev
   verbose = env.MIRALL_VERBOSE === '1'
   debug = baseDebug
   return debug
 }
 
-function isDebug () {
+function isDebug() {
   return debug
 }
 
-function isVerbose () {
+function isVerbose() {
   return verbose
 }
 
 // Turning verbose off reverts to the build default rather than to off, so a debug build that the
 // user toggled twice is still a debug build. A non-boolean reports the state without changing it.
-function setVerbose (on) {
+function setVerbose(on) {
   if (typeof on === 'boolean') {
     verbose = on
     debug = on || baseDebug

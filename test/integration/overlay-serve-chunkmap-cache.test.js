@@ -9,10 +9,10 @@ import { openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/t
 import { createChunkMapCache } from '../../src/shared/transfer/chunk-map-cache.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]
@@ -20,7 +20,7 @@ function makeDuplex () {
 const settle = (ms = 800) => new Promise((r) => setTimeout(r, scaled(ms)))
 const FILE_BYTES = 8 * 1024 * 1024 // tier 1: 64 KiB average chunk, so C is comfortably over 64
 
-async function publisher (label, opts = {}) {
+async function publisher(label, opts = {}) {
   const pub = new HyperOverlayV2(tmpStore(label), {
     namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), serveAuthorizer: async () => true, ...opts,
   })
@@ -33,7 +33,7 @@ async function publisher (label, opts = {}) {
   return { pub, content, oid }
 }
 
-async function connect (pub, label) {
+async function connect(pub, label) {
   const con = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d') })
   await con.ready()
   const [pa, pb] = makeDuplex()
@@ -46,7 +46,7 @@ async function connect (pub, label) {
 // Count bee reads of the content-addressed map key — the storage decode the cache removes.
 // A spy on getChunkMapByHash would count the same calls before AND after the fix (the cache
 // sits below it), so the bee is the honest seam.
-function spyDecodes (index, oid) {
+function spyDecodes(index, oid) {
   const counter = { n: 0 }
   const real = index._bee.get.bind(index._bee)
   index._bee.get = (key, ...rest) => {

@@ -22,7 +22,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // excluded from the loose list (they're shown in the folder view instead — if
 // the exclusion broke, owned-folder contents would be double-listed as loose
 // files). Cross-peer hash-dedup / status-priority is a flow concern.
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
@@ -121,7 +121,7 @@ test('distinct loose files are each listed', async (t) => {
 // whom nobody serves — an owner that went offline before we read its rows. createBee gives a
 // writable core; clearing its blocks reproduces "length known, data missing", and the member
 // carries the catalog key, so collectLooseInPlace admits it and the read really happens.
-async function ghostCatalogMember (i) {
+async function ghostCatalogMember(i) {
   const ghost = createBee('ghost-catalog-' + i)
   await ghost.ready()
   await ghost.put('file/' + LOOSE_SHARE_ID + '/g' + i + '.bin', { size: 10, mtime: 1, contentHash: 'g'.repeat(63) + i })

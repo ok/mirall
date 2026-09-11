@@ -12,7 +12,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { mountRootAvailable } from '../../src/shared/folders/publish-runner.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-function share (name) {
+function share(name) {
   return { id: generateShareId(), type: 'owned-folder', name, owner: getLocalPublicKeyHex(), createdAt: Date.now() }
 }
 

@@ -7,7 +7,7 @@ import { getProfileBee, getProfile } from '../../src/shared/spaces/profile.js'
 import { listSpaces } from '../../src/shared/spaces/space.js'
 import { purgeLeftovers } from '../../src/shared/storage/leftover.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }

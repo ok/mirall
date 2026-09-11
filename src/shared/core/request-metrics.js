@@ -3,22 +3,22 @@
 //
 // Bounded by the request vocabulary (a closed set), so this needs no cap. The failure counters in
 // ipc.js DO have one, because their key includes a caller-supplied type.
-export function createRequestMetrics ({ now = Date.now, slowMs = 1000 } = {}) {
+export function createRequestMetrics({ now = Date.now, slowMs = 1000 } = {}) {
   const rows = new Map()
 
-  function rowFor (type) {
+  function rowFor(type) {
     let row = rows.get(type)
     if (!row) rows.set(type, (row = { calls: 0, failures: 0, totalMs: 0, maxMs: 0, slow: 0, inFlight: 0 }))
     return row
   }
 
   return {
-    begin (type) {
+    begin(type) {
       const row = rowFor(type)
       row.inFlight += 1
       const startedAt = now()
       let settled = false
-      return function settle (ok) {
+      return function settle(ok) {
         // A handler that both resolves and throws would otherwise double-count, and that bug is
         // exactly what this would hide.
         if (settled) return 0
@@ -34,7 +34,7 @@ export function createRequestMetrics ({ now = Date.now, slowMs = 1000 } = {}) {
       }
     },
 
-    snapshot () {
+    snapshot() {
       const out = {}
       for (const [type, row] of rows) {
         out[type] = {
@@ -49,6 +49,6 @@ export function createRequestMetrics ({ now = Date.now, slowMs = 1000 } = {}) {
       return out
     },
 
-    reset () { rows.clear() },
+    reset() { rows.clear() },
   }
 }

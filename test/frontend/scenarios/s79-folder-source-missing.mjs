@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // owner's FolderView stays open. It used to derive from the frozen navigation snapshot
 // (the only live subscriber unmounted with SpaceView), so a mount root vanishing mid-view
 // never rendered until the user navigated away and back.
-export default async function s79 ({ runDir, bootstrap }) {
+export default async function s79({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

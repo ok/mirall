@@ -8,7 +8,7 @@ const raw = Number(process.env.MIRALL_TEST_TIMEOUT_SCALE)
 export const TIMEOUT_SCALE = Number.isFinite(raw) && raw > 0 ? raw : 1
 export const TIMING = !!process.env.MIRALL_TEST_TIMING
 
-export function scaled (baseMs) {
+export function scaled(baseMs) {
   return Math.round(baseMs * TIMEOUT_SCALE)
 }
 
@@ -16,18 +16,18 @@ export function scaled (baseMs) {
 // production constant (e.g. the 15s presence TTL): a scaled bound would drift past it and
 // the test would pass via lease expiry instead of proving promptness. The helpers scale
 // what they receive, so pre-divide to cancel that out.
-export function unscaled (absoluteMs) {
+export function unscaled(absoluteMs) {
   return Math.round(absoluteMs / TIMEOUT_SCALE)
 }
 
-export function summarize (value, max = 800) {
+export function summarize(value, max = 800) {
   let s
   try { s = JSON.stringify(value) } catch { return String(value) }
   if (s == null) return String(value)
   return s.length > max ? `${s.slice(0, max)}…(+${s.length - max} more chars)` : s
 }
 
-export function tail (s, max = 1500) {
+export function tail(s, max = 1500) {
   if (!s) return '(no worker stderr captured)'
   return s.length > max ? `…${s.slice(-max)}` : s
 }

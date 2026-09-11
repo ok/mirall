@@ -10,7 +10,7 @@ import { parseSource, forEachNode, staticString, calleeName } from '../helpers/a
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -24,7 +24,7 @@ function walk (dir, out = []) {
 // the command, the house style throughout src/worker, was invisible to it, and both parity tests
 // below passed while an unrouted command shipped. test/helpers/emit-sites.js records the same
 // lesson from the event taxonomy: a parser has no opinion about punctuation, spacing or comments.
-function commandOf (frame) {
+function commandOf(frame) {
   // A frame assembled elsewhere (`const f = {…}; emit(MAIN_REQUEST_FRAME, f)`) is not readable
   // here. Reported rather than skipped: an unreadable site is exactly how a command escapes.
   if (!frame || frame.type !== 'ObjectExpression') return { opaque: true }
@@ -44,7 +44,7 @@ function commandOf (frame) {
   return { opaque: true }
 }
 
-function emitSites () {
+function emitSites() {
   const sites = []
   for (const file of walk(SRC)) {
     // POSIX separators: path.join yields 'src\\worker\\main.js' on win32, which matched neither
@@ -67,7 +67,7 @@ function emitSites () {
   return sites
 }
 
-function stubDeps () {
+function stubDeps() {
   const calls = []
   return {
     calls,
@@ -86,7 +86,7 @@ function stubDeps () {
   }
 }
 
-function muteWarn (t) {
+function muteWarn(t) {
   const original = console.warn
   const lines = []
   console.warn = (...args) => lines.push(args.join(' '))

@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // folder. The nested path must replicate (slash-keyed), show in the peer's
 // folder view, and materialize at the right nested path on a mirror's disk via
 // mkdir -p. Nesting is exactly where path-handling bugs hide.
-export default async function s28 ({ runDir, bootstrap }) {
+export default async function s28({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

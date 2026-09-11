@@ -1,6 +1,6 @@
 // In-process `ipc` double for Tier-2 single-store tests. Records emitted events
 // so tests can assert on them; handlers are accepted but not invoked.
-export function createFakeIpc () {
+export function createFakeIpc() {
   const events = []
   return {
     ipc: {

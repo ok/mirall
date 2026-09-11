@@ -15,7 +15,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // with no removed-error) is captured as evidence/log, not asserted, so this stays green
 // across the fix. 256 MB keeps the peer comfortably mid-flight. See
 // archive/plan-peer-deletion-and-cache-reclaim.md (loose overlay gap).
-export default async function s88 ({ runDir, bootstrap }) {
+export default async function s88({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

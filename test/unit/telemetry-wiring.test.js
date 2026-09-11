@@ -29,7 +29,7 @@ test('REGRESSION (FIX-R09-7): the entry starts and stops the monitor', (t) => {
   t.ok(startedAt < liveAt, 'armed just before the router admits its first frame, not during boot I/O')
 })
 
-function fakePipe () {
+function fakePipe() {
   const pipe = new EventEmitter()
   pipe.written = []
   pipe.write = (s) => { pipe.written.push(s); return true }

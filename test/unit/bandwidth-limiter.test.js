@@ -3,7 +3,7 @@ import { createBandwidthLimiter, MIN_BYTES_PER_SECOND } from '../../src/shared/t
 import { scaled, unscaled } from '../helpers/timing.js'
 
 // A manual clock so refill is deterministic — drive the bucket, never sleep.
-function clock (start = 1_000_000) {
+function clock(start = 1_000_000) {
   let t = start
   return { now: () => t, advance: (ms) => { t += ms } }
 }
@@ -14,7 +14,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // `stream()` is the only way to consume budget: a handle carries its own credit and its own
 // place in the queue. There is deliberately no shortcut on the limiter itself — two
 // consumers sharing one implicit handle would overwrite each other's pending request.
-function oneStream (bps, now) {
+function oneStream(bps, now) {
   const l = createBandwidthLimiter(() => bps, now ? { now } : undefined)
   return { l, s: l.stream() }
 }
@@ -313,7 +313,7 @@ test('REGRESSION (FIX-BW1): three competing streams all make progress', async (t
 // transfer begins, so the first ask lands on a full bucket and goes through tryTake's
 // uncontended path. This test only saw the CI runner's scheduling latency stand in for that
 // wait, which is why the bug below reproduced on a 2-vCPU runner and passed on a dev box.
-async function splitBetween (cap, sizes, ms) {
+async function splitBetween(cap, sizes, ms) {
   const l = createBandwidthLimiter(() => cap)
   await wait(scaled(5))
   const got = sizes.map(() => 0)

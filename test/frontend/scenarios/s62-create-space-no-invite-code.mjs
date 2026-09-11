@@ -6,7 +6,7 @@ import { makeReport } from '../assert.mjs'
 // code: sharing now lives in the in-space invite modal (link + auto-approval). This
 // asserts the confirmation step is a clean confirmation with none of the old
 // "Share Access" label / "Copy Code" invite-code controls.
-export default async function s62 ({ runDir, bootstrap }) {
+export default async function s62({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

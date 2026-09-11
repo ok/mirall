@@ -13,7 +13,7 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/
 // pause/resume paths need a peer to serve bytes (flow-tested in CI); here we cover
 // the deterministic, network-free behavior: the pending row is recorded up front
 // (so reconnect can auto-resume), and discard clears the partial + pending row.
-function testChannel (events) {
+function testChannel(events) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -31,7 +31,7 @@ function testChannel (events) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -40,7 +40,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (ctx, over = {}) {
+function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', catalogKey: 'cat-hex', transferId: 'space1|folder1|doc.bin',
@@ -367,7 +367,7 @@ test('#supersede: restart that queues (owner offline) surfaces paused, no stuck 
   t.absent(engine.has(job.transferId), 'no leaked slot after the queued restart')
 })
 
-function makeJobBare () {
+function makeJobBare() {
   return { spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin', transferId: 'space1|folder1|missing', contentHash: 'n'.repeat(64), size: 1, ownerPublicKey: 'peerpub', verifyKey: 'folder1|doc.bin', finalPath: '/x' }
 }
 
@@ -560,7 +560,7 @@ const fastRetry = { baseMs: 20, maxMs: 40, dryLimit: 3 }
 // folder channel does (catalog read → destination re-anchor → prevBytes reset). The shared
 // testChannel returns `job: null` on purpose for the reconcile tests, which would make every
 // retry a no-op here and hide the behavior under test.
-function retryChannel (events) {
+function retryChannel(events) {
   return {
     ...testChannel(events),
     isOwnerOnline: () => true,

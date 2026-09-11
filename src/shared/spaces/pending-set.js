@@ -16,7 +16,7 @@
 const EMPTY_SET = new Set()
 const EMPTY_MAP = new Map()
 
-export function foldPendingSet ({ requests, denied, members, approved, lefts }) {
+export function foldPendingSet({ requests, denied, members, approved, lefts }) {
   const isMember = members || EMPTY_SET
   const isApproved = approved || EMPTY_SET
   const leftAt = lefts || EMPTY_MAP          // Map<joinerKey, leaveTs>

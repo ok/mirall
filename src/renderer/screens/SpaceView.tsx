@@ -399,170 +399,170 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           />
         </div>
       ) : (
-      <div
+        <div
         /* No `overflow-hidden`: ShareCard's click target is an `absolute inset-0` overlay whose
            `focus-visible:ring-2` paints outside the card, and the cards sit flush against this box.
            `min-h-0` is what constrains the height; the drop overlay is inset from this same
            positioned ancestor, so its bounds are unchanged. */
-        className="relative flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
-        {...(isLegacy ? {} : dragHandlers)}
-      >
-        <div
-          ref={filesRef}
-          /* SCROLL-PANE RULES (the one statement; FolderView and ActivityLog point here).
+          className="relative flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
+          {...(isLegacy ? {} : dragHandlers)}
+        >
+          <div
+            ref={filesRef}
+            /* SCROLL-PANE RULES (the one statement; FolderView and ActivityLog point here).
              `relative`: `sr-only` spans are `position: absolute` and clip only from their containing
              block, so an unpositioned pane lets rows below the fold grow the DOCUMENT into an OS
              scrollbar. `-mx-1 pl-1 pr-1`: 4px of ring room for a focused card, cancelled by the
              negative margin so nothing moves; `pr-4` is the shared scrollbar gutter. No `pt-*` under
              a `sticky top-0` header: it pins at the scrollport top PLUS the pane's padding-top. */
-          className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 pl-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
-        >
-          {showSpaceEmptyState(pane) ? (
-            <div className="flex flex-col min-h-[24rem] mt-12">
-              <div className="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
-                <Icon name="draft" size={45} className="text-secondary" />
-                <Icon name="folder" filled size={45} className="text-secondary" />
-                <svg
-                  viewBox="0 0 512 256"
-                  className="w-[6.5rem] h-[3.25rem] text-secondary ml-1"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="28"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="60,80 140,128 60,176" opacity="0.35" />
-                  <polyline points="200,80 280,128 200,176" opacity="0.65" />
-                  <polyline points="340,80 420,128 340,176" opacity="1" />
-                </svg>
+            className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 pl-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
+          >
+            {showSpaceEmptyState(pane) ? (
+              <div className="flex flex-col min-h-[24rem] mt-12">
+                <div className="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
+                  <Icon name="draft" size={45} className="text-secondary" />
+                  <Icon name="folder" filled size={45} className="text-secondary" />
+                  <svg
+                    viewBox="0 0 512 256"
+                    className="w-[6.5rem] h-[3.25rem] text-secondary ml-1"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="28"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="60,80 140,128 60,176" opacity="0.35" />
+                    <polyline points="200,80 280,128 200,176" opacity="0.65" />
+                    <polyline points="340,80 420,128 340,176" opacity="1" />
+                  </svg>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-10 pb-10">
+                  <h2 className="text-2xl font-headline font-bold text-accent mb-3">
+                    {t('space.emptyShareTitle')}
+                  </h2>
+                  <p className="text-on-surface-variant max-w-md leading-relaxed">
+                    {t('space.emptyShareSubtitle')}
+                  </p>
+                  <DocsCard
+                    icon="menu_book"
+                    title={t('space.emptyShareDocsTitle')}
+                    body={t('space.emptyShareDocsBody')}
+                    className="w-full max-w-md mt-8"
+                    links={[
+                      { target: { page: 'explanation', anchor: 'spaces-members-availability' }, label: t('docs.availability') },
+                      { target: { page: 'guides', anchor: 'share-files' }, label: t('docs.shareFiles') },
+                      { target: { page: 'guides', anchor: 'share-a-folder' }, label: t('docs.shareFolder') },
+                    ]}
+                  />
+                </div>
               </div>
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-10 pb-10">
-                <h2 className="text-2xl font-headline font-bold text-accent mb-3">
-                  {t('space.emptyShareTitle')}
-                </h2>
-                <p className="text-on-surface-variant max-w-md leading-relaxed">
-                  {t('space.emptyShareSubtitle')}
-                </p>
-                <DocsCard
-                  icon="menu_book"
-                  title={t('space.emptyShareDocsTitle')}
-                  body={t('space.emptyShareDocsBody')}
-                  className="w-full max-w-md mt-8"
-                  links={[
-                    { target: { page: 'explanation', anchor: 'spaces-members-availability' }, label: t('docs.availability') },
-                    { target: { page: 'guides', anchor: 'share-files' }, label: t('docs.shareFiles') },
-                    { target: { page: 'guides', anchor: 'share-a-folder' }, label: t('docs.shareFolder') },
-                  ]}
+            ) : (
+              <>
+                {shares.length > 0 && (
+                  <div>
+                    <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
+                      <h2 className="text-2xl font-headline font-bold text-accent">{t('space.foldersShared')}</h2>
+                      <span className="text-sm font-label text-secondary font-bold">
+                        {t('space.folderCount', { count: shares.length })}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      {shares.map((share) => {
+                        const owner = members.find((m) => m.publicKey === share.owner) ?? null
+                        return (
+                          <ShareCard
+                            key={share.owner + ':' + share.id}
+                            share={share}
+                            owner={owner}
+                            selfProfile={profile}
+                            onOpen={handleOpenShare}
+                            onOpenInFinder={handleOpenInFinder}
+                            onDelete={handleDeleteRequest}
+                            onLocate={locate}
+                            onMirror={handleMirrorRequest}
+                            onUnmount={handleUnmount}
+                            onPauseMirror={handlePauseMirror}
+                            onResumeMirror={handleResumeMirror}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {showSpaceLoading(pane) ? (
+                  <LoadingFiles label={t('space.loadingFiles')} />
+                ) : error && files.length === 0 ? (
+                  <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Icon name="warning" size={32} className="text-error" />
+                      <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesError')}</h2>
+                    </div>
+                    <p className="text-on-surface-variant max-w-md leading-relaxed mb-6">{t('space.filesErrorHint')}</p>
+                    <button
+                      type="button"
+                      onClick={() => { void refresh() }}
+                      className="inline-flex items-center gap-2 rounded-full bg-secondary-container px-6 py-2.5 font-label font-bold text-on-secondary-container hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                      <Icon name="refresh" size={18} />
+                      {t('space.filesRetry')}
+                    </button>
+                  </div>
+                ) : files.length > 0 ? (
+                  <div>
+                    <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
+                      <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesShared')}</h2>
+                      <span className="text-sm font-label text-secondary font-bold">
+                        {t('space.fileCount', { count: files.length })}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      {files.map((file) => (
+                        <FileCard
+                          key={`${file.driveKey}-${file.path}`}
+                          file={file}
+                          decoration={getDecoration(file.path)}
+                          seeded={isSeeded(file.path)}
+                          onDownload={downloadFile}
+                          onCancel={cancelDownload}
+                          onPause={pauseDownload}
+                          onReveal={handleReveal}
+                          onUnshare={handleRemoveRequest}
+                          onDiscardPartial={discardPartial}
+                          onCancelPublish={handleCancelPublish}
+                          members={members}
+                          downloadSummary={getDownloadSummary(file.path)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-6 min-h-0 overflow-hidden pt-12">
+            {!isLegacy && (
+              <div className="shrink-0">
+                <DropZone
+                  onFilesSelected={(files) => addFiles(files)}
+                  onFolderSelected={handleShareFolderRequest}
+                  dragActive={dragActive}
                 />
               </div>
-            </div>
-          ) : (
-            <>
-              {shares.length > 0 && (
-                <div>
-                  <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
-                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.foldersShared')}</h2>
-                    <span className="text-sm font-label text-secondary font-bold">
-                      {t('space.folderCount', { count: shares.length })}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {shares.map((share) => {
-                      const owner = members.find((m) => m.publicKey === share.owner) ?? null
-                      return (
-                        <ShareCard
-                          key={share.owner + ':' + share.id}
-                          share={share}
-                          owner={owner}
-                          selfProfile={profile}
-                          onOpen={handleOpenShare}
-                          onOpenInFinder={handleOpenInFinder}
-                          onDelete={handleDeleteRequest}
-                          onLocate={locate}
-                          onMirror={handleMirrorRequest}
-                          onUnmount={handleUnmount}
-                          onPauseMirror={handlePauseMirror}
-                          onResumeMirror={handleResumeMirror}
-                        />
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {showSpaceLoading(pane) ? (
-                <LoadingFiles label={t('space.loadingFiles')} />
-              ) : error && files.length === 0 ? (
-                <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Icon name="warning" size={32} className="text-error" />
-                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesError')}</h2>
-                  </div>
-                  <p className="text-on-surface-variant max-w-md leading-relaxed mb-6">{t('space.filesErrorHint')}</p>
-                  <button
-                    type="button"
-                    onClick={() => { void refresh() }}
-                    className="inline-flex items-center gap-2 rounded-full bg-secondary-container px-6 py-2.5 font-label font-bold text-on-secondary-container hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    <Icon name="refresh" size={18} />
-                    {t('space.filesRetry')}
-                  </button>
-                </div>
-              ) : files.length > 0 ? (
-                <div>
-                  <div className="sticky top-0 z-10 bg-surface flex items-baseline gap-3 pt-1 pb-4">
-                    <h2 className="text-2xl font-headline font-bold text-accent">{t('space.filesShared')}</h2>
-                    <span className="text-sm font-label text-secondary font-bold">
-                      {t('space.fileCount', { count: files.length })}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {files.map((file) => (
-                      <FileCard
-                        key={`${file.driveKey}-${file.path}`}
-                        file={file}
-                        decoration={getDecoration(file.path)}
-                        seeded={isSeeded(file.path)}
-                        onDownload={downloadFile}
-                        onCancel={cancelDownload}
-                        onPause={pauseDownload}
-                        onReveal={handleReveal}
-                        onUnshare={handleRemoveRequest}
-                        onDiscardPartial={discardPartial}
-                        onCancelPublish={handleCancelPublish}
-                        members={members}
-                        downloadSummary={getDownloadSummary(file.path)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-6 min-h-0 overflow-hidden pt-12">
-          {!isLegacy && (
-            <div className="shrink-0">
-              <DropZone
-                onFilesSelected={(files) => addFiles(files)}
-                onFolderSelected={handleShareFolderRequest}
-                dragActive={dragActive}
-              />
-            </div>
-          )}
-          {/* People above size, the same order the folder screen's sidebar uses. Members is the
+            )}
+            {/* People above size, the same order the folder screen's sidebar uses. Members is the
               one that folds and the one that grows, so it takes the flexible slot; Storage is a
               fixed three-line statement and sits under it. */}
-          <MembersBox spaceId={spaceId} members={members} />
-          <div className="shrink-0">
-            <StorageIndicator spaceId={spaceId} />
+            <MembersBox spaceId={spaceId} members={members} />
+            <div className="shrink-0">
+              <StorageIndicator spaceId={spaceId} />
+            </div>
           </div>
-        </div>
 
-        <DropOverlay active={dragActive} kind={dragKind} fileCount={fileCount} folderName={folderName} />
-      </div>
+          <DropOverlay active={dragActive} kind={dragKind} fileCount={fileCount} folderName={folderName} />
+        </div>
       )}
 
       <ApprovalModal

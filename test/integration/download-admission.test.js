@@ -13,7 +13,7 @@ const SPACE = 'space1'
 const OWNER = 'ownerpub'
 const hashFor = (n) => String(n % 10).repeat(64)
 
-function testChannel (over = {}) {
+function testChannel(over = {}) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -27,7 +27,7 @@ function testChannel (over = {}) {
   }
 }
 
-async function setup (t, concurrency) {
+async function setup(t, concurrency) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -41,7 +41,7 @@ async function setup (t, concurrency) {
   return ctx
 }
 
-function makeJob (ctx, n, over = {}) {
+function makeJob(ctx, n, over = {}) {
   return {
     spaceId: SPACE, pendingKey: `/Photos/f${n}.bin`, path: `/Photos/f${n}.bin`, relPath: `f${n}.bin`,
     shareId: 'folder1', transferId: SPACE + '|folder1|f' + n + '.bin',
@@ -51,7 +51,7 @@ function makeJob (ctx, n, over = {}) {
 }
 
 // A fetch that parks until released, so concurrency is observed structurally rather than by timing.
-function barrierFetch () {
+function barrierFetch() {
   const state = { live: 0, peak: 0, started: [], release: [] }
   getOverlay().fetchFile = async (hash, opts) => {
     state.live += 1
@@ -70,7 +70,7 @@ const settle = () => sleep(60)
 
 // Waits for a condition instead of a fixed delay: the resume path is coalesced and single-flighted,
 // so a sleep long enough on this machine is not long enough on a slower CI runner.
-async function until (fn, ms = 15000) {
+async function until(fn, ms = 15000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true

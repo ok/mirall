@@ -27,7 +27,7 @@ const { store: keysStore, core: keysCore } = keysMod
 // it from records (the same path driveKey uses). Requires the space RECORD to exist
 // (the key derives from it via share-catalog's catalogNameForSpace); callers pass the record they already
 // hold, so this adds no extra read and never publishes before the record is saved.
-async function publishLooseCatalogKey (spaceId, space) {
+async function publishLooseCatalogKey(spaceId, space) {
   if (!space) { log.warn('skipping loose-catalog key publish — no space record:', spaceId); return }
   const pub = await ownLooseCatalogPublish(spaceId)
   if (!pub) return
@@ -40,7 +40,7 @@ async function publishLooseCatalogKey (spaceId, space) {
 // Carried in the handshake so a co-member can open our loose catalog before the member-view fold
 // hydrates it from records. Returns { keyHex, encrypted } — the same value publishLooseCatalogKey
 // writes to the profile bee.
-export async function ownLooseCatalogPublish (spaceId) {
+export async function ownLooseCatalogPublish(spaceId) {
   if (!isInPlaceFilesEnabled()) return null
   try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
 }

@@ -14,7 +14,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import {
-  initContentBackendOverlay, overlayHashFile, overlaySweepPresence, makeServable,
+  initContentBackendOverlay, overlaySweepPresence, makeServable,
 } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { scaled } from '../helpers/bare-timing.js'
 
@@ -25,13 +25,13 @@ import { scaled } from '../helpers/bare-timing.js'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // Bounded settle for an in-process event. No scaled(): test/helpers/timing.js reads process.env,
 // which Bare does not provide. The assertion that follows is what fails, never this wait.
-async function until (pred, ms = 5000) {
+async function until(pred, ms = 5000) {
   const deadline = Date.now() + scaled(ms)
   while (!pred() && Date.now() < deadline) await sleep(10)
   return pred()
 }
 
-async function setup (t, { files = {} } = {}) {
+async function setup(t, { files = {} } = {}) {
   const ctx = await freshPeer(t)
   const space = await createSpace('Aurora')
   const share = {

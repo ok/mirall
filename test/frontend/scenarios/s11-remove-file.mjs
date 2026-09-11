@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // Unshare a loose file via the FileCard "Unshare from Space" action and the
 // RemoveFileModal confirm; the tombstone removes it for the owner and propagates
 // to the peer.
-export default async function s11 ({ runDir, bootstrap }) {
+export default async function s11({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

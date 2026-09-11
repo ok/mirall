@@ -4,10 +4,10 @@ import { EtaEstimator, etaProfileFor } from '../../src/shared/transfer/eta-estim
 const MB = 1024 * 1024
 const GiB = 1024 * 1024 * 1024
 
-function mean (xs) {
+function mean(xs) {
   return xs.reduce((a, b) => a + b, 0) / xs.length
 }
-function stdev (xs) {
+function stdev(xs) {
   const m = mean(xs)
   return Math.sqrt(mean(xs.map((x) => (x - m) * (x - m))))
 }

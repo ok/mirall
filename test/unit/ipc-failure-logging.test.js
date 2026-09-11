@@ -16,10 +16,9 @@ const TEST_REQUESTS = Object.freeze({
   'b:do': { kind: 'command', args: {} },
 })
 
-
 // The router logs through createLogger, which writes to console.warn / console.log. Capturing both
 // is the only way to assert the LEVEL, which is the entire point of this fix.
-function captureConsole (t) {
+function captureConsole(t) {
   const warns = []
   const logs = []
   const origWarn = console.warn
@@ -31,7 +30,7 @@ function captureConsole (t) {
 }
 
 // The router consumes NDJSON from pipe.on('data'); feed it the way the real pipe does.
-function fakePipe () {
+function fakePipe() {
   const written = []
   let onData = null
   return {
@@ -42,7 +41,7 @@ function fakePipe () {
   }
 }
 
-function setup (t, { verbose = false } = {}) {
+function setup(t, { verbose = false } = {}) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, verbose })
   resetRequestFailureCounters()
@@ -186,7 +185,6 @@ test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, 
   t.is(getRequestMetrics()['thing:sync-boom'].failures, 1, 'and is recorded as a failure')
   t.absent(warns.some((l) => l.includes('unparseable')), 'never misreported as a malformed frame')
 })
-
 
 test('the failure line carries req, id, code and ms as separate fields', async (t) => {
   const { warns } = captureConsole(t)

@@ -3,19 +3,19 @@ import { QUIT_STEPS, createQuitSequence } from '../../src/main/lifecycle.js'
 
 // Electron's contract: app.quit() emits before-quit to every listener; a listener may
 // preventDefault() to abort that quit, and a later app.quit() re-emits to all of them.
-function fakeApp (handler) {
+function fakeApp(handler) {
   const app = { quits: 0, deferred: 0, exited: 0 }
   app.quit = () => {
     app.quits += 1
     let prevented = false
-    handler({ preventDefault () { prevented = true } })
+    handler({ preventDefault() { prevented = true } })
     if (prevented) app.deferred += 1
     else app.exited += 1
   }
   return app
 }
 
-function recorder (overrides = {}) {
+function recorder(overrides = {}) {
   const calls = []
   const step = (name) => () => {
     calls.push(name)
@@ -62,7 +62,7 @@ test('REGRESSION (FIX-220): an update-apply quit runs each teardown exactly once
   })
   let prevents = 0
   const handler = createQuitSequence({ ...rec.steps, quit: () => app.quit() })
-  const app = fakeApp((event) => handler({ preventDefault () { prevents += 1; event.preventDefault() } }))
+  const app = fakeApp((event) => handler({ preventDefault() { prevents += 1; event.preventDefault() } }))
 
   app.quit()
   // The deferred quit lands when the apply settles.
@@ -89,7 +89,7 @@ test('the worker is asked to exit before the update apply starts', (t) => {
     applyUpdate: () => { order.push('apply-update'); return Promise.resolve() },
     quit: () => {},
   })
-  handler({ preventDefault () {} })
+  handler({ preventDefault() {} })
   t.alike(order, ['flush-config', 'stop-workers', 'apply-update'])
 })
 
@@ -104,7 +104,7 @@ test('a step that throws is reported and does not skip the steps after it', (t) 
     quit: () => {},
     onStepError: (step, err) => errors.push([step, err.message]),
   })
-  handler({ preventDefault () {} })
+  handler({ preventDefault() {} })
   t.alike(rec.calls, [...QUIT_STEPS], 'every later step still ran')
   t.alike(errors, [['stop-owned-watchers', 'watcher boom'], ['flush-config', 'flush boom']])
 })
@@ -118,7 +118,7 @@ test('a synchronous throw from applyUpdate is reported and the quit is not defer
     quit: () => {},
     onStepError: (step, err) => errors.push([step, err.message]),
   })
-  handler({ preventDefault () { prevented = true } })
+  handler({ preventDefault() { prevented = true } })
   t.absent(prevented, 'a quit that cannot apply an update still exits')
   t.alike(errors, [['apply-update', 'apply boom']])
 })
@@ -141,8 +141,8 @@ test('a rejected apply still lets the quit through', async (t) => {
 test('a quit issued after the sequence has run is a no-op', (t) => {
   const rec = recorder()
   const handler = createQuitSequence({ ...rec.steps, quit: () => {} })
-  handler({ preventDefault () {} })
-  handler({ preventDefault () {} })
-  handler({ preventDefault () {} })
+  handler({ preventDefault() {} })
+  handler({ preventDefault() {} })
+  handler({ preventDefault() {} })
   t.alike(rec.calls, [...QUIT_STEPS], 'the teardown is run at most once per process')
 })

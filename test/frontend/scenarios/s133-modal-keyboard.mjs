@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // that wired onConfirm heard Cmd/Ctrl+Enter at all, five bound their own field, and in the rest
 // FocusScope's autoFocus put focus on the header ✕ — so Enter quietly closed the dialog instead
 // of confirming it. s3 covers plain Enter inside a text field; this covers the other four cases.
-export default async function s133 ({ runDir, bootstrap }) {
+export default async function s133({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

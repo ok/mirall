@@ -10,7 +10,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // (its "Review" action button) is dismissed once another member resolves the request — the
 // approval only needs doing once, so a sticky toast on every other member is stale. The
 // banner uses Approve/Deny controls; only the toast carries a "Review" button. Local-only.
-export default async function s58 ({ runDir, bootstrap }) {
+export default async function s58({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })

@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // file never becomes a real share for the peer. 1 GB widens the hashing window; a tight loop
 // attempts the Cancel click every iteration so it lands the instant the publishing row
 // appears. If the hash still finishes first the cancel isn't exercised (logged, not failed).
-export default async function s85 ({ runDir, bootstrap }) {
+export default async function s85({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

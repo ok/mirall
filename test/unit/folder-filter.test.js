@@ -2,7 +2,7 @@ import test from 'brittle'
 import { buildFileTree } from '../../src/renderer/fileTree.js'
 import { filterTree } from '../../src/renderer/folderFilter.js'
 
-function entry (relPath, extra = {}) {
+function entry(relPath, extra = {}) {
   return { relPath, size: 10, hash: 'h', mtime: 0, status: 'remote', ...extra }
 }
 
@@ -13,7 +13,7 @@ const FILES = [
   entry('readme.txt'),
 ]
 
-function paths (nodes, out = []) {
+function paths(nodes, out = []) {
   for (const node of nodes) {
     out.push(node.path)
     if (node.kind === 'folder') paths(node.children, out)

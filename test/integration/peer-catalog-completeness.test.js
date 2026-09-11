@@ -10,7 +10,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const shareId = 's1'
 
-async function seed (peer, n) {
+async function seed(peer, n) {
   for (let i = 0; i < n; i++) {
     await peer.bee.put('file/' + shareId + '/f' + String(i).padStart(4, '0'), { size: i, mtime: i, contentHash: 'h' + i })
   }

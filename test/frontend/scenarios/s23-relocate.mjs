@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // share shows "missing on disk", and Locate re-points it to the new location.
 // Best-effort — driving the native re-pick after a mount-point-gone state is
 // timing-sensitive; the no-churn guarantee itself is asserted at flow/relocate.
-export default async function s23 ({ runDir, bootstrap }) {
+export default async function s23({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

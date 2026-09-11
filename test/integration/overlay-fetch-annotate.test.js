@@ -7,7 +7,7 @@ const rejectingOverlay = (err) => ({ fetchFile: async () => { throw err } })
 
 // The rejection VALUE is the subject here, not merely that it rejected, so it is captured rather
 // than asserted through t.exception.
-async function rejectionOf (thrown) {
+async function rejectionOf(thrown) {
   try {
     await runOverlayFetch(rejectingOverlay(thrown), 'h'.repeat(64), ARGS)
   } catch (err) { return err }
@@ -40,7 +40,7 @@ test('a primitive rejection survives too', async (t) => {
 
 // Warnings, not the diag object: `INCOMPLETE … gave up` IS the artifact — the one line that closes
 // the `start:` line every fetch logs — and the diag exposes no readable state.
-function captureWarnings (t) {
+function captureWarnings(t) {
   const lines = []
   const real = console.warn
   console.warn = (...args) => lines.push(args.join(' '))

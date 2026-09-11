@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // transfer controls. A Download button on a mirror row pulled a stray copy into
 // the Downloads dir instead of the mount; Pause/Cancel/Resume/Discard likewise
 // don't belong on an auto-syncing folder. Reveal on synced files stays.
-export default async function s50 ({ runDir, bootstrap }) {
+export default async function s50({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

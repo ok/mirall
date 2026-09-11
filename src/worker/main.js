@@ -1675,7 +1675,7 @@ ipc.handle('files:cancel-publish', async (msg) => {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function formatTimestamp (d) {
+function formatTimestamp(d) {
   const pad = (n) => String(n).padStart(2, '0')
   const offsetMin = -d.getTimezoneOffset()
   const sign = offsetMin >= 0 ? '+' : '-'
@@ -1760,7 +1760,7 @@ const DIAGNOSTIC_HISTORY_LIMIT = 50
 // Durable rows + this session's ring, MERGED: the ring dies with the process (a bundle collected
 // after a restart needs the rows), and the rows are hold-down-deduped (a bundle collected during a
 // live problem needs the ring's sub-60 s flaps and settling states).
-async function durableVerdictHistory () {
+async function durableVerdictHistory() {
   const ring = getVerdictHistory()
   try {
     const { entries } = await queryAudit({ kinds: VERDICT_KINDS, limit: DIAGNOSTIC_HISTORY_LIMIT })

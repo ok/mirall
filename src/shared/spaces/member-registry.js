@@ -40,14 +40,14 @@ const captures = makeCaptureScheduler({
 // capturing a peer we still share another space with.
 const captureRefs = new Map()   // keyHex -> Set<spaceId>
 
-function trackCapture (spaceId, key) {
+function trackCapture(spaceId, key) {
   let spaces = captureRefs.get(key)
   if (!spaces) { spaces = new Set(); captureRefs.set(key, spaces) }
   spaces.add(spaceId)
   captures.schedule(key)
 }
 
-function releaseCaptures (spaceId) {
+function releaseCaptures(spaceId) {
   for (const [key, spaces] of captureRefs) {
     if (!spaces.delete(spaceId)) continue
     if (spaces.size === 0) {
@@ -57,11 +57,11 @@ function releaseCaptures (spaceId) {
   }
 }
 
-export function scheduleCapture (key) {
+export function scheduleCapture(key) {
   captures.schedule(key)
 }
 
-export function captureDeficits () {
+export function captureDeficits() {
   return captures.incomplete()
 }
 
@@ -89,14 +89,14 @@ const DEFAULT_DEPS = {
 
 let deps = { ...DEFAULT_DEPS }
 
-export function configureMemberRegistry (next) {
+export function configureMemberRegistry(next) {
   deps = { ...deps, ...next }
 }
 
 // Open a view for a space once it is approved AND has a creatorKey (the OR-Set root). Pending
 // spaces and spaces without a creatorKey have no fold root to seed from, so they stay on the
 // handshake-driven membership path instead.
-export async function openMemberView (spaceId) {
+export async function openMemberView(spaceId) {
   if (views.has(spaceId)) return
   // Claim the slot SYNCHRONOUSLY before any await so two concurrent opens can't both build a view
   // (the second would orphan the first's live bee-follow downloads). On any failure below we delete
@@ -172,7 +172,7 @@ export async function openMemberView (spaceId) {
   log.info('opened member view for space', spaceId)
 }
 
-export function closeMemberView (spaceId) {
+export function closeMemberView(spaceId) {
   const entry = views.get(spaceId)
   if (!entry) return
   views.delete(spaceId)
@@ -187,7 +187,7 @@ export function closeMemberView (spaceId) {
 // Record that `key` left this space (from their leave frame) at the leaver's clock stamp `leaveTs`.
 // Subtracted from the fold and honored by the handshake gate so a confirmed leaver doesn't resurrect
 // from a stale record.
-export function markLeft (spaceId, key, leaveTs) {
+export function markLeft(spaceId, key, leaveTs) {
   let set = lefts.get(spaceId)
   if (!set) lefts.set(spaceId, set = new Map())
   set.set(key, leaveTs)
@@ -196,18 +196,18 @@ export function markLeft (spaceId, key, leaveTs) {
 // Clear both the in-memory and the durable tombstone — a genuine rejoin (fresh membership:request,
 // or a newer member/<S> ts observed by the fold). Returns the durable-clear promise (which never
 // rejects — clearLeftTombstone swallows) so a caller can await it; the fold ignores it.
-export function dropTombstone (spaceId, key) {
+export function dropTombstone(spaceId, key) {
   lefts.get(spaceId)?.delete(key)
   return clearLeftTombstone(spaceId, key)
 }
 
-export function isLeft (spaceId, key) {
+export function isLeft(spaceId, key) {
   return lefts.get(spaceId)?.has(key) || false
 }
 
 // Spaces whose last fold considered roster keys it could not read (records not replicated
 // yet) — the level signal the convergence tick keys on. A healthy space returns nothing.
-export function rosterDeficits () {
+export function rosterDeficits() {
   const out = new Map()
   for (const [spaceId, entry] of views) {
     if (entry.unread?.size) out.set(spaceId, entry.unread)
@@ -215,7 +215,7 @@ export function rosterDeficits () {
   return out
 }
 
-export function recomputeMemberView (spaceId) {
+export function recomputeMemberView(spaceId) {
   views.get(spaceId)?.view?.recompute()
 }
 
@@ -227,7 +227,7 @@ export function recomputeMemberView (spaceId) {
 // (single-clock, so a genuine rejoin self-clears via tombstoneActive); 0 (inert) when unknown —
 // the revoke, the load-bearing effect, is ts-independent. Skips frame-handled leavers (isLeft),
 // so the two paths never double-act.
-function applyObservedLeaves (spaceId, entry, inactive) {
+function applyObservedLeaves(spaceId, entry, inactive) {
   for (const key of observedLeavers(entry.prior, inactive)) {
     if (isLeft(spaceId, key)) continue
     applyObservedLeave(spaceId, key, entry.prior.get(key) || 0)
@@ -240,7 +240,7 @@ function applyObservedLeaves (spaceId, entry, inactive) {
 // failure leaves the key unhandled instead: the vouch keeps it seeded in `prior` at the next view
 // open, so the next session's first fold retries. Every write here is idempotent, so an overlapping
 // fold double-applying is harmless.
-async function applyObservedLeave (spaceId, key, leaveTs) {
+async function applyObservedLeave(spaceId, key, leaveTs) {
   try {
     // Adoption must precede the revoke: the revoke unroots the leaver, after which the fold stops
     // walking its bee and the vouchees it alone carried could never be recovered.
@@ -275,20 +275,20 @@ async function applyObservedLeave (spaceId, key, leaveTs) {
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 
-async function openMemberViewsForKnownSpaces () {
+async function openMemberViewsForKnownSpaces() {
   for (const space of await listSpaces()) {
     try { await openMemberView(space.spaceId) } catch (err) { log.warn('open view failed:', space.spaceId, err.message) }
   }
 }
 
-export async function closeAllMemberViews () {
+export async function closeAllMemberViews() {
   await Promise.allSettled([...views.keys()].map((spaceId) => closeMemberView(spaceId)))
   captureRefs.clear()
   captures.clear()
 }
 
 // True iff `key` is in the current derived member set for the space (the last fold result).
-export function isMember (spaceId, key) {
+export function isMember(spaceId, key) {
   return views.get(spaceId)?.members.has(key) || false
 }
 
@@ -296,14 +296,14 @@ export function isMember (spaceId, key) {
 // receipt is durable and replicated even while the joiner's own member/<S> has not
 // converged — exactly the state of a joiner approved while OFFLINE (its grant frame was
 // undeliverable): approved on record, not yet a member, still knocking.
-export function isApprovedJoiner (spaceId, key) {
+export function isApprovedJoiner(spaceId, key) {
   return views.get(spaceId)?.approved?.has(key) || false
 }
 
 // True iff the fold holds a denial for `key` that no fresher request supersedes — the
 // LWW rule already resurfaces a genuinely newer knock as pending, which this excludes,
 // so a re-sent deny can never swallow a real re-request.
-export function isDeniedJoiner (spaceId, key) {
+export function isDeniedJoiner(spaceId, key) {
   const entry = views.get(spaceId)
   return !!entry?.denied?.has(key) && !entry.pending?.has(key)
 }
@@ -313,7 +313,7 @@ export function isDeniedJoiner (spaceId, key) {
 // live handshake contradicts it) — mere absence never removes anyone, so no flicker. Identity
 // (displayName/avatar/driveKey) is hydrated from the replicated profile bee as well as live swarm
 // meta, so a member we have no live handshake with still shows their real name and photo.
-async function reconcile (spaceId, members, considered) {
+async function reconcile(spaceId, members, considered) {
   // space.members is the OTHER members (the renderer shows self separately; every consumer
   // — warmKnownPeerDrives, cleanupSpaceDrives, isApprovedByPeers — skips self). The fold's
   // set includes self, so exclude self throughout.
@@ -385,7 +385,7 @@ const EMPTY = new Set()
 // per-joiner member-join-request for each NEWLY-appeared request (drives the sticky toast — the
 // renderer dedups by (spaceId, publicKey)), and one join-requests-updated whenever the set
 // changed (refreshes banner + list pill + modal). Idempotent: no churn when nothing changed.
-function reconcilePending (spaceId, entry, { requests, denied, members, approved, lefts }) {
+function reconcilePending(spaceId, entry, { requests, denied, members, approved, lefts }) {
   const pending = foldPendingSet({ requests, denied, members, approved, lefts })
 
   // Retain the fold's approval receipts and denial tombstones on the live entry: the
@@ -419,19 +419,19 @@ function reconcilePending (spaceId, entry, { requests, denied, members, approved
 }
 
 export class MemberViews extends Subsystem {
-  constructor (name, deps) {
+  constructor(name, deps) {
     super(name, deps)
     this.require('overlayBackend', 'metaFor', 'isConnected', 'profileFor', 'readmitConnected', 'emitMembersUpdated')
   }
 
-  async _open () {
+  async _open() {
     const { overlayBackend, ...registry } = this.deps
     configureMemberRegistry(registry)
     membershipRevokedHook = (spaceId, profileKey) => overlayBackend.revokeServesForSpace(spaceId, profileKey)
     await openMemberViewsForKnownSpaces()
   }
 
-  async _close () {
+  async _close() {
     await closeAllMemberViews()
     membershipRevokedHook = null
     // A second boot in one process must not inherit the first boot's closures.
@@ -439,7 +439,7 @@ export class MemberViews extends Subsystem {
   }
 
   // One unit per open view, keyed by space. Only the worker log ever sees the id.
-  supervise ({ now = Date.now() } = {}) {
+  supervise({ now = Date.now() } = {}) {
     if (this.closed || this.stopping) return []
     const rows = []
     for (const [spaceId, entry] of views) {
@@ -454,7 +454,7 @@ export class MemberViews extends Subsystem {
   // path drops the leave tombstones and the prior-membership belief, releases the roster captures,
   // and awaits a fold that is not settling. Re-seeding the tombstones reads only the DURABLE ones,
   // so a leave frame whose persist failed would be forgotten and the leaver would come back.
-  async recover (spaceId) {
+  async recover(spaceId) {
     if (this.stopping) return
     views.get(spaceId)?.view?.restartFold?.()
   }

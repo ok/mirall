@@ -14,7 +14,7 @@ import { setupPeer, teardownPeer, serve, consume, eventually } from './_holepunc
 const SPACE = 'space-abc'
 const CAP = 'caps/membership-manifest'
 
-function openByKey (store, keyBuf) {
+function openByKey(store, keyBuf) {
   return new Hyperbee(store.get(keyBuf), { keyEncoding: 'utf-8', valueEncoding: 'json' })
 }
 

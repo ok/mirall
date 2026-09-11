@@ -12,7 +12,7 @@ const ALLOW = new Set(['background', 'on-background'])
 
 const UTILITY = 'bg|text|border|ring|fill|stroke|from|to|via|outline|decoration|shadow|accent|caret|divide|placeholder'
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'dist' && name !== 'node_modules' && name !== 'vendor') walk(p, out) }
@@ -24,7 +24,7 @@ function walk (dir, out = []) {
 // Only the files that can STYLE something: the renderer, the boot html and the layout-harness
 // entries. Unit tests are excluded on purpose — status-badge.test.js names bg-secondary-fixed to
 // assert it is gone, which must not count as a consumer.
-function corpus () {
+function corpus() {
   const files = [
     ...walk(path.join(root, 'src')),
     ...walk(path.join(root, 'test', 'frontend-layout')),
@@ -33,12 +33,12 @@ function corpus () {
   return files.map((f) => readFileSync(f, 'utf8')).join('\n')
 }
 
-function tokens () {
+function tokens() {
   const config = readFileSync(path.join(root, 'tailwind.config.js'), 'utf8')
   return [...config.matchAll(/^\s*'([a-z][a-z0-9-]*)':\s*'var\(--color-\1\)'/gm)].map((m) => m[1])
 }
 
-function consumed (tok, text) {
+function consumed(tok, text) {
   const esc = tok.replace(/-/g, '\\-')
   // `text-on-surface-variant` must not count for `surface-variant`: the utility prefix has to sit
   // directly in front of the token, and the token must end there.

@@ -13,7 +13,7 @@ import { workDir } from '../paths.mjs'
 // text field on macOS, and findNode matches the aria-label through `description` either way.
 const FILTER = { name: 'Filter files in this folder' }
 
-export default async function s122 ({ runDir }) {
+export default async function s122({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

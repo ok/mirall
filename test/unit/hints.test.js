@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { createHintBus } from '../../src/shared/state/hints.js'
 
-function manualTimers () {
+function manualTimers() {
   const pending = []
   return {
     schedule: (fn) => { const id = { fn }; pending.push(id); return id },

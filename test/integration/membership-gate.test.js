@@ -13,13 +13,13 @@ import {
   recordApproval, recordJoinRequest, listJoinRequests, listPendingRequests,
 } from '../../src/shared/spaces/space.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `mgate-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function boot (t, label) {
+async function boot(t, label) {
   const root = tmp(label)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {

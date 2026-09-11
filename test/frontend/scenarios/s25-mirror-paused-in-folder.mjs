@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // REGRESSION (FIX-PAUSE-INDICATION): pausing a mirror from inside FolderView gave
 // no visible signal — only the (hidden) menu item label changed. The view must
 // show a paused state and clear it on resume.
-export default async function s25 ({ runDir, bootstrap }) {
+export default async function s25({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

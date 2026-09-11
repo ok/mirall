@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // Network status screen (reached via Account): the reconnect control — shown only when the
 // verdict is not online — is reachable by its accessible name when present.
-export default async function s17 ({ runDir, bootstrap }) {
+export default async function s17({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

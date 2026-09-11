@@ -6,7 +6,7 @@ import { createSpace, listSpaces } from '../../src/shared/spaces/space.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }

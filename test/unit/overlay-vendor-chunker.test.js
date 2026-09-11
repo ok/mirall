@@ -2,7 +2,7 @@
 // verbatim; only import paths retargeted to the vendored subset. See
 // src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
 import test from 'brittle'
-import { chunk, hashChunk, MIN_SIZE, AVG_SIZE, MAX_SIZE, selectTier, getTierParams, TIERS } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { chunk, hashChunk, MIN_SIZE, MAX_SIZE, selectTier, getTierParams } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
 import crypto from 'hypercore-crypto'
 
 test('empty buffer produces zero chunks', (t) => {
@@ -182,7 +182,7 @@ test('different data produces different hashes', (t) => {
 import { Readable } from 'stream'
 import { chunkStream, createStreamingHasher, chunkStats, setChunkStats } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
 
-function bufToStream (buf, partSize) {
+function bufToStream(buf, partSize) {
   const parts = []
   for (let i = 0; i < buf.length; i += partSize) {
     parts.push(buf.subarray(i, Math.min(i + partSize, buf.length)))
@@ -190,7 +190,7 @@ function bufToStream (buf, partSize) {
   return Readable.from(parts)
 }
 
-async function collect (asyncIter) {
+async function collect(asyncIter) {
   const out = []
   for await (const v of asyncIter) out.push(v)
   return out

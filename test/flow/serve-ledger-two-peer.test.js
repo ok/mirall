@@ -16,7 +16,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
-async function shareAndSee (A, peers, spaceId, aSrc, name, seed, mb) {
+async function shareAndSee(A, peers, spaceId, aSrc, name, seed, mb) {
   const bytes = patternedBytes(mb * 1024 * 1024, seed)
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
@@ -25,7 +25,7 @@ async function shareAndSee (A, peers, spaceId, aSrc, name, seed, mb) {
   }
   return bytes
 }
-async function startAndFlow (peer, spaceId, name, ownerKey) {
+async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })

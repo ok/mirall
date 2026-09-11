@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { getStore, getStoragePath } from '../../src/shared/core/store.js'
 import { createSpace, getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space.js'
 
-function dirSize (dir) {
+function dirSize(dir) {
   let n = 0
   for (const e of fs.readdirSync(dir)) {
     const full = path.join(dir, e)

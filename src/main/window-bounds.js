@@ -7,11 +7,11 @@
 // negative costs the user a re-centred window; a false positive costs them the window.
 const MIN_VISIBLE = 80
 
-function overlap (aStart, aSize, bStart, bSize) {
+function overlap(aStart, aSize, bStart, bSize) {
   return Math.min(aStart + aSize, bStart + bSize) - Math.max(aStart, bStart)
 }
 
-function boundsOnSomeDisplay (bounds, displays) {
+function boundsOnSomeDisplay(bounds, displays) {
   if (!bounds || !Array.isArray(displays)) return false
   for (const display of displays) {
     const area = display && display.workArea
@@ -29,7 +29,7 @@ function boundsOnSomeDisplay (bounds, displays) {
 }
 
 // Keeps the remembered size, drops a position no display can show. Electron then centres it.
-function usableBounds (bounds, displays) {
+function usableBounds(bounds, displays) {
   if (!bounds) return null
   if (boundsOnSomeDisplay(bounds, displays)) return bounds
   return { width: bounds.width, height: bounds.height }

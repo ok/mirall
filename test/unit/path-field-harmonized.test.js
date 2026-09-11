@@ -15,7 +15,7 @@ const read = (p) => readFileSync(p, 'utf8')
 
 // `.ts` as well as `.tsx`: the picker is opened from hooks now, and a walk that saw only components
 // could not tell a hook that shows the path it picked from one that does not.
-function sourceFiles (dir) {
+function sourceFiles(dir) {
   const out = []
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry)

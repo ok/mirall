@@ -211,7 +211,7 @@ export const isApprovedMember = (spaceId, joinerKey) => gates.isApprovedMember(s
 export const resolveInvite = (space, inviteId) => gates.resolveInvite(space, inviteId)
 
 const BENIGN_SOCKET_ERRORS = ['timed out', 'reset by peer', 'Duplicate connection']
-function isBenignSocketError (err) {
+function isBenignSocketError(err) {
   const msg = err?.message || ''
   return BENIGN_SOCKET_ERRORS.some(s => msg.includes(s))
 }
@@ -268,7 +268,6 @@ function initSwarm(_ipc, relaySeedHex = null) {
   startPresenceHeartbeat(subsystem?.timers ?? null)
   startConvergenceTick(subsystem?.timers ?? null)
   attachSwarmWatchers()
-
 
   swarm.on('connection', (socket, peerInfo) => {
     applyNetImpairment(socket) // TEST-ONLY: no-op unless runtime-config.netImpair is set

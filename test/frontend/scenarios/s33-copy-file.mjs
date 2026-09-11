@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P1 / G8 — duplicating a file inside a shared folder. The copy has identical
 // content (same hash) but a different path; both entries must publish and
 // materialize as two distinct files on the mirror.
-export default async function s33 ({ runDir, bootstrap }) {
+export default async function s33({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

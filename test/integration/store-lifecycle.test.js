@@ -14,9 +14,9 @@ import { onFsEvent } from '../../src/shared/folders/owned-folders.js'
 import { ownCatalog, advertise, collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { openMemberView } from '../../src/shared/spaces/member-registry.js'
 
-const quiet = { debug () {}, info () {}, warn () {}, error () {} }
+const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
-async function ownedShareWithFile (ctx, name) {
+async function ownedShareWithFile(ctx, name) {
   const space = await createSpace(name)
   const share = {
     id: generateShareId(), type: 'owned-folder', name: 'Vault', contentMode: 'overlay',

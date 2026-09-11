@@ -7,7 +7,7 @@ import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 
 // Identity mode + v2 spaces — the production-default shape for leave/teardown paths.
 
-async function memberActive (spaceId) {
+async function memberActive(spaceId) {
   const rec = await readMembershipRecord(getLocalPublicKeyHex(), spaceId)
   return !!rec?.active
 }

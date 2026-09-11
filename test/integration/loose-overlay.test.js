@@ -21,7 +21,7 @@ import {
 // Drive the in-place loose-file adapter against one fresh data layer. The defining
 // property: sharing a loose file copies NO bytes into a core — the overlay serves
 // straight from the user's source file on disk, addressed by content hash.
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
@@ -42,13 +42,13 @@ async function setup (t) {
 // A second space that stands in for the consumer context, sharing the owner space's SCK the way
 // co-members of one space do — the peer catalog below is that space's own encrypted core, so the
 // reader must hold the key that opens it.
-async function consumerSpace (ctx, name) {
+async function consumerSpace(ctx, name) {
   const space = await createSpace(name)
   await putContentKey(space.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
   return space
 }
 
-function writeSource (ctx, name, contents) {
+function writeSource(ctx, name, contents) {
   const abs = path.join(ctx.tmpDir('src'), name)
   fs.writeFileSync(abs, contents)
   return abs

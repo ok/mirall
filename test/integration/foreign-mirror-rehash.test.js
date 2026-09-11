@@ -10,7 +10,7 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 
 // A counting hasher proves the on-disk read actually happened (or didn't) — the
 // same seam the preview path uses in preview-scan.test.js.
-function countingHash (real) {
+function countingHash(real) {
   let calls = 0
   const fn = async (p) => { calls += 1; return real(p) }
   fn.calls = () => calls

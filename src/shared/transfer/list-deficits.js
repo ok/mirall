@@ -5,16 +5,16 @@
 // re-flagging stops being poked.
 const incompleteListSpaces = new Set()
 
-export function markListIncomplete (spaceId) {
+export function markListIncomplete(spaceId) {
   if (spaceId) incompleteListSpaces.add(spaceId)
 }
 
-export function takeIncompleteListSpaces () {
+export function takeIncompleteListSpaces() {
   const out = [...incompleteListSpaces]
   incompleteListSpaces.clear()
   return out
 }
 
-export function clearListDeficits () {
+export function clearListDeficits() {
   incompleteListSpaces.clear()
 }

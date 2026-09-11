@@ -3,7 +3,7 @@ import { ignorePathsFor, clearShareGuards } from '../../src/shared/folders/echo-
 
 // echo-guard reads Date.now() directly with a 30s TTL. Drive a fake clock so
 // expiry is deterministic instead of waiting wall-clock time.
-function withClock (t, fn) {
+function withClock(t, fn) {
   const real = Date.now
   let now = 1_000_000
   Date.now = () => now

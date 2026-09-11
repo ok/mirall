@@ -5,7 +5,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 // Denying a requester in the batch modal removes their row immediately, leaving the
 // others. Regression for "denied user stays in the list". Local-only (real Electron + AX).
-export default async function s57 ({ runDir, bootstrap }) {
+export default async function s57({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })

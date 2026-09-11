@@ -17,7 +17,7 @@ const persistedAs = (spaceId, key) => (list) => {
   return !!(s && (s.members || []).some((m) => m.publicKey === key && m.status !== 'pending'))
 }
 
-async function approveAndConverge (t, A, B, spaceId, requestPromise) {
+async function approveAndConverge(t, A, B, spaceId, requestPromise) {
   const req = await requestPromise
   const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId)
   await A.request('space:approve-member', { spaceId, publicKey: req.publicKey })

@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // partial from the first attempt (the re-downloaded file is full-size on disk). 256 MB
 // for a comfortable mid-flight cancel window; if the first attempt finishes before the
 // cancel is caught, the retry isn't exercised (logged) and the full-size check still holds.
-export default async function s101 ({ runDir, bootstrap }) {
+export default async function s101({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -17,13 +17,13 @@ const WORKER_ENTRY = path.resolve('src/worker/main.js')
 // relaunching against the same storage (the offline-window pattern) must present the KEK that
 // wrapped that dir's identity.enc, or resolveMasterSecret throws 'identity unlock failed'.
 const kekByStorage = new Map()
-function kekFor (storage) {
+function kekFor(storage) {
   let kek = kekByStorage.get(storage)
   if (!kek) { kek = crypto.randomBytes(32).toString('hex'); kekByStorage.set(storage, kek) }
   return kek
 }
 
-function tmp (label) {
+function tmp(label) {
   // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
   const dir = path.join(os.tmpdir(), `mirall-peer-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
@@ -33,7 +33,7 @@ function tmp (label) {
 // Poll until OS process `pid` is gone (signal 0 = existence probe; ESRCH ⇒ dead).
 // Used to assert a worker subprocess actually exits — a worker that survives is
 // the same orphan-at-100%-CPU bug we guard against in production.
-export async function waitForWorkerExit (pid, ms = 5000, every = 50) {
+export async function waitForWorkerExit(pid, ms = 5000, every = 50) {
   const start = Date.now()
   for (;;) {
     try { process.kill(pid, 0) } catch { return true }
@@ -46,7 +46,7 @@ export async function waitForWorkerExit (pid, ms = 5000, every = 50) {
 // death or a SIGINT exits it before teardowns run — orphaned workers then starve later runs.
 const liveChildren = new Set()
 let exitBackstopInstalled = false
-function installExitBackstop () {
+function installExitBackstop() {
   if (exitBackstopInstalled) return
   exitBackstopInstalled = true
   process.on('exit', () => {
@@ -54,7 +54,7 @@ function installExitBackstop () {
   })
 }
 
-export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {} } = {}) {
+export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {} } = {}) {
   // When storage/downloads are passed in, the caller owns their lifetime (used
   // to relaunch a peer with the same identity + drive after an offline window).
   const ownsDirs = !storage
@@ -95,7 +95,7 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
   let buf = ''
   let alive = true
 
-  function die (reason) {
+  function die(reason) {
     if (!alive) return
     alive = false
     const err = new Error('peer not available: ' + reason)
@@ -131,7 +131,7 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
     storage,
     downloads,
     sidecar,
-    request (type, args = {}) {
+    request(type, args = {}) {
       if (!alive) return Promise.reject(new Error('peer not available (killed)'))
       return new Promise((resolve, reject) => {
         const mid = 'r' + (id++)
@@ -139,11 +139,11 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
         sidecar.write(JSON.stringify({ id: mid, type, ...args }) + '\n')
       })
     },
-    on (type, cb) {
+    on(type, cb) {
       if (!listeners.has(type)) listeners.set(type, [])
       listeners.get(type).push(cb)
     },
-    waitFor (type, pred = () => true, ms = 20000) {
+    waitFor(type, pred = () => true, ms = 20000) {
       const deadline = scaled(ms)
       return new Promise((resolve, reject) => {
         let seen = 0
@@ -157,11 +157,11 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
       })
     },
     // Everything the worker has written to stderr so far (logger warn/error).
-    readStderr () { return stderrChunks.join('') },
+    readStderr() { return stderrChunks.join('') },
     // Hard-disconnect: kills the worker subprocess (simulates going offline).
-    kill () { die('killed'); try { sidecar.destroy() } catch {} },
+    kill() { die('killed'); try { sidecar.destroy() } catch {} },
     // Poll a request until `pred(result)` holds (for eventually-consistent state).
-    async until (type, args, pred, { ms = 20000, every = 150 } = {}) {
+    async until(type, args, pred, { ms = 20000, every = 150 } = {}) {
       const deadline = scaled(ms)
       const start = Date.now()
       let last = null
@@ -237,7 +237,7 @@ export async function launchPeer (t, { bootstrap, displayName = 'Peer', debug = 
 // side the event only fires on the joiner's post-grant re-handshake — and nothing orders that
 // against the grant itself. The persisted roster is the state every caller actually needs, and it
 // is what the approval flow has always waited on.
-async function awaitMutualMembership (A, B, spaceId) {
+async function awaitMutualMembership(A, B, spaceId) {
   const aKey = (await A.request('profile:get')).publicKey
   const bKey = (await B.request('profile:get')).publicKey
   const persisted = (key) => (list) => {
@@ -250,7 +250,7 @@ async function awaitMutualMembership (A, B, spaceId) {
 
 // A creates a space, invites B through an auto-approve link, B joins; resolves once both peers
 // hold the other as a member. Returns the spaceId.
-export async function connectInSpace (t, A, B, name = 'Test Space') {
+export async function connectInSpace(t, A, B, name = 'Test Space') {
   const space = await A.request('space:create', { name })
   // A plain link leaves B pending until a member approves. An auto-approve link is the
   // production equivalent of an open join; connectInSpaceWithApproval covers the manual path.
@@ -266,7 +266,7 @@ export async function connectInSpace (t, A, B, name = 'Test Space') {
 
 // Manual-approval variant: A creates a space, B joins through a plain link → pending, A receives
 // the join request and approves it, then both converge as members.
-export async function connectInSpaceWithApproval (t, A, B, name = 'Secure Space') {
+export async function connectInSpaceWithApproval(t, A, B, name = 'Secure Space') {
   const space = await A.request('space:create', { name })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId, 120000)
@@ -286,7 +286,7 @@ export async function connectInSpaceWithApproval (t, A, B, name = 'Secure Space'
 // actually readable from the replicated drive, and files:list no longer blocks
 // on replication (it bounds each peer-drive read under a budget), so polling —
 // not a single list after one event — is the reliable wait.
-export async function waitForCatalogEntry (peer, spaceId, filePath, { ms = 60000, every = 250 } = {}) {
+export async function waitForCatalogEntry(peer, spaceId, filePath, { ms = 60000, every = 250 } = {}) {
   let entry
   await peer.until('files:list', { spaceId }, (list) => {
     entry = list.find((f) => f.path === filePath)
@@ -300,7 +300,7 @@ export async function waitForCatalogEntry (peer, spaceId, filePath, { ms = 60000
 // co-member first, and `member-joined` fires before membership is persisted — so
 // we explicitly wait until the joiner has *persisted the owner* as a member, which
 // is what it actually needs before it can replicate the owner's drive.
-export async function addPeerToSpace (owner, joiner, spaceId) {
+export async function addPeerToSpace(owner, joiner, spaceId) {
   const ownerKey = (await owner.request('profile:get')).publicKey
   const joinerKey = (await joiner.request('profile:get')).publicKey
   // Auto-approve, like connectInSpace: a plain link leaves the joiner pending until a member acts.
@@ -322,7 +322,7 @@ export async function addPeerToSpace (owner, joiner, spaceId) {
 // approval space — the joiner lands pending, the owner approves it, both converge as
 // members. Needed for multi-peer loose tests (loose discovery rides the approval SCK
 // handout, so a pending joiner can't list the encrypted catalog). Returns the joiner's key.
-export async function addApprovedPeer (owner, joiner, spaceId) {
+export async function addApprovedPeer(owner, joiner, spaceId) {
   const ownerKey = (await owner.request('profile:get')).publicKey
   const joinerKey = (await joiner.request('profile:get')).publicKey
   const inviteCode = await owner.request('space:invite', { spaceId })
@@ -338,4 +338,3 @@ export async function addApprovedPeer (owner, joiner, spaceId) {
   }, { ms: 30000, every: 1000 })
   return joinerKey
 }
-

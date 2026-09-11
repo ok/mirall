@@ -48,7 +48,7 @@ const QUIT_STEPS = Object.freeze([
  * @param {() => void} steps.quit — re-issues the deferred quit.
  * @param {(step: string, err: Error) => void} [steps.onStepError]
  */
-function createQuitSequence ({ markQuitting, stopOwnedWatchers, stopLooseWatchers, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
+function createQuitSequence({ markQuitting, stopOwnedWatchers, stopLooseWatchers, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
   const runners = {
     'mark-quitting': markQuitting,
     'stop-owned-watchers': stopOwnedWatchers,
@@ -58,11 +58,11 @@ function createQuitSequence ({ markQuitting, stopOwnedWatchers, stopLooseWatcher
   }
   let ran = false
 
-  function report (step, err) {
+  function report(step, err) {
     if (onStepError) onStepError(step, err)
   }
 
-  return function onBeforeQuit (event) {
+  return function onBeforeQuit(event) {
     if (ran) return
     ran = true
     for (const step of QUIT_STEPS) {

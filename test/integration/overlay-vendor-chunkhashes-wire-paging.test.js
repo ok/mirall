@@ -16,12 +16,12 @@ import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/ve
 // the real payload ceiling is a bit lower still.
 const MAX_ATOMIC_WRITE = 256 * 256 * 256 - 1
 
-function fakeTransfer () {
-  return { startReceive () { return { received: new Set() } }, writeChunk () { return { ok: true } }, finalize () { return { ok: true } }, cancel () {}, pause () {} }
+function fakeTransfer() {
+  return { startReceive() { return { received: new Set() } }, writeChunk() { return { ok: true } }, finalize() { return { ok: true } }, cancel() {}, pause() {} }
 }
 
 // Exact encoded byte length of a chunkHashes frame (what hits secret-stream).
-function encodedSize (msg) {
+function encodedSize(msg) {
   const state = { start: 0, end: 0, buffer: null }
   m.chunkHashes.preencode(state, msg)
   return state.end
@@ -31,7 +31,7 @@ function encodedSize (msg) {
 // the wire, so 500k entries ≈ ~18 MB > 16 MiB-1 — and >> MAX_CHUNKS_PER_MSG so
 // the sender must page. Distinct lengths let us assert order is preserved; the
 // hash is constant to keep the test fast (the encoder re-buffers it either way).
-function bigChunkList (count) {
+function bigChunkList(count) {
   const hash = 'a'.repeat(64)
   const chunks = new Array(count)
   for (let i = 0; i < count; i++) chunks[i] = { hash, length: 262144 + (i % 4096) }
@@ -87,8 +87,8 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   let dispatchCount = 0
   let pings = 0
   proto._schedulers.set('content:x', {
-    onChunkHashes (peer, list) { dispatchCount++; dispatched = list },
-    notePageProgress () { pings++ }
+    onChunkHashes(peer, list) { dispatchCount++; dispatched = list },
+    notePageProgress() { pings++ }
   })
 
   const peer = { id: 'p1' }
@@ -112,7 +112,7 @@ test('FIX-12: a small list still ships as one frame and dispatches immediately',
   t.is(sent[0].more, 0, 'lone frame is final')
 
   let dispatched = null
-  proto._schedulers.set('content:s', { onChunkHashes (peer, list) { dispatched = list } })
+  proto._schedulers.set('content:s', { onChunkHashes(peer, list) { dispatched = list } })
   const peer = { id: 'p2' }
   proto._onChunkHashes(peer, sent[0])
   t.is(dispatched, chunks, 'lone complete frame passes straight through (no copy)')
@@ -122,8 +122,8 @@ test('FIX-12: pages for two files interleaved on one channel reassemble independ
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
   const peer = { id: 'p3' }
   const got = {}
-  proto._schedulers.set('content:A', { onChunkHashes (_p, list) { got.A = list }, notePageProgress () {} })
-  proto._schedulers.set('content:B', { onChunkHashes (_p, list) { got.B = list }, notePageProgress () {} })
+  proto._schedulers.set('content:A', { onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
+  proto._schedulers.set('content:B', { onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
 
   const a1 = { hash: 'a'.repeat(64), length: 1 }
   const a2 = { hash: 'a'.repeat(64), length: 2 }

@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // (folder buttons AX-targetable by name/role), top-level folders open by default
 // while deeper ones stay collapsed, and expand/collapse + collapse-all/expand-all
 // reveal and hide leaves. Leaves show basenames; the flat-list rendering is gone.
-export default async function s103 ({ runDir }) {
+export default async function s103({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

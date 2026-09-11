@@ -38,7 +38,7 @@ test('a surface can choose its own fallback', (t) => {
   t.is(errorTextFor(withCode('x', 'TRANSFER_DISK_FULL'), tr, 'transferFailed'), 'T:transferDiskFull')
 })
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)

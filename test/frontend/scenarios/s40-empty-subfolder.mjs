@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // subfolder must degrade gracefully (the file syncs, the empty subfolder simply
 // doesn't appear on the mirror, no crash) — and when the first file lands in
 // that subfolder, the directory materializes implicitly.
-export default async function s40 ({ runDir, bootstrap }) {
+export default async function s40({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

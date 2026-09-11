@@ -17,7 +17,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const OWNER = 'p'.repeat(64)
 
-async function rows (kind) {
+async function rows(kind) {
   await drainTransferAudit()
   await flushAudit()
   const { entries } = await queryAudit({ limit: 100 })
@@ -25,7 +25,7 @@ async function rows (kind) {
 }
 
 // start() hands the fetch to a background task, so the terminal row lands after it resolves.
-async function settle (kind, { tries = 60 } = {}) {
+async function settle(kind, { tries = 60 } = {}) {
   for (let i = 0; i < tries; i++) {
     const found = await rows(kind)
     if (found.length) return found
@@ -36,7 +36,7 @@ async function settle (kind, { tries = 60 } = {}) {
 
 const quiet = () => new Promise((r) => setTimeout(r, scaled(150)))
 
-function folderJob (ctx, spaceId, over = {}) {
+function folderJob(ctx, spaceId, over = {}) {
   return {
     spaceId,
     pendingKey: '/Brand Assets/logo.svg',
@@ -55,14 +55,14 @@ function folderJob (ctx, spaceId, over = {}) {
   }
 }
 
-async function setup (t, over = {}) {
+async function setup(t, over = {}) {
   const ctx = await freshPeer(t)
   const space = await createSpace('Design Team')
   const engine = createOverlayDownloadEngine({ ...folderChannel, isOwnerOnline: () => true })
   return { ctx, space, engine, job: folderJob(ctx, space.spaceId, over) }
 }
 
-function throwsWith (code, message) {
+function throwsWith(code, message) {
   return async () => {
     const err = new Error(message)
     err.code = code

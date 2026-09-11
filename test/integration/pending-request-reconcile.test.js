@@ -11,13 +11,13 @@ import { initSpaces, createSpace, getSpace, listJoinRequests, listPendingRequest
 import { configureMemberRegistry, openMemberView, closeAllMemberViews } from '../../src/shared/spaces/member-registry.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `mir-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function boot (t, label) {
+async function boot(t, label) {
   const root = tmp(label)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {

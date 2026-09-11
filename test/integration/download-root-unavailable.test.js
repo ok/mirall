@@ -33,7 +33,7 @@ const SPACE = 'space1'
 const OWNER = 'ownerpub'
 const HASH = 'b'.repeat(64)
 
-function testChannel (events, over = {}) {
+function testChannel(events, over = {}) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -53,7 +53,7 @@ function testChannel (events, over = {}) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -62,7 +62,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (dir, over = {}) {
+function makeJob(dir, over = {}) {
   return {
     spaceId: SPACE, pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: SPACE + '|folder1|doc.bin',

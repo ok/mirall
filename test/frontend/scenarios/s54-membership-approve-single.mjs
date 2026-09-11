@@ -8,7 +8,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // approves B; B's waiting state clears. Exercises JoinRequestBanner (single),
 // the joiner waiting state, and the request/grant path through the UI.
 // Requires identity mode (real keychain).
-export default async function s54 ({ runDir, bootstrap }) {
+export default async function s54({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

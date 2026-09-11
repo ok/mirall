@@ -1,19 +1,19 @@
 import test from 'brittle'
 import { Subsystem, createLifecycle } from '../../src/shared/core/subsystem.js'
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
 class Plain extends Subsystem {}
 
 class Talkative extends Subsystem {
-  constructor (name, deps) { super(name, deps); this.wedged = false }
-  health () { return { ok: !this.wedged, detail: this.wedged ? 'stuck' : null } }
+  constructor(name, deps) { super(name, deps); this.wedged = false }
+  health() { return { ok: !this.wedged, detail: this.wedged ? 'stuck' : null } }
 }
 
 // A subsystem returning its own `name` must not be able to shadow the row key the caller uses to
 // identify it.
 class Liar extends Subsystem {
-  health () { return { ok: true, detail: null, name: 'something-else' } }
+  health() { return { ok: true, detail: null, name: 'something-else' } }
 }
 
 test('the default reports healthy while open and unhealthy once closing', async (t) => {
@@ -58,7 +58,7 @@ test('a subsystem cannot shadow the row key with its own name field', async (t) 
 
 test('health does not throw for a subsystem whose open failed', async (t) => {
   class Broken extends Subsystem {
-    async _open () { throw new Error('nope') }
+    async _open() { throw new Error('nope') }
   }
   const broken = new Broken('broken')
   await t.exception(broken.ready())

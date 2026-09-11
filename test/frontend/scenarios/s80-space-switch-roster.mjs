@@ -6,7 +6,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // The members roster and online set are per-space projections (useMembers re-fetches
 // spaces:list + members:online on every switch, self included worker-side). Switching
 // between a shared and a solo space must never bleed one space's roster into the other.
-export default async function s80 ({ runDir, bootstrap }) {
+export default async function s80({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

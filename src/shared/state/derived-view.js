@@ -22,7 +22,7 @@ import { createPassLiveness } from '../core/pass-liveness.js'
 // One fold at a time, so the keyed bookkeeping carries a single key.
 const FOLD = 'fold'
 
-export function createDerivedView ({ fold, onChange, range, ranges, onError, debounceMs = 0 } = {}) {
+export function createDerivedView({ fold, onChange, range, ranges, onError, debounceMs = 0 } = {}) {
   if (typeof fold !== 'function') throw new Error('createDerivedView: fold is required')
   if (typeof onChange !== 'function') throw new Error('createDerivedView: onChange is required')
   // Silently preferring one would hide a read set that is half-declared.
@@ -54,7 +54,7 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
   // reflects the latest state without piling up redundant work. With debounceMs > 0 a
   // single trailing timer absorbs a replication burst (which arrives across many ticks, not
   // one microtask) into one fold; debounceMs = 0 keeps the microtask-coalescing path.
-  function recompute () {
+  function recompute() {
     if (closed) return
     if (running) { again = true; return }
     if (scheduled) return
@@ -64,7 +64,7 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
     else queueMicrotask(start)
   }
 
-  async function run () {
+  async function run() {
     if (closed) { scheduled = false; return }
     scheduled = false
     timer = null
@@ -90,11 +90,11 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
   // Bumped by the caller once per unit of work the fold completes. Without it the stall rule would
   // have to tolerate the worst-case fold — a roster of hundreds of unreachable peers, each read at
   // its own budget — and a window that generous is a window that never fires.
-  function noteProgress () {
+  function noteProgress() {
     liveness.progress(FOLD)
   }
 
-  function health ({ now = Date.now(), windowMs }) {
+  function health({ now = Date.now(), windowMs }) {
     return liveness.verdict(FOLD, { now, windowMs })
   }
 
@@ -102,7 +102,7 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
   // awaits `inFlight` so the peer reads it holds cannot outlive the store, which for a fold that is
   // not settling is a promise that never resolves. The generation bump is what makes the abandoned
   // fold inert rather than merely unawaited.
-  function abandon () {
+  function abandon() {
     gen += 1
     running = false
     scheduled = false
@@ -115,7 +115,7 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
   // Start watching a source bee (idempotent per key). Each change within `range` —
   // local or replicated — schedules a coalesced recompute. Safe to call as roster
   // members are discovered; corestore dedups the underlying cores.
-  function track (key, bee) {
+  function track(key, bee) {
     if (closed || watchers.has(key)) return
     // One entry per source key holding ALL its watchers, so close() and tracking() stay keyed on
     // the source and cannot half-release a bee.
@@ -128,10 +128,10 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
     }))
   }
 
-  function tracking (key) { return watchers.has(key) }
-  function size () { return watchers.size }
+  function tracking(key) { return watchers.has(key) }
+  function size() { return watchers.size }
 
-  async function close () {
+  async function close() {
     closed = true
     if (timer) { clearTimeout(timer); timer = null }
     // A fold in flight is reading peer bees, and each read holds a core session until it
@@ -149,4 +149,4 @@ export function createDerivedView ({ fold, onChange, range, ranges, onError, deb
   return { track, tracking, size, recompute, close, abandon, noteProgress, health }
 }
 
-function noop () {}
+function noop() {}

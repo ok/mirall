@@ -6,6 +6,6 @@ import os from 'bare-os'
 const raw = Number(os.getEnv('MIRALL_TEST_TIMEOUT_SCALE'))
 export const TIMEOUT_SCALE = Number.isFinite(raw) && raw > 0 ? raw : 1
 
-export function scaled (baseMs) {
+export function scaled(baseMs) {
   return Math.round(baseMs * TIMEOUT_SCALE)
 }

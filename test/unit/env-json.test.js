@@ -7,14 +7,14 @@ import { envJson } from '../../src/main/env-json.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
 
-function captureWarnings (fn) {
+function captureWarnings(fn) {
   const warnings = []
   const orig = console.warn
   console.warn = (...args) => { warnings.push(args.map(String).join(' ')) }
   try { return { result: fn(), warnings } } finally { console.warn = orig }
 }
 
-function withEnv (t, name, value) {
+function withEnv(t, name, value) {
   const prev = process.env[name]
   if (value === undefined) delete process.env[name]
   else process.env[name] = value

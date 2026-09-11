@@ -3,7 +3,7 @@ import { fetchMain, patchMain, peekMain, resetMainStore, subscribeMain, configur
 
 // A bridge that records every call and lets a test settle each one by hand, so the dedup is
 // asserted structurally rather than by timing — same shape as query-store.test.js's transport.
-function fakeBridge () {
+function fakeBridge() {
   const getCalls = []
   const setCalls = []
   const pendingGet = []
@@ -18,7 +18,7 @@ function fakeBridge () {
 
 const LOADED = { minimizeToTray: true, openAtLogin: false, showMenuBar: true }
 
-function setup (t) {
+function setup(t) {
   resetMainStore()
   const bridge = fakeBridge()
   configureMainStore(bridge)

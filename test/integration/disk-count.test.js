@@ -7,7 +7,7 @@ import { DEFAULT_IGNORE } from '../../src/shared/folders/path-keys.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 
-function tree (t) {
+function tree(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mirall-disk-count-'))
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
   fs.mkdirSync(path.join(root, 'nested', 'deeper'), { recursive: true })

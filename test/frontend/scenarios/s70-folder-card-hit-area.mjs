@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // rendered UI. The whole-card geometry itself (padding strips now navigate) is
 // asserted in the real-Chromium layout harness (run-sharecard.mjs) — agent-desktop
 // clicks element centres and cannot address the former dead padding strips.
-export default async function s70 ({ runDir, bootstrap }) {
+export default async function s70({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

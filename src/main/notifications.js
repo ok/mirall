@@ -36,8 +36,8 @@ function toastSafeId(value) {
 function defaultIconPath() {
   const rel =
     process.platform === 'darwin' ? 'darwin/icon.icns' :
-    process.platform === 'win32' ? 'win32/icon.ico' :
-    'linux/icon.png'
+      process.platform === 'win32' ? 'win32/icon.ico' :
+        'linux/icon.png'
   return path.join(__dirname, '..', '..', 'resources', rel)
 }
 

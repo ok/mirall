@@ -18,14 +18,14 @@ const SIG_HEX = /^[0-9a-f]{128}$/i
 // property off it. JSON.parse('null') returns null, and the property read that follows sits
 // OUTSIDE the message handler's try — it reaches protomux's _ondata, which _safeDestroy's the
 // socket. One word from any peer on the topic would drop the connection.
-export function validFrameShape (msg) {
+export function validFrameShape(msg) {
   return !!msg && typeof msg === 'object' && !Array.isArray(msg) && typeof msg.type === 'string'
 }
 
 // Shape check for frames that assert the SENDER's identity (handshake,
 // membership:request). Rejects malformed hex before any b4a.from reaches the data
 // layer, so a garbage key can't poison the in-memory maps.
-export function validSenderFrame (msg) {
+export function validSenderFrame(msg) {
   if (typeof msg.spaceTopic !== 'string' || !HEX64.test(msg.spaceTopic)) return false
   if (typeof msg.profileKey !== 'string' || !HEX64.test(msg.profileKey)) return false
   if (msg.driveKey != null && (typeof msg.driveKey !== 'string' || !HEX64.test(msg.driveKey))) return false
@@ -35,7 +35,7 @@ export function validSenderFrame (msg) {
   return true
 }
 
-function bindingMessage (noisePublicKey, driveKeyBuf) {
+function bindingMessage(noisePublicKey, driveKeyBuf) {
   return driveKeyBuf
     ? b4a.concat([BINDING_CONTEXT_V2, noisePublicKey, driveKeyBuf])
     : b4a.concat([BINDING_CONTEXT, noisePublicKey])
@@ -47,7 +47,7 @@ function bindingMessage (noisePublicKey, driveKeyBuf) {
 // A handshake carries a driveKey, so bind it too (V2): the signed message covers
 // noise||driveKey, making the signature vary per space. A membership:request/grant has no
 // driveKey and stays V1.
-export function signNoiseBinding (noisePublicKey, signerSecretKey, driveKeyBuf = null) {
+export function signNoiseBinding(noisePublicKey, signerSecretKey, driveKeyBuf = null) {
   return b4a.toString(crypto.sign(bindingMessage(noisePublicKey, driveKeyBuf), signerSecretKey), 'hex')
 }
 
@@ -55,7 +55,7 @@ export function signNoiseBinding (noisePublicKey, signerSecretKey, driveKeyBuf =
 // single-writer manifest from the signer key + namespace the sender supplied and confirm
 // it hashes to profileKey — binding the signer to the claimed identity. Hypercore.key is
 // a pure function, so a wrong signer/namespace simply fails to match (fail-safe).
-function manifestFor (signerKeyHex, namespaceHex) {
+function manifestFor(signerKeyHex, namespaceHex) {
   return {
     version: 1,
     hash: 'blake2b',
@@ -68,7 +68,7 @@ function manifestFor (signerKeyHex, namespaceHex) {
   }
 }
 
-export function verifyIdentityBinding (peerInfo, msg) {
+export function verifyIdentityBinding(peerInfo, msg) {
   if (!peerInfo?.publicKey) return false
   if (typeof msg.sig !== 'string' || !SIG_HEX.test(msg.sig)) return false
   if (typeof msg.signerKey !== 'string' || !HEX64.test(msg.signerKey)) return false
@@ -94,7 +94,7 @@ export function verifyIdentityBinding (peerInfo, msg) {
 // valid identity binding proving control of profileKey on THIS connection's Noise key — robust to
 // the per-socket auth index being torn down / not-yet-populated during the leave/reconnect race,
 // and unforgeable/unreplayable by a third party (the binding is over the sender's Noise key).
-export function leaveFrameBound (peerInfo, msg) {
+export function leaveFrameBound(peerInfo, msg) {
   if (typeof msg.profileKey !== 'string' || !HEX64.test(msg.profileKey)) return false
   return verifyIdentityBinding(peerInfo, msg)
 }
@@ -102,7 +102,7 @@ export function leaveFrameBound (peerInfo, msg) {
 // One decision for the swarm onmessage choke point. Hex validation always applies; the
 // identity binding applies only when enforceBinding is on (post-saturation). peerInfo ==
 // null marks a locally-originated replay (trusted).
-export function checkInboundSender (peerInfo, msg, { enforceBinding }) {
+export function checkInboundSender(peerInfo, msg, { enforceBinding }) {
   if (!validSenderFrame(msg)) return { ok: false, reason: 'malformed' }
   if (!enforceBinding) return { ok: true }
   if (peerInfo == null) return { ok: true }
@@ -123,11 +123,11 @@ export function checkInboundSender (peerInfo, msg, { enforceBinding }) {
 // take) so the cap can follow what THIS peer has actually proven rather than a global figure.
 // The caller must only pass scopes it has already validated against its own set, which is what
 // bounds the per-socket memory.
-export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date.now, trackScopes = false }) {
+export function createRateLimiter({ burst, refillMs, abuseThreshold, now = Date.now, trackScopes = false }) {
   const capOf = typeof burst === 'function' ? burst : () => burst
   const buckets = new Map()
   return {
-    take (noiseKeyHex, scope = null) {
+    take(noiseKeyHex, scope = null) {
       const t = now()
       let b = buckets.get(noiseKeyHex)
       if (!b) buckets.set(noiseKeyHex, b = { used: 0, last: t, drops: 0, scopes: trackScopes ? new Set() : null })
@@ -143,9 +143,9 @@ export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date
       b.drops = 0
       return { ok: true, ban: false }
     },
-    forget (noiseKeyHex) { buckets.delete(noiseKeyHex) },
-    clear () { buckets.clear() },
-    size () { return buckets.size },
+    forget(noiseKeyHex) { buckets.delete(noiseKeyHex) },
+    clear() { buckets.clear() },
+    size() { return buckets.size },
   }
 }
 
@@ -159,7 +159,7 @@ export function createRateLimiter ({ burst, refillMs, abuseThreshold, now = Date
 // never counted past the topics we actually hold. Scaling by the shared count rather than by
 // our own total is what keeps a peer that matched a single topic at a small cap no matter how
 // many spaces we are in. burst 0 still switches the lane off.
-export function createDualRateLimiter ({ matched, unmatched, now = Date.now, topics = () => 0 }) {
+export function createDualRateLimiter({ matched, unmatched, now = Date.now, topics = () => 0 }) {
   const perTopic = matched.burstPerTopic || 0
   const matchedBurst = (matchedTopics) => (matched.burst ? matched.burst + perTopic * Math.min(matchedTopics, topics()) : 0)
   const lanes = {
@@ -169,14 +169,14 @@ export function createDualRateLimiter ({ matched, unmatched, now = Date.now, top
   return {
     // `topic` is charged only on the matched lane, and the caller has already resolved it
     // against our own topics — so the per-socket scope set can never exceed our space count.
-    take (noiseKeyHex, isMatched, topic = null) {
+    take(noiseKeyHex, isMatched, topic = null) {
       return isMatched ? lanes.matched.take(noiseKeyHex, topic) : lanes.unmatched.take(noiseKeyHex)
     },
-    forget (noiseKeyHex) {
+    forget(noiseKeyHex) {
       lanes.matched.forget(noiseKeyHex)
       lanes.unmatched.forget(noiseKeyHex)
     },
-    clear () {
+    clear() {
       lanes.matched.clear()
       lanes.unmatched.clear()
     },
@@ -187,7 +187,7 @@ export function createDualRateLimiter ({ matched, unmatched, now = Date.now, top
 // authorized member making that claim. Reuses the identity binding to prove the sender
 // controls granterKey on this connection (rebinding profileKey → granterKey), then checks the
 // asserted creator is well-formed. Returns { ok, creator, granterKey } | { ok:false, reason }.
-export function checkGrantAssertion (peerInfo, msg, { enforceBinding }) {
+export function checkGrantAssertion(peerInfo, msg, { enforceBinding }) {
   if (typeof msg.creator === 'string' && !HEX64.test(msg.creator)) return { ok: false, reason: 'malformed-creator' }
   const creator = typeof msg.creator === 'string' ? msg.creator : null
   if (typeof msg.granterKey !== 'string' || !HEX64.test(msg.granterKey)) {

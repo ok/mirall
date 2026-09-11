@@ -12,7 +12,7 @@ import { workDir } from '../paths.mjs'
 // the user commits, with the primary action still enabled.
 //
 // The cap is shrunk via MIRALL_LIST_FILES_CAP so a handful of files trips it.
-export default async function s134 ({ runDir, bootstrap }) {
+export default async function s134({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   process.env.MIRALL_LIST_FILES_CAP = '3'

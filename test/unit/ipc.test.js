@@ -15,9 +15,8 @@ const TEST_REQUESTS = Object.freeze({
   'x': { kind: 'command', args: {} },
 })
 
-
 // Minimal pipe double: an EventEmitter that records what the IPC writes.
-function fakePipe () {
+function fakePipe() {
   const ee = new EventEmitter()
   ee.written = []
   ee.write = (s) => { ee.written.push(s); return true }
@@ -166,7 +165,7 @@ test('malformed JSON is skipped, not fatal', async (t) => {
 // brittle's own TAP over console.log is untouched.
 // Both channels: the router logs its trace through console.log (debug) and its failures through
 // console.warn, which is what makes a failed request visible at the default level.
-function captureIpcLog (t) {
+function captureIpcLog(t) {
   const realLog = console.log
   const realWarn = console.warn
   const lines = []

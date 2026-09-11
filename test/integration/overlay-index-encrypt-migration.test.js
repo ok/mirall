@@ -7,13 +7,13 @@ import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from 
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `ovmig-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function rawContains (core, needle) {
+async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
     const blk = await core.get(i, { decrypt: false, valueEncoding: 'binary' })
     if (blk && b4a.toString(blk).includes(needle)) return true
@@ -21,7 +21,7 @@ async function rawContains (core, needle) {
   return false
 }
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }

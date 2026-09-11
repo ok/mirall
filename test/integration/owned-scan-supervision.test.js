@@ -78,7 +78,7 @@ test('REGRESSION (FIX-OWNER-SCAN-ZOMBIE): an abandoned pass that unparks late to
 test('REGRESSION (FIX-ABANDONED-ROW): a mount that wedges every pass is given up on by name', async (t) => {
   const w = await wedgedScan(t)
   const errors = []
-  w.supervisor.log = { debug () {}, info () {}, warn () {}, error: (...a) => errors.push(a.join(' ')) }
+  w.supervisor.log = { debug() {}, info() {}, warn() {}, error: (...a) => errors.push(a.join(' ')) }
   w.startScan()
 
   // Every recovery re-arms a pass that wedges in the same place, so the budget is spent down one

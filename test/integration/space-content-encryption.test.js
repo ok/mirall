@@ -6,7 +6,7 @@ import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createDrive } from '../../src/shared/core/store.js'
 import { initSpaceKeys, putContentKey, getContentKey } from '../../src/shared/spaces/space-keys.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `sck-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir

@@ -12,11 +12,11 @@
 // `!= null` rather than `!== null`: this is a pure function over a snapshot, and a caller handing
 // it an absent `error` (rather than the store's explicit null) would otherwise settle boot with no
 // data at all — which reads as "no profile" and opens onboarding over an identity that exists.
-export function profileSettled ({ data, error }) {
+export function profileSettled({ data, error }) {
   return data !== undefined || error != null
 }
 
-export function projectProfile ({ data, error, profileNeeded = false }) {
+export function projectProfile({ data, error, profileNeeded = false }) {
   const settled = profileSettled({ data, error })
   return {
     profile: data ?? null,

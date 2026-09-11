@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 
-async function plantedMount (t, { makePath }) {
+async function plantedMount(t, { makePath }) {
   const ctx = await freshPeer(t)
   const mountPath = path.join(ctx.tmpDir('owned'), 'Docs')
   makePath(mountPath)

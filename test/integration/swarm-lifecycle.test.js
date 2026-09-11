@@ -11,14 +11,14 @@ import { compactStoreForTest } from '../../src/shared/transfer/swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 
 const stubOverlayBackend = {
-  attach () {},
+  attach() {},
   detach: async () => {},
-  resumeForOwner () {},
-  resumeForOwnerAllSpaces () {},
-  revokeServesForSpace () {},
+  resumeForOwner() {},
+  resumeForOwnerAllSpaces() {},
+  revokeServesForSpace() {},
 }
 
-async function swarmDeps (t) {
+async function swarmDeps(t) {
   const bootstrap = await localTestnet(t)
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap })
   return {

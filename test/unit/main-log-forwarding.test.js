@@ -11,7 +11,7 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
 
-function fnBody (name) {
+function fnBody(name) {
   const m = mainSrc.match(new RegExp('function ' + name + '\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\}'))
   return m ? m[1] : null
 }
