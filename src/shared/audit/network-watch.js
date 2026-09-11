@@ -11,7 +11,8 @@ import { createLogger } from '../core/logger.js'
 import { record, getNetworkState, setNetworkState } from './audit-log.js'
 import { createEpisodeTracker, evidenceFor } from './network-episodes.js'
 import { createPeerPresenceTracker } from './peer-episodes.js'
-import { ACTOR_TYPE } from '../contract/audit-kinds.js'
+import { TARGET_KIND } from '../contract/audit-kinds.js'
+import { peerActor, spaceRef, systemActor, targetRef } from './audit-record.js'
 
 const log = createLogger('network-watch')
 
@@ -98,7 +99,7 @@ async function pumpDevice() {
     if (!row) return
 
     const written = record(row.kind, {
-      actor: { type: ACTOR_TYPE.SYSTEM, key: null, name: null },
+      actor: systemActor(),
       code: row.code,
       subject: { ...row.subject, ...evidenceFor(row.kind, last.evidence) },
     })
@@ -161,15 +162,15 @@ const armPeerTimer = guarded(() => {
 
 function writePeerRow(row) {
   const name = row.meta?.memberName ?? null
-  const space = { id: row.spaceId, name: row.meta?.spaceName ?? null }
+  const space = spaceRef(row.spaceId, row.meta?.spaceName)
   if (row.suppressed) {
     record('audit.suppressed', { space, subject: { kind: row.kind, count: row.cap, windowMs: row.windowMs } })
     return
   }
   const written = record(row.kind, {
-    actor: { type: ACTOR_TYPE.PEER, key: row.publicKey, name },
+    actor: peerActor(row.publicKey, name),
     space,
-    target: { kind: 'member', id: row.publicKey, name },
+    target: targetRef(TARGET_KIND.MEMBER, row.publicKey, name),
     subject: row.subject,
   })
   if (written) emitUpdated?.()

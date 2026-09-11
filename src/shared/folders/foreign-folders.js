@@ -45,7 +45,8 @@ import { mirrorMayFetch } from './mirror-reach.js'
 import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetch-policy.js'
 import { shortfall } from '../transfer/free-space.js'
 import { freeBytesFor } from '../transfer/free-space-probe.js'
-import { ACTOR_TYPE, OUTCOME } from '../contract/audit-kinds.js'
+import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
+import { selfActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
 const log = createLogger('foreign-folders')
 
@@ -340,9 +341,9 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
   if (!integritySeen.admit(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
   getSpace(mount.spaceId).then((space) => {
     record('security.integrity_failure', {
-      actor: { type: ACTOR_TYPE.SELF },
-      space: { id: mount.spaceId, name: space?.name ?? null },
-      target: { kind: 'file', id: entry.relPath ?? null, name: path.basename(entry.relPath || '') || null },
+      actor: selfActor(),
+      space: spaceRef(mount.spaceId, space?.name ?? null),
+      target: targetRef(TARGET_KIND.FILE, entry.relPath ?? null, path.basename(entry.relPath || '') || null),
       subject: {
         bytes: entry.size ?? null,
         ownerKey: mount.ownerKey ?? null,

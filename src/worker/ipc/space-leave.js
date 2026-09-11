@@ -1,5 +1,7 @@
 // The space:leave handler. Its teardown ORDER is shared with boot's interrupted-leave pass through
 // spaces/leave-flow.js (LEAVE_PHASES + runLeaveTeardown), so the two cannot drift.
+import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
+import { selfActor, spaceRef, targetRef } from '../../shared/audit/audit-record.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { unmountForeignFolder } from '../../shared/folders/foreign-folders.js'
@@ -26,7 +28,7 @@ import {
   unmarkSpaceLeaving,
 } from '../../shared/transfer/swarm.js'
 
-export function registerSpaceLeave(ipc, { log, mounts, selfActor, spaceRef, discardPendingSpace, dropSpaceDownloadRoot }) {
+export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
   // Persist a pending-leave marker BEFORE the record purge erases the topic, so the swarm can
   // re-announce the leave to members who were offline at leave time (and boot re-joins the topic)
   // until they provably apply it — without this they keep us as a ghost member forever. Arm iff
@@ -78,8 +80,8 @@ export function registerSpaceLeave(ipc, { log, mounts, selfActor, spaceRef, disc
     if (pending) {
       record('space.left', {
         actor: selfActor(),
-        space: spaceRef(pending),
-        target: { kind: 'space', id: pending.spaceId, name: pending.name },
+        space: spaceRef(pending.spaceId, pending.name),
+        target: targetRef(TARGET_KIND.SPACE, pending.spaceId, pending.name),
         subject: { wasPending: pending.status === 'pending' },
       })
     }

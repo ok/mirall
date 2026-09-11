@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { buildRecord, SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
-import { KINDS, OUTCOME, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
+import { buildRecord, SCHEMA_VERSION, selfActor, peerActor, systemActor, spaceRef, targetRef } from '../../src/shared/audit/audit-record.js'
+import { KINDS, OUTCOME, OUTCOMES, TARGET_KIND } from '../../src/shared/contract/audit-kinds.js'
 
 const base = { seq: 1, ts: 1754236800000, kind: 'space.created' }
 
@@ -81,4 +81,41 @@ test('every kind in the table builds a valid record', (t) => {
     t.ok(rec.category, kind + ' has a category')
     t.ok(rec.tier, kind + ' has a tier')
   }
+})
+
+test('an unknown target kind is refused, as an unknown kind and outcome already are', (t) => {
+  t.exception(() => buildRecord({ ...base, target: { kind: 'folder', id: 'x', name: 'x' } }), /unknown target kind/)
+  t.exception(() => buildRecord({ ...base, target: { id: 'x', name: 'x' } }), /unknown target kind/)
+  t.execution(() => buildRecord({ ...base, target: targetRef(TARGET_KIND.SPACE, 'x', 'x') }), 'a declared kind passes')
+})
+
+// The builders are the point of the module: a row's participant shapes were hand-written at 52
+// sites and drifted five ways. normalizeActor and normalizeTarget read exactly these fields.
+test('the builders produce the shapes buildRecord normalizes', (t) => {
+  t.alike(selfActor(), { type: 'self', key: null, name: null })
+  t.alike(peerActor('abc', 'Ada'), { type: 'peer', key: 'abc', name: 'Ada' })
+  t.alike(systemActor(), { type: 'system', key: null, name: null })
+  t.alike(spaceRef('s1', 'Space'), { id: 's1', name: 'Space' })
+  t.alike(targetRef(TARGET_KIND.FILE, 'f1', 'a.txt'), { kind: 'file', id: 'f1', name: 'a.txt' })
+})
+
+test('a missing id or name becomes null rather than undefined', (t) => {
+  t.alike(peerActor(undefined, undefined), { type: 'peer', key: null, name: null })
+  t.alike(targetRef(TARGET_KIND.SHARE, undefined, undefined), { kind: 'share', id: null, name: null })
+  t.is(spaceRef(null, 'Space'), null, 'a space with no id is no space')
+})
+
+// Round-trip: the builders' output is what the record actually carries, so a shape change here
+// cannot pass while leaving the row wrong.
+test('a record built entirely from the builders round-trips', (t) => {
+  const rec = buildRecord({
+    ...base,
+    actor: peerActor('key1', 'Ada'),
+    space: spaceRef('s1', 'Space'),
+    target: targetRef(TARGET_KIND.MEMBER, 'key1', 'Ada'),
+  })
+  t.alike(rec.actor, { type: 'peer', key: 'key1', name: 'Ada' })
+  t.alike(rec.space, { id: 's1', name: 'Space' })
+  t.alike(rec.target, { kind: 'member', id: 'key1', name: 'Ada' })
+  t.is(rec.search, 'ada space ada', 'every builder name reaches the search index')
 })

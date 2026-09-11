@@ -22,7 +22,7 @@
 //   config                      -> retention settings — user preferences, kept by audit:purge.
 import { createLocalBee, getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
-import { buildRecord } from './audit-record.js'
+import { buildRecord, selfActor } from './audit-record.js'
 import { STATE_OFF } from './peer-observer.js'
 import { prefixRange } from '../core/bee-keys.js'
 import {
@@ -161,7 +161,7 @@ export function record(kind, fields = {}) {
 
 function withSelfIdentity(actor) {
   if (!actor || actor.type !== ACTOR_TYPE.SELF) return actor
-  return { type: ACTOR_TYPE.SELF, key: actor.key ?? selfIdentity.key, name: actor.name ?? selfIdentity.name }
+  return selfActor(actor.key ?? selfIdentity.key, actor.name ?? selfIdentity.name)
 }
 
 async function append(kind, fields, target = bee) {
