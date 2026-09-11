@@ -1,6 +1,11 @@
 // Folder-share screen. One skeleton for all three roles: header (one primary + More), a work strip
 // band that exists only while the folder is doing something, a controls row pinned on the listing,
 // and two read-only tiles. Tiles state, the header acts, the strip acts for now.
+//
+// The role picks the hooks, and each is called unconditionally with an empty id when it does not
+// apply — hooks cannot be called in a branch: `mine` reads useOwnedMount plus useIndexProgress,
+// `mirrored` reads useForeignMount, and `browse` reads neither, because a browsed folder has no
+// local mount at all.
 import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'

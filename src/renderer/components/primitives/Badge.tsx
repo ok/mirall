@@ -1,3 +1,6 @@
+// Small inline label. `classes` carries the whole tone — background AND text colour — because the
+// component has no tone vocabulary of its own yet; passing only a background leaves the text at the
+// inherited colour, which is the one way to make it unreadable.
 interface BadgeProps {
   label: string
   classes: string

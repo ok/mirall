@@ -1,3 +1,10 @@
+// The app's whole icon set, inlined as Material Symbols path data — one OUTLINED entry per name,
+// plus a FILLED variant for the names that have one. Adding an icon means adding its name to the
+// union and its path to the map(s), never an <img> or a font.
+//
+// Decorative by default: with no ariaLabel the svg is aria-hidden and the control around it carries
+// the name. Passing ariaLabel flips it to role="img" and makes it the named element, which is right
+// only when the icon IS the content.
 export type IconName =
   | 'add_circle'
   | 'architecture'

@@ -1,3 +1,8 @@
+// Peer/space avatar: an image when there is one, initials otherwise.
+//
+// `decorative` means a label sits next to it, so the avatar leaves the accessibility tree rather
+// than reading the name twice. `ring='status'` requires a statusVariant — the ring IS the status,
+// and without one it renders the neutral ring and says nothing.
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getInitials } from '../../utils.js'

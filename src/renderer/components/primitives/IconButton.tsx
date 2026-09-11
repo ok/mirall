@@ -1,3 +1,8 @@
+// A bare icon control: circular hit area, no background until hover, and `ariaLabel` REQUIRED —
+// there is no text to name it, so the type makes the accessible name non-optional.
+//
+// It inherits its colour rather than choosing one, so a button that needs a non-inherited ink (the
+// destructive ones) passes it through iconClassName.
 import type { MouseEvent } from 'react'
 import Icon, { type IconName } from './Icon.js'
 
