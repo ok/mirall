@@ -473,6 +473,9 @@ export async function capturePeerBee(profileKeyHex, {
     await bee.ready()
     const core = bee.core
     try {
+      // At most a second waiting for the peer's head, however much of the budget is left: the
+      // sweep below is the part that needs the time, and a peer that has not answered by now is
+      // offline rather than slow.
       await boundedUpdate(core, Math.min(1000, Math.max(0, deadline - Date.now())))
       const target = Math.min(core.length, maxBlocks)
       await sweepBlocks(core, target, parallel, deadline)

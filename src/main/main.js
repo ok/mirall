@@ -671,6 +671,19 @@ function getWorker(specifier) {
   // before re-registering, otherwise ipcMain.handle throws.
   try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
 
+  // Every MIRALL_* test hook the app reads, in one list: MIRALL_DEBUG and MIRALL_VERBOSE (log
+  // level), MIRALL_DHT_BOOTSTRAP (a hermetic testnet instead of the public DHT),
+  // MIRALL_DOWNLOAD_FOLDER and MIRALL_WINDOW_BOUNDS (start from a known state),
+  // MIRALL_FEATURE_FLAGS (flags without a build), MIRALL_FORCE_A11Y (the AX tree the frontend suite
+  // drives), MIRALL_NO_DEVTOOLS, and the three caps below — MIRALL_LIST_FILES_CAP,
+  // MIRALL_MAX_FILES_PER_SHARE and MIRALL_FOREIGN_FULL_WALK_EVERY. None is read in a shipped run.
+  //
+  // The worker's whole starting state: it is sent once, before any request, and the worker never
+  // asks main for these again. Three sources are mixed here on purpose — the packaged app (storage,
+  // version, upgrade key), the user's stored preferences, and the MIRALL_* test overrides, each of
+  // which is undefined unless its variable is set so JSON drops it and the worker's own default
+  // stands. shared/core/runtime-config.js is what reads the result, and is the authority on what
+  // each field means once it lands.
   const bootstrap = {
     type: 'bootstrap',
     storage: p.storage,
@@ -1496,11 +1509,18 @@ if (!lock) {
       fs.mkdirSync(storagePath, { recursive: true })
       if (!isWindows) fs.chmodSync(storagePath, 0o700)
     } catch (err) {
+      // Survivable, unlike the KEK failure below, and the difference is what each one protects. The
+      // mode is defence in depth over a file that is already encrypted; the KEK is the secret that
+      // encrypts it, so starting without one would write an unprotected identity.
       console.error('[identity] storage perms failed:', err.message)
     }
     try {
       const identityKek = require('./identity-kek.js')
       identityKEKHex = identityKek.resolveKEKHex(storagePath)
+      // 'weak' means safeStorage fell back to basic_text: the key is still encrypted, but with no
+      // OS keyring behind it, so anyone with the file can read it and the user's protection is
+      // whatever full-disk encryption they have. 'protected' means a real keyring holds the KEK.
+      // An unavailable safeStorage is neither — it is fatal, below.
       identityProtection = identityKek.storageBackend() === 'basic_text' ? 'weak' : 'protected'
       if (identityProtection === 'weak') {
         console.warn('[identity] safeStorage backend is basic_text (no OS keyring); identity.enc is only weakly protected — rely on full-disk encryption')

@@ -17,6 +17,8 @@ interface Props {
 }
 
 const DASH = '—'
+// A revealed key re-masks itself: the value is shoulder-surfable and the screen is one a user
+// leaves open while working through a connectivity problem.
 const REVEAL_AUTO_HIDE_MS = 30000
 
 function formatRelativeTime(ms: number | null, now: number): string {

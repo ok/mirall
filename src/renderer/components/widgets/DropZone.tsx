@@ -37,6 +37,8 @@ export default function DropZone({
       label: t('dropZone.folder'),
       icon: 'folder',
       onAction: () => {
+        // '' means "no path chosen yet" — the handler opens the native picker. A real path here
+        // would skip it and share that folder immediately.
         if (folderEnabled && onFolderSelected) onFolderSelected('')
       },
     },
