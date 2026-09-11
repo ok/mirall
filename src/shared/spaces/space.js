@@ -3,6 +3,20 @@
 // shared core-purge primitive), the invite-code format, serialized member-roster mutation,
 // durable leave tombstones, pending join requests, and pinning of the creator root the
 // membership fold trusts.
+//
+// The `spaces-meta` bee's key layout, all three namespaces:
+//   space/<spaceId>            the space record (below)
+//   left/<spaceId>/<memberKey> a leave tombstone: { leaveTs }
+//   pendingleave/<spaceId>     an interrupted leave boot must finish: { topic, ts }
+//
+// A space record is written whole by createSpace and joinSpace and patched through mutateSpace
+// thereafter. Seven fields are always present — name, icon, topic, created, members, driveSuffix,
+// schemaVersion. The rest are latches, each owned by one writer: `status: 'pending'` until the
+// grant arrives, `sckDerivable` and `creatorKey` stamped at creation (or pre-seeded from an invite
+// and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we joined
+// through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps, `favorite` and
+// `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`, `legacyWarning`
+// and `driveLoadError` as diagnoses a later pass records.
 import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'

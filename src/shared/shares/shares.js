@@ -1,5 +1,11 @@
 // Share records — the `share/<spaceId>/<shareId>` rows in profile bees. A record points
 // at a catalog (key + content mode); the file listings themselves live in share-catalog.js.
+//
+// The five words this domain is built from, in dependency order: a SHARE RECORD says a share exists,
+// who owns it and which catalog carries it; a CATALOG is the per-(owner, space) bee of
+// `file/<shareId>/<relPath>` rows; a REGISTRY is own plus member share records merged for one
+// space; a LISTING is the display rows of one share; and a CATALOG BATCH is the writer that buffers
+// catalog rows during a scan.
 // Own records are written to the local profile bee (under the `caps/folder-shares`
 // capability flag); peers' records are read from their replicated profile bees with
 // bounded reads, so an offline member can't stall a caller.
