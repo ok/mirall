@@ -28,6 +28,9 @@ export function deriveKeyPair(masterSecret, name, namespace = DEFAULT_NAMESPACE)
   return crypto.keyPair(deriveSeed(masterSecret, namespace, name))
 }
 
+// 'db' and the per-drive namespace are not ours to choose: they reproduce Hyperdrive's own
+// derivation, so a drive opened by name lands on the key it already has. A pin test holds the
+// output; changing either argument would silently orphan every existing drive.
 export function deriveDriveKeyPair(masterSecret, driveName) {
   return deriveKeyPair(masterSecret, 'db', generateNamespace(DEFAULT_NAMESPACE, driveName))
 }

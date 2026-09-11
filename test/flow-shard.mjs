@@ -2,6 +2,11 @@
 // longest-processing-time) so heavy files land in different shards and the suite
 // parallelises evenly. Weights are coarse CI-second hints; unmapped files use
 // DEFAULT_WEIGHT. Usage: node test/flow-shard.mjs <1-based shardIndex> <shardTotal>
+//
+// The weights are read off a CI run's per-file times and rounded; they only have to rank the heavy
+// files correctly, since the partition is greedy. They go stale silently — a file that grows heavy
+// keeps its old weight and unbalances a shard — so re-read them when one shard starts timing out
+// while the others finish early.
 import { readdirSync } from 'fs'
 import path from 'path'
 

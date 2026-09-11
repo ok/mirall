@@ -27,7 +27,10 @@ interface LeaveProgress {
   data?: Record<string, string>
 }
 
+// The teardown reports steps, but the reclaim that follows reports nothing, so the bar holds at
+// half and switches to a stripe rather than showing a percentage it cannot honour.
 const PROGRESS_CAP = 50
+// Long enough for the bar to reach 100 and be seen there before the modal closes.
 const COMPLETION_HOLD_MS = 350
 
 const PHASES_WITH_SIZE = new Set(['compactingPeerCache', 'compactingLocalCache'])

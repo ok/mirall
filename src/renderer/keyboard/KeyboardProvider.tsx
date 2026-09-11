@@ -155,6 +155,10 @@ export function useKeyboard(): KeyboardApi {
   return v
 }
 
+// `deps` governs RE-REGISTRATION, not freshness: `run` and `when` are read through a ref, so they
+// are always current whatever deps say. Only the fields copied into `stable` below — labelKey,
+// labelParams, group, accelerator, hiddenInPalette — need a change here, which is why most callers
+// pass [] and only one passes the values its label interpolates.
 export function useRegisterCommand(cmd: Command, deps: DependencyList): void {
   const { registerCommand } = useKeyboard()
   const cmdRef = useRef(cmd)

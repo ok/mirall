@@ -414,7 +414,6 @@ async function readBothSides(spaceId, shareId, mountPath, ignore, pass, signal) 
     const bail = await bailIfAborted(spaceId, shareId, signal)
     return bail ? { bail } : { walk, known }
   } catch (err) {
-    // walk-disk raises PREVIEW_CANCELLED for any aborted walk, preview or not.
     if (err?.code !== 'PREVIEW_CANCELLED') throw err
     // The `??` is load-bearing: an aborted walk has no result to hand back, so a null bail here
     // would fall through to the caller destructuring an undefined walk.

@@ -7,6 +7,10 @@ import { createLogger } from '../core/logger.js'
 
 const log = createLogger('walk-disk')
 
+// Every aborted walk raises this, not just a cancelled preview: the code is named for the first
+// caller and kept because it is the on-the-wire value a catch already tests for. A caller that
+// aborts a scan, a reconcile or a preview sees PREVIEW_CANCELLED and must treat it as "the walk
+// stopped because I asked", never as a failure.
 export class AbortError extends Error {
   constructor() {
     super('preview cancelled')

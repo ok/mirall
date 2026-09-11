@@ -42,6 +42,8 @@ export default function CreateSpaceModal({
     }
   }
 
+  // onCreated fires AFTER onClose, and on the captured space: it navigates to the new space, and
+  // running it first would leave this modal open over the screen it navigated to.
   function handleClose() {
     const justCreated = createdSpace;
     setName("");
