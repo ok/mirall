@@ -40,7 +40,7 @@ import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
-import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries } from './swarm-registries.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries, authorizedOn, detachPeerFromSpace } from './swarm-registries.js'
 import {
   initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic,
   handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame,
@@ -342,15 +342,21 @@ function initSwarm(_ipc, relaySeedHex = null) {
         // connection's Noise key. Gated before pendingRequesters.set so a spoofed request can't
         // capture a grant.
         if ((msg.type === 'handshake' || msg.type === 'membership:request') &&
-            !admitIdentityFrame(socket, peerInfo, remoteKey, msg)) return
+            !admitIdentityFrame(conn, msg)) return
 
         try {
-          dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler)
+          dispatchFrame(conn, msg)
         } catch (err) {
           log.error('handshake dispatch error:', err)
         }
       },
     })
+
+    // One live control connection: the socket, who is on the other end, the Noise key they are
+    // reached by, and the channel frames go out on. The frame path takes this whole rather than its
+    // fields. Declared after the channel because it carries the channel's handler; onmessage above
+    // closes over it and cannot run before channel.open() below.
+    const conn = { socket, peerInfo, remoteKey, msgHandler }
 
     // Let content backends bind extra protocol channels on THIS mux (overlay's
     // hyper-overlay/v2). Synchronous + before channel.open() — protomux won't pair
@@ -392,7 +398,8 @@ function initSwarm(_ipc, relaySeedHex = null) {
 // never starve the shared-space frame. Only matched frames pay for signature verification and
 // reach dispatch. Both lanes ban on a sustained flood. Returns false if the frame was
 // dropped/rejected.
-function admitIdentityFrame(socket, peerInfo, remoteKey, msg) {
+function admitIdentityFrame(conn, msg) {
+  const { socket, peerInfo, remoteKey } = conn
   if (testDrop) {
     const i = testDrop.seen++
     if (i >= testDrop.after && i < testDrop.after + testDrop.count) {
@@ -435,7 +442,8 @@ function admitIdentityFrame(socket, peerInfo, remoteKey, msg) {
 
 // A pending joiner has no drive/handshake yet, so remember its socket to deliver a grant later.
 // Bounded by the pendingRequesters cap; an already-tracked requester re-registering is allowed.
-function registerPendingRequester(socket, remoteKey, msg) {
+function registerPendingRequester(conn, msg) {
+  const { socket, remoteKey } = conn
   const cap = getResourceCaps().pendingRequesters
   if (!cap || pendingRequesters.size < cap || pendingRequesters.has(msg.profileKey)) {
     pendingRequesters.set(msg.profileKey, socket)
@@ -469,7 +477,8 @@ function registerPendingRequester(socket, remoteKey, msg) {
 // identity instead, and the membership control handler verifies it, because a grant arrives on the
 // connection the joiner opened. The content plane runs its own channel with one frame,
 // content-hello (content-swarm.js).
-function dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler) {
+function dispatchFrame(conn, msg) {
+  const { socket, peerInfo, msgHandler } = conn
   const reply = (payload) => { try { msgHandler.send(JSON.stringify(payload)) } catch {} }
   if (msg.type === 'handshake') {
     // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around
@@ -489,7 +498,7 @@ function dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler) {
   } else if (msg.type === 'share-prepare-progress') {
     handleSharePrepareProgressFrame(socket, msg)
   } else if (msg.type.startsWith('membership:')) {
-    if (msg.type === 'membership:request' && msg.profileKey) registerPendingRequester(socket, remoteKey, msg)
+    if (msg.type === 'membership:request' && msg.profileKey) registerPendingRequester(conn, msg)
     membershipControlHandler?.(msg, { socket, peerInfo, reply })  // handler verifies a grant's identity binding + asserted root
   } else {
     countDroppedFrame('unknown')
@@ -943,15 +952,12 @@ export async function leaveSpaceTopic(spaceId) {
 function disconnectPeersFromSpace(spaceId) {
   for (const [key, peer] of connectedPeers) {
     if (!peer.spaces.has(spaceId)) continue
-    peer.spaces.delete(spaceId)
-    peer.looseCatalogKeys?.delete(spaceId)
-    if (peer.spaces.size === 0) {
-      try { peer.socket.destroy() } catch {}
-      // The overlay content channel rides the CONTENT socket, not this one. Dropping only the
-      // control socket leaves the bulk plane serving a space we have just left.
-      try { destroyContentPeerSockets(key) } catch {}
-      connectedPeers.delete(key)
-    }
+    if (!detachPeerFromSpace(peer, spaceId)) continue
+    try { peer.socket.destroy() } catch {}
+    // The overlay content channel rides the CONTENT socket, not this one. Dropping only the
+    // control socket leaves the bulk plane serving a space we have just left.
+    try { destroyContentPeerSockets(key) } catch {}
+    connectedPeers.delete(key)
   }
 }
 
@@ -1061,14 +1067,10 @@ export function getConnectedMemberMeta(spaceId, profileKeyHex) {
   return { driveKey: peer.spaces.get(spaceId) || null, looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, displayName: peer.displayName, avatar: peer.avatar }
 }
 
-// The serve-authorization primitive, single-sourced so every serve path (the overlay's
-// authorizer) reuses it. socketToPeers holds only identities that passed the identity binding on
-// this socket, so this answers both "is the requester admitted here?" (owner side) and "did this
-// reply come from the owner?" (consumer side) — and it survives an owner reconnect because the
-// draining old socket keeps its entry until close, unlike a check against the single latest
-// connectedPeers socket.
+// The name the overlay's authorizer imports for authorizedOn (swarm-registries.js), which is where
+// the rule lives.
 export function senderAuthorizedOnSocket(socket, profileKeyHex) {
-  return !!socketToPeers.get(socket)?.has(profileKeyHex)
+  return authorizedOn(socket, profileKeyHex)
 }
 // The bound signer key a connected peer last asserted, for sealing a membership:grant to it.
 export function getBoundSignerKey(profileKeyHex) {

@@ -11,7 +11,7 @@ import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
 import { presenceFrameKind } from '../state/presence.js'
-import { connectedPeers, socketToPeers, spaceTopics, socketMsgHandlers } from './swarm-registries.js'
+import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace } from './swarm-registries.js'
 
 let presence = null
 let membersPoke = null
@@ -63,11 +63,7 @@ function broadcastPresence() {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {
-    for (const [, peer] of connectedPeers) {
-      if (!peer.spaces.has(spaceId)) continue
-      const handler = socketMsgHandlers.get(peer.socket)
-      if (handler) { try { handler.send(JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex })) } catch {} }
-    }
+    broadcastToSpace(spaceId, JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex }))
   }
 }
 
@@ -82,11 +78,7 @@ export function broadcastDeparture() {
   if (!getSwarm() || socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {
-    for (const [, peer] of connectedPeers) {
-      if (!peer.spaces.has(spaceId)) continue
-      const handler = socketMsgHandlers.get(peer.socket)
-      if (handler) { try { handler.send(JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex, offline: true })) } catch {} }
-    }
+    broadcastToSpace(spaceId, JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex, offline: true }))
   }
 }
 
@@ -95,12 +87,7 @@ export function broadcastDeparture() {
 export function broadcastSharePrepareProgress(spaceId, payload) {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  const frame = JSON.stringify({ type: 'share-prepare-progress', profileKey: profileKeyHex, spaceId, ...payload })
-  for (const [, peer] of connectedPeers) {
-    if (!peer.spaces.has(spaceId)) continue
-    const handler = socketMsgHandlers.get(peer.socket)
-    if (handler) { try { handler.send(frame) } catch {} }
-  }
+  broadcastToSpace(spaceId, JSON.stringify({ type: 'share-prepare-progress', profileKey: profileKeyHex, spaceId, ...payload }))
 }
 
 // A share is admission-gated at 5k files and a folder that grows past it keeps publishing, so this
@@ -114,12 +101,7 @@ const MAX_WIRE_COUNT = 1_000_000
 export function broadcastShareIndexProgress(spaceId, payload) {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  const frame = JSON.stringify({ type: 'share-index-progress', profileKey: profileKeyHex, spaceId, ...payload })
-  for (const [, peer] of connectedPeers) {
-    if (!peer.spaces.has(spaceId)) continue
-    const handler = socketMsgHandlers.get(peer.socket)
-    if (handler) { try { handler.send(frame) } catch {} }
-  }
+  broadcastToSpace(spaceId, JSON.stringify({ type: 'share-index-progress', profileKey: profileKeyHex, spaceId, ...payload }))
 }
 
 // Re-surface an owner's queue depth to our renderer. Same anti-spoof guard as the prepare frame:
@@ -130,7 +112,7 @@ export function broadcastShareIndexProgress(spaceId, payload) {
 export function handleShareIndexProgressFrame(socket, msg) {
   const { profileKey, spaceId, shareId, adding, bytesQueued } = msg
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string' || typeof shareId !== 'string') return
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
+  if (!authorizedOn(socket, profileKey)) return
   // The sender is carried through as `ownerKey` so the consumer can require it to be the share's
   // actual owner. Authentication proves only WHO is speaking: without this any approved co-member
   // could describe someone else's share, and the notice names that someone by display name.
@@ -151,7 +133,7 @@ export function handlePresenceFrame(socket, msg) {
   const kind = presenceFrameKind(msg)
   if (kind === 'ignore') return
   const { profileKey, spaceTopic } = msg
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
+  if (!authorizedOn(socket, profileKey)) return
   const spaceId = resolveSpaceIdForTopic(spaceTopic)
   if (!spaceId) return
   if (kind === 'clear') {
@@ -181,7 +163,7 @@ export function handleSharePrepareProgressFrame(socket, msg) {
   const { profileKey, spaceId, shareId, relPath, bytes, total, eta } = msg
   if (typeof profileKey !== 'string' || typeof spaceId !== 'string') return
   if (typeof shareId !== 'string' || typeof relPath !== 'string') return
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
+  if (!authorizedOn(socket, profileKey)) return
   const key = shareId === LOOSE_SHARE_ID ? '/' + relPath : shareDecoKey(shareId, relPath)
   // The owner finished (or abandoned) the hash. Decorations are cleared only by this frame, so
   // without it the bar sits at ~100% and repaints stale on the next re-hash of the same path. It
