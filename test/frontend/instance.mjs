@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { rmSync, openSync, closeSync } from 'node:fs'
 import path from 'node:path'
 import { ad, withRetry, RETRYABLE } from './agent.mjs'
@@ -31,6 +31,25 @@ const POLL_MS = 150
 // clock on the happy path. See nativeChoosePath.
 const PANEL_TRIES = 3
 const PANEL_WAIT_MS = 7000
+
+// How long to wait, after the `npx electron-forge` wrapper has exited, for the Electron process it
+// spawned to actually let go of the store. The graceful path already allows 6s before SIGKILL, so
+// this only has to cover the kernel reaping a killed process.
+const STORE_RELEASE_TIMEOUT_MS = 10000
+
+// True while an Electron process still holds `store`. Electron main carries `--storage <store>` in
+// its argv; the helper processes (renderer, GPU, utility) do not, so this matches exactly the one
+// process that writes config.json.
+function storeHeldByApp(store) {
+  const pattern = `Electron.*${store.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+  try {
+    execFileSync('pgrep', ['-f', pattern], { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function mirallWindows() {
   const { data } = await ad(['list-windows'])
   return data
@@ -680,12 +699,35 @@ export class Instance {
     if (hard) {
       try { process.kill(-proc.pid, 'SIGKILL') } catch {}
       await exited
+      await this._awaitStoreRelease(proc.pid)
       return
     }
     try { process.kill(-proc.pid, 'SIGTERM') } catch {}
     const sigkill = setTimeout(() => { try { process.kill(-proc.pid, 'SIGKILL') } catch {} }, 6000)
     await exited
     clearTimeout(sigkill)
+    await this._awaitStoreRelease(proc.pid)
+  }
+
+  // The wrapper's `exit` says nothing about the Electron process it spawned, which is still running
+  // before-quit at that point. That matters because main's ConfigStore is debounced and flushed on
+  // quit, and the flush rewrites the WHOLE config.json from main's in-memory object — window bounds
+  // are written as the window closes, so the flush is armed even when the scenario changed nothing.
+  // Resolving here while that is in flight lets a caller's edit be silently replaced. Wait until no
+  // process holds the store, SIGKILLing the group once more if one is wedged.
+  async _awaitStoreRelease(groupPid) {
+    if (!storeHeldByApp(this.store)) return
+    const deadline = Date.now() + STORE_RELEASE_TIMEOUT_MS
+    let escalated = false
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_MS))
+      if (!storeHeldByApp(this.store)) return
+      if (!escalated && Date.now() > deadline - STORE_RELEASE_TIMEOUT_MS / 2) {
+        escalated = true
+        try { process.kill(-groupPid, 'SIGKILL') } catch {}
+      }
+    }
+    throw new Error(`${this.name}: Electron still holds ${this.store} ${STORE_RELEASE_TIMEOUT_MS}ms after exit`)
   }
 
   async kill() {
