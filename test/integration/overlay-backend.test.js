@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { createOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, setOwnedIndexPaused } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
@@ -147,14 +147,14 @@ test('REGRESSION (FIX-PI1-4: an owned-folder file gone from disk is retired thro
   const abs = path.join(ctx.mountPath, 'a.txt')
   await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', abs)
 
-  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: true })
+  await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, true)
   fs.unlinkSync(abs)
   await overlaySweepPresence()
   await overlaySweepPresence()
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'),
     'a paused index publishes no deletions — the reclaim went through the lane and the lane declined it')
 
-  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: false })
+  await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, false)
   await overlaySweepPresence()
   await overlaySweepPresence()
   t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'and once the index resumes, the same lane retires it')

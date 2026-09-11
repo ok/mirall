@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { initOwnedFolders, onFsEvent } from '../../src/shared/folders/owned-folders.js'
-import { setOwnedMountStatus, getOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { setOwnedActivity, setOwnedFault, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // A watcher event schedules a trailing catch-up reconcile (2s debounce). That reconcile used to
@@ -32,7 +32,8 @@ function recordingSettle(ctx) {
       status = 'paused-error'
       outcome = { spaceId, shareId, error: err }
     }
-    await setOwnedMountStatus(spaceId, shareId, status, null)
+    if (status === 'active') await setOwnedActivity(spaceId, shareId, status)
+    else await setOwnedFault(spaceId, shareId, status, null)
     ctx.fake.ipc.emit('event:owned-folder-mount-status', { spaceId, shareId, status })
     // Recorded last: waitForSettle keys off this array, so publishing the status first keeps
     // the assertions that follow it free of a race with our own settle.

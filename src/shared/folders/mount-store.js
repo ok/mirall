@@ -13,6 +13,9 @@ import { createRecordWriter } from '../core/bee-writer.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
+import { ownedMountStatus } from '../contract/mount-precedence.js'
+import { AppError } from '../core/errors.js'
+import { CODES } from '../contract/errors.js'
 
 const log = createLogger('mount-store')
 
@@ -62,25 +65,46 @@ export async function deleteOwnedMount(spaceId, shareId) {
   await records.del(ownedKey(spaceId, shareId))
 }
 
-// Durable status for an owned mount (mirrors the foreign mount.status field): the boot
-// loop and probe read/write it so a scan failure survives a restart instead of living
-// only in a transient renderer event. No-op when the mount record is gone (unmounted).
-export function setOwnedMountStatus(spaceId, shareId, status, lastError = null) {
-  return mutateOwned(spaceId, shareId, (m) =>
-    (m.status === status && (m.lastError ?? null) === lastError) ? null : { ...m, status, lastError })
+// `status` is derived from the two facts beside it, never assigned: the three setters below name a
+// fact and this resolves it. No-op when nothing changed, so a probe tick that re-asserts the same
+// state appends no block.
+function applied(m, patch) {
+  const next = { ...m, ...patch }
+  next.status = ownedMountStatus(next)
+  next.lastError = next.lastError ?? null
+  const same = m.status === next.status
+    && (m.lastError ?? null) === (next.lastError ?? null)
+    && !!m.indexPaused === !!next.indexPaused
+  return same ? null : next
 }
 
-// Durable user intent: this folder's index is paused until an explicit resume. A FIELD, not a
-// status, because four writers overwrite status (a scan settle, the mount-gone path, mount,
-// relocate) and a pause recorded only there is lost at the next settle. No-op (false) when the
-// record is gone.
-export function setOwnedIndexPaused(spaceId, shareId, paused) {
-  return mutateOwned(spaceId, shareId, (m) =>
-    (!!m.indexPaused === !!paused) ? null : { ...m, indexPaused: !!paused })
+// A pass reached a conclusion about the source: it is readable, and this is where it got to.
+// Clears a recorded fault — a pass that ran is the evidence it is gone — and cannot disturb a pause.
+export function setOwnedActivity(spaceId, shareId, activity) {
+  return mutateOwned(spaceId, shareId, (m) => applied(m, { status: activity, lastError: null }))
 }
+
+// A pass could not finish, and this is why. Outranks a pause without erasing it.
+export function setOwnedFault(spaceId, shareId, faultStatus, code = null) {
+  return mutateOwned(spaceId, shareId, (m) => applied(m, { status: faultStatus, lastError: code }))
+}
+
+// Durable user intent: this folder's index is paused until an explicit resume. Kept beside `status`
+// rather than in it, so a fault showing over the pause does not erase it.
+export function setOwnedIndexPaused(spaceId, shareId, paused) {
+  return mutateOwned(spaceId, shareId, (m) => applied(m, { indexPaused: !!paused }))
+}
+
+const DERIVED_FIELDS = ['status', 'indexPaused']
 
 // Patch an owned mount's bookkeeping. No-op (false) when the record is gone.
 export function patchOwnedMount(spaceId, shareId, patch) {
+  for (const field of DERIVED_FIELDS) {
+    if (field in patch) {
+      throw new AppError(CODES.INVALID_ARGUMENT,
+        `mount ${field} is derived — use setOwnedActivity, setOwnedFault or setOwnedIndexPaused`)
+    }
+  }
   return mutateOwned(spaceId, shareId, (m) => ({ ...m, ...patch }))
 }
 

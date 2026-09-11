@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { getOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { getOwnedMount, setOwnedActivity, setOwnedIndexPaused } from '../../src/shared/folders/mount-store.js'
 import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { CODES } from '../../src/shared/contract/errors.js'
@@ -126,7 +126,7 @@ test('a root that vanished mid-pass settles as mount-point-gone, not as a fault'
 // catch and its success path. These are the guard on the distinctions, not on the new behaviour.
 test("a cancelled pass still records nothing", async (t) => {
   const ctx = await setupOwnedShare(t)
-  await patchOwnedMount(ctx.spaceId, ctx.share.id, { status: 'scanning' })
+  await setOwnedActivity(ctx.spaceId, ctx.share.id, 'scanning')
 
   await ctx.root.mounts.settleScanStatus(Promise.resolve({ cancelled: true, failed: 0 }), ctx.spaceId, ctx.share.id)
 
@@ -136,10 +136,15 @@ test("a cancelled pass still records nothing", async (t) => {
 
 test('an index-paused skip still records paused, not a fault', async (t) => {
   const ctx = await setupOwnedShare(t)
+  // The skip only arises because the flag is set — the scan reads it and declines — so the fixture
+  // sets it too. The settle records the activity it reached; the pause is what outranks it.
+  await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, true)
 
   await ctx.root.mounts.settleScanStatus(Promise.resolve({ skipped: 'index-paused' }), ctx.spaceId, ctx.share.id)
 
-  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'a decision is not a fault')
+  const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(mount.status, 'paused', 'a decision is not a fault')
+  t.is(mount.lastError, null, 'and carries no reason')
 })
 
 test('a skip with any other reason still records paused-error carrying it', async (t) => {
@@ -185,14 +190,14 @@ test('REGRESSION (FIX-PI12-3: a pass that declined to run does not consume the p
   // A pause declines the next pass before it walks. The fault it would have reported was observed
   // by the watcher item above and is still unreported, so it must survive rather than die with the
   // pass that never ran.
-  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: true })
+  await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, true)
   await ctx.root.mounts.settleScanStatus(
     initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'precondition: the pass declined')
 
-  await patchOwnedMount(ctx.spaceId, ctx.share.id, { indexPaused: false })
+  await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, false)
   await ctx.root.mounts.settleScanStatus(
     initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
@@ -222,4 +227,36 @@ test('a fault recorded by a watcher item between passes is not lost', async (t) 
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused-enospc',
     'the fault carries to the pass that settles next, rather than being cleared when it starts')
+})
+
+// REGRESSION (A.4): the pause and the last pass's outcome are separate facts. A fault outranks the
+// pause on screen and leaves it recorded, so the clean pass that clears the fault returns the folder
+// to paused rather than silently resuming it.
+test('REGRESSION (A.4): a fault over a pause resolves back to paused, with no explicit resume', async (t) => {
+  const ctx = await setupOwnedShare(t)
+  await ctx.root.mounts.pauseIndex(ctx.spaceId, ctx.share.id)
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'precondition: paused')
+
+  await ctx.root.mounts.settleScanStatus(Promise.reject(errno('ENOSPC', 'no space left')), ctx.spaceId, ctx.share.id)
+  const faulted = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(faulted.status, 'paused-enospc', 'the fault is what shows')
+  t.ok(faulted.indexPaused, 'and the pause is still recorded underneath')
+
+  await ctx.root.mounts.settleScanStatus(Promise.resolve({}), ctx.spaceId, ctx.share.id)
+  const cleared = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(cleared.status, 'paused', 'the pass that clears the fault does not resume the folder')
+  t.is(cleared.lastError, null)
+})
+
+// REGRESSION (A.4): a clean pass over a paused folder must not report it active — the settle names
+// the activity it reached, and the pause outranks it.
+test('REGRESSION (A.4): a pause survives a clean scan settle', async (t) => {
+  const ctx = await setupOwnedShare(t)
+  await ctx.root.mounts.pauseIndex(ctx.spaceId, ctx.share.id)
+
+  await ctx.root.mounts.settleScanStatus(Promise.resolve({}), ctx.spaceId, ctx.share.id)
+
+  const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(mount.status, 'paused', 'still paused')
+  t.ok(mount.indexPaused)
 })

@@ -148,6 +148,9 @@ test('relocate records the debt on both paths, before either pass is armed', (t)
   const scanAt = handler.indexOf('initialPublishScan(')
   t.ok(debtAt > 0, 'it records the debt')
   t.ok(scanAt > debtAt, 'before it arms the pass — the flag is the durable fact, the running pass is not')
-  t.absent(/if \(mount\.indexPaused\)[^\n]*deepScanOwed: true/.test(handler),
+  const pauseGate = handler.search(/if \(!?\w+\??\.?indexPaused\)/)
+  t.ok(pauseGate > debtAt,
     'and unconditionally: the ACTIVE path owes it too, to whatever runs after a quit mid-walk')
+  // The gate reads a record fetched AFTER the awaits above it, not the one this handler opened with.
+  t.absent(/if \(!mount\.indexPaused\)/.test(handler), 'the pause gate does not read the stale snapshot')
 })

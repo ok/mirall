@@ -1038,7 +1038,7 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
   // Seed the probe baseline so the first mount-point tick doesn't read this brand-new mount as a
   // gone→present transition (which would otherwise run against an unseeded key).
   mounts.lastMountPointStatus.set('owned-folder:' + shareId, mountRootAvailable(mountPath))
-  await mounts.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.SCANNING)
+  await mounts.recordActivity(spaceId, shareId, MOUNT_STATUS.SCANNING)
 
   ipc.emit(MAIN_REQUEST_FRAME, {
     command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
@@ -1117,7 +1117,9 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   mount.mountPath = mountPath
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
-  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? MOUNT_STATUS.PAUSED : MOUNT_STATUS.SCANNING)
+  // Locate Folder clears the gone fault; a paused index is still paused, which the precedence
+  // decides rather than this call site.
+  await mounts.recordActivity(msg.spaceId, msg.shareId, MOUNT_STATUS.SCANNING)
   ipc.emit(MAIN_REQUEST_FRAME, {
     command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
@@ -1135,7 +1137,10 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   // below, which runs in a floating promise a quit mid-walk can end.
   await patchOwnedMount(msg.spaceId, msg.shareId, { deepScanOwed: true })
 
-  if (!mount.indexPaused) {
+  // Re-read: `mount` predates validateMountPath and two awaits, so a pause landing in between would
+  // be missed and this would arm a pass the user had stopped.
+  const current = await getOwnedMount(msg.spaceId, msg.shareId)
+  if (!current?.indexPaused) {
     mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
       .then(async (result) => {
         if (result?.cancelled) return
