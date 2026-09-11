@@ -59,19 +59,47 @@ echo "test-timing: clean."
 #   brittle's own budget     test('…', { timeout: scaled(60000) }, …)
 # Production option budgets passed INTO the code under test (fetchFile({ timeout: 6000 })) are
 # part of the assertion, not a test deadline, and are deliberately not matched here.
+#
+# A wait that must stay ABSOLUTE — one that has to land inside an un-scaled production window, where
+# scaling would move it past the very edge under test — is exempted by an `absolute:` comment
+# carrying the reason, on the line or the two above it. That is the only opt-out, and it is the
+# same shape as the flow layer's unscaled().
 INT=test/integration
-unscaled="$(grep -rnE "Date\.now\(\) \+ [A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline) *$" "$INT" | grep -v 'scaled(' || true)"
-unscaled="$unscaled$(grep -rnE "Date\.now\(\) - [A-Za-z0-9_]+ < [A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline)\b" "$INT" | grep -v 'scaled(' || true)"
-unscaled="$unscaled$(grep -rnE "const (settle|tick|quiet|pause|idle) = \(.*=> new Promise.*setTimeout\([^,]+, *([0-9]{2,}|[A-Za-z_]+)\)" "$INT" | grep -v 'scaled(' || true)"
-unscaled="$unscaled$(grep -rnE "^test\(.*\{ *timeout: *[0-9]{3,}" "$INT" | grep -v 'scaled(' || true)"
+hits=""
+collect () {
+  local found
+  found="$(grep -rnE "$1" "$INT" | grep -v 'scaled(' || true)"
+  if [ -n "$found" ]; then hits="$hits$found
+"; fi
+  return 0
+}
+collect "Date\.now\(\) \+ [A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline) *$"
+collect "Date\.now\(\) - [A-Za-z0-9_]+ < [A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline)\b"
+collect "const (settle|tick|quiet|pause|idle) = \(.*=> new Promise.*setTimeout\([^,]+, *([0-9]{2,}|[A-Za-z_]+)\)"
+collect "^test\(.*\{ *timeout: *[0-9]{3,}"
+
+# Keep only the hits that did NOT state a reason to stay absolute, on the line or just above it.
+unscaled=""
+while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  file="${hit%%:*}"
+  rest="${hit#*:}"
+  line="${rest%%:*}"
+  from=$(( line > 2 ? line - 2 : 1 ))
+  if sed -n "${from},${line}p" "$file" | grep -q 'absolute:'; then continue; fi
+  unscaled="$unscaled$hit
+"
+done <<EOF
+$hits
+EOF
 
 if [ -n "$(printf '%s' "$unscaled" | tr -d '[:space:]')" ]; then
   echo "ERROR: un-scaled deadline in test/integration — it ignores MIRALL_TEST_TIMEOUT_SCALE:" >&2
-  printf '%s\n' "$unscaled" | sort -u >&2
+  printf '%s' "$unscaled" | sort -u >&2
   echo >&2
   echo "  fix: Date.now() + ms            ->  Date.now() + scaled(ms)" >&2
   echo "       { timeout: 60000 }         ->  { timeout: scaled(60000) }" >&2
-  echo "  (import { scaled } from '../helpers/bare-timing.js')" >&2
+  echo "  (import { scaled } from '../helpers/bare-timing.js'; or say why it must stay absolute:)" >&2
   exit 1
 fi
 

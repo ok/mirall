@@ -8,7 +8,6 @@ import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
-import { scaled } from '../helpers/bare-timing.js'
 
 // The shared overlay consumer engine (used by both loose + folder). The success/
 // pause/resume paths need a peer to serve bytes (flow-tested in CI); here we cover
@@ -50,7 +49,9 @@ function makeJob (ctx, over = {}) {
   }
 }
 
-const tick = () => new Promise((r) => setTimeout(r, scaled(30)))
+// absolute: this yield has to land INSIDE the 20-150ms stall backoffs these tests configure —
+// a scaled one lets the retry fire before the test can change the owner's state under it.
+const tick = () => new Promise((r) => setTimeout(r, 30))
 
 // #1 — a cancel that lands during the (no-op) startup window must NOT resurrect the
 // file: even if the fetch races to completion, the IIFE drops the bytes.
@@ -550,10 +551,9 @@ test('REGRESSION (FIX-ENOSPC-3): auto-resume skips a disk-full row', async (t) =
 // a holder that never disconnects fires neither auto-resume trigger — so the throttled case
 // parked the row until the user clicked Resume, and (measured) each click bought one chunk.
 
-// No `scaled()` here: test/helpers/timing.js reads process.env, which Bare does not provide, so
-// the bare suite cannot scale its waits. These are fixed and deliberately generous — each retry
-// window has to cover a RocksDB read, the backoff, a re-start and a RocksDB write on a loaded
-// runner, and this suite already carries a known one-random-failure-per-run flake.
+// absolute: a retry window is the interval the engine is being measured against, so it is stated
+// in real milliseconds. Deliberately generous — each one has to cover a RocksDB read, the backoff,
+// a re-start and a RocksDB write on a loaded runner.
 const fastRetry = { baseMs: 20, maxMs: 40, dryLimit: 3 }
 
 // A retry re-drives runReconcile, so its channel must resolve a row into a job the way the real
