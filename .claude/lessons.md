@@ -549,3 +549,31 @@ history of the refactor belongs in the commit body and the PR, where it is dated
 
 Applies to test comments too: say what the test protects, not which bug motivated writing it —
 unless it is a `REGRESSION` test, whose whole contract is naming the defect it pins.
+
+## A new module under src/shared/** needs an arch-doc row, and that is a gate
+
+`test/unit/arch-doc-module-table.test.js` walks the data-layer, main and worker trees and fails on
+any module with no row in `.claude/solution-architecture.md` §11. Adding
+`contract/mount-precedence.js` turned a PR red on CI after a full local pass of every *targeted* test
+file — the guard lives in a file targeted runs never load.
+
+**The rule:** adding a module is a two-file change. Write the §11 row in the same commit. The doc is
+not a follow-up here; it is pinned.
+
+**The general shape:** targeted test selection is the right default (the suites are slow), but it is
+blind to repo-wide guards — the arch-doc table, the i18n key scans, `renderer-contract-only-imports`,
+`no-hand-mirrored-vocabularies`. Before pushing a change that ADDS or MOVES a file, run the guard
+family once, or accept a CI round-trip.
+
+## A source-scanning ratchet goes vacuous when you rename what it matches
+
+Two guards silently stopped testing anything during Tier 2 — they matched source text that the
+refactor removed, so `t.absent(...)` passed for the wrong reason:
+`state-conveyance-review-fixes.test.js` (a function name) and `relocate-deep-debt.test.js`
+(`mount.indexPaused` in the relocate handler). A third, `mount-status-vocabulary.test.js`, had a
+`found.size > 0` self-guard that would have failed once its writers stopped holding literals at all.
+
+**The rule:** when a change renames or deletes what a ratchet matches, grep the test tree for the old
+spelling *before* running anything. A ratchet that fails is doing its job; one that quietly passes has
+stopped being a test. Prefer pinning a positive property ("every writer imports the vocabulary") over
+an absence.
