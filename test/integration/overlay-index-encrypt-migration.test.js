@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 
@@ -36,7 +36,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
   const root = tmp('run')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
@@ -73,7 +73,7 @@ test('REGRESSION: the purged plaintext generation reopens clean across a restart
   const storePath = path.join(root, 'app-storage')
 
   // Boot 1: seed a plaintext overlay index + migrate + shut down.
-  initStore(storePath)
+  await openStore(storePath)
   setMasterSecret(M)
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
   await legacy.ready()
@@ -85,7 +85,7 @@ test('REGRESSION: the purged plaintext generation reopens clean across a restart
   // Boot 2: a fresh worker WITHOUT M (insecure/no-KEK) reopens the plaintext generation. Unless
   // the purge dropped the by-name alias, index-meta.ready() would hit a dangling alias and throw
   // STORAGE_EMPTY (which _open does not guard for index-meta) → overlay/worker boot crash.
-  initStore(storePath)
+  await openStore(storePath)
   setMasterSecret(null)
   const reopened = new FileIndex(getStore().namespace('mirall-overlay'))
   await reopened.ready() // must not throw
@@ -100,7 +100,7 @@ test('REGRESSION: migration purges an orphaned older (compacted) plaintext gener
   const root = tmp('orphan')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
   // Seed v1 with droppable content, then compact to v2 WITHOUT purging v1 — simulating a
@@ -134,7 +134,7 @@ test('migration is a no-op without a master secret', async (t) => {
   const root = tmp('nom')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(null)
 
   const res = await migrateOverlayIndexToEncrypted()

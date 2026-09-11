@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore, getStore, setMasterSecret, createDrive } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, createDrive } from '../../src/shared/core/store.js'
 import { initSpaceKeys, putContentKey, getContentKey } from '../../src/shared/spaces/space-keys.js'
 
 function tmp (label) {
@@ -18,7 +18,7 @@ test('v2 drive encrypts BOTH metadata and blobs under the SCK', async (t) => {
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(storagePath)
+  await openStore(storagePath)
   setMasterSecret(M)
   const sck = b4a.from('aa'.repeat(32), 'hex')
   const drive = createDrive('space-drive-enc', { encryptionKey: sck })
@@ -42,14 +42,14 @@ test('space-keys.enc round-trips a joined SCK across restart', async (t) => {
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(storagePath)
+  await openStore(storagePath)
   setMasterSecret(M)
   await initSpaceKeys()
   const sck = b4a.from('cc'.repeat(32), 'hex')
   await putContentKey('space123', sck)
   await getStore().close()
 
-  initStore(storagePath)
+  await openStore(storagePath)
   setMasterSecret(M)
   await initSpaceKeys()
   t.alike(getContentKey('space123'), sck, 'joined SCK survives restart, decrypts under the M-derived vault key')

@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
-import { initStore, getStore, setMasterSecret, createBee, createDrive } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, createBee, createDrive } from '../../src/shared/core/store.js'
 
 // Guards the explicit-keypair store path, including the private Hyperdrive `_db`
 // option: createBee/createDrive must open writable cores from a derived keyPair,
@@ -40,7 +40,7 @@ test('explicit-keypair createBee/createDrive: writable, round-trips, restart-sta
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
   })
 
-  initStore(storagePath)
+  await openStore(storagePath)
   setMasterSecret(M)
 
   const bee = createBee('profile')
@@ -64,7 +64,7 @@ test('explicit-keypair createBee/createDrive: writable, round-trips, restart-sta
   await getStore().close()
 
   // Restart: same M reopens the same cores + data.
-  initStore(storagePath)
+  await openStore(storagePath)
   setMasterSecret(M)
   const bee2 = createBee('profile')
   await bee2.ready()

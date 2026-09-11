@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
 import { initProfile, setProfile, markOwnMembership, markApproval, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -26,7 +26,7 @@ async function boot (t, label) {
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
   })
   setRuntimeConfig({ storage, peerReadTimeoutMs: 3000 })
-  initStore(storage)
+  await openStore(storage)
   setMasterSecret(b4a.from('44'.repeat(32), 'hex'))
   await initSpaceKeys()
   await initProfile()

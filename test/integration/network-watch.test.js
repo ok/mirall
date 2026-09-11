@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
-import { initStore, setMasterSecret } from '../../src/shared/core/store.js'
+import { openStore, setMasterSecret } from '../../src/shared/core/store.js'
 import { initAuditLog, flushAudit, queryAudit, purgeAudit, setAuditConfig, getNetworkState } from '../../src/shared/audit/audit-log.js'
 import {
   initNetworkWatch, resetNetworkWatch, observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft,
@@ -36,7 +36,7 @@ async function boot (t, { session = 'run-1' } = {}) {
     watchTimers = null
     try { fs.rmSync(storage, { recursive: true, force: true }) } catch {}
   })
-  initStore(storage)
+  await openStore(storage)
   setMasterSecret(crypto.randomBytes(32))
   await initAuditLog({ installId: 'install-under-test' })
   await setAuditConfig({ enabled: true, retentionDays: 90, maxEntries: 200000 })

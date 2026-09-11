@@ -213,7 +213,7 @@ sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary 
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `initStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
+All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
 
 Every bee below uses **utf-8 keys, JSON values**.
 

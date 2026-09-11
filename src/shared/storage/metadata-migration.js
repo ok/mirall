@@ -15,12 +15,14 @@ const MARKER = '.mir40-bees-v1'
 // file so a normal boot does nothing; the marker lives inside app-storage so a
 // later data backup captures it. Must run after setMasterSecret and before any
 // init* opens these bees. Returns true if any bee was migrated (caller compacts
-// to drop the scrubbed plaintext from superseded SST blocks). Never throws — a
-// failure logs and leaves the marker unwritten so the next boot retries.
+// to drop the scrubbed plaintext from superseded SST blocks). A migration failure
+// logs and leaves the marker unwritten so the next boot retries; a store that will
+// not open is not that, and propagates — every later bee call would throw from a
+// promise nobody awaits, and under Bare that kills the process unattributed.
 export async function migrateLocalBeesToEncrypted() {
   if (!hasMasterSecret()) return false
+  await getStore().ready()
   try {
-    await getStore().ready()
     const fs = (await import('bare-fs')).default
     const path = (await import('bare-path')).default
     const marker = path.join(getStoragePath(), MARKER)

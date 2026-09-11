@@ -20,12 +20,42 @@ let masterSecret = null
 let metadataKey = null
 let overlayIndexKey = null
 
-export function initStore(path) {
+function initStore(path) {
   if (!path) throw new Error('initStore: storage path is required')
   storagePath = path
   store = new Corestore(path)
   epoch += 1
   return store
+}
+
+// A Corestore holds an exclusive OFD lock on <path>/CORESTORE for as long as its storage is open,
+// and the release runs through rocksdb's native close — so re-opening the same path (a worker
+// restart, a test rebooting a peer) can arrive while the predecessor still holds it. These delays
+// span the release; a lock still held after them belongs to another process, which is a hard
+// failure and not something to wait out.
+const LOCK_RETRY_DELAYS_MS = [25, 50, 100, 200, 400, 800]
+
+function isDeviceLockContention(err) {
+  return (err?.message || '').includes('could not be locked')
+}
+
+// The one way in: every store is opened here, readied here, and hands back a store whose storage is
+// live. Constructing one without ready() leaves a lock failure to surface from whichever bee happens
+// to read first, as a rejection nobody awaits.
+export async function openStore(path) {
+  for (let attempt = 0; ; attempt++) {
+    const opening = initStore(path)
+    try {
+      await opening.ready()
+      return opening
+    } catch (err) {
+      if (!isDeviceLockContention(err)) throw err
+      if (attempt === LOCK_RETRY_DELAYS_MS.length) {
+        throw new Error(`storage is locked by another process: ${path}`, { cause: err })
+      }
+      await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_DELAYS_MS[attempt]))
+    }
+  }
 }
 
 // Bumped whenever a new Corestore is opened. A module that caches a bee compares this rather than
@@ -190,10 +220,9 @@ export class Store extends Subsystem {
   }
 
   async _open() {
-    initStore(this.deps.path)
-    // Readied here so a bad storage path fails at boot under this subsystem's name, rather than
-    // inside whichever bee happens to open first.
-    await store.ready()
+    // openStore readies, so a bad storage path fails at boot under this subsystem's name rather
+    // than inside whichever bee happens to open first.
+    await openStore(this.deps.path)
   }
 
   async _close() {

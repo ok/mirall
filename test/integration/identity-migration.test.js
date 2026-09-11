@@ -90,7 +90,7 @@ test('interrupted migration: envelope present but seed not yet scrubbed → re-u
   await store2.close()
 })
 
-test('resolves from an un-readied store (mirrors the worker wiring: initStore → resolveMasterSecret)', async (t) => {
+test('resolves from an un-readied store (a freshly constructed Corestore, as the envelope path allows)', async (t) => {
   const root = tmp('unready')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })

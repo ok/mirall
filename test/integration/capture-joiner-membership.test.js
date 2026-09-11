@@ -2,7 +2,7 @@ import test from 'brittle'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore } from '../../src/shared/core/store.js'
+import { openStore } from '../../src/shared/core/store.js'
 import {
   initProfile, setProfile, getLocalPublicKeyHex,
   markOwnMembership, captureJoinerMembership,
@@ -24,7 +24,7 @@ function tmp (label) {
 
 test('captureJoinerMembership: disabled / complete-copy / unreachable — bounded and never throws', async (t) => {
   const root = tmp('store')
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   await initProfile()
   await setProfile({ displayName: 'Self', avatar: null })
   await markOwnMembership('spaceabc00000000')
