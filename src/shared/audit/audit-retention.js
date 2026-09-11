@@ -19,6 +19,7 @@ export function ageCutoff(now, retentionDays) {
   return now - retentionDays * DAY_MS
 }
 
+// test seam
 export function countCutoffSeq(newestSeq, maxEntries) {
   if (!Number.isFinite(maxEntries) || maxEntries <= 0) return null
   if (!Number.isInteger(newestSeq) || newestSeq < 0) return null

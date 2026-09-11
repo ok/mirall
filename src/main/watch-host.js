@@ -132,4 +132,5 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
   return { add, remove, stop }
 }
 
+// test seam: looksLikeNetworkPath is exported for tests only.
 module.exports = { createWatchHost, looksLikeNetworkPath }

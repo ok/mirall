@@ -87,6 +87,30 @@ function discardPartial(finalPath) {
 // }
 // job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq,
 //        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
+//
+// A download's slot IS its registry entry: start() reserves it synchronously, before any await, so
+// a duplicate trigger cannot open a second fetch on the same hash; the fetch task holds it; settling
+// deletes it. Four memories deliberately outlive the slot, each declared with its reason below —
+// pausedHashes (the user's pause), terminalCodes (a terminal verdict whose durable write failed),
+// stallRetries (a retry in flight) and the durable pending row.
+//
+// When several intents land during start()'s awaits they do not queue: a supersede restarts on the
+// new hash, a plain cancel drops, a pause parks, and a republish park waits for the owner's
+// re-hash. A parked or interrupted row is re-driven by a reconcile, which runs on the owner
+// reconnecting (shallow — a manually paused or terminally errored row costs no I/O) and on a
+// catalog append (deep, which also honours a removal), plus the user's own resume and the stall
+// retry.
+//
+// The durable-write policy is deliberately not uniform, and each case is a decision:
+//   recordPending at start      throws. The slot is released and start() fails, because without the
+//                               row a crash loses the transfer entirely.
+//   clearPending on completion  tolerated, with a warn. The claim already decides the status, so a
+//                               surviving row costs one extra read at the next reconcile.
+//   clearPending on discard     fatal, and rethrown. Everything after it is destructive and
+//                               in-memory only: a live row whose partial and pause marker are gone
+//                               auto-resumes from zero a transfer the user discarded.
+//   recordPendingError          never throws. The verdict is kept in terminalCodes instead, which
+//                               suppresses auto-resume only until the next restart.
 export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
   const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
   // Paused-transfer markers whose single-flight slot was released (the fetch IIFE deletes it on

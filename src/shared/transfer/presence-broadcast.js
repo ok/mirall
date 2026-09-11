@@ -59,7 +59,7 @@ export function stopPresenceHeartbeat() {
 
 // Heartbeat: advertise our own liveness per space to the peers in it. The recipient leases
 // us for PRESENCE_TTL_MS from when it receives this — we can't extend our own lease.
-export function broadcastPresence() {
+function broadcastPresence() {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {

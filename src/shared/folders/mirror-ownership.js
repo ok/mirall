@@ -5,6 +5,7 @@
 // the life of the mount. Disk === ancestor means our copy is untouched, so a difference from the
 // owner is the owner's doing; disk !== ancestor means someone else wrote those bytes.
 
+// test seam
 export const LOCAL_COPY = {
   // The local file already IS the owner's current content — nothing to fetch.
   OWNER_CURRENT: 'owner-current',

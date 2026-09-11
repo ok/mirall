@@ -1163,6 +1163,9 @@ ipc.handle('owned-folder:relocate', async (msg) => {
 ipc.handle('owned-folder:delete', async (msg) => {
   const own = await readOwnShares(msg.spaceId)
   const share = own.find((s) => s.id === msg.shareId)
+  // An unknown share warns but does not stop: the teardown below is idempotent, and a delete is
+  // most needed exactly when the record is already half-gone — a crash between the two writes, or a
+  // repeated click. Refusing here would strand the mount, the watcher and the tombstone.
   if (!share) {
     log.warn('delete requested for unknown share:', msg.shareId)
   }

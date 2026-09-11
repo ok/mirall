@@ -3,6 +3,20 @@
 // shared core-purge primitive), the invite-code format, serialized member-roster mutation,
 // durable leave tombstones, pending join requests, and pinning of the creator root the
 // membership fold trusts.
+//
+// The `spaces-meta` bee's key layout, all three namespaces:
+//   space/<spaceId>            the space record (below)
+//   left/<spaceId>/<memberKey> a leave tombstone: { leaveTs }
+//   pendingleave/<spaceId>     an interrupted leave boot must finish: { topic, ts }
+//
+// A space record is written whole by createSpace and joinSpace and patched through mutateSpace
+// thereafter. Seven fields are always present — name, icon, topic, created, members, driveSuffix,
+// schemaVersion. The rest are latches, each owned by one writer: `status: 'pending'` until the
+// grant arrives, `sckDerivable` and `creatorKey` stamped at creation (or pre-seeded from an invite
+// and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we joined
+// through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps, `favorite` and
+// `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`, `legacyWarning`
+// and `driveLoadError` as diagnoses a later pass records.
 import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
 import { getContentKey, putContentKey } from './space-keys.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
@@ -121,6 +135,7 @@ let spacesBee
 let spacesStore = -1
 const drives = new Map()
 
+// test seam — production opens the spaces bee through this file's own _open()
 export async function initSpaces() {
   if (spacesBee && spacesStore === storeEpoch() && !spacesBee.core.closed) return
   spacesStore = storeEpoch()
@@ -308,6 +323,7 @@ function auditArrivals(spaceId, space, added) {
 
 // Serialized read-modify-write of a space's non-member fields (e.g. status),
 // sharing the per-space chain so it can't lose-update against member writes.
+// test seam
 export function mutateSpace(spaceId, mutate) {
   const run = async () => {
     const entry = await spacesBee.get('space/' + spaceId)
@@ -607,6 +623,7 @@ async function openSpaceDrive(space) {
   return drive
 }
 
+// test seam
 export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
   const spaces = await listSpaces()
   let hadFailure = false
@@ -654,6 +671,7 @@ export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
 }
 
 // The live bee, for tests that need a write to fail. Not for production callers.
+// test seam
 export function _spacesBeeForTests() {
   return spacesBee
 }

@@ -445,6 +445,30 @@ function registerPendingRequester(socket, remoteKey, msg) {
 }
 
 // Route a verified inbound frame to its handler. reply sends back over THIS connection's channel.
+// The mirall/handshake frame vocabulary, in one place. Every frame is one JSON line on the
+// per-space handshake channel, and validFrameShape gates all of them before any property is read;
+// an unrecognised type is counted and dropped.
+//
+//   handshake               any peer, once per shared space on connect. Carries the sender's drive
+//                           key and, optionally, its asserted creator root.
+//   membership:request      a joiner asking to be admitted.
+//   membership:grant        the approver's answer, carrying the space content key.
+//   membership:deny         the approver's refusal.
+//   membership:cancel       either side withdrawing a pending request.
+//   membership:cancel-ack   the receipt for that withdrawal.
+//   presence                liveness — both the heartbeat and the offline farewell.
+//   share-index-progress    an owner's index progress for one share.
+//   share-prepare-progress  an owner's prepare progress for one share.
+//   leave                   a member announcing it has left the space.
+//   leave-ack               the receipt that lets the leaver stop announcing.
+//
+// Exactly two assert the SENDER's identity — handshake and membership:request — because they are
+// the two a peer uses to claim a profileKey; both must pass validSenderFrame and the signature
+// binding that key to this connection's Noise key before anything is registered, which is why the
+// check sits above rather than in a per-type branch. membership:grant asserts the GRANTER's
+// identity instead, and the membership control handler verifies it, because a grant arrives on the
+// connection the joiner opened. The content plane runs its own channel with one frame,
+// content-hello (content-swarm.js).
 function dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler) {
   const reply = (payload) => { try { msgHandler.send(JSON.stringify(payload)) } catch {} }
   if (msg.type === 'handshake') {
@@ -956,7 +980,7 @@ export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact
 const COMPACTION_SETTLE_MS = 250
 
 // Lets a test park the compaction tail so the bounded wait in destroySwarm is observable.
-export function compactStoreForTest(makeTail) {
+export function _compactStoreForTests(makeTail) {
   compactionTail = makeTail()
 }
 let compactionTail = Promise.resolve()
@@ -1051,6 +1075,7 @@ export function getBoundSignerKey(profileKeyHex) {
   return boundSignerKeys.get(profileKeyHex) || null
 }
 
+// test seam
 export function getSwarmDht() {
   return swarm?.dht || null
 }

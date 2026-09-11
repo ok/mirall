@@ -24,6 +24,7 @@ const LAST_COMPACT_KEY = 'overlay-index-compacted'
 // hash without retiring its map. Desktop sessions are routinely shorter than the interval, so a
 // bare interval would never fire for many users and every launch would restart the clock: the last
 // run is persisted and the schedule is "due?", not "6h since this process started".
+// test seam
 export async function compactIndexIfDue() {
   const bee = createLocalBee('reclaim-meta')
   try {

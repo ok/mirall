@@ -14,4 +14,5 @@ export const MAIN_REQUEST = Object.freeze({
   OWNED_FOLDER_STOP_WATCHER: 'owned-folder:stop-watcher',
 })
 
+// test seam — the declaration-parity guard's list
 export const MAIN_REQUEST_NAMES = Object.freeze(Object.values(MAIN_REQUEST))

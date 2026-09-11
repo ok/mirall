@@ -7,6 +7,7 @@ const GiB = 1024 * 1024 * 1024
 
 // Small files favour responsiveness (short windows, light damping); terabyte files favour
 // stability (long windows, heavy overall-average weight). Unknown/non-positive total → small.
+// test seam
 export function etaProfileFor(total) {
   if (!(total >= 1 * GiB)) return { recentHalfLifeMs: 2000, overallWeight: 0.30, dampHalfLifeMs: 1500, warmupMs: 1000 }
   if (total < 50 * GiB) return { recentHalfLifeMs: 8000, overallWeight: 0.60, dampHalfLifeMs: 4000, warmupMs: 2500 }

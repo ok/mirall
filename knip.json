@@ -7,10 +7,16 @@
     "scripts/**/*.{js,mjs}",
     "test/**/*.test.js",
     "test/**/run*.mjs",
-    "test/helpers/**/*.{js,mjs}"
+    "test/helpers/**/*.{js,mjs}",
+    "test/frontend-layout/**/*.{js,mjs,ts,tsx}"
   ],
-  "project": ["src/**/*.{js,ts,tsx}"],
-  "ignore": ["src/**/*.d.ts", "src/shared/transfer/backends/overlay/vendor/**"],
+  "project": [
+    "src/**/*.{js,ts,tsx}"
+  ],
+  "ignore": [
+    "src/**/*.d.ts",
+    "src/shared/transfer/backends/overlay/vendor/**"
+  ],
   "rules": {
     "dependencies": "off",
     "devDependencies": "off",

@@ -71,6 +71,7 @@ function applyRelayConfig(log) {
 // through. Exported so a test whose subject is what boot() does NEXT — a content migration, the
 // manifest caps — can start exactly this much and no more. It stays in this file because the
 // crash-backstop test pins the core-opening call sites to boot.js by source text.
+// test seam
 export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefined, onTier = null } = {}) {
   const durable = createLifecycle({ log })
   // Handed over before anything can throw: a failure part-way through this tier must still leave

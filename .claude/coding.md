@@ -121,7 +121,9 @@ Merging a pure module into an impure sibling pushes its tests into the slower Ba
 real cost; do not do it casually.
 
 **Sidecars.** A `.js` module consumed by the renderer carries a hand-written `.d.ts` next to it.
-Keep the pair in step: a declared export with no runtime backing hands the renderer confident types
+`tsconfig.json` sets `allowJs`, so the typechecker reaches those modules through the sidecar rather
+than by inferring from the JS — which is why the sidecar, not the implementation, is what the
+renderer is typed against. Keep the pair in step: a declared export with no runtime backing hands the renderer confident types
 over nothing (`test/unit/contract-declarations.test.js` pins this for `contract/`). Delete a `.d.ts`
 the moment its module stops being reachable from `src/renderer`.
 

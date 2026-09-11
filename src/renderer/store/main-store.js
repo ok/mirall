@@ -144,6 +144,7 @@ export function patchMain(name, patch) {
 // An out-of-band value: main PUSHES the zoom factor rather than answering a read, and a pushed
 // value must land in the entry a read would fill or the two disagree. Bumps seq so an in-flight
 // read cannot overwrite fresher pushed data.
+// test seam
 export function setMainData(name, data) {
   const entry = entryFor(name)
   entry.seq += 1
@@ -177,6 +178,7 @@ export function installMainPushBridge() {
   return () => { for (const off of offs) off() }
 }
 
+// test seam
 export function resetMainStore() {
   entries.clear()
 }

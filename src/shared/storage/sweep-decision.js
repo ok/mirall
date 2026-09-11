@@ -8,6 +8,7 @@
 // Pure — no store, no clock, no IO — so every branch is unit-testable, in the same shape as
 // supersede-decision.js / stall-verdict.js / mount-fault.js.
 
+// test seam
 export const SWEEP_REFUSAL = {
   // The wanted set could not be built completely, so "not wanted" does not mean "not needed".
   SCAN_INCOMPLETE: 'scan-incomplete',

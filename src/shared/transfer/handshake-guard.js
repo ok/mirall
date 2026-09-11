@@ -25,6 +25,7 @@ export function validFrameShape(msg) {
 // Shape check for frames that assert the SENDER's identity (handshake,
 // membership:request). Rejects malformed hex before any b4a.from reaches the data
 // layer, so a garbage key can't poison the in-memory maps.
+// test seam
 export function validSenderFrame(msg) {
   if (typeof msg.spaceTopic !== 'string' || !HEX64.test(msg.spaceTopic)) return false
   if (typeof msg.profileKey !== 'string' || !HEX64.test(msg.profileKey)) return false

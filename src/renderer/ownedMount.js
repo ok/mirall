@@ -44,6 +44,7 @@ export function projectOwnedMount(rows, spaceId, shareId, settled) {
   }
 }
 
+// test seam
 export const NO_OWNED_MOUNT = Object.freeze({
   status: null, lastError: null, loaded: false, indexPaused: false, scanning: false, mountPath: null,
 })

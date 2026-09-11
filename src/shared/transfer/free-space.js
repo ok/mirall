@@ -4,6 +4,7 @@
 
 // Headroom beyond the file itself: the journal, rocksdb writes and the OS all need working space,
 // and filling the volume to the last byte wedges more than the transfer.
+// test seam
 export const FREE_SPACE_HEADROOM = 64 * 1024 * 1024
 
 // Bytes still needed after what a resumed partial already allocated, or 0 when it fits. Fails OPEN

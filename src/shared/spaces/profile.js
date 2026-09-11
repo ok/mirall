@@ -22,6 +22,7 @@ export const CAP_MEMBERSHIP_MANIFEST = 'caps/membership-manifest'
 let profileBee
 let profileStore = -1
 
+// test seam — production opens the profile bee through this file's own _open()
 export async function initProfile() {
   if (profileBee && profileStore === storeEpoch() && !profileBee.core.closed) return
   profileStore = storeEpoch()
@@ -472,6 +473,9 @@ export async function capturePeerBee(profileKeyHex, {
     await bee.ready()
     const core = bee.core
     try {
+      // At most a second waiting for the peer's head, however much of the budget is left: the
+      // sweep below is the part that needs the time, and a peer that has not answered by now is
+      // offline rather than slow.
       await boundedUpdate(core, Math.min(1000, Math.max(0, deadline - Date.now())))
       const target = Math.min(core.length, maxBlocks)
       await sweepBlocks(core, target, parallel, deadline)

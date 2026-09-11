@@ -1,5 +1,6 @@
 import { shortId, makeAliaser } from '../core/diagnostics-redact.js'
 
+// test seam
 export const DIAGNOSTICS_SCHEMA = 1
 
 const VERDICT_OF = {

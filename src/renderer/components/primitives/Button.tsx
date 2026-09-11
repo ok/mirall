@@ -1,3 +1,7 @@
+// The text-button contract, two axes and nothing else. `variant` is what the button MEANS —
+// primary for the one affirmative action, secondary for the rest, and the destructive variants for
+// an action that deletes — and `size` is 'sm' everywhere except a hero call to action. Anything a
+// variant cannot express belongs in the variant table below, not in a className at the call site.
 import type { MouseEvent, ReactNode, Ref } from 'react'
 import Icon, { type IconName } from './Icon.js'
 
