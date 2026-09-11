@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // REGRESSION (G6): an approver OFFLINE at leave time never receives the leave frame — the only
 // place the revoke used to run. Its grow-only approved/<S>/<leaver> vouch survived, so when the
@@ -20,7 +21,7 @@ const hasMember = (l, spaceId, key) =>
 const memberKeys = async (peer, spaceId) =>
   new Set(((await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)?.members || []).map((m) => m.publicKey))
 
-test('REGRESSION (G6): an approver offline at leave time revokes on return; rejoin needs fresh approval', { timeout: 300000 }, async (t) => {
+test('REGRESSION (G6): an approver offline at leave time revokes on return; rejoin needs fresh approval', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   // A (the creator/approver) is relaunched, so its KEK + storage stay fixed across boots.

@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Per-link invite policy end to end: auto-approve, review, expiry, and the load-bearing proof that
 // the per-link record is REPLICATED — a co-member enforces an auto-approve link the minter never
@@ -19,7 +20,7 @@ const memberKeys = async (peer, spaceId) => {
 const status = async (peer, spaceId) =>
   (await peer.request('spaces:list')).find((s) => s.spaceId === spaceId)?.status
 
-test('REGRESSION (FIX-1): an auto-approve link admits with no manual approval', { timeout: 150000 }, async (t) => {
+test('REGRESSION (FIX-1): an auto-approve link admits with no manual approval', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -37,7 +38,7 @@ test('REGRESSION (FIX-1): an auto-approve link admits with no manual approval', 
   t.absent(prompted, 'no manual approval was required')
 })
 
-test('a review link (auto-approve off) still requires manual approval', { timeout: 150000 }, async (t) => {
+test('a review link (auto-approve off) still requires manual approval', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -51,7 +52,7 @@ test('a review link (auto-approve off) still requires manual approval', { timeou
   t.is((await B.request('spaces:list')).find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'review link leaves the joiner pending')
 })
 
-test('an expired link is refused at join', { timeout: 120000 }, async (t) => {
+test('an expired link is refused at join', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -66,7 +67,7 @@ test('an expired link is refused at join', { timeout: 120000 }, async (t) => {
 // REGRESSION (FIX-2, R1): the per-link record is replicated, so a co-member enforces an auto-approve
 // link the MINTER never resolves. A mints the link and goes offline; C (a member who learned the
 // record via replication) auto-admits B with no manual approval.
-test('REGRESSION (FIX-2): a co-member enforces an auto-approve link the offline minter did not resolve', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-2): a co-member enforces an auto-approve link the offline minter did not resolve', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')

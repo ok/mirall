@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-5 (flow) — moving a file from the folder root into a subfolder is an
 // unlink (old path) + add (new path) to the watcher. It must reach the mirror as
 // remove-old + create-new, byte-preserved, with no duplicate and no window where
 // the content is lost. Explicitly named ("moving files in subfolders").
-test('moving a file into a subfolder removes the old path and creates the new on the mirror', { timeout: 150000 }, async (t) => {
+test('moving a file into a subfolder removes the old path and creates the new on the mirror', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

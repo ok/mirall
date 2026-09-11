@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -13,7 +14,7 @@ const v2flags = () => ({ identityKEK: kekHex() })
 // approves a third peer — who must also see the owner's files. The owner's drive key now rides the
 // replicated records (markSpaceDriveKey), so a transitively-approved member can open the owner's
 // drive even without a direct handshake with the owner.
-test('a transitively-approved member sees the owner\'s files', { timeout: 150000 }, async (t) => {
+test('a transitively-approved member sees the owner\'s files', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })

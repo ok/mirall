@@ -5,12 +5,13 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ identityKEK: kekHex() })
 
-test('joiner is pending, member approves, then files converge', { timeout: 150000 }, async (t) => {
+test('joiner is pending, member approves, then files converge', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -59,7 +60,7 @@ test('joiner is pending, member approves, then files converge', { timeout: 15000
 // is recorded — it must NOT wait for the time-bounded joiner-membership capture. B is killed before
 // approval so captureJoinerMembership runs to its full timeout; the banner-clear hint must still land
 // almost immediately, while the approve RPC (which awaits the capture) stays outstanding.
-test('REGRESSION (FIX-APPROVE-LAG): approver pending clears without waiting for joiner capture', { timeout: 150000 }, async (t) => {
+test('REGRESSION (FIX-APPROVE-LAG): approver pending clears without waiting for joiner capture', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const CAPTURE_MS = 3000
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: { ...v2flags(), captureMemberRecordMs: CAPTURE_MS } })
@@ -92,7 +93,7 @@ test('REGRESSION (FIX-APPROVE-LAG): approver pending clears without waiting for 
   await approved
 })
 
-test('deny path: the requester is not admitted', { timeout: 150000 }, async (t) => {
+test('deny path: the requester is not admitted', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -120,7 +121,7 @@ test('deny path: the requester is not admitted', { timeout: 150000 }, async (t) 
 // REGRESSION: a pending space has no materialized own drive, so the heavyweight
 // leave teardown crashed on the closing cores (SESSION_CLOSED). Cancelling a
 // pending request must be a clean, lightweight removal.
-test('cancelling (leaving) a pending space removes it without crashing', { timeout: 150000 }, async (t) => {
+test('cancelling (leaving) a pending space removes it without crashing', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -140,7 +141,7 @@ test('cancelling (leaving) a pending space removes it without crashing', { timeo
 
 // SECURITY: member-only operations must be refused at the data layer for a peer
 // that holds no content key (pending), not merely hidden in the UI.
-test('a pending member cannot invite, approve, deny, or rename the space', { timeout: 150000 }, async (t) => {
+test('a pending member cannot invite, approve, deny, or rename the space', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -162,7 +163,7 @@ test('a pending member cannot invite, approve, deny, or rename the space', { tim
   t.is(await B.request('space:update', { spaceId: space.spaceId, name: 'Hijacked', icon: 'folder' }), null, 'rename refused while pending')
 })
 
-test('no approver online → joiner stays pending without failure', { timeout: 150000 }, async (t) => {
+test('no approver online → joiner stays pending without failure', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Secret' })
@@ -177,7 +178,7 @@ test('no approver online → joiner stays pending without failure', { timeout: 1
 
 // Auto-approve links are reusable until expiry (not single-use): every redeemer is admitted with
 // no prompt. (Previously the nonce was consumed and the second joiner fell back to manual.)
-test('auto-approve invite is reusable — every redeemer is admitted with no prompt', { timeout: 150000 }, async (t) => {
+test('auto-approve invite is reusable — every redeemer is admitted with no prompt', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -206,7 +207,7 @@ test('auto-approve invite is reusable — every redeemer is admitted with no pro
 
 // REGRESSION (MIR-01): a member still pending approval holds no content key and must
 // never be asked to approve another joiner.
-test('a pending member does not receive join requests for other joiners', { timeout: 150000 }, async (t) => {
+test('a pending member does not receive join requests for other joiners', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -236,7 +237,7 @@ test('a pending member does not receive join requests for other joiners', { time
   t.alike(await B.request('space:pending-requests', { spaceId: space.spaceId }), [], 'pending member records no requests')
 })
 
-test("a pending joiner pulls the inviter's avatar onto the pre-seeded member", { timeout: 150000 }, async (t) => {
+test("a pending joiner pulls the inviter's avatar onto the pre-seeded member", { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })

@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // End-to-end regression for the leave→rejoin gate. A peer that shared a folder, left, and rejoins
 // must NOT have its previously-mirrored folder re-surface on the other peer before re-approval, and
@@ -71,7 +72,7 @@ async function mirrorFolder (t, mirrorer, spaceId, share, ownerKey) {
   return mirrorDir
 }
 
-test('REGRESSION (FIX-1+FIX-2): a non-creator member leaving and rejoining stays hidden until re-approval', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-1+FIX-2): a non-creator member leaving and rejoining stays hidden until re-approval', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -113,7 +114,7 @@ test('REGRESSION (FIX-1+FIX-2): a non-creator member leaving and rejoining stays
   t.absent(await hasShare(A, spaceId, share.id), 'FIX-1: the retired share does not auto-return after re-approval (must re-share)')
 })
 
-test('REGRESSION (FIX-1): the creator leaving and rejoining does not re-surface its stale folder', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-1): the creator leaving and rejoining does not re-surface its stale folder', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -146,7 +147,7 @@ test('REGRESSION (FIX-1): the creator leaving and rejoining does not re-surface 
   t.absent(await hasShare(B, spaceId, share.id), 'FIX-1: the creator’s stale share does not re-surface')
 })
 
-test('REGRESSION (FIX-2 guard): a transient reconnect (no leave) keeps membership and the mirror', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-2 guard): a transient reconnect (no leave) keeps membership and the mirror', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const bStorage = idStore(t)
   const bDownloads = mkTmpDir(t)
@@ -180,7 +181,7 @@ test('REGRESSION (FIX-2 guard): a transient reconnect (no leave) keeps membershi
 // outcome; the deterministic red-first guard for the "owner no longer a member" backstop specifically
 // is test/integration/foreign-owner-left.test.js (this flow timing is also covered by FIX-1's
 // share tombstone replicating during the leave flush). Short poll makes the teardown assert promptly.
-test('REGRESSION (FIX-4): the mirrorer unmounts an orphaned foreign folder when the owner leaves', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-4): the mirrorer unmounts an orphaned foreign folder when the owner leaves', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   // Fast poll for prompt orphan teardown, but keep the DEFAULT peer-read budget: the overlay
   // mirror reads the owner's share record + catalog over peer bees (bounded by peerReadTimeoutMs),

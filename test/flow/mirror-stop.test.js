@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 function countFiles(dir) {
   try { return fs.readdirSync(dir).filter((n) => !n.endsWith('.mirall.part')).length } catch { return 0 }
@@ -14,7 +15,7 @@ function countFiles(dir) {
 // scan over many files ran to completion (and its trailing createForeignMount even
 // recreated the unmounted mount, resuming it on the next launch).
 test('REGRESSION (mirror): unmount mid-sync stops it and does not resurrect the mount',
-  { timeout: 150000 }, async (t) => {
+  { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

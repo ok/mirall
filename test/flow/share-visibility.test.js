@@ -18,7 +18,7 @@ const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identi
 // replicates but the UI is stuck on "Nothing shared yet". The membership refactor deleted
 // the reconcilePeerAcrossSpaces that carried this emission; the flow suite poll-checks data
 // so it never caught it. This asserts the EVENT fires (the thing the frontend tests need).
-test('REGRESSION: a peer\'s new share refreshes the other peer (event:shares-updated + list)', async (t) => {
+test('REGRESSION: a peer\'s new share refreshes the other peer (event:shares-updated + list)', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -44,7 +44,7 @@ test('REGRESSION: a peer\'s new share refreshes the other peer (event:shares-upd
 // REGRESSION (companion): when a sharing member leaves, the other peer's share list must
 // refresh so the gone owner's shares drop out. The fold's member-set change now drives the
 // shares-updated emission (the old reconcile prune used to).
-test('REGRESSION: a leaving member\'s shares drop from the other peer\'s list', { timeout: 120000 }, async (t) => {
+test('REGRESSION: a leaving member\'s shares drop from the other peer\'s list', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

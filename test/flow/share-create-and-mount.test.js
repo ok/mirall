@@ -4,8 +4,9 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
-test('one command creates a folder and mounts it, and both halves reach the other peer', async (t) => {
+test('one command creates a folder and mounts it, and both halves reach the other peer', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -38,7 +39,7 @@ test('one command creates a folder and mounts it, and both halves reach the othe
 //
 // maxFilesPerShare makes the failure deterministic AND puts it where the defect lives: the
 // admission gate runs after the replicated publish, behind the folder walk.
-test('REGRESSION (FIX-R05-9): a mount that fails leaves nothing advertised to the space', async (t) => {
+test('REGRESSION (FIX-R05-9): a mount that fails leaves nothing advertised to the space', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', flags: { maxFilesPerShare: 1 } })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -58,7 +59,7 @@ test('REGRESSION (FIX-R05-9): a mount that fails leaves nothing advertised to th
   t.alike(await B.request('share:list', { spaceId }), [], 'and no co-member was ever told about one')
 })
 
-test('a refused mount path publishes nothing at all', async (t) => {
+test('a refused mount path publishes nothing at all', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

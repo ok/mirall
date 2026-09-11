@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Mirroring a foreign folder must surface per-file download progress the same
 // way an individual file download does — otherwise the receiving peer's folder
@@ -11,7 +12,7 @@ import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 // event:decoration frames (channel 'transfer', keyed shareId:relPath) during
 // materialize with a correct total and monotonic byte counts, and that the
 // file still lands byte-exact.
-test('B sees per-file mirror progress with correct total and monotonic bytes', { timeout: 90000 }, async (t) => {
+test('B sees per-file mirror progress with correct total and monotonic bytes', { timeout: scaled(90000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // The safety premise of the mirror-walk skip, and the ONE property no single-peer test can reach.
 //
@@ -17,7 +18,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 // The backstop is disabled here (foreignFullWalkEvery far beyond any tick this test will run) so it
 // cannot mask a failure. With a working probe the new file lands in seconds; with a broken one it
 // would wait for tick 5000 and this test would time out — which is exactly the signal wanted.
-test('a remote owner append advances the mirror\'s local catalog version', { timeout: 120000 }, async (t) => {
+test('a remote owner append advances the mirror\'s local catalog version', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, {

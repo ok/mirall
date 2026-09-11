@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Identity (displayName + avatar) and presence (online) must converge to the same authority the
 // roster uses — replicated records — not a live point-to-point handshake. Before the fix a derived
@@ -36,7 +37,7 @@ async function joinAndApprove (t, owner, joiner, sid, invite) {
   return jKey
 }
 
-test('approved joiner sees the approver name + avatar', { timeout: 180000 }, async (t) => {
+test('approved joiner sees the approver name + avatar', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launch(t, 'Bob', bootstrap)
@@ -53,7 +54,7 @@ test('approved joiner sees the approver name + avatar', { timeout: 180000 }, asy
   t.pass('approver identity (name + avatar) converged on the joiner')
 })
 
-test('a late joiner sees a pre-existing member name + avatar + online', { timeout: 240000 }, async (t) => {
+test('a late joiner sees a pre-existing member name + avatar + online', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launch(t, 'Bob', bootstrap)
@@ -80,7 +81,7 @@ test('a late joiner sees a pre-existing member name + avatar + online', { timeou
   t.pass('late joiner sees pre-existing members with identity + online')
 })
 
-test('REGRESSION (FIX-MIR-12): an over-long peer display name arrives clamped', { timeout: 180000 }, async (t) => {
+test('REGRESSION (FIX-MIR-12): an over-long peer display name arrives clamped', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launch(t, 'Bob', bootstrap)

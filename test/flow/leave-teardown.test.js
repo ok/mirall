@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // FIX-1 — leaving a space must tear down its folder machinery (watcher, loops,
 // periodic reconcile, cached views, mounts) BEFORE purging the drive. Without
 // it, the next fs event / timer tick writes to a closed-and-purged drive. We
 // assert the observable effect: the space's owned mount is gone after leave and
 // the worker stays healthy. RED before FIX-1 (the leave handler left mounts).
-test('REGRESSION (FIX-1): leaving a space tears down its folder mounts', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-1): leaving a space tears down its folder mounts', { timeout: scaled(60000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
 

@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // The space-storage widget's two-peer contract: both peers agree on the space
 // TOTAL (owner's folder + loose file), while on-device tracks what each peer
 // actually holds — the owner everything, the consumer nothing until it mirrors
 // the folder, then exactly the folder's bytes (the un-downloaded loose file
 // keeps counting toward the total only).
-test('space storage summary: shared total on both peers; on-device follows the mirror', { timeout: 90000 }, async (t) => {
+test('space storage summary: shared total on both peers; on-device follows the mirror', { timeout: scaled(90000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

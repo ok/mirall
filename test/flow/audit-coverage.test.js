@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 import { KINDS, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
@@ -91,7 +92,7 @@ async function rows (peer) {
 
 const kindsOf = (entries) => new Set(entries.map((e) => e.kind))
 
-test('the expected-kind manifest accounts for the whole vocabulary, exactly', (t) => {
+test('the expected-kind manifest accounts for the whole vocabulary, exactly', { timeout: scaled(30000) }, (t) => {
   const claimed = new Set([...EXPECTED_KINDS.A, ...EXPECTED_KINDS.B, ...Object.keys(UNTRIGGERABLE)])
   for (const kind of Object.keys(KINDS)) {
     t.ok(claimed.has(kind), kind + ' is either driven by the session below or explicitly accounted for')
@@ -101,7 +102,7 @@ test('the expected-kind manifest accounts for the whole vocabulary, exactly', (t
   }
 })
 
-test('one realistic session produces every expected kind, and nothing else', { timeout: 300000 }, async (t) => {
+test('one realistic session produces every expected kind, and nothing else', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -191,7 +192,7 @@ test('one realistic session produces every expected kind, and nothing else', { t
   for (const kind of bKinds) t.ok(allowedB.has(kind), 'B recorded ONLY expected kinds — unexpected: ' + kind)
 })
 
-test('every recorded row is well formed and renderable without a join', { timeout: 300000 }, async (t) => {
+test('every recorded row is well formed and renderable without a join', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const space = await A.request('space:create', { name: 'Shapes' })

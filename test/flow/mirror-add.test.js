@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-4 (flow) — adding a brand-new file to a shared folder AFTER a mirror is
 // already active must propagate to the mirror. foreign-sync proves edit + delete
 // after mount; the single most common ongoing action — a fresh add (at the root
 // and inside a subfolder) — was never covered.
-test('files added after the mirror is active materialize on the mirror', { timeout: 150000 }, async (t) => {
+test('files added after the mirror is active materialize on the mirror', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

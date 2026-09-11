@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // share:list-files derives a per-file status the UI renders as a badge. The
 // branches: own folder → 'synced'; foreign browse, owner online, not downloaded
@@ -14,7 +15,7 @@ function statusOf (list, rel) {
   return list?.entries?.find((f) => f.relPath === rel)?.status
 }
 
-test('status derivation: synced / remote / downloaded / unavailable', { timeout: 150000 }, async (t) => {
+test('status derivation: synced / remote / downloaded / unavailable', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -56,7 +57,7 @@ test('status derivation: synced / remote / downloaded / unavailable', { timeout:
   t.is(statusOf(offline, 'b.txt'), 'unavailable', 'un-cached file is unavailable while owner offline')
 })
 
-test('status derivation: a mirrored file present on disk reports synced', { timeout: 120000 }, async (t) => {
+test('status derivation: a mirrored file present on disk reports synced', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
@@ -83,7 +84,7 @@ test('status derivation: a mirrored file present on disk reports synced', { time
   t.ok(list.entries.find((f) => f.relPath === 'x.txt').localPath.startsWith(mirrorDir), 'localPath points into the mirror')
 })
 
-test('status derivation: a mirrored file not yet on disk reports remote/downloading', { timeout: 150000 }, async (t) => {
+test('status derivation: a mirrored file not yet on disk reports remote/downloading', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

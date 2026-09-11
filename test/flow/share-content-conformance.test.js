@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // The content backend's observable status matrix: remote → downloaded → synced →
 // unavailable. Overlay is the only backend; a future one is validated by adding
@@ -20,7 +21,7 @@ function runContract(label, { flags, contentMode }) {
   }
 
   test(`[${label}] status matrix: remote → downloaded → synced → unavailable`,
-    { timeout: 150000 }, async (t) => {
+    { timeout: scaled(150000) }, async (t) => {
       const bootstrap = await localTestnet(t)
       const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
       const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })

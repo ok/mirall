@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // REGRESSION (FIX-240): a member approved by a CO-MEMBER (not the creator) leaves; BOTH the creator
 // and the approver must drop it. The leave frame is now identity-bound (accepted even if the
@@ -17,7 +18,7 @@ const hasMember = (l, spaceId, key) =>
 const memberKeys = async (peer, spaceId) =>
   new Set(((await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)?.members || []).map((m) => m.publicKey))
 
-test('FIX-240: a co-member-approved leaver is dropped by the creator and the approver', { timeout: 300000 }, async (t) => {
+test('FIX-240: a co-member-approved leaver is dropped by the creator and the approver', { timeout: scaled(300000) }, async (t) => {
   const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })

@@ -1,8 +1,9 @@
 import test from 'brittle'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
+import { scaled } from '../helpers/timing.js'
 
-test('when A leaves a shared space, B prunes A from membership', { timeout: 90000 }, async (t) => {
+test('when A leaves a shared space, B prunes A from membership', { timeout: scaled(90000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

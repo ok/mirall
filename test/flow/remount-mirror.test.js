@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-11 (flow) — unmounting a mirror reclaims its cached blobs (FIX-9). The
 // inverse must also hold: mounting it again re-materializes the files cleanly,
 // re-fetching from the owner since the cache was reclaimed. Guards against a
 // remount that errors or never re-downloads.
-test('remounting a previously-unmounted mirror re-materializes the files', { timeout: 150000 }, async (t) => {
+test('remounting a previously-unmounted mirror re-materializes the files', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
