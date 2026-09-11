@@ -9,6 +9,7 @@ import b4a from 'b4a'
 import { validFrameShape, createRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
 import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../../src/shared/core/runtime-config.js'
 import { NAME_MAX } from '../../src/shared/contract/limits.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The intake predicate, as swarm.js spells it: a cheap UTF-16 lower bound, then the real byte count.
 const rejects = (str, maxBytes) => maxBytes > 0 && (str.length > maxBytes || b4a.byteLength(str) > maxBytes)
@@ -22,7 +23,7 @@ function makeDuplex () {
   return [a, b]
 }
 
-const settle = (ms = 120) => new Promise((r) => setTimeout(r, ms))
+const settle = (ms = 120) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 // Stands up the real mirall/handshake channel shape against real protomux. `guard` selects the
 // intake: 'none' is staging's (parse, then read msg.type), 'shape' is the fixed one.

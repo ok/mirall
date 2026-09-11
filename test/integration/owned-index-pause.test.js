@@ -4,6 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { getOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { periodicReconcile, onFsEvent, getIndexStatus, cancelIndex } from '../../src/shared/folders/owned-folders.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // Pause vs. Stop for an owned folder's index. Both drop the queue; only Pause disarms the
 // reconcile cadence and records a durable intent that nothing but an explicit resume clears.
@@ -14,7 +15,7 @@ const manyFiles = (n) => Object.fromEntries(fileNames(n).map((name) => [name, 'x
 const timerKey = (ctx) => ctx.spaceId + ':' + ctx.share.id
 const armed = (ctx) => ctx.root.mounts.periodicTimers.has(timerKey(ctx))
 async function untilDebtClears (ctx, deadlineMs = 5000) {
-  const until = Date.now() + deadlineMs
+  const until = Date.now() + scaled(deadlineMs)
   while (Date.now() < until) {
     if (!(await getOwnedMount(ctx.spaceId, ctx.share.id)).deepScanOwed) return true
     await new Promise((r) => setTimeout(r, 25))

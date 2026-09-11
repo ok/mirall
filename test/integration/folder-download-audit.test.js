@@ -9,6 +9,7 @@ import { folderChannel } from '../../src/shared/transfer/backends/overlay/overla
 import { looseChannel } from '../../src/shared/transfer/loose-overlay.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
 import { drainTransferAudit } from '../../src/shared/transfer/transfer-audit.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The audit row for a download is written by the ENGINE, so these drive the engine over the REAL
 // channels. A hand-written channel double would prove nothing here: the two hand-written channels
@@ -33,7 +34,7 @@ async function settle (kind, { tries = 60 } = {}) {
   return await rows(kind)
 }
 
-const quiet = () => new Promise((r) => setTimeout(r, 150))
+const quiet = () => new Promise((r) => setTimeout(r, scaled(150)))
 
 function folderJob (ctx, spaceId, over = {}) {
   return {

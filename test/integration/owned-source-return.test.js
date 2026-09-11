@@ -4,6 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { initOwnedFolders, onFsEvent } from '../../src/shared/folders/owned-folders.js'
 import { setOwnedMountStatus, getOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // A watcher event schedules a trailing catch-up reconcile (2s debounce). That reconcile used to
 // run fire-and-forget: it healed the catalog but its OUTCOME went nowhere, so nothing persisted a
@@ -44,7 +45,7 @@ function recordingSettle (ctx) {
 // Returns whether an outcome landed. Callers bail out on false: with nothing recorded, every
 // assertion after it would throw on an empty array and bury the real failure.
 async function waitForSettle (settled, timeout = CATCHUP_SETTLED_MS) {
-  const deadline = Date.now() + timeout
+  const deadline = Date.now() + scaled(timeout)
   while (Date.now() < deadline && settled.length === 0) await delay(50)
   return settled.length > 0
 }

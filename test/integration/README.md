@@ -3,6 +3,7 @@
 Single-peer, in-process tests of the worker/shared **data layer** (`src/shared/*.js`), exercised against the real `bare-*` / Corestore / Hyperdrive / Hyperbee modules — no mocks of the storage engine, no networking.
 
 - **Runner:** `npm run test:bare` (all files, `brittle-bare -j 4`). `bare` must be on `PATH` (`node_modules/bare-runtime/bin`).
+- **Deadlines scale.** A poll deadline, settle window or per-test `{ timeout }` passes through `scaled()` from `test/helpers/bare-timing.js`, so CI's `MIRALL_TEST_TIMEOUT_SCALE` reaches it; `scripts/check-test-timing.sh` fails lint on one that does not. A budget passed into the code under test is part of the assertion and stays absolute.
 - **What this layer is for:** correctness of a single peer's data operations — publish/reconcile, materialize, mount validation, drive CRUD, storage accounting, share registry, pure predicates. Fast (whole suite ≈ seconds) and deterministic.
 
 ## The single-peer constraint (integration vs. flow)

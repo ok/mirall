@@ -16,6 +16,7 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 import {
   initContentBackendOverlay, overlayHashFile, overlaySweepPresence, makeServable,
 } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // Drive the overlay adapter's OWNER side against one fresh data layer. The
 // consumer fetch (two-peer) is validated in the flow tier (A6). The defining
@@ -25,7 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // Bounded settle for an in-process event. No scaled(): test/helpers/timing.js reads process.env,
 // which Bare does not provide. The assertion that follows is what fails, never this wait.
 async function until (pred, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (!pred() && Date.now() < deadline) await sleep(10)
   return pred()
 }

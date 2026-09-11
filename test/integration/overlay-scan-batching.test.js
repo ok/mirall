@@ -12,6 +12,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 async function bootOverlay (t) {
   const ctx = await freshPeer(t)
@@ -55,7 +56,7 @@ async function scanAppends (share) {
 // REGRESSION (FIX-133: the owner wrote ~2 un-batched catalog puts per file during a scan, flooding
 // the consumer with appends and leaving the replicated head perpetually incomplete. A scan now
 // batches catalog writes into one atomic head per flush, collapsing the per-file append count.)
-test('REGRESSION (FIX-133): batching collapses catalog appends vs the per-file write path', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-133): batching collapses catalog appends vs the per-file write path', { timeout: scaled(60000) }, async (t) => {
   const ctx = await bootOverlay(t)
   const N = 80
 

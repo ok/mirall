@@ -8,6 +8,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { runMaterializeTick, setForeignEnabled, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // REGRESSION (FIX-128): pausing/unmounting a mirror must abort the file the
 // overlay catalog path is fetching right now, not just stop launching the next
@@ -19,12 +20,12 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function waitUntil (pred, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (pred()) return
     await delay(20)
   }
-  throw new Error('condition not met within ' + ms + 'ms')
+  throw new Error('condition not met within ' + scaled(ms) + 'ms')
 }
 
 async function setupOverlayMirror (t, { relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024 } = {}) {

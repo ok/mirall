@@ -8,6 +8,7 @@ import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The shared overlay consumer engine (used by both loose + folder). The success/
 // pause/resume paths need a peer to serve bytes (flow-tested in CI); here we cover
@@ -49,7 +50,7 @@ function makeJob (ctx, over = {}) {
   }
 }
 
-const tick = () => new Promise((r) => setTimeout(r, 30))
+const tick = () => new Promise((r) => setTimeout(r, scaled(30)))
 
 // #1 — a cancel that lands during the (no-op) startup window must NOT resurrect the
 // file: even if the fetch races to completion, the IIFE drops the bytes.

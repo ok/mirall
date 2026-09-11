@@ -4,6 +4,7 @@ import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { trackTimers } from '../helpers/timers.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The shim must wrap the globals BEFORE the modules load, so everything under test comes in through
 // a dynamic import (static ones are hoisted above it).
@@ -22,7 +23,7 @@ const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
 // The debt is cleared by the pass, not by the call that armed it, so the assertion has to wait for
 // the pass rather than read straight after the boot returns.
 async function untilDebtClears (spaceId, shareId, deadlineMs = 5000) {
-  const until = Date.now() + deadlineMs
+  const until = Date.now() + scaled(deadlineMs)
   while (Date.now() < until) {
     if (!(await getOwnedMount(spaceId, shareId)).deepScanOwed) return true
     await new Promise((r) => setTimeout(r, 25))

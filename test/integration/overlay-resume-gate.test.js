@@ -7,6 +7,7 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // REGRESSION (FIX-9: a download interrupted by a dropped connection never resumed).
 //
@@ -71,7 +72,7 @@ async function seedInterruptedRow (job, bytesTransferred) {
   })
 }
 
-const settle = () => new Promise((r) => setTimeout(r, 400)) // past the 250ms resume coalescer
+const settle = () => new Promise((r) => setTimeout(r, scaled(400))) // past the 250ms resume coalescer
 
 // The bug lives in which hooks the worker installs, and the engine cannot observe that — so pin it
 // structurally, the way FIX-D2 pins the completion write order. The control-plane hook must be

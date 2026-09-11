@@ -5,6 +5,7 @@ import { Duplex } from 'streamx'
 import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
 import { hashChunk } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // S1/S2: the membership serve gate lives at _onContentRequest, but the protocol
 // has OTHER serve/receive entry points. In "mirall mode" (a serveAuthorizer is
@@ -19,7 +20,7 @@ function makeDuplex () {
   bWrite = (d) => b.push(d)
   return [a, b]
 }
-const settle = (ms = 800) => new Promise((r) => setTimeout(r, ms))
+const settle = (ms = 800) => new Promise((r) => setTimeout(r, scaled(ms)))
 const MEMBER = 'a'.repeat(64)
 
 test('S1: serve gate cannot be bypassed via fileRequest or direct chunkNeed', async (t) => {

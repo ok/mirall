@@ -7,6 +7,7 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { resetFetchSlots, drainFetchSlots, fetchSlotStats, FETCH_OWNER_MIRROR, acquireFetchSlot } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const SPACE = 'space1'
 const OWNER = 'ownerpub'
@@ -70,7 +71,7 @@ const settle = () => sleep(60)
 // Waits for a condition instead of a fixed delay: the resume path is coalesced and single-flighted,
 // so a sleep long enough on this machine is not long enough on a slower CI runner.
 async function until (fn, ms = 15000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
     await sleep(10)

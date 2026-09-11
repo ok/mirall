@@ -9,9 +9,10 @@ import {
   stopForeignLoop,
   onPeerDriveChanged,
 } from '../../src/shared/folders/foreign-folders.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 async function waitForFile (p, present, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (fs.existsSync(p) === present) return true
     await new Promise((r) => setTimeout(r, 50))
@@ -20,7 +21,7 @@ async function waitForFile (p, present, ms = 5000) {
 }
 
 async function waitForContent (p, expected, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     try { if (fs.readFileSync(p, 'utf8') === expected) return true } catch {}
     await new Promise((r) => setTimeout(r, 50))

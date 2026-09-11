@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { leaveAcksSatisfied, awaitLeaveAcks } from '../../src/shared/transfer/swarm.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // Phase 3: the leaver waits (bounded) for connected members to confirm they applied the leave — an
 // observed signal that the durable revokeApproval ran on the approvers — instead of a blind sleep.
@@ -17,5 +18,5 @@ test('leaveAcksSatisfied: every expected member must have acked', (t) => {
 test('awaitLeaveAcks: no leave in progress → resolves immediately, never blocks the cap', async (t) => {
   const t0 = Date.now()
   t.ok(await awaitLeaveAcks('nospace000000000', { capMs: 2000 }), 'returns true (nothing to wait for)')
-  t.ok(Date.now() - t0 < 200, 'did not wait the cap')
+  t.ok(Date.now() - t0 < scaled(200), 'did not wait the cap')
 })

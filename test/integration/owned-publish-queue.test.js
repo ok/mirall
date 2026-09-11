@@ -12,6 +12,7 @@ import { advertise, listOwnShare, ownCatalog, ownCatalogKeyHex } from '../../src
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -37,7 +38,7 @@ function slowHash (t, ms, { only = null } = {}) {
 const fill = (dir, names, b = 'x') => { for (const n of names) fs.writeFileSync(path.join(dir, n), b.repeat(4096)) }
 
 async function settled (share, spaceId, want, ms = 90000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if ((await listRelPaths(share, spaceId)).length === want) return true
     await sleep(100)
@@ -46,7 +47,7 @@ async function settled (share, spaceId, want, ms = 90000) {
 }
 
 async function until (fn, ms = 30000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
     await sleep(100)
@@ -73,7 +74,7 @@ function caseFolds (dir) {
 // the TOP of the scan. A file the user dropped in mid-scan — already published by the watcher —
 // was absent from that snapshot, so the scan deleted it and the tombstone replicated to every
 // peer. The rule now lives in the retire executor; this asserts the behavior, so it guards both.)
-test('REGRESSION (FIX-SCAN-1): a file added mid-index is never tombstoned while it is on disk', { timeout: 120000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-1): a file added mid-index is never tombstoned while it is on disk', { timeout: scaled(120000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['seed-1.bin', 'seed-2.bin', 'seed-3.bin', 'seed-4.bin'])
@@ -96,7 +97,7 @@ test('REGRESSION (FIX-SCAN-1): a file added mid-index is never tombstoned while 
 // REGRESSION (FIX-SCAN-2/3: each watcher event scheduled its own full-folder scan with no
 // interlock. Four additions during one index produced five overlapping passes — measured 68 hash
 // passes for 24 files, individual files hashed 5x, 4 of 24 files silently unshared.)
-test('REGRESSION (FIX-SCAN-2): additions during an index do not multiply the work', { timeout: 300000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-2): additions during an index do not multiply the work', { timeout: scaled(300000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const seeds = Array.from({ length: 20 }, (_, i) => 'big-' + String(i + 1).padStart(2, '0') + '.bin')
@@ -126,7 +127,7 @@ test('REGRESSION (FIX-SCAN-2): additions during an index do not multiply the wor
   t.is((await listRelPaths(share, spaceId)).length, 24, 'and nothing was lost')
 })
 
-test('REGRESSION (FIX-SCAN-3): concurrent watcher frames for one path read it once', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-3): concurrent watcher frames for one path read it once', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'dup.bin')
@@ -143,7 +144,7 @@ test('REGRESSION (FIX-SCAN-3): concurrent watcher frames for one path read it on
 
 // An editor's rename-over fires a raw unlink for a path that is immediately back on disk. The
 // re-check moved from onFsEvent into the retire executor and must still hold as a queued item.
-test('REGRESSION (FIX-SCAN-1): an unlink for a path that is back on disk does not unshare it', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-1): an unlink for a path that is back on disk does not unshare it', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'doc.txt')
@@ -157,7 +158,7 @@ test('REGRESSION (FIX-SCAN-1): an unlink for a path that is back on disk does no
   t.ok((await listRelPaths(share, spaceId)).includes('doc.txt'), 'the file survives the spurious unlink')
 })
 
-test('a real delete still retires the entry', { timeout: 60000 }, async (t) => {
+test('a real delete still retires the entry', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'gone.txt')
@@ -172,7 +173,7 @@ test('a real delete still retires the entry', { timeout: 60000 }, async (t) => {
 // REGRESSION (ROOT-GONE): when a source root vanishes, chokidar emits one unlink PER FILE. Each
 // becomes a retire item, and a retire that only re-stats its file says "gone" for all of them.
 // A missing root pauses, never tombstones — at execution time, not only at enqueue time.
-test('REGRESSION (ROOT-GONE): retires queued for a vanished root do not tombstone anything', { timeout: 60000 }, async (t) => {
+test('REGRESSION (ROOT-GONE): retires queued for a vanished root do not tombstone anything', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['a.bin', 'b.bin', 'c.bin'])
@@ -189,7 +190,7 @@ test('REGRESSION (ROOT-GONE): retires queued for a vanished root do not tombston
 
 // REGRESSION (RELOCATE-STALE-PATH): a retire enqueued against the OLD mount path must not run
 // against it after a relocate — the files are all present at the new path.
-test('REGRESSION (RELOCATE-STALE-PATH): a stale retire re-resolves the mount at execution', { timeout: 60000 }, async (t) => {
+test('REGRESSION (RELOCATE-STALE-PATH): a stale retire re-resolves the mount at execution', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['keep.bin'])
@@ -219,7 +220,7 @@ test('REGRESSION (RELOCATE-STALE-PATH): a stale retire re-resolves the mount at 
 // REGRESSION (CATCHUP-DEFER): the catch-up diff runs 2 s after the first event of a burst — mid-copy
 // on a large file. It must leave a fresh, unpublished file to the watcher instead of reading it,
 // having the mtime guard reject it, and reverting with a tombstone that peers see as add→remove→add.
-test('REGRESSION (CATCHUP-DEFER): the catch-up diff leaves a still-settling file to the watcher', { timeout: 60000 }, async (t) => {
+test('REGRESSION (CATCHUP-DEFER): the catch-up diff leaves a still-settling file to the watcher', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fs.writeFileSync(path.join(mountPath, 'settled.bin'), 'a'.repeat(4096))
@@ -236,7 +237,7 @@ test('REGRESSION (CATCHUP-DEFER): the catch-up diff leaves a still-settling file
   t.ok((await listRelPaths(share, spaceId)).includes('copying.bin'), 'and picks up the deferred one')
 })
 
-test('REGRESSION (CATCHUP-DEFER): a future mtime is not treated as still-settling', { timeout: 60000 }, async (t) => {
+test('REGRESSION (CATCHUP-DEFER): a future mtime is not treated as still-settling', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'future.bin')
@@ -252,7 +253,7 @@ test('REGRESSION (CATCHUP-DEFER): a future mtime is not treated as still-settlin
 // hash is exactly what it must leave alone: the file may be mid-replace (an editor's rename-over
 // fired the change), and the queued item — not the sweep — owns its fate. Without the probe the
 // two sweeps below tombstone x.txt while its publish is still waiting for the lane.
-test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a pending item', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a pending item', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -281,7 +282,7 @@ test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a
 
 // REGRESSION (FIX-133, preserved): a watcher add bypasses the space batch so a dropped-in file is
 // visible immediately, while bulk publishes still land as few atomic heads.
-test('REGRESSION (FIX-133): a watcher add is visible before the next batch flush', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-133): a watcher add is visible before the next batch flush', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -298,7 +299,7 @@ test('REGRESSION (FIX-133): a watcher add is visible before the next batch flush
 // second request for the same path arriving before the batch flushes — a catch-up diff whose
 // catalog read predates the item's settle — must see those staged writes, or it re-hashes a file
 // whose hash is already in hand (25 reads for 24 files on a slow CI runner).
-test('REGRESSION (READ-YOUR-WRITES): a publish sees its own unflushed catalog writes', { timeout: 60000 }, async (t) => {
+test('REGRESSION (READ-YOUR-WRITES): a publish sees its own unflushed catalog writes', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -315,7 +316,7 @@ test('REGRESSION (READ-YOUR-WRITES): a publish sees its own unflushed catalog wr
   t.ok((await listRelPaths(share, spaceId)).includes('once.bin'))
 })
 
-test('ordering is honored end to end', { timeout: 90000 }, async (t) => {
+test('ordering is honored end to end', { timeout: scaled(90000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -330,7 +331,7 @@ test('ordering is honored end to end', { timeout: 90000 }, async (t) => {
   t.alike(probe.calls, ['small.bin', 'mid.bin', 'big.bin'])
 })
 
-test('a deep pass re-points identical content at a new mtime without re-advertising', { timeout: 90000 }, async (t) => {
+test('a deep pass re-points identical content at a new mtime without re-advertising', { timeout: scaled(90000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['keep.bin'])
@@ -349,7 +350,7 @@ test('a deep pass re-points identical content at a new mtime without re-advertis
 // which says "present" for a symlink and — on a case-folding volume — for a file that only changed
 // case. The diff that proposed the retire compared exact readdir names, so the retire never ran
 // and the stale key stayed advertised to every peer forever.)
-test('REGRESSION (FIX-RETIRE-EXACT): a file replaced by a symlink is retired', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-RETIRE-EXACT): a file replaced by a symlink is retired', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'doc.txt')
@@ -365,7 +366,7 @@ test('REGRESSION (FIX-RETIRE-EXACT): a file replaced by a symlink is retired', {
   t.alike(await listRelPaths(share, spaceId), ['other.txt'], 'a link is not the file that was shared')
 })
 
-test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   if (!caseFolds(mountPath)) { t.comment('case-sensitive volume — the symlink case above covers the executor'); return }
@@ -388,7 +389,7 @@ test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { 
 // REGRESSION (FIX-DIFF-POISON: the diff resolved a disk path for every catalog entry, and
 // pathFromMount throws EPATH on a key that escapes the mount — one poisoned key an older release
 // wrote aborted every reconcile, so nothing published or retired and the mount sat in paused-error.)
-test('REGRESSION (FIX-DIFF-POISON): a catalog key that escapes the mount is reclaimed, not fatal', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-DIFF-POISON): a catalog key that escapes the mount is reclaimed, not fatal', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   await advertise(spaceId, share.id, '../escape.txt', { size: 1, mtime: 1, contentHash: null })
@@ -404,7 +405,7 @@ test('REGRESSION (FIX-DIFF-POISON): a catalog key that escapes the mount is recl
 // REGRESSION (FIX-CATCHUP-REARM: the catch-up diff left a <2 s-old unpublished file "to the
 // watcher", but the catch-up exists because fsevents drops adds — and nothing re-armed it, so a
 // deferred file whose add was dropped waited for the 6 h periodic pass.)
-test('REGRESSION (FIX-CATCHUP-REARM): a deferred file is published by the re-armed catch-up', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-CATCHUP-REARM): a deferred file is published by the re-armed catch-up', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   slowHash(t, 10)
@@ -420,7 +421,7 @@ test('REGRESSION (FIX-CATCHUP-REARM): a deferred file is published by the re-arm
 // REGRESSION (FIX-RESERVE-HEAL: the fast diff no longer enqueues unchanged files, so the publish
 // path's makeServable — the promised self-heal for a transient registerFile failure — never ran
 // on the 6 h pass; the catalog advertised a hash the serve gate did not hold until the deep pass.)
-test('REGRESSION (FIX-RESERVE-HEAL): the fast reconcile re-registers an unchanged file the serve index lost', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-RESERVE-HEAL): the fast reconcile re-registers an unchanged file the serve index lost', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fs.writeFileSync(path.join(mountPath, 'a.txt'), 'a')
@@ -440,7 +441,7 @@ test('REGRESSION (FIX-RESERVE-HEAL): the fast reconcile re-registers an unchange
 // REGRESSION (FIX-RETIRE-BATCH: retires always wrote the bee directly while bulk publishes staged
 // into the space batch — 2,000 files deleted while the app was closed became 2,000 catalog heads
 // on boot, each fanning to every peer's append listener.)
-test('REGRESSION (FIX-RETIRE-BATCH): bulk retires land as one head, not one per file', { timeout: 90000 }, async (t) => {
+test('REGRESSION (FIX-RETIRE-BATCH): bulk retires land as one head, not one per file', { timeout: scaled(90000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const names = Array.from({ length: 6 }, (_, i) => 'f' + i + '.txt')
@@ -464,7 +465,7 @@ test('REGRESSION (FIX-RETIRE-BATCH): bulk retires land as one head, not one per 
 // REGRESSION (FIX-INTERACTIVE-SETTLE: a watcher item wrote the bee directly while the space batch
 // still held staged ops for the same space; a staged put or tombstone for a path retired or
 // re-added directly landed afterwards and undid it. An interactive item now lands the batch first.)
-test('REGRESSION (FIX-INTERACTIVE-SETTLE): a watcher item lands the space batch before writing direct', { timeout: 90000 }, async (t) => {
+test('REGRESSION (FIX-INTERACTIVE-SETTLE): a watcher item lands the space batch before writing direct', { timeout: scaled(90000) }, async (t) => {
   const { spaceId, share, mountPath, tmpDir } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -496,7 +497,7 @@ test('REGRESSION (FIX-INTERACTIVE-SETTLE): a watcher item lands the space batch 
 // REGRESSION (FIX-DRAIN-EMIT: the drained hook's catalog settle ran before the batch close was
 // registered, so share-files-updated fired ahead of the closing flush — the owner's own list
 // re-read the bee with the pass's last files missing or stuck 'preparing'.)
-test('REGRESSION (FIX-DRAIN-EMIT): share-files-updated after a pass fires only once its writes landed', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-DRAIN-EMIT): share-files-updated after a pass fires only once its writes landed', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath, fake } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const cfg = getRuntimeConfig()
@@ -519,7 +520,7 @@ test('REGRESSION (FIX-DRAIN-EMIT): share-files-updated after a pass fires only o
 // REGRESSION (FIX-DEEP-FORCE: the deep pass hashed the file, saw the mismatch, and handed the
 // publish to a fast path that compares size+mtime+hash-present — which called an in-place rewrite
 // that preserved both "already published". The one case the deep pass exists for never republished.)
-test('REGRESSION (FIX-DEEP-FORCE): the deep pass republishes a same-size rewrite that kept its mtime', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-DEEP-FORCE): the deep pass republishes a same-size rewrite that kept its mtime', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   const abs = path.join(mountPath, 'vault.bin')
@@ -546,7 +547,7 @@ test('REGRESSION (FIX-DEEP-FORCE): the deep pass republishes a same-size rewrite
 // REGRESSION (FIX-SCAN-CANCELLED: a cancelled index resolved like a finished one — the worker
 // recorded 'active', emitted scan-completed with partial counts and re-armed the reconcile it
 // had just cancelled, racing a delete's mount removal back into a zombie record.)
-test('REGRESSION (FIX-SCAN-CANCELLED): a cancelled index resolves as cancelled', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-SCAN-CANCELLED): a cancelled index resolves as cancelled', { timeout: scaled(60000) }, async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['a.bin', 'b.bin', 'c.bin'])
@@ -559,7 +560,7 @@ test('REGRESSION (FIX-SCAN-CANCELLED): a cancelled index resolves as cancelled',
   t.ok(await until(() => getIndexStatus(spaceId, share.id).running === 0, 5000), 'the running item honoured the abort')
 })
 
-test('a deep hash honours the abort signal', { timeout: 60000 }, async (t) => {
+test('a deep hash honours the abort signal', { timeout: scaled(60000) }, async (t) => {
   const { mountPath } = await setupOwnedShare(t)
   const abs = path.join(mountPath, 'big.bin')
   fs.writeFileSync(abs, 'z'.repeat(1 << 20))

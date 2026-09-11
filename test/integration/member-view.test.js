@@ -11,6 +11,7 @@ import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, clearOwnMembership, readMembershipRecord,
 } from '../../src/shared/spaces/profile.js'
 import { createMemberView } from '../../src/shared/spaces/member-view.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const sorted = (it) => [...it].sort()
 
@@ -22,7 +23,7 @@ function tmpDir () {
 
 async function waitFor (pred, ms = 5000) {
   const t0 = Date.now()
-  while (Date.now() - t0 < ms) {
+  while (Date.now() - t0 < scaled(ms)) {
     if (pred()) return true
     await new Promise((r) => setTimeout(r, 20))
   }

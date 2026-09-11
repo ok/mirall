@@ -8,6 +8,7 @@ import { materializeCatalogFile, unmountForeignFolder } from '../../src/shared/f
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
 import { createIntegritySeen } from '../../src/shared/folders/integrity-seen.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // src/shared/folders/ contained ZERO record( calls: a mirror holder serving bytes that fail their
 // advertised hash produced a console warning and nothing else. Everything else the mirror does per
@@ -31,7 +32,7 @@ async function integrityRows ({ tries = 40 } = {}) {
   return await rows('security.integrity_failure')
 }
 
-const quiet = () => new Promise((r) => setTimeout(r, 200))
+const quiet = () => new Promise((r) => setTimeout(r, scaled(200)))
 
 async function setup (t) {
   const ctx = await freshPeer(t)

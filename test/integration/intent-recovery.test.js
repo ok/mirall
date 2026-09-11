@@ -5,8 +5,9 @@ import { createIntentLog, INTENT_PREFIX } from '../../src/shared/core/intents.js
 import { createOwnedMount, getOwnedMount, createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
+import { scaled } from '../helpers/bare-timing.js'
 
-const settle = () => new Promise((r) => setTimeout(r, 30))
+const settle = () => new Promise((r) => setTimeout(r, scaled(30)))
 
 // REGRESSION (FIX-INTENT-1: owned-folder:delete writes the mount record and the share tombstone to
 // two different bees. A crash between them left the share still advertised with no mount behind it

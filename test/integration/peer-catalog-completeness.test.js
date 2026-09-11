@@ -6,6 +6,7 @@ import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { listPeerShareMeta } from '../../src/shared/shares/share-catalog.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const shareId = 's1'
 
@@ -18,7 +19,7 @@ async function seed (peer, n) {
 // REGRESSION (FIX-132: the display read returned [] on a head-update timeout and a truncated list
 // on a drain timeout, both indistinguishable from a real empty share. listPeerShareMeta now reports
 // `complete` so the renderer keeps its last good list on a partial/un-replicated read.)
-test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an un-replicated head reads complete:false (not a silent empty)', { timeout: 20000 }, async (t) => {
+test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an un-replicated head reads complete:false (not a silent empty)', { timeout: scaled(20000) }, async (t) => {
   await freshPeer(t)
 
   const B = await makePeer(t)
@@ -33,7 +34,7 @@ test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an u
   const ghostKey = b4a.toString(crypto.randomBytes(32), 'hex')
   const t0 = Date.now()
   const res = await listPeerShareMeta(ghostKey, shareId)
-  t.ok(Date.now() - t0 < 4000, 'bounded by the read budget (' + (Date.now() - t0) + 'ms), not the 30s IPC ceiling')
+  t.ok(Date.now() - t0 < scaled(4000), 'bounded by the read budget (' + (Date.now() - t0) + 'ms), not the 30s IPC ceiling')
   t.is(res.complete, false, 'un-replicated head → incomplete (renderer keeps last good)')
   t.alike(res.entries, [], 'no rows from an unreachable catalog')
 })

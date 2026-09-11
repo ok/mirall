@@ -9,6 +9,7 @@ import {
 import { initDownloads, isDownloadedFile, markDownloaded } from '../../src/shared/transfer/files.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // A write that encodes STATUS or INTENT may fail loudly, never silently. These pin the four
 // pending-row writes in the download engine plus the read-modify-write ordering that protects
@@ -16,7 +17,7 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/
 
 const HASH_OLD = 'a'.repeat(64)
 const HASH_NEW = 'b'.repeat(64)
-const tick = (ms = 60) => new Promise((r) => setTimeout(r, ms))
+const tick = (ms = 60) => new Promise((r) => setTimeout(r, scaled(ms)))
 const settleTick = () => tick(400) // the reconcile coalescer window plus its sweep
 
 // Capture only the module under test's warn lines; everything else still reaches the real

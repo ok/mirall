@@ -12,6 +12,7 @@ import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { initForeignFolders, initialMaterializeScan, setForeignEnabled, runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const ONE_FILE = [{ relPath: 'a.bin', contentHash: 'a'.repeat(64), size: 1024 }]
 
@@ -63,7 +64,7 @@ const stateOf = async (spaceId) => (await readOwnMirrors(spaceId))[0]?.state
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 async function waitForState (spaceId, want, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await stateOf(spaceId) === want) return want
     await delay(20)

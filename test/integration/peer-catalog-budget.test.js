@@ -10,6 +10,7 @@ import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { collectPeerShare } from '../../src/shared/shares/share-catalog.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const BUDGET = 300
 const PREFIX = 'file/' + LOOSE_SHARE_ID + '/'
@@ -71,7 +72,7 @@ function socketMidHandshake (t) {
 // `timeoutMs` AGAIN on the drain. An owner whose head never arrives while any socket is still
 // handshaking therefore cost two budgets — the half of the files:list timeout that parallel
 // reads alone cannot fix. Head sync and drain now share one deadline.)
-test('REGRESSION (FIX-LIST-DEADLINE): a stalled owner costs one budget, not two', { timeout: 15000 }, async (t) => {
+test('REGRESSION (FIX-LIST-DEADLINE): a stalled owner costs one budget, not two', { timeout: scaled(15000) }, async (t) => {
   await setup(t)
   const key = await catalogOwner(t)
   socketMidHandshake(t)
@@ -90,7 +91,7 @@ test('REGRESSION (FIX-LIST-DEADLINE): a stalled owner costs one budget, not two'
 
 // Never-blank guard for the fix above: a spent budget must not blank rows we already hold. An
 // owner we listed before, now offline, keeps its rows (the renderer shows them `unavailable`).
-test('rows already on disk survive a head-sync timeout', { timeout: 15000 }, async (t) => {
+test('rows already on disk survive a head-sync timeout', { timeout: scaled(15000) }, async (t) => {
   await setup(t)
   const key = await catalogOwner(t, { readFirst: true })
   socketMidHandshake(t)

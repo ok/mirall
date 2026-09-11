@@ -4,6 +4,7 @@ import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
 import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex () {
   let aWrite, bWrite
@@ -13,7 +14,7 @@ function makeDuplex () {
   bWrite = (d) => b.push(d)
   return [a, b]
 }
-const settle = (ms = 800) => new Promise((r) => setTimeout(r, ms))
+const settle = (ms = 800) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 // REGRESSION (FIX: multi-second stall before a large overlay download starts):
 // the owner re-chunked the whole file on every serve because the serve key
