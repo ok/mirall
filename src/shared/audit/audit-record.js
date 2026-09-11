@@ -17,11 +17,9 @@ import { NAME_MAX } from '../contract/limits.js'
 // test seam
 export const SCHEMA_VERSION = 1
 
-// The participant shapes, built here or nowhere. Hand-written literals drifted: some omitted `key`
-// and `name` entirely, peer-watch.js shadowed the worker's own spaceRef with a second copy, and the
-// worker kept three of these as private functions no other caller could reach. A row's shape is not
-// a per-site decision — normalizeActor and friends below are the only readers, and they expect
-// exactly this.
+// The participant shapes every row is assembled from. A row's shape is not a per-site decision:
+// normalizeActor, normalizeSpace and normalizeTarget below are their only readers, and they read
+// exactly these fields.
 
 // The key and name default to null because most producers do not know them; audit-log fills them
 // from the live identity at write time and calls this with both.

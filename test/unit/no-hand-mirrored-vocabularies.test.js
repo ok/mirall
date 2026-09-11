@@ -27,10 +27,9 @@ test('every mirrored module points at the contract package', (t) => {
   }
 })
 
-// The same rule one level up: the audit row's participant shapes. These were hand-written object
-// literals at 52 sites and drifted five ways — some omitted `key` and `name`, one module shadowed
-// the worker's own spaceRef with a second copy, and the worker kept three of them private so no
-// other producer could reach them. audit-record.js builds them or nothing does.
+// The same rule one level up: the audit row's participant shapes. audit-record.js builds them, so
+// a producer that assembles one itself can omit a field the normalizers read, or diverge from the
+// shape the renderer is typed against.
 const HAND_BUILT = [
   [/type:\s*ACTOR_TYPE\./, 'builds an actor literal instead of calling selfActor/peerActor/systemActor'],
   [/target:\s*\{\s*kind:/, 'builds a target literal instead of calling targetRef'],

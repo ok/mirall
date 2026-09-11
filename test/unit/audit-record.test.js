@@ -89,8 +89,8 @@ test('an unknown target kind is refused, as an unknown kind and outcome already 
   t.execution(() => buildRecord({ ...base, target: targetRef(TARGET_KIND.SPACE, 'x', 'x') }), 'a declared kind passes')
 })
 
-// The builders are the point of the module: a row's participant shapes were hand-written at 52
-// sites and drifted five ways. normalizeActor and normalizeTarget read exactly these fields.
+// The builders' output is what the normalizers read, so their field names and null handling are
+// the contract between the two halves of this module.
 test('the builders produce the shapes buildRecord normalizes', (t) => {
   t.alike(selfActor(), { type: 'self', key: null, name: null })
   t.alike(peerActor('abc', 'Ada'), { type: 'peer', key: 'abc', name: 'Ada' })
