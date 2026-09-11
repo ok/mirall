@@ -22,7 +22,7 @@ import { destroyContentPeerSockets } from './content-swarm.js'
 import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
 import { markLeft } from '../spaces/member-registry.js'
-import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers } from './swarm-registries.js'
+import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket } from './swarm-registries.js'
 import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 
 let presence = null
@@ -82,7 +82,7 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   // per-socket auth index; the robust path is the frame's identity binding, which survives the
   // teardown/reconnect race that clears or has-not-yet-populated that index. Additive — the binding
   // proof is strictly stronger than the index, so a third party still cannot evict a member.
-  const onSocket = socketToPeers.get(socket)?.has(profileKey) || false
+  const onSocket = authorizedOn(socket, profileKey)
   if (!onSocket && !leaveFrameBound(peerInfo, msg)) {
     log.warn('leave frame rejected — sender not authenticated on socket and no valid binding')
     return
@@ -146,20 +146,12 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
 
   const peer = connectedPeers.get(profileKey)
-  if (peer) {
-    peer.spaces.delete(spaceId)
-    peer.looseCatalogKeys?.delete(spaceId)
-    if (peer.spaces.size === 0) {
-      connectedPeers.delete(profileKey)
-      const set = socketToPeers.get(peer.socket)
-      if (set) {
-        set.delete(profileKey)
-        if (set.size === 0) socketToPeers.delete(peer.socket)
-      }
-      // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
-      // share any space with must lose that socket too, or we keep serving it bulk bytes.
-      try { destroyContentPeerSockets(profileKey) } catch {}
-    }
+  if (peer && detachPeerFromSpace(peer, spaceId)) {
+    connectedPeers.delete(profileKey)
+    forgetPeerOnSocket(peer.socket, profileKey)
+    // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
+    // share any space with must lose that socket too, or we keep serving it bulk bytes.
+    try { destroyContentPeerSockets(profileKey) } catch {}
   }
   // Their leave revokes our serve grants for this space: the grant is cached per (peer, path) at
   // request time and re-checked against that cache only, so a membership change has to invalidate
@@ -314,7 +306,7 @@ export function handleLeaveAckFrame(socket, msg) {
   }
   // Only count an ack from a peer that authenticated as this profileKey on this socket, so a peer
   // can't forge acks for other members and collapse the leaver's flush wait early.
-  if (!socketToPeers.get(socket)?.has(profileKey)) return
+  if (!authorizedOn(socket, profileKey)) return
   leaveAcks.get(spaceId)?.add(profileKey)
 }
 

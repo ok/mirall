@@ -533,3 +533,19 @@ be characterised by isolation runs instead of read off the log.
 **The rule:** a local flow "green" is only trustworthy up to the first throw. Compare planned
 against executed count before believing a pass, and prefer CI's sharded result — it is the
 stronger evidence, not the weaker one. Tracked as #246.
+
+## A refactor's commit message is not its comments
+
+A comment that explains why a refactor was needed dates the instant the refactor lands. "These
+were hand-written at 52 sites and drifted five ways", "peer-watch.js shadowed the worker's own
+copy", "the copies had already begun to disagree" — all true, all worthless to the next reader,
+who needs to know what the function guarantees, not what the tree looked like before it existed.
+
+**The rule:** state what the code does and the constraint that makes it so. Two things earn a
+"why": a non-obvious invariant a reader would otherwise break (`authorizedOn` is per socket
+because a draining socket must stay authorized through a reconnect), and a divergence that looks
+like an oversight but is deliberate (the two detach paths do not share their follow-through). The
+history of the refactor belongs in the commit body and the PR, where it is dated by construction.
+
+Applies to test comments too: say what the test protects, not which bug motivated writing it —
+unless it is a `REGRESSION` test, whose whole contract is naming the defect it pins.
