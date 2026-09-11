@@ -47,4 +47,45 @@ if [ -n "$(printf '%s' "$own" | tr -d '[:space:]')" ]; then
   exit 1
 fi
 
+# The third face of the same rule, and the reason the other two are not enough: brittle's
+# per-test deadline is not a helper, so nothing scales it for the call site. A flow test whose
+# ceiling is a bare number — or absent, inheriting brittle's 30s default — keeps its dev-box
+# budget while every helper deadline inside it triples, so brittle kills the test before the
+# helper's diagnostic (which carries the worker stderr tail) can fire. Rule 1 cannot see it:
+# the defect is again the ABSENCE of scaled(. Every top-level test in test/flow therefore
+# declares its ceiling as `{ timeout: scaled(N) }`, or sets it as the first statement of the
+# body with `t.timeout(scaled(N))`.
+missing="$(
+  for f in test/flow/*.test.js; do
+    awk -v file="$f" '
+      # Accumulate a declaration head across lines until the body arrow, then judge it.
+      /^[ 	]*test(\.skip|\.solo)?\(/ { collecting = 1; head = ""; start = FNR }
+      collecting {
+        head = head $0
+        if (head ~ /=> \{/) {
+          collecting = 0
+          if (head ~ /timeout: scaled\(/) next
+          want_body = 1   # no ceiling in the options object; the first body line gets the chance
+          next
+        }
+        next
+      }
+      want_body {
+        want_body = 0
+        if ($0 !~ /^ *t\.timeout\(scaled\(/) print file ":" start ": " substr(head, 1, 100)
+      }
+    ' "$f"
+  done
+)"
+
+if [ -n "$(printf '%s' "$missing" | tr -d '[:space:]')" ]; then
+  echo "ERROR: flow test without a scaled per-test deadline — brittle's ceiling ignores MIRALL_TEST_TIMEOUT_SCALE:" >&2
+  printf '%s\n' "$missing" >&2
+  echo >&2
+  echo "  fix: test('…', { timeout: 150000 }, …)  ->  test('…', { timeout: scaled(150000) }, …)" >&2
+  echo "       test('…', async (t) => {           ->  add { timeout: scaled(N) }, sized above the" >&2
+  echo "                                              longest helper wait in the body" >&2
+  exit 1
+fi
+
 echo "test-timing: clean."
