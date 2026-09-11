@@ -1,4 +1,4 @@
-import type { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS, OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../shared/contract/statuses.js'
+import type { FILE_STATUSES, BADGE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from '../shared/contract/statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from '../shared/contract/audit-kinds.js'
 export interface Profile {
   displayName: string
@@ -52,9 +52,9 @@ export interface Space {
   downloadFolder?: string
 }
 
-export type FileStatus = (typeof FILE_STATUS)[number]
+export type FileStatus = (typeof FILE_STATUSES)[number]
 
-export type BadgeStatus = (typeof BADGE_STATUS)[number]
+export type BadgeStatus = (typeof BADGE_STATUSES)[number]
 
 export interface FileEntry {
   path: string
@@ -99,7 +99,7 @@ export interface PeerDownloadPeer {
 export interface MirrorParticipant {
   mirrorer: string
   shareId: string
-  state: 'syncing' | 'synced' | 'paused'
+  state: (typeof MIRROR_STATES)[number]
   mountedAt: number
 }
 
@@ -120,7 +120,7 @@ export interface Share {
   deletedAt?: number
 }
 
-type OwnedMountStatus = (typeof OWNED_MOUNT_STATUS)[number]
+type OwnedMountStatus = (typeof OWNED_MOUNT_STATUSES)[number]
 
 export interface OwnedFolderMount {
   spaceId: string
@@ -134,7 +134,7 @@ export interface OwnedFolderMount {
   indexPaused?: boolean
 }
 
-export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUS)[number]
+export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUSES)[number]
 
 export interface ForeignFolderMount {
   spaceId: string
@@ -147,7 +147,7 @@ export interface ForeignFolderMount {
   lastError?: string | null
 }
 
-export type ShareFileStatus = (typeof SHARE_FILE_STATUS)[number]
+export type ShareFileStatus = (typeof SHARE_FILE_STATUSES)[number]
 
 export interface ShareFileEntry {
   relPath: string

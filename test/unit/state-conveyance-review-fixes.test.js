@@ -31,7 +31,7 @@ test('REGRESSION (C2: the offline-deny re-send excludes a knock backed by a vali
 
 test('REGRESSION (FIX-6/7/8: scan outcomes drive owned status; probe never blanket-writes active)', (t) => {
   t.ok(/async settleScanStatus\(/.test(mountsRuntime), 'the settleScanStatus method exists')
-  t.ok(/result\?\.skipped === 'mount-point-gone'/.test(mountsRuntime) && /else if \(result\?\.skipped\)/.test(mountsRuntime),
+  t.ok(/result\?\.skipped === MOUNT_STATUS\.MOUNT_POINT_GONE/.test(mountsRuntime) && /else if \(result\?\.skipped\)/.test(mountsRuntime),
     'a skipped scan is not recorded as active')
   // The probe's owned branch must not assert a durable status purely from path presence.
   t.absent(/setOwnedStatus\(mount\.spaceId, mount\.shareId, exists \? 'active'/.test(mountsRuntime),

@@ -97,7 +97,7 @@ test('the declared status tuples match the runtime arrays exactly', (t) => {
 // exactly the twin this package exists to delete.
 test('the renderer derives its status unions instead of re-listing them', (t) => {
   const types = readFileSync(path.join(dir, '..', '..', 'renderer', 'types.ts'), 'utf8')
-  for (const [type, konst] of [['FileStatus', 'FILE_STATUS'], ['BadgeStatus', 'BADGE_STATUS'], ['ShareFileStatus', 'SHARE_FILE_STATUS'], ['AuditCategory', 'CATEGORIES']]) {
+  for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['ShareFileStatus', 'SHARE_FILE_STATUSES'], ['AuditCategory', 'CATEGORIES']]) {
     t.ok(new RegExp(`export type ${type} = \\(typeof ${konst}\\)\\[number\\]`).test(types),
       `${type} is derived from the contract`)
   }

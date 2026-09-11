@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { dedupeFileRows, STATUS_RANK } from '../../src/shared/transfer/file-dedupe.js'
-import { FILE_STATUS } from '../../src/shared/contract/statuses.js'
+import { FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const candidate = (over = {}) => ({
   path: '/a.txt', size: 1, hash: 'h-a', inPlace: true, status: 'remote',
@@ -9,8 +9,8 @@ const candidate = (over = {}) => ({
 
 test('every file status has a rank and every rank names a file status', (t) => {
   const ranked = Object.keys(STATUS_RANK).sort()
-  t.alike(ranked, [...FILE_STATUS].sort(), 'the rank table and FILE_STATUS name the same statuses')
-  for (const status of FILE_STATUS) t.is(typeof STATUS_RANK[status], 'number', status + ' has a numeric rank')
+  t.alike(ranked, [...FILE_STATUSES].sort(), 'the rank table and FILE_STATUSES name the same statuses')
+  for (const status of FILE_STATUSES) t.is(typeof STATUS_RANK[status], 'number', status + ' has a numeric rank')
 })
 
 test('the same content held by several peers folds into one row with a sharedByCount', (t) => {

@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { deriveFolderStatus } from '../../src/renderer/folderStatus.js'
 import { badgeStyle } from '../../src/renderer/statusBadge.js'
-import { BADGE_STATUS } from '../../src/shared/contract/statuses.js'
+import { BADGE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const BASE = {
   role: 'mine',
@@ -138,8 +138,8 @@ test('the offline state is still exactly a label and a badge', (t) => {
   t.alike(Object.keys(deriveFolderStatus(MIRROR_OFFLINE)).sort(), ['badge', 'labelKey'])
 })
 
-test('every badge deriveFolderStatus can return is a legal BADGE_STATUS token', (t) => {
+test('every badge deriveFolderStatus can return is a legal BADGE_STATUSES token', (t) => {
   const cases = [MIRROR_OFFLINE, { ...BASE, sourceMissing: true }, { ...BASE, fault: true },
     { ...BASE, role: 'mirrored', mirrorSyncing: true }, { ...BASE, role: 'browse' }, BASE]
-  for (const c of cases) t.ok(BADGE_STATUS.includes(deriveFolderStatus(c).badge), `${deriveFolderStatus(c).badge} is a BADGE_STATUS`)
+  for (const c of cases) t.ok(BADGE_STATUSES.includes(deriveFolderStatus(c).badge), `${deriveFolderStatus(c).badge} is a BADGE_STATUSES`)
 })

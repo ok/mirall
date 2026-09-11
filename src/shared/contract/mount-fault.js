@@ -5,11 +5,12 @@
 //
 // The errno half (which errno IS a fault) stays in the worker: it needs core/errors.js, and this
 // package imports nothing outside itself.
+import { MOUNT_STATUS } from './statuses.js'
 import { CODES } from './errors.js'
 
-const STATUS_ENOSPC = 'paused-enospc'
-const STATUS_IO_ERROR = 'paused-error'
-export const STATUS_MOUNT_GONE = 'mount-point-gone'
+const STATUS_ENOSPC = MOUNT_STATUS.PAUSED_ENOSPC
+const STATUS_IO_ERROR = MOUNT_STATUS.PAUSED_ERROR
+export const STATUS_MOUNT_GONE = MOUNT_STATUS.MOUNT_POINT_GONE
 
 // The automatic (recoverable) pause statuses. A user pause ('paused') is deliberately absent: it
 // is a decision, and nothing but an explicit resume may lift it.
