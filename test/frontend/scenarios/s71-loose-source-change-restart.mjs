@@ -11,7 +11,7 @@ import { workDir } from '../paths.mjs'
 // never the error pill, with no manual pause/resume. The pill colour itself isn't
 // observable through the AX tree (it's a Tailwind class), so the unit test enforces
 // status→colour and this asserts the user-facing label/notification sequence + evidence.
-export default async function s71 ({ runDir, bootstrap }) {
+export default async function s71({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

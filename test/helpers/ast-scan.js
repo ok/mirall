@@ -4,7 +4,7 @@
 // spelled.
 import tseslint from 'typescript-eslint'
 
-export function parseSource (source, filePath) {
+export function parseSource(source, filePath) {
   return tseslint.parser.parseForESLint(source, {
     filePath,
     range: true,
@@ -16,7 +16,7 @@ export function parseSource (source, filePath) {
   })
 }
 
-export function forEachNode (node, visitorKeys, visit) {
+export function forEachNode(node, visitorKeys, visit) {
   if (!node || typeof node.type !== 'string') return
   visit(node)
   for (const key of visitorKeys[node.type] || []) {
@@ -28,7 +28,7 @@ export function forEachNode (node, visitorKeys, visit) {
 
 // A string the reader can see in full at the call site: a plain literal, or a template with no
 // interpolation. A name assembled at runtime is not a declaration and is not treated as one.
-export function staticString (node) {
+export function staticString(node) {
   if (!node) return null
   if (node.type === 'Literal' && typeof node.value === 'string') return node.value
   if (node.type === 'TemplateLiteral' && node.expressions.length === 0 && node.quasis.length === 1) {
@@ -37,7 +37,7 @@ export function staticString (node) {
   return null
 }
 
-export function calleeName (callee) {
+export function calleeName(callee) {
   if (!callee) return null
   if (callee.type === 'Identifier') return callee.name
   if (callee.type === 'MemberExpression') {
@@ -49,7 +49,7 @@ export function calleeName (callee) {
 
 // Every Identifier node mapped to the variable it resolves to, so a guard can ask "is this binding
 // module-scoped" instead of "does this name look module-scoped".
-export function resolutionMap (scopeManager) {
+export function resolutionMap(scopeManager) {
   const resolved = new Map()
   for (const scope of scopeManager.scopes) {
     for (const ref of scope.references) if (ref.resolved) resolved.set(ref.identifier, ref.resolved)

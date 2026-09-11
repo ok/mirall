@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P0 / G1 — the most basic ongoing operation: the owner drops a new file into an
 // already-shared folder and it must reach the peer's folder view and a mirror's
 // disk. This is the only layer that drives the real chokidar add → publish path.
-export default async function s26 ({ runDir, bootstrap }) {
+export default async function s26({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

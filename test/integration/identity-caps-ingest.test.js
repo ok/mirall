@@ -12,7 +12,7 @@ import {
 
 // Shrink a cap for one test, then restore the full config (storage/identity included) so later
 // tests in the file are unaffected, mirroring membership-fold-bounds.test.js.
-function withConfig (t, patch) {
+function withConfig(t, patch) {
   const prev = { ...getRuntimeConfig() }
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))

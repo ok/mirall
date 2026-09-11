@@ -1,5 +1,4 @@
 import test from 'brittle'
-import b4a from 'b4a'
 import Hyperdrive from 'hyperdrive'
 import createTestnet from 'hyperdht/testnet.js'
 import { setupPeer, teardownPeer, serve, consume, patterned } from './_holepunch.js'

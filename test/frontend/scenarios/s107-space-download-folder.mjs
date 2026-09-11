@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // Per-space download folder. The contract the user cares about: switching folders never
 // moves or deletes a file, a copy outside the new folder reads as not-downloaded, and
 // switching back restores it. Changes apply on Save, so closing the modal discards them.
-export default async function s107 ({ runDir, bootstrap }) {
+export default async function s107({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

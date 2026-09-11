@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER = path.resolve(here, '../../src/renderer')
 
-function tsxFiles (dir, out = []) {
+function tsxFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) tsxFiles(p, out)
@@ -23,7 +23,7 @@ const files = tsxFiles(RENDERER).map((f) => ({
 // The bodies of every `catch`/`finally` clause in a source, by brace matching. A regex cannot see
 // where a clause ends, and "the setter is somewhere in the file" is exactly the assertion that
 // passed while the setter sat on the resolve-only path.
-function guardBlocks (src) {
+function guardBlocks(src) {
   const blocks = []
   for (const m of src.matchAll(/\b(catch|finally)\b/g)) {
     const open = src.indexOf('{', m.index)
@@ -66,7 +66,7 @@ const CLOSE_OFF_BUSY_BRANCH = new Map([
   ['components/modals/LeaveSpaceModal.tsx', 1],
 ])
 
-function modalHeaderElements (src) {
+function modalHeaderElements(src) {
   const els = []
   for (const m of src.matchAll(/<ModalHeader\b/g)) {
     // Scan to the element's own closing `>`, tracking `{}` depth: the first `/>` in the source

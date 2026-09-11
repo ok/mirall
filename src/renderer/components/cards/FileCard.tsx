@@ -194,42 +194,42 @@ function FileCard({
   return (
     <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
       <div className="flex items-center p-5">
-      <div className="flex items-center gap-4 min-w-0 flex-grow">
-        <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
-          <Icon name={getFileIcon(file.path)} className="text-accent" />
-        </div>
-        <div className="min-w-0 flex-grow">
-          <FileName name={rowName} className="font-bold text-accent" />
-          <p className="text-xs text-on-surface-variant truncate">
-            {formatSize(file.size)} • {t('file.sharedBy', { name: file.owner?.displayName || t('file.unknownOwner') })}{sharedByLabel}
-            {/* Error rides the meta line (not a row of its own) so a failed row
+        <div className="flex items-center gap-4 min-w-0 flex-grow">
+          <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <Icon name={getFileIcon(file.path)} className="text-accent" />
+          </div>
+          <div className="min-w-0 flex-grow">
+            <FileName name={rowName} className="font-bold text-accent" />
+            <p className="text-xs text-on-surface-variant truncate">
+              {formatSize(file.size)} • {t('file.sharedBy', { name: file.owner?.displayName || t('file.unknownOwner') })}{sharedByLabel}
+              {/* Error rides the meta line (not a row of its own) so a failed row
                 keeps the resting card height. */}
-            {file.status === 'error' && (
-              <>
-                {' • '}
-                <span role="alert" className="text-error">{tErr(errorKey)}</span>
-              </>
-            )}
-          </p>
+              {file.status === 'error' && (
+                <>
+                  {' • '}
+                  <span role="alert" className="text-error">{tErr(errorKey)}</span>
+                </>
+              )}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <RowLane
-        view={view}
-        rowName={rowName}
-        kind="loose"
-        members={members}
-        downloadSummary={downloadSummary}
-        showDownloaders={showDownloaders}
-        onToggleDownloaders={() => setShowDownloaders((v) => !v)}
-        dropdownId={dropdownId}
-      />
-      {/* Right edge is actions only; the two-slot strip keeps a constant width so
+        <RowLane
+          view={view}
+          rowName={rowName}
+          kind="loose"
+          members={members}
+          downloadSummary={downloadSummary}
+          showDownloaders={showDownloaders}
+          onToggleDownloaders={() => setShowDownloaders((v) => !v)}
+          dropdownId={dropdownId}
+        />
+        {/* Right edge is actions only; the two-slot strip keeps a constant width so
           the status pills stay right-aligned across rows regardless of status. */}
-      <div className="flex items-center gap-1 shrink-0">
-        <ActionSlot action={secondary} alwaysVisible={false} />
-        <ActionSlot action={primary} alwaysVisible={true} />
-      </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <ActionSlot action={secondary} alwaysVisible={false} />
+          <ActionSlot action={primary} alwaysVisible={true} />
+        </div>
       </div>
       {view.indicatorActive && showDownloaders && downloadSummary && (
         <div className="pb-2">

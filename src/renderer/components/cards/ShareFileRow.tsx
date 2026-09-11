@@ -120,43 +120,43 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
   return (
     <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
       <div className="flex items-center p-5">
-      {leadingGutter && <span className="w-5 shrink-0" aria-hidden="true" />}
-      <div className={`flex items-center gap-4 min-w-0 flex-grow${leadingGutter ? ' ml-4' : ''}`}>
-        <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
-          <Icon name={getFileIcon(file.relPath)} className="text-accent" />
+        {leadingGutter && <span className="w-5 shrink-0" aria-hidden="true" />}
+        <div className={`flex items-center gap-4 min-w-0 flex-grow${leadingGutter ? ' ml-4' : ''}`}>
+          <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <Icon name={getFileIcon(file.relPath)} className="text-accent" />
+          </div>
+          <div className="min-w-0 flex-grow">
+            <FileName name={file.relPath} displayName={displayName} className="font-bold text-accent" />
+            <p className="text-xs text-on-surface-variant mt-0.5 truncate">{formatSize(file.size)}</p>
+            {file.status === 'error' && (
+              <p role="alert" className="text-xs text-error mt-1">{tErr(errorCodeToI18nKey(file.errorCode))}</p>
+            )}
+          </div>
         </div>
-        <div className="min-w-0 flex-grow">
-          <FileName name={file.relPath} displayName={displayName} className="font-bold text-accent" />
-          <p className="text-xs text-on-surface-variant mt-0.5 truncate">{formatSize(file.size)}</p>
-          {file.status === 'error' && (
-            <p role="alert" className="text-xs text-error mt-1">{tErr(errorCodeToI18nKey(file.errorCode))}</p>
-          )}
-        </div>
-      </div>
-      <RowLane
-        view={view}
-        rowName={rowName}
-        kind="share"
-        members={members}
-        downloadSummary={downloadSummary}
-        showDownloaders={showDownloaders}
-        onToggleDownloaders={() => setShowDownloaders((v) => !v)}
-        dropdownId={dropdownId}
-      />
-      {/* Right edge is actions only (FileCard's rule); the verified badge sits with the status pill above. */}
-      <div className="flex items-center gap-1 shrink-0">
-        <FileRowActions
-          action={action}
-          relPath={file.relPath}
-          transferId={file.transferId}
-          busyLabel={busyLabel}
-          onDownload={onDownload}
-          onReveal={onReveal}
-          onPause={onPause}
-          onCancel={onCancel}
-          onDiscardPartial={onDiscardPartial}
+        <RowLane
+          view={view}
+          rowName={rowName}
+          kind="share"
+          members={members}
+          downloadSummary={downloadSummary}
+          showDownloaders={showDownloaders}
+          onToggleDownloaders={() => setShowDownloaders((v) => !v)}
+          dropdownId={dropdownId}
         />
-      </div>
+        {/* Right edge is actions only (FileCard's rule); the verified badge sits with the status pill above. */}
+        <div className="flex items-center gap-1 shrink-0">
+          <FileRowActions
+            action={action}
+            relPath={file.relPath}
+            transferId={file.transferId}
+            busyLabel={busyLabel}
+            onDownload={onDownload}
+            onReveal={onReveal}
+            onPause={onPause}
+            onCancel={onCancel}
+            onDiscardPartial={onDiscardPartial}
+          />
+        </div>
       </div>
       {view.indicatorActive && showDownloaders && downloadSummary && (
         <div className="pb-2">

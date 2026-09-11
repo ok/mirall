@@ -13,7 +13,7 @@ const hasMember = (sid, key) => (list) => {
   return !!(s && (s.members || []).some((m) => m.publicKey === key))
 }
 
-async function membersWithOfflineB (t) {
+async function membersWithOfflineB(t) {
   const bootstrap = await localTestnet(t)
   const aStorage = path.join(mkTmpDir(t), 'app-storage')
   const bStorage = path.join(mkTmpDir(t), 'app-storage')

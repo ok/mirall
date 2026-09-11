@@ -5,7 +5,7 @@
 // Every label carries the folder name: the palette is one flat list with no group headings, so the
 // name is what scopes a row to this folder rather than the space, and makes the name a search term.
 
-export function deriveFolderCommands (input) {
+export function deriveFolderCommands(input) {
   const { role, paused, sourceMissing, canMirror } = input
   const isOwn = role === 'mine'
   const isBrowse = role === 'browse'

@@ -14,7 +14,7 @@ const TEST_REQUESTS = Object.freeze({
   slow: { kind: 'query', args: {} },
 })
 
-function fakePipe () {
+function fakePipe() {
   const ee = new EventEmitter()
   ee.written = []
   ee.write = (s) => { ee.written.push(s); return true }

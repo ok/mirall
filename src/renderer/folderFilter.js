@@ -14,11 +14,11 @@ import { collectFolderPaths, rollupNodes } from './fileTree.js'
 // the only readable way to show that many hits. A precise term reveals, which is the point of it.
 const REVEAL_MAX_MATCHES = 200
 
-function matches (name, needle) {
+function matches(name, needle) {
   return name.toLowerCase().includes(needle)
 }
 
-function countFiles (nodes) {
+function countFiles(nodes) {
   let total = 0
   for (const node of nodes) {
     if (node.kind === 'file') total += 1
@@ -27,7 +27,7 @@ function countFiles (nodes) {
   return total
 }
 
-function filterNodes (nodes, needle, revealPaths) {
+function filterNodes(nodes, needle, revealPaths) {
   const out = []
   for (const node of nodes) {
     if (node.kind === 'file') {
@@ -54,7 +54,7 @@ function filterNodes (nodes, needle, revealPaths) {
 // `revealPaths` is null when no filter is active, which is the signal the caller uses to fall back
 // to the user's own expansion — and it is null again for a result too large to reveal, so the
 // caller treats both the same way.
-export function filterTree (nodes, term) {
+export function filterTree(nodes, term) {
   const needle = String(term || '').trim().toLowerCase()
   if (!needle) return { nodes, matched: null, revealPaths: null }
   const revealPaths = new Set()

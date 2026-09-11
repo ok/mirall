@@ -10,7 +10,7 @@ const root = path.join(here, '..', '..')
 const ARM = new Set(['setInterval', 'setTimeout'])
 const DISARM = new Set(['clearInterval', 'clearTimeout'])
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
@@ -23,7 +23,7 @@ function walk (dir, out = []) {
 // This is the next question that rule cannot ask: whether the module that armed it holds anything
 // that can disarm it. A handle nothing can ever clear is a leak by construction — no reachability
 // analysis needed to say so.
-function uncleared (source, filePath) {
+function uncleared(source, filePath) {
   const { ast, visitorKeys, scopeManager } = parseSource(source, filePath)
   const resolved = resolutionMap(scopeManager)
   const armed = new Map()

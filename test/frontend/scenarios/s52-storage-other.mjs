@@ -6,7 +6,7 @@ import { makeReport, assert } from '../assert.mjs'
 // disclosure. Confirms the disclosure is keyboard/AX-targetable (role=button +
 // accessible name + aria-expanded — the a11y proof per testing.md §2) and expands
 // into the measured breakdown (shared-file index + app database).
-export default async function s52 ({ runDir, bootstrap }) {
+export default async function s52({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

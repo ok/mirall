@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { makeKeyedCoalescer } from '../../src/shared/state/coalesce.js'
 
-function manualTimers () {
+function manualTimers() {
   const pending = []
   return {
     schedule: (fn) => { const id = { fn }; pending.push(id); return id },

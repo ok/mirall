@@ -11,7 +11,7 @@ import { workDir } from '../paths.mjs'
 // banner. The limit is shrunk via MIRALL_MAX_FILES_PER_SHARE so a handful of files trips it.
 //
 // The refusal is a role=alert that takes focus, so it is announced rather than merely painted.
-export default async function s104 ({ runDir }) {
+export default async function s104({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   process.env.MIRALL_MAX_FILES_PER_SHARE = '5'

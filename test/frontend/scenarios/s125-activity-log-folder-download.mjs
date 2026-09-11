@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // Defect 11 through the UI: a file downloaded out of a FOLDER share left no trace in the Activity
 // Log at all, while the same download of a space-root file recorded one. The row's meta line has to
 // name the folder as well as the space, or a folder row is indistinguishable from a loose one.
-export default async function s125 ({ runDir, bootstrap }) {
+export default async function s125({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

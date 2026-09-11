@@ -15,13 +15,13 @@ import { randomKEK } from '../../src/shared/core/identity-envelope.js'
 // seed blocks (migrating installs). These tests fail on the unfixed tree: the master
 // secret appears verbatim in the raw store files.
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `identity-seed-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-function* walk (dir) {
+function* walk(dir) {
   for (const entry of fs.readdirSync(dir)) {
     const p = path.join(dir, entry)
     if (fs.statSync(p).isDirectory()) yield * walk(p)
@@ -29,7 +29,7 @@ function* walk (dir) {
   }
 }
 
-function bytesAppearUnder (root, needle) {
+function bytesAppearUnder(root, needle) {
   for (const f of walk(root)) {
     try { if (b4a.includes(fs.readFileSync(f), needle)) return true } catch {}
   }

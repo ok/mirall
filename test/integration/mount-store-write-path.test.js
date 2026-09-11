@@ -7,7 +7,7 @@ import {
 
 const KEY = { spaceId: 'sp-1', shareId: 'sh-1' }
 
-async function seed (t) {
+async function seed(t) {
   await freshPeer(t)
   await createOwnedMount({ ...KEY, mountPath: '/old', ignore: [], createdAt: Date.now() })
 }

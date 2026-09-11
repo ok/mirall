@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // PEER's catalog, so it is the one summary in the app that costs a network round-trip, and the
 // modal is unmounted on close. Reopening must paint the counts it already knows rather than
 // starting again from the placeholder.
-export default async function s129 ({ runDir, bootstrap }) {
+export default async function s129({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

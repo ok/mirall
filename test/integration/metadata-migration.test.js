@@ -6,19 +6,19 @@ import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import { migrateLocalBeesToEncrypted } from '../../src/shared/storage/metadata-migration.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `mir40-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function listDks (store) {
+async function listDks(store) {
   const out = new Set()
   for await (const dk of store.list()) out.add(b4a.toString(dk, 'hex'))
   return out
 }
 
-async function rawContains (core, needle) {
+async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
     const blk = await core.get(i, { decrypt: false })
     if (blk && b4a.toString(blk).includes(needle)) return true

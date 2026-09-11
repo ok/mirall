@@ -17,13 +17,13 @@ import { scaled } from '../helpers/bare-timing.js'
 const OWNER = 'o'.repeat(64)
 const SHARE = 'sh-mirror'
 
-async function rows (kind) {
+async function rows(kind) {
   await flushAudit()
   const { entries } = await queryAudit({ limit: 100 })
   return kind ? entries.filter((e) => e.kind === kind) : entries
 }
 
-async function integrityRows ({ tries = 40 } = {}) {
+async function integrityRows({ tries = 40 } = {}) {
   for (let i = 0; i < tries; i++) {
     const found = await rows('security.integrity_failure')
     if (found.length) return found
@@ -34,7 +34,7 @@ async function integrityRows ({ tries = 40 } = {}) {
 
 const quiet = () => new Promise((r) => setTimeout(r, scaled(200)))
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   const space = await createSpace('Design Team')
   const mountPath = ctx.tmpDir('mirror')
@@ -49,7 +49,7 @@ async function setup (t) {
 
 const entry = (over = {}) => ({ relPath: 'a/report.pdf', contentHash: 'h1'.repeat(32), size: 900, ...over })
 
-function throwsWith (code, message) {
+function throwsWith(code, message) {
   return async () => {
     const err = new Error(message)
     err.code = code

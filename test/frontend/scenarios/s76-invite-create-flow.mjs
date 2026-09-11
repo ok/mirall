@@ -5,7 +5,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // The invite create-flow: configure (auto-approve toggle off by default + three expiry presets, no
 // link yet) → Create → the link + setting badges, with Change returning to configure preserving the
 // choices. Exercises the new InviteModal end to end through the AX tree.
-export default async function s76 ({ runDir, bootstrap }) {
+export default async function s76({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

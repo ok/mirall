@@ -14,14 +14,14 @@ import { scaled } from '../helpers/timing.js'
 // lands is logged, not failed (a legitimate race, matching the FE altitude).
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function ownedShareWithScan (A, spaceId, name, folder) {
+async function ownedShareWithScan(A, spaceId, name, folder) {
   const share = await A.request('share:create', { spaceId, name })
   const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id)
   await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
   await scanDone
   return share
 }
-async function mirror (t, A, B, spaceId, share, aKey) {
+async function mirror(t, A, B, spaceId, share, aKey) {
   await B.until('share:list', { spaceId }, (l) => l.some((s) => s.id === share.id))
   const mirrorDir = mkTmpDir(t)
   const active = B.waitFor('event:foreign-folder-mount-status', (m) => m.shareId === share.id && m.status === 'active', 90000)

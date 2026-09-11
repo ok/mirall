@@ -6,7 +6,7 @@ import {
   getRuntimeConfig, setRuntimeConfig, getPeerFrameMaxBytes, getResourceCaps, joinRequestAvatarMaxBytes,
 } from '../../src/shared/core/runtime-config.js'
 
-function withConfig (t, patch) {
+function withConfig(t, patch) {
   const prev = { ...getRuntimeConfig() }
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))
@@ -18,7 +18,7 @@ const avatarOf = (bytes) => 'data:image/png;base64,' + 'A'.repeat(bytes - 'data:
 // The membership:request frame swarm.js builds, at its worst case: a NAME_MAX display name whose
 // every character is multi-byte, hex64 profileKey/spaceTopic/inviteId/signerKey/signerNs and the
 // hex128 ed25519 binding signature.
-function maximalRequestFrame (avatar) {
+function maximalRequestFrame(avatar) {
   return JSON.stringify({
     type: 'membership:request',
     profileKey: hex(64),

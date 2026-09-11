@@ -115,7 +115,7 @@ test('the renderer derives its status unions instead of re-listing them', (t) =>
 // other end.
 const DATA_LAYER = ['shared', 'worker', 'main']
 
-function walkSrc (dir, pattern, out = []) {
+function walkSrc(dir, pattern, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor' && name !== 'contract') walkSrc(p, pattern, out) }
@@ -124,7 +124,7 @@ function walkSrc (dir, pattern, out = []) {
   return out
 }
 
-function collect (dirs, pattern, scan) {
+function collect(dirs, pattern, scan) {
   const found = new Map()
   for (const d of dirs) {
     for (const f of walkSrc(path.join(dir, '..', '..', d), pattern)) {

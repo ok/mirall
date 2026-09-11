@@ -18,7 +18,7 @@ const RELAY_HOST = 'feedback.mirall.app'
 const RELAY_PORT = 443
 const RELAY_PATH = '/feedback'
 
-function buildMultipart (fields, file) {
+function buildMultipart(fields, file) {
   const boundary = '----MirallFeedback' + Date.now()
   const parts = []
 
@@ -51,7 +51,7 @@ function buildMultipart (fields, file) {
   return { body, boundary }
 }
 
-function httpsPost (body, headers) {
+function httpsPost(body, headers) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Feedback relay request timed out')), 15000)
 
@@ -77,7 +77,7 @@ function httpsPost (body, headers) {
   })
 }
 
-export async function sendFeedback (caption, screenshotBuffer) {
+export async function sendFeedback(caption, screenshotBuffer) {
   const cfg = getRuntimeConfig()
   if (!cfg.storage) throw new Error('Feedback unavailable: storage path not configured')
 

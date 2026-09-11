@@ -55,14 +55,14 @@ const leaveAcks = new Map()
 
 // Captured before the teardown drops the member from the roster: the audit row has to stay
 // readable once the record is gone.
-function memberSnapshot (space, publicKey) {
+function memberSnapshot(space, publicKey) {
   return {
     spaceName: space?.name ?? null,
     memberName: (space?.members || []).find((m) => m.publicKey === publicKey)?.displayName ?? null,
   }
 }
 
-function recordMemberLeft (spaceId, profileKey, snapshot) {
+function recordMemberLeft(spaceId, profileKey, snapshot) {
   record('member.left', {
     actor: { type: ACTOR_TYPE.PEER, key: profileKey, name: snapshot.memberName },
     space: { id: spaceId, name: snapshot.spaceName },

@@ -12,10 +12,10 @@ import { scaled } from '../helpers/bare-timing.js'
 // log. The wedge is staged where the production one happens — the streaming read of the file,
 // which on an unresponsive mount is a syscall no deadline can interrupt.
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function waitUntil (pred, ms = 5000) {
+async function waitUntil(pred, ms = 5000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (pred()) return
@@ -24,7 +24,7 @@ async function waitUntil (pred, ms = 5000) {
   throw new Error('condition not met within ' + scaled(ms) + 'ms')
 }
 
-async function wedgedPublish (t) {
+async function wedgedPublish(t) {
   const ctx = await setupOwnedShare(t, { files: { 'first.bin': 'aaa', 'second.bin': 'bbb' } })
   setRuntimeConfig({
     ...getRuntimeConfig(),

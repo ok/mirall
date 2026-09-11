@@ -94,7 +94,7 @@ const STORE_WRITERS = {
   'screens/ActivityLogSettings.tsx': 'post-mutation, same reason',
 }
 
-function walkRenderer (dir, out = []) {
+function walkRenderer(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walkRenderer(p, out)

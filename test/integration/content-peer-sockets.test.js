@@ -8,7 +8,7 @@ import { createContentPeerSockets } from '../../src/shared/transfer/content-peer
 // it wrong are symmetric: too lax keeps serving an ex-peer, too eager kills a healthy transfer for
 // a peer we still share another space with.
 
-const fakeSocket = (name) => ({ name, destroyed: false, destroy () { this.destroyed = true } })
+const fakeSocket = (name) => ({ name, destroyed: false, destroy() { this.destroyed = true } })
 
 test('destroyFor drops exactly the departing peer\'s sockets and leaves the others alone', (t) => {
   const reg = createContentPeerSockets()
@@ -61,7 +61,7 @@ test('destroyFor is a safe no-op for an unknown key, and on an empty registry', 
 
 test('a socket whose destroy() throws is still forgotten', (t) => {
   const reg = createContentPeerSockets()
-  const bad = { destroy () { throw new Error('already gone') } }
+  const bad = { destroy() { throw new Error('already gone') } }
   reg.add(bad, 'alice-key')
 
   t.is(reg.destroyFor('alice-key'), 1, 'counted as dropped')

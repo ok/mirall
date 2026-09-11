@@ -20,7 +20,7 @@ const MIGRATION_FLAG = 'legacy-peer-cache-clear-v2'
 // drop is immediate. Never touches our own
 // drive; best-effort per drive; uses clearAll (not a core purge) so the shared corestore
 // session is never closed (Hyperdrive._close would kill the root store).
-export async function reclaimLegacyPeerCaches () {
+export async function reclaimLegacyPeerCaches() {
   const flagBee = createLocalBee('app-migrations')
   try {
     return await run(flagBee)
@@ -29,7 +29,7 @@ export async function reclaimLegacyPeerCaches () {
   }
 }
 
-async function run (flagBee) {
+async function run(flagBee) {
   await flagBee.ready()
   if ((await flagBee.get(MIGRATION_FLAG))?.value?.completedAt) return { skipped: true }
 

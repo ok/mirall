@@ -17,7 +17,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = resolve(SCRIPT_DIR, '..')
 const LOCALES_DIR = join(PROJECT_ROOT, 'src', 'renderer', 'locales')
 
-function parseArgs (argv) {
+function parseArgs(argv) {
   const args = { out: null, langs: null, help: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -29,7 +29,7 @@ function parseArgs (argv) {
   return args
 }
 
-function usage () {
+function usage() {
   console.log(`Usage: node scripts/export-translations.mjs [--out <file-or-dir>] [--langs en,de,fr]
 
 Options:
@@ -40,7 +40,7 @@ Options:
   -h, --help           Show this help.`)
 }
 
-function flatten (obj, prefix = '') {
+function flatten(obj, prefix = '') {
   const out = {}
   for (const [k, v] of Object.entries(obj)) {
     const key = prefix ? `${prefix}.${k}` : k
@@ -50,17 +50,17 @@ function flatten (obj, prefix = '') {
   return out
 }
 
-function loadNs (lang, ns) {
+function loadNs(lang, ns) {
   return flatten(JSON.parse(readFileSync(join(LOCALES_DIR, lang, `${ns}.json`), 'utf8')))
 }
 
-function csvCell (v) {
+function csvCell(v) {
   if (v === undefined || v === null) return ''
   const s = String(v)
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-function resolveOutputPath (out) {
+function resolveOutputPath(out) {
   const fallback = join(PROJECT_ROOT, 'translations.csv')
   if (!out) return fallback
   const abs = resolve(process.cwd(), out)

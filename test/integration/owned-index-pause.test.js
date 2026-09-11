@@ -14,7 +14,7 @@ const manyFiles = (n) => Object.fromEntries(fileNames(n).map((name) => [name, 'x
 
 const timerKey = (ctx) => ctx.spaceId + ':' + ctx.share.id
 const armed = (ctx) => ctx.root.mounts.periodicTimers.has(timerKey(ctx))
-async function untilDebtClears (ctx, deadlineMs = 5000) {
+async function untilDebtClears(ctx, deadlineMs = 5000) {
   const until = Date.now() + scaled(deadlineMs)
   while (Date.now() < until) {
     if (!(await getOwnedMount(ctx.spaceId, ctx.share.id)).deepScanOwed) return true

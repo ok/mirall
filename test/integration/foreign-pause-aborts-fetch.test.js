@@ -19,7 +19,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function waitUntil (pred, ms = 5000) {
+async function waitUntil(pred, ms = 5000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (pred()) return
@@ -28,7 +28,7 @@ async function waitUntil (pred, ms = 5000) {
   throw new Error('condition not met within ' + scaled(ms) + 'ms')
 }
 
-async function setupOverlayMirror (t, { relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024 } = {}) {
+async function setupOverlayMirror(t, { relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024 } = {}) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()

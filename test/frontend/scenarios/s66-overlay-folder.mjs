@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // the Add Folder modal has no mode picker — a share always publishes in place: no second
 // copy is imported, the catalog replicates so B sees the file, and B fetches it by content
 // hash straight from A onto disk.
-export default async function s66 ({ runDir, bootstrap }) {
+export default async function s66({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -12,7 +12,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // re-downloadable (remote) — never auto-resuming. The toast only fires while B is genuinely
 // mid-download (a completed download is kept, not "removed"), so like s88/s90 this uses a
 // 256 MB file to keep B comfortably mid-flight through the owner's unshare.
-export default async function s102 ({ runDir, bootstrap }) {
+export default async function s102({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

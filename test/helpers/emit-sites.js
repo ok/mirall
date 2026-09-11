@@ -5,7 +5,7 @@
 // level-triggered reconcile channel.
 import { parseSource, forEachNode, staticString, calleeName } from './ast-scan.js'
 
-function namesCalledOn (source, filePath, fn) {
+function namesCalledOn(source, filePath, fn) {
   const { ast, visitorKeys } = parseSource(source, filePath)
   const found = new Set()
   forEachNode(ast, visitorKeys, (node) => {
@@ -19,10 +19,10 @@ function namesCalledOn (source, filePath, fn) {
 
 // Total over emit syntax: `emit(…)`, `x.emit(…)`, `x?.emit(…)`, `x['emit'](…)`, single or double
 // quotes, backticks.
-export function emitSites (source, filePath) {
+export function emitSites(source, filePath) {
   return namesCalledOn(source, filePath, 'emit')
 }
 
-export function subscribeSites (source, filePath) {
+export function subscribeSites(source, filePath) {
   return namesCalledOn(source, filePath, 'subscribe')
 }

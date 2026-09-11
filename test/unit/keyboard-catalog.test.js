@@ -10,7 +10,7 @@ const RENDERER_DIR = join(root, 'src', 'renderer')
 
 // The catalogue is TypeScript the Node test runner can't import directly, so it is
 // transpiled in memory. It imports nothing but types, which esbuild strips.
-function loadModule (name) {
+function loadModule(name) {
   const src = readFileSync(join(KEYBOARD_DIR, name), 'utf8')
   const { code } = transformSync(src, { loader: 'ts', format: 'cjs' })
   const mod = { exports: {} }
@@ -21,7 +21,7 @@ function loadModule (name) {
 const { KEYBOARD_SHORTCUTS, acceleratorFor, spaceDigitAccelerator } = loadModule('known-commands.ts')
 const { parseAccelerator } = loadModule('accelerator.ts')
 
-function rendererSources (exclude = []) {
+function rendererSources(exclude = []) {
   return readdirSync(RENDERER_DIR, { recursive: true })
     .filter((f) => typeof f === 'string' && (f.endsWith('.ts') || f.endsWith('.tsx')))
     .filter((f) => !exclude.some((name) => f.endsWith(name)))

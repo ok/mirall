@@ -9,7 +9,7 @@ import { driveBaseName } from '../../../folders/path-keys.js'
 
 import { isTerminalFault } from './fetch-policy.js'
 
-export function createOverlayChannel (d) {
+export function createOverlayChannel(d) {
   // Decoration frames carry spaceId: a bare drive path is unique per space only — without the
   // field two spaces downloading the same-named file would mix bytes in the renderer's per-key map.
   const deco = (spaceId, key, patch) => {

@@ -11,10 +11,10 @@ import * as messages from '../../src/shared/transfer/backends/overlay/vendor/mes
 // decoder, destroying the whole mux (every channel on the socket) on a throw. This matrix is the
 // proof that the tolerant decoder handles all four pairings.
 
-function pair () {
+function pair() {
   let aPush, bPush
-  const a = new Duplex({ write (d, cb) { bPush(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aPush(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bPush(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aPush(d); cb() }, read() {} })
   aPush = (d) => a.push(d)
   bPush = (d) => b.push(d)
   return [a, b]
@@ -24,20 +24,20 @@ const settle = (ms = 60) => new Promise((r) => setTimeout(r, ms))
 // "new" declares the encoding and sends the bits; "old" is exactly today's shape — no handshake
 // encoding, an open() argument that goes nowhere. A sibling channel on the same mux stands in for
 // mirall/handshake: if a decode throw destroys the mux, the sibling dies with it.
-function open (stream, kind, seen) {
+function open(stream, kind, seen) {
   const mux = Protomux.from(stream)
   const sibling = mux.createChannel({ protocol: 'mirall/handshake' })
   sibling.open()
   const channel = mux.createChannel({
     protocol: 'hyper-overlay/v2',
     ...(kind === 'new' ? { handshake: messages.handshake } : {}),
-    onopen (hs) { seen.push(hs === undefined ? 'undefined' : hs) },
+    onopen(hs) { seen.push(hs === undefined ? 'undefined' : hs) },
   })
   channel.open({ version: 2, capabilities: 0x03 })
   return { mux, channel, sibling }
 }
 
-async function matrix (t, left, right) {
+async function matrix(t, left, right) {
   const [sa, sb] = pair()
   const seenL = []
   const seenR = []
@@ -94,9 +94,9 @@ test('the decoder never throws, whatever the tail', (t) => {
 // peer can open this channel; a decoder that threw here would hand it a one-frame kill of the
 // whole Noise socket — mirall/handshake and corestore replication with it.
 const oneByteHandshake = {
-  preencode (state) { state.end += 1 },
-  encode (state) { state.buffer[state.start++] = 7 },
-  decode (state) { state.start = state.end; return null },
+  preencode(state) { state.end += 1 },
+  encode(state) { state.buffer[state.start++] = 7 },
+  decode(state) { state.start = state.end; return null },
 }
 
 // REGRESSION (FIX-OVERLAY-HANDSHAKE: with a strict decoder this frame destroys the victim's mux.)

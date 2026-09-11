@@ -3,7 +3,7 @@
 // are imported — a timer armed at import is exactly what it exists to catch — and restore in
 // teardown. Handles from before the shim, and from runtime internals (RocksDB, the store), are
 // not ours: the stack filter keeps the count to src/shared and src/worker.
-export function trackTimers () {
+export function trackTimers() {
   const real = {
     setInterval: globalThis.setInterval,
     setTimeout: globalThis.setTimeout,

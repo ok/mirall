@@ -16,7 +16,7 @@ export const LOCAL_COPY = {
   UNKNOWN: 'unknown',
 }
 
-export function classifyLocalCopy ({ diskHash = null, ownerHash = null, ancestorHash = null } = {}) {
+export function classifyLocalCopy({ diskHash = null, ownerHash = null, ancestorHash = null } = {}) {
   // An unreadable local file is not an invitation to replace it.
   if (!diskHash) return LOCAL_COPY.UNKNOWN
   // Checked before the ancestor: when all three agree the file is current, and that is the more
@@ -32,6 +32,6 @@ export function classifyLocalCopy ({ diskHash = null, ownerHash = null, ancestor
 // ownership, and the two mistakes are not symmetric: a needless sibling is a file the user can
 // delete in a second, while a wrong overwrite is unrecoverable — there is no trash on this path and
 // no audit row to reconstruct from.
-export function mayOverwriteInPlace (verdict) {
+export function mayOverwriteInPlace(verdict) {
   return verdict === LOCAL_COPY.OURS || verdict === LOCAL_COPY.OWNER_CURRENT
 }

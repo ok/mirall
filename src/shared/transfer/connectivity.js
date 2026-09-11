@@ -100,7 +100,6 @@ export function noteAnnounced() {
   scheduleStatusEmit()
 }
 
-
 const VERDICT_HISTORY_CAP = 200
 
 function recordVerdictTransition(next) {

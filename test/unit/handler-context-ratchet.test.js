@@ -18,7 +18,7 @@ const entrypoint = path.join(here, '..', '..', 'src', 'worker', 'main.js')
 // true number of router-context consumers was 0.
 const FLOOR = 1
 
-function routerContextHandlers () {
+function routerContextHandlers() {
   const src = readFileSync(entrypoint, 'utf8')
   return [...src.matchAll(/ipc\.handle\(\s*'([^']+)'\s*,\s*(?:async\s*)?\(\s*[A-Za-z_$][\w$]*\s*,\s*[A-Za-z_$][\w$]*/g)]
     .map((m) => m[1])

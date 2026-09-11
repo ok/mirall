@@ -14,7 +14,7 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function waitUntil (pred, ms = 5000) {
+export async function waitUntil(pred, ms = 5000) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     if (pred()) return
@@ -23,14 +23,14 @@ export async function waitUntil (pred, ms = 5000) {
   throw new Error('condition not met within ' + ms + 'ms')
 }
 
-export function cancelled () {
+export function cancelled() {
   const err = new Error('cancelled'); err.code = 'ECANCELLED'
   return err
 }
 
-export function settleAll (spy) { for (const reject of spy.rejecters.splice(0)) reject(cancelled()) }
+export function settleAll(spy) { for (const reject of spy.rejecters.splice(0)) reject(cancelled()) }
 
-export async function wedgedMirror (t, {
+export async function wedgedMirror(t, {
   relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024, pollMs = 30_000,
 } = {}) {
   const ctx = await freshPeer(t)

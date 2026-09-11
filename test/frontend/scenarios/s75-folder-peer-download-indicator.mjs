@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // checked bookends are no-indicator-at-rest and indicator-clears-after + the file
 // landing on the peer. The ledger + byte accounting are proven in
 // test/integration/peer-download-ledger and the flow tests.
-export default async function s75 ({ runDir, bootstrap }) {
+export default async function s75({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   // Shares publish through the overlay backend, the only content mode now and the

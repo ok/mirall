@@ -317,7 +317,6 @@ export async function materializeCatalogFile(mount, share, entry, opts = {}) {
   return await materializeOverlayFile(mount, share, entry, opts)
 }
 
-
 const integritySeen = createIntegritySeen({
   onCap: (mountKey, limit) => log.warn('mirror integrity rows capped at', limit, 'for', mountKey,
     '— further hash mismatches on this mount are logged but not audited until it is remounted'),
@@ -356,7 +355,7 @@ function recordMirrorIntegrityFailure(mount, share, entry) {
 // is already computed, so the check costs one bee read on a file about to be overwritten anyway.
 // Anything we cannot vouch for is moved aside first; the owner's version then lands at the
 // canonical path.
-async function preserveLocalEdit (mount, entry, verifyKey, diskHash, abs) {
+async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs) {
   const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey).catch(() => null)
   if (mayOverwriteInPlace(classifyLocalCopy({ diskHash, ownerHash: entry.contentHash, ancestorHash }))) return
 
@@ -726,7 +725,7 @@ async function initialMaterializeScanCatalog(mount, share) {
 // listing, and it is the one line that explains a mirror that has stopped tracking deletions.
 // Nothing is forgotten from the synced set, so a later pass re-evaluates rather than losing the
 // fact. Quiet below the floor, where a withheld pass just means the owner was offline.
-function logWithheldDeletions (key, pending, syncedSize, minDeletions) {
+function logWithheldDeletions(key, pending, syncedSize, minDeletions) {
   if (pending <= minDeletions) return
   log.error('withholding', pending, 'mirror deletions of', syncedSize,
     'synced paths — the owner catalog shrank implausibly; keeping the local files:', key)

@@ -20,7 +20,7 @@ import {
 // Exercise the files.js integration (addFile/listFiles/removeFile) with the
 // in-place flag ON — the production entry points the renderer drives. These are
 // the CI-runnable layer for routing the flow test covers end-to-end.
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
@@ -37,7 +37,7 @@ async function setup (t) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-function writeSource (ctx, name, contents) {
+function writeSource(ctx, name, contents) {
   const abs = path.join(ctx.tmpDir('src'), name)
   fs.writeFileSync(abs, contents)
   return abs

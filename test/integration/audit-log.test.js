@@ -12,13 +12,13 @@ import {
 } from '../../src/shared/audit/audit-log.js'
 
 let seq = 0
-function tmpDir (label) {
+function tmpDir(label) {
   const dir = path.join(os.tmpdir(), `audit-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${seq++}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function boot (t, { identity = true } = {}) {
+async function boot(t, { identity = true } = {}) {
   const storage = tmpDir('store')
   t.teardown(() => { try { fs.rmSync(storage, { recursive: true, force: true }) } catch {} })
   await openStore(storage)
@@ -29,7 +29,7 @@ async function boot (t, { identity = true } = {}) {
   return storage
 }
 
-function member (kind, spaceId, spaceName, actorName) {
+function member(kind, spaceId, spaceName, actorName) {
   record(kind, {
     actor: { type: 'peer', key: 'peer-' + actorName, name: actorName },
     space: { id: spaceId, name: spaceName },
@@ -219,7 +219,7 @@ const BULK_KINDS = ['file.shared', 'file.unshared', 'invite.minted', 'member.joi
   'mirror.created', 'mirror.removed', 'serve.completed', 'share.created', 'share.deleted',
   'space.created', 'space.joined', 'transfer.completed', 'transfer.failed']
 
-function bulkRows (rounds) {
+function bulkRows(rounds) {
   let written = 0
   for (let i = 0; i < rounds; i++) {
     for (const kind of BULK_KINDS) {
@@ -234,7 +234,7 @@ function bulkRows (rounds) {
   return written
 }
 
-function dirSize (dir) {
+function dirSize(dir) {
   let total = 0
   for (const name of fs.readdirSync(dir)) {
     const p = path.join(dir, name)
@@ -392,7 +392,7 @@ test('the rate guard collapses a burst into one suppressed row', async (t) => {
 
 // Rows are stamped with Date.now() inside record(), so building a pathological ts order
 // means driving the clock.
-async function recordAt (ts, spaceId, actorName) {
+async function recordAt(ts, spaceId, actorName) {
   const real = Date.now
   Date.now = () => ts
   try {
@@ -457,7 +457,7 @@ test('record() reports whether the row was admitted', async (t) => {
     'a disabled log admits nothing — callers must not mirror it as recorded')
 })
 
-function device (kind, code, subject = {}) {
+function device(kind, code, subject = {}) {
   record(kind, { actor: { type: 'system', key: null, name: null }, code, subject })
 }
 

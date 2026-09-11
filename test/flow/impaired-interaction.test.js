@@ -16,10 +16,10 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), netImpair })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function seeRemote (B, spaceId, name) {
+async function seeRemote(B, spaceId, name) {
   await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
 }
-async function startAndFlow (B, spaceId, name, aKey) {
+async function startAndFlow(B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
     B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })

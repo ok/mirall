@@ -18,7 +18,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = (netImpair) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), netImpair })
 
-async function shareSeeDownload (t, A, B, spaceId, aKey, aSrc, name, mb, seed) {
+async function shareSeeDownload(t, A, B, spaceId, aKey, aSrc, name, mb, seed) {
   const bytes = patternedBytes(mb * 1024 * 1024, seed)
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })

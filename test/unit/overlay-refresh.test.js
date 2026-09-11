@@ -12,7 +12,7 @@ function manualClock() {
   }
 }
 
-function build () {
+function build() {
   const calls = []
   const clock = manualClock()
   const r = makeSharesRefresh((spaceId, shareId) => calls.push(`${spaceId}|${shareId}`), { schedule: clock.schedule, clear: clock.clear })

@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // the AX poll, so the paused round-trip is best-effort and a lost race is not a
 // failure. The hard guarantee is the file landing "On your device"; the
 // pause→resume correctness itself is owned by test/flow/loose-pause-resume.
-export default async function s82 ({ runDir, bootstrap }) {
+export default async function s82({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

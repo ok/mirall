@@ -20,7 +20,7 @@ const waitFor = async (pred, ms = 5000) => {
   return pred()
 }
 // A standalone peer bee (its own store) replicated into ours, standing in for a remote member.
-async function makePeer (t) {
+async function makePeer(t) {
   const dir = path.join(os.tmpdir(), `tomb-peer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   const store = new Corestore(dir)
@@ -32,7 +32,7 @@ async function makePeer (t) {
   t.teardown(async () => { try { await store.close() } catch {}; try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} })
   return { store, bee, key: b4a.toString(core.key, 'hex') }
 }
-function replicate (a, b, t) {
+function replicate(a, b, t) {
   const s1 = a.replicate(true); const s2 = b.replicate(false)
   s1.on('error', () => {}); s2.on('error', () => {}); s1.pipe(s2).pipe(s1)
   t.teardown(() => { try { s1.destroy() } catch {}; try { s2.destroy() } catch {} })

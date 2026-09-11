@@ -13,7 +13,7 @@ import { openMemberView, closeMemberView, isMember } from '../../src/shared/spac
 // applyObservedLeave's revokeApproval is a no-op and cannot tear the edge out from under the
 // assertion. That isolates the fold's own behaviour from the observed-leave path.
 
-async function rootedSpace (t, name, { departure }) {
+async function rootedSpace(t, name, { departure }) {
   await freshPeer(t)
   const { spaceId } = await createSpace(name)
   await markOwnMembership(spaceId)

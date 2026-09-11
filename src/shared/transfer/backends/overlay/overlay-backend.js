@@ -237,7 +237,7 @@ export async function publishContent(spaceId, shareId, relPath, absPath, { onAdv
   // failure self-heals on the next reconcile, so it stays outside the revert window.
   let contentHash
   try {
-    const prep = await getOverlay()?.prepareForServe(absPath, { onProgress, signal: { get aborted () { return publishesAborting || Boolean(signal?.aborted) } } })
+    const prep = await getOverlay()?.prepareForServe(absPath, { onProgress, signal: { get aborted() { return publishesAborting || Boolean(signal?.aborted) } } })
     if (!prep?.contentHash) {
       // Same guard as the catch below: on shutdown (incl. getOverlay() gone null mid-teardown)
       // leave the null-hash entry for boot re-hash instead of unsharing the file.
@@ -603,7 +603,7 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
 export const overlayPause = (transferId) => engine().pause(transferId)
 export const overlayCancel = (transferId) => engine().cancel(transferId)
 export const overlayCancelByKey = (spaceId, drivePath, transferId) => engine().cancelByKey(spaceId, drivePath, transferId)
-export async function overlayCancelSpace (spaceId) {
+export async function overlayCancelSpace(spaceId) {
   await cancelSpaceOn(engine(), spaceId, log)
 }
 export const resumeOverlayForOwner = (ownerKey, spaceId) => engine().resumeForOwner(ownerKey, spaceId)

@@ -6,34 +6,34 @@ import {
 } from '../../src/shared/transfer/connectivity.js'
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
 // A DHT lookup we can hold open. runCanaryProbe iterates the stream to collect announce records, so
 // a stream that yields nothing until released is a probe parked in its first stage.
-function heldLookup () {
+function heldLookup() {
   let release = null
   const closed = new Promise((resolve) => { release = resolve })
   return {
     release: () => release(),
-    destroy () { release() },
-    async * [Symbol.asyncIterator] () { await closed },
+    destroy() { release() },
+    async * [Symbol.asyncIterator]() { await closed },
   }
 }
 
-const emptyLookup = () => ({ destroy () {}, async * [Symbol.asyncIterator] () {} })
+const emptyLookup = () => ({ destroy() {}, async * [Symbol.asyncIterator]() {} })
 
-function fakeSwarm (lookups) {
+function fakeSwarm(lookups) {
   const dht = {
-    on () {},
+    on() {},
     fullyBootstrapped: async () => {},
     lookup: () => lookups.shift(),
     firewalled: false,
     randomized: false,
   }
-  return { on () {}, dht, suspended: false, destroyed: false, connections: new Set() }
+  return { on() {}, dht, suspended: false, destroyed: false, connections: new Set() }
 }
 
-async function connectivity (t, lookups) {
+async function connectivity(t, lookups) {
   initConnectivity({
     log: silentLog,
     diag: { snapshotPeerSamples: () => [], counters: () => ({}) },

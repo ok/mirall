@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // from it. The peer's FolderView must stop offering the file (it converges to "Folder
 // unavailable" / an empty listing) and no full file lands. 256 MB keeps the peer mid-
 // flight when the share is deleted.
-export default async function s89 ({ runDir, bootstrap }) {
+export default async function s89({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

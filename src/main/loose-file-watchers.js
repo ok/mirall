@@ -11,7 +11,7 @@ const watched = new Map()
 let emitEvent = null
 let emitError = null
 
-function ensure () {
+function ensure() {
   if (host) return
   // atomic:true — a loose entry is a single tracked path with no diff pass behind it, so an
   // editor that saves by rename-over must arrive as one `change`; a transient unlink would
@@ -32,7 +32,7 @@ function ensure () {
   })
 }
 
-function addLooseWatch (spaceId, absPath, onEvent, onError) {
+function addLooseWatch(spaceId, absPath, onEvent, onError) {
   emitEvent = onEvent
   emitError = onError
   ensure()
@@ -41,7 +41,7 @@ function addLooseWatch (spaceId, absPath, onEvent, onError) {
   spaces.add(spaceId)
 }
 
-function removeLooseWatch (spaceId, absPath) {
+function removeLooseWatch(spaceId, absPath) {
   const spaces = watched.get(absPath)
   if (!spaces) return
   spaces.delete(spaceId)
@@ -51,7 +51,7 @@ function removeLooseWatch (spaceId, absPath) {
   }
 }
 
-function stopLooseWatchers () {
+function stopLooseWatchers() {
   if (host) host.stop()
   host = null
   watched.clear()

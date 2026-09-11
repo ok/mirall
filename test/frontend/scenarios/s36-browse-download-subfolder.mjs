@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P1 / G11 — a browse-only peer (no mirror) downloads a single file that lives
 // in a subfolder, on demand, to the global download folder. The flat case is
 // covered by s10; nesting exercises the nested drive-path → download path.
-export default async function s36 ({ runDir, bootstrap }) {
+export default async function s36({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

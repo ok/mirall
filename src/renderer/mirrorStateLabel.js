@@ -9,7 +9,7 @@
 //
 // Only `syncing` moves. A peer that holds every file still holds it while the owner is away, and
 // a paused mirror is the user's own intent — neither depends on reachability.
-export function mirrorStateLabelKey (state, ownerOnline) {
+export function mirrorStateLabelKey(state, ownerOnline) {
   if (state === 'paused') return 'folder.mirrorStatePaused'
   if (state === 'synced') return 'folder.mirrorStateSynced'
   if (ownerOnline === false) return 'folder.mirrorStateWaiting'

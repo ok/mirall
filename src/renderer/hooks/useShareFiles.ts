@@ -29,14 +29,6 @@ interface DownloadFileResult {
   alreadyOwned?: boolean
 }
 
-interface FolderInfo {
-  fileCount: number
-  totalBytes: number
-  blobsLength: number | null
-  truncated: boolean
-  fileLimit: number | null
-}
-
 interface ListResult {
   entries: ServerEntry[]
   complete: boolean

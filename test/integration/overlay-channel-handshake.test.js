@@ -6,17 +6,17 @@ import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendo
 import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]
 }
 const settle = (ms = 500) => new Promise((r) => setTimeout(r, scaled(ms)))
 
-async function overlay (t, label, opts = {}) {
+async function overlay(t, label, opts = {}) {
   const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), ...opts })
   await o.ready()
   t.teardown(async () => { try { await o.close() } catch {} })

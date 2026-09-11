@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(here, '..', '..')
 const SRC = path.join(ROOT, 'src')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -28,7 +28,7 @@ const dataLayerSource = dataLayerFiles.map((f) => readFileSync(f, 'utf8')).join(
 // layer and leaves "is it reachable" to the behavioural suites.
 const DOTTED_LITERAL = /'([a-z]+(?:\.[a-z_]+)+)'/g
 
-function literalsIn (source) {
+function literalsIn(source) {
   const out = new Set()
   for (let m; (m = DOTTED_LITERAL.exec(source));) out.add(m[1])
   return out

@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // must still report that row as on-device. share-listing derived the local path from the owner key
 // alone, so it stat'd a path the mirror never wrote: the header undercounted by one and the row
 // wore "Available" for a file already on disk.
-export default async function s130 ({ runDir, bootstrap }) {
+export default async function s130({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

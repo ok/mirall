@@ -8,7 +8,7 @@ import { flatten } from '../tree.mjs'
 // empty state reads as good news rather than a failed search, and the preset survives the jump from
 // Network status — which is also the only thing that catches openActivityLog being wired straight
 // to an onClick, where React's MouseEvent would be spread into the filters.
-export default async function s115 ({ runDir, bootstrap }) {
+export default async function s115({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

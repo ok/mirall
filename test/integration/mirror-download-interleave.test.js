@@ -23,7 +23,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function until (fn, ms = 10000) {
+async function until(fn, ms = 10000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
@@ -32,7 +32,7 @@ async function until (fn, ms = 10000) {
   return false
 }
 
-async function mirrorCtx (t, opts = {}) {
+async function mirrorCtx(t, opts = {}) {
   const ctx = await setupSelfMirror(t, opts)
   await initPendingTransfers()
   const prev = getRuntimeConfig()
@@ -42,13 +42,13 @@ async function mirrorCtx (t, opts = {}) {
   return ctx
 }
 
-async function firstEntry (ctx) {
+async function firstEntry(ctx) {
   const { entries } = await (await import('../../src/shared/transfer/content-backends.js'))
     .getContentBackend(ctx.share).listPeerWithMeta(ctx.spaceId, ctx.share)
   return entries[0]
 }
 
-function testChannel (over = {}) {
+function testChannel(over = {}) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -179,7 +179,7 @@ test('waiting for a slot counts as mirror progress', async (t) => {
 
   hog()
   await settleTick()
-  async function settleTick () { await until(() => fetchSlotStats().queued === 0) }
+  async function settleTick() { await until(() => fetchSlotStats().queued === 0) }
 })
 
 // REGRESSION: the claim is released from the fetch's finally, which a WEDGED pass never reaches.

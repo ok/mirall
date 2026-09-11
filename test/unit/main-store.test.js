@@ -6,7 +6,7 @@ import {
 
 // A bridge that records every call and lets a test settle each one by hand, so concurrency is
 // asserted structurally rather than by timing — the same shape as query-store.test.js's transport.
-function fakeBridge () {
+function fakeBridge() {
   const calls = []
   const pending = []
   const pushListeners = []
@@ -31,7 +31,7 @@ function fakeBridge () {
   }
 }
 
-function setup (t) {
+function setup(t) {
   resetMainStore()
   const bridge = fakeBridge()
   configureMainStore(bridge)

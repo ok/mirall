@@ -8,7 +8,7 @@ import { publishMirror } from '../../src/shared/folders/mirror-records.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../../src/shared/folders/mirror-registry.js'
 
 let seq = 0
-async function memberMirrorBee (spaceId, shareId, state, { tombstoned = false } = {}) {
+async function memberMirrorBee(spaceId, shareId, state, { tombstoned = false } = {}) {
   const bee = createBee('peer-' + (seq++))
   await bee.ready()
   await bee.put('caps/folder-mirrors', true)

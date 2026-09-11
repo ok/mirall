@@ -12,7 +12,7 @@ import { migrateCatalogsToEncrypted } from '../../src/shared/shares/migrate-cata
 
 const SHARE = 'share-1'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }
@@ -20,7 +20,7 @@ async function coreInStore (dkHex) {
 }
 
 // The durable tier only: boot() runs migrateCatalogsToEncrypted, and these tests drive it.
-async function v2Peer (t) {
+async function v2Peer(t) {
   const ctx = await freshDurableWithIdentity(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   return ctx

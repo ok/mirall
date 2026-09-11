@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P2 / G14 — OS junk and temp files (.DS_Store, *.mirall.part) in an owned folder
 // must never be published. The DEFAULT_IGNORE logic is unit-tested, but the real
 // chokidar → publish path that consults it is only exercised here.
-export default async function s39 ({ runDir, bootstrap }) {
+export default async function s39({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

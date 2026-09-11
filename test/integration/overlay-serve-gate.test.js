@@ -11,10 +11,10 @@ import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]

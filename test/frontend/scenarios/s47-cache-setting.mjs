@@ -5,7 +5,7 @@ import { makeReport, assert } from '../assert.mjs'
 // by its accessible name and role (the a11y bar: agent-desktop must target it by
 // name/role), exposes a value, and responds to keyboard stepping — i.e. it is a
 // real, operable, labelled slider, not a mouse-only widget.
-export default async function s47 ({ runDir, bootstrap }) {
+export default async function s47({ runDir, bootstrap }) {
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
   const slider = { role: 'slider', name: 'On-demand cache size' }

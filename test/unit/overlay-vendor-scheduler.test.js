@@ -4,11 +4,11 @@ import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendo
 // A TransferManager stub: the scheduler only needs startReceive/writeChunk/finalize.
 // We accept every chunk (the real hash-verify is exercised in the vendor-transfer
 // integration test); here we isolate the timeout state machine.
-function fakeTransfer (received = new Set()) {
+function fakeTransfer(received = new Set()) {
   return {
-    startReceive () { return { received } },
-    writeChunk () { return { ok: true } },
-    finalize () { return { ok: true } },
+    startReceive() { return { received } },
+    writeChunk() { return { ok: true } },
+    finalize() { return { ok: true } },
   }
 }
 
@@ -179,9 +179,9 @@ test('cancel(): rejects the fetch with ECANCELLED and marks done', async (t) => 
 test('REGRESSION (FIX-A): a slow startReceive is not charged against the idle watchdog', async (t) => {
   const sent = []
   const slowTransfer = {
-    async startReceive () { await wait(60); return { received: new Set() } },
-    writeChunk () { return { ok: true } },
-    finalize () { return { ok: true } },
+    async startReceive() { await wait(60); return { received: new Set() } },
+    writeChunk() { return { ok: true } },
+    finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:slow', destPath: '/tmp/slow', transfer: slowTransfer,
@@ -201,9 +201,9 @@ test('REGRESSION (FIX-A): cancel during startReceive setup is honored', async (t
   const sent = []
   let release
   const slowTransfer = {
-    startReceive () { return new Promise((r) => { release = () => r({ received: new Set() }) }) },
-    writeChunk () { return { ok: true } },
-    finalize () { return { ok: true } },
+    startReceive() { return new Promise((r) => { release = () => r({ received: new Set() }) }) },
+    writeChunk() { return { ok: true } },
+    finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:cancel-setup', destPath: '/tmp/cancel-setup', transfer: slowTransfer,
@@ -228,9 +228,9 @@ test('REGRESSION (FIX-A): cancel during startReceive setup is honored', async (t
 test('REGRESSION (FIX-129): a fatal coded writeChunk failure fails the fetch with that code', async (t) => {
   let assigns = 0
   const enospcTransfer = {
-    startReceive () { return { received: new Set() } },
-    writeChunk () { return { ok: false, error: 'no space left on device', code: 'ENOSPC' } },
-    finalize () { return { ok: true } },
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: false, error: 'no space left on device', code: 'ENOSPC' } },
+    finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:enospc', destPath: '/tmp/enospc', transfer: enospcTransfer,
@@ -248,9 +248,9 @@ test('REGRESSION (FIX-129): a fatal coded writeChunk failure fails the fetch wit
 
 test('REGRESSION (FIX-129): an uncoded writeChunk failure (mismatch) stays retryable, not fatal', async (t) => {
   const mismatchTransfer = {
-    startReceive () { return { received: new Set() } },
-    writeChunk () { return { ok: false, error: 'hash mismatch' } },
-    finalize () { return { ok: true } },
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: false, error: 'hash mismatch' } },
+    finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:mismatch', destPath: '/tmp/mismatch', transfer: mismatchTransfer,
@@ -265,9 +265,9 @@ test('REGRESSION (FIX-129): an uncoded writeChunk failure (mismatch) stays retry
 
 test('REGRESSION (FIX-129): a TRANSIENT coded writeChunk failure (EBUSY) is retried, not fatal', async (t) => {
   const busyTransfer = {
-    startReceive () { return { received: new Set() } },
-    writeChunk () { return { ok: false, error: 'device busy', code: 'EBUSY' } },
-    finalize () { return { ok: true } },
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: false, error: 'device busy', code: 'EBUSY' } },
+    finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:ebusy', destPath: '/tmp/ebusy', transfer: busyTransfer,
@@ -287,9 +287,9 @@ test('REGRESSION (FIX-A): a second seeder during setup does not re-arm the stall
   const sent = []
   let release
   const slowTransfer = {
-    startReceive () { return new Promise((r) => { release = () => r({ received: new Set() }) }) },
-    writeChunk () { return { ok: true } },
-    async finalize () { return { ok: true } },
+    startReceive() { return new Promise((r) => { release = () => r({ received: new Set() }) }) },
+    writeChunk() { return { ok: true } },
+    async finalize() { return { ok: true } },
   }
   const sched = new ChunkScheduler({
     path: 'content:multi', destPath: '/tmp/multi', transfer: slowTransfer,
@@ -313,10 +313,10 @@ test('REGRESSION (FIX-A): a second seeder during setup does not re-arm the stall
 test('a stall _fail releases the receiver state via transfer.pause', async (t) => {
   const paused = []
   const transfer = {
-    startReceive () { return { received: new Set() } },
-    writeChunk () { return { ok: true } },
-    async finalize () { return { ok: true } },
-    async pause (p) { paused.push(p) },
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: true } },
+    async finalize() { return { ok: true } },
+    async pause(p) { paused.push(p) },
   }
   const sched = new ChunkScheduler({
     path: 'content:failpause', destPath: '/tmp/failpause', transfer,
@@ -347,22 +347,22 @@ test('a _fail with a transfer lacking pause() does not throw', async (t) => {
 // so this double cannot certify an interface production never sees. `topUp` is the double's
 // own budget knob and has no counterpart in the real handle; it is deliberately NOT called
 // `release`, which used to collide with the scheduler's teardown hook and poison `left`.
-function fakeLimiter (allowance) {
+function fakeLimiter(allowance) {
   let left = allowance
   let detached = false
   const waiters = []
   return {
     isUnlimited: () => false,
-    tryTake (bytes) {
+    tryTake(bytes) {
       if (detached || left < bytes) return false
       left -= bytes
       return true
     },
     wouldBlock: () => detached,
-    give (bytes) { left += bytes },
-    whenAvailable (bytes, cb) { if (!detached) waiters.push(cb) },
-    detach () { detached = true; waiters.length = 0 },
-    topUp (amount) {
+    give(bytes) { left += bytes },
+    whenAvailable(bytes, cb) { if (!detached) waiters.push(cb) },
+    detach() { detached = true; waiters.length = 0 },
+    topUp(amount) {
       left += amount
       const pending = waiters.splice(0, waiters.length)
       for (const cb of pending) cb()

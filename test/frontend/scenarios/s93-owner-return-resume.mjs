@@ -12,7 +12,7 @@ import { workDir } from '../paths.mjs'
 // quit A (keep its store), wait until B shows "Owner offline", then boot A back on the same
 // store. Uses the quit()/launch harness (kill() would wipe the store). Hard guarantee:
 // completion after A returns.
-export default async function s93 ({ runDir, bootstrap }) {
+export default async function s93({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

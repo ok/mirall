@@ -5,13 +5,13 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createLocalBee } from '../../src/shared/core/store.js'
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `mir40-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function rawContains (core, needle) {
+async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
     const blk = await core.get(i, { decrypt: false })
     if (blk && b4a.toString(blk).includes(needle)) return true

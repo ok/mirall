@@ -20,7 +20,6 @@ import { ensureMirror } from '../shared/folders/mirror-records.js'
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 const MOUNT_PROBE_INTERVAL_MS = 60_000
 
-
 // The download-root twin of owned-folders' mountRootAvailable, deliberately kept separate: a
 // download root is not a mount, and borrowing the mount-named helper would imply it is.
 function rootAvailable(root) {
@@ -34,7 +33,6 @@ function readUnavailableRoots() {
 function sameRootSet(a, b) {
   return a.length === b.length && a.every((root, i) => root === b[i])
 }
-
 
 export class MountsRuntime extends Subsystem {
   constructor(name, deps) {
@@ -143,7 +141,6 @@ export class MountsRuntime extends Subsystem {
     this.periodicTimers.clear()
     this.reconcileCounters.clear()
   }
-
 
   // Persist + announce an owned mount's status in one step. The durable field is what a
   // boot or refresh re-derives the badge from — a transient-only event vanishes on reload —

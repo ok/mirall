@@ -3,7 +3,7 @@ import { makeServeAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/tr
 
 // Build the authorizer with controllable fakes for each collaborator. Defaults
 // are the "everything passes" case; each test overrides one leg to drive a deny.
-function build (overrides = {}) {
+function build(overrides = {}) {
   const socket = { id: 'sock' }
   const peer = { id: 'peer' }
   const peerSocket = new Map([[peer, socket]])

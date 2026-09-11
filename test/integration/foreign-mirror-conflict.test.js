@@ -22,14 +22,14 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 // actually DELIVERED, per file, for the life of the mount. It was written on every landing and only
 // ever read back against the owner's hash — getVerifiedHash had no caller anywhere in src/.
 
-async function entryFor (ctx) {
+async function entryFor(ctx) {
   const { entries: [entry] } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   return entry
 }
 
 // Edit the mirrored copy the way a user would: new bytes, and an mtime after the verified record
 // so the fast-path cache correctly declines to vouch for it.
-function userEdits (abs, content) {
+function userEdits(abs, content) {
   fs.writeFileSync(abs, content)
   const future = new Date(Date.now() + 60000)
   fs.utimesSync(abs, future, future)

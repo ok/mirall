@@ -8,12 +8,12 @@ import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/ve
 // re-decides). Both live in the vendored protocol, so they also guard the mirall patch itself.
 
 // A peer as the protocol holds it: the grant map is the whole surface these paths touch.
-function fakePeer (name) {
+function fakePeer(name) {
   return { name, authorizedServe: new Map() }
 }
 
 // The sync engine + transfer manager are untouched by the grant paths under test.
-function protocolWith (peers, { authorize = async () => true } = {}) {
+function protocolWith(peers, { authorize = async () => true } = {}) {
   const proto = new OverlayProtocolV2(null, null, { serveAuthorizer: authorize })
   for (const p of peers) proto._peers.set({ mux: p.name }, p)
   return proto

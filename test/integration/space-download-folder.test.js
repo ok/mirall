@@ -11,7 +11,7 @@ import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 // destroy the claim for a file that merely sits outside the new folder — otherwise
 // pointing the space back at the old folder would not restore its downloaded status.
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, downloadFolder: ctx.downloads })
@@ -21,7 +21,7 @@ async function setup (t) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-function land (dir, name, body = 'bytes') {
+function land(dir, name, body = 'bytes') {
   const p = path.join(dir, name)
   fs.writeFileSync(p, body)
   return p

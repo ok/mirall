@@ -50,20 +50,20 @@ const ROLE_STYLES = {
   mirrored: { classes: 'bg-surface-container-highest text-accent', labelKey: 'share.badgeMirrored' },
 }
 
-export function fileStatusToBadge (status) {
+export function fileStatusToBadge(status) {
   return FILE_STATUS_TO_BADGE[status]
 }
 
-export function shareFileStatusToBadge (status, isOwn) {
+export function shareFileStatusToBadge(status, isOwn) {
   if (isOwn && status === 'synced') return 'mine'
   return SHARE_FILE_STATUS_TO_BADGE[status]
 }
 
-export function badgeStyle (badgeStatus) {
+export function badgeStyle(badgeStatus) {
   return STYLES[badgeStatus]
 }
 
-export function roleBadge (role, opts) {
+export function roleBadge(role, opts) {
   if (opts && opts.missing) return { classes: STYLES.paused.classes, labelKey: 'share.mountPointGone' }
   // Above the pause: an auto-paused mirror is paused AND faulted, and "Paused" is the half that
   // makes it look like the user's own doing.

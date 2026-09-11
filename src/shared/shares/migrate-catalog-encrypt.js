@@ -22,7 +22,7 @@ const spaceFlag = (spaceId) => FLAG + '/' + spaceId
 // A per-space marker makes retries cheap and skips already-migrated spaces; the global flag is only
 // set once EVERY space is done, so a space still awaiting its SCK (a pending joiner) is retried
 // on later boots rather than silently left plaintext.
-export async function migrateCatalogsToEncrypted () {
+export async function migrateCatalogsToEncrypted() {
   const flagBee = createLocalBee('app-migrations')
   try {
     return await run(flagBee)
@@ -31,7 +31,7 @@ export async function migrateCatalogsToEncrypted () {
   }
 }
 
-async function run (flagBee) {
+async function run(flagBee) {
   await flagBee.ready()
   if ((await flagBee.get(FLAG))?.value?.completedAt) return { skipped: true }
 
@@ -64,7 +64,7 @@ async function run (flagBee) {
   return { skipped: false, migrated, deferred, failed }
 }
 
-async function migrateOneCatalog (space, spaceId) {
+async function migrateOneCatalog(space, spaceId) {
   const enc = await ownCatalog(spaceId)
   const legacy = openLegacyPlaintextCatalog(space, spaceId)
   try {

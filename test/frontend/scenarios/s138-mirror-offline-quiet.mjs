@@ -23,7 +23,7 @@ import { workDir } from '../paths.mjs'
 // scenario is indistinguishable from a hang while it is working.
 const NAMES = Array.from({ length: 12 }, (_, i) => `track-${String(i + 1).padStart(2, '0')}.txt`)
 
-export default async function s138 ({ runDir, bootstrap }) {
+export default async function s138({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

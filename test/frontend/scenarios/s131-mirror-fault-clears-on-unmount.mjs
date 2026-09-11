@@ -18,7 +18,7 @@ import { workDir } from '../paths.mjs'
 //
 // The fault is induced the only way a mirror's can be: the mirror writes into its own directory, so
 // a directory it cannot write to fails the write and auto-pauses the mirror with paused-error.
-export default async function s131 ({ runDir, bootstrap }) {
+export default async function s131({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

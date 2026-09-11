@@ -43,8 +43,8 @@ export function previewOwnedMount(
   const onProgress = opts.onProgress
   const off = onProgress
     ? subscribe<PreviewProgress & { previewId: string }>('event:owned-folder-preview-progress', (m) => {
-        if (m.previewId === previewId) onProgress(m)
-      })
+      if (m.previewId === previewId) onProgress(m)
+    })
     : () => {}
   const result = (request(
     'owned-folder:preview',

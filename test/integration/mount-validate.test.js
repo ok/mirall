@@ -9,18 +9,18 @@ import { createOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared
 import { freshPeer } from '../helpers/store.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
-function tmpDir (t) {
+function tmpDir(t) {
   const d = path.join(os.tmpdir(), 'mv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
   fs.mkdirSync(d, { recursive: true })
   if (t) t.teardown(() => { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} })
   return d
 }
 
-function codeOf (fn) {
+function codeOf(fn) {
   try { fn(); return null } catch (e) { return e.code }
 }
 
-async function asyncCodeOf (promise) {
+async function asyncCodeOf(promise) {
   try { await promise; return null } catch (e) { return e.code }
 }
 

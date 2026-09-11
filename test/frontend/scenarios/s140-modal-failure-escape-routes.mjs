@@ -18,7 +18,7 @@ import { workDir } from '../paths.mjs'
 // what this scenario holds is the property a person experiences: each dialog keeps a named,
 // reachable way out when it is not busy, exposes no live close button while it is, and its
 // happy path still lands.
-export default async function s140 ({ runDir, bootstrap }) {
+export default async function s140({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

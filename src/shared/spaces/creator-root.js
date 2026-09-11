@@ -11,7 +11,7 @@
 //   - provisional pin, assertion differs ...... adopt (authenticated > bearer hint; defeats a forged invite)
 //   - authenticated pin, assertion matches .... noop
 //   - authenticated pin, assertion differs .... refuse (a confirmed root can't be flipped post-hoc)
-export function reconcileAssertedRoot ({ pinned, pinnedIsAuthenticated, asserted }) {
+export function reconcileAssertedRoot({ pinned, pinnedIsAuthenticated, asserted }) {
   if (!asserted) return 'noop'
   if (!pinned) return 'adopt'
   if (!pinnedIsAuthenticated) return asserted === pinned ? 'confirm' : 'adopt'

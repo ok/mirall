@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // (looseCancelSpace / overlayCancelSpace) stops serving: the peer's transfer does not
 // complete (no full file lands) and the owner returns to the space list. 256 MB keeps the
 // peer mid-flight at the moment of leaving.
-export default async function s98 ({ runDir, bootstrap }) {
+export default async function s98({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

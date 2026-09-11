@@ -8,7 +8,7 @@ import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 // Pause/resume of a mirror (foreign-folder:set-enabled). Disabling must flip the
 // persisted state, stop the loop, and surface a 'paused' status; the tick must
 // then no-op. Re-enabling flips it back to 'active' and the tick resumes.
-function statuses (ctx, shareId) {
+function statuses(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
     .map((e) => e.payload.status)

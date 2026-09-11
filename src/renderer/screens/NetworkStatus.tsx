@@ -308,51 +308,51 @@ function AdvancedDetails({ status, now }: AdvancedDetailsProps) {
 
   return (
     <>
-              <Section title={t('networkStatus.connection')}>
-                <Field label={t('networkStatus.peerCount')}     value={formatNumber(status.peerCount)} />
-                <Field label={t('networkStatus.topicsJoined')}  value={formatNumber(status.topics)} />
-                <Field label={t('networkStatus.lastConnected')} value={formatRelativeTime(status.lastConnectionAt, now)} />
-              </Section>
+      <Section title={t('networkStatus.connection')}>
+        <Field label={t('networkStatus.peerCount')}     value={formatNumber(status.peerCount)} />
+        <Field label={t('networkStatus.topicsJoined')}  value={formatNumber(status.topics)} />
+        <Field label={t('networkStatus.lastConnected')} value={formatRelativeTime(status.lastConnectionAt, now)} />
+      </Section>
 
-              <Section title={t('networkStatus.address')}>
-                <MaskedField label={t('networkStatus.publicHost')} value={status.address.publicHost} />
-                <Field label={t('networkStatus.publicPort')} value={status.address.publicPort ? String(status.address.publicPort) : DASH} mono />
-                <Field label={t('networkStatus.localPort')}  value={status.address.localPort ? String(status.address.localPort) : DASH} mono />
-                <Field
-                  label={t('networkStatus.portPreserved')}
-                  value={portPreservationLabel}
-                  positive={portPreserved}
-                />
-                <MaskedField label={t('networkStatus.publicKey')} value={status.identity.publicKey} visibleSuffix={6} />
-              </Section>
+      <Section title={t('networkStatus.address')}>
+        <MaskedField label={t('networkStatus.publicHost')} value={status.address.publicHost} />
+        <Field label={t('networkStatus.publicPort')} value={status.address.publicPort ? String(status.address.publicPort) : DASH} mono />
+        <Field label={t('networkStatus.localPort')}  value={status.address.localPort ? String(status.address.localPort) : DASH} mono />
+        <Field
+          label={t('networkStatus.portPreserved')}
+          value={portPreservationLabel}
+          positive={portPreserved}
+        />
+        <MaskedField label={t('networkStatus.publicKey')} value={status.identity.publicKey} visibleSuffix={6} />
+      </Section>
 
-              <Section title={t('networkStatus.nat')}>
-                <Field label={t('networkStatus.firewalled')} value={formatBool(status.nat.firewalled, t)} />
-                <Field label={t('networkStatus.randomized')} value={formatBool(status.nat.randomized, t)} />
-                <Field label={t('networkStatus.ephemeral')}  value={formatBool(status.nat.ephemeral, t)} />
-              </Section>
+      <Section title={t('networkStatus.nat')}>
+        <Field label={t('networkStatus.firewalled')} value={formatBool(status.nat.firewalled, t)} />
+        <Field label={t('networkStatus.randomized')} value={formatBool(status.nat.randomized, t)} />
+        <Field label={t('networkStatus.ephemeral')}  value={formatBool(status.nat.ephemeral, t)} />
+      </Section>
 
-              <Section title={t('networkStatus.relaying')}>
-                <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
-                <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
-                <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
-              </Section>
+      <Section title={t('networkStatus.relaying')}>
+        <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
+        <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
+        <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
+      </Section>
 
-              <Section title={t('networkStatus.dht')}>
-                <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status.routing.tableSize)} />
-                <Field label={t('networkStatus.dhtVersion')}        value={status.versions.dht} mono />
-                <BootstrapList
-                  items={status.routing.bootstrap}
-                  emptyLabel={DASH}
-                  countLabel={(n) => t('networkStatus.bootstrapEntries', { count: n })}
-                />
-              </Section>
+      <Section title={t('networkStatus.dht')}>
+        <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status.routing.tableSize)} />
+        <Field label={t('networkStatus.dhtVersion')}        value={status.versions.dht} mono />
+        <BootstrapList
+          items={status.routing.bootstrap}
+          emptyLabel={DASH}
+          countLabel={(n) => t('networkStatus.bootstrapEntries', { count: n })}
+        />
+      </Section>
 
-              <Section title={t('networkStatus.canary')}>
-                <Field label={t('networkStatus.canaryState')} value={t(`networkStatus.summary.testValue.${status.canary.state}`)} />
-                <Field label={t('networkStatus.canaryRecords')} value={formatNumber(status.canary.stage1?.announceRecords)} />
-                <Field label={t('networkStatus.canaryChecked')} value={formatRelativeTime(status.canary.at || null, now)} />
-              </Section>
+      <Section title={t('networkStatus.canary')}>
+        <Field label={t('networkStatus.canaryState')} value={t(`networkStatus.summary.testValue.${status.canary.state}`)} />
+        <Field label={t('networkStatus.canaryRecords')} value={formatNumber(status.canary.stage1?.announceRecords)} />
+        <Field label={t('networkStatus.canaryChecked')} value={formatRelativeTime(status.canary.at || null, now)} />
+      </Section>
     </>
   )
 }

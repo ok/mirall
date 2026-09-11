@@ -5,7 +5,7 @@ import { connectInSpace } from '../helpers.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
-function patterned (n, seed = 7) {
+function patterned(n, seed = 7) {
   const b = Buffer.alloc(n)
   for (let i = 0; i < n; i++) b[i] = (i * seed + 13) & 0xff
   return b
@@ -16,7 +16,7 @@ function patterned (n, seed = 7) {
 // threshold; this asserts the full content. The strict "no premature partial
 // publish" timing is a chokidar-config property and isn't asserted in the racy
 // UI window.
-export default async function s37 ({ runDir, bootstrap }) {
+export default async function s37({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

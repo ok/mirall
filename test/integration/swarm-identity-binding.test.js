@@ -4,7 +4,6 @@ import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
 import { getIdentitySigner, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/transfer/handshake-guard.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 
@@ -48,4 +47,3 @@ test('a different signer cannot claim our profileKey', async (t) => {
   t.absent(verifyIdentityBinding({ publicKey: noise.publicKey }, forged),
     'foreign signer/manifest does not hash to our profileKey')
 })
-

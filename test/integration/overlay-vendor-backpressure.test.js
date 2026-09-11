@@ -12,7 +12,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-function fakeTransfer (chunkMap, bytes) {
+function fakeTransfer(chunkMap, bytes) {
   return {
     _fileIndex: { getChunkMap: async () => chunkMap, getChunkMapByHash: async () => chunkMap },
     readChunk: (_p, off, len) => bytes.subarray(off, off + len),
@@ -21,34 +21,34 @@ function fakeTransfer (chunkMap, bytes) {
     openChunkSource: async () => 1,
     closeChunkSource: () => {},
     readChunkAt: async (_fd, off, len) => bytes.subarray(off, off + len),
-    startReceive () { return { received: new Set() } },
-    writeChunk () { return { ok: true } },
-    finalize () { return { ok: true } },
-    cancel () {}, pause () {},
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: true } },
+    finalize() { return { ok: true } },
+    cancel() {}, pause() {},
   }
 }
 
 // send() always reports backpressure (returns false + marks the stream not-drained),
 // so the seeder parks after every chunk; drain() clears it and fires 'drain'.
-function backpressuredPeer () {
+function backpressuredPeer() {
   const sent = []
   let drained = true
   const ls = { drain: [], close: [] }
   const stream = {
-    on (ev, fn) { (ls[ev] ||= []).push(fn) },
-    removeListener (ev, fn) { ls[ev] = (ls[ev] || []).filter((f) => f !== fn) },
-    emit (ev, ...a) { for (const fn of [...(ls[ev] || [])]) fn(...a) },
+    on(ev, fn) { (ls[ev] ||= []).push(fn) },
+    removeListener(ev, fn) { ls[ev] = (ls[ev] || []).filter((f) => f !== fn) },
+    emit(ev, ...a) { for (const fn of [...(ls[ev] || [])]) fn(...a) },
   }
   const peer = {
     mux: { stream },
-    channel: { closed: false, get drained () { return drained } },
+    channel: { closed: false, get drained() { return drained } },
     authorizedServe: new Map(),
-    msgs: { chunkData: { send (m) { sent.push(m); drained = false; return false } } },
+    msgs: { chunkData: { send(m) { sent.push(m); drained = false; return false } } },
   }
   return {
     peer, sent,
-    drain () { drained = true; stream.emit('drain') },
-    closeChannel () { peer.channel.closed = true; stream.emit('close') },
+    drain() { drained = true; stream.emit('drain') },
+    closeChannel() { peer.channel.closed = true; stream.emit('close') },
   }
 }
 
@@ -81,10 +81,10 @@ test('FIX-1: a drained stream sends the whole batch in one pass (fast-path uncha
   })
   const sent = []
   const peer = {
-    mux: { stream: { on () {}, removeListener () {}, emit () {} } },
+    mux: { stream: { on() {}, removeListener() {}, emit() {} } },
     channel: { closed: false, drained: true },
     authorizedServe: new Map(),
-    msgs: { chunkData: { send (m) { sent.push(m); return true } } },
+    msgs: { chunkData: { send(m) { sent.push(m); return true } } },
   }
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   t.is(sent.length, 3, 'all chunks flushed when the stream is not backpressured')
@@ -124,10 +124,10 @@ test('_onChunkNeed skips a chunk whose read returns null and serves the rest', a
   })
   const sent = []
   const peer = {
-    mux: { stream: { on () {}, removeListener () {}, emit () {} } },
+    mux: { stream: { on() {}, removeListener() {}, emit() {} } },
     channel: { closed: false, drained: true },
     authorizedServe: new Map(),
-    msgs: { chunkData: { send (m) { sent.push(m.index); return true } } },
+    msgs: { chunkData: { send(m) { sent.push(m.index); return true } } },
   }
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   t.alike(sent, [0, 2], 'the null chunk (index 1) is skipped; 0 and 2 still served')
@@ -140,14 +140,14 @@ test('_onChunkNeed skips a chunk whose read returns null and serves the rest', a
 
 const KB = 1024
 
-function drainedPeer () {
+function drainedPeer() {
   const sent = []
   const peer = {
-    mux: { stream: { on () {}, removeListener () {}, emit () {} } },
+    mux: { stream: { on() {}, removeListener() {}, emit() {} } },
     channel: { closed: false, drained: true },
     authorizedServe: new Map(),
     uploadStream: null,
-    msgs: { chunkData: { send (m) { sent.push(m); return true } } },
+    msgs: { chunkData: { send(m) { sent.push(m); return true } } },
   }
   return { peer, sent }
 }
@@ -303,14 +303,14 @@ test('FIX-BW9: keep-alive is registered last, leaving every existing message id 
   const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
   const order = []
   const fakeMux = {
-    stream: { on () {}, removeListener () {}, emit () {} },
+    stream: { on() {}, removeListener() {}, emit() {} },
     createChannel: () => ({
-      addMessage ({ encoding }) {
+      addMessage({ encoding }) {
         const name = Object.keys(m).find((k) => m[k] === encoding) || 'unknown'
         order.push(name)
-        return { send () {} }
+        return { send() {} }
       },
-      open () {},
+      open() {},
     }),
   }
   proto.attach(fakeMux)
@@ -363,22 +363,22 @@ test('REGRESSION (FIX-BW9): revoking a serve grant mid-park stops the keep-alive
 // putting bytes out.
 
 // A peer that never drains, whose TX counter is whatever `tx()` says.
-function transmittingPeer (tx) {
+function transmittingPeer(tx) {
   const sent = []
   const ls = { drain: [], close: [] }
   const stream = {
-    rawStream: { get bytesTransmitted () { return tx() } },
-    on (ev, fn) { (ls[ev] ||= []).push(fn) },
-    removeListener (ev, fn) { ls[ev] = (ls[ev] || []).filter((f) => f !== fn) },
-    emit (ev, ...a) { for (const fn of [...(ls[ev] || [])]) fn(...a) },
+    rawStream: { get bytesTransmitted() { return tx() } },
+    on(ev, fn) { (ls[ev] ||= []).push(fn) },
+    removeListener(ev, fn) { ls[ev] = (ls[ev] || []).filter((f) => f !== fn) },
+    emit(ev, ...a) { for (const fn of [...(ls[ev] || [])]) fn(...a) },
   }
   const peer = {
     mux: { stream },
     channel: { closed: false, drained: false },
     authorizedServe: new Map(),
-    msgs: { chunkData: { send (m) { sent.push(m); return false } } },
+    msgs: { chunkData: { send(m) { sent.push(m); return false } } },
   }
-  return { peer, sent, close () { peer.channel.closed = true; stream.emit('close') } }
+  return { peer, sent, close() { peer.channel.closed = true; stream.emit('close') } }
 }
 
 test('REGRESSION (FIX-BW10): a serve loop keeps waiting while bytes are still leaving', async (t) => {
@@ -455,7 +455,7 @@ test('FIX-BW10: fetchContent wires the transport probe into the scheduler', asyn
   const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
   const peer = {
     mux: { stream: { rawStream: { bytesReceived: 1234 } } },
-    msgs: { contentRequest: { send () {} } },
+    msgs: { contentRequest: { send() {} } },
   }
   const fetch = proto.fetchContent('abc', [peer], { destPath: '/disk/abc' })
   fetch.catch(() => {})

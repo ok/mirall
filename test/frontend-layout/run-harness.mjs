@@ -9,7 +9,7 @@ import path from 'node:path'
 const HERE = import.meta.dirname
 const REPO = path.resolve(HERE, '../..')
 
-export async function runHarness ({ html, height, width } = {}) {
+export async function runHarness({ html, height, width } = {}) {
   if (!process.argv.slice(2).includes('--no-build')) {
     execFileSync('node', [path.join(HERE, 'build.mjs')], { cwd: REPO, stdio: 'inherit' })
   }

@@ -12,7 +12,7 @@ import { workDir } from '../paths.mjs'
 // rather than a stale draft.
 const NAME_FIELD = { name: 'Folder name' }
 
-export default async function s123 ({ runDir }) {
+export default async function s123({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

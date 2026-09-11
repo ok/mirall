@@ -13,7 +13,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function waitUntil (pred, ms = 5000) {
+export async function waitUntil(pred, ms = 5000) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     if (pred()) return
@@ -22,9 +22,9 @@ export async function waitUntil (pred, ms = 5000) {
   throw new Error('condition not met within ' + ms + 'ms')
 }
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
-export async function wedgedScan (t, { stallWindowMs = 150, files = { 'a.txt': 'one', 'b.txt': 'two' } } = {}) {
+export async function wedgedScan(t, { stallWindowMs = 150, files = { 'a.txt': 'one', 'b.txt': 'two' } } = {}) {
   const ctx = await setupOwnedShare(t, { files })
   // A probe interval long enough that only the explicit probe() calls in the test drive the policy.
   setRuntimeConfig({ ...getRuntimeConfig(), reconcileStallWindowMs: stallWindowMs, supervisionProbeIntervalMs: 3_600_000 })

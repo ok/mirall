@@ -19,7 +19,7 @@ const DWELL = 60
 const META = { memberName: 'Anna Keller', spaceName: 'Design Team' }
 
 let seq = 0
-function tmpDir (label) {
+function tmpDir(label) {
   const dir = path.join(os.tmpdir(), `netwatch-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${seq++}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
@@ -28,7 +28,7 @@ function tmpDir (label) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const settle = () => sleep(DWELL * 4)
 
-async function boot (t, { session = 'run-1' } = {}) {
+async function boot(t, { session = 'run-1' } = {}) {
   const storage = tmpDir('store')
   t.teardown(() => {
     resetNetworkWatch()
@@ -45,7 +45,7 @@ async function boot (t, { session = 'run-1' } = {}) {
   initNetworkWatch({ sessionId: session, dwellMs: DWELL, peerDwellMs: DWELL, timers: watchTimers })
 }
 
-function observe (verdict, cause = null, since = Date.now()) {
+function observe(verdict, cause = null, since = Date.now()) {
   observeReachability({
     verdict,
     cause,
@@ -54,13 +54,13 @@ function observe (verdict, cause = null, since = Date.now()) {
   })
 }
 
-async function kinds () {
+async function kinds() {
   await flushAudit()
   const { entries } = await queryAudit({ limit: 200 })
   return entries.map((e) => e.kind)
 }
 
-async function rowOf (kind) {
+async function rowOf(kind) {
   await flushAudit()
   const { entries } = await queryAudit({ limit: 200 })
   return entries.find((e) => e.kind === kind) || null

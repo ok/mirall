@@ -5,7 +5,7 @@
 // a pass that is in flight AND not advancing is stalled.
 import { stallVerdict } from './stall-verdict.js'
 
-export function createPassLiveness ({ now = Date.now } = {}) {
+export function createPassLiveness({ now = Date.now } = {}) {
   const byKey = new Map()
   // Never reused, so a token from an abandoned pass can never match the pass that replaced it.
   let seq = 0
@@ -15,7 +15,7 @@ export function createPassLiveness ({ now = Date.now } = {}) {
     // rather than stacking. Returns the token identifying THIS pass: a caller whose pass can be
     // abandoned under it hands the token back to ended(), so a zombie settling later cannot clear
     // the heartbeat of the pass that took its key.
-    started (key) {
+    started(key) {
       const at = now()
       const pass = ++seq
       const entry = byKey.get(key)
@@ -29,13 +29,13 @@ export function createPassLiveness ({ now = Date.now } = {}) {
     // here: an abandoned pass beats REPEATEDLY — the owner diff beats once per catalog entry and
     // once per unchanged file — so an untokened beat does not merely delay one verdict, it holds
     // the replacement pass permanently healthy however stuck it is.
-    progress (key, pass = 0) {
+    progress(key, pass = 0) {
       const entry = byKey.get(key)
       if (!entry?.startedAt) return
       if (pass && entry.pass !== pass) return
       entry.progressAt = now()
     },
-    ended (key, pass = 0) {
+    ended(key, pass = 0) {
       const entry = byKey.get(key)
       if (!entry) return
       if (pass && entry.pass !== pass) return
@@ -43,12 +43,12 @@ export function createPassLiveness ({ now = Date.now } = {}) {
       entry.progressAt = 0
       entry.completedAt = now()
     },
-    verdict (key, { now: at = now(), windowMs }) {
+    verdict(key, { now: at = now(), windowMs }) {
       return stallVerdict(byKey.get(key), { now: at, windowMs })
     },
     // Every key whose pass is in flight, with its verdict — what a subsystem reports to the
     // supervisor. A key with no pass in flight is deliberately absent: there is nothing to stall.
-    verdicts ({ now: at = now(), windowMs } = {}) {
+    verdicts({ now: at = now(), windowMs } = {}) {
       const out = []
       for (const [key, entry] of byKey) {
         if (!entry.startedAt) continue
@@ -58,12 +58,12 @@ export function createPassLiveness ({ now = Date.now } = {}) {
     },
     // Kept as its own name: the health() reports count wedged units, and filtering at each caller
     // would put the same predicate in three files.
-    stalled (opts = {}) {
+    stalled(opts = {}) {
       return this.verdicts(opts).filter((row) => !row.ok)
     },
-    forget (key) { byKey.delete(key) },
-    clear () { byKey.clear() },
+    forget(key) { byKey.delete(key) },
+    clear() { byKey.clear() },
     // A copy: nothing outside may mutate the heartbeat.
-    peek (key) { const e = byKey.get(key); return e ? { ...e } : null },
+    peek(key) { const e = byKey.get(key); return e ? { ...e } : null },
   }
 }

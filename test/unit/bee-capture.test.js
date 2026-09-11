@@ -3,7 +3,7 @@ import { makeCaptureScheduler } from '../../src/shared/spaces/bee-capture.js'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-function harness ({ retryMinMs = 1000 } = {}) {
+function harness({ retryMinMs = 1000 } = {}) {
   const calls = []
   let clock = 0
   let length = 3

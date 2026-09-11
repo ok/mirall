@@ -8,7 +8,7 @@ import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/transf
 // the profileKey to THIS connection's Noise key, reusing signNoiseBinding / verifyIdentityBinding.
 // A content-hello carries no spaceTopic and no driveKey, so it rides the V1 binding
 // (context || noiseKey). These assert the exact frame content-swarm builds and its anti-replay.
-function contentHello () {
+function contentHello() {
   const signer = crypto.keyPair()
   const namespace = crypto.randomBytes(32)
   const noise = crypto.keyPair()

@@ -30,7 +30,7 @@ const FOLD_WINDOW_MS = READ_BUDGET_MS * 20
 const randomKey = () => b4a.toString(crypto.keyPair().publicKey, 'hex')
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function spaceWithView (t) {
+async function spaceWithView(t) {
   await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: READ_BUDGET_MS })
   const { spaceId } = await createSpace('Aurora')
@@ -107,7 +107,11 @@ test('REGRESSION (FIX-SUP-2 wiring): the recovery restarts the fold and never cl
     path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..',
     'src', 'shared', 'spaces', 'member-registry.js'
   ), 'utf8')
-  const body = src.slice(src.indexOf('async recover (spaceId)'))
+  const at = src.indexOf('async recover(spaceId)')
+  // Assert the anchor before slicing on it: a miss slices from -1, and every check below then reads
+  // one character and passes for the wrong reason.
+  t.not(at, -1, 'the recovery method is where this guard reads it')
+  const body = src.slice(at)
   t.ok(/restartFold\?\.\(\)/.test(body), 'it re-arms the fold')
   t.absent(/closeMemberView|openMemberView/.test(body), 'and does not close or reopen the view')
 

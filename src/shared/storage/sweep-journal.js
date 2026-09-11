@@ -26,7 +26,7 @@ const KEEP = 50
 let seq = 0
 const journalKey = (at) => PREFIX + String(at).padStart(16, '0') + '-' + String(seq++).padStart(4, '0')
 
-export async function recordSweep (entry) {
+export async function recordSweep(entry) {
   const bee = createLocalBee('reclaim-meta')
   try {
     await bee.ready()
@@ -43,7 +43,7 @@ export async function recordSweep (entry) {
   }
 }
 
-export async function listRecentSweeps (limit = 20) {
+export async function listRecentSweeps(limit = 20) {
   const bee = createLocalBee('reclaim-meta')
   const out = []
   try {

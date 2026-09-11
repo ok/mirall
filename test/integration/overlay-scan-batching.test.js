@@ -14,7 +14,7 @@ import { initContentBackendOverlay } from '../../src/shared/transfer/backends/ov
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
 
-async function bootOverlay (t) {
+async function bootOverlay(t) {
   const ctx = await freshPeer(t)
   initContentBackendOverlay(ctx.fake.ipc)
   serveIndex.reset()
@@ -26,7 +26,7 @@ async function bootOverlay (t) {
   return ctx
 }
 
-async function makeShare (ctx, name) {
+async function makeShare(ctx, name) {
   const space = await createSpace(name)
   const share = {
     id: generateShareId(),
@@ -42,11 +42,11 @@ async function makeShare (ctx, name) {
   return { spaceId: space.spaceId, share, mountPath }
 }
 
-function fillFiles (dir, n) {
+function fillFiles(dir, n) {
   for (let i = 0; i < n; i++) fs.writeFileSync(path.join(dir, 'f' + String(i).padStart(4, '0') + '.txt'), 'x'.repeat(64))
 }
 
-async function scanAppends (share) {
+async function scanAppends(share) {
   const bee = await ownCatalog(share.spaceId)
   const before = bee.core.length
   const res = await initialPublishScan(share.spaceId, share.share.id, share.mountPath, [])

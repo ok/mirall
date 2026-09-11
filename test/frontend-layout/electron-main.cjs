@@ -44,7 +44,7 @@ app.whenReady().then(async () => {
   await win.loadFile(path.join(__dirname, HARNESS_HTML))
 
   const deadline = Date.now() + 30000
-  /* eslint-disable no-await-in-loop */
+   
   while (Date.now() < deadline && !done) {
     let res = null
     try {

@@ -6,7 +6,7 @@ import { getStore } from '../../src/shared/core/store.js'
 import { ownCatalog, purgeOwnCatalog, catalogNameFor } from '../../src/shared/shares/share-catalog.js'
 import { getSpace, purgeSpace } from '../../src/shared/spaces/space.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }

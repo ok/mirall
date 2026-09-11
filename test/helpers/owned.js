@@ -14,7 +14,7 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 // Create a space + an overlay owned-folder share owned by this peer + its mount dir.
 // Overlay is the only content backend, so the share is stamped overlay and the
 // overlay instance is brought up in-process (no second peer).
-export async function setupOwnedShare (t, { name = 'Notes', files = null } = {}) {
+export async function setupOwnedShare(t, { name = 'Notes', files = null } = {}) {
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   const ctx = await freshPeer(t)
 
@@ -35,7 +35,7 @@ export async function setupOwnedShare (t, { name = 'Notes', files = null } = {})
   return { ...ctx, spaceId: space.spaceId, share, mountPath }
 }
 
-function writeFiles (root, files) {
+function writeFiles(root, files) {
   for (const [rel, contents] of Object.entries(files ?? {})) {
     const abs = path.join(root, ...rel.split('/'))
     fs.mkdirSync(path.dirname(abs), { recursive: true })
@@ -48,7 +48,7 @@ function writeFiles (root, files) {
 // stubbed: listPeerWithMeta returns the owner's own catalog entries, and overlay.fetchFile copies
 // the owner's source file to the requested dest — so the shared materialize scaffolding
 // (initialMaterializeScan / runMaterializeTick) still runs in-process on the overlay path.
-export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
+export async function setupSelfMirror(t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
   const ctx = await setupOwnedShare(t, { name, files })
   await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
@@ -97,7 +97,7 @@ export async function setupSelfMirror (t, { name = 'Media', files = { 'note.txt'
   return { ...ctx, mirrorPath, mount, listing }
 }
 
-export async function listRelPaths (share, spaceId) {
+export async function listRelPaths(share, spaceId) {
   const out = []
   for await (const e of listOwnShare(spaceId, share.id)) out.push(e.relPath)
   return out.sort()

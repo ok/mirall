@@ -8,7 +8,7 @@ import { TransferManager, openFdCount } from '../../src/shared/transfer/backends
 import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
 import crypto from 'hypercore-crypto'
 
-async function setup (transferOpts) {
+async function setup(transferOpts) {
   const store = tmpStore('transfer')
   const index = new FileIndex(store)
   await index.ready()
@@ -17,11 +17,11 @@ async function setup (transferOpts) {
   return { store, index, transfer, journalDir }
 }
 
-function wipeJournals (journalDir) {
+function wipeJournals(journalDir) {
   for (const f of fs.readdirSync(journalDir)) fs.unlinkSync(path.join(journalDir, f))
 }
 
-function writeTestFile (dir, name, data) {
+function writeTestFile(dir, name, data) {
   fs.mkdirSync(dir, { recursive: true })
   const filePath = path.join(dir, name)
   fs.writeFileSync(filePath, data)
@@ -398,7 +398,7 @@ test('incremental verify — wrong content hash rejects in finalize, no file lan
 
 // ── Resume + pause ────────────────────────────────────────────
 
-function partialFor (targetPath) {
+function partialFor(targetPath) {
   return path.join(path.dirname(targetPath), path.basename(targetPath) + '.overlay-partial')
 }
 
@@ -964,7 +964,7 @@ test('REGRESSION (FIX-A2): a gap-fill that unlocks a large run does not block wr
 // sees only the descriptors this module opened, so these assertions can be exact.
 const fdCount = () => openFdCount()
 
-function deliver (transfer, senderPath, prepared, targetPath, i) {
+function deliver(transfer, senderPath, prepared, targetPath, i) {
   const c = prepared.chunks[i]
   return transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
 }

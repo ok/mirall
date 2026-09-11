@@ -19,13 +19,13 @@ import {
 // durable, agreed fact: stamped at creation, carried in invites, and seeded by every
 // peer. These tests lock the data plumbing (the fold itself is tested in later steps).
 
-function tmp (label) {
+function tmp(label) {
   const dir = path.join(os.tmpdir(), `ckey-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function boot (t, label) {
+async function boot(t, label) {
   const root = tmp(label)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {

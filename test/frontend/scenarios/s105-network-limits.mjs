@@ -5,7 +5,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // Settings ▸ Network: transfer caps. Covers the preset control, the Custom input and its
 // floor advisory, persistence across a reopen, and the rule that this screen carries NO
 // live network state (status lives on the account screen).
-export default async function s105 ({ runDir, bootstrap }) {
+export default async function s105({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

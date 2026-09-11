@@ -16,7 +16,7 @@ import { CODES } from '../../src/shared/contract/errors.js'
 // The honest API would throw "too many '..'".
 const filesEnc = new SubEncoder('files', 'utf-8')
 
-async function injectRawKey (drive, key) {
+async function injectRawKey(drive, key) {
   await drive.ready()
   await drive.db.put(
     key,
@@ -25,7 +25,7 @@ async function injectRawKey (drive, key) {
   )
 }
 
-function relToSibling (mirrorPath, target) {
+function relToSibling(mirrorPath, target) {
   return path.relative(mirrorPath, target).split(path.sep).join('/')
 }
 

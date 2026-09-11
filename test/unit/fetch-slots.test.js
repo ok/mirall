@@ -3,7 +3,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, resetFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
 import * as reimported from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
 
-function withCap (t, cap) {
+function withCap(t, cap) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, downloadConcurrency: cap })
   t.teardown(() => { setRuntimeConfig(prev); resetFetchSlots() })

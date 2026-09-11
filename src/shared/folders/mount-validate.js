@@ -82,7 +82,7 @@ function writeProbe(dir) {
 // global one. The mirror image of this rule lives in validateDownloadFolderAgainstMounts — both
 // orders of the same two operations have to be refused, or the hazard is simply reachable
 // by doing them the other way round.
-function rejectIfOverlapsAnyDownloadRoot (normalized, role) {
+function rejectIfOverlapsAnyDownloadRoot(normalized, role) {
   if (role !== 'foreign-folder' && role !== 'owned-folder') return
   const fold = caseInsensitive(os.platform())
   for (const dl of listDownloadRoots()) {
@@ -100,7 +100,7 @@ function rejectIfOverlapsAnyDownloadRoot (normalized, role) {
 // first would create (and, on a failure between the rename and the unlink, strand) a file
 // inside the very shared folder the next line refuses — and a watcher on an owned share would
 // publish that probe to every peer.
-export async function validateDownloadFolderAgainstMounts (folder) {
+export async function validateDownloadFolderAgainstMounts(folder) {
   const normalized = normalizePath(checkDownloadFolderShape(folder))
   const fold = caseInsensitive(os.platform())
   for (const mount of await listAllMounts()) {
@@ -116,7 +116,7 @@ export async function validateDownloadFolderAgainstMounts (folder) {
 
 // Everything about the path itself, with no side effect on disk — so the callers that also
 // have rejections to run can order the probe last.
-function checkDownloadFolderShape (folder) {
+function checkDownloadFolderShape(folder) {
   if (typeof folder !== 'string' || folder.length === 0) {
     throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is empty')
   }
@@ -138,7 +138,7 @@ function checkDownloadFolderShape (folder) {
 // The shape+writability rules ALONE, a hand-kept twin of the main-process validateDownloadFolder
 // (src/main/main.js) that pre-screens the folder picker. Every worker entry point goes through
 // validateDownloadFolderAgainstMounts instead. No test compares the two bodies — change both.
-export function validateDownloadFolder (folder) {
+export function validateDownloadFolder(folder) {
   checkDownloadFolderShape(folder)
   if (!writeProbe(folder)) {
     throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')

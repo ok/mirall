@@ -8,7 +8,7 @@ import b4a from 'b4a'
 
 let cached = null
 
-function uuidv4 () {
+function uuidv4() {
   const b = crypto.randomBytes(16)
   b[6] = (b[6] & 0x0f) | 0x40
   b[8] = (b[8] & 0x3f) | 0x80
@@ -22,7 +22,7 @@ function uuidv4 () {
   )
 }
 
-export async function getInstallId (storagePath) {
+export async function getInstallId(storagePath) {
   if (cached) return cached
   const file = path.join(storagePath, 'install-id')
   try {

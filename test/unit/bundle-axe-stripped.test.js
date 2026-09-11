@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url'
 
 const entry = fileURLToPath(new URL('../../src/renderer/main.tsx', import.meta.url))
 
-async function bundle (dev) {
+async function bundle(dev) {
   const result = await build({
     entryPoints: [entry],
     bundle: true,

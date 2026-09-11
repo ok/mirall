@@ -36,7 +36,7 @@ test('scopeMatches: a spaceId-less members view (the spaces list) matches any me
 // reference written from the documented rule: a hint matches a view iff the kinds are equal and
 // every id BOTH sides pin is equal. If the implementation is ever "simplified" into disagreeing
 // with the rule it documents, this fails.
-function referenceMatches (hint, view) {
+function referenceMatches(hint, view) {
   if (!hint || !view) return false
   if (hint.kind !== view.kind) return false
   for (const id of ['spaceId', 'shareId']) {

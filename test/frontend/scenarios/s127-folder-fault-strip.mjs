@@ -18,7 +18,7 @@ import { workDir } from '../paths.mjs'
 // So this fault class never reaches the watcher, and the scan is not a shortcut here but the
 // genuine path. That is also why the strip carries a retry: nothing else re-runs a scan inside
 // six hours.
-export default async function s127 ({ runDir }) {
+export default async function s127({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

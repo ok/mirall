@@ -5,7 +5,7 @@ import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.
 const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js', 'src/main/loose-file-watchers.js'])
 const { addLooseWatch, removeLooseWatch, stopLooseWatchers } = modules[1]
 
-function arm () {
+function arm() {
   created.length = 0
   const events = []
   const errors = []

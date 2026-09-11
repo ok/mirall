@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 // P0 / G2 — the owner deletes one file from a shared folder. It must disappear
 // for the peer and be removed from the mirror, while the folder's other files
 // stay (the deletion must not be mistaken for the "folder emptied" transient).
-export default async function s27 ({ runDir, bootstrap }) {
+export default async function s27({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

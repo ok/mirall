@@ -36,7 +36,7 @@ const atTopIndent = (body) => [...new Set(
 // file: anything appended after it — a second exposeInMainWorld, a helper object literal — would
 // have folded its keys into this surface. `\n})` closes the CALL and nothing inside it: a nested
 // object closes at `  },` and a multi-line arrow at `  }),`, both indented.
-function topLevelKeysOfExposedBridge (src) {
+function topLevelKeysOfExposedBridge(src) {
   const open = src.indexOf("exposeInMainWorld('bridge', {")
   if (open < 0) return []
   const close = src.indexOf('\n})', open)
@@ -44,7 +44,7 @@ function topLevelKeysOfExposedBridge (src) {
 }
 
 // The body of `interface MirallBridge` — a call signature `name(...)` or a property `name:`.
-function membersOfMirallBridge (src) {
+function membersOfMirallBridge(src) {
   const open = src.indexOf('interface MirallBridge')
   if (open < 0) return []
   const close = src.indexOf('\n}', open)

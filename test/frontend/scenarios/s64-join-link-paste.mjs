@@ -8,7 +8,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // is set to a full deep link it shows only the code, and the stripped code is
 // usable (Join enabled). A valid v0 hex code wrapped in the link the Invite modal
 // would mint (mirall://join/<code>) — no peer required for the strip assertion.
-export default async function s64 ({ runDir, bootstrap }) {
+export default async function s64({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

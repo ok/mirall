@@ -8,7 +8,7 @@ const TEST_REQUESTS = Object.freeze({
   'thing:strict': { kind: 'command', args: { count: { type: ARG.number } } },
 })
 
-function fakePipe () {
+function fakePipe() {
   const written = []
   let onData = null
   return {
@@ -19,7 +19,7 @@ function fakePipe () {
   }
 }
 
-function setup (t) {
+function setup(t) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, verbose: false })
   resetRequestMetrics()

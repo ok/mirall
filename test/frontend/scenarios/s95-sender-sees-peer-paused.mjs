@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // indicator clears. All timing-dependent (fast loopback), so — like s73 — the mid-flight
 // catches are best-effort/logged; the deterministic bookend is the indicator clearing once
 // B completes. The serve-ledger paused accounting is proven at integration/serve-ledger.
-export default async function s95 ({ runDir, bootstrap }) {
+export default async function s95({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

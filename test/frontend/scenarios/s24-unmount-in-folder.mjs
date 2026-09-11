@@ -9,7 +9,7 @@ import { workDir } from '../paths.mjs'
 // to call onBack() and jump to the space view. Unmounting only reverts the share
 // to a browse folder (it still exists), so the user must stay in the folder,
 // which now shows the browse affordances.
-export default async function s24 ({ runDir, bootstrap }) {
+export default async function s24({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

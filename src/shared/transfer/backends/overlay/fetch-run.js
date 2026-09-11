@@ -15,7 +15,7 @@ const log = createLogger('overlay-fetch')
 
 // The ticker, the diag, and the three callbacks that wire them together — everything either
 // consumer builds AROUND the vendor call.
-export function makeFetchInstruments ({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
+export function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
   const ticker = makeProgressTicker(size, onProgress)
   const diag = makeFetchDiag(label, relPath, size, contentHash)
   return {
@@ -28,7 +28,7 @@ export function makeFetchInstruments ({ label, relPath, size = 0, contentHash = 
   }
 }
 
-export async function runOverlayFetch (overlay, contentHash, {
+export async function runOverlayFetch(overlay, contentHash, {
   label, relPath, size = 0, destPath, reSeed = false, onProgress, onVerify, onTick,
 }) {
   let attempted = false

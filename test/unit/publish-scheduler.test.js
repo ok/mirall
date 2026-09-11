@@ -5,7 +5,7 @@ import { OP, PRIORITY } from '../../src/shared/folders/work-item.js'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // A controllable executor: records start order and holds each item until released.
-function gate () {
+function gate() {
   const started = []
   const holds = new Map()
   let live = 0
@@ -739,7 +739,7 @@ test('REGRESSION (FIX-EVICTED-ROW): an evicted item stays reported until its exe
 
 // An executor that can be released per invocation, not per path: the eviction cases run two
 // executors over the SAME path (a zombie and its replacement), which a path-keyed gate cannot hold.
-function invocations () {
+function invocations() {
   const started = []
   const holds = []
   const execute = async (item) => {

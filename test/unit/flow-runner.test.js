@@ -8,7 +8,7 @@ import path from 'path'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-function runFixture (name, nodeArgs = []) {
+function runFixture(name, nodeArgs = []) {
   const r = spawnSync(process.execPath, [...nodeArgs, 'test/flow-runner.mjs', `test/fixtures/flow-runner/${name}`], {
     cwd: repo,
     encoding: 'utf8',

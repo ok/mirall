@@ -21,7 +21,7 @@ const FILE_TIMEOUT_MS = 15 * 60 * 1000
 const flags = { jobs: 4, retries: 0, report: null, shardLabel: '1' }
 const files = resolveFiles(readFlags(process.argv.slice(2)))
 
-function readFlags (argv) {
+function readFlags(argv) {
   const rest = []
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -38,7 +38,7 @@ function readFlags (argv) {
   return rest
 }
 
-function fail (message) {
+function fail(message) {
   console.error(`Error: ${message}`)
   process.exit(1)
 }
@@ -46,12 +46,12 @@ function fail (message) {
 // The bare binary lives in node_modules/.bin, which npm puts on PATH for a script it runs but which
 // a direct `node test/bare-runner.mjs` does not have. brittle-bare's shebang resolves `bare` from
 // PATH, so the child gets it either way.
-function childEnv () {
+function childEnv() {
   const bin = path.resolve('node_modules/.bin')
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH || ''}` }
 }
 
-function runFile (file) {
+function runFile(file) {
   return new Promise((resolve) => {
     const startedAt = Date.now()
     const child = spawn(path.join('node_modules', '.bin', 'brittle-bare'), [file], {
@@ -81,7 +81,7 @@ function runFile (file) {
 // A run is good only if brittle got far enough to say so, about at least one test. Both of the
 // other shapes exit 0 and read as a pass to an exit-code check: a process that left before its
 // tests did, and a file whose tests never registered at all.
-function verdict (code, signal, output) {
+function verdict(code, signal, output) {
   const summary = /^# tests = (\d+)\/(\d+) pass$/m.exec(output)
   const counted = summary ? { passed: Number(summary[1]), total: Number(summary[2]) } : { passed: 0, total: 0 }
   if (signal) return { ok: false, why: `killed by ${signal}`, ...counted }
@@ -91,7 +91,7 @@ function verdict (code, signal, output) {
   return { ok: true, why: 'ok', ...counted }
 }
 
-async function runAll (queue, jobs) {
+async function runAll(queue, jobs) {
   const results = []
   let next = 0
   const worker = async () => {

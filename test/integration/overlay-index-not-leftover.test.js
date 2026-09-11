@@ -9,7 +9,7 @@ import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/left
 import { getOverlay, getOverlayLocalDiscoveryKeys } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
-async function coreInStore (dkHex) {
+async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
     if (b4a.toString(dk, 'hex') === dkHex) return true
   }

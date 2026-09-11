@@ -29,7 +29,7 @@ const memberKeys = (list, spaceId) =>
 const holds = (spaceId, key) => (list) => memberKeys(list, spaceId).has(key)
 const lacks = (spaceId, key) => (list) => !memberKeys(list, spaceId).has(key)
 
-async function joinApproved (approver, joiner, spaceId, inviteCode) {
+async function joinApproved(approver, joiner, spaceId, inviteCode) {
   const joinerKey = (await joiner.request('profile:get')).publicKey
   const seen = approver.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === joinerKey)
   await joiner.request('space:join', { inviteCode })

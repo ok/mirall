@@ -10,7 +10,7 @@ const DOC = '.claude/solution-architecture.md'
 // §11 is the module table. A row that names a file that moved, or a file with no row, is how the
 // table rotted to ~60 unlisted modules and a handful of ghosts (`friendlyTransferError`,
 // `sign-windows-local.ps1`) before this guard existed. Both directions are cheap to check, so both are.
-function sectionEleven () {
+function sectionEleven() {
   const doc = readFileSync(path.join(root, DOC), 'utf8')
   const start = doc.indexOf('\n## 11. ')
   const end = doc.indexOf('\n## 12. ', start)
@@ -20,7 +20,7 @@ function sectionEleven () {
 
 // Every backticked `src/...` token that names a file. Rows write full paths on purpose: a file → row
 // grep is then unambiguous, and nothing has to infer a base directory from a heading.
-function listedPaths (section) {
+function listedPaths(section) {
   const out = new Set()
   for (const m of section.matchAll(/`(src\/[^`\s]+\.(?:js|ts|tsx|cjs|mjs|json))`/g)) out.add(m[1])
   return out
@@ -31,7 +31,7 @@ function listedPaths (section) {
 const COVERED = ['src/shared', 'src/main', 'src/preload', 'src/worker']
 const SKIP_DIRS = new Set(['vendor', 'locales'])
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (!SKIP_DIRS.has(name)) walk(p, out) }

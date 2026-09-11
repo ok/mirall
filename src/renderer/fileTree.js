@@ -5,7 +5,7 @@
 
 // Coarse category for folder roll-up summaries. Anything unlisted — a new status included —
 // falls through to 'available', so a status that needs its own bucket must be added here.
-export function statusCategory (status) {
+export function statusCategory(status) {
   switch (status) {
     case 'downloaded':
     case 'synced':
@@ -29,12 +29,12 @@ export function statusCategory (status) {
   }
 }
 
-function emptyCounts () {
+function emptyCounts() {
   return { 'on-device': 0, downloading: 0, preparing: 0, available: 0, paused: 0, error: 0 }
 }
 
 // relPath → clean segment list. Tolerant of backslashes and leading/trailing slashes.
-function splitSegments (relPath) {
+function splitSegments(relPath) {
   return String(relPath)
     .replace(/\\/g, '/')
     .replace(/^\/+|\/+$/g, '')
@@ -47,7 +47,7 @@ const cmpName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensiti
 // Exported as rollupNodes so a filtered tree can re-derive the aggregates for a folder whose
 // children it pruned: the counts, the size and the status pills a folder row prints all describe
 // the children it actually has.
-export function rollupNodes (children) {
+export function rollupNodes(children) {
   let fileCount = 0
   let totalBytes = 0
   let folderCount = 0
@@ -67,12 +67,12 @@ export function rollupNodes (children) {
   return { fileCount, totalBytes, folderCount, statusCounts }
 }
 
-function makeFolder (name, path, depth) {
+function makeFolder(name, path, depth) {
   return { kind: 'folder', name, path, depth, children: [], _folders: new Map(), _files: [] }
 }
 
 // Sort children (folders first), roll up aggregates bottom-up, drop scratch fields.
-function finalize (folder) {
+function finalize(folder) {
   const folders = [...folder._folders.values()].map(finalize).sort((a, b) => cmpName(a.name, b.name))
   const filesSorted = folder._files.sort((a, b) => cmpName(a.name, b.name))
   folder.children = [...folders, ...filesSorted]
@@ -84,7 +84,7 @@ function finalize (folder) {
 
 // Build a nested tree from a flat entry list. Folders sort before files; both
 // alphanumeric + case-insensitive. Entries with an empty/invalid relPath are skipped.
-export function buildFileTree (files) {
+export function buildFileTree(files) {
   const root = makeFolder('', '', -1)
   for (const entry of files ?? []) {
     if (!entry || typeof entry.relPath !== 'string') continue
@@ -114,7 +114,7 @@ export function buildFileTree (files) {
 }
 
 // All folder paths in the tree (depth-first) — for "expand all" + "is everything open?".
-export function collectFolderPaths (nodes) {
+export function collectFolderPaths(nodes) {
   const out = []
   const walk = (list) => {
     for (const n of list) {
@@ -126,6 +126,6 @@ export function collectFolderPaths (nodes) {
 }
 
 // Top-level folder paths only (the default-expanded set).
-export function topLevelFolderPaths (nodes) {
+export function topLevelFolderPaths(nodes) {
   return nodes.filter((n) => n.kind === 'folder').map((n) => n.path)
 }

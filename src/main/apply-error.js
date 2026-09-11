@@ -6,11 +6,11 @@ const path = require('path')
 
 const identity = (line) => line
 
-function applyErrorPath (dataDir) {
+function applyErrorPath(dataDir) {
   return path.join(dataDir, 'pear-runtime', 'last-apply-error.json')
 }
 
-function recordApplyError (dataDir, err, { version, platform }) {
+function recordApplyError(dataDir, err, { version, platform }) {
   try {
     const file = applyErrorPath(dataDir)
     fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -26,20 +26,20 @@ function recordApplyError (dataDir, err, { version, platform }) {
   }
 }
 
-function clearApplyError (dataDir) {
+function clearApplyError(dataDir) {
   try { fs.rmSync(applyErrorPath(dataDir), { force: true }) } catch {}
 }
 
 // Live means: this build tried, failed, and has not succeeded since. A record written against a
 // different version means the update landed in the end — or the user reinstalled over the top,
 // which is the one path clearApplyError cannot cover, because no apply ever ran to clear it.
-function isLiveApplyError (record, version) {
+function isLiveApplyError(record, version) {
   return !!record && typeof record === 'object' && !Array.isArray(record) && record.version === version
 }
 
 // Built field by field rather than spread: the file is on disk and may have been edited, and the
 // bundle is something a user hands to a stranger.
-function toReport (record, redactLine = identity) {
+function toReport(record, redactLine = identity) {
   return {
     timestamp: typeof record.timestamp === 'string' ? record.timestamp : null,
     version: typeof record.version === 'string' ? record.version : null,
@@ -60,7 +60,7 @@ function toReport (record, redactLine = identity) {
 // apply still has an unresolved failure, and pruning it during their export would take the
 // evidence with it. Held instead, it is silent while they are on another version and reportable
 // again the moment they return to the one it names.
-function readLiveApplyError (dataDir, { version, redactLine }) {
+function readLiveApplyError(dataDir, { version, redactLine }) {
   let record = null
   try {
     record = JSON.parse(fs.readFileSync(applyErrorPath(dataDir), 'utf8'))

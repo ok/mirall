@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // paused-row controls are checked best-effort and a lost race is not a failure
 // (matches s42). The file landing at "On your device" is the hard guarantee;
 // the pause→resume round-trip's correctness is owned by the flow test.
-export default async function s48 ({ runDir, bootstrap }) {
+export default async function s48({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -14,10 +14,10 @@ import { scaled } from '../helpers/bare-timing.js'
 // The intake predicate, as swarm.js spells it: a cheap UTF-16 lower bound, then the real byte count.
 const rejects = (str, maxBytes) => maxBytes > 0 && (str.length > maxBytes || b4a.byteLength(str) > maxBytes)
 
-function makeDuplex () {
+function makeDuplex() {
   let aWrite, bWrite
-  const a = new Duplex({ write (d, cb) { bWrite(d); cb() }, read () {} })
-  const b = new Duplex({ write (d, cb) { aWrite(d); cb() }, read () {} })
+  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
+  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
   aWrite = (d) => a.push(d)
   bWrite = (d) => b.push(d)
   return [a, b]
@@ -27,16 +27,16 @@ const settle = (ms = 120) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 // Stands up the real mirall/handshake channel shape against real protomux. `guard` selects the
 // intake: 'none' is staging's (parse, then read msg.type), 'shape' is the fixed one.
-function pair (t, guard) {
+function pair(t, guard) {
   const [sa, sb] = makeDuplex()
   const seen = []
   const muxA = Protomux.from(sa)
   const muxB = Protomux.from(sb)
 
   const chB = muxB.createChannel({ protocol: 'mirall/handshake' })
-  const msgB = chB.addMessage({
+  chB.addMessage({
     encoding: c.string,
-    onmessage (str) {
+    onmessage(str) {
       let msg
       try { msg = JSON.parse(str) } catch { return }
       if (guard === 'shape' && !validFrameShape(msg)) return

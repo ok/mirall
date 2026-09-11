@@ -10,7 +10,7 @@ const { initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat } =
 const { initConnectivity, scheduleStatusEmit, resetConnectivity } = await import('../../src/shared/transfer/connectivity.js')
 const { initNetworkWatch, observeReachability, resetNetworkWatch } = await import('../../src/shared/audit/network-watch.js')
 
-const silent = { debug () {}, info () {}, warn () {}, error () {} }
+const silent = { debug() {}, info() {}, warn() {}, error() {} }
 const noSwarm = () => null
 
 // Eleven timer handles in the data layer live in module-scoped variables, armed inside a function
@@ -30,8 +30,8 @@ test('no timer armed by a module-scoped handle survives the swarm teardown', asy
   t.teardown(() => timers.restore())
   const ctx = await freshPeer(t)
 
-  initConvergenceTick({ log: silent, sendSingleHandshake () {}, getStalledOwners: noSwarm, getSwarm: noSwarm, getIpc: noSwarm })
-  initPresenceBroadcast({ presence: { prune () {}, clearAll () {} }, membersPoke () {}, log: silent, getSwarm: noSwarm, getIpc: noSwarm })
+  initConvergenceTick({ log: silent, sendSingleHandshake() {}, getStalledOwners: noSwarm, getSwarm: noSwarm, getIpc: noSwarm })
+  initPresenceBroadcast({ presence: { prune() {}, clearAll() {} }, membersPoke() {}, log: silent, getSwarm: noSwarm, getIpc: noSwarm })
   initConnectivity({ log: silent, diag: silent, dhtVersion: '0', getDroppedFrameCounters: () => ({}), getSwarm: noSwarm, getIpc: noSwarm })
   initNetworkWatch({ emit: null, sessionId: 'timer-lifecycle', dwellMs: 60000, peerDwellMs: 60000 })
 

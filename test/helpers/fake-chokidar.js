@@ -19,10 +19,10 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
  * @returns {{ created: object[], modules: object[] }} every fake watcher constructed, and the
  *          loaded module exports in the order requested
  */
-export function loadWithFakeChokidar (relPaths) {
+export function loadWithFakeChokidar(relPaths) {
   const created = []
   const fakeChokidar = {
-    watch (targets, opts) {
+    watch(targets, opts) {
       const w = new EventEmitter()
       w.opts = opts || {}
       w.targets = Array.isArray(targets) ? [...targets] : targets ? [targets] : []

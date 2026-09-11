@@ -15,7 +15,7 @@ const count = (n) => (Number.isFinite(n) && n > 0 ? n : 0)
 // rebuilding it costs one walk because a published file is never re-hashed — so `paused` is
 // deliberately independent of `active`: a paused folder reports the same zero a finished one does,
 // and only the mount tells them apart.
-export function deriveIndexSummary (status, mount) {
+export function deriveIndexSummary(status, mount) {
   const files = count(status?.adding)
   const paused = !!mount?.indexPaused
   // The scan's first phase walks the disk and fills no queue, so `adding` is 0 for the whole of it

@@ -296,12 +296,12 @@ export async function request(
 
     const timer = timeout > 0
       ? setTimeout(() => {
-          if (pending.has(id)) {
-            pending.delete(id)
-            detach()
-            reject(codedError(`IPC timeout: ${type} (${timeout}ms)`, CODES.TIMEOUT))
-          }
-        }, timeout)
+        if (pending.has(id)) {
+          pending.delete(id)
+          detach()
+          reject(codedError(`IPC timeout: ${type} (${timeout}ms)`, CODES.TIMEOUT))
+        }
+      }, timeout)
       : null
 
     function onAbort(): void {

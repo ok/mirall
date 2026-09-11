@@ -2,7 +2,7 @@ import { ERROR_I18N_KEY_BY_CODE, errorI18nKey } from './errorMessages.js'
 
 export const FALLBACK_KEY = 'unexpected'
 
-function errorCodeOf (err) {
+function errorCodeOf(err) {
   if (typeof err !== 'object' || err === null) return null
   return typeof err.code === 'string' ? err.code : null
 }
@@ -12,7 +12,7 @@ function errorCodeOf (err) {
 // read at most once rather than once per call. Left unresolved until the bridge exists so an early
 // call cannot cache a false.
 let devMode
-function isDevMode () {
+function isDevMode() {
   if (devMode === undefined && typeof window !== 'undefined' && window.bridge?.isDev) {
     devMode = !!window.bridge.isDev()
   }
@@ -28,7 +28,7 @@ function isDevMode () {
 // sentence makes the failure mode "vague but translated", and contract-errors.test.js then makes
 // vagueness impossible for any code a user can reach. The raw message is not lost — it reaches the
 // dev console below, and the diagnostics log a bug report carries.
-export function errorTextFor (err, t, fallbackKey = FALLBACK_KEY) {
+export function errorTextFor(err, t, fallbackKey = FALLBACK_KEY) {
   const code = errorCodeOf(err)
   const key = errorI18nKey(code, fallbackKey)
   // Membership in the map, not key === fallbackKey. A surface may pass a fallback that a code also

@@ -15,7 +15,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { scaled } from '../helpers/bare-timing.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until (fn, ms = 10000) {
+async function until(fn, ms = 10000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
@@ -26,7 +26,7 @@ async function until (fn, ms = 10000) {
 
 // prepareForServe is the single choke point for the streaming read every publish performs — loose
 // or folder — so counting it counts real work on the shared lane.
-function slowHash (t, ms, { only = null } = {}) {
+function slowHash(t, ms, { only = null } = {}) {
   const overlay = getOverlay()
   const orig = overlay.prepareForServe.bind(overlay)
   const calls = []
@@ -44,7 +44,7 @@ function slowHash (t, ms, { only = null } = {}) {
 }
 
 // A folder share and loose files in the SAME space, so both producers feed one lane.
-async function setup (t, { concurrency = 2 } = {}) {
+async function setup(t, { concurrency = 2 } = {}) {
   const ctx = await setupOwnedShare(t)
   const cfg = getRuntimeConfig()
   setRuntimeConfig({ ...cfg, inPlaceFilesEnabled: true, publishConcurrency: concurrency })
@@ -57,7 +57,7 @@ async function setup (t, { concurrency = 2 } = {}) {
 }
 
 const fill = (dir, names) => { for (const n of names) fs.writeFileSync(path.join(dir, n), 'x'.repeat(4096)) }
-function writeSource (ctx, name, contents) {
+function writeSource(ctx, name, contents) {
   const abs = path.join(ctx.tmpDir('src'), name)
   fs.writeFileSync(abs, contents)
   return abs
@@ -153,7 +153,7 @@ test('the sweep leaves a path with a queued retire alone; the retire runs once t
 })
 
 // Does this volume fold case (APFS default, NTFS)? Decides whether the case-rename scenario runs.
-function caseFolds (dir) {
+function caseFolds(dir) {
   const probe = path.join(dir, 'CaseProbe.tmp')
   fs.writeFileSync(probe, 'x')
   const folded = fs.existsSync(path.join(dir, 'caseprobe.tmp'))

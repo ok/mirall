@@ -21,7 +21,7 @@ const memberKeys = async (peer, spaceId) => {
 const pendingKeys = async (peer, spaceId) =>
   new Set((await peer.request('space:pending-requests', { spaceId })).map((r) => r.publicKey))
 
-async function runScenario (t, flags) {
+async function runScenario(t, flags) {
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')

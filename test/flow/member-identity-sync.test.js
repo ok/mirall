@@ -25,7 +25,7 @@ const hasIdentity = (key, name, avatar) => (roster) => {
   return !!m && m.displayName === name && m.avatar === avatar
 }
 
-async function joinAndApprove (t, owner, joiner, sid, invite) {
+async function joinAndApprove(t, owner, joiner, sid, invite) {
   const jKey = await keyOf(joiner)
   const saw = owner.waitFor('event:member-join-request', (m) => m.publicKey === jKey)
   await joiner.request('space:join', { inviteCode: invite })

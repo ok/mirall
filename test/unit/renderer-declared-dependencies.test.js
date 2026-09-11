@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(here, '..', '..')
 const rendererDir = path.join(repoRoot, 'src', 'renderer')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'locales') walk(p, out) }
@@ -18,12 +18,12 @@ function walk (dir, out = []) {
 }
 
 // The package a bare specifier belongs to: '@scope/name/sub' -> '@scope/name', 'react-dom/client' -> 'react-dom'.
-function packageOf (specifier) {
+function packageOf(specifier) {
   const parts = specifier.split('/')
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
 }
 
-function bareSpecifiers (source) {
+function bareSpecifiers(source) {
   const ast = tsParser.parse(source, { ecmaFeatures: { jsx: true }, sourceType: 'module' })
   const found = []
   const visit = (node) => {

@@ -22,7 +22,7 @@ const flags = () => ({
 const kindsOf = (entries) => entries.map((e) => e.kind)
 const find = (entries, kind) => entries.find((e) => e.kind === kind)
 
-async function rows (peer) {
+async function rows(peer) {
   return (await peer.request('audit:list', { limit: 200 })).entries
 }
 

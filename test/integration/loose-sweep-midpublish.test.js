@@ -14,7 +14,7 @@ import {
   LOOSE_SHARE_ID, looseSources,
 } from '../../src/shared/transfer/loose-overlay.js'
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()

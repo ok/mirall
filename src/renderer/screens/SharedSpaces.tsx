@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
-import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import DocsCard from '../components/widgets/DocsCard.js'
 

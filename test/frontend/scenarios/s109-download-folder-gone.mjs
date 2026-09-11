@@ -14,7 +14,7 @@ import { workDir } from '../paths.mjs'
 // Storage Settings marks it, and all of it clears once a working folder is chosen. The negative
 // assertion (`Transfer failed` absent) is the actual bug, so it is asserted explicitly rather
 // than implied by the positive one.
-export default async function s109 ({ runDir, bootstrap }) {
+export default async function s109({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

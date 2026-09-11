@@ -12,7 +12,7 @@ import {
 // A converged mirror re-listed the owner's whole catalog and re-stat'd every file every 30s forever.
 // The listing COUNT is the assertion: a wall-time or CPU measure could not go red, and the property
 // under test is "no work was issued", not "the work was fast".
-function instrument (t, { version = 1 } = {}) {
+function instrument(t, { version = 1 } = {}) {
   const state = { listings: 0, version }
   const origList = overlayBackend.listPeerWithMeta
   const origVersion = overlayBackend.catalogVersion
@@ -25,7 +25,7 @@ function instrument (t, { version = 1 } = {}) {
   return state
 }
 
-async function converge (ctx) {
+async function converge(ctx) {
   await initialMaterializeScan(ctx.mount)
   await runMaterializeTick(ctx.spaceId, ctx.share.id)
 }

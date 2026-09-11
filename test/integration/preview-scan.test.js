@@ -132,7 +132,7 @@ test('foreign preview: detail list omitted above the cap', async (t) => {
 // The preview must not read a file it can decide on cheaply: a different SIZE proves a
 // conflict, and a verified-cache hit for THIS path proves identity. Only a same-size, uncached
 // file is hashed. A counting hashOf asserts the read actually happened (or didn't).
-function countingHash (real) {
+function countingHash(real) {
   let calls = 0
   const fn = async (p) => { calls += 1; return real(p) }
   fn.calls = () => calls
@@ -236,13 +236,13 @@ test('foreign preview: ignored files do not inflate the destination count', asyn
   t.is(preview.existingAtDestination, 1, 'DEFAULT_IGNORE still applies through the shared walk')
 })
 
-function withCap (t, cap) {
+function withCap(t, cap) {
   const saved = getRuntimeConfig()
   t.teardown(() => setRuntimeConfig(saved))
   setRuntimeConfig({ ...saved, listFilesCap: cap })
 }
 
-function fiveFiles () {
+function fiveFiles() {
   const files = {}
   for (let i = 0; i < 5; i++) files['f' + i + '.txt'] = 'x'
   return files

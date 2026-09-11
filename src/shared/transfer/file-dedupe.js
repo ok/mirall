@@ -26,12 +26,12 @@ export const STATUS_RANK = Object.freeze({
 // hash yet. An empty hash is an absence, not an identity: those rows key on owner AND path, so
 // each file being prepared stays its own row and two owners preparing the same name are not
 // merged on the strength of the name. Once a hash lands the row folds across owners as usual.
-function groupKey (candidate) {
+function groupKey(candidate) {
   if (candidate.hash) return 'hash:' + candidate.hash
   return 'unhashed:' + (candidate.owner?.publicKey || '') + ':' + candidate.path
 }
 
-export function dedupeFileRows (candidates) {
+export function dedupeFileRows(candidates) {
   const groups = new Map()
   for (const candidate of candidates) {
     const key = groupKey(candidate)

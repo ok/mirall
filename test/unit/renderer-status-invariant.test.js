@@ -9,7 +9,7 @@ import { rendererStatusRestrictions } from '../../eslint.config.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const hooksDir = path.join(here, '..', '..', 'src', 'renderer', 'hooks')
 
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: { parser: tsParser, parserOptions: { ecmaFeatures: { jsx: true } } },

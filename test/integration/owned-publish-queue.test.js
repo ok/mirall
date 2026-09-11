@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // prepareForServe is the single choke point for the streaming read publishContent performs, so
 // counting it counts real work. The sleep stands in for the multi-second hash of a large file.
-function slowHash (t, ms, { only = null } = {}) {
+function slowHash(t, ms, { only = null } = {}) {
   const overlay = getOverlay()
   const orig = overlay.prepareForServe.bind(overlay)
   const calls = []
@@ -37,7 +37,7 @@ function slowHash (t, ms, { only = null } = {}) {
 
 const fill = (dir, names, b = 'x') => { for (const n of names) fs.writeFileSync(path.join(dir, n), b.repeat(4096)) }
 
-async function settled (share, spaceId, want, ms = 90000) {
+async function settled(share, spaceId, want, ms = 90000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if ((await listRelPaths(share, spaceId)).length === want) return true
@@ -46,7 +46,7 @@ async function settled (share, spaceId, want, ms = 90000) {
   return false
 }
 
-async function until (fn, ms = 30000) {
+async function until(fn, ms = 30000) {
   const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
@@ -55,14 +55,14 @@ async function until (fn, ms = 30000) {
   return false
 }
 
-async function entryFor (share, spaceId, relPath) {
+async function entryFor(share, spaceId, relPath) {
   for await (const e of listOwnShare(spaceId, share.id)) if (e.relPath === relPath) return e
   return null
 }
 
 // Does this mount's volume fold case (APFS default, NTFS)? Decides whether the case-rename
 // scenario can run here; the symlink scenario covers the same executor path everywhere.
-function caseFolds (dir) {
+function caseFolds(dir) {
   const probe = path.join(dir, 'CaseProbe.tmp')
   fs.writeFileSync(probe, 'x')
   const folded = fs.existsSync(path.join(dir, 'caseprobe.tmp'))

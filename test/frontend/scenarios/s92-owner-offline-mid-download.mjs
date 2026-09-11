@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // (s41 is the at-rest folder twin; this is the loose, mid-transfer case.) A is killed (a
 // disconnect, not a leave-space); detection rides swarm keepalive (~tens of seconds), so
 // the wait has headroom.
-export default async function s92 ({ runDir, bootstrap }) {
+export default async function s92({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

@@ -11,7 +11,7 @@ import { encodeInvite } from '../../../src/shared/contract/invite-envelope.js'
 // Pressing Enter in the auto-focused code field submits the join just like clicking Join. The
 // field no longer binds Enter itself — primitives/Modal.tsx answers it for every dialog — so this
 // is the plain-Enter half of the contract in s133.
-export default async function s3 ({ runDir, bootstrap }) {
+export default async function s3({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

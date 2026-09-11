@@ -8,7 +8,7 @@ const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const entrypoints = new Map()
 
 // `resolve` is injectable so the unit test can prove a refused specifier is never resolved at all.
-function preloadEntrypoints (repoRoot, resolve = require.resolve) {
+function preloadEntrypoints(repoRoot, resolve = require.resolve) {
   entrypoints.clear()
   // Worker specifiers are repo-rooted ('/src/worker/main.js'); resolve against the package root so
   // the spec stays stable regardless of where in src/ the caller lives.
@@ -19,7 +19,7 @@ function preloadEntrypoints (repoRoot, resolve = require.resolve) {
 // would let a string the renderer hands pear:startWorker become a path pear.run() executes — with
 // the bootstrap frame (which ends in identityKEK) handed to it. Defense in depth: the renderer is
 // sandboxed and context-isolated, so reaching this needs renderer code execution first.
-function entrypointFor (specifier) {
+function entrypointFor(specifier) {
   const entrypoint = entrypoints.get(specifier)
   if (!entrypoint) throw new Error('refusing to spawn an unknown worker specifier: ' + specifier)
   return entrypoint

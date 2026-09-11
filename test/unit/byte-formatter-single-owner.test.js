@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')
 const OWNER = path.join(rendererDir, 'formatSize.js')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -19,7 +19,7 @@ function walk (dir, out = []) {
   return out
 }
 
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.{js,ts,tsx}'],
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

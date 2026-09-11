@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // EditSpaceModal rename + icon change, then favoriting from the space's More menu
 // and finding the space under the Favorites tab.
-export default async function s13 ({ runDir, bootstrap }) {
+export default async function s13({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

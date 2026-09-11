@@ -19,7 +19,7 @@ const { ownCatalogKeyHex } = await import('../../src/shared/shares/share-catalog
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const tmp = (label) => fs.mkdtempSync(path.join(os.tmpdir(), `mirall-index-pause-${label}-`))
 
 // The headline requirement, and a second real boot is the only honest way to assert it: an

@@ -2,7 +2,7 @@
 // manualControls is true when the member browses a share without mirroring it —
 // each file is downloaded/paused/resumed/discarded by hand. A mirrored share
 // syncs automatically, so its rows only ever show reveal or a busy spinner.
-export function fileRowAction ({ status, manualControls, hasTransferId }) {
+export function fileRowAction({ status, manualControls, hasTransferId }) {
   if (status === 'downloaded' || status === 'synced') return 'reveal'
 
   if (manualControls) {

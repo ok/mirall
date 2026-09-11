@@ -2,7 +2,7 @@ import test from 'brittle'
 import { createPassLiveness } from '../../src/shared/core/pass-liveness.js'
 
 // A controllable clock: the rule is about elapsed progress, so a real one makes the test a race.
-function clockAt (t0) {
+function clockAt(t0) {
   let n = t0
   return { now: () => n, advance: (ms) => { n += ms } }
 }

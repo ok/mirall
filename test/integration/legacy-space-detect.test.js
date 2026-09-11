@@ -37,7 +37,7 @@ test('the data layer still boots with no identity, but cannot create a space', a
 })
 
 // Make the pre-v1.7.0 shape: strip schemaVersion so the record can never resolve an SCK.
-async function legacySpace (name) {
+async function legacySpace(name) {
   const space = await createSpace(name)
   await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.schemaVersion; return next })
   // createSpace opened (and cached) the catalog while the record was still v2. A real legacy

@@ -6,7 +6,7 @@ import { FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/f
 
 const isFetchClaimed = (transferId) => fetchClaimedBy(transferId) !== null
 
-function fresh (t) {
+function fresh(t) {
   resetFetchClaims()
   t.teardown(() => resetFetchClaims())
 }

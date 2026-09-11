@@ -10,7 +10,7 @@ const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 // A membership:grant carrying the MIR-03 binding rebound onto granterKey: the granter's
 // profile core is a single-writer manifest (granterKey is the manifest hash), the signer
 // keypair signs the ephemeral Noise key, and the joiner verifies against that Noise key.
-function boundGranter ({ creator } = {}) {
+function boundGranter({ creator } = {}) {
   const signer = crypto.keyPair()
   const namespace = crypto.randomBytes(32)
   const noise = crypto.keyPair()

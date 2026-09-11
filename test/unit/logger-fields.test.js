@@ -2,7 +2,7 @@ import test from 'brittle'
 import { createLogger, fields } from '../../src/shared/core/logger.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
-function capture (t) {
+function capture(t) {
   const lines = []
   const realLog = console.log
   const realWarn = console.warn

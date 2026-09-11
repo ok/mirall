@@ -28,7 +28,7 @@ import { spaceStorageSummary } from '../../src/shared/storage/space-storage.js'
 // owner's advertised content hash (the same predicate the per-row listing
 // uses, done in bulk without stat'ing the mirror).
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
@@ -40,7 +40,7 @@ async function setup (t) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-async function publishOwnFolder (spaceId, name, entries) {
+async function publishOwnFolder(spaceId, name, entries) {
   const shareId = generateShareId()
   await publishShare(spaceId, {
     id: shareId, type: 'owned-folder', name, owner: getLocalPublicKeyHex(),
@@ -52,7 +52,7 @@ async function publishOwnFolder (spaceId, name, entries) {
 
 // A remote owner: its profile bee carries the share record, a second bee the
 // catalog entries; both replicate into the local store like a real peer's would.
-async function seedRemoteShare (t, ctx, spaceId, entries) {
+async function seedRemoteShare(t, ctx, spaceId, entries) {
   const peer = await makePeer(t)
   const shareId = generateShareId()
   const catalogCore = peer.store.get({ name: 'catalog' })
@@ -156,7 +156,7 @@ test('listVerifiedForShare isolates its share prefix', async (t) => {
 })
 
 test('REGRESSION: a fully-read empty peer catalog is complete=false but stalled=false (no perpetual re-poke)', async (t) => {
-  const ctx = await setup(t)
+  await setup(t)
   // A member who published a catalog key but shared nothing: the catalog core is length 0.
   const peer = await makePeer(t)
   const catalogCore = peer.store.get({ name: 'catalog' })

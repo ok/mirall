@@ -4,7 +4,7 @@ import { makeReport } from '../assert.mjs'
 
 // The invite modal yields ONE link (the mirall://join/ app link) — no Code/App-link format selector
 // — and reveals it only after "Create invite link" is clicked.
-export default async function s19 ({ runDir, bootstrap }) {
+export default async function s19({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

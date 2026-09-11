@@ -12,7 +12,7 @@ const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
 // log ring and evict the diagnostics around it; the cap covers a stream of DISTINCT unknowns.
 const UNKNOWN_WARN_CAP = 16
 
-function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
+function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
   // been routed — the silent success this bus exists to remove.
@@ -59,7 +59,7 @@ function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setD
   const warned = new Set()
   let capReported = false
 
-  function warnUnknown (command) {
+  function warnUnknown(command) {
     if (warned.has(command)) return
     if (warned.size >= UNKNOWN_WARN_CAP) {
       if (capReported) return
@@ -77,7 +77,7 @@ function createMainRequestRouter ({ ownedFolderWatchers, looseFileWatchers, setD
     // The set main actually serves — read by the parity test, not by production code.
     commands: Object.freeze(Object.keys(handlers)),
 
-    async handle (command, args, worker) {
+    async handle(command, args, worker) {
       const fn = handlers[command]
       if (!fn) { warnUnknown(command); return }
       await fn(args, worker)

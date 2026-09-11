@@ -19,21 +19,21 @@ export const AUTO_PAUSE_STATUSES = Object.freeze([STATUS_MOUNT_GONE, STATUS_ENOS
 const CODE_BY_STATUS = Object.freeze({ [STATUS_ENOSPC]: CODES.TRANSFER_DISK_FULL })
 
 // A full disk outranks a permission fault: it stops the whole device rather than one subtree.
-export function statusForFaultCode (code) {
+export function statusForFaultCode(code) {
   return code === CODES.TRANSFER_DISK_FULL ? STATUS_ENOSPC : STATUS_IO_ERROR
 }
 
-export function isAutoPauseStatus (status) {
+export function isAutoPauseStatus(status) {
   return AUTO_PAUSE_STATUSES.includes(status)
 }
 
-export function isMountFault (status) {
+export function isMountFault(status) {
   return status === STATUS_ENOSPC || status === STATUS_IO_ERROR
 }
 
 // What the folder screen names the fault by. `code` is an error code the renderer already
 // translates, never a raw errno message, and a status with no reason recorded still names itself.
-export function mountFault (status, lastError) {
+export function mountFault(status, lastError) {
   if (!isMountFault(status)) return null
   return { status, code: lastError || CODE_BY_STATUS[status] || null }
 }

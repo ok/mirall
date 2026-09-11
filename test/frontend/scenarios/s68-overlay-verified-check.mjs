@@ -11,7 +11,7 @@ import { workDir } from '../paths.mjs'
 // the folder view shows a "Verified" check next to the reveal icon. Asserting it
 // by its accessible name (role-independent, distinctive aria-label substring) is
 // also the a11y check — agent-desktop can target it, so a screen reader announces it.
-export default async function s68 ({ runDir, bootstrap }) {
+export default async function s68({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

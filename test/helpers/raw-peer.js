@@ -8,7 +8,7 @@ import crypto from 'hypercore-crypto'
 // keypair and speaks the raw `mirall/handshake` channel, so a test can send forged
 // frames (spoofed profileKey, missing/garbage binding) and observe what the real
 // worker sends back. Used to exercise the MIR-03 identity-binding rejections.
-export async function rawPeer (t, { bootstrap, topicHex, keyPair = crypto.keyPair() }) {
+export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair() }) {
   const swarm = new Hyperswarm({ bootstrap, keyPair })
   const frames = []
   const waiters = []
@@ -22,7 +22,7 @@ export async function rawPeer (t, { bootstrap, topicHex, keyPair = crypto.keyPai
     const channel = mux.createChannel({ protocol: 'mirall/handshake' })
     const message = channel.addMessage({
       encoding: c.string,
-      onmessage (str) {
+      onmessage(str) {
         let m
         try { m = JSON.parse(str) } catch { return }
         frames.push(m)

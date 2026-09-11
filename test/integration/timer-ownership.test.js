@@ -15,7 +15,7 @@ const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.j
 const { createOwnedMount } = await import('../../src/shared/folders/mount-store.js')
 const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
 
-async function ownedShare (ctx) {
+async function ownedShare(ctx) {
   const space = await createSpace('Aurora')
   const share = {
     id: generateShareId(), type: 'owned-folder', name: 'Vault', contentMode: 'overlay',

@@ -87,74 +87,74 @@ export default function ConnectionProblem({ onBack, onContinue, onShowDetails, o
         )}
 
         {degraded && (
-        <div className="space-y-6">
-          <div className="bg-surface-container-low rounded-xl p-6 flex items-start gap-5">
-            <span
-              aria-hidden="true"
-              className={`w-4 h-4 rounded-full shrink-0 mt-1.5 ring-4 ${
-                blocked ? 'bg-error ring-error/25' : 'bg-secondary-container ring-secondary-container/30'
-              }`}
-            />
-            <div className="flex-1 min-w-0">
-              <p role="status" aria-live="polite" className="text-2xl font-headline font-bold text-accent">
-                {t(`connectionProblem.verdict.${tone}`)}
-              </p>
-              <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">
-                {t(`connectionProblem.body.${cause}`, { defaultValue: t('connectionProblem.body.generic') })}
+          <div className="space-y-6">
+            <div className="bg-surface-container-low rounded-xl p-6 flex items-start gap-5">
+              <span
+                aria-hidden="true"
+                className={`w-4 h-4 rounded-full shrink-0 mt-1.5 ring-4 ${
+                  blocked ? 'bg-error ring-error/25' : 'bg-secondary-container ring-secondary-container/30'
+                }`}
+              />
+              <div className="flex-1 min-w-0">
+                <p role="status" aria-live="polite" className="text-2xl font-headline font-bold text-accent">
+                  {t(`connectionProblem.verdict.${tone}`)}
+                </p>
+                <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">
+                  {t(`connectionProblem.body.${cause}`, { defaultValue: t('connectionProblem.body.generic') })}
+                </p>
+              </div>
+            </div>
+
+            <section>
+              <h2 className="text-xl font-headline font-bold text-accent mb-4">
+                {t('connectionProblem.fixHeading')}
+              </h2>
+              <ol className="bg-surface-container-low rounded-xl p-6 space-y-5">
+                {steps.map((step, index) => (
+                  <li key={step} className="flex items-start gap-4">
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center"
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="text-sm text-on-surface leading-relaxed pt-0.5">
+                      {t(`connectivity.fix.${step}`)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button icon="refresh" onClick={handleCheckAgain} disabled={checking}>
+                {checking ? t('connectionProblem.checking') : t('connectionProblem.checkAgain')}
+              </Button>
+              <Button variant="secondary" onClick={onShowDetails}>
+                {t('connectionProblem.networkDetails')}
+              </Button>
+              <Button variant="secondary" onClick={onShowHistory}>
+                {t('connectionProblem.connectionHistory')}
+              </Button>
+              <span className="text-xs text-on-surface-variant ml-auto">
+                {relativeCheck(status?.canary?.at ?? 0, Date.now(), t)}
+              </span>
+            </div>
+
+            <div className="rounded-xl bg-surface-container-lowest p-5 flex items-start gap-3">
+              <Icon name="info" size={20} className="shrink-0 text-on-surface-variant mt-0.5" />
+              <p className="text-sm text-on-surface-variant leading-relaxed">
+                {t(`connectionProblem.stillWorks.${tone}`)}
+                <button
+                  type="button"
+                  onClick={onContinue}
+                  className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                >
+                  {t('connectionProblem.continueToSpaces')}
+                </button>
               </p>
             </div>
           </div>
-
-          <section>
-            <h2 className="text-xl font-headline font-bold text-accent mb-4">
-              {t('connectionProblem.fixHeading')}
-            </h2>
-            <ol className="bg-surface-container-low rounded-xl p-6 space-y-5">
-              {steps.map((step, index) => (
-                <li key={step} className="flex items-start gap-4">
-                  <span
-                    aria-hidden="true"
-                    className="shrink-0 w-7 h-7 rounded-full bg-primary text-on-primary font-headline font-bold text-sm flex items-center justify-center"
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="text-sm text-on-surface leading-relaxed pt-0.5">
-                    {t(`connectivity.fix.${step}`)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button icon="refresh" onClick={handleCheckAgain} disabled={checking}>
-              {checking ? t('connectionProblem.checking') : t('connectionProblem.checkAgain')}
-            </Button>
-            <Button variant="secondary" onClick={onShowDetails}>
-              {t('connectionProblem.networkDetails')}
-            </Button>
-            <Button variant="secondary" onClick={onShowHistory}>
-              {t('connectionProblem.connectionHistory')}
-            </Button>
-            <span className="text-xs text-on-surface-variant ml-auto">
-              {relativeCheck(status?.canary?.at ?? 0, Date.now(), t)}
-            </span>
-          </div>
-
-          <div className="rounded-xl bg-surface-container-lowest p-5 flex items-start gap-3">
-            <Icon name="info" size={20} className="shrink-0 text-on-surface-variant mt-0.5" />
-            <p className="text-sm text-on-surface-variant leading-relaxed">
-              {t(`connectionProblem.stillWorks.${tone}`)}
-              <button
-                type="button"
-                onClick={onContinue}
-                className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-              >
-                {t('connectionProblem.continueToSpaces')}
-              </button>
-            </p>
-          </div>
-        </div>
         )}
       </div>
     </div>

@@ -8,7 +8,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // approved co-member; Carol requests and then goes offline. Bob (who did not receive the grant) must
 // still surface Carol: the in-space "Approve Carol" banner and the list "N waiting" pill. This is the
 // pending-request convergence the prior fix added, exercised through the UI. Local-only. Approval ON.
-export default async function s63 ({ runDir, bootstrap }) {
+export default async function s63({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })

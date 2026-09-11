@@ -13,7 +13,7 @@ import { workDir } from '../paths.mjs'
 // only miss a violation, never invent one, so this cannot flake red. Aurora holds a folder
 // share and no loose files on purpose — that is the shape where the file read settles first
 // (from its listing cache) while the share read is still draining.
-export default async function s117 ({ runDir, bootstrap }) {
+export default async function s117({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

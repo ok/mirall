@@ -8,7 +8,7 @@
 //
 // Kept dependency-free so it's unit-testable without pulling in bare-* modules
 // (feedback.js, which consumes this, imports bare-https).
-export function deriveChannel ({ dev, appVersion } = {}) {
+export function deriveChannel({ dev, appVersion } = {}) {
   if (dev) return 'dev'
   const v = appVersion || ''
   if (v.includes('-beta.') || v.includes('-staging.')) return 'staging'

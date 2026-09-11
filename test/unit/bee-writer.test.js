@@ -9,17 +9,17 @@ const root = path.join(here, '..', '..')
 
 // The shape hyperbee actually presents: get() resolves a { seq, key, value } node or null, cas is
 // invoked ONLY when the key already exists, and a falsy cas return makes put a silent no-op.
-function fakeBee () {
+function fakeBee() {
   const rows = new Map()
   let seq = 0
   const bee = {
-    async get (key) { return rows.get(key) ?? null },
-    async put (key, value, opts) {
+    async get(key) { return rows.get(key) ?? null },
+    async put(key, value, opts) {
       const prev = rows.get(key)
       if (prev && opts?.cas && !(await opts.cas(prev, { seq: seq + 1, key, value }))) return
       rows.set(key, { seq: ++seq, key, value })
     },
-    async del (key) { rows.delete(key) },
+    async del(key) { rows.delete(key) },
   }
   return {
     get: (key) => rows.get(key)?.value ?? null,
@@ -65,7 +65,7 @@ test('a record changed outside the lock is retried, not lost', async (t) => {
   const b = fakeBee()
   b.seed('k', { n: 0 })
   let applies = 0
-  const w = b.writer({ log: { warn () {} } })
+  const w = b.writer({ log: { warn() {} } })
 
   await w.mutate('k', (m) => {
     if (applies++ === 0) b.bumpOutside('k')
@@ -79,7 +79,7 @@ test('a record changed outside the lock is retried, not lost', async (t) => {
 test('a record changed outside the lock on every attempt throws rather than losing the update', async (t) => {
   const b = fakeBee()
   b.seed('k', { n: 0 })
-  const w = b.writer({ log: { warn () {} } })
+  const w = b.writer({ log: { warn() {} } })
 
   await t.exception(
     () => w.mutate('k', (m) => { b.bumpOutside('k'); return { ...m, n: 1 } }),
@@ -126,7 +126,7 @@ test('deletes and creates take the same lock as the mutations', async (t) => {
   t.is(b.get('k'), null, 'the record stays deleted — the mutation did not resurrect it')
 })
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)

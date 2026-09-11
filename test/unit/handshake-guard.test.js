@@ -11,7 +11,7 @@ const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 
 // Mirror the worker's single-writer profile core: profileKey is the manifest hash, the
 // signer keypair is what actually signs, and the binding is over an ephemeral Noise key.
-function boundSender () {
+function boundSender() {
   const signer = crypto.keyPair()
   const namespace = crypto.randomBytes(32)
   const noise = crypto.keyPair()
@@ -139,7 +139,7 @@ test('checkInboundSender: null peerInfo is a trusted internal replay', (t) => {
 // A leave frame carries no spaceTopic — only the sender's identity binding. leaveFrameBound is the
 // robust accept path (FIX-240) that lets a co-member honor a leave even after the per-socket auth
 // index was torn down, without ever letting a third party evict a member.
-function boundLeave () {
+function boundLeave() {
   const { noise, msg } = boundSender()
   const { spaceTopic, ...leave } = msg   // a real leave frame has spaceId, not spaceTopic
   return { noise, msg: { type: 'leave', spaceId: hex().slice(0, 16), ...leave } }

@@ -15,7 +15,7 @@ import { workDir } from '../paths.mjs'
 //
 // Files are dropped in AFTER the mount so they publish interactively (visible while hashing);
 // several large ones keep the window open past the AX polls that assert on it.
-export default async function s119 ({ runDir, bootstrap }) {
+export default async function s119({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

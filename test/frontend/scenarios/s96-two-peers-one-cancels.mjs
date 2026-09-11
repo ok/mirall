@@ -12,7 +12,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // completes. Multi-peer + fast loopback is highly timing-dependent, so the mid-flight
 // cancel catch is best-effort/logged (matching s74); the deterministic bookends are no
 // indicator at rest and the indicator clearing after the surviving download completes.
-export default async function s96 ({ runDir, bootstrap }) {
+export default async function s96({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })

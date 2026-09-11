@@ -13,7 +13,7 @@ import { workDir } from '../paths.mjs'
 // Every assertion is a string strictly LONGER than the query typed to reach it. The palette input's
 // own value is part of the window text, so asserting on the query itself would pass against the
 // typing rather than against a rendered row.
-export default async function s124 ({ runDir, bootstrap }) {
+export default async function s124({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

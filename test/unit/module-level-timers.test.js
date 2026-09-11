@@ -8,7 +8,7 @@ import { moduleLevelTimerRestrictions, moduleScopeTimerHandleRestrictions } from
 const here = path.dirname(fileURLToPath(import.meta.url))
 const roots = ['shared', 'worker'].map((d) => path.join(here, '..', '..', 'src', d))
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
@@ -16,7 +16,7 @@ function walk (dir, out = []) {
   return out
 }
 
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module' },
@@ -24,7 +24,7 @@ function verify (linter, source, filename) {
   }, filename)
 }
 
-function verifyHandles (linter, source, filename) {
+function verifyHandles(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module' },

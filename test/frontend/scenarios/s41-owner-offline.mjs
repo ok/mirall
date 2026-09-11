@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
-import { makeReport, assert, waitFor } from '../assert.mjs'
+import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // P2 / G16 — when the owner goes offline, the peer's open folder view must
@@ -12,7 +12,7 @@ import { workDir } from '../paths.mjs'
 // store — and is asserted at the data layer: test/flow/{offline-transfer,
 // resume-transfer,foreign-sync}.) Hard-kill disconnect detection rides swarm
 // keepalive (~tens of seconds), so this scenario needs headroom.
-export default async function s41 ({ runDir, bootstrap }) {
+export default async function s41({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

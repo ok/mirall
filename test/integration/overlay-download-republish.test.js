@@ -22,7 +22,7 @@ import { scaled } from '../helpers/bare-timing.js'
 const HASH_OLD = 'a'.repeat(64)
 const HASH_NEW = 'b'.repeat(64)
 
-function testChannel (events) {
+function testChannel(events) {
   return {
     diagLabel: 'test download',
     inPlace: false,
@@ -44,7 +44,7 @@ function testChannel (events) {
   }
 }
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   await initDownloads()
   await initPendingTransfers()
@@ -53,7 +53,7 @@ async function setup (t) {
   return ctx
 }
 
-function makeJob (ctx, over = {}) {
+function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: 'space1|folder1|doc.bin',

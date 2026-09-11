@@ -7,7 +7,7 @@ import {
   publishMirror, ensureMirror, setMirrorState, tombstoneMirror, readOwnMirrors, readOwnMirror, readPeerMirrors, readPeerMirror,
 } from '../../src/shared/folders/mirror-records.js'
 
-async function peerBee (name, records = [], { cap = true } = {}) {
+async function peerBee(name, records = [], { cap = true } = {}) {
   const bee = createBee(name)
   await bee.ready()
   if (cap) await bee.put('caps/folder-mirrors', true)

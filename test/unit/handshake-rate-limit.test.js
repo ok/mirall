@@ -2,7 +2,7 @@ import test from 'brittle'
 import { createRateLimiter, createDualRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
 
 // A manual clock so refill is deterministic — drive the bucket, never sleep.
-function clock (start = 1_000_000) {
+function clock(start = 1_000_000) {
   let t = start
   return { now: () => t, advance: (ms) => { t += ms } }
 }
@@ -115,7 +115,7 @@ const SHIPPED_UNMATCHED = { burst: 32, refillMs: 250, abuseThreshold: 256 }
 // A distinct 64-hex topic per shared space, the shape swarm.js charges the lane with.
 const TOPIC = (i) => i.toString(16).padStart(64, '0')
 
-function shippedLanes (topicCount, c) {
+function shippedLanes(topicCount, c) {
   return createDualRateLimiter({ matched: SHIPPED_MATCHED, unmatched: SHIPPED_UNMATCHED, now: c.now, topics: () => topicCount })
 }
 

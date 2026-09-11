@@ -3,12 +3,12 @@ import { createHealthMonitor } from '../../src/shared/core/health.js'
 
 // A fake clock and a fake timer, so lag is asserted structurally rather than by sleeping — which is
 // also what keeps this file out of check-test-timing.sh.
-function harness (startAt = 1000) {
+function harness(startAt = 1000) {
   let t = startAt
   let armed = null
   const monitor = createHealthMonitor({
     now: () => t,
-    setInterval: (fn) => { armed = fn; return { unref () {} } },
+    setInterval: (fn) => { armed = fn; return { unref() {} } },
     clearInterval: () => { armed = null },
     intervalMs: 1000,
   })

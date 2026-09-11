@@ -5,13 +5,13 @@ import { createLocalBee } from '../../src/shared/core/store.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { buildWantedKeys, classifyLeftovers } from '../../src/shared/storage/leftover.js'
 
-async function localDk (name) {
+async function localDk(name) {
   const bee = createLocalBee(name)
   await bee.core.ready()
   return b4a.toString(bee.core.discoveryKey, 'hex')
 }
 
-function leftoverDkSet (scan) {
+function leftoverDkSet(scan) {
   const dks = new Set()
   for (const r of scan.profiles.keys) dks.add(r.discoveryKeyHex)
   for (const r of scan.catalogs.keys) dks.add(r.discoveryKeyHex)

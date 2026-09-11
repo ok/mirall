@@ -14,7 +14,7 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // rides the approval handout; overlay/in-place ship on.
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
-function writeTmpFile (bytes) {
+function writeTmpFile(bytes) {
   const p = path.join(os.tmpdir(), `mirall-src-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.bin`)
   fs.writeFileSync(p, bytes)
   return p

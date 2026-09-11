@@ -8,7 +8,7 @@ import { flatten } from '../tree.mjs'
 // nobody named: onGrant passed msg.profileKey, a field the grant frame has never carried, so the
 // actor key was null and the name lookup had nothing to key on. The copy was wrong too — the actor
 // is the GRANTER, so "{{actor}} was granted access" said the opposite of what happened.
-export default async function s126 ({ runDir, bootstrap }) {
+export default async function s126({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

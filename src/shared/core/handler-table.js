@@ -4,7 +4,7 @@ import { REQUESTS } from '../contract/requests.js'
 // to stop a malformed payload reaching a handler body, not to re-implement the domain rules.
 // spaceId, shareId and path are documentary names for a string check — they carry intent without
 // asserting a format the boundary has not proven every caller satisfies.
-function checkType (type, value, field) {
+function checkType(type, value, field) {
   switch (type) {
     case 'number':
       return typeof value === 'number' && Number.isFinite(value) ? null : `${field} must be a number`
@@ -25,7 +25,7 @@ function checkType (type, value, field) {
   }
 }
 
-export function validateArgs (shape, msg) {
+export function validateArgs(shape, msg) {
   for (const [field, rule] of Object.entries(shape)) {
     const value = msg[field]
     if (value === undefined || value === null) {
@@ -44,10 +44,10 @@ export function validateArgs (shape, msg) {
 // A handler is a value with metadata rather than a closure in a script, so the router can read the
 // request's shape without the entrypoint telling it. Registering a name the contract does not know
 // throws at boot, which turns a typo into a startup failure instead of a 404 in the field.
-export function createHandlerTable ({ requests = REQUESTS } = {}) {
+export function createHandlerTable({ requests = REQUESTS } = {}) {
   const entries = new Map()
   return {
-    register (name, fn) {
+    register(name, fn) {
       const spec = requests[name]
       if (!spec) throw new Error(`handler for a request the contract does not declare: ${name}`)
       if (entries.has(name)) throw new Error(`duplicate handler: ${name}`)

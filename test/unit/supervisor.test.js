@@ -3,24 +3,24 @@ import { Subsystem, createLifecycle } from '../../src/shared/core/subsystem.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const quiet = (subsystem) => { subsystem.log = silentLog; return subsystem }
 
 class Wedgeable extends Subsystem {
-  constructor (name, units = [{ key: 'u1', ok: true, detail: null }]) {
+  constructor(name, units = [{ key: 'u1', ok: true, detail: null }]) {
     super(name)
     this.units = units
     this.recovered = []
     quiet(this)
   }
 
-  supervise () { return this.units }
-  async recover (key) { this.recovered.push(key) }
-  wedge (key = 'u1') { this.units = [{ key, ok: false, detail: 'stuck' }] }
-  heal (key = 'u1') { this.units = [{ key, ok: true, detail: null }] }
+  supervise() { return this.units }
+  async recover(key) { this.recovered.push(key) }
+  wedge(key = 'u1') { this.units = [{ key, ok: false, detail: 'stuck' }] }
+  heal(key = 'u1') { this.units = [{ key, ok: true, detail: null }] }
 }
 
-async function harness (t, subsystems) {
+async function harness(t, subsystems) {
   const life = createLifecycle({ log: silentLog })
   for (const subsystem of subsystems) await life.start(subsystem)
   const supervisor = quiet(await life.start(new Supervisor('supervision', { lifecycle: life })))
@@ -59,7 +59,7 @@ test('a healthy unit is never recovered', async (t) => {
 
 test('a subsystem whose supervise() throws does not blind the supervisor to the rest', async (t) => {
   class Broken extends Subsystem {
-    supervise () { throw new Error('nope') }
+    supervise() { throw new Error('nope') }
   }
   const mirrors = new Wedgeable('mirrors')
   const { supervisor } = await harness(t, [quiet(new Broken('broken')), mirrors])
@@ -72,7 +72,7 @@ test('a subsystem whose supervise() throws does not blind the supervisor to the 
 
 test('a recovery that throws does not stop the probe', async (t) => {
   class Failing extends Wedgeable {
-    async recover () { throw new Error('cannot') }
+    async recover() { throw new Error('cannot') }
   }
   const failing = new Failing('failing')
   const mirrors = new Wedgeable('mirrors')
@@ -167,7 +167,7 @@ test('REGRESSION (SUP-1): the supervisor closes first and leaves no probe armed'
   setRuntimeConfig({ ...getRuntimeConfig(), supervisionProbeIntervalMs: 20 })
   const closed = []
   class Recorder extends Subsystem {
-    async _close () { closed.push(this.name) }
+    async _close() { closed.push(this.name) }
   }
   const life = createLifecycle({ log: silentLog })
   await life.start(quiet(new Recorder('mirrors')))
@@ -191,8 +191,8 @@ test('REGRESSION (FIX-RECOVER-BUDGET): a recovery that does not return is abando
   setRuntimeConfig({ ...before, supervisionRecoverBudgetMs: 20, supervisionProbeIntervalMs: 3_600_000 })
 
   class Hangs extends Subsystem {
-    supervise () { return [{ key: 'u1', ok: false, detail: 'stuck' }] }
-    recover () { return new Promise(() => {}) }
+    supervise() { return [{ key: 'u1', ok: false, detail: 'stuck' }] }
+    recover() { return new Promise(() => {}) }
   }
   const hangs = quiet(new Hangs('hangs'))
   const mirrors = new Wedgeable('mirrors')
@@ -223,7 +223,7 @@ test('a supervisor that has stopped completing probes reports itself unhealthy',
 
 test('a unit row with no key is dropped instead of colliding with another', async (t) => {
   class Sloppy extends Subsystem {
-    supervise () { return [{ ok: false, detail: 'a' }, { ok: false, detail: 'b' }, { key: 'real', ok: false, detail: 'c' }] }
+    supervise() { return [{ ok: false, detail: 'a' }, { ok: false, detail: 'b' }, { key: 'real', ok: false, detail: 'c' }] }
   }
   const { supervisor } = await harness(t, [quiet(new Sloppy('sloppy'))])
   t.alike(supervisor.collectRows().map((r) => r.key), ['real'], 'keyless rows never reach the policy')
@@ -231,9 +231,9 @@ test('a unit row with no key is dropped instead of colliding with another', asyn
 
 test('an observe-only unit is stated in the log with its label and never recovered', async (t) => {
   class Watched extends Subsystem {
-    constructor (name) { super(name); this.recovered = [] }
-    supervise () { return [{ key: 'space:share', ok: false, detail: 'no progress for 700s', label: 'space:share', recoverable: false }] }
-    async recover (key) { this.recovered.push(key) }
+    constructor(name) { super(name); this.recovered = [] }
+    supervise() { return [{ key: 'space:share', ok: false, detail: 'no progress for 700s', label: 'space:share', recoverable: false }] }
+    async recover(key) { this.recovered.push(key) }
   }
   const watched = quiet(new Watched('owned-folders'))
   const { supervisor } = await harness(t, [watched])

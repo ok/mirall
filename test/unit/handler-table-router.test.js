@@ -9,7 +9,7 @@ const TEST_REQUESTS = Object.freeze({
   'thing:free': { kind: 'query', args: {} },
 })
 
-function fakePipe () {
+function fakePipe() {
   const written = []
   let onData = null
   return {
@@ -21,7 +21,7 @@ function fakePipe () {
   }
 }
 
-function setup (t) {
+function setup(t) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, verbose: false })
   resetRequestFailureCounters()

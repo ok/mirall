@@ -10,14 +10,14 @@ const DWELL = EPISODE_DWELL_MS
 
 // A driver so a test reads as a timeline rather than a pile of step() calls. `admit:false`
 // simulates record() refusing the row (log disabled / rate-limited).
-function driver ({ dwellMs = DWELL, persisted = null, session = SESSION } = {}) {
+function driver({ dwellMs = DWELL, persisted = null, session = SESSION } = {}) {
   const tracker = createEpisodeTracker({ dwellMs })
   let state = persisted
   const rows = []
   return {
     rows,
-    get state () { return state },
-    at (offset, verdict, cause = null, { since = null, admit = true } = {}) {
+    get state() { return state },
+    at(offset, verdict, cause = null, { since = null, admit = true } = {}) {
       const now = T0 + offset
       const out = tracker.step({ verdict, cause, since: since ?? now, now, session, persisted: state })
       if (out.row) {

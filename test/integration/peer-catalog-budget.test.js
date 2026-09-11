@@ -17,7 +17,7 @@ const PREFIX = 'file/' + LOOSE_SHARE_ID + '/'
 
 // collectPeerShare's drain timer is unref'd (the worker's IPC pipe keeps the loop alive); a
 // bare test has no such handle, so Bare would report a deadlock before the budget fires.
-async function setup (t) {
+async function setup(t) {
   const keep = setInterval(() => {}, 500)
   t.teardown(() => clearInterval(keep))
   const ctx = await freshPeer(t)
@@ -28,7 +28,7 @@ async function setup (t) {
 // An owner in its own store. We replicate its catalog once so our read-only copy knows the
 // length; with `readFirst` we also read the rows so their blocks land on our disk. With `depart`
 // the owner then goes away: length known, no serving peer, blocks present or missing as configured.
-async function catalogOwner (t, { readFirst = false, depart = true } = {}) {
+async function catalogOwner(t, { readFirst = false, depart = true } = {}) {
   const dir = path.join(os.tmpdir(), 'mirall-test-owner-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
   fs.mkdirSync(dir, { recursive: true })
   const store = new Corestore(dir)
@@ -61,7 +61,7 @@ async function catalogOwner (t, { readFirst = false, depart = true } = {}) {
 // A replication stream whose handshake never completes. Every core attached to it counts it as
 // "a peer that may still have more", so update({ wait: true }) waits on it — the state of a
 // socket mid-handshake, or of an owner whose replication side has stalled.
-function socketMidHandshake (t) {
+function socketMidHandshake(t) {
   const s = getStore().replicate(true)
   s.on('error', () => {})
   t.teardown(() => { try { s.destroy() } catch {} })

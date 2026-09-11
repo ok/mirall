@@ -26,7 +26,7 @@ import { spaceDigitAccelerator } from './keyboard/known-commands.js'
 import { dispatchSpaceAction, type SpaceAction } from './space-actions.js'
 import { docsUrl } from './docs-links.js'
 import type { AppNavigation } from './hooks/useAppNavigation.js'
-import type { Profile, Space } from './types.js'
+import type { Space } from './types.js'
 import type { DeepLinkPayload } from './global.js'
 import { decodeInvite } from '../shared/contract/invite-envelope.js'
 import { request, subscribe } from './ipc.js'
@@ -150,82 +150,82 @@ export default function App() {
 
   return (
     <ToastProvider>
-    <ConnectionStatusProvider>
-    <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} onShowHelp={() => nav.setCurrentScreen('connection-problem')} />
-    <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
-    <WorkerToastBridge />
-    <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>
-      <AppCommands
-        nav={nav}
-        spaces={spaces}
-        canGoBack={canGoBack}
-        openWhatsNew={openWhatsNew}
-        openFeedback={openFeedbackModal}
-        onShowCreate={showCreateModal}
-        onShowJoin={showJoinModal}
-      />
-      <SpaceCommands nav={nav} spaces={spaces} toggleFavorite={toggleFavorite} />
-      <DeepLinkRouter
-        spaces={spaces}
-        linkQueue={linkQueue}
-        setLinkQueue={setLinkQueue}
-        navigateToSpace={nav.navigateToSpace}
-        setShowJoin={setShowJoin}
-        setJoinPrefill={setJoinPrefill}
-      />
-      <JoinRequestNotifier spaces={spaces} navigateToSpace={nav.navigateToSpace} />
-      <div className="min-h-screen bg-surface">
-        <a
-          href="#main-content"
-          onFocus={onSkipLinkFocus}
-          className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-on-primary focus:shadow-lg"
-        >
-          {t('a11y.skipToContent')}
-        </a>
-        <div aria-live="polite" className="sr-only">{routeAnnounce}</div>
-        <TopNav
-          profile={profile}
-          onLogoClick={nav.goHome}
-          onSettingsClick={nav.openSettings}
-          onAccountClick={nav.openAccount}
-          onFeedbackClick={() => setShowFeedback(true)}
-          update={dismissed ? null : update}
-          onDismissUpdate={dismiss}
-        />
-        <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
-        <WhatsNewModal />
-        <CreateSpaceModal
-          isOpen={showCreate}
-          onClose={() => setShowCreate(false)}
-          onCreate={createSpace}
-          onCreated={(space) => nav.navigateToSpace(space.spaceId)}
-        />
-        <JoinSpaceModal
-          isOpen={showJoin}
-          initialCode={joinPrefill?.code}
-          initialName={joinPrefill?.name}
-          onClose={() => {
-            setShowJoin(false)
-            setJoinPrefill(null)
-          }}
-          onJoin={joinSpace}
-          onJoined={(space) => nav.navigateToSpace(space.spaceId)}
-        />
-        <CommandPalette />
-        <ShortcutsHint />
-      <main id="main-content" ref={mainRef} tabIndex={-1} className="pt-[calc(5rem+var(--banner-h,0px))] focus:outline-none">
-        <ScreenRouter
-          nav={nav}
-          profile={profile}
-          onSaveProfile={saveProfile}
-          onOpenFeedback={() => setShowFeedback(true)}
-          onShowCreate={showCreateModal}
-          onShowJoin={showJoinModal}
-        />
-      </main>
-      </div>
-    </KeyboardProvider>
-    </ConnectionStatusProvider>
+      <ConnectionStatusProvider>
+        <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} onShowHelp={() => nav.setCurrentScreen('connection-problem')} />
+        <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
+        <WorkerToastBridge />
+        <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>
+          <AppCommands
+            nav={nav}
+            spaces={spaces}
+            canGoBack={canGoBack}
+            openWhatsNew={openWhatsNew}
+            openFeedback={openFeedbackModal}
+            onShowCreate={showCreateModal}
+            onShowJoin={showJoinModal}
+          />
+          <SpaceCommands nav={nav} spaces={spaces} toggleFavorite={toggleFavorite} />
+          <DeepLinkRouter
+            spaces={spaces}
+            linkQueue={linkQueue}
+            setLinkQueue={setLinkQueue}
+            navigateToSpace={nav.navigateToSpace}
+            setShowJoin={setShowJoin}
+            setJoinPrefill={setJoinPrefill}
+          />
+          <JoinRequestNotifier spaces={spaces} navigateToSpace={nav.navigateToSpace} />
+          <div className="min-h-screen bg-surface">
+            <a
+              href="#main-content"
+              onFocus={onSkipLinkFocus}
+              className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-on-primary focus:shadow-lg"
+            >
+              {t('a11y.skipToContent')}
+            </a>
+            <div aria-live="polite" className="sr-only">{routeAnnounce}</div>
+            <TopNav
+              profile={profile}
+              onLogoClick={nav.goHome}
+              onSettingsClick={nav.openSettings}
+              onAccountClick={nav.openAccount}
+              onFeedbackClick={() => setShowFeedback(true)}
+              update={dismissed ? null : update}
+              onDismissUpdate={dismiss}
+            />
+            <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
+            <WhatsNewModal />
+            <CreateSpaceModal
+              isOpen={showCreate}
+              onClose={() => setShowCreate(false)}
+              onCreate={createSpace}
+              onCreated={(space) => nav.navigateToSpace(space.spaceId)}
+            />
+            <JoinSpaceModal
+              isOpen={showJoin}
+              initialCode={joinPrefill?.code}
+              initialName={joinPrefill?.name}
+              onClose={() => {
+                setShowJoin(false)
+                setJoinPrefill(null)
+              }}
+              onJoin={joinSpace}
+              onJoined={(space) => nav.navigateToSpace(space.spaceId)}
+            />
+            <CommandPalette />
+            <ShortcutsHint />
+            <main id="main-content" ref={mainRef} tabIndex={-1} className="pt-[calc(5rem+var(--banner-h,0px))] focus:outline-none">
+              <ScreenRouter
+                nav={nav}
+                profile={profile}
+                onSaveProfile={saveProfile}
+                onOpenFeedback={() => setShowFeedback(true)}
+                onShowCreate={showCreateModal}
+                onShowJoin={showJoinModal}
+              />
+            </main>
+          </div>
+        </KeyboardProvider>
+      </ConnectionStatusProvider>
     </ToastProvider>
   )
 }

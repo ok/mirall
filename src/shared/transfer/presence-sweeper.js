@@ -4,7 +4,7 @@
 //
 // One policy, one Set, both owned-content sweeps. Pure (no bare-* imports): the caller supplies the
 // key function, the in-flight probe, the presence probe and the retire.
-export function createPresenceSweeper ({ keyOf, isPending, presentAt, retire }) {
+export function createPresenceSweeper({ keyOf, isPending, presentAt, retire }) {
   const gone = new Set()
 
   return {
@@ -13,7 +13,7 @@ export function createPresenceSweeper ({ keyOf, isPending, presentAt, retire }) 
 
     // True when this entry was retired on THIS pass. `presentAt` returns null for an entry with no
     // recorded source — not ours to reclaim — and a boolean otherwise.
-    async consider (ctx, entry) {
+    async consider(ctx, entry) {
       const key = keyOf(ctx, entry)
       if (isPending(ctx, entry)) { gone.delete(key); return false }
       const present = await presentAt(ctx, entry)

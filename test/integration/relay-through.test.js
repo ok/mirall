@@ -10,11 +10,11 @@ import { createFakeIpc } from '../helpers/fake-ipc.js'
 
 // The relay tests exercise the swarm, not the overlay; the backend is a dep so it is stubbed.
 const stubOverlayBackend = {
-  attach () {},
+  attach() {},
   detach: async () => {},
-  resumeForOwner () {},
-  resumeForOwnerAllSpaces () {},
-  revokeServesForSpace () {},
+  resumeForOwner() {},
+  resumeForOwnerAllSpaces() {},
+  revokeServesForSpace() {},
 }
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
@@ -22,7 +22,7 @@ const KEY_B = idEncoding.encode(b4a.alloc(32, 12))
 
 // Mirrors the boot root: Swarm, then ContentSwarm, then apply. The order is
 // the point — getContentSwarm() is null until the second call returns.
-async function bootSwarms (t, { relayMode = 'off', relay = null, relaySeedHex = null } = {}) {
+async function bootSwarms(t, { relayMode = 'off', relay = null, relaySeedHex = null } = {}) {
   const bootstrap = await localTestnet(t)
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode, relay })
   const ipc = createFakeIpc().ipc

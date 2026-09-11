@@ -79,7 +79,7 @@ const UNTRIGGERABLE = {
   'network.peer_back': 'driven in audit-network-presence.test.js',
 }
 
-async function rows (peer) {
+async function rows(peer) {
   const out = []
   let cursor = null
   do {

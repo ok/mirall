@@ -18,7 +18,7 @@ import { workDir } from '../paths.mjs'
 // catalog that cannot be opened or has no local blocks, which the UI cannot stage deterministically.
 // test/unit/share-files-fold.test.js is the gate for that one, and 4 of its 9 tests do fail against
 // a wholesale-adopt fold.
-export default async function s118 ({ runDir, bootstrap }) {
+export default async function s118({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

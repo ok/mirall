@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 //
 // hasText is a case-folded WHOLE-WINDOW substring match, so the singular alone would also match
 // inside the plural. The plural string has to be asserted ABSENT for this to mean anything.
-export default async function s141 ({ runDir }) {
+export default async function s141({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

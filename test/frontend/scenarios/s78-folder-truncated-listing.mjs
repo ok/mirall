@@ -15,7 +15,7 @@ import { workDir } from '../paths.mjs'
 //
 // Pairs with a VoiceOver spot-check (the banner is a pre-mounted aria-live region) and the
 // data-layer fold + deriveFolderInfo unit tests.
-export default async function s78 ({ runDir }) {
+export default async function s78({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   process.env.MIRALL_LIST_FILES_CAP = '3'

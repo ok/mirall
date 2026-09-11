@@ -10,7 +10,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // F3 — the DOWNLOADER leaves the space mid-download. Its in-flight transfer is torn down
 // (looseCancelSpace): no full file lands, no late completion re-writes purged rows, and
 // the peer returns to the space list. 256 MB keeps the transfer in flight at leave time.
-export default async function s99 ({ runDir, bootstrap }) {
+export default async function s99({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

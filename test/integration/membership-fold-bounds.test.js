@@ -8,7 +8,7 @@ import {
 // Shrink a cap for one test, then restore the full config (storage/identity included) so
 // later tests in the file are unaffected. setRuntimeConfig rebuilds from `next`, so we
 // spread the live config rather than passing only the patch.
-function withConfig (t, patch) {
+function withConfig(t, patch) {
   const prev = { ...getRuntimeConfig() }
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))

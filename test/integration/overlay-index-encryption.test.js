@@ -8,12 +8,12 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
-function tmpStore (label) {
+function tmpStore(label) {
   const dir = mkdtempSync(path.join(os.tmpdir(), label + '-'))
   return new Corestore(dir)
 }
 
-async function rawContains (core, needle) {
+async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
     const blk = await core.get(i, { decrypt: false, valueEncoding: 'binary' })
     if (blk && b4a.toString(blk).includes(needle)) return true

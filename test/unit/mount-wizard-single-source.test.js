@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER = path.resolve(here, '../../src/renderer')
 
-function sourceFiles (dir, out = []) {
+function sourceFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) sourceFiles(p, out)

@@ -9,7 +9,7 @@ import { revealLocalPath, addFile } from '../../src/shared/transfer/files.js'
 // carrying 13 distinct meanings, which the renderer mapped to a single sentence ("Choose a folder
 // to share."). A code per meaning is what makes a correct message possible at all.
 
-async function codeOf (fn) {
+async function codeOf(fn) {
   try {
     await fn()
     return null

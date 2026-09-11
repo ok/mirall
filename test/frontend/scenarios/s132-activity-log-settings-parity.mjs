@@ -13,7 +13,7 @@ import { workDir } from '../paths.mjs'
 // Asserted as a string equality rather than a pair of regexes, because "they agree" is the claim.
 const eventsRecorded = (text) => (/(\d+) events? recorded/i.exec(text) ?? [])[1] ?? null
 
-export default async function s132 ({ runDir }) {
+export default async function s132({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

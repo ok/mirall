@@ -26,7 +26,7 @@ test('the key still keys by share and path', (t) => {
   }
 })
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)

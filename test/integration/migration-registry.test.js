@@ -57,7 +57,7 @@ test('every migration the composition root used to call is in the list, and none
 // store is worth compacting.
 test('the runner returns each migration its own result, keyed by id', async (t) => {
   await freshDurable(t)
-  const results = await runMigrations('content', { log: { warn () {} } })
+  const results = await runMigrations('content', { log: { warn() {} } })
   t.alike(Object.keys(results).sort(), ['catalogs-encrypt', 'overlay-index-encrypt'],
     'only the content stage ran, and both of it did')
   t.is(typeof results['overlay-index-encrypt'], 'object', 'the overlay pass reports its own outcome')

@@ -17,7 +17,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // (profile.js openProfileBee → store.get). Counting the sessions opened against one peer's key is
 // therefore a direct count of folds that read it — and unlike onMembers, it is not suppressed by
 // viewSignature, which drops the emit only after the fold has already run.
-function countReadsOf (t, keyHex) {
+function countReadsOf(t, keyHex) {
   const store = getStore()
   const original = store.get.bind(store)
   const state = { reads: 0 }
@@ -36,7 +36,7 @@ const SETTLE_MS = 600
 // Quiet for a full settle window is what "did not wake" means; there is no negative event to await.
 const settle = () => new Promise((r) => setTimeout(r, scaled(SETTLE_MS)))
 
-async function foldedRoster (t, spaceId) {
+async function foldedRoster(t, spaceId) {
   await freshPeer(t)
   const creator = getLocalPublicKeyHex()
   await markOwnMembership(spaceId)

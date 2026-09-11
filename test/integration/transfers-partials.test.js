@@ -1,6 +1,4 @@
 import test from 'brittle'
-import fs from 'bare-fs'
-import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import {
   initPendingTransfers,

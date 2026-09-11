@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER = path.resolve(here, '../../src/renderer')
 const OWNER = 'components/layout/ModalHeader.tsx'
 
-function tsxFiles (dir, out = []) {
+function tsxFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) tsxFiles(p, out)

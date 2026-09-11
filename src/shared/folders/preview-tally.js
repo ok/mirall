@@ -5,7 +5,7 @@
 // assertion rather than a convention.
 import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 
-export function createPreviewTally () {
+export function createPreviewTally() {
   let count = 0
   let conflicts = 0
   let totalBytes = 0
@@ -13,7 +13,7 @@ export function createPreviewTally () {
 
   return {
     // One classified entry that WILL move bytes. Entries that will not move are never added.
-    add ({ relPath, size = 0, conflict = false }) {
+    add({ relPath, size = 0, conflict = false }) {
       count += 1
       if (conflict) conflicts += 1
       totalBytes += size
@@ -21,7 +21,7 @@ export function createPreviewTally () {
     },
     // `direction` is 'upload' or 'download' — the only axis the two flows differ on, and the
     // reason one count can serve both.
-    result (flow, direction, extra = {}) {
+    result(flow, direction, extra = {}) {
       const detailed = includePerFile(count)
       return {
         flow,

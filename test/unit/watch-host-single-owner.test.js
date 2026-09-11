@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const mainDir = path.join(here, '..', '..', 'src', 'main')
 const OWNER = path.join(mainDir, 'watch-host.js')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)
@@ -18,7 +18,7 @@ function walk (dir, out = []) {
   return out
 }
 
-function verify (linter, source, filename) {
+function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'commonjs' },

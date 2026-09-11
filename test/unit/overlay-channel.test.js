@@ -13,7 +13,7 @@ const JOB = {
   shareId: 'sh', size: 100, prevBytes: 10,
 }
 
-function build (kind, emit) {
+function build(kind, emit) {
   const loose = kind === 'loose'
   return createOverlayChannel({
     diagLabel: loose ? 'loose download' : 'overlay download',
@@ -30,7 +30,7 @@ function build (kind, emit) {
   })
 }
 
-function recorder () {
+function recorder() {
   const out = []
   return { out, emit: (name, payload) => out.push([name, payload]), names: () => out.map(([n]) => n) }
 }

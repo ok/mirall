@@ -18,18 +18,14 @@ const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.j
 const { createOwnedMount, createForeignMount } = await import('../../src/shared/folders/mount-store.js')
 const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
 const { startForeignLoop } = await import('../../src/shared/folders/foreign-folders.js')
-const { getStore } = await import('../../src/shared/core/store.js')
-const { closeAllMemberViews } = await import('../../src/shared/spaces/member-registry.js')
-const { destroyContentSwarm } = await import('../../src/shared/transfer/content-swarm.js')
-const { destroySwarm } = await import('../../src/shared/transfer/swarm.js')
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 
-const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
 const tmp = (label) => fs.mkdtempSync(path.join(os.tmpdir(), `mirall-lifecycle-${label}-`))
 
-async function ownedShare (ctx) {
+async function ownedShare(ctx) {
   const space = await createSpace('Aurora')
   const share = {
     id: generateShareId(), type: 'owned-folder', name: 'Vault', contentMode: 'overlay',

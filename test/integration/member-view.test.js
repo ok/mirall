@@ -15,13 +15,13 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const sorted = (it) => [...it].sort()
 
-function tmpDir () {
+function tmpDir() {
   const dir = path.join(os.tmpdir(), `mv-peer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-async function waitFor (pred, ms = 5000) {
+async function waitFor(pred, ms = 5000) {
   const t0 = Date.now()
   while (Date.now() - t0 < scaled(ms)) {
     if (pred()) return true
@@ -33,7 +33,7 @@ async function waitFor (pred, ms = 5000) {
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
 // membership bee, replicated into the local store so openProfileBee(peerKey) can read it —
 // the in-process stand-in for a remote member whose bee has replicated to us.
-async function makePeer (t) {
+async function makePeer(t) {
   const dir = tmpDir()
   const store = new Corestore(dir)
   await store.ready()
@@ -49,7 +49,7 @@ async function makePeer (t) {
   return { store, bee, key }
 }
 
-function replicate (a, b, t) {
+function replicate(a, b, t) {
   const s1 = a.replicate(true)
   const s2 = b.replicate(false)
   s1.on('error', () => {})

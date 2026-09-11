@@ -3,7 +3,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createOwnedMount, getOwnedMount, listOwnedMounts, setOwnedMountStatus, touchOwnedMountScan } from '../../src/shared/folders/mount-store.js'
 
-async function plantedMount (t) {
+async function plantedMount(t) {
   const ctx = await freshPeer(t)
   const mount = {
     spaceId: 'space1',

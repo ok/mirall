@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // controls are icon-only and must carry accessible names. Pause/resume/retry are
 // transfer-timing dependent and covered at the flow/integration layers (the
 // testing discipline says not to force flaky UI timing assertions).
-export default async function s10 ({ runDir, bootstrap }) {
+export default async function s10({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

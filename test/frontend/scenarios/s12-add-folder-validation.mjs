@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
-import { makeReport, assert, waitFor } from '../assert.mjs'
+import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // AddFolderShareModal validation: a second folder whose name collides with an
@@ -10,7 +10,7 @@ import { workDir } from '../paths.mjs'
 // role=alert regions tied to the field via aria-describedby. Also asserts the
 // Folder Share segmented control defaults to Eager and flips aria-pressed on
 // switching to In place.
-export default async function s12 ({ runDir, bootstrap }) {
+export default async function s12({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

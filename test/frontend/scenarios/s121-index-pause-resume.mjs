@@ -14,7 +14,7 @@ import { workDir } from '../paths.mjs'
 // margin — a smaller batch hashes before the click lands and the paused path never runs. The
 // "Adding" precondition is asserted explicitly so a too-fast scan fails there rather than later as
 // a confusing missing button.
-export default async function s121 ({ runDir }) {
+export default async function s121({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', slot: 0, total: 1 })

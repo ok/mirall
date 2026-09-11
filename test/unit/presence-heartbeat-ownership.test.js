@@ -30,9 +30,9 @@ test('REGRESSION (SWARM-DECOMP-1): the departure stops the heartbeat it races', 
   })
 
   initPresenceBroadcast({
-    presence: { prune () {} },
+    presence: { prune() {} },
     membersPoke: null,
-    log: { debug () {} },
+    log: { debug() {} },
     getSwarm: () => null,     // departure returns right after the clear — no frames needed here
     getIpc: () => null,
   })
@@ -60,7 +60,7 @@ test('REGRESSION (REVIEW-5): a heartbeat whose owner closed can be armed again',
   globalThis.setInterval = (fn, ms) => { const h = realSet(fn, ms); started.push(h); return h }
   t.teardown(() => { globalThis.setInterval = realSet; stopPresenceHeartbeat() })
 
-  initPresenceBroadcast({ presence: { prune () {} }, membersPoke: null, log: { debug () {} }, getSwarm: () => null, getIpc: () => null })
+  initPresenceBroadcast({ presence: { prune() {} }, membersPoke: null, log: { debug() {} }, getSwarm: () => null, getIpc: () => null })
 
   const first = createTimers()
   startPresenceHeartbeat(first)
@@ -81,7 +81,7 @@ test('starting the heartbeat twice arms one timer', (t) => {
   globalThis.setInterval = (fn, ms) => { const h = realSet(fn, ms); started.push(h); return h }
   t.teardown(() => { globalThis.setInterval = realSet; stopPresenceHeartbeat() })
 
-  initPresenceBroadcast({ presence: { prune () {} }, membersPoke: null, log: { debug () {} }, getSwarm: () => null, getIpc: () => null })
+  initPresenceBroadcast({ presence: { prune() {} }, membersPoke: null, log: { debug() {} }, getSwarm: () => null, getIpc: () => null })
   const set = ownedTimers(t)
   startPresenceHeartbeat(set)
   startPresenceHeartbeat(set)

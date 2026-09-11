@@ -11,7 +11,7 @@ const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders',
 // behavioural: the supervisor reports a pass that has not advanced inside the stall window as
 // wedged, so every phase of a pass has to say it is still working — not just the one that happens
 // to iterate files.
-function bodyOf (name) {
+function bodyOf(name) {
   const from = src.indexOf(`async function ${name}(`)
   if (from < 0) return ''
   const end = src.indexOf('\n}\n', from)

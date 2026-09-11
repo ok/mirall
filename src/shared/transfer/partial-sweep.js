@@ -19,7 +19,7 @@ const log = createLogger('partial-sweep')
 // Returns { rootsScanned, swept, failed } — the counts are what makes "every root was
 // walked exactly once" and "one bad root did not abort the rest" observable to the caller
 // and to tests; nothing branches on them.
-export async function cleanupOrphanedPartials (downloadsDirs, mountDirs = []) {
+export async function cleanupOrphanedPartials(downloadsDirs, mountDirs = []) {
   let swept = 0
   let failed = 0
   const referenced = new Set()
@@ -80,7 +80,7 @@ export async function cleanupOrphanedPartials (downloadsDirs, mountDirs = []) {
 
 // Best-effort recursive collect of partial files under `dir`. Metadata-only
 // (readdir + stat), never throws — a mount that's gone/unreadable just yields nothing.
-async function collectPartials (dir, out = []) {
+async function collectPartials(dir, out = []) {
   let names
   try {
     names = await fs.promises.readdir(dir)

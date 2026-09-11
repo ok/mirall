@@ -136,71 +136,71 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
       className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}
     >
       <div className="pt-8 px-8 max-w-2xl mx-auto">
-      <PageHeader title={t('storageSettings.title')} subtitle={t('storageSettings.intro')} onBack={onBack} />
+        <PageHeader title={t('storageSettings.title')} subtitle={t('storageSettings.intro')} onBack={onBack} />
 
-      {/* Only a COLD read shows the calculating line. A hint-driven refetch keeps the numbers on
+        {/* Only a COLD read shows the calculating line. A hint-driven refetch keeps the numbers on
           screen while it runs — the store keeps the last value precisely so a background
           invalidation can't blank a panel the user is reading. */}
-      {loading && !info ? (
-        <p role="status" className="text-on-surface-variant py-8 text-center">{t('storageSettings.calculating')}</p>
-      ) : info && (
-        <div className="space-y-10">
-          <section>
-            <SectionHeading>{t('storageSettings.downloadFolder')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl p-6">
-              <p id="storage-download-folder-desc" className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
-              {/* The same row Add Folder, Mirror to Disk, Edit Folder and Edit Space show — a path
+        {loading && !info ? (
+          <p role="status" className="text-on-surface-variant py-8 text-center">{t('storageSettings.calculating')}</p>
+        ) : info && (
+          <div className="space-y-10">
+            <section>
+              <SectionHeading>{t('storageSettings.downloadFolder')}</SectionHeading>
+              <div className="bg-surface-container-low rounded-xl p-6">
+                <p id="storage-download-folder-desc" className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
+                {/* The same row Add Folder, Mirror to Disk, Edit Folder and Edit Space show — a path
                   is a path, whichever screen you are on. `lowest` because this card is itself
                   `surface-container-low`, which the field's default fill would vanish into. */}
-              <PathRow
-                path={downloadFolder || null}
-                loading={downloadFolder === null}
-                onAction={handleBrowseFolder}
-                ariaDescribedBy="storage-download-folder-desc"
-                fill="lowest"
-              />
-              {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
+                <PathRow
+                  path={downloadFolder || null}
+                  loading={downloadFolder === null}
+                  onAction={handleBrowseFolder}
+                  ariaDescribedBy="storage-download-folder-desc"
+                  fill="lowest"
+                />
+                {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
                   new one was refused. Order matters for a screen reader: the rejection is what
                   just happened and what the user can act on, so it is announced first. */}
-              {shownError && (
-                <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: shownError })}</p>
-              )}
-              {folderUnavailable && (
-                <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderUnavailable')}</p>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <SectionHeading>{t('storageSettings.appStorage')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl">
-              <div className="group/copy p-6">
-                <StorageTotal info={info} />
-                <p className="text-sm text-on-surface-variant mt-3 leading-relaxed">{t('storageSettings.appStorageDesc')}</p>
+                {shownError && (
+                  <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: shownError })}</p>
+                )}
+                {folderUnavailable && (
+                  <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderUnavailable')}</p>
+                )}
               </div>
-              {info.totalDiskUsage > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={toggleDetails}
-                    aria-expanded={detailsOpen}
-                    aria-controls="appstorage-breakdown"
-                    className="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
-                  >
-                    <span className="text-sm font-semibold text-on-surface-variant">{detailsOpen ? t('storageSettings.hideDetails') : t('storageSettings.showDetails')}</span>
-                    <Icon name={detailsOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />
-                  </button>
-                  {detailsOpen && (
-                    <div id="appstorage-breakdown" className="px-6 pb-6 pt-2 space-y-4">
-                      <StorageBreakdown info={info} />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+            </section>
+
+            <section>
+              <SectionHeading>{t('storageSettings.appStorage')}</SectionHeading>
+              <div className="bg-surface-container-low rounded-xl">
+                <div className="group/copy p-6">
+                  <StorageTotal info={info} />
+                  <p className="text-sm text-on-surface-variant mt-3 leading-relaxed">{t('storageSettings.appStorageDesc')}</p>
+                </div>
+                {info.totalDiskUsage > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={toggleDetails}
+                      aria-expanded={detailsOpen}
+                      aria-controls="appstorage-breakdown"
+                      className="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                    >
+                      <span className="text-sm font-semibold text-on-surface-variant">{detailsOpen ? t('storageSettings.hideDetails') : t('storageSettings.showDetails')}</span>
+                      <Icon name={detailsOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />
+                    </button>
+                    {detailsOpen && (
+                      <div id="appstorage-breakdown" className="px-6 pb-6 pt-2 space-y-4">
+                        <StorageBreakdown info={info} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   )

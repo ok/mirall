@@ -103,7 +103,6 @@ export async function closeAuditLog() {
   await closing?.close()
 }
 
-
 async function newestSeq() {
   for await (const entry of bee.createReadStream(prefixRange(EVT), { reverse: true, limit: 1 })) {
     return Number(entry.key.slice(EVT.length))

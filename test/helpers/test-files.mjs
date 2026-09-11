@@ -4,7 +4,7 @@
 import { readdirSync } from 'fs'
 import path from 'path'
 
-export function resolveFiles (args) {
+export function resolveFiles(args) {
   const files = []
   for (const arg of args) {
     if (!arg.includes('*')) { files.push(arg); continue }

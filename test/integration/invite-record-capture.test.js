@@ -14,27 +14,27 @@ const AUTO = { autoApprove: true, expiresAt: null, created: 1 }
 // src/shared modules are process-global singletons; restore any config a test mutates so
 // it cannot leak into the rest of the file (a stray captureMemberRecordMs:0 disables capture
 // for every later test).
-function withConfig (t, patch) {
+function withConfig(t, patch) {
   const prev = getRuntimeConfig()
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))
 }
 
-function shrinkPeerReads (t) {
+function shrinkPeerReads(t) {
   withConfig(t, { peerReadTimeoutMs: 500 })
 }
 
-async function grow (peer, n, label) {
+async function grow(peer, n, label) {
   for (let i = 0; i < n; i++) await peer.bee.put('filler/' + label + '/' + i, i)
 }
 
-async function syncKnownLength (key) {
+async function syncKnownLength(key) {
   const core = openProfileBee(b4a.from(key, 'hex')).core
   await core.ready()
   await core.update({ wait: true })
 }
 
-function spaceWith (peerKey) {
+function spaceWith(peerKey) {
   return { spaceId: SPACE, members: [{ publicKey: peerKey }] }
 }
 

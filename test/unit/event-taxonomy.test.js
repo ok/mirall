@@ -8,7 +8,7 @@ import { EVENT_NAMES } from '../../src/shared/contract/events.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
 
-function walk (dir, out = []) {
+function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) walk(p, out)

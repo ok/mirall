@@ -12,7 +12,7 @@ const HYPERCORE_MAX_BLOCK = 15 * 1024 * 1024
 
 // Build a synthetic chunk map whose JSON encoding exceeds the Hypercore block
 // limit, without needing a real multi-TB file. ~200k entries × ~116 B ≈ 23 MB.
-function bigChunkMap (count) {
+function bigChunkMap(count) {
   const chunks = new Array(count)
   let offset = 0
   for (let i = 0; i < count; i++) {
@@ -23,7 +23,7 @@ function bigChunkMap (count) {
   return chunks
 }
 
-async function setup () {
+async function setup() {
   const store = tmpStore('chunkmap-paging')
   const index = new FileIndex(store)
   await index.ready()
@@ -91,7 +91,7 @@ test('FIX-1: deleting a paged map removes the header and every page', async (t) 
   t.is(await index.hasChunkMap('/mir/del.bin'), false, 'hasChunkMap false')
 
   let leftover = 0
-  for await (const e of index.bee.createReadStream({ gte: 'chunkmap:/mir/del.bin', lt: 'chunkmap:/mir/del.bin\xff' })) {
+  for await (const _e of index.bee.createReadStream({ gte: 'chunkmap:/mir/del.bin', lt: 'chunkmap:/mir/del.bin\xff' })) {
     leftover++
   }
   t.is(leftover, 0, 'no header or page keys remain')

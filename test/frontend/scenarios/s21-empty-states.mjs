@@ -7,7 +7,7 @@ import { makeReport, assert } from '../assert.mjs'
 // mirall.app. Selectors match on `contains`, not `name`: the sr-only "Opens mirall.app in
 // your browser" span is part of each link's accessible name on purpose. The role assertion
 // is the a11y guarantee — these must stay anchors, not buttons wired to an onClick.
-export default async function s21 ({ runDir, bootstrap }) {
+export default async function s21({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

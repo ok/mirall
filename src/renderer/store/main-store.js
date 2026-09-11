@@ -12,13 +12,13 @@ const entries = new Map()
 
 let bridge = null
 
-export function configureMainStore (b) {
+export function configureMainStore(b) {
   bridge = b
 }
 
 const EMPTY_SNAPSHOT = Object.freeze({ data: undefined, error: null, loading: true })
 
-function entryFor (name) {
+function entryFor(name) {
   let entry = entries.get(name)
   if (!entry) {
     entry = { data: undefined, error: null, promise: null, seq: 0, subscribers: new Set(), snapshot: EMPTY_SNAPSHOT }
@@ -30,14 +30,14 @@ function entryFor (name) {
 // An entry that has never settled reports LOADING even before its fetch starts: the first render
 // happens before the effect that fetches, and reporting false there would paint a default over a
 // value still on its way.
-function snapshotOf (entry) {
+function snapshotOf(entry) {
   const settled = entry.data !== undefined || entry.error !== null
   return { data: entry.data, error: entry.error, loading: entry.promise !== null || !settled }
 }
 
 // Keeps the SAME object when nothing changed: useSyncExternalStore compares by identity, so a
 // structurally identical fresh snapshot would re-render every subscriber for nothing.
-function publish (entry) {
+function publish(entry) {
   const next = snapshotOf(entry)
   const prev = entry.snapshot
   if (prev && prev.data === next.data && prev.error === next.error && prev.loading === next.loading) return
@@ -45,7 +45,7 @@ function publish (entry) {
   for (const notify of entry.subscribers) notify()
 }
 
-function specFor (name) {
+function specFor(name) {
   const spec = MAIN_QUERIES[name]
   if (!spec) throw new Error(`main store: unknown fact "${name}"`)
   if (!bridge) throw new Error('main store: no bridge configured')
@@ -55,7 +55,7 @@ function specFor (name) {
 // The dedup and the cache: two screens mounting in one session each issued their own read and each
 // kept a private copy in component state, which could disagree with the other after a write. A
 // settled fact answers from the entry, so a remounting modal costs no round-trip at all.
-export function fetchMain (name) {
+export function fetchMain(name) {
   let spec
   try {
     spec = specFor(name)
@@ -103,7 +103,7 @@ export function fetchMain (name) {
 // `payload` is what main is SENT when that differs from what the app should show meanwhile: prefs
 // send a bare patch (main merges it into the only authoritative copy) while displaying the merge.
 // It defaults to `value`, which is the case for every fact whose write is a whole-value replace.
-export async function writeMain (name, value, { payload = value } = {}) {
+export async function writeMain(name, value, { payload = value } = {}) {
   const spec = specFor(name)
   const entry = entryFor(name)
   const previous = entry.data
@@ -136,7 +136,7 @@ export async function writeMain (name, value, { payload = value } = {}) {
 // DISPLAY (a screen keeps the values it already showed while the write is in flight); the bare
 // patch is what main is SENT, so a key main owns and flips on its own — `firstHideNoticeShown` —
 // is never written back over from a stale cached copy.
-export function patchMain (name, patch) {
+export function patchMain(name, patch) {
   const current = entryFor(name).data
   return writeMain(name, current ? { ...current, ...patch } : { ...patch }, { payload: patch })
 }
@@ -144,7 +144,7 @@ export function patchMain (name, patch) {
 // An out-of-band value: main PUSHES the zoom factor rather than answering a read, and a pushed
 // value must land in the entry a read would fill or the two disagree. Bumps seq so an in-flight
 // read cannot overwrite fresher pushed data.
-export function setMainData (name, data) {
+export function setMainData(name, data) {
   const entry = entryFor(name)
   entry.seq += 1
   entry.promise = null
@@ -153,20 +153,20 @@ export function setMainData (name, data) {
   publish(entry)
 }
 
-export function subscribeMain (name, notify) {
+export function subscribeMain(name, notify) {
   const entry = entryFor(name)
   entry.subscribers.add(notify)
   return () => { entry.subscribers.delete(notify) }
 }
 
 // Read during render, so it must not touch the map: React requires getSnapshot to be pure.
-export function peekMain (name) {
+export function peekMain(name) {
   return entries.get(name)?.snapshot ?? EMPTY_SNAPSHOT
 }
 
 // ONE subscription per pushing fact for the whole app, installed at bootstrap — the main-store twin
 // of installReconcileBridge(). Per-hook subscription would add a listener per mounted consumer.
-export function installMainPushBridge () {
+export function installMainPushBridge() {
   const offs = []
   for (const [name, spec] of Object.entries(MAIN_QUERIES)) {
     if (!spec.push) continue
@@ -177,6 +177,6 @@ export function installMainPushBridge () {
   return () => { for (const off of offs) off() }
 }
 
-export function resetMainStore () {
+export function resetMainStore() {
   entries.clear()
 }

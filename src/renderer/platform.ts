@@ -5,7 +5,7 @@ const platform = typeof window !== 'undefined' && typeof window.bridge !== 'unde
 
 const tag = platform === 'darwin' ? 'darwin'
   : platform === 'win32' ? 'win32'
-  : platform === 'linux' ? 'linux'
-  : 'other'
+    : platform === 'linux' ? 'linux'
+      : 'other'
 
 document.documentElement.dataset.platform = tag

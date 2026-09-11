@@ -11,7 +11,7 @@ import path from 'path'
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const fixture = (name) => `test/fixtures/bare-runner/${name}`
 
-function runRunner (args) {
+function runRunner(args) {
   const r = spawnSync(process.execPath, ['test/bare-runner.mjs', ...args], { cwd: repo, encoding: 'utf8' })
   return { status: r.status, out: `${r.stdout}${r.stderr}` }
 }

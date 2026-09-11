@@ -11,7 +11,7 @@ import { CODES } from '../../src/shared/contract/errors.js'
 // error, no terminal state. The engine has treated the same fault as terminal since v1.7 —
 // architecture §4.5, "re-fetching from the same holder would fail identically".
 
-function badHolder (t, { code = 'EHASHMISMATCH' } = {}) {
+function badHolder(t, { code = 'EHASHMISMATCH' } = {}) {
   const overlay = getOverlay()
   const inner = overlay.fetchFile
   const seen = []

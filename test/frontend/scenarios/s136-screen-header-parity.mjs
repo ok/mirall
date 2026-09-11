@@ -12,7 +12,7 @@ import { workDir } from '../paths.mjs'
 //
 // Both screens are asserted through the AX tree, in both directions of a navigation, and on both
 // sides of the share so the owner and the peer eyebrow are each exercised.
-export default async function s136 ({ runDir, bootstrap }) {
+export default async function s136({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

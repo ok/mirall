@@ -7,20 +7,20 @@ const GiB = 1024 * 1024 * 1024
 
 // Small files favour responsiveness (short windows, light damping); terabyte files favour
 // stability (long windows, heavy overall-average weight). Unknown/non-positive total → small.
-export function etaProfileFor (total) {
+export function etaProfileFor(total) {
   if (!(total >= 1 * GiB)) return { recentHalfLifeMs: 2000, overallWeight: 0.30, dampHalfLifeMs: 1500, warmupMs: 1000 }
   if (total < 50 * GiB) return { recentHalfLifeMs: 8000, overallWeight: 0.60, dampHalfLifeMs: 4000, warmupMs: 2500 }
   return { recentHalfLifeMs: 20000, overallWeight: 0.85, dampHalfLifeMs: 8000, warmupMs: 5000 }
 }
 
-function ewmaAlpha (dtMs, halfLifeMs) {
+function ewmaAlpha(dtMs, halfLifeMs) {
   if (dtMs <= 0) return 0
   if (halfLifeMs <= 0) return 1
   return 1 - Math.pow(2, -dtMs / halfLifeMs)
 }
 
 export class EtaEstimator {
-  constructor (total) {
+  constructor(total) {
     this._total = total
     this._p = etaProfileFor(total)
     this._startT = null
@@ -31,7 +31,7 @@ export class EtaEstimator {
     this._eta = null
   }
 
-  update (t, bytes) {
+  update(t, bytes) {
     const total = this._total
     if (this._startT === null) {
       this._startT = t

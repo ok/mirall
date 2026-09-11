@@ -16,7 +16,7 @@ import path from 'path'
 // candidate for the table — because a per-file budget of zero plus an aggregate budget of one
 // contradict each other, and the contradiction would resolve as "red on arrival", which is exactly
 // what trains people to re-run instead of look.
-export function evaluateLedger (reports, budget) {
+export function evaluateLedger(reports, budget) {
   const flaked = []
   for (const report of reports) {
     for (const entry of report.files || []) {
@@ -39,11 +39,11 @@ export function evaluateLedger (reports, budget) {
 
 // The suite's name comes from its budget file, so the two can never disagree about which suite a
 // verdict belongs to: test/<suite>-flake-budget.json.
-export function suiteOf (budgetPath) {
+export function suiteOf(budgetPath) {
   return path.basename(budgetPath).replace('-flake-budget.json', '')
 }
 
-export function describeLedger (verdict, budgetPath) {
+export function describeLedger(verdict, budgetPath) {
   const suite = suiteOf(budgetPath)
   const lines = [`${suite} flakes this run: ${verdict.total} (budget ${verdict.maxTotal})`]
   for (const f of verdict.flaked) lines.push(`  shard ${f.shard}: ${f.file} passed on attempt ${f.attempts}`)
@@ -54,7 +54,7 @@ export function describeLedger (verdict, budgetPath) {
   return lines.join('\n')
 }
 
-export function readReports (dir) {
+export function readReports(dir) {
   if (!existsSync(dir)) return []
   return readdirSync(dir).filter((n) => /^flake-\d+\.json$/.test(n))
     .map((n) => JSON.parse(readFileSync(path.join(dir, n), 'utf8')))

@@ -4,7 +4,7 @@ import { createSpace } from '../../src/shared/spaces/space.js'
 import { publishShare, readOwnShares, generateShareId, isValidShareName } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 
-async function setup (t, names = ['Movies']) {
+async function setup(t, names = ['Movies']) {
   await freshPeer(t)
   const space = await createSpace('Aurora')
   const ids = []

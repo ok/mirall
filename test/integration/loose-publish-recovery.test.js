@@ -18,7 +18,7 @@ import {
 // advertise-time window is observable without racing the whole publish.
 const BIG = 32 * 1024 * 1024
 
-async function setup (t, onEmit) {
+async function setup(t, onEmit) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
@@ -38,7 +38,7 @@ async function setup (t, onEmit) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-function writeBig (ctx, name) {
+function writeBig(ctx, name) {
   const abs = path.join(ctx.tmpDir('src'), name)
   fs.writeFileSync(abs, Buffer.alloc(BIG, 0x61))
   return abs
@@ -47,7 +47,7 @@ function writeBig (ctx, name) {
 // The post-restart state a quit-mid-hash leaves: an advertised null-hash entry with a recorded
 // source but no live publish in memory. Caller writes the fixture (big when the hash must be
 // observable, tiny when only the catalog state matters).
-async function seedNullHashOrphan (ctx, name, abs) {
+async function seedNullHashOrphan(ctx, name, abs) {
   const st = fs.statSync(abs)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, name, { size: st.size, mtime: st.mtimeMs, contentHash: null })
   await markOwnedSource(ctx.spaceId, '/' + name, abs)

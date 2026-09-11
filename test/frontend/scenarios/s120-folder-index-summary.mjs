@@ -17,7 +17,7 @@ import { workDir } from '../paths.mjs'
 //
 // Ten 256 MB files so the queue is several deep behind the lane's 2 bulk slots + 1 express, and so
 // the window stays open long enough for the AX polls to catch it on both screens.
-export default async function s120 ({ runDir, bootstrap }) {
+export default async function s120({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })

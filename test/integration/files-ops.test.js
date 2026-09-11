@@ -1,7 +1,6 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace, getDrive } from '../../src/shared/spaces/space.js'
 import {
@@ -23,13 +22,13 @@ import {
   verdictForClaim,
   createDirProbe,
 } from '../../src/shared/transfer/files.js'
-import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
-async function setup (t) {
+async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
