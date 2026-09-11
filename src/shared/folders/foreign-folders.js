@@ -491,12 +491,14 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
   let diskHash = null
   if (onDisk?.isFile() && entry.contentHash) {
     // Already-mirrored file: the verified record skips the full re-hash the poll
-    // would otherwise run over every file each tick; only hash on a cache miss.
+    // would otherwise run over every file each tick; only hash on a cache miss. No `expectLocal`
+    // is needed: `abs` is the path resolveLocalRelPath just chose for these bytes, so a record
+    // this mount wrote describes that same file.
     if (await isVerifiedUnchanged(mount.spaceId, verifyKey, entry.contentHash, entry.size, onDisk)) return 'present'
     try {
       diskHash = await hashOf(abs)
       if (diskHash === entry.contentHash) {
-        await markVerified(mount.spaceId, verifyKey, entry.contentHash)
+        await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath })
         return 'present'
       }
     } catch (err) { log.debug('overlay hash skipped on disk:', err.message) }
@@ -519,7 +521,7 @@ async function materializeOverlayFile(mount, share, entry, opts = {}) {
     // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
     // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
     // gets the check it needs — a stop landing during the wait above.
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
   } finally {
     releaseSlot()
   }
@@ -545,7 +547,7 @@ async function acquireMirrorSlot(streamKey) {
 
 // The gated half of a materialize: everything past the slot owns a chunk scheduler, a watchdog,
 // an fd and a ticker.
-async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKey, gen, diskHash = null, localExists = false }) {
+async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen, diskHash = null, localExists = false }) {
   // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
   if (mirrorStopped(streamKey, gen)) return 'missing'
   // Deliberately NOT re-checking reachability here, unlike the download engine past its own slot
@@ -632,7 +634,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, streamKe
   }
   // The transfer verified the content hash on landing — record it so the row can
   // surface a "verified" indicator without re-hashing.
-  await markVerified(mount.spaceId, verifyKey, entry.contentHash)
+  await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath })
   attempts.succeed(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'present'
 }

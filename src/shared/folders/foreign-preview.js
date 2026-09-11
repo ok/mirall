@@ -53,7 +53,11 @@ async function classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf) 
   }
   if (!stat.isFile()) return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
   if (stat.size !== entry.size) return { relPath: entry.relPath, size: entry.size, download: true, conflict: true }
-  if (entry.hash && await isVerifiedUnchanged(spaceId, shareId + '|' + entry.relPath, entry.hash, entry.size, stat)) {
+  // `expectLocal` is what makes the record evidence about THIS path: the mirror writes the same key
+  // when it lands the owner's bytes on a renamed sibling, and a manual download writes it for a
+  // file in the downloads folder. Either one would otherwise report a clean destination for a file
+  // the mount is about to download on top of the user's own.
+  if (entry.hash && await isVerifiedUnchanged(spaceId, shareId + '|' + entry.relPath, entry.hash, entry.size, stat, { expectLocal: entry.relPath })) {
     return { relPath: entry.relPath, size: entry.size, download: false }
   }
   try {

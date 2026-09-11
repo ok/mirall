@@ -362,7 +362,7 @@ export function createOverlayDownloadEngine (channel, { fetchImpl = fetchContent
     // never 'remote' — which would re-download and duplicate the file.
     terminalCodes.delete(job.transferId)
     await markDownloaded(job.spaceId, job.pendingKey, job.finalPath, { hash: job.contentHash })
-    await markVerified(job.spaceId, job.verifyKey, job.contentHash)
+    await markVerified(job.spaceId, job.verifyKey, job.contentHash, { local: job.finalPath })
     // The claim above already decides the status; the row only matters to the resume scan,
     // which drops a claimed row itself (runReconcile). So a failed clear degrades to one extra
     // read at the next reconcile — but it has to be visible.

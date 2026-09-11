@@ -15,6 +15,7 @@ import {
   isDownloadedFile,
   markVerified,
   getVerifiedHash,
+  isVerifiedUnchanged,
   cleanupDownloadHistory,
   listDownloadClaimsForShare,
   listVerifiedForShare,
@@ -195,6 +196,24 @@ test('verified marker round-trips and is cleared on space cleanup', async (t) =>
 
   await cleanupDownloadHistory(spaceId)
   t.is(await getVerifiedHash(spaceId, key), null, 'cleared with the space download history')
+})
+
+// The landing path is the half of the record the key cannot carry: the key names the owner's
+// path, and a mirror writes it even when the bytes went to a renamed sibling.
+test('isVerifiedUnchanged vouches only for the path the bytes landed at', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const landed = path.join(tmpDir('v'), 'a.txt')
+  fs.writeFileSync(landed, 'bytes')
+  const stat = fs.statSync(landed)
+  const key = 'share1|a.txt'
+
+  await markVerified(spaceId, key, 'oid-AAA', { local: 'a (1).txt' })
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', stat.size, stat), true, 'no expectation asked, hash and mtime decide')
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', stat.size, stat, { expectLocal: 'a (1).txt' }), true, 'the recorded landing path matches')
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', stat.size, stat, { expectLocal: 'a.txt' }), false, 'another path is not vouched for')
+
+  await markVerified(spaceId, key, 'oid-AAA')
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', stat.size, stat, { expectLocal: 'a.txt' }), false, 'a record with no landing path vouches for nothing')
 })
 
 // The share listing reads every row's claim from one range scan instead of a point read per row,
