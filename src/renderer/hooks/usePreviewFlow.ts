@@ -39,6 +39,9 @@ export function usePreviewFlow(cancelPreview: (previewId: string) => void): Prev
     setProgress(null)
   }, [cancelPreview])
 
+  // A cancelled preview rejects, and run RETHROWS it: the caller knows whether it cancelled, this
+  // hook does not, and swallowing it here would leave a modal waiting on a result that never comes.
+  // Callers catch PREVIEW_CANCELLED and close quietly.
   const run = useCallback(async (start: (onProgress: (p: PreviewProgress) => void) => PreviewHandle) => {
     setPreview(null)
     setProgress(null)

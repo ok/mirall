@@ -36,6 +36,9 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, o
     })
   }
 
+  // Approve closes rather than waiting, and busyKeys gates Deny alone. The asymmetry is
+  // deliberate: approving is the expected outcome and its progress is visible on the space screen
+  // the modal closes onto, while a deny is destructive and must not be issued twice.
   function approveAll() {
     requests.forEach((r) => onApprove(r.publicKey))
     onClose()

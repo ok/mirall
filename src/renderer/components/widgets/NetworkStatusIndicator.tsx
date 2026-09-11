@@ -6,6 +6,9 @@ interface Props {
   className?: string
 }
 
+// 'limited' is the one state without a semantic colour of its own: it is not a fault, so warning
+// would overstate it, and it is not healthy either. The neutral container reads as "something to
+// know" without competing with the two states the user must act on.
 const COLOR: Record<ConnectivityState, string> = {
   online: 'bg-online',
   limited: 'bg-secondary-container',

@@ -38,6 +38,9 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
     }
   }, [isOpen, initialCode, initialName])
 
+  // Auto-fill the name from the invite, but only while the field is still the machine's: empty, or
+  // exactly the last value this effect wrote. Once the user has typed anything of their own, a
+  // pasted invite must not overwrite it.
   useEffect(() => {
     const decoded = decodeInvite(inviteCode)
     const suggested = decoded && decoded.v === 1 ? decoded.name : undefined

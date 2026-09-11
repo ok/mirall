@@ -3,6 +3,17 @@ import { FRAME } from '../shared/contract/frames.js'
 import { MAIN_WORKER_SPEC } from '../shared/contract/workers.js'
 import { CODES } from '../shared/contract/errors.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
+//
+// One JSON object per line, in both directions. A request is { id, type, ...payload } and its answer
+// is { id, data } or { id, error, code }; { id, type: 'ping' } is the readiness probe and is answered
+// the same way. { type: 'cancel', id } is a control frame rather than a request, so it cannot queue
+// behind the request it cancels. Any other line carrying a string `type` is an event, fanned out to
+// subscribe()'s listeners — except event:worker-ready, which the channel consumes itself and which
+// arrives once per worker boot.
+//
+// subscribe() takes an unchecked name and allows any number of listeners per name. They are called
+// synchronously, each inside its own try: a throwing subscriber must not starve the listeners after
+// it, nor abort the chunk loop — which would drop the request responses sharing that read.
 const WORKER_SPEC = MAIN_WORKER_SPEC
 
 const ECANCELLED = CODES.ECANCELLED

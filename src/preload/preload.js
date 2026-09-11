@@ -4,6 +4,16 @@
 // updater control, worker spawn + raw NDJSON pipe access) plus event
 // subscriptions that return their own unsubscribe function. No ipcRenderer,
 // Node, or Electron API leaks past this file by design.
+//
+// Four of these are SYNCHRONOUS (sendSync): pkg, isDev, getLocale and getConfig. They block the
+// renderer, which is only acceptable because each is read once during first render and a promise
+// there would mean painting the wrong thing first — a wrong locale, or the light theme before the
+// stored one arrives. Every other method is async, and a new one should be too.
+//
+// The non-obvious per-channel contracts: zoom:set returns the CLAMPED factor, so the caller must
+// render what came back rather than what it sent; prefs:set has side effects beyond storing
+// (applying the value is part of the call); downloads:set throws on a path it cannot use instead of
+// reporting failure in its result; and relay:set answers with a code the renderer translates.
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 // Main refuses anything else outright (worker-entrypoints.js), so this is a boundary annotation and
