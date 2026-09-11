@@ -1,4 +1,14 @@
 // Space screen: loose files and folder shares with drag-drop adding, transfer controls, member presence, and invites.
+//
+// Eight modals, each its own piece of state rather than one union, and nothing enforces that only
+// one is open: they are mutually exclusive because every path that opens one runs from a closed
+// screen. `busy` holds the public keys with an approve or deny in flight.
+//
+// Two inboxes carry actions from outside the screen — 'mirall:open-mirror-modal' from a share row
+// anywhere in the tree, and SPACE_ACTION_EVENT from the title bar. They are window events rather
+// than props because the senders are not this screen's ancestors. The action inbox re-reads the
+// space's gates on every event: `leave` is the only action a legacy or pending space keeps, because
+// every other one writes and the data layer refuses it.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FileEntry } from '../types.js'

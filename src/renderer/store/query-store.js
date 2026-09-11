@@ -8,6 +8,13 @@ import { CODES } from '../../shared/contract/errors.js'
 //
 // Plain JS with an injected transport so it unit-tests under brittle-node, like the other
 // renderer modules that carry a .d.ts.
+//
+// The model, once: one entry per keyOf(type, params). invalidate(hint) selects entries by scope
+// PREDICATE rather than by key — it bumps `seq` so a late response is discarded, aborts the read in
+// flight, keeps the cached value so a view paints instantly, and refetches only entries that have
+// subscribers, coalesced per entry. setQueryData lands a pushed value in that same entry.
+// invalidateKey forgets values but keeps any entry that still has subscribers, dropping the rest.
+// An entry keeps the scopes it was FIRST registered with.
 const entries = new Map()
 
 let send = () => Promise.reject(new Error('query store: no transport configured'))
@@ -53,6 +60,8 @@ function entryFor(key, scopes) {
     }
     entries.set(key, entry)
   }
+  // First registration wins: an entry re-requested with narrower scopes must keep the wider set, or
+  // it would stop matching the hints the original view still depends on.
   if (scopes && scopes.length && entry.scopes.length === 0) entry.scopes = scopes
   return entry
 }
@@ -133,9 +142,6 @@ export function fetchQuery(type, params = {}, scopes = null, { coalesceMs } = {}
   return inFlight
 }
 
-// Invalidation is by predicate, not by key: one hint may match many entries, which is exactly what
-// the Scope vocabulary already expresses. The cached value SURVIVES so a view can paint instantly
-// while the refetch runs.
 export function invalidate(hint) {
   const touched = []
   for (const [key, entry] of entries) {

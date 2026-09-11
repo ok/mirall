@@ -1,6 +1,10 @@
 // Base dialog shell: react-aria focus trap, and the one place the dialog keyboard contract lives —
 // Escape to dismiss, Enter (plain, or Cmd/Ctrl+Enter from a textarea) to confirm. See modalKeys.ts.
 // Also owns the window-level event that closes every open modal at once.
+//
+// forwardRef hands out the WRAPPER — the element carrying the keydown handler, not the inner panel.
+// That is what the two consumers need: ScanPreviewModal focuses it on open so the keyboard contract
+// is live before the first keystroke, and FeedbackModal screenshots the dialog as displayed.
 import { forwardRef, useEffect, useRef, type ForwardedRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useDialog, FocusScope } from 'react-aria'
 import CrystalBackdrop from '../widgets/CrystalBackdrop.js'
