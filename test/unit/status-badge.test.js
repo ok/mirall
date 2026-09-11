@@ -5,15 +5,9 @@ import {
   badgeStyle,
   roleBadge,
 } from '../../src/renderer/statusBadge.js'
+import { FILE_STATUSES, SHARE_FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
-const FILE_STATUSES = [
-  'mine', 'downloaded', 'remote', 'preparing', 'downloading', 'verifying', 'publishing',
-  'paused-interrupted', 'paused-offline', 'unavailable', 'error',
-]
-const SHARE_STATUSES = [
-  'remote', 'preparing', 'downloading', 'verifying', 'publishing', 'downloaded', 'synced',
-  'unavailable', 'paused-interrupted', 'paused-offline',
-]
+const SHARE_STATUSES = SHARE_FILE_STATUSES
 const ROLES = ['mine', 'browse', 'mirrored']
 
 const ALLOWED_BG = [

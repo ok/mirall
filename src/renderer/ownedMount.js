@@ -5,10 +5,12 @@
 // The badge projection of an owned mount's durable state: a live missing path wins, then any
 // persisted non-healthy status (paused-error / mount-point-gone survive a restart); healthy states
 // (active / scanning) render no badge.
+
+import { MOUNT_STATUS, HEALTHY_OWNED_STATUSES } from '../shared/contract/statuses.js'
 export function unhealthyOwnedStatus(m) {
   if (!m) return null
-  if (m.mountPointMissing) return 'mount-point-gone'
-  if (m.status && m.status !== 'active' && m.status !== 'scanning') return m.status
+  if (m.mountPointMissing) return MOUNT_STATUS.MOUNT_POINT_GONE
+  if (m.status && !HEALTHY_OWNED_STATUSES.includes(m.status)) return m.status
   return null
 }
 

@@ -8,7 +8,9 @@
 // The percentage is dropped when the listing is truncated: past the cap the rows are a capped
 // sample, so bytes-on-device over bytes-total would be computed from a subset and read low.
 
-const ON_DEVICE = new Set(['downloaded', 'synced'])
+import { ON_DEVICE_STATUSES } from '../shared/contract/statuses.js'
+
+const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 export function deriveMirrorSync(files, opts = {}) {
   const truncated = !!opts.truncated

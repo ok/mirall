@@ -4,6 +4,7 @@
 // the overlay backend and land as partials that rename into place; deletions are
 // honored only for files the mirror itself wrote (syncedPaths) and only while the
 // owner is provably online, so a lagged replica or a user's own files are never wiped.
+import { MOUNT_STATUS, MIRROR_STATE } from '../contract/statuses.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { shouldHonorDeletions, relKeyEscapes, dropUnsafeEntries, conflictCopyName, driveKeyToSegments } from './path-keys.js'
@@ -163,7 +164,7 @@ async function pauseMount(mount, status, reason) {
   // generation is bumped — the last point lets an in-progress scan bail before it would
   // otherwise overwrite this pause with a trailing status:'active'.
   stopForeignLoop(mount.spaceId, mount.shareId)
-  await syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, 'paused'))
+  await syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, MIRROR_STATE.PAUSED))
   emitStatus(mount.spaceId, mount.shareId, status, reason ? { error: reason } : null)
 }
 
@@ -708,17 +709,17 @@ async function initialMaterializeScanCatalog(mount, share) {
     for (const ownerKey of [...synced]) if (!listed.has(ownerKey)) state.forgetSynced(key, synced, ownerKey)
     mount.initialScanCompletedAt = Date.now()
   }
-  mount.status = 'active'
+  mount.status = MOUNT_STATUS.ACTIVE
   await patchForeignMount(mount.spaceId, mount.shareId, {
     ...state.syncFields(mount),
-    status: 'active',
+    status: MOUNT_STATUS.ACTIVE,
     // A pass that got through clears the reason with the status: a stale one would name the next
     // fault that records none.
     lastError: null,
     ...(listingComplete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
   })
   state.markClean(key)
-  emitStatus(mount.spaceId, mount.shareId, 'active')
+  emitStatus(mount.spaceId, mount.shareId, MOUNT_STATUS.ACTIVE)
   // Skip the terminal state on an empty or partial listing: at mount the owner's catalog may not
   // have replicated yet, and publishing 'synced' with zero (or truncated) entries would falsely
   // show a fully-merged mirror. A genuinely-empty share settles to 'synced' on a later tick. The
@@ -995,7 +996,7 @@ export async function unmountForeignFolder(spaceId, shareId) {
   await deleteForeignMount(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
-  emitStatus(spaceId, shareId, 'idle')
+  emitStatus(spaceId, shareId, MOUNT_STATUS.IDLE)
   ipcRef?.emit('event:share-files-updated', { spaceId, shareId })
 }
 
@@ -1015,7 +1016,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   // ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would take it out of the
   // auto-pause set and permanently disable the auto-resume that exists to rescue exactly the
   // mirrors this verb is used on.
-  const status = enabled ? 'scanning' : (mount.status ?? 'paused')
+  const status = enabled ? MOUNT_STATUS.SCANNING : (mount.status ?? MOUNT_STATUS.PAUSED)
   // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
   // putting it back would resurrect an `enabled`/`status` a concurrent pause had already written.
   const patched = await patchForeignMount(spaceId, shareId, { mountPath, status, syncedPaths: [], renamedPaths: {} })
@@ -1044,12 +1045,12 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const wasEnabled = mount.enabled !== false
   mount.enabled = enabled
-  mount.status = enabled ? 'active' : 'paused'
+  mount.status = enabled ? MOUNT_STATUS.ACTIVE : MOUNT_STATUS.PAUSED
   if (enabled) mount.lastError = null
   await mutateForeignMount(spaceId, shareId, (m) => ({
     ...m,
     enabled,
-    status: enabled ? 'active' : 'paused',
+    status: enabled ? MOUNT_STATUS.ACTIVE : MOUNT_STATUS.PAUSED,
     ...(enabled ? { lastError: null } : {}),
     ...state.syncFields(m),
   }))
@@ -1065,7 +1066,7 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
     }
   } else {
     stopForeignLoop(spaceId, shareId)
-    await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'paused'))
+    await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, MIRROR_STATE.PAUSED))
   }
   emitStatus(spaceId, shareId, mount.status)
   return mount

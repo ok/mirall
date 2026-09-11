@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { isMountFault, mountFault } from '../../src/shared/contract/mount-fault.js'
-import { OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../../src/shared/contract/statuses.js'
+import { OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES } from '../../src/shared/contract/statuses.js'
 
 // The projection that decides whether a folder screen shows a fault at all. Before it, both fault
 // statuses were durably recorded and rendered nowhere: every consumer of mount.status compared
@@ -36,7 +36,7 @@ test('a fault with no recorded reason still names itself where the status can', 
 
 test('every fault status is one both roles can actually record', (t) => {
   for (const status of ['paused-error', 'paused-enospc']) {
-    t.ok(OWNED_MOUNT_STATUS.includes(status), `an owned mount can record ${status}`)
-    t.ok(FOREIGN_MOUNT_STATUS.includes(status), `a mirror can record ${status}`)
+    t.ok(OWNED_MOUNT_STATUSES.includes(status), `an owned mount can record ${status}`)
+    t.ok(FOREIGN_MOUNT_STATUSES.includes(status), `a mirror can record ${status}`)
   }
 })

@@ -4,6 +4,7 @@
 // a durable, replicated fact that survives the owner being offline. Removal is a soft tombstone
 // (unmirroredAt) so a reader tells "stopped mirroring" apart from "not replicated yet". Peers' rows
 // are read cap-gated with bounded reads, so an offline member can't stall a caller.
+import { MIRROR_STATE } from '../contract/statuses.js'
 import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
@@ -34,7 +35,7 @@ export async function ensureFolderMirrorsCap() {
   if (!entry?.value) await bee.put(MIRRORS_CAP, true)
 }
 
-export function publishMirror(spaceId, shareId, { state = 'syncing', mountedAt = Date.now() } = {}) {
+export function publishMirror(spaceId, shareId, { state = MIRROR_STATE.SYNCING, mountedAt = Date.now() } = {}) {
   const key = keyFor(spaceId, shareId)
   return serialize(key, async () => {
     await ensureFolderMirrorsCap()
@@ -46,7 +47,7 @@ export function publishMirror(spaceId, shareId, { state = 'syncing', mountedAt =
 // Create the record only if it is absent or tombstoned — used by boot resume so a mount that
 // predates this feature (or whose mount-time publish failed) still gains a participation record,
 // without re-stamping (and re-broadcasting) a healthy one on every restart.
-export function ensureMirror(spaceId, shareId, { state = 'syncing', mountedAt = Date.now() } = {}) {
+export function ensureMirror(spaceId, shareId, { state = MIRROR_STATE.SYNCING, mountedAt = Date.now() } = {}) {
   const key = keyFor(spaceId, shareId)
   return serialize(key, async () => {
     const bee = getProfileBee()

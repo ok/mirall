@@ -9,14 +9,15 @@
 // count.
 //
 // Status is worker-derived; this only decorates. It never reads or writes IPC.
+
+import { ON_DEVICE_STATUSES } from '../shared/contract/statuses.js'
 import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './statusBadge.js'
 
 const pct = (bytes, total) => (total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0)
 
-// "The bytes are on this device." 'downloaded' is on both vocabularies; 'synced' is share-only and
-// is a mirror's terminal state. Naming both here is what lets ONE showVerified rule serve both
-// kinds — gating on 'downloaded' alone would hide the check on every mirrored row.
-const ON_DEVICE = new Set(['downloaded', 'synced'])
+// One showVerified rule serves both vocabularies: gating on 'downloaded' alone would hide the check
+// on every mirrored row, whose terminal state is 'synced'.
+const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 // The stand-in frame for a row whose download was just requested and whose first real frame has not
 // arrived. Shaped exactly like a decoration — `eta: null` above all, which is what makes the bar

@@ -3,6 +3,7 @@
 // periodic reconcile — computes a diff and enqueues work items on the shared publish service; the
 // folder channel registered here resolves, publishes and retires them. A missing mount root always
 // pauses publishing instead of tombstoning the catalog.
+import { MOUNT_STATUS } from '../contract/statuses.js'
 import path from 'bare-path'
 import { ignorePathsFor, clearShareGuards } from './echo-guard.js'
 import { getOwnedMount, touchOwnedMountScan, findOwnedMountByShareId } from './mount-store.js'
@@ -312,7 +313,7 @@ export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
   })
   const outcome = await settled
   if (outcome.result?.outcome === 'skipped-root-gone') {
-    ipcRef?.emit('event:owned-folder-mount-status', { spaceId, shareId, status: 'mount-point-gone' })
+    ipcRef?.emit('event:owned-folder-mount-status', { spaceId, shareId, status: MOUNT_STATUS.MOUNT_POINT_GONE })
   }
   return outcome
 }
@@ -436,8 +437,8 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   // loop restarts us when the path returns.
   if (!mountRootAvailable(mountPath)) {
     log.warn('mount path unavailable, skipping reconcile:', mountPath)
-    ipcRef?.emit('event:owned-folder-mount-status', { spaceId, shareId, status: 'mount-point-gone' })
-    return { skipped: 'mount-point-gone', totalOnDisk: 0 }
+    ipcRef?.emit('event:owned-folder-mount-status', { spaceId, shareId, status: MOUNT_STATUS.MOUNT_POINT_GONE })
+    return { skipped: MOUNT_STATUS.MOUNT_POINT_GONE, totalOnDisk: 0 }
   }
   if (isUnsupportedShare(share)) {
     log.warn('skipping scan for unsupported content mode:', share.contentMode, shareId)

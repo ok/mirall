@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../../src/shared/contract/statuses.js'
+import { OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES } from '../../src/shared/contract/statuses.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import {
   AUTO_PAUSE_STATUSES, statusForFaultCode, faultFromError, isAutoPauseStatus, mountFault, isMountFault,
@@ -33,21 +33,38 @@ const WRITERS = [
   'shared/contract/mount-fault.js',
 ]
 
-const declared = new Set([...OWNED_MOUNT_STATUS, ...FOREIGN_MOUNT_STATUS])
+const declared = new Set([...OWNED_MOUNT_STATUSES, ...FOREIGN_MOUNT_STATUSES])
+
+// The pattern is guarded against its own rot here rather than by requiring each writer to still
+// contain a literal — a writer that names every status through MOUNT_STATUS holds none, and that is
+// the desired end state, not a broken scan.
+test('the status-shaped pattern still matches a status', (t) => {
+  const found = [..."const a = 'paused-error'; const b = 'idle'".matchAll(STATUS_SHAPED)].map((m) => m[1])
+  t.alike(found, ['paused-error', 'idle'], 'the scan pattern matches status-shaped literals')
+})
 
 for (const file of WRITERS) {
   test(`every mount status ${file} names is one the contract declares`, (t) => {
     const found = new Set([...read(file).matchAll(STATUS_SHAPED)].map((m) => m[1]))
-    t.ok(found.size > 0, 'the scan found statuses at all (guards the pattern itself)')
     for (const status of found) t.ok(declared.has(status), `'${status}' is in the contract vocabulary`)
+    t.pass(`${found.size} status-shaped literal(s) scanned`)
   })
 }
 
+// A writer that spells a status itself can still be caught by the scan above, but only for a
+// spelling the pattern anticipates. Importing the vocabulary is what makes a new status reach the
+// contract first.
+test('every mount-status writer imports the vocabulary', (t) => {
+  for (const file of WRITERS) {
+    t.ok(/MOUNT_STATUS/.test(read(file)), `${file} names statuses through MOUNT_STATUS`)
+  }
+})
+
 test('the fault statuses both roles share are declared for both', (t) => {
-  t.ok(OWNED_MOUNT_STATUS.includes('paused-enospc'), 'the drift this test exists for: the owned union lacked it')
-  t.ok(FOREIGN_MOUNT_STATUS.includes('paused-enospc'))
-  t.ok(FOREIGN_MOUNT_STATUS.includes('idle'), "and 'idle' stays mirror-only, which is why there are two")
-  t.absent(OWNED_MOUNT_STATUS.includes('idle'))
+  t.ok(OWNED_MOUNT_STATUSES.includes('paused-enospc'), 'the drift this test exists for: the owned union lacked it')
+  t.ok(FOREIGN_MOUNT_STATUSES.includes('paused-enospc'))
+  t.ok(FOREIGN_MOUNT_STATUSES.includes('idle'), "and 'idle' stays mirror-only, which is why there are two")
+  t.absent(OWNED_MOUNT_STATUSES.includes('idle'))
 })
 
 // The promise the source scan could only approximate. Importable now that one bare-*-free module
@@ -61,8 +78,8 @@ test('every status mount-fault.js can produce is declared for both roles', (t) =
   ])
   t.ok(produced.size >= 3, 'the set is non-trivial (guards the assertion itself)')
   for (const status of produced) {
-    t.ok(OWNED_MOUNT_STATUS.includes(status), `owned declares '${status}'`)
-    t.ok(FOREIGN_MOUNT_STATUS.includes(status), `foreign declares '${status}'`)
+    t.ok(OWNED_MOUNT_STATUSES.includes(status), `owned declares '${status}'`)
+    t.ok(FOREIGN_MOUNT_STATUSES.includes(status), `foreign declares '${status}'`)
   }
 })
 

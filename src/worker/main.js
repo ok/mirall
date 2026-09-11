@@ -9,6 +9,7 @@
 // resume passes and the periodic backstops — is constructed and started by the composition root
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
 // every handler is registered, so no frame is dispatched before its handler exists.
+import { MOUNT_STATUS } from '../shared/contract/statuses.js'
 import os from 'bare-os'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
@@ -1037,7 +1038,7 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
   // Seed the probe baseline so the first mount-point tick doesn't read this brand-new mount as a
   // gone→present transition (which would otherwise run against an unseeded key).
   mounts.lastMountPointStatus.set('owned-folder:' + shareId, mountRootAvailable(mountPath))
-  await mounts.setOwnedStatus(spaceId, shareId, 'scanning')
+  await mounts.setOwnedStatus(spaceId, shareId, MOUNT_STATUS.SCANNING)
 
   ipc.emit(MAIN_REQUEST_FRAME, {
     command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
@@ -1116,7 +1117,7 @@ ipc.handle('owned-folder:relocate', async (msg) => {
   mount.mountPath = mountPath
   mounts.lastMountPointStatus.set('owned-folder:' + msg.shareId, true)
 
-  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? 'paused' : 'scanning')
+  await mounts.setOwnedStatus(msg.spaceId, msg.shareId, mount.indexPaused ? MOUNT_STATUS.PAUSED : MOUNT_STATUS.SCANNING)
   ipc.emit(MAIN_REQUEST_FRAME, {
     command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
     args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
@@ -1228,10 +1229,10 @@ ipc.handle('foreign-folder:mount', async (msg) => {
     mountPath,
     enabled: true,
     attachedAt: Date.now(),
-    status: 'scanning',
+    status: MOUNT_STATUS.SCANNING,
   }
   await persistForeignMount(mount)
-  ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: 'scanning' })
+  ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: MOUNT_STATUS.SCANNING })
   try { await publishMirror(msg.spaceId, msg.shareId, { state: 'syncing' }) }
   catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', err.message) }
   ipc.emit('event:mirrors-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
