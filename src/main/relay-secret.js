@@ -48,4 +48,5 @@ function clearRelaySeed(storagePath) {
   fs.rmSync(seedFile(storagePath), { force: true })
 }
 
+// test seam: seedFile is exported for tests only.
 module.exports = { readRelaySeedHex, writeRelaySeedHex, clearRelaySeed, seedFile }

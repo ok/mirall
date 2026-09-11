@@ -79,4 +79,5 @@ function createQuitSequence({ markQuitting, stopOwnedWatchers, stopLooseWatchers
   }
 }
 
+// test seam: QUIT_STEPS is exported for tests only.
 module.exports = { QUIT_STEPS, createQuitSequence }

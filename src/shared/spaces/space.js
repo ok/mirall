@@ -121,6 +121,7 @@ let spacesBee
 let spacesStore = -1
 const drives = new Map()
 
+// test seam — production opens the spaces bee through this file's own _open()
 export async function initSpaces() {
   if (spacesBee && spacesStore === storeEpoch() && !spacesBee.core.closed) return
   spacesStore = storeEpoch()
@@ -308,6 +309,7 @@ function auditArrivals(spaceId, space, added) {
 
 // Serialized read-modify-write of a space's non-member fields (e.g. status),
 // sharing the per-space chain so it can't lose-update against member writes.
+// test seam
 export function mutateSpace(spaceId, mutate) {
   const run = async () => {
     const entry = await spacesBee.get('space/' + spaceId)
@@ -607,6 +609,7 @@ async function openSpaceDrive(space) {
   return drive
 }
 
+// test seam
 export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
   const spaces = await listSpaces()
   let hadFailure = false
@@ -654,6 +657,7 @@ export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
 }
 
 // The live bee, for tests that need a write to fail. Not for production callers.
+// test seam
 export function _spacesBeeForTests() {
   return spacesBee
 }

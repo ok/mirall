@@ -9,6 +9,7 @@ const DEFAULT_LIST_FILES_CAP = 5000
 const DEFAULT_MAX_FILES_PER_SHARE = 5000
 // Kept in lockstep with PUBLISH_ORDERS in folders/work-item.js (a unit test asserts parity);
 // core/ must not import from folders/.
+// test seam
 export const PUBLISH_ORDERS = ['fifo', 'smallest-first', 'largest-first']
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 

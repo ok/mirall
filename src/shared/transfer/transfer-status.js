@@ -2,6 +2,7 @@
 // and whether a transfer is currently in flight for it. The share listing takes the
 // whole ladder; the loose listing keeps its own and takes only unhashedStatusFor; the
 // overlay download engine takes pauseReasonFor. The folder mirror derives its own.
+// test seam
 export function pausedStatusFor({ pendingRow, isActive, ownerOnline }) {
   if (!pendingRow || isActive) return null
   return {

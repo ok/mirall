@@ -71,4 +71,5 @@ function readLiveApplyError(dataDir, { version, redactLine }) {
   return toReport(record, redactLine || identity)
 }
 
+// test seam: applyErrorPath is exported for tests only.
 module.exports = { applyErrorPath, recordApplyError, clearApplyError, readLiveApplyError }

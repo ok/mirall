@@ -10,6 +10,7 @@
 // say "this holder is serving corrupt content", and an unbounded Set on a 150k-file mirror is a
 // leak. This is a bounded gap, not a silent one: every suppressed case still produced its console
 // warning, and the cap itself is logged.
+// test seam
 export const DEFAULT_INTEGRITY_ROW_CAP = 512
 
 export function createIntegritySeen({ limit = DEFAULT_INTEGRITY_ROW_CAP, onCap = () => {} } = {}) {

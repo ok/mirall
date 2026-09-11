@@ -13,4 +13,5 @@ export const MAIN_QUERIES = Object.freeze({
   'main:zoom': { read: (b) => b.getZoom(), write: (b, v) => b.setZoom(v), push: 'onZoomChanged' },
 })
 
+// test seam
 export const MAIN_QUERY_NAMES = Object.freeze(Object.keys(MAIN_QUERIES))

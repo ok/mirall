@@ -17,6 +17,7 @@ async function keysFile() {
   return path.join(path.dirname(getStoragePath()), 'space-keys.enc')
 }
 
+// test seam — production opens the key store through this file's own _open()
 export async function initSpaceKeys() {
   map = new Map()
   const vault = getSpaceKeysVaultKey()

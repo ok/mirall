@@ -217,6 +217,7 @@ function applyBaseline(from, contentHash, have) {
 // A downloader paused (kept its partial). Mark the entry so the indicator shows a
 // paused state; the idle sweep then keeps it for PAUSED_DROP_MS (vs IDLE_DROP_MS for
 // active rows) so a deliberate pause stays visible but a vanished peer still gets reaped.
+// test seam
 export function onServePaused({ from, contentHash }) {
   if (!from) return
   forEachServeEntry(contentHash, from, (entry, key, now) => {
@@ -337,6 +338,7 @@ export function subscribeServeDetail(spaceId, path) {
 
 // Read the current serve detail without touching the subscription refcount — used by the
 // integration suite to assert snapshots without arming a stream.
+// test seam
 export function _getServeDetailForTests(spaceId, path) {
   return serveSnapshot(fileKey(spaceId, path))
 }
@@ -408,6 +410,7 @@ function runIdleSweep(now = Date.now()) {
   if (downloads.size > 0 || wakefulSubs > 0 || serveSessions.size() > 0) scheduleIdleSweep()
 }
 
+// test seam
 export function _sweepServeLedgerNow(now) { runIdleSweep(now) }
 
 function resetServeLedger() {

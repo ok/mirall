@@ -22,7 +22,9 @@ export const TICKET_BYTES = 69
 // byte and the checksum pass. Losing the last character of a paste is the commonest
 // clipboard failure there is, and this gate is the only thing that rejects it. Do not
 // replace it with a byteLength check on the decoded buffer.
+// test seam
 export const TICKET_CHARS = 111
+// test seam
 export const TICKET_PREFIX = 'mirall://relay/'
 
 const BODY_BYTES = 65
@@ -46,6 +48,7 @@ function checksum(body) {
 
 // The app never mints a ticket; this exists so the pinned vector is asserted against the
 // codec rather than against a copied constant.
+// test seam
 export function _encodeTicketForTests(relayPublicKey, memberSeed) {
   if (!b4a.isBuffer(relayPublicKey) || relayPublicKey.byteLength !== 32) throw new Error('relay key must be 32 bytes')
   if (!b4a.isBuffer(memberSeed) || memberSeed.byteLength !== 32) throw new Error('member seed must be 32 bytes')

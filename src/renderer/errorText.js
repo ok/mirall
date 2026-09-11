@@ -1,5 +1,6 @@
 import { ERROR_I18N_KEY_BY_CODE, errorI18nKey } from './errorMessages.js'
 
+// test seam
 export const FALLBACK_KEY = 'unexpected'
 
 function errorCodeOf(err) {

@@ -12,6 +12,7 @@ export function displayNameOrNull(name) {
   return name && name !== UNKNOWN_NAME ? name : null
 }
 
+// test seam
 export const UNKNOWN_NAME = 'Unknown'
 
 export function mergeMemberIdentity({ publicKey, meta, profile, held }) {

@@ -5,9 +5,11 @@ import b4a from 'b4a'
 // Runtime-agnostic (sodium-native, loads under Bare) so the same code can run in any
 // host process, not just the worker. The KEK is supplied by an unlock provider; this
 // file never touches Electron.
+// test seam
 export const KEK_BYTES = sodium.crypto_secretbox_KEYBYTES
 const NONCE_BYTES = sodium.crypto_secretbox_NONCEBYTES
 
+// test seam
 export function randomKEK() {
   const k = b4a.alloc(KEK_BYTES)
   sodium.randombytes_buf(k)

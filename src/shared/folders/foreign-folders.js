@@ -65,6 +65,7 @@ const state = createMirrorState({ keyOf: loopKey, isStopped: (key, gen) => loops
 let ipcRef = null
 let unsubscribePeerOnline = null
 
+// test seam — production starts the mirror through this file's own _open()
 export function initForeignFolders(_ipc) {
   ipcRef = _ipc
   // Materialize promptly when an owner's catalog appends, instead of waiting for
@@ -96,6 +97,7 @@ function pokeSpaceMirrors(spaceId) {
 // active mirror in that space instead of waiting for the 30s poll, so owner-side
 // edits/deletes reflect on the mirror's disk as promptly as they do in the folder
 // view.
+// test seam
 export function onPeerDriveChanged(spaceId) {
   pokeSpaceMirrors(spaceId)
 }
@@ -186,6 +188,7 @@ export async function recordMirrorScanFault(spaceId, shareId, err) {
   return status
 }
 
+// test seam
 export function isAutoPaused(mount) {
   return !!mount && mount.enabled === false && isAutoPauseStatus(mount.status)
 }
@@ -219,6 +222,7 @@ export async function resumeAutoPausedForeignMount(spaceId, shareId) {
 // rejects any owner-controlled relPath that escapes the mount BEFORE the unlink — the
 // path-traversal guard the security suite exercises (foreign-path-containment). Puts never come
 // here: they are fetched by materializeOverlayFile.
+// test seam
 export async function applyChange(mount, change) {
   const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
   if (change.action === 'del') {
@@ -275,6 +279,7 @@ const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 // isOwnerOnline is what lets a readable mount stand in for an absent owner; the rule itself is
 // unit-tested in mirror-reach.test.js. The engine carries the same seam as `channel.isOwnerOnline`.
 let reachabilityOverride = null
+// test seam
 export function setMirrorReachability(fn) { reachabilityOverride = fn }
 
 // Read live rather than snapshotted: a pass that starts online and finishes offline re-asks at the
@@ -313,6 +318,7 @@ async function materializeOnce(spaceId, shareId) {
 
 // Route one catalog entry to the read-to-mount: overlay fetches straight from a
 // holder by content hash (no peer drive to stream from).
+// test seam
 export async function materializeCatalogFile(mount, share, entry, opts = {}) {
   return await materializeOverlayFile(mount, share, entry, opts)
 }
@@ -863,6 +869,7 @@ async function ownerLeftSpace(spaceId, ownerKey) {
 }
 
 // One verdict per mount with a live loop (loops.entries() says why the others are not reported).
+// test seam
 export function mirrorHealth({ now = Date.now() } = {}) {
   const pollIntervalMs = getResourceCaps().foreignPollIntervalMs
   return loops.entries().map((loop) => ({
@@ -874,6 +881,7 @@ export function mirrorHealth({ now = Date.now() } = {}) {
 // Un-wedge one mirror: the stop generation-invalidates a hung pass so it bails at its next
 // checkpoint without writing, and the restart drops the dead in-flight promise the stop leaves
 // behind — without that the fresh interval coalesces straight back onto it.
+// test seam
 export async function restartForeignLoop(spaceId, shareId) {
   loops.restart(loopKey(spaceId, shareId), { spaceId, shareId })
     .catch((err) => log.debug('materialize tick after restart failed:', err.message))
@@ -900,6 +908,7 @@ function cancelInflightFetch(key, discardPartial) {
   }
 }
 
+// test seam
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   loops.stop(loopKey(spaceId, shareId), { discardPartial })
 }

@@ -18,6 +18,7 @@ let beeStore = -1
 const exclusive = createKeyedLock()
 const rowKey = (spaceId, filePath) => spaceId + ':' + filePath
 
+// test seam — production opens the bee through this file's own _open()
 export async function initPendingTransfers() {
   if (bee && beeStore === storeEpoch() && !bee.core.closed) return
   beeStore = storeEpoch()
@@ -27,6 +28,7 @@ export async function initPendingTransfers() {
 }
 
 // The live bee, for tests that need a write to fail. Not for production callers.
+// test seam
 export function _pendingBeeForTests() {
   return bee
 }

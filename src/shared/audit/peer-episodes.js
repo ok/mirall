@@ -10,6 +10,7 @@
 // we cannot distinguish "they left while we were down" from "we were down". An open absence dies
 // with the process.
 
+// test seam
 export const PEER_DWELL_MS = 300000
 const PEER_CAP_WINDOW_MS = 86400000
 const PEER_CAP = 12
@@ -18,9 +19,12 @@ const PEER_CAP = 12
 // "is back online" row for a peer returning after a week, which is the right thing to lose.
 const PEER_STALE_MS = 604800000
 
+// test seam
 export const KIND_PEER_LOST = 'network.peer_lost'
+// test seam
 export const KIND_PEER_BACK = 'network.peer_back'
 
+// test seam
 export function peerKeyOf(publicKey, spaceId) {
   return publicKey + '|' + spaceId
 }

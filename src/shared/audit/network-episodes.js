@@ -16,16 +16,23 @@ import { VERDICT, CAUSE } from '../core/reachability.js'
 
 // Every transient we do NOT want in the log settles well inside this: a Wi-Fi roam, a VPN
 // reconnect, a sleep/wake re-association. Everything the log SHOULD carry outlives it.
+// test seam
 export const EPISODE_DWELL_MS = 60000
 
+// test seam
 export const KIND_OFFLINE = 'network.offline'
+// test seam
 export const KIND_BLOCKED = 'network.blocked'
+// test seam
 export const KIND_AT_RISK = 'network.at_risk'
+// test seam
 export const KIND_RESTORED = 'network.restored'
 
 // Two sentinels, deliberately distinct: 'healthy' is a REAL state (no episode is open), while null
 // is "no opinion" and must not be compared against anything.
+// test seam
 export const NO_EPISODE = 'healthy'
+// test seam
 export const NO_OPINION = null
 
 // The kind a (verdict, cause) pair belongs to — NOT one kind per cause. A cause that changes inside

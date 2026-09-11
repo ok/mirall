@@ -402,10 +402,12 @@ export async function getPeerEntry(catalogKeyHex, shareId, relPath, opts = {}) {
 
 // The cache's shape, for the tests that pin the bound and the watcher pin. Not a reset seam: it
 // reads, it does not mutate.
+// test seam
 export function peerCatalogCacheStats() {
   return { size: peerCatalogs.size(), keys: peerCatalogs.keys(), refsOf: (k) => peerCatalogs.refsOf(k) }
 }
 
+// test seam
 export function dropCatalog(spaceId, catalogKeyHex) {
   if (spaceId) ownCatalogs.delete(spaceId)
   if (catalogKeyHex) {
