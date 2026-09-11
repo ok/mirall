@@ -7,24 +7,24 @@ const BASE = {
   role: 'mine',
   sourceMissing: false,
   fault: false,
-  indexPaused: false,
+  paused: false,
   mirrorEnabled: true,
   indexing: false,
   mirrorSyncing: false,
 }
 
 test('a missing source outranks every other state', (t) => {
-  const status = deriveFolderStatus({ ...BASE, sourceMissing: true, indexPaused: true, indexing: true })
+  const status = deriveFolderStatus({ ...BASE, sourceMissing: true, paused: true, indexing: true })
   t.is(status.labelKey, 'folder.statusMissing')
 })
 
 test('a paused index outranks an active one', (t) => {
-  const status = deriveFolderStatus({ ...BASE, indexPaused: true, indexing: true })
+  const status = deriveFolderStatus({ ...BASE, paused: true, indexing: true })
   t.is(status.labelKey, 'folder.statusPaused')
 })
 
 test('a paused mirror reads the same as a paused index', (t) => {
-  const owner = deriveFolderStatus({ ...BASE, indexPaused: true })
+  const owner = deriveFolderStatus({ ...BASE, paused: true })
   const mirror = deriveFolderStatus({ ...BASE, role: 'mirrored', mirrorEnabled: false })
   t.is(mirror.labelKey, owner.labelKey, 'one word for one state, both roles')
   t.is(mirror.badge, owner.badge, 'and one colour')
@@ -47,7 +47,7 @@ test('browse is passive', (t) => {
 // The strip above the listing announces every state worth announcing, so the tile is a label and a
 // colour and nothing more — anything else here would read the same change twice.
 test('the status is exactly a label and a badge', (t) => {
-  for (const input of [{ ...BASE, sourceMissing: true }, { ...BASE, indexPaused: true }, { ...BASE, indexing: true }, BASE]) {
+  for (const input of [{ ...BASE, sourceMissing: true }, { ...BASE, paused: true }, { ...BASE, indexing: true }, BASE]) {
     t.alike(Object.keys(deriveFolderStatus(input)).sort(), ['badge', 'labelKey'])
   }
 })
@@ -62,7 +62,7 @@ test('an idle folder is up to date', (t) => {
 test('every badge names a real style in the shared table', (t) => {
   const cases = [
     { ...BASE, sourceMissing: true },
-    { ...BASE, indexPaused: true },
+    { ...BASE, paused: true },
     { ...BASE, indexing: true },
     { ...BASE, role: 'mirrored', mirrorSyncing: true },
     { ...BASE, role: 'browse' },
@@ -77,7 +77,7 @@ test('every badge names a real style in the shared table', (t) => {
 // An auto-paused mirror is enabled === false, so without the fault outranking the pause the tile
 // called a folder stopped by a full disk "Paused" — the user's own doing, as far as it read.
 test('a fault outranks both pauses and reads as an error', (t) => {
-  const owner = deriveFolderStatus({ ...BASE, fault: true, indexPaused: true })
+  const owner = deriveFolderStatus({ ...BASE, fault: true, paused: true })
   t.is(owner.labelKey, 'folder.statusFault')
   t.is(owner.badge, 'error')
 

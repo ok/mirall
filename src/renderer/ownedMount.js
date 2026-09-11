@@ -2,16 +2,13 @@
 // projections live here rather than in the hook so they are one declaration for two screens — and
 // so the precedence below is testable without React.
 
-// The badge projection of an owned mount's durable state: a live missing path wins, then any
-// persisted non-healthy status (paused-error / mount-point-gone survive a restart); healthy states
-// (active / scanning) render no badge.
+import { MOUNT_STATUS } from '../shared/contract/statuses.js'
+import { ownedMountStatus, isHealthyOwnedStatus } from '../shared/contract/mount-precedence.js'
 
-import { MOUNT_STATUS, HEALTHY_OWNED_STATUSES } from '../shared/contract/statuses.js'
+// Which states deserve a badge: the resolved status, unless it is one nothing is wrong with.
 export function unhealthyOwnedStatus(m) {
-  if (!m) return null
-  if (m.mountPointMissing) return MOUNT_STATUS.MOUNT_POINT_GONE
-  if (m.status && !HEALTHY_OWNED_STATUSES.includes(m.status)) return m.status
-  return null
+  const status = ownedMountStatus(m)
+  return status && !isHealthyOwnedStatus(status) ? status : null
 }
 
 // Settled means an answer LANDED — data or error — not `!loading`: the store settles an entry on an
@@ -33,20 +30,18 @@ export function ownedMountSettled(enabled, rows) {
 export function projectOwnedMount(rows, spaceId, shareId, settled) {
   if (!settled || !spaceId || !shareId) return NO_OWNED_MOUNT
   const m = (rows || []).find((x) => x.spaceId === spaceId && x.shareId === shareId)
-  // Both from one row: the badge projection AND the durable intent behind it. The status alone
-  // cannot carry the pause — a scan settle overwrites it, and 'mount-point-gone' legitimately
-  // outranks it while the source is missing.
+  const resolved = ownedMountStatus(m)
   return {
     status: unhealthyOwnedStatus(m),
     lastError: m?.lastError ?? null,
     loaded: true,
-    indexPaused: !!m?.indexPaused,
-    scanning: m?.status === 'scanning',
+    paused: resolved === MOUNT_STATUS.PAUSED,
+    scanning: resolved === MOUNT_STATUS.SCANNING,
     mountPath: m?.mountPath ?? null,
   }
 }
 
 // test seam
 export const NO_OWNED_MOUNT = Object.freeze({
-  status: null, lastError: null, loaded: false, indexPaused: false, scanning: false, mountPath: null,
+  status: null, lastError: null, loaded: false, paused: false, scanning: false, mountPath: null,
 })

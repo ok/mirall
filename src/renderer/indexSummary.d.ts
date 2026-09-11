@@ -21,5 +21,5 @@ export interface IndexSummary {
 
 export function deriveIndexSummary(
   status: IndexStatus | null | undefined,
-  mount?: { indexPaused?: boolean; scanning?: boolean } | null,
+  mount?: { paused?: boolean; scanning?: boolean } | null,
 ): IndexSummary

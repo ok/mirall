@@ -31,8 +31,10 @@ function faultStrip(input) {
   }
 }
 
+// A folder shows one state, and both a fault and a missing source outrank a pause: each carries the
+// action the user can actually take, and the pause is still recorded underneath.
 function isPaused(input) {
-  if (input.fault) return false
+  if (input.fault || input.sourceMissing) return false
   if (input.isYou) return !!input.indexing?.paused
   return input.role === 'mirrored' && input.foreignEnabled === false
 }
