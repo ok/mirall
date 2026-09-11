@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // REGRESSION (FIX: multi-space owned share) — the same on-disk folder shared into
 // two different spaces must (1) mount in both without MOUNT_OVERLAPS, and (2)
 // publish + propagate edits/deletes to each space's mirror independently. Before
 // the mount-validate relaxation, step (1) threw "already being shared or mirrored".
-test('one folder shared into two spaces reaches a mirror in each, independently', { timeout: 240000 }, async (t) => {
+test('one folder shared into two spaces reaches a mirror in each, independently', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

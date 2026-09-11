@@ -5,6 +5,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const SYSTEM_PATH = {
   darwin: '/System/Library/x',
@@ -16,7 +17,7 @@ const SYSTEM_PATH = {
 // was moved/renamed). The hash-based reconcile must recognize identical content
 // at the new path and upload NOTHING — that "no churn" is the whole reason
 // relocate beats delete-and-re-add: mirror peers see no drive change.
-test('relocating to an identical copy uploads nothing (no mirror churn)', async (t) => {
+test('relocating to an identical copy uploads nothing (no mirror churn)', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const spaceId = (await A.request('space:create', { name: 'Aurora' })).spaceId
@@ -48,7 +49,7 @@ test('relocating to an identical copy uploads nothing (no mirror churn)', async 
   t.alike(files.entries.map((f) => f.relPath).sort(), ['one.txt', 'two.txt'], 'drive contents unchanged')
 })
 
-test('relocating to a forbidden path is rejected and the original mount is unchanged', async (t) => {
+test('relocating to a forbidden path is rejected and the original mount is unchanged', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const spaceId = (await A.request('space:create', { name: 'Aurora' })).spaceId

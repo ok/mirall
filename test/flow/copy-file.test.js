@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-6 (flow) — copying a file within a shared folder produces a second path
 // holding identical bytes. Both must replicate and the mirror must materialize
 // both. The collision-naming walk is unit-proven (path-keys); this is the byte /
 // blob path: two drive keys, identical content, both landing on the mirror.
-test('copying a file yields two byte-identical paths on the mirror', { timeout: 150000 }, async (t) => {
+test('copying a file yields two byte-identical paths on the mirror', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

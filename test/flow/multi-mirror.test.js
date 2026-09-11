@@ -4,12 +4,13 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace, addPeerToSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-8 (flow) — two peers (B and C) both mirror the SAME owner folder. An owner
 // edit and an owner delete must reach BOTH mirrors independently. The suite's
 // first multi-mirror scenario: if one mirror diverges (misses an edit or delete),
 // the two peers silently disagree on the folder's contents.
-test('an owner edit and delete reach two independent mirrors of the same folder', { timeout: 240000 }, async (t) => {
+test('an owner edit and delete reach two independent mirrors of the same folder', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

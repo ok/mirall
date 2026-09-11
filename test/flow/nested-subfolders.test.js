@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-1 (flow) — every other folder test uses a flat folder. This is the base
 // case: a shared folder containing subfolders must publish its nested files
 // (relPath with `/`) and a mirror must recreate the directory tree byte-exact.
 // The relPath⇄key separator math is unit-proven (path-keys); this exercises the
 // real scan→replicate→materialize pipeline for nested paths across two workers.
-test('a nested folder tree publishes and materializes with structure intact', { timeout: 120000 }, async (t) => {
+test('a nested folder tree publishes and materializes with structure intact', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

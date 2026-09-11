@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Repro for the reported 3-peer regression: owner A invites B and C; A approves B; C stays
 // waiting. Symptoms to catch: (D) B hangs in "waiting for approval"; (C) a co-member B lists
@@ -52,11 +53,11 @@ async function runScenario (t, flags) {
   t.is(await status(C, spaceId), 'pending', 'C is still waiting for approval')
 }
 
-test('3-peer approval — binding ON + identity (shipped config)', { timeout: 300000 }, async (t) => {
+test('3-peer approval — binding ON + identity (shipped config)', { timeout: scaled(300000) }, async (t) => {
   await runScenario(t, () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true }))
 })
 
-test('3-peer approval — binding OFF + identity', { timeout: 300000 }, async (t) => {
+test('3-peer approval — binding OFF + identity', { timeout: scaled(300000) }, async (t) => {
   await runScenario(t, () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: false }))
 })
 
@@ -64,7 +65,7 @@ test('3-peer approval — binding OFF + identity', { timeout: 300000 }, async (t
 // the owner's request record), not a direct request banner. To seal the grant, B must recover C's
 // bound signer key from C's live connection (boundSignerKeys) — C is connected to B in the mesh —
 // rather than from the request-record copy; else B's approval silently fails and C hangs forever.
-test('3-peer: a co-member can approve a joiner learned via replication', { timeout: 300000 }, async (t) => {
+test('3-peer: a co-member can approve a joiner learned via replication', { timeout: scaled(300000) }, async (t) => {
   const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })

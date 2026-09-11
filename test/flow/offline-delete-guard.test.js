@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-3 (flow) — the offline deletion guard (FIX-6 negative) end-to-end. When the
 // owner goes offline, the materialize tick must NOT remove the user's mirrored
@@ -11,7 +12,7 @@ import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
 // never treated as "owner deleted everything." foreign-sync proves the online
 // positive and path-keys unit-tests the `shouldHonorDeletions` truth table; this
 // proves the genuine offline path across two workers — files survive offline ticks.
-test('an offline owner never causes the mirror to wipe already-synced files', { timeout: 180000 }, async (t) => {
+test('an offline owner never causes the mirror to wipe already-synced files', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

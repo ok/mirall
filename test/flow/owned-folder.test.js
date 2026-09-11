@@ -4,8 +4,9 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
-test('A publishes an owned folder; the share + its files replicate to B', async (t) => {
+test('A publishes an owned folder; the share + its files replicate to B', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

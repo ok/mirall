@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Mirroring a foreign folder exercises the materialize engine's connectivity
 // gate (the deadlock fixed this session: a freshly-replicated drive has only
 // metadata, so the engine must stream the blob on demand while the owner is
 // online — it must NOT skip because the blob isn't cached yet). A successful
 // download here is the end-to-end regression for that fix.
-test('B mirrors A’s owned folder; files materialize to disk with matching bytes', { timeout: 90000 }, async (t) => {
+test('B mirrors A’s owned folder; files materialize to disk with matching bytes', { timeout: scaled(90000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

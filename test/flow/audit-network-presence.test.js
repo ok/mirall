@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // Production waits five minutes before calling a peer gone; that is tuning, not a contract, and
 // five minutes of wall-clock is not a test. Everything else here is real: two peers, a real
@@ -25,7 +26,7 @@ async function rows (peer) {
   return (await peer.request('audit:list', { limit: 200 })).entries
 }
 
-test('a peer that really goes away is recorded once, and its return closes the row', { timeout: 220000 }, async (t) => {
+test('a peer that really goes away is recorded once, and its return closes the row', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const storageB = idStore(t)
   const downloadsB = mkTmpDir(t)
@@ -61,7 +62,7 @@ test('a peer that really goes away is recorded once, and its return closes the r
 })
 
 // member.left already tells that story; a second row seconds later reads as two separate events.
-test('leaving the space is a leave, not a disconnect', { timeout: 220000 }, async (t) => {
+test('leaving the space is a leave, not a disconnect', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })

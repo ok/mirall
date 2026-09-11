@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForCatalogEntry } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const v2flags = (extra = {}) => ({ identityKEK: kekHex(), ...extra })
@@ -33,7 +34,7 @@ async function approveAndConverge (t, A, B, spaceId, requestPromise) {
 // creator silently dropped the one frame that mattered, the membership:request, and no
 // banner ever appeared until a reconnect (the Egypt field failure). The two-lane limiter
 // admits it: the five unmatched frames ride their own generous lane.
-test('REGRESSION (FIX-1): join request survives a multi-space connection-open burst', { timeout: 120000 }, async (t) => {
+test('REGRESSION (FIX-1): join request survives a multi-space connection-open burst', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Creator', flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Joiner', flags: v2flags() })
@@ -53,7 +54,7 @@ test('REGRESSION (FIX-1): join request survives a multi-space connection-open bu
 // Pre-approval there is NO fold/readmit backstop — the request was never recorded anywhere —
 // so only the joiner's level-triggered re-announce can surface the banner. Red with the
 // convergence tick disabled; green with it on.
-test('REGRESSION (FIX-2): a dropped membership:request is re-announced until the banner appears', { timeout: 120000 }, async (t) => {
+test('REGRESSION (FIX-2): a dropped membership:request is re-announced until the banner appears', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Creator', flags: v2flags({ testDropIdentityFramesCount: 4 }) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Joiner', flags: v2flags(fastTick) })
@@ -74,7 +75,7 @@ test('REGRESSION (FIX-2): a dropped membership:request is re-announced until the
 // no restart of either peer. (Post-approval the fold+readmit path can also converge this
 // state once records replicate — the deterministic pre-approval pin is FIX-2; this test
 // covers the ledger's handshake kind end-to-end under drops.)
-test('REGRESSION (FIX-3): joiner converges the creator although its post-grant handshakes were dropped', { timeout: 120000 }, async (t) => {
+test('REGRESSION (FIX-3): joiner converges the creator although its post-grant handshakes were dropped', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Creator', flags: v2flags({ testDropIdentityFramesAfter: 1, testDropIdentityFramesCount: 3 }) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Joiner', flags: v2flags(fastTick) })
@@ -92,7 +93,7 @@ test('REGRESSION (FIX-3): joiner converges the creator although its post-grant h
 // With the tick running hot, a full approve → share → download-visible flow stays green and
 // both workers shut down cleanly (the teardown leak check enforces the timer lifecycle). A
 // converged swarm must make the tick a no-op — this is the smoke for that steady state.
-test('convergence tick smoke: hot tick does not disturb a healthy flow', { timeout: 120000 }, async (t) => {
+test('convergence tick smoke: hot tick does not disturb a healthy flow', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Creator', flags: v2flags(fastTick) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Joiner', flags: v2flags(fastTick) })

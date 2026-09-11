@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-7 (flow) — a mirror is owner-authoritative. If the user edits a file inside
 // their own mirror, the next materialize tick notices the on-disk hash no longer
 // matches the owner's drive hash and re-downloads, reverting the local edit. This
 // documents (and guards) that local edits to mirrored files are NOT preserved —
 // so the UI must steer users away from editing inside a mirror.
-test('a local edit to a mirrored file is reverted to the owner version on the next tick', { timeout: 150000 }, async (t) => {
+test('a local edit to a mirrored file is reverted to the owner version on the next tick', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

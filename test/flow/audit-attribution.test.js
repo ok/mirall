@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -20,7 +21,7 @@ const find = (entries, kind) => entries.find((e) => e.kind === kind)
 // The whole value of a tier-B row is that the peer identity in it was authenticated on the
 // socket, not merely claimed. This asserts the recorded actor key is the real remote profile
 // key — a two-peer test is the only layer that can prove it.
-test('a peer join and approval are recorded with the authenticated peer key', { timeout: 220000 }, async (t) => {
+test('a peer join and approval are recorded with the authenticated peer key', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -61,7 +62,7 @@ test('a peer join and approval are recorded with the authenticated peer key', { 
   t.is(granted.tier, 'B')
 })
 
-test('a denied join is recorded by the decider with a denied outcome', { timeout: 220000 }, async (t) => {
+test('a denied join is recorded by the decider with a denied outcome', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -82,7 +83,7 @@ test('a denied join is recorded by the decider with a denied outcome', { timeout
 // The log is a deliberate exception to §6's "leave removes everything space-scoped" rule. Without
 // the name snapshot the surviving rows would render a raw hex id forever, so both halves are
 // asserted together.
-test('audit rows survive a space leave, still naming the space', { timeout: 220000 }, async (t) => {
+test('audit rows survive a space leave, still naming the space', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -108,7 +109,7 @@ test('audit rows survive a space leave, still naming the space', { timeout: 2200
   t.ok(scoped.length > 0, 'the by-space index survives the leave too')
 })
 
-test('recording can be turned off and back on at runtime', { timeout: 220000 }, async (t) => {
+test('recording can be turned off and back on at runtime', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
 
@@ -130,7 +131,7 @@ test('recording can be turned off and back on at runtime', { timeout: 220000 }, 
 // every boot — so every already-known member re-registered as a fresh arrival on every app
 // start, and the log filled with duplicate "X joined the space" rows. The guard must be the
 // durable roster instead.
-test('REGRESSION (FIX-1): a member is recorded as joining once, not on every restart', { timeout: 220000 }, async (t) => {
+test('REGRESSION (FIX-1): a member is recorded as joining once, not on every restart', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const aStorage = idStore(t)
   const aDownloads = mkTmpDir(t)
@@ -158,7 +159,7 @@ test('REGRESSION (FIX-1): a member is recorded as joining once, not on every res
 // A co-member who did NOT approve the newcomer has no other signal that they arrived, so the row
 // must still be recorded there — including when they learn it purely through replication rather
 // than a direct handshake.
-test('a co-member records an arrival it did not approve, with the authenticated key', { timeout: 220000 }, async (t) => {
+test('a co-member records an arrival it did not approve, with the authenticated key', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -190,7 +191,7 @@ test('a co-member records an arrival it did not approve, with the authenticated 
 // session was closed only by the protocol's onServeEnd, which fires on channel close or grant
 // revocation — never on a successful transfer — and the idle sweep stops being scheduled once
 // the last live row is dropped. So a completed serve was never recorded at all.
-test('REGRESSION (FIX-3): the owner records a peer downloading their file', { timeout: 220000 }, async (t) => {
+test('REGRESSION (FIX-3): the owner records a peer downloading their file', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -227,7 +228,7 @@ test('REGRESSION (FIX-3): the owner records a peer downloading their file', { ti
 // The three peer-action events: a member publishing a file into a shared space, creating a
 // folder share there, and mirroring one of OUR folders. All three are read from that peer's own
 // replicated records (tier C) by diffing their bee's history against a durable watermark.
-test('a peer publishing a file into a shared space is recorded', { timeout: 220000 }, async (t) => {
+test('a peer publishing a file into a shared space is recorded', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
@@ -257,7 +258,7 @@ test('a peer publishing a file into a shared space is recorded', { timeout: 2200
   t.ok(find(await rows(B), 'file.shared'))
 })
 
-test('a peer creating a folder share, and mirroring ours, are both recorded', { timeout: 220000 }, async (t) => {
+test('a peer creating a folder share, and mirroring ours, are both recorded', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })

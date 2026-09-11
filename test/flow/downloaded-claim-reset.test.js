@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // FIX-21 — "downloaded / on your device" used to be a bare key in downloads-meta
 // (keyed by spaceId:filePath), never checked against disk. So the claim outlived
@@ -19,7 +20,7 @@ function localOf (list, rel) {
   return list?.entries?.find((f) => f.relPath === rel)?.localPath
 }
 
-test('REGRESSION (FIX-21): a kept copy stays on-device when the owner removes then re-shares the same content', { timeout: 150000 }, async (t) => {
+test('REGRESSION (FIX-21): a kept copy stays on-device when the owner removes then re-shares the same content', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const aDownloads = mkTmpDir(t)

@@ -7,6 +7,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 import { decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
@@ -27,7 +28,7 @@ async function topicFor (peer, spaceId) {
 
 // Positive path: with binding enforced, honest peers (each signing their own Noise key)
 // still approve and converge. If the capability/sig wiring were wrong this would hang.
-test('binding ON: honest peers approve and converge', { timeout: 220000 }, async (t) => {
+test('binding ON: honest peers approve and converge', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
@@ -43,7 +44,7 @@ test('binding ON: honest peers approve and converge', { timeout: 220000 }, async
 // REGRESSION (MIR-03): an attacker that knows a member's public profileKey cannot
 // impersonate them — a handshake without a valid Noise-key binding is rejected, so the
 // follow-up leave frame for the victim is not authenticated and the victim stays.
-test('REGRESSION (MIR-03): spoofed handshake cannot impersonate or evict a member', { timeout: 220000 }, async (t) => {
+test('REGRESSION (MIR-03): spoofed handshake cannot impersonate or evict a member', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
@@ -68,7 +69,7 @@ test('REGRESSION (MIR-03): spoofed handshake cannot impersonate or evict a membe
 // REGRESSION (MIR-03-A): a spoofed membership:request must not trigger an SCK re-grant.
 // A member that is a known member + currently offline would otherwise have its grant
 // routed (via the pendingRequesters fallback) to whoever sent the request.
-test('REGRESSION (MIR-03-A): spoofed join request gets no SCK grant', { timeout: 220000 }, async (t) => {
+test('REGRESSION (MIR-03-A): spoofed join request gets no SCK grant', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })

@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -25,7 +26,7 @@ const tightFlags = () => ({
   maxMembersPerSpace: 8,
 })
 
-test('REGRESSION (MIR-04): honest membership flow converges with DoS bound-caps shrunk + limiter on', { timeout: 150000 }, async (t) => {
+test('REGRESSION (MIR-04): honest membership flow converges with DoS bound-caps shrunk + limiter on', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: tightFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: tightFlags() })

@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // New phase-(a) coverage (state-reconciliation §5): a late joiner derives the existing
 // roster purely from replicated records (the bespoke approval gossip is gone), and Tier-1
@@ -36,7 +37,7 @@ async function joinAndApprove (t, owner, joiner, sid, invite) {
   return jKey
 }
 
-test('a late joiner derives the pre-existing roster from records (no gossip)', { timeout: 240000 }, async (t) => {
+test('a late joiner derives the pre-existing roster from records (no gossip)', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launch(t, 'Bob', bootstrap)
@@ -58,7 +59,7 @@ test('a late joiner derives the pre-existing roster from records (no gossip)', {
   t.ok((await memberSetOf(A, sid)).has(cKey), 'A sees the late joiner C')
 })
 
-test('a member that vanishes without leaving stays in the roster but shows offline', { timeout: 240000 }, async (t) => {
+test('a member that vanishes without leaving stays in the roster but shows offline', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launch(t, 'Alice', bootstrap)
   const B = await launch(t, 'Bob', bootstrap)
@@ -90,7 +91,7 @@ test('a member that vanishes without leaving stays in the roster but shows offli
 // of the onExpire departure emit) fires it — a changed-gated emit would strand the returning peer
 // offline in useMembers/useSpaces until an unrelated refresh. The waitFor is the guard: with a
 // conditional emit it times out.
-test('a reconnecting member re-emits members-updated even though its record is unchanged', { timeout: 240000 }, async (t) => {
+test('a reconnecting member re-emits members-updated even though its record is unchanged', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const bStore = idStore(t)
   // B is relaunched against the SAME storage, so it must reuse the SAME identity KEK — a fresh KEK

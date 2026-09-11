@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // REGRESSION (G4): a leave interrupted by a hard quit must COMPLETE at the next boot, not
 // silently reverse. Before the fix, the space record survived the crash (only the in-memory
@@ -16,7 +17,7 @@ const settle = (ms) => new Promise((r) => setTimeout(r, ms))
 const memberKeys = async (peer, spaceId) =>
   new Set(((await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)?.members || []).map((m) => m.publicKey))
 
-test('REGRESSION (G4): a leave interrupted by a hard quit completes at the next boot', { timeout: 300000 }, async (t) => {
+test('REGRESSION (G4): a leave interrupted by a hard quit completes at the next boot', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
   // B is relaunched, so its KEK + storage must stay fixed across boots.

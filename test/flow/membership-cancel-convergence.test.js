@@ -13,7 +13,7 @@ const showsB = (reqs, bKey) => Array.isArray(reqs) && reqs.some((r) => r.publicK
 
 // A withdrawing pending joiner must reach the member showing its request; that member writes a
 // durable denied tombstone. The member's banner must clear and STAY cleared (survive its restart).
-test('a withdrawn pending request clears on the member and stays cleared', { timeout: 200000 }, async (t) => {
+test('a withdrawn pending request clears on the member and stays cleared', { timeout: scaled(200000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const aStore = idStore(t)
   const aKek = kekHex()   // stable across Alice's restart so her identity re-unlocks
@@ -44,7 +44,7 @@ test('a withdrawn pending request clears on the member and stays cleared', { tim
 // REGRESSION: a single fire-and-forget cancel used to strand the banner if the member missed it.
 // The pending-cancel replay re-announces on every connection until acked, so a member OFFLINE at
 // withdrawal time still converges on the withdrawal when it returns.
-test('a withdrawal reaches a member offline at withdrawal time (pending-cancel replay)', { timeout: 200000 }, async (t) => {
+test('a withdrawal reaches a member offline at withdrawal time (pending-cancel replay)', { timeout: scaled(200000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const aStore = idStore(t)
   const aKek = kekHex()

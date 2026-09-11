@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -26,7 +27,7 @@ const seesMembers = (spaceId, keys) => (list) => {
 // REGRESSION: one member's approval must converge across ALL members. Before the fix,
 // a co-member who didn't perform the approval kept showing "wants to join" and never
 // admitted the joiner — member lists diverged across peers.
-test('an approval converges across all members (owner + two joiners)', { timeout: 220000 }, async (t) => {
+test('an approval converges across all members (owner + two joiners)', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -72,7 +73,7 @@ test('an approval converges across all members (owner + two joiners)', { timeout
 
 // REGRESSION: when a joiner withdraws (cancels) a pending request, the member who saw
 // it must stop showing "wants to join" — the withdrawal gossips like approval/deny.
-test('a cancelled join request clears on the member', { timeout: 150000 }, async (t) => {
+test('a cancelled join request clears on the member', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -96,7 +97,7 @@ test('a cancelled join request clears on the member', { timeout: 150000 }, async
 
 // REGRESSION: a member denying a request must clear it on co-members too — otherwise a
 // second member who saw the same request keeps a stale "wants to join".
-test('a deny clears the request on co-members too', { timeout: 220000 }, async (t) => {
+test('a deny clears the request on co-members too', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -127,7 +128,7 @@ test('a deny clears the request on co-members too', { timeout: 220000 }, async (
 
 // REGRESSION: an auto-admit approval must converge to co-members the same way a manual
 // approval does — they admit the joiner and drop the banner.
-test('an auto-admit approval converges to co-members', { timeout: 220000 }, async (t) => {
+test('an auto-admit approval converges to co-members', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -160,7 +161,7 @@ test('an auto-admit approval converges to co-members', { timeout: 220000 }, asyn
 
 // Approval is monotonic: once a co-member has approved a joiner (SCK handed out),
 // a different member's deny cannot revoke — it is a no-op (revocation needs key rotation).
-test('deny is a no-op once a co-member has approved', { timeout: 220000 }, async (t) => {
+test('deny is a no-op once a co-member has approved', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })

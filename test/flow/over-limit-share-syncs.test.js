@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // FIX-360 (flow) — the share file limit is an ADMISSION gate, not a runtime ceiling. A folder
 // admitted at exactly the limit that then GROWS past it must keep syncing every file to a mirroring
@@ -11,7 +12,7 @@ import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
 // incomplete on every peer, which is a far worse failure than a truncated list: the owner sees a
 // folder they believe is shared, and the member is quietly missing files. This proves the publish
 // path (watcher add) never consults the limit, end to end across two real peers.
-test('a folder that grows past the file limit still syncs every file to a mirror', { timeout: 150000 }, async (t) => {
+test('a folder that grows past the file limit still syncs every file to a mirror', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   // Alice is admitted at exactly the limit (4 files), then grows to 6.
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', flags: { maxFilesPerShare: 4 } })

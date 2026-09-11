@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -15,7 +16,7 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // closed" / "Cannot make sessions on a closing core"). The leave then never reached
 // the catalog-record delete, so the space was stranded in the list forever and every
 // subsequent worker op threw SESSION_CLOSED.
-test('leaving an identity-mode space leaves the root store intact and removes the record', { timeout: 150000 }, async (t) => {
+test('leaving an identity-mode space leaves the root store intact and removes the record', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, {
     bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t),

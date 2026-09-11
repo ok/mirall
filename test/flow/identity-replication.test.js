@@ -5,13 +5,14 @@ import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace, waitForWorkerExit } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 // identity.enc is written beside the store (dirname(storage)), so each identity
 // peer needs its own store parent — mirror production's <userData>/app-storage.
 const identityStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 
-test('explicit-keypair peers replicate a shared file', { timeout: 150000 }, async (t) => {
+test('explicit-keypair peers replicate a shared file', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: identityStore(t), downloads: mkTmpDir(t), flags: { identityKEK: kekHex() } })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: identityStore(t), downloads: mkTmpDir(t), flags: { identityKEK: kekHex() } })
@@ -35,7 +36,7 @@ test('explicit-keypair peers replicate a shared file', { timeout: 150000 }, asyn
   t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'explicit-keypair drive replicated byte-exact')
 })
 
-test('migration through the real worker preserves the network identity', { timeout: 150000 }, async (t) => {
+test('migration through the real worker preserves the network identity', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const root = mkTmpDir(t)
   const storage = path.join(root, 'app-storage')

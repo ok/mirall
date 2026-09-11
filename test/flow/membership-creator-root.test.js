@@ -5,6 +5,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
@@ -20,7 +21,7 @@ const memberKeys = async (peer, spaceId) => new Set(((await spaceOf(peer, spaceI
 // The headline attack: an invite for A's REAL topic but with a forged creator (c = mKey).
 // The victim pins mKey provisionally, but the authenticated grant from the real member
 // corrects it — the forger never becomes the root, so it can mint no members on the victim.
-test('REGRESSION (MIR-26: a forged-creator invite does NOT make the forger the root)', { timeout: 220000 }, async (t) => {
+test('REGRESSION (MIR-26: a forged-creator invite does NOT make the forger the root)', { timeout: scaled(220000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
@@ -60,7 +61,7 @@ test('REGRESSION (MIR-26: a forged-creator invite does NOT make the forger the r
 
 // Two honest peers, each granted by the real creator, pin the SAME root — so their member
 // folds agree. (Pre-MIR-26 a stray forged invite could have left them rooted differently.)
-test('REGRESSION (MIR-26: two honest peers never fork their root)', { timeout: 260000 }, async (t) => {
+test('REGRESSION (MIR-26: two honest peers never fork their root)', { timeout: scaled(260000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
@@ -86,7 +87,7 @@ test('REGRESSION (MIR-26: two honest peers never fork their root)', { timeout: 2
 
 // An unbound membership:grant (no valid MIR-03 binding) cannot pin a root or materialize the
 // space under enforcement — so a topic-squatter that races a grant is refused, not trusted.
-test('REGRESSION (MIR-26: an unbound grant is refused under enforcement)', { timeout: 240000 }, async (t) => {
+test('REGRESSION (MIR-26: an unbound grant is refused under enforcement)', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 

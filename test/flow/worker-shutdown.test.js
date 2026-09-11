@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
+import { scaled } from '../helpers/timing.js'
 
 // Regression guard for the orphaned-worker bug. In production the main process
 // reaps the worker on quit by sending a `shutdown` IPC and escalating to a signal;
@@ -9,7 +10,7 @@ import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
 // it orphans itself at ~100% CPU. These prove both rungs of the escalation make
 // the worker process actually exit.
 
-test('a worker exits cleanly on graceful shutdown — no orphaned subprocess', { timeout: 30000 }, async (t) => {
+test('a worker exits cleanly on graceful shutdown — no orphaned subprocess', { timeout: scaled(30000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const peer = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const pid = peer.sidecar._process.pid
@@ -23,7 +24,7 @@ test('a worker exits cleanly on graceful shutdown — no orphaned subprocess', {
     'worker process exited within 8s of graceful shutdown (no orphan)')
 })
 
-test('a worker is reaped by destroy() (SIGTERM) — the force-kill rung', { timeout: 30000 }, async (t) => {
+test('a worker is reaped by destroy() (SIGTERM) — the force-kill rung', { timeout: scaled(30000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const peer = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const pid = peer.sidecar._process.pid

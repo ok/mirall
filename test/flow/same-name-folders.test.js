@@ -4,6 +4,7 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-9 (flow) — two different owners each share a folder with the SAME name
 // ("Docs"). A member who sees both owners must treat them as two distinct shares
@@ -15,7 +16,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 // the dedupe-by-owner logic needs. (A genuine *third* observer would additionally
 // depend on transitive membership propagation — a peer learning co-members it did
 // not directly invite — which is a separate, still-open convergence gap.)
-test('two owners sharing the same folder name stay distinct, each with its own files', { timeout: 150000 }, async (t) => {
+test('two owners sharing the same folder name stay distinct, each with its own files', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })

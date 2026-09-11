@@ -4,13 +4,14 @@ import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, waitForFile } from '../helpers/fixtures.js'
+import { scaled } from '../helpers/timing.js'
 
 // CRIT-2 (flow) — deleting a whole subfolder (several files) from a shared folder
 // while a mirror is active (owner online) must remove that subtree from the mirror
 // and nothing else. Recursive deletes are where "deleted the wrong thing" bugs
 // live; foreign-sync covers only a single-file delete. The watcher fires one
 // unlink per file under the removed subfolder, which we inject directly here.
-test('deleting a subfolder removes its whole subtree from an online mirror, leaving siblings', { timeout: 150000 }, async (t) => {
+test('deleting a subfolder removes its whole subtree from an online mirror, leaving siblings', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
