@@ -130,8 +130,8 @@ test('foreign preview: detail list omitted above the cap', async (t) => {
 })
 
 // The preview must not read a file it can decide on cheaply: a different SIZE proves a
-// conflict, and a verified-cache hit proves identity. Only a same-size, uncached file is
-// hashed. A counting hashOf asserts the read actually happened (or didn't).
+// conflict, and a verified-cache hit for THIS path proves identity. Only a same-size, uncached
+// file is hashed. A counting hashOf asserts the read actually happened (or didn't).
 function countingHash (real) {
   let calls = 0
   const fn = async (p) => { calls += 1; return real(p) }
@@ -156,7 +156,7 @@ test('foreign preview: a verified-cache hit is identical WITHOUT hashing', async
   const dest = ctx.mirrorPath
   fs.writeFileSync(path.join(dest, 'a.txt'), 'aaaa') // identical bytes
   await initDownloads()
-  await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(path.join(dest, 'a.txt')))
+  await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(path.join(dest, 'a.txt')), { local: 'a.txt' })
   const spy = countingHash(overlayHashFile)
   const p = await previewMaterializeScan(ctx.spaceId, ctx.share.owner, ctx.share.id, dest, { hashOf: spy })
   t.is(p.toDownload, 0, 'cached-identical file is not a download')
@@ -181,7 +181,7 @@ test('REGRESSION: a cached file edited (same size) after materialize is re-hashe
   const dest = ctx.mirrorPath
   fs.writeFileSync(path.join(dest, 'a.txt'), 'aaaa')
   await initDownloads()
-  await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(path.join(dest, 'a.txt')))
+  await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(path.join(dest, 'a.txt')), { local: 'a.txt' })
   // User edits the mirrored file in place (same size, different content) AFTER the record.
   fs.writeFileSync(path.join(dest, 'a.txt'), 'bbbb')
   const future = new Date(Date.now() + 60000)

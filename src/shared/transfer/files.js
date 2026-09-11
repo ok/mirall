@@ -66,8 +66,13 @@ export async function getDownloadedPath(spaceId, filePath) {
 // (overlay downloads verify the content hash incrementally during the transfer).
 // `key` identifies the file within the space (e.g. `<shareId>|<relPath>`). Kept
 // under a `verified:` namespace; cleaned per-space by cleanupDownloadHistory.
-export async function markVerified(spaceId, key, hash) {
-  await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now() })
+//
+// `local` is where the bytes actually landed, addressed the way the writer addresses them: the
+// mount-relative path for a mirror, the absolute final path for a manual download. The key names
+// the OWNER's path, and neither writer is obliged to use it — a mirror renames onto a free sibling
+// when a user file holds the natural name — so only `local` says which file the hash describes.
+export async function markVerified(spaceId, key, hash, { local = null } = {}) {
+  await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now(), local })
 }
 
 export async function getVerifiedHash(spaceId, key) {
@@ -144,12 +149,19 @@ async function getVerifiedRecord(spaceId, key) {
 // still matches). It is an mtime proxy — a same-size in-place edit that does not
 // advance mtime (a backdated utimes, or a coarse-granularity FS) can slip past; the
 // deliberate cost of not hashing on every check. `key` = `<shareId>|<relPath>`.
-export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSize, stat) {
+//
+// `expectLocal` is the path the caller is asking about; pass it whenever the record's key does not
+// by itself prove which file the hash describes (see markVerified). A record written before the
+// landing path was recorded carries none, so it vouches for nothing and the caller falls back to a
+// hash — transient, and healed by the next landing or confirmation, which rewrites the record.
+export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSize, stat, { expectLocal = null } = {}) {
   if (!contentHash || !stat) return false
   if (typeof expectedSize === 'number' && stat.size !== expectedSize) return false
   let rec = null
   try { rec = await getVerifiedRecord(spaceId, key) } catch { return false }
-  return !!rec && rec.hash === contentHash && Math.floor(stat.mtimeMs) <= rec.at
+  if (!rec || rec.hash !== contentHash) return false
+  if (expectLocal !== null && rec.local !== expectLocal) return false
+  return Math.floor(stat.mtimeMs) <= rec.at
 }
 
 // A downloaded overlay file is "verified" when the hash recorded on landing (the
