@@ -57,6 +57,9 @@ export default function EditFolderModal({
   // divergent copy here would either block a name the worker accepts or promise one it rejects.
   const nameValid = !isOwner || trimmed.length > 0
   const canSave = nameValid && (nameChanged || pathChanged) && !saving
+  // The non-owner note and the rename failure are both descriptions of the same field, so the
+  // error joins the note rather than replacing it.
+  const nameDescribedBy = [!isOwner && 'edit-folder-name-note', nameError && 'edit-folder-name-error'].filter(Boolean).join(' ')
 
   async function handleBrowse() {
     setPathError(null)
@@ -111,7 +114,8 @@ export default function EditFolderModal({
               id="edit-folder-name"
               autoFocus={isOwner}
               disabled={!isOwner}
-              aria-describedby={isOwner ? undefined : 'edit-folder-name-note'}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameDescribedBy || undefined}
               className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all disabled:opacity-60"
               placeholder={t('editFolder.namePlaceholder')}
               value={isOwner ? draftName : name}
@@ -122,7 +126,7 @@ export default function EditFolderModal({
                 {t('editFolder.nameOwnedBy', { owner: ownerName })}
               </p>
             )}
-            {nameError && <p className="text-sm text-error px-1" role="alert">{nameError}</p>}
+            {nameError && <p id="edit-folder-name-error" className="text-sm text-error px-1" role="alert">{nameError}</p>}
           </div>
 
           <div className="space-y-3">
@@ -138,9 +142,9 @@ export default function EditFolderModal({
             <PathRow
               path={effectivePath}
               onAction={canRelocate ? handleBrowse : undefined}
-              ariaDescribedBy="edit-folder-path-label edit-folder-path-desc"
+              ariaDescribedBy={`edit-folder-path-label edit-folder-path-desc${pathError ? ' edit-folder-path-error' : ''}`}
             />
-            {pathError && <p className="text-sm text-error px-1" role="alert">{pathError}</p>}
+            {pathError && <p id="edit-folder-path-error" className="text-sm text-error px-1" role="alert">{pathError}</p>}
           </div>
 
           <div className="pt-4">

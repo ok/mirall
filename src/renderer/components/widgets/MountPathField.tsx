@@ -14,8 +14,8 @@ export default function MountPathField({ id, label, path, error, onBrowse }: Mou
   return (
     <div className="space-y-3">
       <span id={id} className="block font-headline text-sm font-bold text-accent px-1">{label}</span>
-      <PathRow path={path} onAction={onBrowse} ariaDescribedBy={id} />
-      {error && <p role="alert" className="text-xs text-error px-1">{error}</p>}
+      <PathRow path={path} onAction={onBrowse} ariaDescribedBy={error ? `${id} ${id}-error` : id} />
+      {error && <p id={`${id}-error`} role="alert" className="text-xs text-error px-1">{error}</p>}
     </div>
   )
 }
