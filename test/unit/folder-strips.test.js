@@ -148,3 +148,15 @@ test('a faulted owner can still be working — the fault describes the last pass
   })
   t.alike(ids(strips), ['fault', 'working'])
 })
+
+// REGRESSION (A.4-D1): a paused folder whose source went missing rendered both strips, stacked —
+// "Locate folder…" above "Resume" — offering a Resume that cannot run. One state, one strip.
+test('REGRESSION (A.4-D1): a missing source outranks a pause, as a fault already does', (t) => {
+  const paused = { ...OWNER, indexing: { ...IDLE_INDEX, paused: true } }
+  t.alike(ids(deriveStrips(paused)), ['paused'], 'precondition: a plain pause still shows')
+
+  t.alike(ids(deriveStrips({ ...paused, sourceMissing: true })), ['source-missing'],
+    'the missing source is the one the user can act on')
+  t.alike(ids(deriveStrips({ ...paused, fault: { status: 'paused-error', code: 'EACCES' } })), ['fault'],
+    'and a fault still outranks it too')
+})

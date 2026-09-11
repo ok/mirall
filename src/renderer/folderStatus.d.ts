@@ -4,7 +4,7 @@ export interface FolderStatusInput {
   role: ShareRole
   sourceMissing: boolean
   fault: boolean
-  indexPaused: boolean
+  paused: boolean
   mirrorEnabled: boolean
   indexing: boolean
   mirrorSyncing: boolean

@@ -180,7 +180,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   const manualControls = share.role === 'browse'
   // Live while mounted: owned-folder:list-all (a live mountRootAvailable check) re-derives on every
   // mount-status event; the useShares projection covers SpaceView only.
-  const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, indexPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
+  const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, paused: ownedPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
   // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
@@ -192,8 +192,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   // Memoised on its inputs: deriveIndexSummary returns a fresh object every call, and an unstable
   // `indexing` would make every downstream useMemo that depends on it miss on every render.
   const indexing = useMemo(
-    () => deriveIndexSummary(indexProgress, { indexPaused, scanning }),
-    [indexProgress, indexPaused, scanning],
+    () => deriveIndexSummary(indexProgress, { paused: ownedPaused, scanning }),
+    [indexProgress, ownedPaused, scanning],
   )
   // Live read wins once loaded, including "healthy": the hook returns null for a healthy mount, so
   // `??` would resurrect the snapshot.
@@ -265,7 +265,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     role: share.role,
     sourceMissing,
     fault: !!fault,
-    indexPaused,
+    paused: ownedPaused,
     mirrorEnabled: foreignEnabled,
     indexing: indexing.active,
     // Same rule the strip applies: with the owner away nothing is being fetched, so the tile must
@@ -336,7 +336,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     else void setPaused(action === 'pause')
   }
 
-  const paused = isYou ? indexPaused : !foreignEnabled
+  const paused = isYou ? ownedPaused : !foreignEnabled
   // The same acts the header offers, reachable from the command palette while this folder is on
   // screen. Deliberately not the destructive pair: Delete and Unmount are gated on work that is
   // still running, and an Enter keypress in a search field is the wrong place to confirm either.
