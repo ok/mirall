@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Instance } from '../instance.mjs'
@@ -18,23 +17,11 @@ async function pressedZoomTiles (A) {
   return pressed
 }
 
-function storeHeldByApp (store) {
-  try {
-    execFileSync('pgrep', ['-f', `Electron.*${store}`], { stdio: 'pipe' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Editing a stopped instance's store is only safe once the app is really gone: quit() resolves on
-// the `npx electron-forge` wrapper, whose Electron child can still be shutting down, and main's
-// config store is debounced and flushed on before-quit — a flush that rewrites the WHOLE file, so
-// an early edit is silently replaced by the factor the dying app held. Wait the app out, then read
-// the edit back, so a clobber fails here by name instead of as a mystery timeout further down.
-// The wait belongs in the harness's own stop; this is local until quit() awaits the real process.
+// quit() guarantees the app has released the store before it resolves, so the edit below lands on a
+// file nobody will rewrite. Read it back anyway: main's config flush rewrites the WHOLE file, so if
+// that guarantee ever regresses the clobber fails here by name instead of as a mystery timeout
+// further down.
 async function seedPersistedZoom (A, factor) {
-  await waitFor(async () => !storeHeldByApp(A.store), 20000, 'the quit app released its store')
   const configPath = join(A.store, 'config.json')
   const config = JSON.parse(readFileSync(configPath, 'utf8'))
   config.window.zoom = factor
