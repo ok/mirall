@@ -5,6 +5,7 @@ import {
   initConvergenceTick, startConvergenceTick, resetConvergenceTick,
   convergenceHealth, restartConvergenceTick,
 } from '../../src/shared/transfer/convergence-tick.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The convergence tick is the whole level-triggered re-drive: unacked identity frames, roster
 // deficits, listing re-pokes, peer-bee capture retries and the stalled-transfer rescue. One pass
@@ -18,12 +19,12 @@ const silentLog = { debug () {}, info () {}, warn () {}, error () {} }
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function waitUntil (pred, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (pred()) return
     await delay(10)
   }
-  throw new Error('condition not met within ' + ms + 'ms')
+  throw new Error('condition not met within ' + scaled(ms) + 'ms')
 }
 
 function parkedTick (t, { tickMs = 40 } = {}) {

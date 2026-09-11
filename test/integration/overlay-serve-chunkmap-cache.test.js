@@ -7,6 +7,7 @@ import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendo
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
 import { createChunkMapCache } from '../../src/shared/transfer/chunk-map-cache.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex () {
   let aWrite, bWrite
@@ -16,7 +17,7 @@ function makeDuplex () {
   bWrite = (d) => b.push(d)
   return [a, b]
 }
-const settle = (ms = 800) => new Promise((r) => setTimeout(r, ms))
+const settle = (ms = 800) => new Promise((r) => setTimeout(r, scaled(ms)))
 const FILE_BYTES = 8 * 1024 * 1024 // tier 1: 64 KiB average chunk, so C is comfortably over 64
 
 async function publisher (label, opts = {}) {

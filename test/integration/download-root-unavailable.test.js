@@ -8,6 +8,7 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // REGRESSION (FIX-DLDIR-2: a download folder that had been deleted, ejected, or replaced by a
 // file produced no message the user could act on).
@@ -71,8 +72,8 @@ function makeJob (dir, over = {}) {
 }
 
 const errorsIn = (events) => events.filter((e) => e[0] === 'error').map((e) => e[2])
-const tick = () => new Promise((r) => setTimeout(r, 60))
-const settle = () => new Promise((r) => setTimeout(r, 400)) // past the 250ms resume coalescer
+const tick = () => new Promise((r) => setTimeout(r, scaled(60)))
+const settle = () => new Promise((r) => setTimeout(r, scaled(400))) // past the 250ms resume coalescer
 
 // Guards every assertion below. The code travels to the renderer as a bare string and is mapped
 // there by literal (errorMessages.js), so this pins the wire contract — and, less obviously, keeps

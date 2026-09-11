@@ -9,10 +9,11 @@
 //      registered tests unexecuted is a truncated run, and a truncated run fails.
 //
 // Usage: node test/flow-runner.mjs <file|dir/*.suffix> ...
-import { readdirSync, writeSync } from 'fs'
+import { writeSync } from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
+import { resolveFiles } from './helpers/test-files.mjs'
 
 const require = createRequire(import.meta.url)
 const brittle = require('brittle')
@@ -109,31 +110,6 @@ function reportAccounting () {
 process.on('uncaughtException', onFatal('uncaught exception'))
 process.on('unhandledRejection', onFatal('unhandled rejection'))
 process.on('exit', reportAccounting)
-
-// `dir/*.suffix` is the only pattern the suite uses; anything else is taken literally.
-function resolveFiles (args) {
-  const files = []
-  for (const arg of args) {
-    if (!arg.includes('*')) { files.push(arg); continue }
-    const dir = path.dirname(arg)
-    const base = path.basename(arg)
-    if (dir.includes('*') || !base.startsWith('*') || base.slice(1).includes('*')) {
-      console.error(`Error: only a trailing dir/*.suffix pattern is supported: ${arg}`)
-      process.exit(1)
-    }
-    const suffix = base.slice(1)
-    const matches = readdirSync(path.resolve(dir))
-      .filter((f) => f.endsWith(suffix))
-      .sort()
-      .map((f) => path.join(dir, f))
-    if (matches.length === 0) {
-      console.error(`Error: no files found when resolving ${arg}`)
-      process.exit(1)
-    }
-    files.push(...matches)
-  }
-  return files
-}
 
 const args = process.argv.slice(2)
 if (args.length === 0 || args.some((a) => a.startsWith('-'))) {

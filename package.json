@@ -34,7 +34,7 @@
     "test:node": "npm run test:node:core && npm run test:flow",
     "test:node:core": "brittle-node \"test/unit/*.test.js\" \"test/raw/*.test.js\"",
     "test:flow": "node test/flow-runner.mjs \"test/flow/*.test.js\"",
-    "test:bare": "brittle-bare -j 4 \"test/integration/*.test.js\"",
+    "test:bare": "node test/bare-runner.mjs \"test/integration/*.test.js\"",
     "test:unit": "brittle-node \"test/unit/*.test.js\"",
     "test:fe": "node test/frontend/run.mjs",
     "test:layout": "node test/frontend-layout/run.mjs",

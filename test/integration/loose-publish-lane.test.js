@@ -12,10 +12,11 @@ import {
 } from '../../src/shared/transfer/loose-overlay.js'
 import { getOwnEntry, advertise } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function until (fn, ms = 10000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
     await sleep(10)
@@ -65,7 +66,7 @@ function writeSource (ctx, name, contents) {
 // The point of the shared lane: a file the user drops in is INTERACTIVE and takes the express
 // lane, while the folder backfill's BULK items hold every bulk slot. Before, the two were
 // uncoordinated CPU consumers with no priority between them.
-test('a loose drop starts at once while a folder backfill holds every bulk slot', { timeout: 60000 }, async (t) => {
+test('a loose drop starts at once while a folder backfill holds every bulk slot', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 1 })
   const seeds = ['s1.bin', 's2.bin', 's3.bin', 's4.bin']
   fill(ctx.mountPath, seeds)
@@ -84,7 +85,7 @@ test('a loose drop starts at once while a folder backfill holds every bulk slot'
 })
 
 // withSpaceLock used to hold the whole hash, so three adds in one space ran one after another.
-test('three files:add in one space no longer serialize behind each other\'s hash', { timeout: 60000 }, async (t) => {
+test('three files:add in one space no longer serialize behind each other\'s hash', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   const probe = slowHash(t, 500)
   const names = ['a.txt', 'b.txt', 'c.txt']
@@ -99,7 +100,7 @@ test('three files:add in one space no longer serialize behind each other\'s hash
 
 // A cancel of an item that never started runs no executor: the admission-time source link and
 // tracking must still be dropped, or an unshared file keeps a dangling link forever.
-test('cancelling a queued loose publish leaves no entry, no link and no tracking', { timeout: 60000 }, async (t) => {
+test('cancelling a queued loose publish leaves no entry, no link and no tracking', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 1 })
   fill(ctx.mountPath, ['bulk.bin'])
   const probe = slowHash(t, 800, { only: ['bulk.bin', 'hold.txt'] })
@@ -125,7 +126,7 @@ test('cancelling a queued loose publish leaves no entry, no link and no tracking
 
 // A retire that is queued behind held slots is left to the queue: the sweep neither races it nor
 // duplicates it, and the entry goes exactly once, when the slot frees.
-test('the sweep leaves a path with a queued retire alone; the retire runs once the slot frees', { timeout: 60000 }, async (t) => {
+test('the sweep leaves a path with a queued retire alone; the retire runs once the slot frees', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 1 })
   const abs = writeSource(ctx, 'gone.txt', 'bye')
   await looseShareFile(ctx.spaceId, abs, 'gone.txt')
@@ -163,7 +164,7 @@ function caseFolds (dir) {
 // REGRESSION (FIX-LOOSE-QUEUED-CANCEL: cancelling an item that was still queued dropped the item
 // but left the null-hash placeholder a boot resume had re-enqueued, so the first cancel click was
 // a no-op and the row stayed "Adding".)
-test('REGRESSION (FIX-LOOSE-QUEUED-CANCEL): cancelling a queued boot resume reverts its placeholder', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-QUEUED-CANCEL): cancelling a queued boot resume reverts its placeholder', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 1 })
   const abs = writeSource(ctx, 'big.bin', 'b'.repeat(4096))
   const st = fs.statSync(abs)
@@ -191,7 +192,7 @@ test('REGRESSION (FIX-LOOSE-QUEUED-CANCEL): cancelling a queued boot resume reve
 // REGRESSION (FIX-LOOSE-CANCEL-READD: a cancelled executor's cleanup deleted the source link a
 // re-add of the same file had just written, the rerun resolved no path, and files:add returned
 // ok with nothing shared.)
-test('REGRESSION (FIX-LOOSE-CANCEL-READD): re-adding a file while its cancelled hash unwinds shares it', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-CANCEL-READD): re-adding a file while its cancelled hash unwinds shares it', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   const abs = writeSource(ctx, 'again.bin', 'a'.repeat(4096))
   const probe = slowHash(t, 700)
@@ -208,7 +209,7 @@ test('REGRESSION (FIX-LOOSE-CANCEL-READD): re-adding a file while its cancelled 
 
 // REGRESSION (FIX-LOOSE-UNSHARE-RACE: the unshare cancelled before taking the lock, so an add
 // admitted under the lock ran concurrently with the tombstone: an entry with its link deleted.)
-test('REGRESSION (FIX-LOOSE-UNSHARE-RACE): an add racing an unshare leaves a consistent state', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-UNSHARE-RACE): an add racing an unshare leaves a consistent state', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   slowHash(t, 200)
   for (let i = 0; i < 4; i++) {
@@ -226,7 +227,7 @@ test('REGRESSION (FIX-LOOSE-UNSHARE-RACE): an add racing an unshare leaves a con
 // REGRESSION (FIX-LOOSE-CASE-RENAME: an exact-name presence check retired a loose share whose
 // source was only renamed by case; a loose file's identity is its recorded path, which the
 // volume still resolves.)
-test('REGRESSION (FIX-LOOSE-CASE-RENAME): a case-only rename keeps a loose share', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-CASE-RENAME): a case-only rename keeps a loose share', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   const dir = ctx.tmpDir('src')
   if (!caseFolds(dir)) { t.comment('case-sensitive volume — scenario not applicable'); t.pass(); return }
@@ -244,7 +245,7 @@ test('REGRESSION (FIX-LOOSE-CASE-RENAME): a case-only rename keeps a loose share
 // REGRESSION (FIX-LOOSE-UNSHARE-TAIL: the wait for a cancelled hash was a silent 5 s deadline;
 // past it the unshare tombstoned while the executor was still running, and its later revert
 // resurrected the entry. The unshare now waits for the executor's exit event.)
-test('REGRESSION (FIX-LOOSE-UNSHARE-TAIL): an unshare during a slow hash waits for the executor', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-UNSHARE-TAIL): an unshare during a slow hash waits for the executor', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   const abs = writeSource(ctx, 'slow.bin', 's'.repeat(4096))
   slowHash(t, 10)
@@ -265,7 +266,7 @@ test('REGRESSION (FIX-LOOSE-UNSHARE-TAIL): an unshare during a slow hash waits f
 
 // REGRESSION (FIX-LOOSE-LINK-HEAL: a watcher change no longer re-recorded the source link, so a
 // link lost to an earlier fault left every later change publishing nothing.)
-test('REGRESSION (FIX-LOOSE-LINK-HEAL): a watcher change re-records a lost source link', { timeout: 60000 }, async (t) => {
+test('REGRESSION (FIX-LOOSE-LINK-HEAL): a watcher change re-records a lost source link', { timeout: scaled(60000) }, async (t) => {
   const ctx = await setup(t, { concurrency: 2 })
   const abs = writeSource(ctx, 'heal.txt', 'v1')
   slowHash(t, 10)

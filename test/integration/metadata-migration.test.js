@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore, getStore, setMasterSecret, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import { migrateLocalBeesToEncrypted } from '../../src/shared/storage/metadata-migration.js'
 
 function tmp (label) {
@@ -31,7 +31,7 @@ test('REGRESSION (MIR-40): legacy plaintext bee migrates to encrypted, entries p
   const root = tmp('migrate')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
   const legacy = createBee('spaces-meta')
@@ -61,7 +61,7 @@ test('REGRESSION (MIR-40): migration is idempotent', async (t) => {
   const root = tmp('idem')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
   const legacy = createBee('downloads-meta')
   await legacy.put('x:y', { downloadedAt: 1 })
@@ -86,7 +86,7 @@ test('REGRESSION (MIR-40): fresh install writes the marker and migrates nothing'
   const root = tmp('fresh')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
   t.absent(await migrateLocalBeesToEncrypted(), 'nothing migrated on a fresh store')
@@ -104,7 +104,7 @@ test('REGRESSION (MIR-40): no M → migration is a no-op, leaves no marker', asy
   const root = tmp('nokey')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(null)
 
   t.absent(await migrateLocalBeesToEncrypted(), 'no-op without a master secret')
@@ -118,7 +118,7 @@ test('REGRESSION (MIR-40): an existing install leaves no plaintext metadata core
   const root = tmp('nolinger')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
   const legacy = createBee('spaces-meta')
@@ -142,7 +142,7 @@ test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idemp
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   const sp = path.join(root, 'app-storage')
-  initStore(sp)
+  await openStore(sp)
   setMasterSecret(M)
   const legacy = createBee('mounts-meta')
   await legacy.put('owned-folder-mount/a', { path: '/x' })
@@ -154,7 +154,7 @@ test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idemp
   await getStore().close()
 
   // reboot (fresh corestore) before the re-run, as production would
-  initStore(sp)
+  await openStore(sp)
   setMasterSecret(M)
   t.absent(await migrateLocalBeesToEncrypted(), 'second boot migrates nothing (legacy already purged)')
 
@@ -172,7 +172,7 @@ test('REGRESSION (MIR-40): a marker-write failure does not crash boot and is ret
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   const sp = path.join(root, 'app-storage')
-  initStore(sp)
+  await openStore(sp)
   setMasterSecret(M)
   const legacy = createBee('spaces-meta')
   await legacy.put('space/a', { name: 'Alpha' })
@@ -190,7 +190,7 @@ test('REGRESSION (MIR-40): a marker-write failure does not crash boot and is ret
   // Unblock and reboot (fresh process = fresh corestore) — the next boot retries.
   fs.rmSync(marker + '.tmp', { recursive: true, force: true })
   await getStore().close()
-  initStore(sp)
+  await openStore(sp)
   setMasterSecret(M)
 
   t.absent(await migrateLocalBeesToEncrypted(), 'retry migrates nothing new (legacy already purged)')

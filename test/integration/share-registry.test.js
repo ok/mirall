@@ -10,6 +10,7 @@ import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { mountRootAvailable } from '../../src/shared/folders/publish-runner.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 function share (name) {
   return { id: generateShareId(), type: 'owned-folder', name, owner: getLocalPublicKeyHex(), createdAt: Date.now() }
@@ -43,7 +44,7 @@ test('listSharesForSpace returns own live shares, tagged, and omits tombstones',
 // share:list reads under the SHORT interactiveReadTimeoutMs, NOT peerReadTimeoutMs:
 // the large peerReadTimeoutMs below proves the interactive budget is what bounds it
 // (a revert to the peer budget would block ~30s and trip the test timeout).
-test('REGRESSION (FIX-20): listSharesForSpace skips an unreachable member instead of hanging', { timeout: 15000 }, async (t) => {
+test('REGRESSION (FIX-20): listSharesForSpace skips an unreachable member instead of hanging', { timeout: scaled(15000) }, async (t) => {
   await freshPeer(t)
   // Shrink the INTERACTIVE budget (the one that governs share:list) to ~300ms, and pin
   // peerReadTimeoutMs high so a regression that reverts to it can't pass on timing.

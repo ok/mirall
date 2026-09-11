@@ -213,7 +213,7 @@ sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary 
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `initStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
+All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
 
 Every bee below uses **utf-8 keys, JSON values**.
 
@@ -1490,7 +1490,7 @@ Structure only:
 | Layer | Dir | Runner | Scope |
 |---|---|---|---|
 | **Unit** | `test/unit/` | `brittle-node` | Pure logic, no I/O: `path-keys`, validators, invite/ipc/share encoders, `echo-guard` TTL, ignore-matchers, runtime-config |
-| **Integration** | `test/integration/` | `brittle-bare -j 4` (Bare) | Single-peer data layer against real `corestore`/`hyperdrive`/`hyperbee`, **no mocks**: owned-folder publish/reconcile, foreign-mirror materialize, mount validation, share registry, transfers, cleanup-orphans, the membership fold and its bounds, leave tombstone durability, observed-leave revoke, member-view supervision |
+| **Integration** | `test/integration/` | `test/bare-runner.mjs` — one `brittle-bare` process per file (Bare) | Single-peer data layer against real `corestore`/`hyperdrive`/`hyperbee`, **no mocks**: owned-folder publish/reconcile, foreign-mirror materialize, mount validation, share registry, transfers, cleanup-orphans, the membership fold and its bounds, leave tombstone durability, observed-leave revoke, member-view supervision |
 | **Flow** | `test/flow/` | `test/flow-runner.mjs` (brittle) orchestrating **real worker subprocesses** over a hermetic `hyperdht` testnet | End-to-end P2P: membership convergence, transfers, owned-folder replication, foreign-mirror, move/copy/delete, leave/reconcile, offline behaviour, multi-peer (3–4) |
 | **Raw (holepunch)** | `test/raw/` | `brittle-node` | Primitive guarantees of the deps themselves (Hyperdrive replication/deletes/blob streaming, Hyperbee mutations, Corestore namespacing) — **no Mirall code**. A trust-but-verify layer |
 | **Frontend (UI)** | `test/frontend/scenarios/` | `node test/frontend/run.mjs` driving the **real Electron app** via `agent-desktop` (macOS AX tree) | User-facing flows incl. owner-side filesystem operations — **the only layer exercising the real chokidar → publish → replicate → materialize path.** Local-only |

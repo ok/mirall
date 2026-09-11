@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
-import { initStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
+import { openStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import {
   initAuditLog, record, flushAudit, queryAudit, auditSpaces, auditActors,
   auditStats, getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
@@ -21,7 +21,7 @@ function tmpDir (label) {
 async function boot (t, { identity = true } = {}) {
   const storage = tmpDir('store')
   t.teardown(() => { try { fs.rmSync(storage, { recursive: true, force: true }) } catch {} })
-  initStore(storage)
+  await openStore(storage)
   setMasterSecret(identity ? crypto.randomBytes(32) : null)
   await initAuditLog({ installId: 'install-under-test' })
   await setAuditConfig({ enabled: true, retentionDays: 90, maxEntries: 200000 })
@@ -359,7 +359,7 @@ test('config and the seq allocator are recovered from disk, not from memory', as
   for (let i = 0; i < 3; i++) member('member.joined', 'sp1', 'Design Team', 'p' + i)
   await flushAudit()
 
-  // Re-init against the same (still-open) store: a second initStore would take a second
+  // Re-init against the same (still-open) store: a second openStore would take a second
   // RocksDB lock. This still exercises the boot path — config is re-read and nextSeq is
   // recomputed from the highest stored row rather than carried in memory.
   await initAuditLog({ installId: 'install-under-test' })

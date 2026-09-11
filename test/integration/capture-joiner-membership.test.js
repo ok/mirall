@@ -2,11 +2,12 @@ import test from 'brittle'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore } from '../../src/shared/core/store.js'
+import { openStore } from '../../src/shared/core/store.js'
 import {
   initProfile, setProfile, getLocalPublicKeyHex,
   markOwnMembership, captureJoinerMembership,
 } from '../../src/shared/spaces/profile.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // captureJoinerMembership is the offline-co-member-approval convergence fix: at approval time the
 // approver downloads a COMPLETE copy of the joiner's profile core while the joiner is still
@@ -24,7 +25,7 @@ function tmp (label) {
 
 test('captureJoinerMembership: disabled / complete-copy / unreachable — bounded and never throws', async (t) => {
   const root = tmp('store')
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   await initProfile()
   await setProfile({ displayName: 'Self', avatar: null })
   await markOwnMembership('spaceabc00000000')
@@ -36,7 +37,7 @@ test('captureJoinerMembership: disabled / complete-copy / unreachable — bounde
   // timeoutMs <= 0 disables the capture entirely (the kill-switch), returning fast without store work.
   const t0 = Date.now()
   t.is(await captureJoinerMembership(self, S, { timeoutMs: 0 }), false, 'timeoutMs:0 disables capture')
-  t.ok(Date.now() - t0 < 50, 'disabled path returns immediately')
+  t.ok(Date.now() - t0 < scaled(50), 'disabled path returns immediately')
 
   // Our own profile core is fully present locally → we already hold a complete copy → true (fast).
   t.is(await captureJoinerMembership(self, S, { timeoutMs: 3000, intervalMs: 25 }), true,

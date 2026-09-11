@@ -1,0 +1,5 @@
+{
+  "_comment": "Pass-on-retry budget for one bare (integration) CI run, graded by the same ledger as the flow suite. maxTotal is the gate: the aggregate only goes down. perFile names the files known to flake, each with a max and a reason, so a repeat offender cannot hide inside the aggregate; a file not listed is reported by name in the run summary as a candidate for the table. The bare suite runs one PROCESS per file, so a retry here re-runs a whole file and every flake is attributable by file name.",
+  "maxTotal": 1,
+  "perFile": {}
+}

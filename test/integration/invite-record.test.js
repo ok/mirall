@@ -2,7 +2,7 @@ import test from 'brittle'
 import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { initStore } from '../../src/shared/core/store.js'
+import { openStore } from '../../src/shared/core/store.js'
 import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
 import {
   markInvite, readOwnInvite, revokeInvite, listOwnInvites, sweepExpiredInvites,
@@ -23,7 +23,7 @@ const S = 'spaceabc00000000'
 
 async function bootstrap (t) {
   const root = tmp('store')
-  initStore(path.join(root, 'app-storage'))
+  await openStore(path.join(root, 'app-storage'))
   await initProfile()
   await setProfile({ displayName: 'Self', avatar: null })
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })

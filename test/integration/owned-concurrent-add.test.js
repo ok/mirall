@@ -3,9 +3,10 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent, initialPublishScan, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 async function waitUntil (fn, ms = 6000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (await fn()) return true
     await new Promise((r) => setTimeout(r, 100))

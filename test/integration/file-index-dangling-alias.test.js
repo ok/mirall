@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { getStore, initStore } from '../../src/shared/core/store.js'
+import { getStore, openStore } from '../../src/shared/core/store.js'
 import { purgeCoreDk } from '../../src/shared/spaces/space.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 
@@ -25,7 +25,7 @@ test('FileIndex recovers from a dangling index alias by advancing the version', 
 
   // Simulate a real boot — reopen the store so nothing is cached in memory.
   await getStore().close()
-  initStore(ctx.storage)
+  await openStore(ctx.storage)
   await getStore().ready()
 
   const fi2 = new FileIndex(getStore().namespace('recover-fi'))

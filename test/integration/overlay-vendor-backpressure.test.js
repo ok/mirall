@@ -2,6 +2,7 @@ import test from 'brittle'
 import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
 import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // chunkData, mirall/handshake, and the Corestore replication that carries a peer's
 // freshly shared folder all multiplex over ONE Noise stream. The seeder must stop
@@ -414,7 +415,7 @@ test('REGRESSION (FIX-BW10): a serve loop abandons a stream that stops transmitt
 
   t.is(sent.length, 1, 'one chunk went out, then it parked')
   t.ok(took >= 100, 'it waited a no-progress window')
-  t.ok(took < 2000, `then gave up rather than hanging (${took}ms)`)
+  t.ok(took < scaled(2000), `then gave up rather than hanging (${took}ms)`)
 })
 
 test('FIX-BW10: with no TX counter the wait falls back to a flat flush budget', async (t) => {

@@ -6,6 +6,7 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // REGRESSION (FIX-3): re-publishing a source is TWO catalog appends — advertise(contentHash:null)
 // → hash the source → setMaterializedHash. The receiver's reconcile read that null-hash window as
@@ -61,7 +62,7 @@ function makeJob (ctx, over = {}) {
   }
 }
 
-const tick = (ms = 60) => new Promise((r) => setTimeout(r, ms))
+const tick = (ms = 60) => new Promise((r) => setTimeout(r, scaled(ms)))
 const settleTick = () => tick(400) // the reconcile coalescer window (250ms) + sweep
 
 test('releaseForRepublish parks the transfer — no error, row kept, partial discarded', async (t) => {

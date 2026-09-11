@@ -8,6 +8,7 @@ import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
 import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // Phase 2: a forge serves hyper-tps' large files (NOT stored in git) by content
 // hash over hyper-overlay — the deliberate "no hyperblobs" design. The canonical
@@ -28,7 +29,7 @@ function makeDuplex () {
   return [a, b]
 }
 
-const settle = (ms = 400) => new Promise(r => setTimeout(r, ms))
+const settle = (ms = 400) => new Promise(r => setTimeout(r, scaled(ms)))
 
 test('RESTART DURABILITY: a cold publisher serves by content hash from the content-addressed spool', async (t) => {
   const spool = tmpDir('ov2-rd-spool')

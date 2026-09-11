@@ -5,6 +5,7 @@ import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getLocalPublicKeyHex, markOwnMembership, markApproval } from '../../src/shared/spaces/profile.js'
 import { createMemberView } from '../../src/shared/spaces/member-view.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // The member fold's watch ranges ARE its convergence guarantee, and a wrong one is silent: the view
 // is correct at fold time and then simply never re-folds. So this file is written as a closed
@@ -29,12 +30,11 @@ function countReadsOf (t, keyHex) {
   return state
 }
 
-// deriveDebounceMs is 150; this leaves room for the debounced fold's reads to land. No scaled():
-// test/helpers/timing.js reads process.env, which Bare does not provide.
+// deriveDebounceMs is 150; this leaves room for the debounced fold's reads to land.
 const SETTLE_MS = 600
 
 // Quiet for a full settle window is what "did not wake" means; there is no negative event to await.
-const settle = () => new Promise((r) => setTimeout(r, SETTLE_MS))
+const settle = () => new Promise((r) => setTimeout(r, scaled(SETTLE_MS)))
 
 async function foldedRoster (t, spaceId) {
   await freshPeer(t)

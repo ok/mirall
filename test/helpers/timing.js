@@ -2,6 +2,8 @@
 // runner is far slower than a dev box, so MIRALL_TEST_TIMEOUT_SCALE scales every
 // poll/test timeout from one place. Helpers scale the `ms` they receive, so call
 // sites pass base values; only brittle's per-test `{ timeout }` needs scaled().
+// Node runtimes only (flow, unit, raw) — test/integration runs under Bare and reads the same
+// variable through bare-timing.js, which is the only reason there are two of these.
 const raw = Number(process.env.MIRALL_TEST_TIMEOUT_SCALE)
 export const TIMEOUT_SCALE = Number.isFinite(raw) && raw > 0 ? raw : 1
 export const TIMING = !!process.env.MIRALL_TEST_TIMING

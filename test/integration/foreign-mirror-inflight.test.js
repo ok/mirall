@@ -8,6 +8,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { runMaterializeTick, initialMaterializeScan, stopForeignLoop } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // runMaterializeTick serialises passes per mount through one in-flight map. Whoever cleans that
 // entry up must check it still owns it: initialMaterializeScan registers unconditionally, so the
@@ -16,12 +17,12 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function waitUntil (pred, ms = 5000) {
-  const deadline = Date.now() + ms
+  const deadline = Date.now() + scaled(ms)
   while (Date.now() < deadline) {
     if (pred()) return
     await delay(20)
   }
-  throw new Error('condition not met within ' + ms + 'ms')
+  throw new Error('condition not met within ' + scaled(ms) + 'ms')
 }
 
 async function hangingMirror (t) {

@@ -37,11 +37,18 @@ export function evaluateLedger (reports, budget) {
   return { ok: !overTotal && over.length === 0, total, maxTotal: budget.maxTotal, flaked, unbudgeted, over, overTotal }
 }
 
-export function describeLedger (verdict) {
-  const lines = [`Flow flakes this run: ${verdict.total} (budget ${verdict.maxTotal})`]
+// The suite's name comes from its budget file, so the two can never disagree about which suite a
+// verdict belongs to: test/<suite>-flake-budget.json.
+export function suiteOf (budgetPath) {
+  return path.basename(budgetPath).replace('-flake-budget.json', '')
+}
+
+export function describeLedger (verdict, budgetPath) {
+  const suite = suiteOf(budgetPath)
+  const lines = [`${suite} flakes this run: ${verdict.total} (budget ${verdict.maxTotal})`]
   for (const f of verdict.flaked) lines.push(`  shard ${f.shard}: ${f.file} passed on attempt ${f.attempts}`)
   if (verdict.overTotal) lines.push(`FAIL: ${verdict.total} pass-on-retry exceeds the budget of ${verdict.maxTotal}`)
-  for (const file of verdict.unbudgeted) lines.push(`NEW: ${file} flaked and is not named in test/flow-flake-budget.json`)
+  for (const file of verdict.unbudgeted) lines.push(`NEW: ${file} flaked and is not named in ${budgetPath}`)
   for (const line of verdict.over) lines.push(`FAIL: ${line}`)
   if (verdict.ok && verdict.total === 0) lines.push('No retries. The suite passed on first attempt everywhere.')
   return lines.join('\n')
@@ -57,11 +64,11 @@ if (process.argv[1] && process.argv[1].endsWith('flake-ledger.mjs')) {
   const [dir = 'flake-reports', budgetPath = 'test/flow-flake-budget.json'] = process.argv.slice(2)
   const reports = readReports(dir)
   const verdict = evaluateLedger(reports, JSON.parse(readFileSync(budgetPath, 'utf8')))
-  const text = describeLedger(verdict)
+  const text = describeLedger(verdict, budgetPath)
   console.log(text)
   if (process.env.GITHUB_STEP_SUMMARY) {
     const { appendFileSync } = await import('fs')
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Flow flake ledger\n\n\`\`\`\n${text}\n\`\`\`\n`)
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${suiteOf(budgetPath)} flake ledger\n\n\`\`\`\n${text}\n\`\`\`\n`)
   }
   if (!verdict.ok) process.exit(1)
 }

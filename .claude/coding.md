@@ -310,7 +310,7 @@ A change is not done until all of these hold.
 - [ ] `**bash scripts/check-comment-hygiene.sh**` exits 0.
 - [ ] `**npm run test:unit**` and, for data-layer changes, `**npm run test:bare**` green.
 
-  (`test:bare` flakes one random test per run — re-run once before believing a red.)
+  (`test:bare` names the file that failed — re-run that one file, `node test/bare-runner.mjs <file>`, not the suite.)
 - [ ] **UI changes:** `npm run test:fe` run locally and green (CI cannot drive the AX tree), plus the
 
   a11y spot-check — keyboard, focus-visible, accessible name/role/state, `prefers-reduced-motion`.

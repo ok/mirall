@@ -14,6 +14,7 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 // listFiles is the source of truth for the space's loose-file list and each
 // file's status. The single-peer-observable guarantees: own files show as
@@ -138,7 +139,7 @@ async function ghostCatalogMember (i) {
 // the list self-heals via event:files-updated once a peer's catalog lands. The fixture carries a
 // looseCatalogKey because collectLooseInPlace filters members without one BEFORE any read: a
 // keyless ghost is never read, which made the original version of this test vacuous.
-test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short interactive budget, in parallel', { timeout: 15000 }, async (t) => {
+test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short interactive budget, in parallel', { timeout: scaled(15000) }, async (t) => {
   const ctx = await setup(t)
   // The short interactive budget governs the list; peerReadTimeoutMs pinned high so a revert to
   // it (or to serial reads) blows the timing assertion below.
@@ -169,7 +170,7 @@ test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short
 // now fan out at once, like share:list, so the listing costs ≈ one budget however many members
 // are unreachable; the rows we can read still surface and the space is flagged for the
 // convergence re-poke.)
-test('REGRESSION (FIX-LIST-DEADLINE): six unreachable members cost one budget, not six', { timeout: 20000 }, async (t) => {
+test('REGRESSION (FIX-LIST-DEADLINE): six unreachable members cost one budget, not six', { timeout: scaled(20000) }, async (t) => {
   const ctx = await setup(t)
   const BUDGET = 300
   setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: 30000, interactiveReadTimeoutMs: BUDGET })

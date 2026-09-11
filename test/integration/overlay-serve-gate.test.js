@@ -9,6 +9,7 @@ import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
 import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
 import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex () {
   let aWrite, bWrite
@@ -19,7 +20,7 @@ function makeDuplex () {
   return [a, b]
 }
 
-const settle = (ms = 400) => new Promise(r => setTimeout(r, ms))
+const settle = (ms = 400) => new Promise(r => setTimeout(r, scaled(ms)))
 const MEMBER = 'a'.repeat(64)
 const STRANGER = 'b'.repeat(64)
 
