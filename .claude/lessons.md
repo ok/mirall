@@ -36,6 +36,8 @@ Compact, actionable rules distilled from real debugging — gotchas, root causes
 
 ## Testing tactics
 
+**`brittle-bare -j N` is threads in one process, not a process per file.** One fd table, one lock namespace and one heap for the whole suite: a single file's unhandled rejection aborts every other file's results with it, whole-process fd or memory deltas measure the neighbours as much as the subject, and unrelated timing budgets fail under the contention. Measure a resource delta from the module's own accounting, never from `/proc/self/fd`; run the suite with `test/bare-runner.mjs` (one process per file), which is what makes a death attributable to the file it happened in.
+
 **`launchPeer` on a relaunch re-sends every handshake twice and doubles the announce backoff.** It calls `profile:set` after boot, which runs `broadcastProfileUpdate` on top of `onopen` and increments the announce ledger's `attempts`, so a relaunched peer's exchange is `2K + 8` frames and its first ledger retry is 20 s out, not 10. Account for it when a flow test's frame count or timing budget depends on the reconnect burst.
 
 **A regression test whose fixture no longer reaches the guarded path passes vacuously.** When a data path moves (profile-bee share prefixes to per-owner catalog keys), the old fixture is filtered out before the code under test runs — the tell is a timing assertion that is green on both sides of a revert. Assert the fixture was ADMITTED (a side effect of the read, a call count, a deficit marker) before asserting the bound.

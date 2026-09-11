@@ -95,7 +95,7 @@ jobs:
   # immediate shard red and can never be mistaken for a budget overrun.
   flake-ledger:
     runs-on: ubuntu-latest
-    needs: flow
+    needs: [flow, bare]
     if: always()
     steps:
       - uses: actions/checkout@v7
@@ -106,15 +106,36 @@ jobs:
         continue-on-error: true
         with:
           pattern: flake-report-*
-          path: flake-reports
+          path: flake-reports-flow
           merge-multiple: true
-      - name: Flake budget
-        run: node scripts/flake-ledger.mjs flake-reports test/flow-flake-budget.json
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: bare-flake-report-*
+          path: flake-reports-bare
+          merge-multiple: true
+      - name: Flow flake budget
+        run: node scripts/flake-ledger.mjs flake-reports-flow test/flow-flake-budget.json
+      # Its own step, and after the flow one: each suite's budget is its own ratchet, and a red here
+      # has to say which suite spent it.
+      - name: Bare flake budget
+        if: always()
+        run: node scripts/flake-ledger.mjs flake-reports-bare test/bare-flake-budget.json
 
-  # Tier 2/3 in-process tests of the real bare-* modules. brittle-bare shells
-  # out to a `bare` binary on PATH (provided by the bare-runtime devDep).
+  # Tier 2/3 in-process tests of the real bare-* modules, run by test/bare-runner.mjs as one bare
+  # PROCESS per file: brittle's own -j is threads inside one process, where a single file's
+  # unhandled rejection aborts the whole run before any summary is printed, so the log names no
+  # file and no test. Sharded so a hard failure fails one shard; scaled and retried like the flow
+  # job, whose three defences this job now has. brittle-bare shells out to a `bare` binary on PATH
+  # (provided by the bare-runtime devDep).
   bare:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      MIRALL_TEST_TIMEOUT_SCALE: '3'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -131,5 +152,19 @@ jobs:
             ln -sf ../bare-runtime/bin/bare node_modules/.bin/bare
           fi
           node_modules/.bin/bare --version
-      - name: Tests (bare runner)
-        run: npm run test:bare
+      - name: Integration tests (shard ${{ matrix.shard }}/4)
+        # --jobs 2 is the runner's vCPU count: four concurrent processes on a 2-vCPU runner is the
+        # contention that made the timing budgets fail in the first place.
+        run: |
+          files="$(node test/bare-shard.mjs ${{ matrix.shard }} 4)"
+          echo "Shard ${{ matrix.shard }}/4:"; echo "$files" | tr ' ' '\n'
+          node test/bare-runner.mjs --jobs 2 --retries 1 \
+            --report flake-report/flake-${{ matrix.shard }}.json \
+            --shard-label ${{ matrix.shard }} $files
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bare-flake-report-${{ matrix.shard }}
+          path: flake-report
+          if-no-files-found: ignore

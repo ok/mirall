@@ -2,10 +2,10 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { evaluateLedger, describeLedger } from '../../scripts/flake-ledger.mjs'
+import { evaluateLedger, describeLedger, suiteOf } from '../../scripts/flake-ledger.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const budgetPath = path.join(here, '..', 'flow-flake-budget.json')
+const budgetPaths = ['flow-flake-budget.json', 'bare-flake-budget.json'].map((f) => path.join(here, '..', f))
 const shard = (n, files) => ({ shard: n, files })
 
 // A pass-on-retry used to leave a `::warning` and nothing else. An annotation is not a measurement:
@@ -29,7 +29,8 @@ test('the flake ledger fails a run that exceeds its budget', (t) => {
   ], budget)
   t.absent(two.ok, 'two flakes in one run exceed a budget of one')
   t.ok(two.overTotal, 'and the aggregate is what failed')
-  t.ok(describeLedger(two).includes('FAIL: 2 pass-on-retry exceeds'), 'the summary says which rule failed')
+  t.ok(describeLedger(two, 'test/flow-flake-budget.json').includes('FAIL: 2 pass-on-retry exceeds'),
+    'the summary says which rule failed')
 
   // A hard failure is the shard job's business, never the ledger's: the two must not be
   // confusable, or a broken change reads as a flaky suite.
@@ -48,14 +49,18 @@ test('the flake ledger fails a run that exceeds its budget', (t) => {
   t.alike(repeat.over, ['test/flow/a.test.js flaked 2x, budget 1'], 'and the ledger names it')
 })
 
-// The committed budget is the ratchet. A number nobody can read the reason for is a snapshot.
-test('the committed flake budget is well formed', (t) => {
-  const budget = JSON.parse(readFileSync(budgetPath, 'utf8'))
-  t.is(typeof budget.maxTotal, 'number', 'the aggregate ceiling is a number')
-  t.ok(budget.maxTotal >= 0, 'and not negative')
-  t.ok(budget._comment.length > 100, 'the file explains what the numbers mean and which way they move')
-  for (const [file, entry] of Object.entries(budget.perFile)) {
-    t.is(typeof entry.max, 'number', `${file} caps its flakes`)
-    t.ok(typeof entry.why === 'string' && entry.why.length > 20, `${file} says why it is listed`)
+// The committed budgets are the ratchet — one per suite that retries. A number nobody can read the
+// reason for is a snapshot.
+test('every committed flake budget is well formed', (t) => {
+  for (const budgetPath of budgetPaths) {
+    const suite = suiteOf(budgetPath)
+    const budget = JSON.parse(readFileSync(budgetPath, 'utf8'))
+    t.is(typeof budget.maxTotal, 'number', `${suite}: the aggregate ceiling is a number`)
+    t.ok(budget.maxTotal >= 0, `${suite}: and not negative`)
+    t.ok(budget._comment.length > 100, `${suite}: the file explains what the numbers mean and which way they move`)
+    for (const [file, entry] of Object.entries(budget.perFile)) {
+      t.is(typeof entry.max, 'number', `${file} caps its flakes`)
+      t.ok(typeof entry.why === 'string' && entry.why.length > 20, `${file} says why it is listed`)
+    }
   }
 })
