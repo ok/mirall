@@ -10,7 +10,8 @@ import path from 'bare-path'
 import { record } from '../audit/audit-log.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
-import { ACTOR_TYPE, OUTCOME } from '../contract/audit-kinds.js'
+import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
+import { selfActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
 const log = createLogger('transfer-audit')
 
@@ -33,9 +34,9 @@ export function recordTransferOutcome(job, outcome, errorCode) {
   const fileName = path.basename(job.relPath || job.path || '')
   const write = getSpace(job.spaceId).then((space) => {
     record(kindFor(outcome, errorCode), {
-      actor: { type: ACTOR_TYPE.SELF },
-      space: { id: job.spaceId, name: space?.name ?? null },
-      target: { kind: 'file', id: job.path ?? null, name: fileName || null },
+      actor: selfActor(),
+      space: spaceRef(job.spaceId, space?.name ?? null),
+      target: targetRef(TARGET_KIND.FILE, job.path ?? null, fileName || null),
       // `folder` is null for a loose file and is what lets the viewer name the folder without a
       // join — a row outlives its share.
       subject: {

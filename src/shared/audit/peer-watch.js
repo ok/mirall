@@ -14,7 +14,8 @@ import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record, getSeenVersion, setSeenVersion, getPeerSubjectState, setPeerSubjectState } from './audit-log.js'
 import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey } from './peer-observer.js'
-import { ACTOR_TYPE } from '../contract/audit-kinds.js'
+import { TARGET_KIND } from '../contract/audit-kinds.js'
+import { peerActor, spaceRef, targetRef } from './audit-record.js'
 
 const log = createLogger('peer-watch')
 
@@ -81,16 +82,16 @@ async function applyProfileChange(peerKey, change) {
   const space = await getSpace(change.spaceId)
   // Not a space we are in — their records for it are none of our business.
   if (!space || space.leaving) return
-  const actor = { type: ACTOR_TYPE.PEER, key: peerKey, name: peerName(space, peerKey) }
-  const spaceRef = { id: space.spaceId, name: space.name ?? null }
+  const actor = peerActor(peerKey, peerName(space, peerKey))
+  const ref = spaceRef(space.spaceId, space.name)
 
   if (change.kind === 'share') {
     const commit = await transitioned('share', peerKey, change.spaceId, change.shareId, change.removed)
     if (!commit) return
     const written = record(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
       actor,
-      space: spaceRef,
-      target: { kind: 'share', id: change.shareId, name: change.name },
+      space: ref,
+      target: targetRef(TARGET_KIND.SHARE, change.shareId, change.name),
     })
     if (written) await commit()
     return
@@ -103,8 +104,8 @@ async function applyProfileChange(peerKey, change) {
   const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
   const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
-    space: spaceRef,
-    target: { kind: 'share', id: change.shareId, name: own?.name ?? null },
+    space: ref,
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, own?.name ?? null),
   })
   if (written) await commit()
 }
@@ -117,9 +118,9 @@ async function applyCatalogChange(peerKey, spaceId, change) {
   const commit = await transitioned('file', peerKey, spaceId, change.relPath, change.removed)
   if (!commit) return
   const written = record(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
-    actor: { type: ACTOR_TYPE.PEER, key: peerKey, name: peerName(space, peerKey) },
-    space: { id: space.spaceId, name: space.name ?? null },
-    target: { kind: 'file', id: change.relPath, name: change.relPath },
+    actor: peerActor(peerKey, peerName(space, peerKey)),
+    space: spaceRef(space.spaceId, space.name),
+    target: targetRef(TARGET_KIND.FILE, change.relPath, change.relPath),
   })
   if (written) await commit()
 }

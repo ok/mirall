@@ -22,7 +22,8 @@ import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits
 import { createBandwidthLimiter } from '../../bandwidth-limiter.js'
 import { createChunkMapCache } from '../../chunk-map-cache.js'
 import { createLogger } from '../../../core/logger.js'
-import { ACTOR_TYPE, OUTCOME } from '../../../contract/audit-kinds.js'
+import { OUTCOME, TARGET_KIND } from '../../../contract/audit-kinds.js'
+import { peerActor, targetRef } from '../../../audit/audit-record.js'
 
 const log = createLogger('overlay')
 
@@ -195,13 +196,9 @@ function recordServeDenial(reason, { from, contentHash }) {
   const relPath = refs[0]?.relPath || null
   Promise.resolve(spaceId ? getSpace(spaceId) : null).then((space) => {
     record('security.serve_denied', {
-      actor: {
-        type: ACTOR_TYPE.PEER,
-        key: from || null,
-        name: (space?.members || []).find((m) => m.publicKey === from)?.displayName || null,
-      },
+      actor: peerActor(from || null, (space?.members || []).find((m) => m.publicKey === from)?.displayName || null),
       space: space ? { id: space.spaceId, name: space.name ?? null } : null,
-      target: { kind: 'file', id: contentHash || null, name: relPath ? relPath.split('/').pop() : null },
+      target: targetRef(TARGET_KIND.FILE, contentHash || null, relPath ? relPath.split('/').pop() : null),
       subject: { reason, requester: from ? from.slice(0, 12) : null },
       outcome: OUTCOME.DENIED,
     })

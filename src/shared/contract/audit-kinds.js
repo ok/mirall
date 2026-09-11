@@ -102,10 +102,22 @@ export const OUTCOME = Object.freeze({ OK: 'ok', DENIED: 'denied', ERROR: 'error
 // own. The renderer picks the sentence, the avatar and the name snapshot from it.
 export const ACTOR_TYPE = Object.freeze({ SELF: 'self', PEER: 'peer', SYSTEM: 'system' })
 
+// What a row points AT, as distinct from whom it attributes the act to. Closed like the kinds and
+// the outcomes: the viewer groups and links rows on this field, so a spelling it does not know
+// renders as a row no filter can reach.
+export const TARGET_KIND = Object.freeze({
+  FILE: 'file',
+  INVITE: 'invite',
+  MEMBER: 'member',
+  SHARE: 'share',
+  SPACE: 'space',
+})
+
 // test seam — the audit-coverage guard's grouping
 export const CATEGORIES = Object.freeze(Object.values(CATEGORY))
 export const OUTCOMES = Object.freeze(Object.values(OUTCOME))
 export const ACTOR_TYPES = Object.freeze(Object.values(ACTOR_TYPE))
+export const TARGET_KINDS = Object.freeze(Object.values(TARGET_KIND))
 
 export function isKnownKind(kind) {
   return Object.hasOwn(KINDS, kind)

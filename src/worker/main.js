@@ -189,7 +189,8 @@ import {
   recordMirrorScanFault,
 } from '../shared/folders/foreign-folders.js'
 import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
-import { ACTOR_TYPE, OUTCOME } from '../shared/contract/audit-kinds.js'
+import { OUTCOME, TARGET_KIND } from '../shared/contract/audit-kinds.js'
+import { selfActor, peerActor, systemActor, spaceRef, targetRef } from '../shared/audit/audit-record.js'
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -275,22 +276,18 @@ function refreshAuditSelfName(displayName) {
   setAuditIdentity({ key: getLocalPublicKeyHex(), name: displayName })
 }
 
-function selfActor() {
-  return { type: ACTOR_TYPE.SELF, key: null, name: null }
-}
-
-function peerActor(space, publicKey) {
+// Resolves the name, which needs the live roster and the persisted members — the two things
+// audit-record.js deliberately cannot reach. The shape itself comes from peerActor.
+function peerActorIn(space, publicKey) {
   const live = space ? getConnectedMemberMeta(space.spaceId, publicKey) : null
   const persisted = (space?.members || []).find((m) => m.publicKey === publicKey)
-  return {
-    type: ACTOR_TYPE.PEER,
-    key: publicKey,
-    name: displayNameOrNull(live?.displayName) || displayNameOrNull(persisted?.displayName) || null,
-  }
+  return peerActor(publicKey, displayNameOrNull(live?.displayName) || displayNameOrNull(persisted?.displayName) || null)
 }
 
-function spaceRef(space) {
-  return space ? { id: space.spaceId, name: space.name } : null
+// The worker holds space RECORDS, whose id field is `spaceId`; every other producer holds the id
+// and the name separately. One adapter, rather than a second shape in the shared builder.
+function spaceRefOf(space) {
+  return spaceRef(space?.spaceId, space?.name)
 }
 
 function fileNameOf(path) {
@@ -307,9 +304,9 @@ async function recordGrantReceived(spaceId, granterKey) {
   // this needs is exactly what those may have just filled in.
   const space = await getSpace(spaceId)
   record('membership.granted', {
-    actor: peerActor(space, granterKey || null),
-    space: spaceRef(space),
-    target: { kind: 'space', id: spaceId, name: space?.name ?? null },
+    actor: peerActorIn(space, granterKey || null),
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SPACE, spaceId, space?.name ?? null),
   })
 }
 
@@ -472,9 +469,9 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
   recordedJoinRequests.add(key)
   getSpace(spaceId).then((space) => {
     record('membership.requested', {
-      actor: { type: ACTOR_TYPE.PEER, key: publicKey, name: displayName || null },
-      space: spaceRef(space),
-      target: { kind: 'member', id: publicKey, name: displayName || null },
+      actor: peerActor(publicKey, displayName || null),
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
     })
   }).catch(() => {})
 }
@@ -504,9 +501,9 @@ async function reconcileGrantCreator(spaceId, space, asserted) {
   }
   if (decision === 'refuse') {
     record('security.creator_divergence', {
-      actor: { type: ACTOR_TYPE.SYSTEM, key: null, name: null },
-      space: spaceRef(space),
-      target: { kind: 'space', id: spaceId, name: space?.name ?? null },
+      actor: systemActor(),
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.SPACE, spaceId, space?.name ?? null),
       subject: { pinned: space.creatorKey ?? null, asserted: asserted ?? null },
       outcome: OUTCOME.DENIED,
     })
@@ -761,8 +758,8 @@ async function publishOwnedShare(space, share) {
   await publishShare(space.spaceId, share)
   record('share.created', {
     actor: selfActor(),
-    space: spaceRef(space),
-    target: { kind: 'share', id: share.id, name: share.name },
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SHARE, share.id, share.name),
   })
   ipc.emit('event:shares-updated', { spaceId: space.spaceId })
 }
@@ -804,8 +801,8 @@ ipc.handle('share:create-and-mount', async (msg) => {
       await tombstoneShare(msg.spaceId, share.id)
       record('share.deleted', {
         actor: selfActor(),
-        space: spaceRef(space),
-        target: { kind: 'share', id: share.id, name: share.name },
+        space: spaceRefOf(space),
+        target: targetRef(TARGET_KIND.SHARE, share.id, share.name),
       })
       await intents.complete(intentId)
     } catch (tombstoneErr) {
@@ -846,8 +843,8 @@ ipc.handle('share:rename', async (msg) => {
   await publishShare(msg.spaceId, next)
   record('share.renamed', {
     actor: selfActor(),
-    space: spaceRef(space),
-    target: { kind: 'share', id: msg.shareId, name: displayName },
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, displayName),
     subject: { previousName },
   })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
@@ -860,8 +857,8 @@ ipc.handle('share:delete', async (msg) => {
   await tombstoneShare(msg.spaceId, msg.shareId)
   record('share.deleted', {
     actor: selfActor(),
-    space: spaceRef(space),
-    target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, share?.name ?? null),
   })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
   return { ok: true }
@@ -1057,8 +1054,8 @@ async function mountOwnedShare(spaceId, share, validated, requestedIgnore) {
       // reconcile deliberately records nothing — it is machine churn, not a user action.
       record('share.mounted', {
         actor: selfActor(),
-        space: spaceRef(await getSpace(spaceId)),
-        target: { kind: 'share', id: shareId, name: share?.name ?? null },
+        space: spaceRefOf(await getSpace(spaceId)),
+        target: targetRef(TARGET_KIND.SHARE, shareId, share?.name ?? null),
         subject: { fileCount: result?.totalOnDisk ?? null, uploaded: result?.uploaded ?? null, mountPath },
       })
       mounts.schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore)
@@ -1153,8 +1150,8 @@ ipc.handle('owned-folder:relocate', async (msg) => {
 
   record('share.relocated', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'share', id: msg.shareId, name: null },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, null),
     subject: { from: previousMountPath, to: mountPath },
   })
   return { mount, advisories }
@@ -1185,8 +1182,8 @@ ipc.handle('owned-folder:delete', async (msg) => {
   await intents.complete(intentId)
   record('share.deleted', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'share', id: msg.shareId, name: share?.name ?? null },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, share?.name ?? null),
   })
   ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
   ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
@@ -1252,8 +1249,8 @@ ipc.handle('foreign-folder:mount', async (msg) => {
 
   record('mirror.created', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, msg.ownerKey, msg.shareId) },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, await shareNameOrNull(msg.spaceId, msg.ownerKey, msg.shareId)),
     subject: { mountPath: mount.mountPath, ownerKey: msg.ownerKey },
   })
   return { mount, advisories }
@@ -1281,8 +1278,8 @@ ipc.handle('foreign-folder:relocate', async (msg) => {
   const next = await relocateForeignFolder(msg.spaceId, msg.shareId, mountPath)
   record('mirror.relocated', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, mount.ownerKey, msg.shareId) },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, await shareNameOrNull(msg.spaceId, mount.ownerKey, msg.shareId)),
     subject: { mountPath, previousMountPath: mount.mountPath },
   })
   return { mount: next, advisories }
@@ -1297,8 +1294,8 @@ ipc.handle('foreign-folder:unmount', async (msg) => {
   await intents.complete(intentId)
   record('mirror.removed', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'share', id: msg.shareId, name: await shareNameOrNull(msg.spaceId, mount?.ownerKey, msg.shareId) },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.SHARE, msg.shareId, await shareNameOrNull(msg.spaceId, mount?.ownerKey, msg.shareId)),
     subject: { mountPath: mount?.mountPath ?? null },
   })
   return { ok: true }
@@ -1384,7 +1381,11 @@ ipc.handle('space:create', async (msg) => {
   await joinSpaceTopic(space.spaceId)
   await openMemberView(space.spaceId)   // the creator's own space derives its membership too
   log.info('space created:', space.spaceId)
-  record('space.created', { actor: selfActor(), space: spaceRef(space), target: { kind: 'space', id: space.spaceId, name: space.name } })
+  record('space.created', {
+    actor: selfActor(),
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SPACE, space.spaceId, space.name),
+  })
   return space
 })
 // Block a rejoin until a concurrent leave of the same space has fully torn down (the leaving flag
@@ -1456,8 +1457,8 @@ ipc.handle('space:join', async (msg) => {
   log.info('space joined:', space.spaceId)
   record('space.joined', {
     actor: selfActor(),
-    space: spaceRef(space),
-    target: { kind: 'space', id: space.spaceId, name: space.name },
+    space: spaceRefOf(space),
+    target: targetRef(TARGET_KIND.SPACE, space.spaceId, space.name),
     subject: { inviteId: decoded.inviteId || null, autoAdmit: !!decoded.autoAdmit },
   })
   return space
@@ -1494,8 +1495,8 @@ ipc.handle('space:invite', async (msg) => {
     await markInvite(space.spaceId, inviteId, { autoApprove: !!msg.autoAdmit, expiresAt })
     record('invite.minted', {
       actor: selfActor(),
-      space: spaceRef(space),
-      target: { kind: 'invite', id: inviteId, name: null },
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.INVITE, inviteId, null),
       subject: { autoAdmit: !!msg.autoAdmit, expiresAt },
     })
   }
@@ -1525,8 +1526,8 @@ ipc.handle('space:approve-member', async (msg) => {
   if (approved) {
     record('membership.approved', {
       actor: selfActor(),
-      space: spaceRef(space),
-      target: { kind: 'member', id: msg.publicKey, name: peerActor(space, msg.publicKey).name },
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
     })
   }
   return approved
@@ -1544,8 +1545,8 @@ ipc.handle('space:deny-member', async (msg) => {
   if (denied) {
     record('membership.denied', {
       actor: selfActor(),
-      space: spaceRef(space),
-      target: { kind: 'member', id: msg.publicKey, name: peerActor(space, msg.publicKey).name },
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
       outcome: OUTCOME.DENIED,
     })
   }
@@ -1577,8 +1578,8 @@ ipc.handle('space:update', async (msg) => {
     }
     record('space.updated', {
       actor: selfActor(),
-      space: spaceRef(updated),
-      target: { kind: 'space', id: msg.spaceId, name: updated.name },
+      space: spaceRefOf(updated),
+      target: targetRef(TARGET_KIND.SPACE, msg.spaceId, updated.name),
       subject: { previousName: space?.name ?? null },
     })
   }
@@ -1587,7 +1588,7 @@ ipc.handle('space:update', async (msg) => {
 ipc.handle('space:toggle-favorite', async (msg) => {
   return await toggleFavorite(msg.spaceId)
 })
-registerSpaceLeave(ipc, { log, mounts, selfActor, spaceRef, discardPendingSpace, dropSpaceDownloadRoot })
+registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot })
 
 // === IPC: presence, file & transfer handlers ===
 
@@ -1614,8 +1615,8 @@ ipc.handle('files:remove', async (msg) => {
   await removeFile(msg.spaceId, msg.path)
   record('file.unshared', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'file', id: msg.path, name: fileNameOf(msg.path) },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.FILE, msg.path, fileNameOf(msg.path)),
   })
   ipc.emit('event:files-updated', { spaceId: msg.spaceId })
   return { ok: true }
@@ -1635,8 +1636,8 @@ ipc.handle('files:add', async (msg) => {
   await addFile(msg.spaceId, msg.filePath, msg.fileName)
   record('file.shared', {
     actor: selfActor(),
-    space: spaceRef(await getSpace(msg.spaceId)),
-    target: { kind: 'file', id: msg.fileName, name: msg.fileName },
+    space: spaceRefOf(await getSpace(msg.spaceId)),
+    target: targetRef(TARGET_KIND.FILE, msg.fileName, msg.fileName),
     subject: { size: msg.fileSize ?? null },
   })
   ipc.emit('event:files-updated', { spaceId: msg.spaceId })

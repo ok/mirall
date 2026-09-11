@@ -1,5 +1,5 @@
 import type { FILE_STATUS, BADGE_STATUS, SHARE_FILE_STATUS, OWNED_MOUNT_STATUS, FOREIGN_MOUNT_STATUS } from '../shared/contract/statuses.js'
-import type { OUTCOMES, ACTOR_TYPES } from '../shared/contract/audit-kinds.js'
+import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from '../shared/contract/audit-kinds.js'
 export interface Profile {
   displayName: string
   avatar: string | null
@@ -361,7 +361,7 @@ export interface NetworkStatus {
   }
 }
 
-export type AuditCategory = 'members' | 'files' | 'folders' | 'security' | 'network'
+export type AuditCategory = (typeof CATEGORIES)[number]
 type AuditTier = 'A' | 'B' | 'C'
 type AuditOutcome = (typeof OUTCOMES)[number]
 
@@ -377,7 +377,7 @@ export interface AuditSpaceRef {
 }
 
 interface AuditTargetRef {
-  kind: string | null
+  kind: (typeof TARGET_KINDS)[number]
   id: string | null
   name: string | null
 }

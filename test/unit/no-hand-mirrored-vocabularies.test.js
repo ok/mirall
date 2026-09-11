@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
@@ -24,5 +24,37 @@ test('no module re-declares a vocabulary the contract package owns', (t) => {
 test('every mirrored module points at the contract package', (t) => {
   for (const [file] of MIRRORED) {
     t.ok(/from '[^']*contract\/[a-z-]+\.js'/.test(src(file)), `${file} imports from the contract`)
+  }
+})
+
+// The same rule one level up: the audit row's participant shapes. audit-record.js builds them, so
+// a producer that assembles one itself can omit a field the normalizers read, or diverge from the
+// shape the renderer is typed against.
+const HAND_BUILT = [
+  [/type:\s*ACTOR_TYPE\./, 'builds an actor literal instead of calling selfActor/peerActor/systemActor'],
+  [/target:\s*\{\s*kind:/, 'builds a target literal instead of calling targetRef'],
+  [/space:\s*\{\s*id:/, 'builds a space literal instead of calling spaceRef'],
+]
+
+function walk(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name)
+    if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) }
+    else if (name.endsWith('.js')) out.push(p)
+  }
+  return out
+}
+
+test('no module hand-builds an audit row participant', (t) => {
+  const root = path.join(here, '..', '..', 'src')
+  const files = [...walk(path.join(root, 'shared')), ...walk(path.join(root, 'worker'))]
+    .filter((f) => !f.endsWith(path.join('audit', 'audit-record.js')))
+  t.ok(files.length > 50, `walked ${files.length} data-layer modules`)
+
+  for (const file of files) {
+    const body = readFileSync(file, 'utf8')
+    for (const [pattern, why] of HAND_BUILT) {
+      t.absent(pattern.test(body), `${path.relative(root, file)} ${why}`)
+    }
   }
 })

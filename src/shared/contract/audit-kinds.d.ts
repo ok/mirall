@@ -2,9 +2,13 @@ export declare const CATEGORY: Readonly<Record<string, string>>
 export declare const KINDS: Readonly<Record<string, { category: string; tier: string }>>
 export declare const OUTCOME: Readonly<{ OK: 'ok'; DENIED: 'denied'; ERROR: 'error' }>
 export declare const ACTOR_TYPE: Readonly<{ SELF: 'self'; PEER: 'peer'; SYSTEM: 'system' }>
-export declare const CATEGORIES: readonly string[]
+export declare const TARGET_KIND: Readonly<{ FILE: 'file'; INVITE: 'invite'; MEMBER: 'member'; SHARE: 'share'; SPACE: 'space' }>
+// Literal tuples, not string[]: types.ts derives its unions with (typeof X)[number], so a widened
+// declaration turns an exhaustive switch into `string`.
+export declare const CATEGORIES: readonly ['members', 'files', 'folders', 'security', 'network']
 export declare const OUTCOMES: readonly ['ok', 'denied', 'error']
 export declare const ACTOR_TYPES: readonly ['self', 'peer', 'system']
+export declare const TARGET_KINDS: readonly ['file', 'invite', 'member', 'share', 'space']
 export declare function isKnownKind (kind: string): boolean
 // Throws on an unknown kind — the vocabulary is closed, so a kind absent from it is a programming
 // error; `| null` would invite a guard that still crashes.

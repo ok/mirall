@@ -23,7 +23,8 @@ import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
 import { markLeft } from '../spaces/member-registry.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket } from './swarm-registries.js'
-import { ACTOR_TYPE } from '../contract/audit-kinds.js'
+import { TARGET_KIND } from '../contract/audit-kinds.js'
+import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
 let presence = null
 let log = null
@@ -64,9 +65,9 @@ function memberSnapshot(space, publicKey) {
 
 function recordMemberLeft(spaceId, profileKey, snapshot) {
   record('member.left', {
-    actor: { type: ACTOR_TYPE.PEER, key: profileKey, name: snapshot.memberName },
-    space: { id: spaceId, name: snapshot.spaceName },
-    target: { kind: 'member', id: profileKey, name: snapshot.memberName },
+    actor: peerActor(profileKey, snapshot.memberName),
+    space: spaceRef(spaceId, snapshot.spaceName),
+    target: targetRef(TARGET_KIND.MEMBER, profileKey, snapshot.memberName),
   })
 }
 
