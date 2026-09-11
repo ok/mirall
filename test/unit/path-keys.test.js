@@ -4,7 +4,7 @@ import {
   relToDriveKey, driveKeyToSegments,
   stripLongPathPrefix, isAbsoluteDriveKey, relKeyEscapes,
   pathsOverlap, pathContains, overlapAllowed,
-  DEFAULT_IGNORE, shouldIgnore,
+  DEFAULT_IGNORE, shouldIgnore, shouldPruneDir,
   shouldHonorDeletions,
   splitFileName, nextFreeName, conflictCopyName,
   systemRootViolation, personalRootViolation, isWindowsReservedName, cloudSyncHint,
@@ -272,6 +272,107 @@ test('REGRESSION (FIX-245: a `**/` pattern matches nothing)', (t) => {
 
   // A bare `**/` names nothing, so it withholds nothing.
   t.absent(shouldIgnore('docs/readme.md', ['**/']))
+})
+
+test('shouldPruneDir: directory-shaped globs prune, others do not', (t) => {
+  t.ok(shouldPruneDir('node_modules', DEFAULT_IGNORE), 'at the root')
+  t.ok(shouldPruneDir('src/vendor/node_modules', DEFAULT_IGNORE), 'nested')
+  t.ok(shouldPruneDir('.git', DEFAULT_IGNORE))
+  t.ok(shouldPruneDir('sub/.git', DEFAULT_IGNORE), 'a nested repository')
+  t.ok(shouldPruneDir('build', ['build/**']))
+  t.ok(shouldPruneDir('a/b', ['a/b/**']), 'a multi-segment prefix')
+  t.ok(shouldPruneDir('x/a/b', ['a/b/**']), 'a multi-segment prefix, nested')
+
+  t.ok(shouldPruneDir('node_modules', ['**/node_modules']))
+  t.ok(shouldPruneDir('a/node_modules', ['**/node_modules']))
+  t.ok(shouldPruneDir('a/logs.log', ['**/*.log']), 'a segment glob matches a directory name')
+  t.ok(shouldPruneDir('src/build', ['**/build/**']), 'a multi-segment remainder ending /**')
+
+  // These shapes name the directory ENTRY and nothing beneath it, so the descent must continue.
+  t.absent(shouldPruneDir('dist', ['dist']), 'a bare name is not a directory glob')
+  t.absent(shouldPruneDir('a/dist', ['dist']))
+  t.absent(shouldPruneDir('cache~', ['*~']), 'a suffix glob names one path')
+  t.absent(shouldPruneDir('builder', ['build*']), 'a prefix glob names one path')
+  t.absent(shouldPruneDir('src/gen', ['**/src/gen']), 'a multi-segment remainder without /**')
+
+  t.absent(shouldPruneDir('rebuild', ['build/**']), 'a name-suffix sibling')
+  t.absent(shouldPruneDir('my-node_modules-notes', DEFAULT_IGNORE))
+  t.absent(shouldPruneDir('anything', ['/**']), 'an empty prefix prunes nothing')
+  t.absent(shouldPruneDir('anything', ['**/']), 'an empty remainder prunes nothing')
+  t.absent(shouldPruneDir('node_modules', []))
+  t.absent(shouldPruneDir('node_modules', undefined))
+})
+
+// One alphabet, every pattern shape the matcher has, every path up to three segments. Generated
+// rather than listed so a shape nobody thought of is still covered: the prune predicate mirrors
+// `matchPattern`'s branches, and a branch added to one without the other is what this catches.
+// A new shape in the matcher means a new spelling in SHAPES or PAIR_SHAPES.
+const PRUNE_SEGMENTS = ['a', 'b', 'node_modules', '.git', 'build', 'dist', 'x~', 'a.log', 'gen', 'src']
+const PRUNE_SHAPES = [
+  (s) => s, (s) => s + '/**', (s) => '**/' + s, (s) => '**/' + s + '/**',
+  (s) => '*' + s, (s) => s + '*',
+]
+const PRUNE_PAIR_SHAPES = [
+  (a, b) => `${a}/${b}`, (a, b) => `${a}/${b}/**`,
+  (a, b) => `**/${a}/${b}`, (a, b) => `**/${a}/${b}/**`,
+]
+
+function pruneCorpus() {
+  const dirs = []
+  const tails = []
+  for (const s1 of PRUNE_SEGMENTS) {
+    dirs.push(s1)
+    tails.push(s1)
+    for (const s2 of PRUNE_SEGMENTS) {
+      dirs.push(`${s1}/${s2}`)
+      tails.push(`${s1}/${s2}`)
+      for (const s3 of PRUNE_SEGMENTS) dirs.push(`${s1}/${s2}/${s3}`)
+    }
+  }
+  const patterns = ['/**', '**/', '**/**', '**']
+  for (const s of PRUNE_SEGMENTS) {
+    for (const shape of PRUNE_SHAPES) patterns.push(shape(s))
+    for (const t of PRUNE_SEGMENTS) for (const shape of PRUNE_PAIR_SHAPES) patterns.push(shape(s, t))
+  }
+  return { dirs, tails, patterns }
+}
+
+// The whole correctness argument for pruning a descent: a directory the walk skips must have had
+// every path beneath it withheld anyway. Measured over the corpus rather than read off the two
+// functions side by side.
+test('shouldPruneDir: a pruned directory ignores its whole subtree', (t) => {
+  const { dirs, tails, patterns } = pruneCorpus()
+  const unsound = []
+  let pruned = 0
+  for (const pat of patterns) {
+    for (const dir of dirs) {
+      if (!shouldPruneDir(dir, [pat])) continue
+      pruned += 1
+      for (const tail of tails) {
+        if (!shouldIgnore(`${dir}/${tail}`, [pat])) unsound.push(`${pat} prunes ${dir} but publishes ${dir}/${tail}`)
+      }
+    }
+  }
+  // Without this the two assertions above pass vacuously for a predicate that never prunes.
+  t.ok(pruned > 1000, `the corpus reaches the prune path (${pruned} pruning pairs)`)
+  t.is(unsound.length, 0, unsound.slice(0, 5).join('; '))
+})
+
+test('shouldPruneDir is a subset of shouldIgnore', (t) => {
+  const { dirs, patterns } = pruneCorpus()
+  const leaks = []
+  for (const pat of patterns) {
+    for (const dir of dirs) {
+      if (shouldPruneDir(dir, [pat]) && !shouldIgnore(dir, [pat])) leaks.push(`${pat} / ${dir}`)
+    }
+  }
+  t.is(leaks.length, 0, leaks.slice(0, 5).join('; '))
+})
+
+test('shouldPruneDir: any member of the set may prune', (t) => {
+  t.ok(shouldPruneDir('node_modules', ['dist', 'node_modules/**']))
+  t.ok(shouldPruneDir('node_modules', DEFAULT_IGNORE.concat(['*.tmp'])))
+  t.absent(shouldPruneDir('dist', ['dist', '*~']))
 })
 
 test('shouldIgnore: ordinary files pass; empty/missing patterns ignore nothing', (t) => {

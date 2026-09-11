@@ -1,4 +1,4 @@
-// An owned folder whose reconcile pass never settles: the recursive readdir at the top of walkDisk
+// An owned folder whose reconcile pass never settles: the first readdir at the top of walkDisk
 // parks and never returns. That is the honest shape of the production hazard — a share on an
 // unresponsive network mount stops one layer below the promise, in a blocking syscall Bare gives no
 // way to cancel, which is precisely why detect-and-re-arm is the only mechanism left.
