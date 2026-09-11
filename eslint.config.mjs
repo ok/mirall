@@ -133,7 +133,10 @@ export const pureFolderPolicyModules = [
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
   // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
-  { ignores: ['assets/dist/**', 'node_modules/**', 'src/shared/transfer/backends/overlay/vendor/**'] },
+  // Both dist trees are generated bundles: assets/dist is the app's, test/frontend-layout/dist is
+// whatever the layout harnesses last built. Neither is source, and linting a 2MB bundle drowns the
+// run in tens of thousands of findings.
+{ ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**', 'src/shared/transfer/backends/overlay/vendor/**'] },
 
   // Renderer — sandboxed React UI. Accessibility rules stay ERRORS (the a11y gate); complexity
   // is advisory on top.

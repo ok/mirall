@@ -110,4 +110,9 @@ await build({
   entryPoints: [path.join(HERE, 'harness-stickyheader-entry.tsx')],
   outfile: path.join(HERE, 'dist/harness-stickyheader.js'),
 })
+await build({
+  ...common,
+  entryPoints: [path.join(HERE, 'harness-errorassoc-entry.tsx')],
+  outfile: path.join(HERE, 'dist/harness-errorassoc.js'),
+})
 console.error('[build] harness bundled')

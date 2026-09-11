@@ -33,7 +33,10 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const [saving, setSaving] = useState(false)
   // undefined = untouched, null = reset to the global default, string = new override.
   const [folderEdit, setFolderEdit] = useState<string | null | undefined>(undefined)
-  const [error, setError] = useState<string | null>(null)
+  // Two errors, two homes: a screen reader must not be told the name field is at fault for a
+  // folder the app could not resolve, so each is associated with the control it belongs to.
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [folderError, setFolderError] = useState<string | null>(null)
   const browseRef = useRef<HTMLButtonElement>(null)
 
   const { data: defaultFolder, error: defaultError } = useMainQuery('main:download-folder')
@@ -41,7 +44,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   // global default — so an unresolved read is a path still loading, not the absence of one. A read
   // that FAILED resolves to "no default available" instead, or the field would sit on its skeleton.
   const globalDefault = defaultFolder ?? (defaultError ? '' : null)
-  const shownError = error ?? (defaultError ? errorText(defaultError) : null)
+  const shownFolderError = folderError ?? (defaultError ? errorText(defaultError) : null)
 
   // Only the fallback to the global default can be pending; a picked folder or the space's own
   // override is already in hand.
@@ -54,7 +57,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const isValid = name.trim().length >= 2
 
   const handleBrowse = useCallback(async () => {
-    setError(null)
+    setFolderError(null)
     const picked = await window.bridge.browseDownloadFolder(effectiveFolder || undefined)
     if (picked) setFolderEdit(picked)
   }, [effectiveFolder])
@@ -63,7 +66,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   // back to the control the user is most likely to want next, and let the status paragraph
   // below (a live region) announce what changed.
   const handleUseDefault = useCallback(() => {
-    setError(null)
+    setFolderError(null)
     setFolderEdit(null)
     browseRef.current?.focus()
   }, [])
@@ -71,16 +74,16 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   async function handleSave() {
     if (!isValid || !hasChanges || saving) return
     setSaving(true)
-    setError(null)
+    setNameError(null)
+    setFolderError(null)
     try {
       await onSave(space.spaceId, name.trim(), icon, folderEdit)
       onClose()
     } catch (err) {
       const code = (err as { code?: string } | null)?.code
       const detail = errorText(err)
-      setError(code && FOLDER_ERROR_CODES.has(code)
-        ? t('editSpace.folderError', { error: detail })
-        : t('editSpace.saveError', { error: detail }))
+      if (code && FOLDER_ERROR_CODES.has(code)) setFolderError(t('editSpace.folderError', { error: detail }))
+      else setNameError(t('editSpace.saveError', { error: detail }))
     } finally {
       setSaving(false)
     }
@@ -102,11 +105,14 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
             <input
               id="edit-space-name"
               autoFocus
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? 'edit-space-name-error' : undefined}
               className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all"
               placeholder={t('createSpace.namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+            {nameError && <p id="edit-space-name-error" className="text-sm text-error px-1" role="alert">{nameError}</p>}
           </div>
 
           <div className="space-y-3">
@@ -127,9 +133,12 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
               path={effectiveFolder || null}
               loading={awaitingDefault}
               onAction={handleBrowse}
-              ariaDescribedBy="edit-space-folder-label edit-space-folder-desc"
+              ariaDescribedBy={`edit-space-folder-label edit-space-folder-desc${shownFolderError ? ' edit-space-folder-error' : ''}`}
               actionRef={browseRef}
             />
+            {shownFolderError && (
+              <p id="edit-space-folder-error" className="text-sm text-error px-1" role="alert">{shownFolderError}</p>
+            )}
             <div className="flex items-center min-h-5">
               {isOverridden && (
                 <button
@@ -147,10 +156,6 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
               </p>
             </div>
           </div>
-
-          {shownError && (
-            <p className="text-sm text-error" role="alert">{shownError}</p>
-          )}
 
           <div className="pt-4">
             <Button size="lg" fullWidth onClick={handleSave} disabled={!isValid || !hasChanges || saving}>
