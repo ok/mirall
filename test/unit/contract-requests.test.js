@@ -16,11 +16,15 @@ function walk(dir, out = []) {
   return out
 }
 
-function handlerNames() {
+function handlerSources() {
   const files = [path.join(root, 'src', 'worker', 'main.js'), ...walk(path.join(root, 'src', 'worker', 'ipc'))]
+  return files.map((f) => readFileSync(f, 'utf8'))
+}
+
+function handlerNames() {
   const names = []
-  for (const f of files) {
-    for (const m of readFileSync(f, 'utf8').matchAll(/ipc\.handle\('([A-Za-z:.-]+)'/g)) names.push(m[1])
+  for (const src of handlerSources()) {
+    for (const m of src.matchAll(/ipc\.handle\('([A-Za-z:.-]+)'/g)) names.push(m[1])
   }
   return names
 }
@@ -68,11 +72,10 @@ test('the unreferenced-handler list only shrinks', (t) => {
   for (const name of UNREFERENCED_REQUESTS) t.ok(REQUESTS[name], `${name} is still a real request`)
 })
 
-// The two cancel-preview handlers were byte-identical five-line copies over one shared abort map.
-// Registered from one identifier now, so the pair cannot drift: the request names are the wire
-// contract and stay two, the behaviour behind them is one function.
+// The request names are the wire contract and stay two; the behaviour behind them is one function
+// over one abort map, so the pair cannot drift. Both must be registered from the same identifier.
 test('the two cancel-preview request names are registered from one function', (t) => {
-  const src = readFileSync(path.join(root, 'src', 'worker', 'main.js'), 'utf8')
+  const src = handlerSources().join('\n')
   const bound = {}
   for (const m of src.matchAll(/ipc\.handle\('((?:owned|foreign)-folder:cancel-preview)',\s*([A-Za-z_$][\w$]*)\)/g)) {
     bound[m[1]] = m[2]
