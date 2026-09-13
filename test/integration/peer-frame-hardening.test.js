@@ -133,7 +133,7 @@ test('an oversize frame is reported by its sender, at error level', (t) => {
   t.ok(/getPeerFrameMaxBytes\(\)/.test(sender), 'the send path measures against the same cap the intake enforces')
   t.ok(/log\.error\(/.test(sender), 'and says so at error level, not warn')
   t.ok(/frame\.type/.test(sender), 'naming the frame type that overflowed')
-  for (const frameType of ["type: 'membership:request'", "type: 'handshake'", "type: 'membership:grant'"]) {
+  for (const frameType of ['type: PEER_FRAME.MEMBERSHIP_REQUEST', 'type: PEER_FRAME.HANDSHAKE', 'type: PEER_FRAME.MEMBERSHIP_GRANT']) {
     const at = src.indexOf(frameType)
     t.ok(src.lastIndexOf('sendFrame(', at) > src.lastIndexOf('.send(JSON.stringify(', at),
       frameType + ' goes out through the measured send path')
@@ -143,15 +143,16 @@ test('an oversize frame is reported by its sender, at error level', (t) => {
 test('every frame type is metered, not just the two identity types', async (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
   const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'swarm.js'), 'utf8')
-  const intake = src.slice(src.indexOf('onmessage(str) {'), src.indexOf('dispatchFrame(socket, peerInfo, remoteKey, msg, msgHandler)'))
+  const intake = src.slice(src.indexOf('onmessage(str) {'), src.indexOf('dispatchFrame(conn, msg)'))
 
   const sizeAt = intake.indexOf('getPeerFrameMaxBytes()')
   const limitAt = intake.indexOf('frameLimiter.take(')
   const parseAt = intake.indexOf('JSON.parse(str)')
   const shapeAt = intake.indexOf('validFrameShape(msg)')
-  const identityAt = intake.indexOf("msg.type === 'handshake'")
+  const identityAt = intake.indexOf('IDENTITY_ASSERTING.includes(msg.type)')
 
   t.ok(sizeAt >= 0 && limitAt >= 0 && shapeAt >= 0, 'the cap, the general lane and the shape guard are all present')
+  t.ok(identityAt >= 0, 'and the identity gate is found — a marker that stops matching makes this ordering vacuous')
   t.ok(sizeAt < parseAt, 'the size cap is charged before the decode')
   t.ok(limitAt < parseAt, 'the general lane is charged before the decode')
   t.ok(parseAt < shapeAt, 'the shape guard runs on the decoded value')

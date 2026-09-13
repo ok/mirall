@@ -1,5 +1,7 @@
-// Frames that are NOT requests: they carry no handler, no args shape and no response. The handler
-// table owns the request vocabulary (requests.js); this owns the rest of the wire.
+// Frames that are NOT requests, on the IPC pipe between the renderer, main and the worker: they
+// carry no handler, no args shape and no response. The handler table owns the request vocabulary
+// (requests.js); this owns the rest of that wire. The frames peers exchange over the network are a
+// separate vocabulary, contract/peer-frames.js.
 //
 // `shutdown` is deliberately absent: it looks like a control frame and is a real declared request,
 // dispatched through the table like any other. A name may appear in exactly one of the two

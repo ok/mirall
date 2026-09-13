@@ -1,6 +1,6 @@
 import type { RequestName } from '../shared/contract/requests.js'
 import type { EventName } from '../shared/contract/events.js'
-import { FRAME } from '../shared/contract/frames.js'
+import { FRAME } from '../shared/contract/ipc-frames.js'
 import { MAIN_WORKER_SPEC } from '../shared/contract/workers.js'
 import { CODES } from '../shared/contract/errors.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.

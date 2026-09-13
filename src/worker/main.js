@@ -9,6 +9,7 @@
 // resume passes and the periodic backstops — is constructed and started by the composition root
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
 // every handler is registered, so no frame is dispatched before its handler exists.
+import { PEER_FRAME } from '../shared/contract/peer-frames.js'
 import { MOUNT_STATUS } from '../shared/contract/statuses.js'
 import os from 'bare-os'
 import b4a from 'b4a'
@@ -362,12 +363,16 @@ const memberRegistry = {
   emitSharesUpdated: (spaceId) => sharesPoke.poke(spaceId),
 }
 
+const MEMBERSHIP_HANDLERS = Object.freeze({
+  [PEER_FRAME.MEMBERSHIP_REQUEST]: (msg) => onJoinRequest(msg),
+  [PEER_FRAME.MEMBERSHIP_GRANT]: (msg, ctx) => onGrant(msg, ctx),
+  [PEER_FRAME.MEMBERSHIP_DENY]: (msg) => onDeny(msg),
+  [PEER_FRAME.MEMBERSHIP_CANCEL]: (msg, ctx) => onCancel(msg, ctx),
+})
+
 async function handleMembershipControl(msg, ctx) {
   try {
-    if (msg.type === 'membership:request') return await onJoinRequest(msg)
-    if (msg.type === 'membership:grant') return await onGrant(msg, ctx)
-    if (msg.type === 'membership:deny') return onDeny(msg)
-    if (msg.type === 'membership:cancel') return await onCancel(msg, ctx)
+    return await MEMBERSHIP_HANDLERS[msg.type]?.(msg, ctx)
   } catch (err) {
     log.warn('membership control failed:', msg?.type, '-', err.message)
   }
@@ -577,7 +582,7 @@ async function onCancel(msg, ctx = {}) {
   // replay so a single lost ack can't leave the joiner replaying forever. isDeniedJoiner reflects
   // the tombstone that replicates the withdrawal to co-members.
   const applied = showing || isDeniedJoiner(spaceId, msg.joinerKey)
-  ctx.reply?.({ type: 'membership:cancel-ack', spaceTopic: msg.spaceTopic, joinerKey: msg.joinerKey, applied })
+  ctx.reply?.({ type: PEER_FRAME.MEMBERSHIP_CANCEL_ACK, spaceTopic: msg.spaceTopic, joinerKey: msg.joinerKey, applied })
   if (had || showing) ipc.emit('event:join-requests-updated', { spaceId })
 }
 

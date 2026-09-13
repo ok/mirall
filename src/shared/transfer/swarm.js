@@ -40,6 +40,7 @@ import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
+import { PEER_FRAME, IDENTITY_ASSERTING } from '../contract/peer-frames.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries, authorizedOn, detachPeerFromSpace } from './swarm-registries.js'
 import {
   initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic,
@@ -341,8 +342,7 @@ function initSwarm(_ipc, relaySeedHex = null) {
         // well-formed and — when enforced — carry a signature binding the claimed profileKey to this
         // connection's Noise key. Gated before pendingRequesters.set so a spoofed request can't
         // capture a grant.
-        if ((msg.type === 'handshake' || msg.type === 'membership:request') &&
-            !admitIdentityFrame(conn, msg)) return
+        if (IDENTITY_ASSERTING.includes(msg.type) && !admitIdentityFrame(conn, msg)) return
 
         try {
           dispatchFrame(conn, msg)
@@ -452,58 +452,43 @@ function registerPendingRequester(conn, msg) {
   }
 }
 
-// Route a verified inbound frame to its handler. reply sends back over THIS connection's channel.
-// The mirall/handshake frame vocabulary, in one place. Every frame is one JSON line on the
-// per-space handshake channel, and validFrameShape gates all of them before any property is read;
-// an unrecognised type is counted and dropped.
-//
-//   handshake               any peer, once per shared space on connect. Carries the sender's drive
-//                           key and, optionally, its asserted creator root.
-//   membership:request      a joiner asking to be admitted.
-//   membership:grant        the approver's answer, carrying the space content key.
-//   membership:deny         the approver's refusal.
-//   membership:cancel       either side withdrawing a pending request.
-//   membership:cancel-ack   the receipt for that withdrawal.
-//   presence                liveness — both the heartbeat and the offline farewell.
-//   share-index-progress    an owner's index progress for one share.
-//   share-prepare-progress  an owner's prepare progress for one share.
-//   leave                   a member announcing it has left the space.
-//   leave-ack               the receipt that lets the leaver stop announcing.
-//
-// Exactly two assert the SENDER's identity — handshake and membership:request — because they are
-// the two a peer uses to claim a profileKey; both must pass validSenderFrame and the signature
-// binding that key to this connection's Noise key before anything is registered, which is why the
-// check sits above rather than in a per-type branch. membership:grant asserts the GRANTER's
-// identity instead, and the membership control handler verifies it, because a grant arrives on the
-// connection the joiner opened. The content plane runs its own channel with one frame,
-// content-hello (content-swarm.js).
-function dispatchFrame(conn, msg) {
+// The frame vocabulary and what each frame means live in contract/peer-frames.js; this is only the
+// routing. A frame with no entry in the table is counted and dropped.
+const PEER_FRAME_HANDLERS = Object.freeze({
+  // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around the dispatch
+  // cannot catch its rejection. A failure handling one peer's handshake (e.g. a transiently
+  // unopenable peer drive) must degrade that peer, not crash the worker.
+  [PEER_FRAME.HANDSHAKE]: ({ socket, peerInfo }, msg) =>
+    handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
+  [PEER_FRAME.PRESENCE]: ({ socket }, msg) => handlePresenceFrame(socket, msg),
+  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) => handleLeaveFrame(socket, peerInfo, msg),
+  [PEER_FRAME.LEAVE_ACK]: ({ socket }, msg) => handleLeaveAckFrame(socket, msg),
+  [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
+  [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
+  [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
+  [PEER_FRAME.MEMBERSHIP_REQUEST]: toMembershipControl,
+  [PEER_FRAME.MEMBERSHIP_GRANT]: toMembershipControl,
+  [PEER_FRAME.MEMBERSHIP_DENY]: toMembershipControl,
+  [PEER_FRAME.MEMBERSHIP_CANCEL]: toMembershipControl,
+})
+
+// The handler verifies a grant's identity binding and asserted root itself, which is why these
+// four leave the swarm rather than being answered here.
+function toMembershipControl(conn, msg) {
   const { socket, peerInfo, msgHandler } = conn
+  if (msg.type === PEER_FRAME.MEMBERSHIP_REQUEST && msg.profileKey) registerPendingRequester(conn, msg)
   const reply = (payload) => { try { msgHandler.send(JSON.stringify(payload)) } catch {} }
-  if (msg.type === 'handshake') {
-    // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around
-    // dispatchFrame can't catch its rejection. A failure handling one peer's handshake
-    // (e.g. a transiently unopenable peer drive) must degrade that peer, not crash the worker.
-    handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err))
-  } else if (msg.type === 'presence') {
-    handlePresenceFrame(socket, msg)
-  } else if (msg.type === 'leave') {
-    handleLeaveFrame(socket, peerInfo, msg)
-  } else if (msg.type === 'leave-ack') {
-    handleLeaveAckFrame(socket, msg)
-  } else if (msg.type === 'membership:cancel-ack') {
-    handleMembershipCancelAck(socket, msg)
-  } else if (msg.type === 'share-index-progress') {
-    handleShareIndexProgressFrame(socket, msg)
-  } else if (msg.type === 'share-prepare-progress') {
-    handleSharePrepareProgressFrame(socket, msg)
-  } else if (msg.type.startsWith('membership:')) {
-    if (msg.type === 'membership:request' && msg.profileKey) registerPendingRequester(conn, msg)
-    membershipControlHandler?.(msg, { socket, peerInfo, reply })  // handler verifies a grant's identity binding + asserted root
-  } else {
+  membershipControlHandler?.(msg, { socket, peerInfo, reply })
+}
+
+function dispatchFrame(conn, msg) {
+  const handle = PEER_FRAME_HANDLERS[msg.type]
+  if (!handle) {
     countDroppedFrame('unknown')
     log.debug('ignoring unknown peer frame type:', msg.type)
+    return
   }
+  handle(conn, msg)
 }
 
 async function sendHandshakeMessages(socket, msgHandler) {
@@ -890,7 +875,7 @@ async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
     const loose = await ownLooseCatalogPublish(spaceId)
     const looseField = loose ? catalogKeyField(loose.keyHex, loose.encrypted, 'looseCatalogKey') : {}
     sendFrame(msgHandler, {
-      type: 'handshake',
+      type: PEER_FRAME.HANDSHAKE,
       profileKey: profileKeyHex,
       driveKey: driveKeyHex,
       displayName,
@@ -907,7 +892,7 @@ async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
   const space = await getSpace(spaceId)
   if (space?.status === 'pending') {
     sendFrame(msgHandler, {
-      type: 'membership:request',
+      type: PEER_FRAME.MEMBERSHIP_REQUEST,
       profileKey: profileKeyHex,
       displayName,
       // Not avatarMaxBytes: this is the one frame carrying peer-supplied unbounded content, and it
@@ -1106,7 +1091,7 @@ export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyH
   try {
     const sckSealed = b4a.toString(sealSck(b4a.from(sckHex, 'hex'), recipientSignerPkEd), 'hex')
     sendFrame(handler, {
-      type: 'membership:grant',
+      type: PEER_FRAME.MEMBERSHIP_GRANT,
       spaceTopic: topicHex,
       sckSealed,
       creator: creatorKeyHex || null,
@@ -1126,7 +1111,7 @@ export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyH
 // recipients no-op if they hold no matching request.
 export function broadcastMembershipCancel(spaceId, topicHex, joinerKey) {
   for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(JSON.stringify({ type: 'membership:cancel', spaceTopic: topicHex, joinerKey })) } catch {}
+    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: topicHex, joinerKey })) } catch {}
   }
 }
 
@@ -1134,7 +1119,7 @@ export function sendMembershipDeny(profileKeyHex, topicHex) {
   const handler = handlerForPeer(profileKeyHex)
   if (!handler) return false
   try {
-    handler.send(JSON.stringify({ type: 'membership:deny', spaceTopic: topicHex }))
+    handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, spaceTopic: topicHex }))
     return true
   } catch {
     return false

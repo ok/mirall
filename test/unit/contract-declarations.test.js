@@ -53,7 +53,7 @@ test('REGRESSION (FIX-CONTRACT-DRIFT): every declaration file matches the module
 // The modules whose exports are pure vocabulary. Deliberately a list, not every file in the
 // package: scope.js exports objects that are not frozen today, and invite-envelope.js exports a
 // RegExp — widening this is a code change, not a test change.
-const FROZEN = ['errors', 'requests', 'events', 'limits', 'statuses', 'exit-codes', 'frames', 'main-requests', 'workers', 'audit-kinds']
+const FROZEN = ['errors', 'requests', 'events', 'limits', 'statuses', 'exit-codes', 'ipc-frames', 'peer-frames', 'main-requests', 'workers', 'audit-kinds']
 
 test('every vocabulary is frozen', async (t) => {
   for (const name of FROZEN) {
