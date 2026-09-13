@@ -9,6 +9,7 @@
 //   <spaceId>:<filePath>            the downloaded-copy claim
 //   verified:<spaceId>:<key>        a hash-verified record: { hash, at }
 //   src:<spaceId>:<filePath>        the owned source path of a loose file: { sourcePath, addedAt }
+import { entryRef, verifiedPrefix } from '../contract/entry-ref.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { getDrive, getSpace } from '../spaces/space.js'
@@ -93,7 +94,7 @@ export async function getVerifiedHash(spaceId, key) {
 // and worker-only (never serialized over IPC); for a fully-mirrored huge share it
 // holds O(files) short strings — bounded, unlike retaining full row arrays.
 export async function listVerifiedForShare(spaceId, shareId, { keep = null } = {}) {
-  const prefix = 'verified:' + spaceId + ':' + shareId + '|'
+  const prefix = verifiedPrefix(spaceId, shareId)
   const map = new Map()
   for await (const node of downloadsBee.createReadStream(prefixRange(prefix))) {
     const relPath = node.key.slice(prefix.length)
@@ -382,7 +383,7 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
         continue
       }
       const downloaded = await verifyOnDevice(spaceId, drivePath, e.contentHash)
-      const verified = downloaded && await isVerifiedDownload(spaceId, LOOSE_SHARE_ID + '|' + e.relPath, e.contentHash)
+      const verified = downloaded && await isVerifiedDownload(spaceId, entryRef(LOOSE_SHARE_ID, e.relPath), e.contentHash)
       // Status is derived here (single source of truth): an in-flight fetch is 'downloading',
       // otherwise the durable pending row decides paused-*/error. The renderer never overrides it.
       const isActive = looseTransferActive(spaceId, e.relPath)

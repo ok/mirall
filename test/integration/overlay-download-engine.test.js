@@ -44,7 +44,7 @@ function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', catalogKey: 'cat-hex', transferId: 'space1|folder1|doc.bin',
-    contentHash: 'h'.repeat(64), size: 4096, ownerPublicKey: 'peerpub', verifyKey: 'folder1|doc.bin',
+    contentHash: 'h'.repeat(64), size: 4096, ownerKey: 'peerpub', verifyKey: 'folder1|doc.bin',
     finalPath: path.join(ctx.tmpDir('dl'), 'doc.bin'), ...over,
   }
 }
@@ -214,7 +214,7 @@ test('#5: resumeForOwner skips a checksum-errored row, retries a transient one',
       job: {
         spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: 'folder1', catalogKey: 'k',
         transferId: spaceId + '|folder1|' + row.relPath, contentHash: 'h'.repeat(64), size: 10,
-        ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath, finalPath: path.join(ctx.tmpDir('dl'), row.relPath),
+        ownerKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath, finalPath: path.join(ctx.tmpDir('dl'), row.relPath),
       },
     }),
   }
@@ -368,7 +368,7 @@ test('#supersede: restart that queues (owner offline) surfaces paused, no stuck 
 })
 
 function makeJobBare() {
-  return { spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin', transferId: 'space1|folder1|missing', contentHash: 'n'.repeat(64), size: 1, ownerPublicKey: 'peerpub', verifyKey: 'folder1|doc.bin', finalPath: '/x' }
+  return { spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin', transferId: 'space1|folder1|missing', contentHash: 'n'.repeat(64), size: 1, ownerKey: 'peerpub', verifyKey: 'folder1|doc.bin', finalPath: '/x' }
 }
 
 // REGRESSION (FIX-EDA-11: cancelByKey emits while the slot is still registered, so a list
@@ -570,7 +570,7 @@ function retryChannel(events) {
       job: {
         spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId,
         transferId: spaceId + '|folder1|' + row.relPath, contentHash: row.contentHash, size: row.total || 4096,
-        sourceSeq: row.sourceSeq, ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
+        sourceSeq: row.sourceSeq, ownerKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
         finalPath: row.finalPath, prevBytes: row.bytesTransferred || 0,
       },
     }),
@@ -790,7 +790,7 @@ test('FIX-BW9: a retry re-anchors the destination the row resolves to', async (t
       job: {
         spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId,
         transferId: spaceId + '|folder1|' + row.relPath, contentHash: row.contentHash, size: 4096,
-        sourceSeq: row.sourceSeq, ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
+        sourceSeq: row.sourceSeq, ownerKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
         finalPath: moved, prevBytes: 0,      // what reuseDest returns after a folder change
       },
     }),

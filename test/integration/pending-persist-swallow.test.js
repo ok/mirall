@@ -68,7 +68,7 @@ function channelFor(ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
       job: {
         spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: 'folder1',
         transferId: spaceId + '|folder1|' + row.relPath, contentHash: hash, size: 4096, sourceSeq: seq,
-        ownerPublicKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
+        ownerKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
         finalPath: path.join(ctx.tmpDir('dl'), row.relPath), prevBytes: row.bytesTransferred || 0,
       },
     }),
@@ -88,7 +88,7 @@ function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: 'space1|folder1|doc.bin',
-    contentHash: HASH_OLD, size: 4096, sourceSeq: 5, ownerPublicKey: 'peerpub', verifyKey: 'folder1|doc.bin',
+    contentHash: HASH_OLD, size: 4096, sourceSeq: 5, ownerKey: 'peerpub', verifyKey: 'folder1|doc.bin',
     finalPath: path.join(ctx.tmpDir('dl'), 'doc.bin'), ...over,
   }
 }

@@ -48,7 +48,7 @@ function folderJob(ctx, spaceId, over = {}) {
     transferId: spaceId + '|sh1|logo.svg',
     contentHash: 'h'.repeat(64),
     size: 4096,
-    ownerPublicKey: OWNER,
+    ownerKey: OWNER,
     verifyKey: 'sh1|logo.svg',
     finalPath: path.join(ctx.tmpDir('dl'), 'logo.svg'),
     ...over,
@@ -92,7 +92,7 @@ test('REGRESSION (FIX-D11-1): a completed folder-share download records transfer
   t.is(found[0].space.name, 'Design Team', 'the space name is snapshotted, not joined')
 })
 
-// The recorder read job.ownerKey, but every job builder writes ownerPublicKey — so the holder was
+// The recorder and the job builders disagreed on the field's spelling, so the holder was
 // null on every transfer row ever written, loose ones included.
 test('REGRESSION (FIX-D11-1b): the row attributes the holder it fetched from', async (t) => {
   const { engine, job } = await setup(t)
@@ -102,7 +102,7 @@ test('REGRESSION (FIX-D11-1b): the row attributes the holder it fetched from', a
   await engine.start(job)
   const [row] = await settle('transfer.completed')
   if (!row) return t.fail('no transfer.completed row to attribute')
-  t.is(row.subject.ownerKey, OWNER, 'read from job.ownerPublicKey, which is the field that exists')
+  t.is(row.subject.ownerKey, OWNER, 'the audit row carries the owner the job names')
 })
 
 // REGRESSION (FIX-D11-2: a holder serving bytes that fail their advertised hash was logged to the
@@ -170,7 +170,7 @@ test('a loose download still records exactly one row after the move', async (t) 
   const job = {
     spaceId: space.spaceId, pendingKey: '/notes.txt', path: '/notes.txt', relPath: 'notes.txt',
     shareId: '__loose__', transferId: space.spaceId + '|__loose__|notes.txt',
-    contentHash: 'h'.repeat(64), size: 12, ownerPublicKey: OWNER, verifyKey: '__loose__|notes.txt',
+    contentHash: 'h'.repeat(64), size: 12, ownerKey: OWNER, verifyKey: '__loose__|notes.txt',
     finalPath,
   }
   fs.writeFileSync(finalPath, 'x')
@@ -211,7 +211,7 @@ test('REGRESSION (FIX-D11-6): a channel that knows nothing about auditing still 
   const job = {
     spaceId: space.spaceId, pendingKey: '/third.bin', path: '/third.bin', relPath: 'third.bin',
     shareId: 'third', folderName: 'Third', transferId: space.spaceId + '|third|third.bin',
-    contentHash: 'h'.repeat(64), size: 3, ownerPublicKey: OWNER, verifyKey: 'third|third.bin',
+    contentHash: 'h'.repeat(64), size: 3, ownerKey: OWNER, verifyKey: 'third|third.bin',
     finalPath,
   }
   fs.writeFileSync(finalPath, 'abc')

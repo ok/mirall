@@ -8,6 +8,7 @@
 // pulls by content hash from any online holder, verified chunk-by-chunk).
 // Also here: the owner-side presence sweep, index compaction, and boot
 // rehydrate of the in-memory serve maps.
+import { entryRef } from '../../../contract/entry-ref.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createStreamingHasher } from './vendor/chunker.js'
@@ -495,14 +496,14 @@ async function reconcileActiveOverlayTransfers(spaceId, share) {
     engine: engine(),
     spaceId,
     log,
-    ownsSlot: (slot) => slot.ownerPublicKey === share.owner && slot.pendingKey.startsWith(prefix),
+    ownsSlot: (slot) => slot.ownerKey === share.owner && slot.pendingKey.startsWith(prefix),
     entryStateFor: (slot) => getPeerEntryState(keyHex, share.id, relOf(slot), { sck }),
     buildJob: (slot, state, transferId) => ({
       spaceId, pendingKey: slot.pendingKey, path: slot.pendingKey, relPath: relOf(slot), shareId: share.id, ...catalogKeyField(keyHex, encrypted),
       folderName: folderLabel(share),
       transferId,
       contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
-      ownerPublicKey: share.owner, verifyKey: share.id + '|' + relOf(slot),
+      ownerKey: share.owner, verifyKey: entryRef(share.id, relOf(slot)),
       finalPath: slot.finalPath,
     }),
   })
@@ -549,7 +550,7 @@ async function resolveFolderPendingRow(spaceId, row) {
       folderName: folderLabel(share),
       transferId: transferIdFor(spaceId, row.shareId, row.relPath),
       contentHash: state.contentHash, size: state.size || 0, sourceSeq: state.seq,
-      ownerPublicKey: row.ownerKey, verifyKey: row.shareId + '|' + row.relPath,
+      ownerKey: row.ownerKey, verifyKey: entryRef(row.shareId, row.relPath),
       finalPath, prevBytes: finalPath === row.finalPath ? row.bytesTransferred : 0,
     },
   }
@@ -595,7 +596,7 @@ export async function overlayRequestDownload(spaceId, share, relPath) {
     folderName: folderLabel(share),
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
-    ownerPublicKey: share.owner, verifyKey: share.id + '|' + relPath,
+    ownerKey: share.owner, verifyKey: entryRef(share.id, relPath),
     finalPath, prevBytes: finalPath === prev?.finalPath ? prev.bytesTransferred : 0,
   })
 }

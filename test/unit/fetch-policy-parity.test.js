@@ -19,7 +19,7 @@ const CHANNEL = 'shared/transfer/backends/overlay/overlay-channel.js'
 // them. Same technique and same rationale as preview-shape-parity.test.js.
 
 test('both producers gate a fetch on reachability', (t) => {
-  t.ok(/ownerOnline\(job\.ownerPublicKey\)/.test(read(ENGINE)), 'the engine gates on the owner')
+  t.ok(/ownerOnline\(job\.ownerKey\)/.test(read(ENGINE)), 'the engine gates on the owner')
   // Anchored on the call, not the declaration: /mayFetch\(mount\)/ alone matches
   // `function mayFetch(mount) {`, so both call sites could be deleted and this still passed.
   t.ok(/const canFetch = mayFetch\(mount\)/.test(read(MIRROR)), 'the mirror gates its walk')
