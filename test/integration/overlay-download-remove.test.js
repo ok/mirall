@@ -44,7 +44,7 @@ function makeJob(ctx, over = {}) {
   return {
     spaceId: 'space1', pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', catalogKey: 'cat-hex', transferId: 'space1|folder1|doc.bin',
-    contentHash: 'h'.repeat(64), size: 4096, ownerPublicKey: 'peerpub', verifyKey: 'folder1|doc.bin',
+    contentHash: 'h'.repeat(64), size: 4096, ownerKey: 'peerpub', verifyKey: 'folder1|doc.bin',
     finalPath: path.join(ctx.tmpDir('dl'), 'doc.bin'), ...over,
   }
 }

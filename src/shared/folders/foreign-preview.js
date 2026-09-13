@@ -1,6 +1,7 @@
 // The mirror's read-only scan preview: what mounting this share at this path would download, and
 // how much of it would land on top of something already there. Reads nothing the mirror engine
 // owns — no loop state, no synced set — so it lives outside it.
+import { entryRef } from '../contract/entry-ref.js'
 import fs from 'bare-fs'
 import { pathFromMount } from '../transfer/path-guard.js'
 import { DEFAULT_IGNORE, dropUnsafeEntries } from './path-keys.js'
@@ -57,7 +58,7 @@ async function classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf) 
   // when it lands the owner's bytes on a renamed sibling, and a manual download writes it for a
   // file in the downloads folder. Either one would otherwise report a clean destination for a file
   // the mount is about to download on top of the user's own.
-  if (entry.hash && await isVerifiedUnchanged(spaceId, shareId + '|' + entry.relPath, entry.hash, entry.size, stat, { expectLocal: entry.relPath })) {
+  if (entry.hash && await isVerifiedUnchanged(spaceId, entryRef(shareId, entry.relPath), entry.hash, entry.size, stat, { expectLocal: entry.relPath })) {
     return { relPath: entry.relPath, size: entry.size, download: false }
   }
   try {

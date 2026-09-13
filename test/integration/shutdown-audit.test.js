@@ -57,7 +57,7 @@ test('a burst of transfers settling during shutdown loses no audit rows', async 
   for (let i = 0; i < BURST; i++) {
     recordTransferOutcome({
       spaceId: space.spaceId, path: '/Brand Assets/late-' + i + '.bin', relPath: 'late-' + i + '.bin',
-      shareId: 'sh1', folderName: 'Brand Assets', size: 2048, ownerPublicKey: PEER,
+      shareId: 'sh1', folderName: 'Brand Assets', size: 2048, ownerKey: PEER,
     }, 'ok', null)
   }
   await ctx.root.close()

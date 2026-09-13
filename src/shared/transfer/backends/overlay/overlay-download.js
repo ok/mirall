@@ -86,7 +86,7 @@ function discardPartial(finalPath) {
 //   emitSuperseded?(job), emitPaused?(job, reason), emitDecorationDone?(job),
 // }
 // job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq,
-//        ownerPublicKey, verifyKey, finalPath, prevBytes, ...channel-specific }
+//        ownerKey, verifyKey, finalPath, prevBytes, ...channel-specific }
 //
 // A download's slot IS its registry entry: start() reserves it synchronously, before any await, so
 // a duplicate trigger cannot open a second fetch on the same hash; the fetch task holds it; settling
@@ -112,7 +112,7 @@ function discardPartial(finalPath) {
 //   recordPendingError          never throws. The verdict is kept in terminalCodes instead, which
 //                               suppresses auto-resume only until the next restart.
 export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
-  const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerPublicKey, restartJob }
+  const registry = new Map() // transferId -> { contentHash, finalPath, paused, cancelled, fetching, spaceId, pendingKey, ownerKey, restartJob }
   // Paused-transfer markers whose single-flight slot was released (the fetch IIFE deletes it on
   // settle). The marker is the user's intent — it outranks every automatic resume — and its hash
   // lets a later discard still tell the holder we stopped.
@@ -153,7 +153,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
   // indefinitely while a wedged one gives up.
   const stallRetries = new Map()
-  const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerPublicKey))
+  const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerKey))
 
   function has(transferId) { return registry.has(transferId) }
 
@@ -175,7 +175,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     // Every bail DELETES the record. A leftover is keyed by a stable transferId
     // (spaceId|shareId|relPath), so an unrelated download of the same file hours later would
     // read it as `prev` and inherit an exhausted budget it never spent.
-    if (!ownerOnline(job.ownerPublicKey)) { cancelStallRetry(transferId); return false } // reconnect re-drives this
+    if (!ownerOnline(job.ownerKey)) { cancelStallRetry(transferId); return false } // reconnect re-drives this
     if (pausedHashes.has(transferId)) { cancelStallRetry(transferId); return false }     // the user's pause outranks a retry
     const row = await getPendingFor(job.spaceId, job.pendingKey).catch(() => null)
     if (!row) { cancelStallRetry(transferId); return false }                             // row gone: nothing to resume
@@ -212,14 +212,14 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     // of them outrank this. The record stays so the dry counter keeps measuring
     // attempts-without-progress no matter who started them.
     if (registry.has(transferId) || pausedHashes.has(transferId)) return
-    if (!ownerOnline(job.ownerPublicKey)) return settleRetryAsPaused(job)
+    if (!ownerOnline(job.ownerKey)) return settleRetryAsPaused(job)
     // Bookkeeping only — the scan itself iterates rows, so a purged one starts nothing either
     // way; this is what releases the record so it cannot be inherited by a later transfer of
     // the same path (the key is a stable spaceId|shareId|relPath).
     const row = await getPendingFor(job.spaceId, job.pendingKey).catch(() => null)
     if (!row) { cancelStallRetry(transferId); return }
     log.debug('overlay download stall-retry:', job.relPath, '— attempt', dry + 1, 'at', bytes, 'bytes')
-    pokeResume(job.ownerPublicKey, job.spaceId)
+    pokeResume(job.ownerKey, job.spaceId)
   }
 
   // Give up on a retry without a fetch to settle it: the row must still land in a terminal paused
@@ -303,7 +303,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
       }
       // hasOverlay() covers the shutdown path: drainAdmission() releases parked waiters so close()
       // is not held open, and they must not then fetch into a torn-down overlay.
-      if (slot.paused || !hasOverlay() || !ownerOnline(job.ownerPublicKey)) {
+      if (slot.paused || !hasOverlay() || !ownerOnline(job.ownerKey)) {
         registry.delete(transferId)
         channel.emitUpdated(job.spaceId)
         return
@@ -425,7 +425,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     const holder = fetchClaimedBy(transferId)
     if (holder) {
       await recordPending(job.spaceId, job.pendingKey, {
-        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerPublicKey,
+        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerKey,
         finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
         bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
       })
@@ -439,7 +439,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     // contentHash is known up front so a pause/cancel can target the right hash; the
     // `fetching` flag gates cancelFetch so an abort only reaches the (vendor) layer
     // once a fetch is actually in flight.
-    const slot = { contentHash: job.contentHash, finalPath: job.finalPath, paused: false, cancelled: false, fetching: false, spaceId: job.spaceId, pendingKey: job.pendingKey, ownerPublicKey: job.ownerPublicKey, sourceSeq: job.sourceSeq, restartJob: null, republishing: false, job }
+    const slot = { contentHash: job.contentHash, finalPath: job.finalPath, paused: false, cancelled: false, fetching: false, spaceId: job.spaceId, pendingKey: job.pendingKey, ownerKey: job.ownerKey, sourceSeq: job.sourceSeq, restartJob: null, republishing: false, job }
     registry.set(transferId, slot)
     try {
       // Record the pending row up front (carrying ownerKey + the content hash it is fetching) so
@@ -449,7 +449,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
       // explicitly: a start() that then bails (owner offline) would otherwise reset a part-
       // downloaded row's progress to zero.
       await recordPending(job.spaceId, job.pendingKey, {
-        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerPublicKey,
+        total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerKey,
         finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
         bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
       })
@@ -462,7 +462,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
         return { queued: true } // cancelByKey already cleared the row + emitted
       }
       if (slot.paused) { registry.delete(transferId); channel.emitUpdated(job.spaceId); return { queued: true } }
-      if (!ownerOnline(job.ownerPublicKey)) {
+      if (!ownerOnline(job.ownerKey)) {
         registry.delete(transferId)
         log.debug('overlay download queued — owner not present on the control plane:', job.relPath)
         channel.emitUpdated(job.spaceId)

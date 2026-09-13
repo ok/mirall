@@ -66,7 +66,7 @@ function makeJob(dir, over = {}) {
   return {
     spaceId: SPACE, pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: SPACE + '|folder1|doc.bin',
-    contentHash: HASH, size: 4096, ownerPublicKey: OWNER, verifyKey: 'folder1|doc.bin',
+    contentHash: HASH, size: 4096, ownerKey: OWNER, verifyKey: 'folder1|doc.bin',
     finalPath: path.join(dir, 'doc.bin'), ...over,
   }
 }

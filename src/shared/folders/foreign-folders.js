@@ -4,6 +4,7 @@
 // the overlay backend and land as partials that rename into place; deletions are
 // honored only for files the mirror itself wrote (syncedPaths) and only while the
 // owner is provably online, so a lagged replica or a user's own files are never wiped.
+import { entryRef } from '../contract/entry-ref.js'
 import { MOUNT_STATUS, MIRROR_STATE } from '../contract/statuses.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
@@ -472,7 +473,7 @@ async function mountCanTake(mount, entry, abs, probe) {
 
 async function materializeOverlayFile(mount, share, entry, opts = {}) {
   const hashOf = opts.hashOf || overlayHashFile
-  const verifyKey = mount.shareId + '|' + entry.relPath
+  const verifyKey = entryRef(mount.shareId, entry.relPath)
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.

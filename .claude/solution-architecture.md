@@ -1191,6 +1191,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
 | `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |
+| `src/shared/contract/entry-ref.js` | Which file in which share, as one string — the `verified:` bee key grammar and the range prefix that must agree with it |
 
 ### `src/shared/state/`
 

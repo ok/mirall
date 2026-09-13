@@ -4,6 +4,7 @@
 // original file on disk, resolved per file via the source map (not a mount root).
 // The publish/fetch cores live in overlay-backend.js and are shared with folder
 // shares — this module is the loose-specific glue (source map, watch, cap, naming).
+import { entryRef } from '../contract/entry-ref.js'
 import path from 'bare-path'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../contract/main-requests.js'
 import { getOverlay } from './backends/overlay/overlay-instance.js'
@@ -356,7 +357,7 @@ async function reconcileActiveLooseTransfers(spaceId, member) {
     engine: engine(),
     spaceId,
     log,
-    ownsSlot: (slot) => slot.ownerPublicKey === member.publicKey,
+    ownsSlot: (slot) => slot.ownerKey === member.publicKey,
     entryStateFor: (slot) => getPeerEntryState(keyHex, LOOSE_SHARE_ID, rel(slot.pendingKey), { sck }),
     buildJob: async (slot) => {
       const job = await buildLooseJob(spaceId, member, slot.pendingKey)
@@ -383,7 +384,7 @@ async function buildLooseJob(spaceId, member, drivePath, prevPending, entry) {
     spaceId, pendingKey: drivePath, path: drivePath, relPath,
     transferId: looseTransferIdFor(spaceId, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
-    ownerPublicKey: member.publicKey, verifyKey: LOOSE_SHARE_ID + '|' + relPath,
+    ownerKey: member.publicKey, verifyKey: entryRef(LOOSE_SHARE_ID, relPath),
     finalPath, prevBytes: finalPath === pending?.finalPath ? pending.bytesTransferred : 0,
   }
 }

@@ -103,7 +103,7 @@ test('a start() against a held claim records the pending row and returns the liv
   const res = await engine.start({
     spaceId: ctx.spaceId, pendingKey: '/dl/copy.bin', path: '/dl/copy.bin', relPath: entry.relPath,
     shareId: ctx.share.id, transferId, contentHash: entry.contentHash, size: entry.size,
-    ownerPublicKey: ctx.share.owner, verifyKey: ctx.share.id + '|' + entry.relPath, finalPath,
+    ownerKey: ctx.share.owner, verifyKey: ctx.share.id + '|' + entry.relPath, finalPath,
   })
 
   // Refusing outright would leave the click with no transferId to follow and no bar — the failure

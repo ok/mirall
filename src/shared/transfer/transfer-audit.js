@@ -41,7 +41,7 @@ export function recordTransferOutcome(job, outcome, errorCode) {
       // join — a row outlives its share.
       subject: {
         bytes: job.size ?? null,
-        ownerKey: job.ownerPublicKey ?? null,
+        ownerKey: job.ownerKey ?? null,
         folder: job.folderName ?? null,
         shareId: job.shareId ?? null,
       },
