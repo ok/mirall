@@ -11,23 +11,21 @@
 // every handler is registered, so no frame is dispatched before its handler exists.
 import { PEER_FRAME } from '../shared/contract/peer-frames.js'
 import { MOUNT_STATUS } from '../shared/contract/statuses.js'
-import os from 'bare-os'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth, getInFlightCount } from '../shared/core/ipc.js'
+import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import { registerAudit } from './ipc/audit.js'
 import { registerNetwork } from './ipc/network.js'
+import { registerSettings } from './ipc/settings.js'
+import { registerProfile } from './ipc/profile.js'
+import { registerFeedback } from './ipc/feedback.js'
+import { registerDiagnostics } from './ipc/diagnostics.js'
 import {
   setRuntimeConfig,
-  getRuntimeConfig,
-  getUpgradeKey,
-  setDownloadFolder,
-  setBandwidthLimits,
   isHandshakeIdentityBindingEnabled,
   isOverlayEnabled,
-  isInPlaceFilesEnabled,
   getResourceCaps,
 } from '../shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
@@ -38,7 +36,6 @@ import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-reques
 import { getContentBackend, UNSUPPORTED } from '../shared/transfer/content-backends.js'
 import {
   getProfile,
-  setProfile,
   markOwnMembership,
   getLocalPublicKeyHex,
   readProfileRecord,
@@ -78,10 +75,6 @@ import {
   cleanupSpaceDrives,
   getConnectedPeers,
   broadcastProfileUpdate,
-  getSwarmStatus,
-  getVerdictHistory,
-  getDiagnosticCounters,
-  getPeerSamples,
   rescueStalledTransfers,
   sendMembershipGrant,
   sendMembershipDeny,
@@ -134,15 +127,9 @@ import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { pathFromMount } from '../shared/transfer/path-guard.js'
 import { makeKeyedCoalescer } from '../shared/core/coalesce.js'
-import { getStorageInfo } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'
-import { sendFeedback } from '../shared/telemetry/feedback.js'
-import { getInstallId } from '../shared/telemetry/install-id.js'
-import { listRecentSweeps } from '../shared/storage/sweep-journal.js'
-import { deriveChannel } from '../shared/core/channel.js'
-import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
-import { record, queryAudit } from '../shared/audit/audit-log.js'
+import { record } from '../shared/audit/audit-log.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../shared/shares/shares.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
 import { listOverlayShareFiles } from '../shared/shares/share-listing.js'
@@ -645,14 +632,6 @@ root = await boot(bootstrap, {
   onPartialRoot: (partial) => { root = partial },
 })
 const { mounts, intents, applyRelayConfig } = root
-
-// The renderer asks on mount and again whenever a transfer reports the folder gone, so the
-// banner can appear at once rather than on the next tick. Re-probing (rather than returning the
-// cached set) is what makes that second call worth making.
-ipc.handle('downloads:roots-status', async () => {
-  mounts.probeDownloadRoots()
-  return { unavailable: mounts.unavailableRoots }
-})
 
 ipc.handle('shutdown', () => { safeShutdown('renderer-shutdown') })
 
@@ -1267,13 +1246,7 @@ ipc.handle('foreign-folder:list-all', async () => {
 
 // === IPC: profile & space handlers ===
 
-ipc.handle('profile:get', async () => await getProfile())
-ipc.handle('profile:set', async (msg) => {
-  await setProfile({ displayName: msg.displayName, avatar: msg.avatar })
-  refreshAuditSelfName(msg.displayName)
-  broadcastProfileUpdate().catch(err => log.warn('profile broadcast failed:', err.message))
-  return await getProfile()
-})
+registerProfile(ipc, { log })
 
 // The self-first roster (avatars included) for ONE space. Rosters ship slim in spaces:list —
 // avatars are base64 data-URLs up to the sanitizeAvatar cap, far too heavy for an
@@ -1629,125 +1602,10 @@ ipc.handle('files:cancel-publish', async (msg) => {
 
 // === IPC: feedback, storage & settings handlers ===
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function formatTimestamp(d) {
-  const pad = (n) => String(n).padStart(2, '0')
-  const offsetMin = -d.getTimezoneOffset()
-  const sign = offsetMin >= 0 ? '+' : '-'
-  const absMin = Math.abs(offsetMin)
-  const offH = Math.floor(absMin / 60)
-  const offM = absMin % 60
-  const offset = offM === 0 ? `UTC${sign}${offH}` : `UTC${sign}${offH}:${pad(offM)}`
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} at ${pad(d.getHours())}:${pad(d.getMinutes())} (${offset})`
-}
-
-ipc.handle('feedback:send', async (msg) => {
-  const profile = await getProfile()
-  const displayName = profile?.displayName || 'Unknown User'
-  const email = typeof msg.email === 'string' && msg.email.trim() ? msg.email.trim() : null
-  const timestamp = formatTimestamp(new Date())
-  const cfg = getRuntimeConfig()
-  const appVersion = cfg.appVersion || (cfg.dev ? 'dev' : 'unknown')
-  const comment = msg.comment || '(no comment)'
-
-  const headerLines = [`Feedback from ${displayName}`]
-  if (email) headerLines.push(email)
-  headerLines.push(`v${appVersion} · ${os.platform()} ${os.release()} (${os.arch()})`)
-  headerLines.push(timestamp)
-  const header = headerLines.join('\n') + '\n\n'
-
-  const captionLimit = msg.screenshot ? 1024 : 4096
-  const room = captionLimit - header.length
-  const finalComment = comment.length > room ? comment.slice(0, room - 3) + '...' : comment
-  const caption = header + finalComment
-
-  const screenshotBuffer = msg.screenshot
-    ? Buffer.from(msg.screenshot, 'base64')
-    : null
-
-  await sendFeedback(caption, screenshotBuffer)
-  return { ok: true }
-})
-
-ipc.handle('storage:info', async () => await getStorageInfo())
-
-ipc.handle('settings:set-download-folder', async (msg) => {
-  // Same mount-overlap rejection as a per-space folder: the global root is the effective root
-  // of every space that never overrode it, so pointing it into a folder the user shares or
-  // mirrors publishes their downloads to peers just as surely.
-  const folder = await validateDownloadFolderAgainstMounts(msg?.folder)
-  setDownloadFolder(folder)
-  publishDownloadRoots()
-  return { ok: true }
-})
-
-// The limiters read their rate per call, so this reaches in-flight transfers with no
-// further plumbing.
-ipc.handle('settings:set-bandwidth', async (msg) => {
-  setBandwidthLimits({ downloadKBps: msg?.downloadKBps, uploadKBps: msg?.uploadKBps })
-  return { ok: true }
-})
-
+registerSettings(ipc, { mounts, publishDownloadRoots })
+registerFeedback(ipc)
 registerNetwork(ipc, { applyRelayConfig })
-
-const DIAGNOSTIC_HISTORY_LIMIT = 50
-
-// Durable rows + this session's ring, MERGED: the ring dies with the process (a bundle collected
-// after a restart needs the rows), and the rows are hold-down-deduped (a bundle collected during a
-// live problem needs the ring's sub-60 s flaps and settling states).
-async function durableVerdictHistory() {
-  const ring = getVerdictHistory()
-  try {
-    const { entries } = await queryAudit({ kinds: VERDICT_KINDS, limit: DIAGNOSTIC_HISTORY_LIMIT })
-    const durable = verdictHistoryFromAudit(entries)
-    if (!durable.length) return ring
-    const newest = durable[durable.length - 1].at
-    return [...durable, ...ring.filter((entry) => entry.at > newest)]
-  } catch {
-    return ring
-  }
-}
-
-ipc.handle('diagnostics:export', async (msg) => {
-  const cfg = getRuntimeConfig()
-  return buildDiagnostics({
-    status: getSwarmStatus(),
-    history: await durableVerdictHistory(),
-    env: {
-      appVersion: cfg.appVersion || (cfg.dev ? 'dev' : 'unknown'),
-      channel: deriveChannel(cfg),
-      installId: cfg.storage ? await getInstallId(cfg.storage) : null,
-      packaged: !!getUpgradeKey(),
-      platform: os.platform(),
-      release: os.release(),
-      arch: os.arch(),
-    },
-    counters: getDiagnosticCounters(),
-    sweeps: await listRecentSweeps(10),
-    requestFailures: getRequestFailureCounters(),
-    requestMetrics: getRequestMetrics(),
-    health: health.snapshot({
-      queueDepth: getQueueDepth(),
-      subsystems: root?.health() || [],
-      supervision: root?.supervision() || null,
-      inFlightRequests: getInFlightCount(),
-    }),
-    peerSamples: getPeerSamples(),
-  }, msg?.redact !== false)
-})
-
-ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
-
-// Live verbose-logging toggle, driven from the renderer dev console
-// (window.mirall.verbose). The logger reads getRuntimeConfig().verbose on every
-// call, so flipping it here takes effect immediately with no relaunch. The
-// spread preserves every other runtime-config field (buildConfig round-trips
-// them losslessly).
-ipc.handle('setVerbose', async (msg) => {
-  setRuntimeConfig({ ...getRuntimeConfig(), verbose: !!msg.verbose })
-  return { verbose: !!msg.verbose }
-})
+registerDiagnostics(ipc, { health, getRoot: () => root })
 
 ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
 
