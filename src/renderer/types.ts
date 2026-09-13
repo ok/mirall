@@ -1,5 +1,6 @@
 import type { FILE_STATUSES, BADGE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from '../shared/contract/statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from '../shared/contract/audit-kinds.js'
+import type { VERDICTS, CAUSES, CONFIDENCES, CANARY_STATES } from '../shared/contract/reachability.js'
 export interface Profile {
   displayName: string
   avatar: string | null
@@ -247,18 +248,12 @@ interface NetworkStatusStats {
   relaying: { selected: number; attempts: number; successes: number; aborts: number }
 }
 
-export type ReachabilityVerdict = 'healthy' | 'at-risk' | 'blocked' | 'unknown'
+export type ReachabilityVerdict = (typeof VERDICTS)[number]
+export type ReachabilityConfidence = (typeof CONFIDENCES)[number]
 
-export type ReachabilityCause =
-  | 'os-offline'
-  | 'dht-unreachable'
-  | 'no-public-address'
-  | 'symmetric-nat'
-  | 'udp-degraded'
-  | 'peers-unreachable'
-  | 'vpn-only-route'
+export type ReachabilityCause = (typeof CAUSES)[number]
 
-type CanaryState = 'unavailable' | 'pending' | 'seeder-down' | 'reachable' | 'unreachable'
+export type CanaryState = (typeof CANARY_STATES)[number]
 
 interface ReachabilityEvidence {
   peersDiscovered: number
@@ -273,7 +268,7 @@ interface ReachabilityEvidence {
 export interface Reachability {
   verdict: ReachabilityVerdict
   cause: ReachabilityCause | null
-  confidence: 'measured' | 'predicted'
+  confidence: ReachabilityConfidence
   evidence: ReachabilityEvidence | null
   since: number
 }

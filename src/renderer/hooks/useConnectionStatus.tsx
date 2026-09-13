@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { request, subscribe } from '../ipc.js'
+import { DHT_FAILURE_MS } from '../../shared/contract/limits.js'
 import type { CanaryResult, ConnectivityState, NetworkStatus, Reachability } from '../types.js'
 
 interface ConnectionStatusContextValue {
@@ -26,7 +27,6 @@ const ConnectionStatusContext = createContext<ConnectionStatusContextValue | nul
 // DHT is still coming up, degrades to connecting once that is slow enough to notice, and is called
 // offline only after long enough that a working network would have answered.
 const BOOT_GRACE_MS = 15000
-const DHT_FAILURE_MS = 45000
 
 function deriveState(status: NetworkStatus | null, browserOnline: boolean, now: number): ConnectivityState {
   if (!browserOnline) return 'offline'

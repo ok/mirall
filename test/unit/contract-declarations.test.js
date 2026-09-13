@@ -53,7 +53,7 @@ test('REGRESSION (FIX-CONTRACT-DRIFT): every declaration file matches the module
 // The modules whose exports are pure vocabulary. Deliberately a list, not every file in the
 // package: scope.js exports objects that are not frozen today, and invite-envelope.js exports a
 // RegExp — widening this is a code change, not a test change.
-const FROZEN = ['errors', 'requests', 'events', 'limits', 'statuses', 'exit-codes', 'ipc-frames', 'peer-frames', 'main-requests', 'workers', 'audit-kinds']
+const FROZEN = ['errors', 'requests', 'events', 'limits', 'statuses', 'exit-codes', 'ipc-frames', 'peer-frames', 'main-requests', 'workers', 'audit-kinds', 'reachability']
 
 test('every vocabulary is frozen', async (t) => {
   for (const name of FROZEN) {
@@ -97,7 +97,7 @@ test('the declared status tuples match the runtime arrays exactly', (t) => {
 // exactly the twin this package exists to delete.
 test('the renderer derives its status unions instead of re-listing them', (t) => {
   const types = readFileSync(path.join(dir, '..', '..', 'renderer', 'types.ts'), 'utf8')
-  for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['ShareFileStatus', 'SHARE_FILE_STATUSES'], ['AuditCategory', 'CATEGORIES']]) {
+  for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['ShareFileStatus', 'SHARE_FILE_STATUSES'], ['AuditCategory', 'CATEGORIES'], ['ReachabilityVerdict', 'VERDICTS'], ['ReachabilityCause', 'CAUSES'], ['CanaryState', 'CANARY_STATES']]) {
     t.ok(new RegExp(`export type ${type} = \\(typeof ${konst}\\)\\[number\\]`).test(types),
       `${type} is derived from the contract`)
   }

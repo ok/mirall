@@ -1,46 +1,23 @@
 // Reachability verdict: the one place the app decides whether the user can actually
-// reach peers. Deliberately dependency-free so it loads under node — swarm.js pulls
-// bare-* modules and cannot.
+// reach peers. Its vocabulary is contract/reachability.js, re-exported here so a caller reading a
+// verdict imports the names from the module that produced it. Deliberately dependency-free beyond
+// the contract so it loads under node — swarm.js pulls bare-* modules and cannot.
 //
 // GOVERNING RULE: the canary may CONFIRM a verdict, never CREATE one. A canary failure
 // is indistinguishable from our own seeder being down, so it can raise confidence and
 // promote to healthy, but is never the sole basis for telling a user their network is
 // broken.
 
-export const VERDICT = {
-  HEALTHY: 'healthy',
-  AT_RISK: 'at-risk',
-  BLOCKED: 'blocked',
-  UNKNOWN: 'unknown',
-}
+import { VERDICT, CAUSE, CONFIDENCE, CANARY } from '../contract/reachability.js'
+import { DHT_FAILURE_MS } from '../contract/limits.js'
 
-export const CAUSE = {
-  OS_OFFLINE: 'os-offline',
-  DHT_UNREACHABLE: 'dht-unreachable',
-  NO_PUBLIC_ADDRESS: 'no-public-address',
-  SYMMETRIC_NAT: 'symmetric-nat',
-  UDP_DEGRADED: 'udp-degraded',
-  PEERS_UNREACHABLE: 'peers-unreachable',
-  VPN_ONLY_ROUTE: 'vpn-only-route',
-}
-
-// test seam
-export const CONFIDENCE = { MEASURED: 'measured', PREDICTED: 'predicted' }
-
-export const CANARY = {
-  UNAVAILABLE: 'unavailable',
-  PENDING: 'pending',
-  SEEDER_DOWN: 'seeder-down',
-  REACHABLE: 'reachable',
-  UNREACHABLE: 'unreachable',
-}
+export { VERDICT, CAUSE, CONFIDENCE, CANARY }
 
 // Measured from dhtReady, NOT from boot. dht-rpc emits 'ready' only after the bootstrap
 // FIND_NODE walk completes, and that walk is what fed the NAT sampler — so the NAT
 // verdict is ready when dhtReady is. This short window only covers a consensus still
 // forming and gives the canary room to confirm.
 export const NAT_SETTLE_MS = 5000
-const DHT_FAILURE_MS = 45000
 const MIN_ROUTING_TABLE = 8
 const MIN_EXHAUSTED_PEERS = 1
 export const BLOCKED_DWELL_MS = 20000

@@ -1187,6 +1187,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel` |
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
+| `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
 | `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |

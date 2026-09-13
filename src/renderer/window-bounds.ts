@@ -1,3 +1,4 @@
+import { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } from '../shared/contract/limits.js'
 // Tracks window bounds during the session (debounced) and persists the last good size to main on unload; main restores them itself on the next launch.
 interface Bounds {
   x: number
@@ -7,9 +8,8 @@ interface Bounds {
 }
 
 const SAVE_DELAY = 500
-const MIN_WIDTH = 900
-// Keep in sync with the BrowserWindow minHeight in src/main/main.js.
-const MIN_HEIGHT = 870
+const MIN_WIDTH = MIN_WINDOW_WIDTH
+const MIN_HEIGHT = MIN_WINDOW_HEIGHT
 
 let timer: ReturnType<typeof setTimeout> | null = null
 let lastBounds: Bounds | null = null
