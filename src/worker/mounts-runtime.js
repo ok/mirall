@@ -13,7 +13,7 @@ import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedActivity, setOwnedFault, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
-import { periodicReconcile, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
+import { periodicReconcile, reconcileOwnedShare, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
 import { mountRootAvailable } from '../shared/folders/publish-runner.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
@@ -247,7 +247,7 @@ export class MountsRuntime extends Subsystem {
   armCatchUpScan(spaceId, shareId, mount) {
     const deep = !!mount.deepScanOwed
     const settled = this.settleScanStatus(
-      periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore, { deep }),
+      reconcileOwnedShare(mount, { deep }),
       spaceId, shareId,
     )
     if (!deep) return settled
