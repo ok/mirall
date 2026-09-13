@@ -577,3 +577,19 @@ refactor removed, so `t.absent(...)` passed for the wrong reason:
 spelling *before* running anything. A ratchet that fails is doing its job; one that quietly passes has
 stopped being a test. Prefer pinning a positive property ("every writer imports the vocabulary") over
 an absence.
+
+## `no-undef` cannot see a dropped import whose name is a global
+
+Splitting `worker/main.js` moved `space:invite` into `worker/ipc/spaces.js`. The handler mints an
+invite id with `crypto.randomBytes(16)` from **`hypercore-crypto`**, imported in the entry as
+`crypto` — the repo-wide spelling. The new module did not carry the import across, and every static
+gate passed: `no-undef` resolved `crypto` to the environment's own global instead of reporting it,
+`tsc` does not typecheck the worker, and no unit or integration test loads the entry. The break only
+surfaced in the flow suite, as `Error: crypto is not defined` from the worker subprocess — seven
+tests failing in under a second each.
+
+**The rule:** a module split is only proven by something that RUNS the worker. `no-undef` is blind
+to any identifier that shadows a global (`crypto`, `fetch`, `performance`, `Buffer`, `URL`), which
+is exactly the set a Node-flavoured import list is most likely to contain. After moving handlers
+between worker modules, run one flow test that exercises them — the static gates cannot stand in for
+it, and the failure they miss is a runtime crash, not a warning.

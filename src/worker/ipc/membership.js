@@ -19,10 +19,10 @@ import { sanitizeAvatar } from '../../shared/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invite-policy.js'
 import { closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
-import { reconnectGrantAllowed } from '../../shared/spaces/member-set.js'
+import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, readProfileRecord } from '../../shared/spaces/profile.js'
 import { clearCreatorDivergence, clearJoinRequest, getSpace, getSpaceContentKey, listJoinRequests, listPendingRequests, markCreatorDivergence, materializeOwnDrive, pinCreatorKey, purgeSpace, recordApproval, recordJoinRequest } from '../../shared/spaces/space.js'
-import { makeKeyedCoalescer } from '../../shared/state/coalesce.js'
+import { makeKeyedCoalescer } from '../../shared/core/coalesce.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { checkGrantAssertion, clampDisplayName } from '../../shared/transfer/handshake-guard.js'
 import { openSealedSck } from '../../shared/transfer/sck-seal.js'
@@ -93,14 +93,19 @@ async function onJoinRequest(msg) {
   const spaceId = (msg.spaceTopic || '').slice(0, 16)
   const space = spaceId ? await getSpace(spaceId) : null
   if (!space) return
-  // We are still pending ourselves: we hold no content key, so we can neither grant
-  // nor meaningfully approve — ignore other peers' requests entirely.
-  if (space.status === 'pending') return
   // Capture the leave-tombstone (the kept "this peer left" marker) BEFORE clearing it: a peer
-  // mid-leave can still be transiently in
-  // space.members (handleLeaveFrame's removeMember hasn't committed), so a peer we've observed
-  // leaving must go through fresh approval, never the reconnect re-grant shortcut below.
+  // mid-leave can still be transiently in space.members (handleLeaveFrame's removeMember hasn't
+  // committed), so a peer we've observed leaving must go through fresh approval, never the
+  // reconnect re-grant shortcut. It reads a different record than the approval below, so the two
+  // are free to be read together.
   const hadLeft = isLeft(spaceId, msg.profileKey)
+  const settled = knockSettledByRecords({
+    selfPending: space.status === 'pending',
+    isMember: (space.members || []).some((m) => m.publicKey === msg.profileKey),
+    hadLeft,
+    isApproved: isApprovedJoiner(spaceId, msg.profileKey),
+  })
+  if (settled === 'ignore') return
   // A fresh request means they want back in — lift any leave-tombstone (in-memory + durable) so the
   // gate and the fold treat them as a normal (re)joiner again.
   await dropTombstone(spaceId, msg.profileKey)
@@ -113,44 +118,31 @@ async function onJoinRequest(msg) {
     const sck = getSpaceContentKey(spaceId, space)
     if (sck) sendMembershipGrant(msg.profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(msg.profileKey))
   }
-  // Reconnect (still a member, no leave observed) → re-grant idempotently. A just-left peer falls
-  // through to a fresh join request + approval banner instead.
-  if (reconnectGrantAllowed((space.members || []).some((m) => m.publicKey === msg.profileKey), hadLeft)) return grant()
-  // Approved but never confirmed: the durable approved/<S>/<joiner> receipt exists while the
-  // joiner's own member/<S> record hasn't converged — the state a joiner approved while OFFLINE
-  // re-knocks from (its grant frame was undeliverable, so it is still 'pending' and re-requests
-  // on every reconnect). Re-issue the grant BEFORE the invite classification: the original invite
-  // may be spent or expired by now and must not re-deny an already-approved joiner. Idempotent,
-  // and self-terminating once the joiner publishes its member record and the fold promotes it;
-  // hadLeft still forces a departed peer through fresh approval.
-  if (!hadLeft && isApprovedJoiner(spaceId, msg.profileKey)) return grant()
-  // Per-link policy. The record is replicated across the member set, so any member resolves it the
-  // same: expired → refuse (the replicated record is authoritative, so stripping or forging the
-  // envelope's expiry hint cannot bypass it); auto → grant; review/absent → fall through to the
-  // manual approval banner. A resolved record (inviteRec) marks a deliberate, still-valid link.
+  if (settled === 'regrant') return grant()
+
+  // Resolving the invite is deferred past the settled verdicts on purpose: resolveInvite REVOKES
+  // an expired link, so reading one for a peer we are about to re-grant retires a link nobody used.
   let inviteRec = null
+  let inviteVerdict = null
   if (msg.inviteId) {
     inviteRec = await resolveInvite(space, msg.inviteId)
-    const verdict = classifyInvite(inviteRec)
-    if (verdict === 'expired') {
-      if (space.topic) sendMembershipDeny(msg.profileKey, space.topic)
-      return
-    }
-    if (verdict === 'auto') {
-      await resolveJoinRequest(space, msg.profileKey, 'approve')
-      return
-    }
+    inviteVerdict = classifyInvite(inviteRec)
   }
-  // Denied while offline: the durable denied/<S>/<joiner> tombstone converged among members, but
-  // the joiner never received the live deny frame — its space is stuck 'pending' and re-knocks on
-  // every reconnect. Re-send the deny so a STUCK joiner (a bare reconnect replay: no currently-valid
-  // reviewable invite backs this knock) can discard the space; no fresh banner. But a valid review
-  // invite means the owner re-opened the door — fall through to the banner so they can approve or
-  // revoke, instead of silently re-denying a genuine re-invitation.
-  if (!hadLeft && !inviteRec && isDeniedJoiner(spaceId, msg.profileKey)) {
+  const verdict = knockInviteVerdict({
+    inviteVerdict,
+    hasInviteRecord: !!inviteRec,
+    hadLeft,
+    isDenied: isDeniedJoiner(spaceId, msg.profileKey),
+  })
+  if (verdict === 'deny-expired' || verdict === 'deny-replay') {
     if (space.topic) sendMembershipDeny(msg.profileKey, space.topic)
     return
   }
+  if (verdict === 'auto-approve') {
+    await resolveJoinRequest(space, msg.profileKey, 'approve')
+    return
+  }
+
   const displayName = clampDisplayName(msg.displayName)
   // The frame budget already bounded the SIZE of what arrived; what it cannot check is the shape.
   // Every other avatar ingress sanitizes, and this one writes durably into the replicated profile

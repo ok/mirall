@@ -35,6 +35,7 @@ import { fullRoster, stripCatalogKeys, slimSpaces } from '../space-projection.js
 
 import { openMemberView } from '../../shared/spaces/member-registry.js'
 import b4a from 'b4a'
+import crypto from 'hypercore-crypto'
 
 export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   ipc.handle('spaces:list', async () => slimSpaces(await getProfile()))

@@ -2,6 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { knockInviteVerdict } from '../../src/shared/spaces/knock-policy.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
@@ -25,8 +26,12 @@ test('REGRESSION (C1: the re-grant honors the creator-divergence pause)', (t) =>
 })
 
 test('REGRESSION (C2: the offline-deny re-send excludes a knock backed by a valid invite)', (t) => {
-  t.ok(/!hadLeft && !inviteRec && isDeniedJoiner/.test(membership),
-    'the re-deny gate is skipped when a resolved invite record backs the knock')
+  // The rule is a pure verdict now, so it is asserted rather than pinned by source; the whole
+  // table is enumerated in test/unit/knock-policy.test.js.
+  t.is(knockInviteVerdict({ inviteVerdict: null, hasInviteRecord: false, hadLeft: false, isDenied: true }),
+    'deny-replay', 'a bare reconnect replay is re-denied')
+  t.is(knockInviteVerdict({ inviteVerdict: 'review', hasInviteRecord: true, hadLeft: false, isDenied: true }),
+    'review', 'a resolved invite record backing the knock raises the banner instead')
 })
 
 test('REGRESSION (FIX-6/7/8: scan outcomes drive owned status; probe never blanket-writes active)', (t) => {

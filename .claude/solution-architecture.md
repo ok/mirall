@@ -1233,6 +1233,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/spaces/pending-set.js` | The pure pending-request fold: receipts minus dismissal tombstones (§3.1) |
 | `src/shared/spaces/member-identity.js` | Best-known identity for a member (live meta > profile > held), `UNKNOWN_NAME`, `displayNameOrNull` |
 | `src/shared/spaces/leave-flow.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
+| `src/shared/spaces/knock-policy.js` | `knockSettledByRecords` / `knockInviteVerdict` — the verdict table for a join request. Split in two because resolving an invite REVOKES an expired one, so a knock the records already settle is answered without reading one (§4.2) |
 | `src/shared/spaces/invite-policy.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
 | `src/shared/spaces/creator-root.js` | `reconcileAssertedRoot` — the adopt / confirm / refuse table for a member-set root assertion (§16) |
 
