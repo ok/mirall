@@ -25,9 +25,11 @@ const STATUS_SHAPED = /'(idle|active|scanning|paused|paused-[a-z]+|mount-point-g
 const WRITERS = [
   'shared/folders/foreign-folders.js',
   'worker/mounts-runtime.js',
-  // Writes owned statuses directly (mount, relocate) and emits a mirror one, so leaving it out
-  // made the promise above narrower than it reads.
-  'worker/main.js',
+  // The handlers that write an owned status directly (mount, relocate) and the one that emits a
+  // mirror status on attach. Leaving them out makes the promise above narrower than it reads.
+  'worker/owned-mount.js',
+  'worker/ipc/owned-folders.js',
+  'worker/ipc/foreign-folders.js',
   // The shared writer both roles now go through. renderer/mountFault.js and
   // shared/folders/mount-fault.js re-export it and hold no literals of their own.
   'shared/contract/mount-fault.js',
