@@ -206,7 +206,11 @@ export default [
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
-      globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
+      // `crypto` is turned OFF deliberately. In this codebase the name means hypercore-crypto, an
+      // explicit import, but Node and Bare both expose a WebCrypto global under it — so a module
+      // that loses its import still passes no-undef and fails at the first call instead. Every
+      // consumer imports it; nothing here wants the global.
+      globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly', crypto: 'off' },
     },
     rules: {
       // The data layer has no typechecker over it (tsconfig covers src/renderer only), so an
@@ -229,9 +233,29 @@ export default [
     },
   },
 
-  // Electron main + preload — host process (CommonJS).
+  // Electron main — host process (CommonJS). Node globals only: main is not a browser context, and
+  // spreading the browser set here would resolve `crypto`, `fetch` and `localStorage` to globals
+  // that do not exist, hiding a require this process actually needs. no-undef is the gate that
+  // catches an identifier a refactor left behind — there is no typechecker over src/main.
   {
-    files: ['src/main/**/*.js', 'src/preload/**/*.js'],
+    files: ['src/main/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'commonjs',
+      globals: { ...globals.node, crypto: 'off' },
+    },
+    rules: {
+      ...unusedVars,
+      ...complexityBudget,
+      ...whitespace,
+      'no-undef': 'error',
+      'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
+    },
+  },
+
+  // Preload — CommonJS like main, but it runs in the renderer's context and reaches window.
+  {
+    files: ['src/preload/**/*.js'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'commonjs',
@@ -241,6 +265,7 @@ export default [
       ...unusedVars,
       ...complexityBudget,
       ...whitespace,
+      'no-undef': 'error',
       'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
     },
   },
