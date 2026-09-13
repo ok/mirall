@@ -6,6 +6,7 @@
 // hasMasterSecret; must run before the overlay backend opens the index. A purge failure propagates so
 // the marker stays unwritten and the pass retries — leaving the plaintext cores marked-done-but-
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
+import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
 import { clearAndPurgeCore, purgeAlias } from '../../../spaces/space.js'
 import { FileIndex, indexCoreName } from './vendor/file-index.js'
@@ -22,21 +23,21 @@ const MAX_BATCH_ENTRIES = 500
 const MAX_BATCH_BYTES = 8 * 1024 * 1024
 
 export async function migrateOverlayIndexToEncrypted() {
-  if (!hasMasterSecret()) return { skipped: true }
+  if (!hasMasterSecret()) return migrationResult(MIGRATION_STATUS.SKIPPED)
   const flagBee = createLocalBee('app-migrations')
   try {
     const store = getStore()
     await store.ready()
     await flagBee.ready()
-    if ((await flagBee.get(FLAG))?.value?.completedAt) return { skipped: true }
+    if ((await flagBee.get(FLAG))?.value?.completedAt) return migrationResult(MIGRATION_STATUS.SKIPPED)
 
     const copied = await migrateIndex(store)
     await flagBee.put(FLAG, { completedAt: Date.now(), copied })
     if (copied) log.info('overlay index encrypted at rest — copied', copied, 'entries')
-    return { skipped: false, migrated: copied > 0, copied }
+    return migrationResult(MIGRATION_STATUS.DONE, { compact: copied > 0, copied })
   } catch (err) {
     log.warn('overlay-index at-rest migration skipped (will retry next boot):', err.message)
-    return { skipped: false, retry: true }
+    return migrationResult(MIGRATION_STATUS.DEFERRED)
   } finally {
     try { await flagBee.close() } catch {}
   }

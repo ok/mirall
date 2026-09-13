@@ -71,7 +71,7 @@ test('migration copies folder AND loose entries into the encrypted core, then pu
   t.is(rec.looseCatalogKeyEnc, encKey, 'encrypted loose-catalog key published')
   t.is(rec.looseCatalogKey, null, 'stale plaintext loosecat/ key cleared')
 
-  t.alike(await migrateCatalogsToEncrypted(), { skipped: true }, 'second run is an idempotent no-op')
+  t.alike(await migrateCatalogsToEncrypted(), { status: 'skipped', compact: false }, 'second run is an idempotent no-op')
 })
 
 // REGRESSION (FIX-326): a v2 space we hold no SCK for (a pending joiner) must be DEFERRED, not
@@ -83,7 +83,7 @@ test('defers a v2 space with no SCK and does not mark the migration complete', a
   const res = await migrateCatalogsToEncrypted()
   t.is(res.migrated, 0, 'nothing migrated')
   t.is(res.deferred, 1, 'the no-SCK space is deferred')
-  t.absent((await migrateCatalogsToEncrypted()).skipped, 'not marked complete while a space is deferred (retries next boot)')
+  t.is((await migrateCatalogsToEncrypted()).status, 'deferred', 'not marked complete while a space is deferred (retries next boot)')
 })
 
 // A legacy space can never obtain an SCK, so counting it as "deferred" would hold the global flag
@@ -95,7 +95,7 @@ test('a legacy space is skipped, not deferred — the migration still closes out
 
   const res = await migrateCatalogsToEncrypted()
   t.is(res.deferred, 0, 'the legacy space is not deferred')
-  t.ok((await migrateCatalogsToEncrypted()).skipped, 'the global flag closed out, so later boots no-op')
+  t.is((await migrateCatalogsToEncrypted()).status, 'skipped', 'the global flag closed out, so later boots no-op')
 })
 
 // REGRESSION (FIX-MIGRATE-CONTINUE): a space whose catalog copy throws must not end the pass —
@@ -128,5 +128,5 @@ test('REGRESSION (FIX-MIGRATE-CONTINUE): a failing space is counted and the rest
     t.alike(folder.entries.map((e) => e.relPath), ['a.txt'], 'healthy space copied into its encrypted core')
   }
 
-  t.absent((await migrateCatalogsToEncrypted()).skipped, 'not marked complete while a space failed (retries next boot)')
+  t.is((await migrateCatalogsToEncrypted()).status, 'deferred', 'not marked complete while a space failed (retries next boot)')
 })

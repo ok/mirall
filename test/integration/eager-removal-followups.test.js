@@ -146,5 +146,5 @@ test('REGRESSION (C7): boot migration reclaims a stranded legacy peer-drive cach
   try { await check.blobs?.core.close() } catch {}
   try { await check.db?.close() } catch {}
 
-  t.alike(await reclaimLegacyPeerCaches(), { skipped: true }, 'idempotent — flag-guarded, skips on re-run')
+  t.alike(await reclaimLegacyPeerCaches(), { status: 'skipped', compact: false }, 'idempotent — flag-guarded, skips on re-run')
 })

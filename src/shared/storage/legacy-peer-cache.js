@@ -1,8 +1,8 @@
+import { migrationResult, MIGRATION_STATUS } from './migrations.js'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
 import { listSpaces, getSpaceContentKey } from '../spaces/space.js'
 import { getStore, createLocalBee } from '../core/store.js'
-import { compactStore } from '../transfer/swarm.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { HEX64 } from '../contract/invite-envelope.js'
 import { createLogger } from '../core/logger.js'
@@ -31,7 +31,7 @@ export async function reclaimLegacyPeerCaches() {
 
 async function run(flagBee) {
   await flagBee.ready()
-  if ((await flagBee.get(MIGRATION_FLAG))?.value?.completedAt) return { skipped: true }
+  if ((await flagBee.get(MIGRATION_FLAG))?.value?.completedAt) return migrationResult(MIGRATION_STATUS.SKIPPED)
 
   const me = getLocalPublicKeyHex()
   let cleared = 0
@@ -58,10 +58,7 @@ async function run(flagBee) {
   // OS. Await it (the whole migration is fire-and-forget from the worker boot, so this never
   // blocks boot) — the drives we opened are already closed above, so nothing fights the pass,
   // and completing it here means no compaction is left racing a short-lived process's exit.
-  if (cleared > 0) {
-    try { await compactStore() } catch (err) { log.warn('legacy peer-cache compaction failed:', err.message) }
-  }
   await flagBee.put(MIGRATION_FLAG, { completedAt: Date.now(), cleared })
   if (cleared) log.info('reclaimed', cleared, 'legacy peer-drive cache(s)')
-  return { skipped: false, cleared }
+  return migrationResult(MIGRATION_STATUS.DONE, { compact: cleared > 0, cleared })
 }

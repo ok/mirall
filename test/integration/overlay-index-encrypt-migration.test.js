@@ -48,7 +48,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
   await legacy.close()
 
   const res = await migrateOverlayIndexToEncrypted()
-  t.is(res.skipped, false, 'migration ran')
+  t.is(res.status, 'done', 'migration ran')
   t.ok(res.copied >= 1, 'copied at least the file + chunk-map entries')
 
   const enc = new FileIndex(getStore().namespace('mirall-overlay-e1'), { encryptionKey: overlayIndexEncryptionKey() })
@@ -61,7 +61,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
   t.absent(await coreInStore(legacyMainDk), 'legacy plaintext core purged from the store')
 
   const res2 = await migrateOverlayIndexToEncrypted()
-  t.is(res2.skipped, true, 'second run is a marker-gated no-op')
+  t.is(res2.status, 'skipped', 'second run is a marker-gated no-op')
 
   await getStore().close()
 })
@@ -122,7 +122,7 @@ test('REGRESSION: migration purges an orphaned older (compacted) plaintext gener
   t.ok(await coreInStore(v1Dk), 'precondition: orphaned v1 present before migration')
 
   const res = await migrateOverlayIndexToEncrypted()
-  t.is(res.skipped, false, 'migration ran')
+  t.is(res.status, 'done', 'migration ran')
 
   t.absent(await coreInStore(v1Dk), 'orphaned v1 plaintext generation purged')
   t.absent(await coreInStore(v2Dk), 'current v2 plaintext generation purged')
@@ -138,7 +138,7 @@ test('migration is a no-op without a master secret', async (t) => {
   setMasterSecret(null)
 
   const res = await migrateOverlayIndexToEncrypted()
-  t.is(res.skipped, true, 'skipped without M')
+  t.is(res.status, 'skipped', 'skipped without M')
 
   await getStore().close()
 })
