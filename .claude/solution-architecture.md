@@ -1128,6 +1128,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse (§2) |
 | `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, the durable status writer and the scan-outcome → status mapping, deep-scan debt, the per-share reconcile timers, pause/resume, the 60 s mount + download-root probe (§7.6) |
 | `src/worker/sweeps.js` | `Sweeps` — four missed-event backstops on five timers: presence (60 s), invite expiry (1 h), overlay index compaction (a 5 min boot delay + 6 h, with the last run persisted in `reclaim-meta` so short sessions still pay their due pass — `compactIndexIfDue()`), audit prune (daily, only when the audit bee opened) |
+| `src/worker/audit-refs.js` | The worker's audit-participant adapters — `peerActorIn` (resolves a peer name off the live roster, then the persisted members), `spaceRefOf` (adapts a worker space RECORD onto `spaceRef`), `fileNameOf`, `shareNameOrNull`, `refreshAuditSelfName`. Rows render with zero joins, so every name is snapshotted at write time (§9) |
 | `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the `space:leave` handler as a module (§6): the pending-cancel path, the background teardown with its phase tracker, the 12 s respond deadline |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 

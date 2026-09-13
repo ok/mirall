@@ -114,7 +114,6 @@ import {
   isDeniedJoiner,
 } from '../shared/spaces/member-registry.js'
 import { reconnectGrantAllowed } from '../shared/spaces/member-set.js'
-import { displayNameOrNull } from '../shared/spaces/member-identity.js'
 import { ownCatalogPublish, catalogKeyField } from '../shared/shares/share-catalog.js'
 import {
   listFiles,
@@ -149,7 +148,6 @@ import { deriveChannel } from '../shared/core/channel.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
 import {
   record,
-  setAuditIdentity,
   queryAudit,
   auditSpaces,
   auditActors,
@@ -192,7 +190,8 @@ import {
 } from '../shared/folders/foreign-folders.js'
 import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../shared/folders/mount-store.js'
 import { OUTCOME, TARGET_KIND } from '../shared/contract/audit-kinds.js'
-import { selfActor, peerActor, systemActor, spaceRef, targetRef } from '../shared/audit/audit-record.js'
+import { selfActor, peerActor, systemActor, targetRef } from '../shared/audit/audit-record.js'
+import { refreshAuditSelfName, peerActorIn, spaceRefOf, fileNameOf, shareNameOrNull } from './audit-refs.js'
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -271,33 +270,6 @@ Bare.IPC.on('error', (err) => { safeShutdown('ipc-error: ' + (err && err.message
 const bootstrap = await getBootstrapPromise()
 setRuntimeConfig(bootstrap)
 
-// Audit rows must render with zero joins: a space record is deleted on leave and a peer's name
-// needs that peer reachable, so both are snapshotted into the row at write time. These helpers
-// are the single place that resolution happens.
-function refreshAuditSelfName(displayName) {
-  setAuditIdentity({ key: getLocalPublicKeyHex(), name: displayName })
-}
-
-// Resolves the name, which needs the live roster and the persisted members — the two things
-// audit-record.js deliberately cannot reach. The shape itself comes from peerActor.
-function peerActorIn(space, publicKey) {
-  const live = space ? getConnectedMemberMeta(space.spaceId, publicKey) : null
-  const persisted = (space?.members || []).find((m) => m.publicKey === publicKey)
-  return peerActor(publicKey, displayNameOrNull(live?.displayName) || displayNameOrNull(persisted?.displayName) || null)
-}
-
-// The worker holds space RECORDS, whose id field is `spaceId`; every other producer holds the id
-// and the name separately. One adapter, rather than a second shape in the shared builder.
-function spaceRefOf(space) {
-  return spaceRef(space?.spaceId, space?.name)
-}
-
-function fileNameOf(path) {
-  if (typeof path !== 'string') return null
-  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return i >= 0 ? path.slice(i + 1) : path
-}
-
 // A peer handed us the space content key — the moment read access was actually granted, and the
 // counterpart to the approver's own `membership.approved` row.
 async function recordGrantReceived(spaceId, granterKey) {
@@ -310,15 +282,6 @@ async function recordGrantReceived(spaceId, granterKey) {
     space: spaceRefOf(space),
     target: targetRef(TARGET_KIND.SPACE, spaceId, space?.name ?? null),
   })
-}
-
-async function shareNameOrNull(spaceId, ownerKey, shareId) {
-  try {
-    const all = await listSharesForSpace(spaceId)
-    return all.find((s) => s.id === shareId && s.owner === ownerKey)?.name ?? null
-  } catch {
-    return null
-  }
 }
 
 // === Membership control ===
