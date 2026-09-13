@@ -170,6 +170,7 @@ const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createMainRequestRouter } = require('./main-requests.js')
 const { preloadEntrypoints, entrypointFor } = require('./worker-entrypoints.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
+const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
 
 let tray = null
 let isQuitting = false
@@ -1212,10 +1213,10 @@ async function createWindow() {
   const winOpts = {
     width: 1200,
     height: 1000,
-    minWidth: 900,
+    minWidth: MIN_WINDOW_WIDTH,
     // At default zoom this is the height needed for the space sidebar to still
     // show at least two members in the list with the Storage box collapsed.
-    minHeight: 870,
+    minHeight: MIN_WINDOW_HEIGHT,
     show: !startHidden,
     backgroundColor: resolveBackgroundColor(readStoredTheme()),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',

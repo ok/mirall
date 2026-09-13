@@ -24,3 +24,14 @@ export const IPC_MAX_FRAME_BYTES = 1024 * 1024
 // The retention presets the Activity Log settings screen offers. The worker validates whatever it
 // receives, so a divergence would degrade the picker, never the stored value — one declaration.
 export const RETENTION_CHOICES = Object.freeze([30, 90, 365])
+
+// How long a DHT that has not become ready counts as still coming up rather than unreachable. Both
+// sides judge it: the worker's verdict and the renderer's connection pill must not disagree about
+// when "connecting" becomes "offline".
+export const DHT_FAILURE_MS = 45000
+
+// The window cannot be made smaller than this. Main enforces it on the BrowserWindow and the
+// renderer refuses to persist bounds below it, so a divergence would save a size that main then
+// silently refuses to restore.
+export const MIN_WINDOW_WIDTH = 900
+export const MIN_WINDOW_HEIGHT = 870

@@ -9,10 +9,14 @@ const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8
 // Each of these files once held its own copy of a rule the contract package now owns, kept in step
 // by a comment asking the next contributor to remember. The invite envelope proves what that is
 // worth: it drifted by four fields. The guard is that these import the contract's declaration
-// rather than re-declare it.
+// rather than re-declare it. Electron main is CommonJS, so the import can be a require().
 const MIRRORED = [
   ['shared/audit/audit-record.js', /NAME_MAX\s*=\s*\d/],
   ['shared/identity-limits.js', /NAME_MAX\s*=\s*\d|AVATAR_MAX_BYTES\s*=\s*\d/],
+  ['shared/core/reachability.js', /DHT_FAILURE_MS\s*=\s*\d/],
+  ['renderer/hooks/useConnectionStatus.tsx', /DHT_FAILURE_MS\s*=\s*\d/],
+  ['renderer/window-bounds.ts', /MIN_(WIDTH|HEIGHT)\s*=\s*\d/],
+  ['main/main.js', /min(Width|Height):\s*\d/],
 ]
 
 test('no module re-declares a vocabulary the contract package owns', (t) => {
@@ -23,7 +27,7 @@ test('no module re-declares a vocabulary the contract package owns', (t) => {
 
 test('every mirrored module points at the contract package', (t) => {
   for (const [file] of MIRRORED) {
-    t.ok(/from '[^']*contract\/[a-z-]+\.js'/.test(src(file)), `${file} imports from the contract`)
+    t.ok(/(from|require\()\s*'[^']*contract\/[a-z-]+\.js'/.test(src(file)), `${file} imports from the contract`)
   }
 })
 
