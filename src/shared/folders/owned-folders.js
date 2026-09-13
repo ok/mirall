@@ -18,7 +18,7 @@ import { getContentBackend, isUnsupportedShare } from '../transfer/content-backe
 import { listOwnShare } from '../shares/share-catalog.js'
 import { ensureServable, setFolderPublishLane } from '../transfer/backends/overlay/overlay-backend.js'
 import { pathFromMount } from '../transfer/path-guard.js'
-import { makeKeyedCoalescer } from '../state/coalesce.js'
+import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { countDiskFiles, walkDisk } from './walk-disk.js'
 import { relToDriveKey as relToKey, DEFAULT_IGNORE, isAbsoluteDriveKey, relKeyEscapes } from './path-keys.js'
 import { OP, PRIORITY } from './work-item.js'

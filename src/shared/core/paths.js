@@ -7,7 +7,7 @@
 import os from 'bare-os'
 import path from 'bare-path'
 import { getRuntimeConfig } from './runtime-config.js'
-import { pathContains } from '../folders/path-keys.js'
+import { pathContains } from '../contract/paths.js'
 
 const spaceRoots = new Map()
 

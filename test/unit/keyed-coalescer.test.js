@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeKeyedCoalescer } from '../../src/shared/state/coalesce.js'
+import { makeKeyedCoalescer } from '../../src/shared/core/coalesce.js'
 
 function manualTimers() {
   const pending = []

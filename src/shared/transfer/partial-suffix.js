@@ -3,8 +3,7 @@
 // Not a bare `.part`: the boot sweep unlinks unreferenced matches in Downloads, where Firefox/KDE
 // also write `<name>.part` — `.mirall.part` is proof of ownership. Zero imports: `folders/
 // path-keys.js` derives its ignore glob from it and must load under plain Node.
-export const PARTIAL_SUFFIX = '.mirall.part'
+export { PARTIAL_SUFFIX, partialPathFor } from '../contract/paths.js'
 
 // Appending matches the engine's `path.join(dirname(t), basename(t) + suffix)` and the
 // `finalPath + PARTIAL_SUFFIX` keys the boot sweep builds.
-export const partialPathFor = (targetPath) => targetPath + PARTIAL_SUFFIX

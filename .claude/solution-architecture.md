@@ -1188,6 +1188,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
+| `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders and pathContains — the two cross-folder edges core/ and folders/ were reading across |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
 | `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |
@@ -1197,10 +1198,10 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/state/derived-view.js` | Generic durable-state view: watch N replicated bees, fold once per burst, liveness-tracked — `spaces/member-view.js` builds on it |
-| `src/shared/state/presence.js` | Presence leases — heartbeat-refreshed, TTL-expired, cleared on disconnect (§4.7) |
-| `src/shared/state/coalesce.js` | Keyed leading + trailing coalescer |
-| `src/shared/state/hints.js` | The `event:reconcile` hint bus over the coalescer (§4.7) |
+| `src/shared/core/derived-view.js` | Generic durable-state view: watch N replicated bees, fold once per burst, liveness-tracked — `spaces/member-view.js` builds on it |
+| `src/shared/transfer/presence.js` | Presence leases — heartbeat-refreshed, TTL-expired, cleared on disconnect (§4.7) |
+| `src/shared/core/coalesce.js` | Keyed leading + trailing coalescer |
+| `src/shared/core/hints.js` | The `event:reconcile` hint bus over the coalescer (§4.7) |
 
 ### `src/shared/spaces/`
 

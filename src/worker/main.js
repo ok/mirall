@@ -138,7 +138,7 @@ import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from
 
 import { transferIdFor, isLooseTransferId } from '../shared/transfer/transfer-id.js'
 import { pathFromMount } from '../shared/transfer/path-guard.js'
-import { makeKeyedCoalescer } from '../shared/state/coalesce.js'
+import { makeKeyedCoalescer } from '../shared/core/coalesce.js'
 import { getStorageInfo } from '../shared/storage/storage.js'
 import { spaceStorageSummary } from '../shared/storage/space-storage.js'
 import { forgetUnreferencedPeerCores } from '../shared/storage/leftover.js'

@@ -2,7 +2,7 @@
 // handler table, `event:*` pushes, and the coalesced reconcile hint bus. Frames arriving
 // before start() are queued so no request is lost during boot.
 import { createLogger, fields } from './logger.js'
-import { createHintBus } from '../state/hints.js'
+import { createHintBus } from './hints.js'
 import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'

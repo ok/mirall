@@ -1,6 +1,6 @@
 // Finds the event names a source file actually emits or subscribes to, by parsing it rather than by
 // matching text. The guard this replaces used /\.emit\('(event:[a-z-]+)'/ — it required a leading
-// dot and single quotes, so `emit('event:reconcile', …)` in src/shared/state/hints.js (where `emit`
+// dot and single quotes, so `emit('event:reconcile', …)` in src/shared/core/hints.js (where `emit`
 // is a bare parameter) was invisible, and that one name is the fan-in point for the entire
 // level-triggered reconcile channel.
 import { parseSource, forEachNode, staticString, calleeName } from './ast-scan.js'

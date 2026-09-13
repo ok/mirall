@@ -124,6 +124,43 @@ export const outOfOrderAsyncEffects = Object.freeze({})
 // drives them. This list IS the statement — no file header repeats it. A module that needs bare-fs or
 // bare-path belongs in the engine that calls the policy, not in the policy. Exported so
 // test/unit/folder-module-boundaries.test.js can check that each one really has a unit test.
+// The same rule for transfer/: these import no bare-*, so a unit test can drive them under Node.
+export const pureTransferModules = [
+  'admission-gates',
+  'announce-ledger',
+  'bandwidth-limiter',
+  'chunk-map-cache',
+  'content-backends',
+  'content-peer-sockets',
+  'content-swarm',
+  'convergence-tick',
+  'deferred-admission',
+  'diagnostics',
+  'download-claim',
+  'eta-estimator',
+  'file-dedupe',
+  'free-space',
+  'handshake-guard',
+  'leave-protocol',
+  'list-deficits',
+  'net-impair',
+  'partial-suffix',
+  'pending-transfers',
+  'presence-broadcast',
+  'presence-sweeper',
+  'progress-ticker',
+  'relay',
+  'relay-ticket',
+  'reveal-exit',
+  'sck-seal',
+  'serve-ledger',
+  'supersede-decision',
+  'swarm-diagnostics',
+  'swarm-registries',
+  'transfer-id',
+  'transfer-status',
+]
+
 export const pureFolderPolicyModules = [
   'echo-guard', 'fetch-attempts', 'integrity-seen', 'mirror-health', 'mirror-loop', 'mirror-ownership',
   'mirror-reach', 'mirror-walk', 'mount-fault', 'path-keys', 'preview-detail', 'preview-tally',
