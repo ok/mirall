@@ -17,6 +17,7 @@ import crypto from 'hypercore-crypto'
 import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMetrics, getQueueDepth, getInFlightCount } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
+import { registerAudit } from './ipc/audit.js'
 import {
   setRuntimeConfig,
   getRuntimeConfig,
@@ -146,17 +147,7 @@ import { getInstallId } from '../shared/telemetry/install-id.js'
 import { listRecentSweeps } from '../shared/storage/sweep-journal.js'
 import { deriveChannel } from '../shared/core/channel.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../shared/transfer/diagnostics.js'
-import {
-  record,
-  queryAudit,
-  auditSpaces,
-  auditActors,
-  auditStats,
-  getAuditConfig,
-  setAuditConfig,
-  purgeAudit,
-  exportAudit,
-} from '../shared/audit/audit-log.js'
+import { record, queryAudit } from '../shared/audit/audit-log.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../shared/shares/shares.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
 import { listOverlayShareFiles } from '../shared/shares/share-listing.js'
@@ -1787,26 +1778,7 @@ ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
 
 // === IPC: audit log ===
 
-ipc.handle('audit:list', async (msg) => await queryAudit(msg))
-ipc.handle('audit:spaces', async () => await auditSpaces())
-ipc.handle('audit:actors', async () => await auditActors())
-ipc.handle('audit:stats', async () => await auditStats())
-ipc.handle('audit:get-config', async () => getAuditConfig())
-ipc.handle('audit:configure', async (msg) => {
-  const next = await setAuditConfig(msg)
-  ipc.emit('event:audit-updated', {})
-  return next
-})
-ipc.handle('audit:purge', async () => {
-  const result = await purgeAudit()
-  ipc.emit('event:audit-updated', {})
-  return result
-})
-ipc.handle('audit:export', async (msg) => ({
-  version: 1,
-  exportedAt: Date.now(),
-  entries: await exportAudit(msg || {}),
-}))
+registerAudit(ipc)
 
 // === Go live: flush queued frames, announce ready ===
 
