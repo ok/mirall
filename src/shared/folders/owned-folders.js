@@ -253,7 +253,7 @@ function scheduleCatchupReconcile(mount, delayMs = POST_EVENT_RECONCILE_MS) {
   const timer = subsystem.timers.setTimeout(() => {
     reconcileTimers.delete(key)
     if (stopping) return
-    const scan = periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, { deferFresh: true })
+    const scan = reconcileOwnedShare(mount, { deferFresh: true })
     // The pass is registered so the subsystem's close can WAIT for it: clearing the timer only
     // stops the next one, and a scan still walking the mount when the store closes reports
     // SESSION_CLOSED into a status write nobody asked for.
@@ -524,6 +524,12 @@ export async function initialPublishScan(spaceId, shareId, mountPath, ignore, op
 
 export const periodicReconcile = initialPublishScan
 
+// The same pass, given the mount record the caller already holds. The ignore fallback lives here so
+// three callers stop each remembering it.
+export function reconcileOwnedShare(mount, opts = {}) {
+  return initialPublishScan(mount.spaceId, mount.shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE, opts)
+}
+
 // The count the worker's admission gate reads. It counts what is on disk under the same key rule
 // the publish scan walks by, INCLUDING files the scan will set aside as unreadable — so the gate
 // can only ever be stricter than the scan, never looser, and can never admit a folder the scan
@@ -650,7 +656,7 @@ export class OwnedFolders extends Subsystem {
     // holding that budget open on the mount that just wedged is the one thing a recovery must not
     // do. If this pass wedges too, the strike counter — kept alive by the abandoned row — reaches the
     // give-up limit.
-    periodicReconcile(spaceId, shareId, mount.mountPath, mount.ignore || DEFAULT_IGNORE)
+    reconcileOwnedShare(mount)
       .catch((err) => log.debug('reconcile after recovery failed:', shareId, '-', err.message))
   }
 

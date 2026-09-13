@@ -1414,16 +1414,12 @@ async function awaitSpaceLeaveSettled(spaceId, capMs = 15000) {
 ipc.handle('space:join', async (msg) => {
   const decoded = decodeInvite(msg.inviteCode)
   if (!decoded) {
-    const err = new Error('Invalid invite code')
-    err.code = 'INVITE_INVALID'
-    throw err
+    throw new AppError(CODES.INVITE_INVALID, 'Invalid invite code')
   }
   // Soft pre-check for instant feedback. `x` is a strippable hint, so allow 60s for clock skew;
   // the minting member's record is the authority on the handshake.
   if (decoded.expiresAt && decoded.expiresAt + 60_000 < Date.now()) {
-    const err = new Error('This invite link has expired')
-    err.code = 'INVITE_EXPIRED'
-    throw err
+    throw new AppError(CODES.INVITE_EXPIRED, 'This invite link has expired')
   }
   const name = (typeof msg.name === 'string' && msg.name.trim()) || decoded.name || 'Shared Space'
   // Rejoining a space we just left: wait for the leave teardown to settle. While it runs the
@@ -1433,9 +1429,7 @@ ipc.handle('space:join', async (msg) => {
   // record is gone, so the rejoin mints a fresh suffix → a genuinely new, fork-free drive. If the
   // teardown is still running past the cap, refuse the join rather than fork — the user retries.
   if (!(await awaitSpaceLeaveSettled(decoded.topic.slice(0, 16)))) {
-    const err = new Error('A leave of this space is still finishing — try joining again in a moment')
-    err.code = 'LEAVE_IN_PROGRESS'
-    throw err
+    throw new AppError(CODES.LEAVE_IN_PROGRESS, 'A leave of this space is still finishing — try joining again in a moment')
   }
   const rejoinSpaceId = decoded.topic.slice(0, 16)
   log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
@@ -1484,9 +1478,7 @@ ipc.handle('space:invite', async (msg) => {
   // pending exactly as we do) — but it WOULD leak the space topic to outsiders. Refuse
   // at the data layer, not just in the UI, so membership is enforced where it's authored.
   if (space.status === 'pending') {
-    const err = new Error('Cannot invite to a space you have not joined')
-    err.code = 'NOT_A_MEMBER'
-    throw err
+    throw new AppError(CODES.NOT_A_MEMBER, 'Cannot invite to a space you have not joined')
   }
   // We hold no SCK for a pre-encryption space, so nobody redeeming this link could ever be
   // approved — the joiner would mint a v2 pending record (legacy on OUR side, not theirs) and
