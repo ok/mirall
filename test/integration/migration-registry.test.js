@@ -14,7 +14,7 @@ const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')
 test('a migration that throws is reported, not propagated', async (t) => {
   const warnings = []
   const results = await runMigrations('background', { log: { warn: (...args) => warnings.push(args) } })
-  t.is(results['legacy-peer-cache'], null, 'the failure is reported against its id')
+  t.is(results['legacy-peer-cache'].status, 'failed', 'the failure is reported against its id')
   t.is(warnings.length, 1, 'and logged, so a permanently-failing migration is visible')
 })
 

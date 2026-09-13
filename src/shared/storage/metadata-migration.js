@@ -1,3 +1,4 @@
+import { migrationResult, MIGRATION_STATUS } from './migrations.js'
 import b4a from 'b4a'
 import { getStore, getStoragePath, createBee, createLocalBee, LOCAL_BEE_NAMES, hasMasterSecret } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
@@ -20,13 +21,13 @@ const MARKER = '.mir40-bees-v1'
 // not open is not that, and propagates — every later bee call would throw from a
 // promise nobody awaits, and under Bare that kills the process unattributed.
 export async function migrateLocalBeesToEncrypted() {
-  if (!hasMasterSecret()) return false
+  if (!hasMasterSecret()) return migrationResult(MIGRATION_STATUS.SKIPPED)
   await getStore().ready()
   try {
     const fs = (await import('bare-fs')).default
     const path = (await import('bare-path')).default
     const marker = path.join(getStoragePath(), MARKER)
-    if (fs.existsSync(marker)) return false
+    if (fs.existsSync(marker)) return migrationResult(MIGRATION_STATUS.SKIPPED)
 
     // A fresh install has no cores at all — skip the whole pass (and avoid
     // opening, hence creating, plaintext cores). On an existing install we open
@@ -43,10 +44,10 @@ export async function migrateLocalBeesToEncrypted() {
       await writeFileAtomic(marker, b4a.from('1'))
       log.info('local metadata bees encrypted at rest')
     }
-    return migratedAny
+    return migrationResult(allOk ? MIGRATION_STATUS.DONE : MIGRATION_STATUS.DEFERRED, { compact: migratedAny })
   } catch (err) {
     log.warn('metadata-at-rest migration skipped (will retry next boot):', err.message)
-    return false
+    return migrationResult(MIGRATION_STATUS.FAILED)
   }
 }
 

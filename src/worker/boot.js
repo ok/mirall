@@ -17,7 +17,7 @@ import { registerFolderIntents } from '../shared/folders/folder-intents.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../shared/core/unlock-providers.js'
-import { runMigrations } from '../shared/storage/migrations.js'
+import { runMigrations, stageCompacted } from '../shared/storage/migrations.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {
@@ -83,7 +83,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
     const provider = osKeychainProvider(bootstrap.identityKEK)
     setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
   }
-  const didMigrateMetadata = (await runMigrations('durable', { log }))['local-bees-encrypt'] === true
+  const durableMigrations = await runMigrations('durable', { log })
   await durable.start(new SpaceKeysVault('space-keys'))
   await durable.start(new ProfileBee('profile'))
   await durable.start(new SpacesBee('spaces'))
@@ -104,7 +104,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new Catalogs('catalogs'))
   const drives = await durable.start(new SpaceDrives('drives'))
-  return { durable, store, auditLog, drives, didMigrateMetadata, close: (opts) => durable.close(opts) }
+  return { durable, store, auditLog, drives, durableMigrations, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -186,7 +186,7 @@ export async function boot(bootstrap, {
     log.info('starting...')
 
     const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
-    const { store, auditLog, drives, didMigrateMetadata } = tier
+    const { store, auditLog, drives, durableMigrations } = tier
     // A space whose drive did not open keeps every core it owns; the leftover sweep below reads
     // the same condition itself (buildWantedKeys' unopenedDrive) and withholds accordingly, so
     // this is a diagnostic, not a gate.
@@ -197,7 +197,6 @@ export async function boot(bootstrap, {
     // Ordered and positioned by the migration list, not by this call site: both of these must land
     // BEFORE the initial publish scans and before the overlay backend opens its index.
     const content = await runMigrations('content', { log })
-    const didMigrateOverlayIndex = content['overlay-index-encrypt']?.migrated === true
 
     // Constructed here (side-effect-free) so OwnedFolders can take its settle callback at wiring
     // time; started below, after the swarm and the topic joins, so its resume passes read a fully
@@ -270,7 +269,7 @@ export async function boot(bootstrap, {
 
     // Deferred past the core-opening init above so the one-time compaction (which
     // scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.
-    if (didMigrateMetadata || didMigrateOverlayIndex) {
+    if (stageCompacted(durableMigrations) || stageCompacted(content)) {
       compactStore().catch((err) => log.warn('post-migration compaction failed:', err.message))
     }
 
@@ -392,8 +391,12 @@ async function sweepOrphans(log) {
   }
 
   // The background stage: flag-guarded and deliberately NOT awaited, so its compaction never
-  // blocks boot. runMigrations never rejects, so there is nothing here to guard.
-  runMigrations('background', { log })
+  // blocks boot. runMigrations never rejects, so there is nothing here to guard. The compaction is
+  // the caller's here as everywhere else — a migration reports that it moved bytes, it does not
+  // decide when the store pays for it.
+  runMigrations('background', { log }).then((results) => {
+    if (stageCompacted(results)) compactStore().catch((err) => log.warn('background compaction failed:', err.message))
+  })
 
   try {
     cleanupOrphanedJournals(getJournalDir())

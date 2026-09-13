@@ -1,3 +1,4 @@
+import { migrationResult, MIGRATION_STATUS } from '../storage/migrations.js'
 import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.js'
 import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'
@@ -33,7 +34,7 @@ export async function migrateCatalogsToEncrypted() {
 
 async function run(flagBee) {
   await flagBee.ready()
-  if ((await flagBee.get(FLAG))?.value?.completedAt) return { skipped: true }
+  if ((await flagBee.get(FLAG))?.value?.completedAt) return migrationResult(MIGRATION_STATUS.SKIPPED)
 
   let migrated = 0
   let deferred = 0
@@ -61,7 +62,7 @@ async function run(flagBee) {
   if (deferred === 0 && failed === 0) await flagBee.put(FLAG, { completedAt: Date.now(), migrated })
   if (migrated) log.info('SCK-encrypted', migrated, 'space catalog(s)')
   if (failed) log.warn(failed, 'space catalog(s) failed to encrypt — retrying on the next boot')
-  return { skipped: false, migrated, deferred, failed }
+  return migrationResult(deferred || failed ? MIGRATION_STATUS.DEFERRED : MIGRATION_STATUS.DONE, { compact: migrated > 0, migrated, deferred, failed })
 }
 
 async function migrateOneCatalog(space, spaceId) {

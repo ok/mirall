@@ -67,12 +67,12 @@ test('REGRESSION (MIR-40): migration is idempotent', async (t) => {
   await legacy.put('x:y', { downloadedAt: 1 })
   await legacy.close()
 
-  t.ok(await migrateLocalBeesToEncrypted(), 'first run migrates')
+  t.ok((await migrateLocalBeesToEncrypted()).compact, 'first run migrates')
   const after = await createLocalBee('downloads-meta')
   await after.ready()
   const lenAfterFirst = after.core.length
 
-  t.absent(await migrateLocalBeesToEncrypted(), 'second run is a no-op (marker present)')
+  t.is((await migrateLocalBeesToEncrypted()).status, 'skipped', 'second run is a no-op (marker present)')
   const enc = createLocalBee('downloads-meta')
   await enc.ready()
   t.is(enc.core.length, lenAfterFirst, 'no extra appends on the second run')
@@ -89,7 +89,7 @@ test('REGRESSION (MIR-40): fresh install writes the marker and migrates nothing'
   await openStore(path.join(root, 'app-storage'))
   setMasterSecret(M)
 
-  t.absent(await migrateLocalBeesToEncrypted(), 'nothing migrated on a fresh store')
+  t.absent((await migrateLocalBeesToEncrypted()).compact, 'nothing migrated on a fresh store')
   t.ok(fs.existsSync(path.join(root, 'app-storage', '.mir40-bees-v1')), 'marker written')
   t.is((await listDks(getStore())).size, 0, 'migration created no cores on a fresh store (probe guard)')
 
@@ -107,7 +107,7 @@ test('REGRESSION (MIR-40): no M → migration is a no-op, leaves no marker', asy
   await openStore(path.join(root, 'app-storage'))
   setMasterSecret(null)
 
-  t.absent(await migrateLocalBeesToEncrypted(), 'no-op without a master secret')
+  t.is((await migrateLocalBeesToEncrypted()).status, 'skipped', 'no-op without a master secret')
   t.absent(fs.existsSync(path.join(root, 'app-storage', '.mir40-bees-v1')), 'no marker in insecure mode')
 
   await getStore().close()
@@ -148,7 +148,7 @@ test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idemp
   await legacy.put('owned-folder-mount/a', { path: '/x' })
   await legacy.close()
 
-  t.ok(await migrateLocalBeesToEncrypted(), 'first run migrates')
+  t.ok((await migrateLocalBeesToEncrypted()).compact, 'first run migrates')
   const dksAfterFirst = await listDks(getStore())
   fs.rmSync(path.join(sp, '.mir40-bees-v1'))
   await getStore().close()
@@ -156,7 +156,7 @@ test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idemp
   // reboot (fresh corestore) before the re-run, as production would
   await openStore(sp)
   setMasterSecret(M)
-  t.absent(await migrateLocalBeesToEncrypted(), 'second boot migrates nothing (legacy already purged)')
+  t.absent((await migrateLocalBeesToEncrypted()).compact, 'second boot migrates nothing (legacy already purged)')
 
   const enc = createLocalBee('mounts-meta')
   t.is((await enc.get('owned-folder-mount/a')).value.path, '/x', 'entry intact after re-run')
@@ -183,7 +183,7 @@ test('REGRESSION (MIR-40): a marker-write failure does not crash boot and is ret
   const marker = path.join(sp, '.mir40-bees-v1')
   fs.mkdirSync(marker + '.tmp', { recursive: true })
 
-  t.absent(await migrateLocalBeesToEncrypted(), 'returns false on marker-write failure (no throw)')
+  t.is((await migrateLocalBeesToEncrypted()).status, 'failed', 'reports failure on a marker-write failure, without throwing')
   t.absent(fs.existsSync(marker), 'marker not written when the write fails')
   t.is((await createLocalBee('spaces-meta').get('space/a')).value.name, 'Alpha', 'data already migrated despite marker failure')
 
@@ -193,7 +193,7 @@ test('REGRESSION (MIR-40): a marker-write failure does not crash boot and is ret
   await openStore(sp)
   setMasterSecret(M)
 
-  t.absent(await migrateLocalBeesToEncrypted(), 'retry migrates nothing new (legacy already purged)')
+  t.absent((await migrateLocalBeesToEncrypted()).compact, 'retry migrates nothing new (legacy already purged)')
   t.ok(fs.existsSync(marker), 'marker written on retry')
   t.is((await createLocalBee('spaces-meta').get('space/a')).value.name, 'Alpha', 'data intact after retry')
 
