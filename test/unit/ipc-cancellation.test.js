@@ -4,7 +4,7 @@ import {
   createIPC, getInFlightCount, getRequestFailureCounters, resetRequestFailureCounters,
 } from '../../src/shared/core/ipc.js'
 import { throwIfAborted } from '../../src/shared/core/cancellation.js'
-import { FRAME } from '../../src/shared/contract/frames.js'
+import { FRAME } from '../../src/shared/contract/ipc-frames.js'
 
 // The router refuses names the contract does not declare, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -161,7 +161,7 @@ test('abortAll cancels every outstanding request', async (t) => {
 // real handler — being listed as one.
 test('no control frame name is also a declared request', async (t) => {
   const { REQUEST_NAMES } = await import('../../src/shared/contract/requests.js')
-  const { CONTROL_FRAMES } = await import('../../src/shared/contract/frames.js')
+  const { CONTROL_FRAMES } = await import('../../src/shared/contract/ipc-frames.js')
   const declared = new Set(REQUEST_NAMES)
   const both = CONTROL_FRAMES.filter((name) => declared.has(name))
   t.alike(both, [], 'a name belongs to the handler table or to the frame vocabulary, never both')

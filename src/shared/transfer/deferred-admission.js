@@ -4,6 +4,7 @@
 //
 // Kept out of swarm.js because it is a retry loop over the registries, not connection handling, and
 // because its two in-flight sets are its own: nothing else reads them.
+import { PEER_FRAME } from '../contract/peer-frames.js'
 import { getSpace, listSpaces, listJoinRequests, getConvergingMember } from '../spaces/space.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
 
@@ -51,7 +52,7 @@ async function replayHandshakeFor(spaceId, joinerKey) {
     return
   }
   await handleHandshake(sock, null, {
-    type: 'handshake',
+    type: PEER_FRAME.HANDSHAKE,
     profileKey: joinerKey,
     driveKey: converging.driveKey,
     displayName: converging.displayName,

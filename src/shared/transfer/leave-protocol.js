@@ -14,6 +14,7 @@
 // Takes its collaborators through init() rather than importing swarm.js: the swarm handle and the
 // IPC channel are both reassigned across a restart, and getLocalBinding caches per-drive-key
 // signatures that only the connection layer can mint.
+import { PEER_FRAME } from '../contract/peer-frames.js'
 import b4a from 'b4a'
 import { getProfileKey, revokeApproval, adoptVouchees } from '../spaces/profile.js'
 import { getSpace, removeMember, persistLeftTombstone } from '../spaces/space.js'
@@ -136,7 +137,7 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   // swallowed durable failure must not resolve the wait early; the leaver falls back to the cap.
   const selfKey = getProfileKey()
   if (durablyApplied && selfKey) {
-    try { socketMsgHandlers.get(socket)?.send(JSON.stringify({ type: 'leave-ack', spaceId, profileKey: b4a.toString(selfKey, 'hex') })) } catch {}
+    try { socketMsgHandlers.get(socket)?.send(JSON.stringify({ type: PEER_FRAME.LEAVE_ACK, spaceId, profileKey: b4a.toString(selfKey, 'hex') })) } catch {}
   }
 
   const removed = await removeMember(spaceId, profileKey)
@@ -223,7 +224,7 @@ export function sendPendingLeaveFrames(socket, msgHandler) {
   for (const [spaceId, { ts }] of pendingLeaves) {
     sent.add(spaceId)
     try {
-      msgHandler.send(JSON.stringify({ type: 'leave', spaceId, profileKey: profileKeyHex, ts, ...(getLocalBinding() || {}) }))
+      msgHandler.send(JSON.stringify({ type: PEER_FRAME.LEAVE, spaceId, profileKey: profileKeyHex, ts, ...(getLocalBinding() || {}) }))
     } catch (err) {
       log.debug('pending-leave frame send failed:', err.message)
     }
@@ -237,7 +238,7 @@ export function sendLeaveFrameToConnectedPeers(spaceId) {
   const profileKeyHex = b4a.toString(profileKey, 'hex')
   leaveAcks.set(spaceId, new Set())   // collect co-member acks BEFORE the frames go out (no missed-ack race)
   const payload = JSON.stringify({
-    type: 'leave',
+    type: PEER_FRAME.LEAVE,
     spaceId,
     profileKey: profileKeyHex,
     ts: Date.now(),
@@ -339,7 +340,7 @@ export function sendPendingCancelFrames(socket, msgHandler) {
   let sent = pendingCancelFramesSent.get(socket)
   if (!sent) pendingCancelFramesSent.set(socket, (sent = new Set()))
   for (const [spaceId, pc] of pendingCancels) {
-    try { msgHandler.send(JSON.stringify({ type: 'membership:cancel', spaceTopic: pc.topic, joinerKey: pc.joinerKey })) } catch { continue }
+    try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: pc.topic, joinerKey: pc.joinerKey })) } catch { continue }
     sent.add(spaceId)
     if (++pc.attempts >= MAX_CANCEL_ATTEMPTS) {
       pendingCancels.delete(spaceId)

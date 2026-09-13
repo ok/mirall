@@ -4,6 +4,7 @@
 // so cleanly.
 //
 // Reads the shared registries directly; its three genuine collaborators come through init().
+import { PEER_FRAME } from '../contract/peer-frames.js'
 import b4a from 'b4a'
 import { getProfileKey } from '../spaces/profile.js'
 import { liveHandle } from '../core/timers.js'
@@ -63,7 +64,7 @@ function broadcastPresence() {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {
-    broadcastToSpace(spaceId, JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex }))
+    broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.PRESENCE, profileKey: profileKeyHex, spaceTopic: topicHex }))
   }
 }
 
@@ -78,7 +79,7 @@ export function broadcastDeparture() {
   if (!getSwarm() || socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   for (const [spaceId, topicHex] of spaceTopics) {
-    broadcastToSpace(spaceId, JSON.stringify({ type: 'presence', profileKey: profileKeyHex, spaceTopic: topicHex, offline: true }))
+    broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.PRESENCE, profileKey: profileKeyHex, spaceTopic: topicHex, offline: true }))
   }
 }
 
@@ -87,7 +88,7 @@ export function broadcastDeparture() {
 export function broadcastSharePrepareProgress(spaceId, payload) {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  broadcastToSpace(spaceId, JSON.stringify({ type: 'share-prepare-progress', profileKey: profileKeyHex, spaceId, ...payload }))
+  broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.SHARE_PREPARE_PROGRESS, profileKey: profileKeyHex, spaceId, ...payload }))
 }
 
 // A share is admission-gated at 5k files and a folder that grows past it keeps publishing, so this
@@ -101,7 +102,7 @@ const MAX_WIRE_COUNT = 1_000_000
 export function broadcastShareIndexProgress(spaceId, payload) {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  broadcastToSpace(spaceId, JSON.stringify({ type: 'share-index-progress', profileKey: profileKeyHex, spaceId, ...payload }))
+  broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.SHARE_INDEX_PROGRESS, profileKey: profileKeyHex, spaceId, ...payload }))
 }
 
 // Re-surface an owner's queue depth to our renderer. Same anti-spoof guard as the prepare frame:

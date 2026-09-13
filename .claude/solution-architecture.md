@@ -1184,7 +1184,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/mount-precedence.js` | The order an owned mount's two facts resolve in: `mount-point-gone` > fault > `paused` > `scanning` > `active`. `status` is derived from it, never assigned |
 | `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
 | `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
-| `src/shared/contract/frames.js` | The non-request frames: `bootstrap`, `response`, `cancel` |
+| `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel` |
+| `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
