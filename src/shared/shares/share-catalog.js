@@ -7,7 +7,7 @@
 import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
-import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias, isLegacySpace } from '../spaces/space.js'
+import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
@@ -90,7 +90,7 @@ export async function ownCatalog(spaceId) {
   // A pre-encryption space can never obtain an SCK, so say that rather than report a missing key:
   // callers surface a code the UI can explain instead of a raw Error out of the IPC handler.
   if (isLegacySpace(space)) {
-    throw new AppError(CODES.SPACE_UNSUPPORTED, 'This space was created by an older version of Mirall and can no longer be used')
+    throw new AppError(CODES.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)
   }
   const sck = getSpaceContentKey(spaceId, space)
   // A catalog MUST be SCK-encrypted; an OWN catalog always has an SCK (created ⇒ derivable,

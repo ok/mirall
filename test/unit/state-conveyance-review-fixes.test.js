@@ -2,13 +2,14 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { knockInviteVerdict } from '../../src/shared/spaces/knock-policy.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
-const workerMain = src('worker/main.js')
-// The boot sequence and the mount runtime moved out of the entry into the composition root and
-// worker/mounts-runtime.js, and the space:leave teardown into worker/ipc/space-leave.js; the
-// invariants below are unchanged, only the file that carries them.
+const spaces = src('worker/ipc/spaces.js')
+const membership = src('worker/ipc/membership.js')
+// Each invariant is pinned in the file that carries it: the composition root, the mount runtime,
+// the swarm, and the worker's handler modules under ipc/.
 const boot = src('worker/boot.js')
 const mountsRuntime = src('worker/mounts-runtime.js')
 const swarm = src('shared/transfer/swarm.js')
@@ -18,15 +19,19 @@ const spaceLeave = src('worker/ipc/space-leave.js')
 // at the unit layer (they need the live swarm/DHT); the behavioral halves live in test/flow.
 
 test('REGRESSION (C1: the re-grant honors the creator-divergence pause)', (t) => {
-  const grant = workerMain.slice(workerMain.indexOf('const grant = () => {'))
+  const grant = membership.slice(membership.indexOf('const grant = () => {'))
   const body = grant.slice(0, grant.indexOf('\n  }'))
   t.ok(/creatorDivergence/.test(body) && body.indexOf('creatorDivergence') < body.indexOf('sendMembershipGrant'),
     'grant() checks creatorDivergence before sendMembershipGrant')
 })
 
 test('REGRESSION (C2: the offline-deny re-send excludes a knock backed by a valid invite)', (t) => {
-  t.ok(/!hadLeft && !inviteRec && isDeniedJoiner/.test(workerMain),
-    'the re-deny gate is skipped when a resolved invite record backs the knock')
+  // The rule is a pure verdict now, so it is asserted rather than pinned by source; the whole
+  // table is enumerated in test/unit/knock-policy.test.js.
+  t.is(knockInviteVerdict({ inviteVerdict: null, hasInviteRecord: false, hadLeft: false, isDenied: true }),
+    'deny-replay', 'a bare reconnect replay is re-denied')
+  t.is(knockInviteVerdict({ inviteVerdict: 'review', hasInviteRecord: true, hadLeft: false, isDenied: true }),
+    'review', 'a resolved invite record backing the knock raises the banner instead')
 })
 
 test('REGRESSION (FIX-6/7/8: scan outcomes drive owned status; probe never blanket-writes active)', (t) => {
@@ -45,7 +50,7 @@ test('REGRESSION (FIX-16: boot drops a pending-leave marker whose space record s
 })
 
 test('REGRESSION (FIX-17: space:join retires a pending leave only when one is armed)', (t) => {
-  t.ok(/if \(hasPendingLeave\(rejoinSpaceId\)\) \{/.test(workerMain),
+  t.ok(/if \(hasPendingLeave\(rejoinSpaceId\)\) \{/.test(spaces),
     'the marker teardown is guarded by hasPendingLeave so it never tears down a live topic')
 })
 

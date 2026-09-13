@@ -139,7 +139,7 @@ test('a paused index keeps the debt for its resume, and the resume spends it exa
 // promise and cannot be observed from the outside without racing it.
 test('relocate records the debt on both paths, before either pass is armed', (t) => {
   const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
-  const src = fs.readFileSync(path.join(srcRoot, 'worker', 'main.js'), 'utf8')
+  const src = fs.readFileSync(path.join(srcRoot, 'worker', 'ipc', 'owned-folders.js'), 'utf8')
   const from = src.indexOf("ipc.handle('owned-folder:relocate'")
   const handler = src.slice(from, src.indexOf('ipc.handle(', from + 1))
   t.ok(from > 0 && handler.length > 0, 'found the relocate handler')

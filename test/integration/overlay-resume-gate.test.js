@@ -296,7 +296,7 @@ test('cancel of an id with neither a slot nor a row is a clean no-op', async (t)
 // FIX-9 hook wiring is pinned above.
 test('REGRESSION (FIX-10: the cancel handler routes on the id shape, not on a live slot)', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'ipc', 'files.js'), 'utf8')
 
   const from = src.indexOf("ipc.handle('files:cancel-download'")
   const to = src.indexOf("ipc.handle('files:pause-download'")
@@ -304,6 +304,6 @@ test('REGRESSION (FIX-10: the cancel handler routes on the id shape, not on a li
 
   const handler = src.slice(from, to)
   t.ok(handler.includes('isLooseTransferId('), 'cancel routes on the id shape')
-  t.absent(handler.includes('looseHasTransfer('), 'cancel no longer gates on a live loose slot')
-  t.absent(handler.includes('overlayHasTransfer('), 'cancel no longer gates on a live overlay slot')
+  t.absent(handler.includes('looseHasTransfer('), 'cancel does not gate on a live loose slot')
+  t.absent(handler.includes('overlayHasTransfer('), 'cancel does not gate on a live overlay slot')
 })

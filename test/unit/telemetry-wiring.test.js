@@ -1,17 +1,28 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { EventEmitter } from 'events'
 import { createIPC, getQueueDepth } from '../../src/shared/core/ipc.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const entry = readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+const workerDir = path.join(here, '..', '..', 'src', 'worker')
+
+// The entry and the handler modules it registers are one wiring surface: a handler moving from
+// main.js into src/worker/ipc/ must not be able to drop a context field on the way.
+function walk(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = path.join(dir, e.name)
+    return e.isDirectory() ? walk(full) : (e.name.endsWith('.js') ? [full] : [])
+  })
+}
+const mainEntry = readFileSync(path.join(workerDir, 'main.js'), 'utf8')
+const entry = [mainEntry, ...walk(path.join(workerDir, 'ipc')).map((f) => readFileSync(f, 'utf8'))].join('\n')
 
 // The producer being correct proves nothing about the export: requestFailures (#118) and
-// requestMetrics (#120) were both built, tested and shipped as no-ops because the entry never
-// handed them to buildDiagnostics. That wiring is module-scope code in worker/main.js — importing
-// it would boot the data layer and exit the process — so it is pinned by source text, the same way
+// requestMetrics (#120) were both built, tested and shipped as no-ops because nothing handed them
+// to buildDiagnostics. That wiring runs at module scope under the worker entry — importing it
+// would boot the data layer and exit the process — so it is pinned by source text, the same way
 // the crash-backstop suite pins the core-opening call sites in boot.js.
 test('REGRESSION (FIX-R09-7): the entry feeds the health block into the diagnostics context', (t) => {
   t.ok(/health:\s*health\.snapshot\(/.test(entry), 'diagnostics ctx carries health: health.snapshot(...)')
@@ -19,12 +30,12 @@ test('REGRESSION (FIX-R09-7): the entry feeds the health block into the diagnost
 })
 
 test('REGRESSION (FIX-R09-7): the entry starts and stops the monitor', (t) => {
-  t.ok(/health\.start\(\)/.test(entry), 'started when the router goes live')
-  t.ok(/health\.stop\(\)/.test(entry), 'and stopped on shutdown, so it cannot outlive the worker')
+  t.ok(/health\.start\(\)/.test(mainEntry), 'started when the router goes live')
+  t.ok(/health\.stop\(\)/.test(mainEntry), 'and stopped on shutdown, so it cannot outlive the worker')
   // Statement positions, not the first textual match: a prose comment near the top of the entry
   // also names ipc.start(), and indexOf would score that instead.
-  const startedAt = entry.search(/^health\.start\(\)$/m)
-  const liveAt = entry.search(/^ipc\.start\(\)$/m)
+  const startedAt = mainEntry.search(/^health\.start\(\)$/m)
+  const liveAt = mainEntry.search(/^ipc\.start\(\)$/m)
   t.ok(startedAt > 0 && liveAt > 0, 'both are real statements, not only mentioned in comments')
   t.ok(startedAt < liveAt, 'armed just before the router admits its first frame, not during boot I/O')
 })

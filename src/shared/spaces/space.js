@@ -160,6 +160,10 @@ export function isLegacySpace(space) {
   return !!space && space.schemaVersion !== 2
 }
 
+// The refusal every legacy-space gate throws. The renderer translates SPACE_UNSUPPORTED and never
+// reads this text; it is here so the three worker-side gates cannot word it three ways.
+export const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mirall and can no longer be used'
+
 export async function createSpace(name, icon = 'folder') {
   const topic = crypto.randomBytes(32)
   const topicHex = b4a.toString(topic, 'hex')
