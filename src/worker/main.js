@@ -18,6 +18,7 @@ import { createIPC, getBootstrapPromise, getRequestFailureCounters, getRequestMe
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import { registerAudit } from './ipc/audit.js'
+import { registerNetwork } from './ipc/network.js'
 import {
   setRuntimeConfig,
   getRuntimeConfig,
@@ -27,7 +28,6 @@ import {
   isHandshakeIdentityBindingEnabled,
   isOverlayEnabled,
   isInPlaceFilesEnabled,
-  setRelayConfig,
   getResourceCaps,
 } from '../shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
@@ -79,11 +79,6 @@ import {
   getConnectedPeers,
   broadcastProfileUpdate,
   getSwarmStatus,
-  testRelayReachable,
-  reconnectAll,
-  probeCanary,
-  setBrowserOnlineHint,
-  checkLivenessNow,
   getVerdictHistory,
   getDiagnosticCounters,
   getPeerSamples,
@@ -1694,27 +1689,7 @@ ipc.handle('settings:set-bandwidth', async (msg) => {
   return { ok: true }
 })
 
-ipc.handle('network:status:get', async () => getSwarmStatus())
-ipc.handle('network:reconnect', async () => await reconnectAll())
-
-ipc.handle('network:set-relay', async (msg) => {
-  setRelayConfig(msg?.mode, msg?.relay)
-  return { ok: true, ...applyRelayConfig() }
-})
-
-ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))
-
-ipc.handle('network:probe-canary', async (msg) =>
-  await probeCanary(getUpgradeKey(), { force: !!msg?.force }))
-
-// The renderer owns navigator.onLine; the worker cannot see it. Without this a pulled
-// cable would be classified as a NAT problem.
-ipc.handle('network:online-hint', async (msg) => {
-  setBrowserOnlineHint(msg?.online !== false)
-  return { ok: true }
-})
-
-ipc.handle('network:check-liveness', async () => await checkLivenessNow())
+registerNetwork(ipc, { applyRelayConfig })
 
 const DIAGNOSTIC_HISTORY_LIMIT = 50
 

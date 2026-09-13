@@ -1130,6 +1130,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/worker/sweeps.js` | `Sweeps` — four missed-event backstops on five timers: presence (60 s), invite expiry (1 h), overlay index compaction (a 5 min boot delay + 6 h, with the last run persisted in `reclaim-meta` so short sessions still pay their due pass — `compactIndexIfDue()`), audit prune (daily, only when the audit bee opened) |
 | `src/worker/audit-refs.js` | The worker's audit-participant adapters — `peerActorIn` (resolves a peer name off the live roster, then the persisted members), `spaceRefOf` (adapts a worker space RECORD onto `spaceRef`), `fileNameOf`, `shareNameOrNull`, `refreshAuditSelfName`. Rows render with zero joins, so every name is snapshotted at write time (§9) |
 | `src/worker/ipc/audit.js` | `registerAudit(ipc)` — the Activity Log's read surface: list, spaces, actors, stats, export, and the config/purge pair, each of which emits `event:audit-updated` because it changes what every open log is showing (§9) |
+| `src/worker/ipc/network.js` | `registerNetwork(ipc, deps)` — swarm status, reconnect, the relay mode/key pair (which re-applies to the live swarm through the root's `applyRelayConfig`), the canary probe, the renderer's `navigator.onLine` hint and the liveness check (§5) |
 | `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the `space:leave` handler as a module (§6): the pending-cancel path, the background teardown with its phase tracker, the 12 s respond deadline |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 
