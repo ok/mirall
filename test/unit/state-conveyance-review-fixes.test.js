@@ -6,9 +6,9 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
 const workerMain = src('worker/main.js')
-// The boot sequence and the mount runtime moved out of the entry into the composition root and
-// worker/mounts-runtime.js, and the space:leave teardown into worker/ipc/space-leave.js; the
-// invariants below are unchanged, only the file that carries them.
+const spaces = src('worker/ipc/spaces.js')
+// Each invariant is pinned in the file that carries it: the composition root, the mount runtime,
+// the swarm, and the worker's handler modules under ipc/.
 const boot = src('worker/boot.js')
 const mountsRuntime = src('worker/mounts-runtime.js')
 const swarm = src('shared/transfer/swarm.js')
@@ -45,7 +45,7 @@ test('REGRESSION (FIX-16: boot drops a pending-leave marker whose space record s
 })
 
 test('REGRESSION (FIX-17: space:join retires a pending leave only when one is armed)', (t) => {
-  t.ok(/if \(hasPendingLeave\(rejoinSpaceId\)\) \{/.test(workerMain),
+  t.ok(/if \(hasPendingLeave\(rejoinSpaceId\)\) \{/.test(spaces),
     'the marker teardown is guarded by hasPendingLeave so it never tears down a live topic')
 })
 
