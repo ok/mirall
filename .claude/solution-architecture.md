@@ -1135,6 +1135,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/worker/ipc/profile.js` | `registerProfile(ipc, deps)` — read and write the local profile. A name change reaches the profile record, the audit identity later rows are stamped with, and every peer holding an open member view |
 | `src/worker/ipc/feedback.js` | `registerFeedback(ipc)` — `feedback:send`: builds the support caption (who, build, platform, time) and truncates the comment to the room the transport leaves, smaller when a screenshot rides along |
 | `src/worker/ipc/diagnostics.js` | `registerDiagnostics(ipc, deps)` — `diagnostics:export`: the support bundle, merging the durable verdict rows with this session's in-memory ring. Reads the boot root through a getter because the partial-root handoff reassigns it (§10) |
+| `src/worker/ipc/files.js` | `registerFiles(ipc, deps)` — the loose-file surface: list/add/remove/reveal, the sender-side serve-ledger subscriptions, and the download controls, which route on the transfer id's SHAPE rather than on a live transfer so a settled fetch cannot make a cancel or pause silently do nothing (§7.4) |
 | `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the `space:leave` handler as a module (§6): the pending-cancel path, the background teardown with its phase tracker, the 12 s respond deadline |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 
