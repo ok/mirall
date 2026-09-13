@@ -76,7 +76,7 @@ test('the membership control set is the four the worker handles, without cancel-
   ])
   t.absent(MEMBERSHIP_CONTROL_FRAMES.includes(PEER_FRAME.MEMBERSHIP_CANCEL_ACK))
 
-  const main = read('worker/main.js')
+  const main = read('worker/ipc/membership.js')
   const table = main.slice(main.indexOf('const MEMBERSHIP_HANDLERS'), main.indexOf('async function handleMembershipControl'))
   const handled = new Set([...table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)].map((m) => m[1]))
   for (const value of MEMBERSHIP_CONTROL_FRAMES) {

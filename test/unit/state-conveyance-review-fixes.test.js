@@ -5,8 +5,8 @@ import path from 'path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const src = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
-const workerMain = src('worker/main.js')
 const spaces = src('worker/ipc/spaces.js')
+const membership = src('worker/ipc/membership.js')
 // Each invariant is pinned in the file that carries it: the composition root, the mount runtime,
 // the swarm, and the worker's handler modules under ipc/.
 const boot = src('worker/boot.js')
@@ -18,14 +18,14 @@ const spaceLeave = src('worker/ipc/space-leave.js')
 // at the unit layer (they need the live swarm/DHT); the behavioral halves live in test/flow.
 
 test('REGRESSION (C1: the re-grant honors the creator-divergence pause)', (t) => {
-  const grant = workerMain.slice(workerMain.indexOf('const grant = () => {'))
+  const grant = membership.slice(membership.indexOf('const grant = () => {'))
   const body = grant.slice(0, grant.indexOf('\n  }'))
   t.ok(/creatorDivergence/.test(body) && body.indexOf('creatorDivergence') < body.indexOf('sendMembershipGrant'),
     'grant() checks creatorDivergence before sendMembershipGrant')
 })
 
 test('REGRESSION (C2: the offline-deny re-send excludes a knock backed by a valid invite)', (t) => {
-  t.ok(/!hadLeft && !inviteRec && isDeniedJoiner/.test(workerMain),
+  t.ok(/!hadLeft && !inviteRec && isDeniedJoiner/.test(membership),
     'the re-deny gate is skipped when a resolved invite record backs the knock')
 })
 

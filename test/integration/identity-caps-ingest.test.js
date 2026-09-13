@@ -95,12 +95,12 @@ test('REGRESSION (FIX-AVFRAME-3): a hostile join-request avatar is stored as nul
 })
 
 // The half above proves the sanitizer's verdict is what the receipt stores; this proves the worker
-// ingest actually routes every consumer through it. worker/main.js is the process entry — it cannot
-// be imported into a test — so the wiring is asserted over its source, as the other worker-entry
-// invariants in this suite are.
+// ingest actually routes every consumer through it. The worker runs under Bare and exits at module
+// scope — it cannot be imported into a test — so the wiring is asserted over its source, as the
+// other worker invariants in this suite are.
 test('REGRESSION (FIX-AVFRAME-3): the ingest sanitizes before all three consumers', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'main.js'), 'utf8')
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'ipc', 'membership.js'), 'utf8')
   const ingest = src.slice(src.indexOf('const displayName = clampDisplayName(msg.displayName)'),
     src.indexOf('auditJoinRequest(spaceId, msg.profileKey, displayName)'))
 
