@@ -1,4 +1,5 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
+import { PUBLISH_ORDERS } from '../contract/paths.js'
 
 const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
 // Upper bound on how long an approver waits to durably capture a joiner's own membership
@@ -7,10 +8,7 @@ const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
 const DEFAULT_CAPTURE_MEMBER_RECORD_MS = 5000
 const DEFAULT_LIST_FILES_CAP = 5000
 const DEFAULT_MAX_FILES_PER_SHARE = 5000
-// Kept in lockstep with PUBLISH_ORDERS in folders/work-item.js (a unit test asserts parity);
-// core/ must not import from folders/.
-// test seam
-export const PUBLISH_ORDERS = ['fifo', 'smallest-first', 'largest-first']
+export { PUBLISH_ORDERS }
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
 // Single source of truth for every runtime-config field. Both the live default state and each

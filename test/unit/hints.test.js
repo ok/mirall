@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createHintBus } from '../../src/shared/state/hints.js'
+import { createHintBus } from '../../src/shared/core/hints.js'
 
 function manualTimers() {
   const pending = []

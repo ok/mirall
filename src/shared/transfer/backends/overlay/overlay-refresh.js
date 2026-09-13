@@ -1,4 +1,4 @@
-import { makeKeyedCoalescer } from '../../../state/coalesce.js'
+import { makeKeyedCoalescer } from '../../../core/coalesce.js'
 
 // Coalesces owner-side share-files-updated refreshes so a large overlay scan
 // (one advertise per file) doesn't trigger a full re-list per file.

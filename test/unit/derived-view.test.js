@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createDerivedView } from '../../src/shared/state/derived-view.js'
+import { createDerivedView } from '../../src/shared/core/derived-view.js'
 
 // Flush microtasks + timers so a scheduled/trailing fold has run.
 const tick = () => new Promise((r) => setTimeout(r, 10))

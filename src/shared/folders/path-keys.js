@@ -6,7 +6,7 @@
 // Functions that need a path separator take it as an argument; callers pass their
 // real `path.sep`, tests pass an explicit `/` or `\` to exercise both platforms on
 // one machine.
-import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
+import { PARTIAL_SUFFIX, pathContains } from '../contract/paths.js'
 
 // ─── share key ⇄ OS-relative path ─────────────────────────────────────────────
 // Drive keys are always POSIX-style ('/'-joined). On Windows the on-disk relative
@@ -87,19 +87,8 @@ export function dropUnsafeEntries(entries, onDropped = () => {}) {
 }
 
 // ─── containment / mount overlap ──────────────────────────────────────────────
-// True when `child` is `parent` or sits inside it. The separator boundary prevents
-// the classic false positive: `/a/bc` is not inside `/a/b`. `fold` compares
-// case-insensitively, for the filesystems that case-fold (darwin/win32).
-export function pathContains(parent, child, sep, fold = false) {
-  if (!parent || !child) return false
-  let root = fold ? parent.toLowerCase() : parent
-  while (root.length > 1 && root.endsWith(sep)) root = root.slice(0, -1)
-  const c = fold ? child.toLowerCase() : child
-  if (c === root) return true
-  // A filesystem root ("/", "C:\") already ends in the separator; appending a second
-  // one would make every child miss.
-  return c.startsWith(root.endsWith(sep) ? root : root + sep)
-}
+// pathContains is contract/paths.js — core/ reads it too, and core/ may not import folders/.
+export { pathContains }
 
 // True when one path is the other, or one is an ancestor of the other. `fold` is passed
 // through to pathContains for the filesystems that case-fold (darwin/win32).

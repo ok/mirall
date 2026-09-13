@@ -104,7 +104,7 @@ test('the renderer derives its status unions instead of re-listing them', (t) =>
 })
 
 // REGRESSION (FIX-EVENTS-1: this guard matched the TEXT /\.emit\('(event:[a-z-]+)'/ — a leading
-// dot and single quotes. src/shared/state/hints.js calls `emit('event:reconcile', …)` on a bare
+// dot and single quotes. src/shared/core/hints.js calls `emit('event:reconcile', …)` on a bare
 // parameter, so the one missing punctuation mark hid the fan-in point of the entire
 // level-triggered reconcile channel, and the contract reported itself complete. The scan now
 // parses; quote style, optional chaining and the receiver's shape cannot hide a site.

@@ -11,7 +11,7 @@ import { liveHandle } from '../core/timers.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
-import { presenceFrameKind } from '../state/presence.js'
+import { presenceFrameKind } from './presence.js'
 import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace } from './swarm-registries.js'
 
 let presence = null

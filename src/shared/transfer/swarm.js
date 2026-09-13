@@ -6,7 +6,7 @@
 //
 // This file owns connection intake and frame dispatch, handshake handling and the peer registry,
 // topic joins and space cleanup, the membership frames (request / grant / deny / cancel) and the
-// blind-relay install. Presence lives in presence-broadcast.js + state/presence.js, leaves in
+// blind-relay install. Presence lives in presence-broadcast.js + presence.js, leaves in
 // leave-protocol.js, connectivity in connectivity.js, admission in admission-gates.js and
 // deferred-admission.js, the re-drive in convergence-tick.js.
 import DHT from 'hyperdht'
@@ -34,8 +34,8 @@ import { observePeerProfile } from '../audit/peer-watch.js'
 import { peerLost, peerLostMeta, peerSeen, resetNetworkWatch } from '../audit/network-watch.js'
 import { sealSck } from './sck-seal.js'
 import { sanitizeAvatar } from '../identity-limits.js'
-import { createPresence } from '../state/presence.js'
-import { makeKeyedCoalescer } from '../state/coalesce.js'
+import { createPresence } from './presence.js'
+import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
