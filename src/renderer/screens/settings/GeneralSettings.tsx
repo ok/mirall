@@ -1,9 +1,9 @@
 // General settings: minimize-to-tray and open-at-login toggles persisted via main's app prefs.
 import { useTranslation } from 'react-i18next'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { useMainQuery } from '../store/useMainQuery.js'
-import PageHeader from '../components/layout/PageHeader.js'
-import Toggle from '../components/primitives/Toggle.js'
+import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
+import { useMainQuery } from '../../store/useMainQuery.js'
+import PageHeader from '../../components/layout/PageHeader.js'
+import Toggle from '../../components/primitives/Toggle.js'
 
 interface GeneralSettingsProps {
   onBack: () => void

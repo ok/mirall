@@ -1,16 +1,16 @@
 // Notification settings: master/sound/focus-suppression toggles and per-event enablement.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import PageHeader from '../components/layout/PageHeader.js'
-import SectionHeading from '../components/layout/SectionHeading.js'
-import Toggle from '../components/primitives/Toggle.js'
+import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
+import PageHeader from '../../components/layout/PageHeader.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
+import Toggle from '../../components/primitives/Toggle.js'
 import {
   getPrefs,
   setPrefs,
   type NotificationPrefs,
   type NotificationEventPrefs,
-} from '../notifications/prefs.js'
+} from '../../notifications/prefs.js'
 
 interface NotificationSettingsProps {
   onBack: () => void

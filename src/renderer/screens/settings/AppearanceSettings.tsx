@@ -1,16 +1,16 @@
 // Appearance settings: theme (light/dark/system), language, and UI zoom.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n.js'
-import { applyTheme, getStoredTheme, type ThemeMode } from '../theme.js'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { useMainQuery } from '../store/useMainQuery.js'
-import { useZoom, ZOOM_LEVELS, nearestZoomLevel } from '../hooks/useZoom.js'
-import Icon, { type IconName } from '../components/primitives/Icon.js'
-import PageHeader from '../components/layout/PageHeader.js'
-import SectionHeading from '../components/layout/SectionHeading.js'
-import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
-import Toggle from '../components/primitives/Toggle.js'
+import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../i18n.js'
+import { applyTheme, getStoredTheme, type ThemeMode } from '../../theme.js'
+import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
+import { useMainQuery } from '../../store/useMainQuery.js'
+import { useZoom, ZOOM_LEVELS, nearestZoomLevel } from '../../hooks/useZoom.js'
+import Icon, { type IconName } from '../../components/primitives/Icon.js'
+import PageHeader from '../../components/layout/PageHeader.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
+import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
+import Toggle from '../../components/primitives/Toggle.js'
 
 // The three theme choices as data, so the selector reads as one map like the zoom row beside it.
 const THEME_MODES: Array<{ mode: ThemeMode; icon: IconName; labelKey: string }> = [
