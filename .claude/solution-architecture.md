@@ -1168,6 +1168,7 @@ Behaviour worth knowing (styling → `design.md`):
 |---|---|
 | `src/shared/core/runtime-config.js` | The bootstrap config bag: getters over the bootstrap frame, the DoS/resource budgets (§16), `getListFilesCap()`, the sweep and mirror-deletion caps (§7.3, §14) |
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7). Wraps `Bare.IPC` |
+| `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` / `createLocalBee()` factories, the M-derived key policy, the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/core/reachability.js` | The pure connectivity verdict (`classify`, `stabilise`) and its VERDICT / CAUSE / CANARY vocabulary |
 | `src/shared/core/supervisor.js` | `Supervisor` — polls every started subsystem's supervisable units and recovers the condemned ones. Started last so it closes first (§2 boot step 11) |

@@ -12,11 +12,9 @@ import { CODES } from '../contract/errors.js'
 import { createCancellation } from './cancellation.js'
 import { createHandlerTable, validateArgs } from './handler-table.js'
 import { createRequestMetrics } from './request-metrics.js'
+import { createFrameReader } from './frame-reader.js'
 
 const log = createLogger('ipc')
-
-const NEWLINE = 0x0A
-const EMPTY = Buffer.alloc(0)
 
 // Fan a coalesced `event:reconcile` out of a POKE so its view re-derives through the level-triggered
 // reconcile channel. The named events stay on the wire as the emit-site API (and as flow-test /
@@ -117,72 +115,21 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const inFlight = new Map()
   const queued = []
   let ready = false
-  let buffer = EMPTY
-  // After an oversized frame the bytes still arriving belong to the frame being discarded. Without
-  // this, the TAIL of that frame is parsed as though it were a fresh one — turning one oversized
-  // frame into one forged frame, which is worse than the unbounded buffer it replaces.
-  let skipping = false
   let bootstrapResolve
   const bootstrapPromise = new Promise((resolve) => { bootstrapResolve = resolve })
 
-  pipe.on('data', (chunk) => {
-    // Bytes, not text: split on the newline BYTE, which cannot occur inside a multi-byte UTF-8
-    // sequence, so every complete line is complete UTF-8. Also the only portable answer — Bare has
-    // no TextDecoder, and its apparent `string_decoder` is a devDependency artefact absent from a
-    // production install.
-    //
-    // `owned` tracks whether `buffer` is memory of ours or still the caller's chunk, which the
-    // pipe is free to reuse once this handler returns. Only an owned buffer may be held across
-    // ticks as-is; copying one that Buffer.concat already allocated is a second full memcpy per
-    // chunk, for every partial frame.
-    let owned = buffer.length !== 0
-    buffer = owned ? Buffer.concat([buffer, chunk]) : chunk
-
-    // Resync first: drop bytes until the newline that ends the frame already given up on.
-    if (skipping) {
-      const nl = buffer.indexOf(NEWLINE)
-      if (nl === -1) { buffer = EMPTY; return }
-      buffer = Buffer.from(buffer.subarray(nl + 1))
-      owned = true
-      skipping = false
-    }
-
-    // A frame with no terminator in sight cannot be waited out: refused here, before it is ever
-    // materialised as a JSON string and before the read buffer can grow without bound. Every
-    // TERMINATED frame is measured individually in the loop below — the cap is per frame, not per
-    // read buffer, which legitimately carries many small frames at once. Measured in BYTES, per
-    // frame; nothing on the write side measures, so this cap is enforced here alone and the sender
-    // learns of it only through the failure counter.
-    if (buffer.length > maxFrameBytes && buffer.indexOf(NEWLINE) === -1) {
-      log.warn('oversized frame discarded:', buffer.length, 'bytes exceeds', maxFrameBytes)
+  const reader = createFrameReader({
+    maxFrameBytes,
+    onOversized: (bytes) => {
+      log.warn('oversized frame discarded:', bytes, 'bytes exceeds', maxFrameBytes)
       countFailure('oversized-frame', INVALID_ARGUMENT)
-      buffer = EMPTY
-      skipping = true
-      return
-    }
+    },
+  })
 
-    // The leftover is committed BEFORE dispatching, so a handler that throws cannot cause the
-    // frames after it to be re-read from a stale buffer.
-    const lastNl = buffer.lastIndexOf(NEWLINE)
-    if (lastNl === -1) { buffer = owned ? buffer : Buffer.from(buffer); return }
-    const complete = buffer
-    buffer = lastNl + 1 === complete.length ? EMPTY : Buffer.from(complete.subarray(lastNl + 1))
-
-    let start = 0
-    while (start <= lastNl) {
-      const nl = complete.indexOf(NEWLINE, start)
-      const line = complete.subarray(start, nl)
-      start = nl + 1
-      if (line.length === 0) continue
-      // The cap, measured on the frame itself, so refusal cannot depend on where a chunk boundary
-      // fell.
-      if (line.length > maxFrameBytes) {
-        log.warn('oversized frame discarded:', line.length, 'bytes exceeds', maxFrameBytes)
-        countFailure('oversized-frame', INVALID_ARGUMENT)
-        continue
-      }
+  pipe.on('data', (chunk) => {
+    for (const line of reader.push(chunk)) {
       try {
-        const msg = JSON.parse(line.toString('utf8'))
+        const msg = JSON.parse(line)
         if (msg && msg.type === FRAME.BOOTSTRAP) {
           if (bootstrapResolve) {
             bootstrapResolve(msg)
