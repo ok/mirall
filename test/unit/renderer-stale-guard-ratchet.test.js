@@ -5,7 +5,7 @@ import path from 'path'
 import { Linter } from 'eslint'
 import tseslint from 'typescript-eslint'
 import noUnguardedAsyncEffect from '../../eslint-rules/no-unguarded-async-effect.js'
-import { unmountOnlyAsyncEffects, outOfOrderAsyncEffects } from '../../eslint.config.mjs'
+import { unmountOnlyAsyncEffects, outOfOrderAsyncEffects } from '../../eslint-rules/invariants.mjs'
 import { MAIN_QUERIES, MAIN_QUERY_NAMES } from '../../src/renderer/store/main-queries.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))

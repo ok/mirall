@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
 import tsParser from '@typescript-eslint/parser'
-import { rendererStatusRestrictions } from '../../eslint.config.mjs'
+import { rendererStatusRestrictions } from '../../eslint-rules/invariants.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const hooksDir = path.join(here, '..', '..', 'src', 'renderer', 'hooks')

@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
-import { chokidarSingleOwnerRestrictions } from '../../eslint.config.mjs'
+import { chokidarSingleOwnerRestrictions } from '../../eslint-rules/invariants.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainDir = path.join(here, '..', '..', 'src', 'main')

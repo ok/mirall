@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // that directory rather than its own — scanning `here` would pass while nothing drove anything.
 const unitDir = path.resolve(here, '../unit')
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
-import { pureFolderPolicyModules } from '../../eslint.config.mjs'
+import { pureFolderPolicyModules } from '../../eslint-rules/invariants.mjs'
 
 // The decomposition left these as re-exports so its own diff stayed on the move. Once the callers
 // were re-pointed the shims went, and this keeps them gone: a re-export is the cheap way to undo a

@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
-import { moduleLevelTimerRestrictions, moduleScopeTimerHandleRestrictions } from '../../eslint.config.mjs'
+import { moduleLevelTimerRestrictions, moduleScopeTimerHandleRestrictions } from '../../eslint-rules/invariants.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const roots = ['shared', 'worker'].map((d) => path.join(here, '..', '..', 'src', d))

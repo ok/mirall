@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
 import tseslint from 'typescript-eslint'
-import { byteFormatterSingleOwnerRestrictions } from '../../eslint.config.mjs'
+import { byteFormatterSingleOwnerRestrictions } from '../../eslint-rules/invariants.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')
