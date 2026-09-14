@@ -7,7 +7,6 @@
 const path = require('path')
 const { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } = require('electron')
 const { isMac } = require('which-runtime')
-const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
 const { usableBounds } = require('./window-bounds.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { logRing } = require('./log-ring.js')
@@ -152,6 +151,10 @@ function maybeShowFirstHideNotice() {
 }
 
 async function createWindow() {
+  // Required here, not at module scope: the contract package is ESM, and requiring it while the
+  // entry's own CJS load is still in flight trips Node's require(esm) race guard. By the time a
+  // window is created the graph has settled.
+  const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
   refreshAppMenu()
   const restored = readWindowBounds()
   const startHidden = startHiddenFlag

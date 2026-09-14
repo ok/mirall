@@ -13,6 +13,10 @@ const { logRing } = require('./log-ring')
 const { sendToAll, loadRedactLine, installMainLogForwarding } = require('./logging.js')
 const { initPrefs, getPrefs } = require('./prefs.js')
 const { markQuitting } = require('./quit-state.js')
+const { preloadAsarCache, registerAppProtocol } = require('./app-protocol.js')
+const { registerRelaySlot } = require('./relay-slot.js')
+const { registerNetOnline, startNetOnlineWatch } = require('./net-online.js')
+const { parseDeepLink } = require('./deeplink')
 const { initUpdater, registerUpdater, getPear, applyPendingUpdate } = require('./updater.js')
 const {
   initWorkerHost,
@@ -240,11 +244,6 @@ app.on('before-quit', createQuitSequence({
 // === app:// asset serving, deep links, app lifecycle ===
 
 app.setAsDefaultProtocolClient(protocol)
-
-const { preloadAsarCache, registerAppProtocol } = require('./app-protocol.js')
-const { registerRelaySlot } = require('./relay-slot.js')
-const { registerNetOnline, startNetOnlineWatch } = require('./net-online.js')
-const { parseDeepLink } = require('./deeplink')
 
 const pendingDeepLinks = []
 let deeplinkChannelOpen = false
