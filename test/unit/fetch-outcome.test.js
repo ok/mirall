@@ -13,7 +13,7 @@ const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 const EMITTERS = [
   'shared/transfer/backends/overlay/overlay-download.js',
   'shared/transfer/backends/overlay/fetch-run.js',
-  'shared/folders/foreign-folders.js',
+  'shared/folders/mirror-fetch.js',
 ]
 
 const VALUES = new Set(Object.values(FETCH_OUTCOME))

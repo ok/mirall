@@ -1264,7 +1264,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/folders/foreign-folders.js` | The mirror engine (§7.3): loop wiring, level triggers, the materialize passes, the gated fetch, the integrity audit, the conflict copy (`preserveLocalEdit`, §14), orphan unmount, health / restart, `ForeignMirrors`, and the unmount / relocate / enable verbs |
+| `src/shared/folders/foreign-folders.js` | The mirror engine (§7.3): loop wiring, level triggers, the materialize passes, orphan unmount, health / restart, `ForeignMirrors`, and the unmount / relocate / enable verbs |
 | `src/shared/folders/owned-folders.js` | Owner side (§7.2): the `folder` publish channel, `onFsEvent`, the catch-up debounce, `initialPublishScan` (diff → enqueue → settle; `periodicReconcile` is the same function under the caller's name), index-progress broadcast, `getIndexStatus` / `cancelIndex`, `stopOwnedFolder`, `OwnedFolders` |
 | `src/shared/folders/publish-scheduler.js` | Cross-space runner: bounded slots, round-robin, the space and interactive reservations, tallies, `whenDrained`. Pure (§7.2) |
 | `src/shared/folders/path-keys.js` | Pure cross-platform path math, ignore globs, overlap / containment, the deletion gate, collision naming, the validator predicates (§7.5) |
@@ -1290,6 +1290,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/share-limits.js` | The one folder-share file-limit rule, read by the preview, the worker's mount gate and the renderer alike (§14) |
 | `src/shared/folders/folder-intents.js` | The boot reconcilers for the folder flows that write to more than one bee (§2 durable intents) |
 | `src/shared/folders/temp-paths.js` | `isEphemeralSourcePath()` — rejects macOS promised-file temps as share / drop sources |
+| `src/shared/folders/mirror-fetch.js` | The per-entry fetch: everything between "the pass wants this file" and "the bytes are at the natural name" — the free-space and mount-root preflights, the conflict copy (`preserveLocalEdit`, §14), the slot, the integrity audit and the attempt budget. Separate from the pass because it owns what a pass must not: the one in-flight fetch per mount, the paused-stop markers, the attempt budget and the integrity rows all outlive a pass (§7.3) |
 | `src/shared/folders/foreign-pause.js` | The mirror's pause / fault / resume ladder. A mirror's pause really does stop it — loop, in-flight fetch and generation go with it — which is what separates it from the owner side, where a fault only marks status. The INITIAL scan failing is deliberately not a pause: the loop still starts, so it records the fault without touching `enabled` and stays out of the resume gate (§7.3) |
 | `src/shared/folders/mount-fault.js` | The worker's import path for the mount-fault vocabulary: the status half from `contract/`, plus `faultFromError` (the errno half needs `core/errors.js`) |
 | `src/shared/folders/mirror-walk.js`, `src/shared/folders/mirror-reach.js`, `src/shared/folders/mirror-health.js` | Three pure loop rules: whether a tick must walk at all, whether a pass may reach for content, and the stalled / healthy verdict (`stallVerdict(poll × 20)`) |

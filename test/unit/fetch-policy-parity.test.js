@@ -7,7 +7,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 
 const ENGINE = 'shared/transfer/backends/overlay/overlay-download.js'
-const MIRROR = 'shared/folders/foreign-folders.js'
+// The mirror is two files: the pass decides WHETHER to fetch, the fetch decides HOW and judges
+// what came back. A parity rule belongs to whichever half actually applies it.
+const MIRROR_PASS = 'shared/folders/foreign-folders.js'
+const MIRROR = 'shared/folders/mirror-fetch.js'
 const CHANNEL = 'shared/transfer/backends/overlay/overlay-channel.js'
 
 // Two producers move bytes through one overlay: the download engine and the foreign-folder mirror.
@@ -22,8 +25,8 @@ test('both producers gate a fetch on reachability', (t) => {
   t.ok(/ownerOnline\(job\.ownerKey\)/.test(read(ENGINE)), 'the engine gates on the owner')
   // Anchored on the call, not the declaration: /mayFetch\(mount\)/ alone matches
   // `function mayFetch(mount) {`, so both call sites could be deleted and this still passed.
-  t.ok(/const canFetch = mayFetch\(mount\)/.test(read(MIRROR)), 'the mirror gates its walk')
-  t.ok(/if \(!mayFetch\(mount\)\)/.test(read(MIRROR)), 'and its tick')
+  t.ok(/const canFetch = mayFetch\(mount\)/.test(read(MIRROR_PASS)), 'the mirror gates its walk')
+  t.ok(/if \(!mayFetch\(mount\)\)/.test(read(MIRROR_PASS)), 'and its tick')
 })
 
 // Deliberately one-sided. The two look like the same question and are not: the mirror asks whether a
