@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { mirrorMayFetch } from '../../src/shared/folders/mirror-reach.js'
+import { mirrorMayFetch } from '../../src/shared/folders/mirror-policy.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { shouldWalk, DEFAULT_FULL_WALK_EVERY } from '../../src/shared/folders/mirror-walk.js'
+import { shouldWalk, DEFAULT_FULL_WALK_EVERY } from '../../src/shared/folders/mirror-policy.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'

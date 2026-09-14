@@ -1288,7 +1288,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/fetch-attempts.js` | The mirror's bounded per-(path, hash) failure budget — eviction-bounded, so a corrupt holder cannot pin a file forever nor block a healthy one (§7.3) |
 | `src/shared/folders/mirror-registry.js` | The merged "who mirrors what" listing for a space: own rows plus every current member's, tagged with the mirroring peer |
 | `src/shared/folders/echo-guard.js` | Per-share TTL set of paths we just wrote, so the watcher ignores our own writes; `EchoGuardPurge` |
-| `src/shared/folders/mirror-ownership.js` | `classifyLocalCopy` — whose bytes are on disk (`owner-current` / `ours` / `diverged` / `unknown`) from the disk, owner and ancestor hashes — + `mayOverwriteInPlace`. Pure (§14) |
+| `src/shared/folders/mirror-policy.js` | `classifyLocalCopy` — whose bytes are on disk (`owner-current` / `ours` / `diverged` / `unknown`) from the disk, owner and ancestor hashes — + `mayOverwriteInPlace`. Pure (§14) |
 | `src/shared/folders/disk-presence.js` | `fileExactlyPresent` / `fileStatPresent` / `statFacts` — exact-name presence before a retire (a following stat would call a case-only rename or a symlink "present" forever) |
 | `src/shared/folders/integrity-seen.js` | One integrity audit row per `(mount, file, advertised hash)` rather than per retry tick |
 | `src/shared/folders/preview-tally.js`, `src/shared/folders/preview-detail.js` | The result shape both previews return, and the per-file detail cap (`PREVIEW_DETAIL_MAX_FILES`, `includePerFile`) that §8 `owned-folder:preview` applies |
@@ -1299,7 +1299,6 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/mirror-fetch.js` | The per-entry fetch: everything between "the pass wants this file" and "the bytes are at the natural name" — the free-space and mount-root preflights, the conflict copy (`preserveLocalEdit`, §14), the slot, the integrity audit and the attempt budget. Separate from the pass because it owns what a pass must not: the one in-flight fetch per mount, the paused-stop markers, the attempt budget and the integrity rows all outlive a pass (§7.3) |
 | `src/shared/folders/foreign-pause.js` | The mirror's pause / fault / resume ladder. A mirror's pause really does stop it — loop, in-flight fetch and generation go with it — which is what separates it from the owner side, where a fault only marks status. The INITIAL scan failing is deliberately not a pause: the loop still starts, so it records the fault without touching `enabled` and stays out of the resume gate (§7.3) |
 | `src/shared/folders/mount-fault.js` | The worker's import path for the mount-fault vocabulary: the status half from `contract/`, plus `faultFromError` (the errno half needs `core/errors.js`) |
-| `src/shared/folders/mirror-walk.js`, `src/shared/folders/mirror-reach.js`, `src/shared/folders/mirror-health.js` | Three pure loop rules: whether a tick must walk at all, whether a pass may reach for content, and the stalled / healthy verdict (`stallVerdict(poll × 20)`) |
 
 ### `src/shared/network/` — reachability and swarm plumbing
 

@@ -28,7 +28,7 @@ import { drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overla
 
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
-import { mirrorVerdict } from './mirror-health.js'
+import { mirrorVerdict } from './mirror-policy.js'
 import { createMirrorLoops } from './mirror-loop.js'
 import { createMirrorState } from './mirror-state.js'
 

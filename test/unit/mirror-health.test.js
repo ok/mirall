@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { mirrorVerdict, STALL_FACTOR } from '../../src/shared/folders/mirror-health.js'
+import { mirrorVerdict, STALL_FACTOR } from '../../src/shared/folders/mirror-policy.js'
 
 const POLL = 30_000
 const WINDOW = POLL * STALL_FACTOR

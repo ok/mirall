@@ -1,3 +1,4 @@
+import { stallVerdict } from '../core/pass-liveness.js'
 // Whose bytes are on disk? Comparing the local file against the owner's CURRENT hash answers "is
 // it up to date?" and nothing else: a mismatch is either the owner moving on or the user editing
 // our copy, and those need opposite handling. The ANCESTOR separates them — the hash the mirror
@@ -35,4 +36,44 @@ export function classifyLocalCopy({ diskHash = null, ownerHash = null, ancestorH
 // no audit row to reconstruct from.
 export function mayOverwriteInPlace(verdict) {
   return verdict === LOCAL_COPY.OURS || verdict === LOCAL_COPY.OWNER_CURRENT
+}
+
+// Whether a mirror tick must walk.
+//
+// The order is the safety argument: every branch that cannot prove nothing changed costs a walk.
+// A skip is only ever authorised by a known version that matches a watermark a converged pass set.
+// test seam
+export const DEFAULT_FULL_WALK_EVERY = 10
+
+export function shouldWalk({ watermark = null, version = null, skipped = 0, fullWalkEvery = DEFAULT_FULL_WALK_EVERY } = {}) {
+  if (watermark === null) return { walk: true, reason: 'no-watermark' }
+  if (version === null) return { walk: true, reason: 'version-unknown' }
+  if (version !== watermark) return { walk: true, reason: 'catalog-appended' }
+  if (!(fullWalkEvery > 1)) return { walk: true, reason: 'backstop-disabled' }
+  if (skipped + 1 >= fullWalkEvery) return { walk: true, reason: 'backstop' }
+  return { walk: false, reason: null }
+}
+
+// Whether a mirror pass may reach for content at all.
+//
+// A self-mirror is always reachable: presence leases track REMOTE peers only, so our own key is
+// never in the map and a bare isOwnerOnline(ownerKey) reads every self-mirror as permanently
+// offline. share-listing.js carries the same special case for the same reason.
+export function mirrorMayFetch({ ownerKey = null, localKey = null, ownerOnline = false } = {}) {
+  // Unknown falls open: a mirror that goes quiet on a missing field is a silent sync outage, where
+  // a wasted pass is a log line.
+  if (!ownerKey) return true
+  if (localKey && ownerKey === localKey) return true
+  return !!ownerOnline
+}
+
+// The stalled/healthy rule for a mirror loop. runMaterializeTick serialises passes per mount by
+// handing every later tick the in-flight promise, so a pass that never settles wedges the mount
+// permanently while the interval keeps firing.
+
+// test seam
+export const STALL_FACTOR = 20
+
+export function mirrorVerdict(liveness, { now, pollIntervalMs, stallFactor = STALL_FACTOR }) {
+  return stallVerdict(liveness, { now, windowMs: pollIntervalMs * stallFactor })
 }
