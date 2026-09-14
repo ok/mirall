@@ -42,6 +42,8 @@ const SCC = [
   'transfer/backends/overlay/overlay-instance.js',
   'transfer/backends/overlay/overlay-backend.js',
   'transfer/backends/overlay/overlay-runtime.js',
+  'transfer/backends/overlay/overlay-maintenance.js',
+  'transfer/backends/overlay/stall-retry.js',
   'folders/publish-service.js',
   'folders/owned-folders.js',
 ]

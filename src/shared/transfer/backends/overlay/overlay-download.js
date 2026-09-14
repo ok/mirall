@@ -18,32 +18,21 @@ import { createPausedHolders } from './paused-holders.js'
 import { recordTransferOutcome } from '../../transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
-import { makeKeyedCoalescer } from '../../../core/coalesce.js'
+import { makeSingleFlightScan } from './single-flight-scan.js'
+import { createStallRetry } from './stall-retry.js'
 import { acquireFetchSlot } from './fetch-slots.js'
 import { fetchClaimedBy } from './fetch-claims.js'
 import { classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { CODES } from '../../../contract/errors.js'
 import { createLogger } from '../../../core/logger.js'
 
-import { isTerminalFault, nextRetryDelay } from './fetch-policy.js'
+import { isTerminalFault } from './fetch-policy.js'
 import { FETCH_OUTCOME } from './fetch-outcome.js'
 import { makeFetchInstruments } from './fetch-run.js'
 import { shortfall } from '../../free-space.js'
 import { freeBytesFor } from '../../free-space-probe.js'
 
 const log = createLogger('overlay-download')
-
-// Stall auto-retry. A code-less fetch failure means "the bytes stopped" — a holder that dropped,
-// or one whose UPLOAD cap kept it silent past our no-progress watchdog — and a holder that never
-// disconnects fires NEITHER auto-resume trigger (owner reconnect, catalog append). Retry here
-// while the owner is online, and keep retrying only while the retries bank bytes: a wedged holder
-// banks none and parks after STALL_RETRY_DRY_LIMIT attempts. Keep-alives (message 14) keep a NEW
-// holder off this path only as long as its keep-alive budget lasts, so this is the backstop for
-// both cases.
-const STALL_RETRY_BASE_MS = 3000
-// Binds only if STALL_RETRY_DRY_LIMIT is raised: at 3 the backoff reaches 3s/6s/12s and stops.
-const STALL_RETRY_MAX_MS = 60000
-const STALL_RETRY_DRY_LIMIT = 3
 
 // Is `dir` a usable destination folder right now? Anything other than a live directory —
 // missing, or a plain file sitting where the folder belongs — reads as unavailable.
@@ -149,87 +138,25 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   }
 
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
-  // transferId -> { dry, bytes, timer } for a stall being retried. `dry` counts CONSECUTIVE
-  // attempts that banked no new bytes, so a throttled holder (which always banks some) retries
-  // indefinitely while a wedged one gives up.
-  const stallRetries = new Map()
   const pauseReasonFor = (job) => reasonForOwnerOnline(ownerOnline(job.ownerKey))
 
+  // One timer per stalled transfer, cleared on pause, cancel, supersede and teardown. pokeResume
+  // is taken by reference because the resume driver is defined below this.
+  const retries = createStallRetry({
+    registry,
+    pausedHashes,
+    ownerOnline,
+    channel,
+    pokeResume: (ownerKey, spaceId) => pokeResume(ownerKey, spaceId),
+    getPendingFor,
+    pauseReasonFor,
+    log,
+    opts: stallRetry,
+  })
+  const scheduleStallRetry = (job) => retries.schedule(job)
+  const cancelStallRetry = (transferId) => retries.cancel(transferId)
+
   function has(transferId) { return registry.has(transferId) }
-
-  function cancelStallRetry(transferId) {
-    const st = stallRetries.get(transferId)
-    if (!st) return
-    clearTimeout(st.timer)
-    stallRetries.delete(transferId)
-  }
-
-  // Schedule a retry of a stalled fetch. TRUE means one is pending, and the caller passes
-  // `retrying` to emitPaused so the row still settles its decoration while the OS notification
-  // is withheld — one notification per attempt would turn a slow transfer into a stream of them.
-  async function scheduleStallRetry(job) {
-    const { transferId } = job
-    const retryBaseMs = stallRetry.baseMs ?? STALL_RETRY_BASE_MS
-    const retryMaxMs = stallRetry.maxMs ?? STALL_RETRY_MAX_MS
-    const retryDryLimit = stallRetry.dryLimit ?? STALL_RETRY_DRY_LIMIT
-    // Every bail DELETES the record. A leftover is keyed by a stable transferId
-    // (spaceId|shareId|relPath), so an unrelated download of the same file hours later would
-    // read it as `prev` and inherit an exhausted budget it never spent.
-    if (!ownerOnline(job.ownerKey)) { cancelStallRetry(transferId); return false } // reconnect re-drives this
-    if (pausedHashes.has(transferId)) { cancelStallRetry(transferId); return false }     // the user's pause outranks a retry
-    const row = await getPendingFor(job.spaceId, job.pendingKey).catch(() => null)
-    if (!row) { cancelStallRetry(transferId); return false }                             // row gone: nothing to resume
-    const bytes = row.bytesTransferred || 0
-    const prev = stallRetries.get(transferId)
-    // Progress since the last attempt clears the counter — that is what lets a paced transfer
-    // keep going, one attempt at a time, without a retry budget it can exhaust.
-    const dry = prev && bytes <= prev.bytes ? prev.dry + 1 : 0
-    const delayMs = nextRetryDelay({ dry, baseMs: retryBaseMs, maxMs: retryMaxMs, dryLimit: retryDryLimit })
-    if (delayMs === null) { cancelStallRetry(transferId); return false }
-    // Replacing a record must clear its timer, or the old one fires unreachable: cancelStallRetry
-    // only ever sees the map's CURRENT record, so an orphan survives pause, discard and leave —
-    // and re-creates the row they just purged.
-    cancelStallRetry(transferId)
-    const st = { dry, bytes, timer: null }
-    st.timer = setTimeout(() => {
-      st.timer = null
-      retryNow(job, bytes, dry).catch((err) => log.debug('overlay stall-retry failed:', err.message))
-    }, delayMs)
-    st.timer.unref?.()
-    stallRetries.set(transferId, st)
-    return true
-  }
-
-  // The retry re-drives the SAME level-triggered recovery scan a reconnect uses rather than
-  // replaying the job captured before the stall: everything that can change across a backoff is
-  // re-derived there and nowhere else — the owner's catalog, the destination against the space's
-  // CURRENT download folder, and a source tombstoned, re-added or re-hashed under us. A replayed
-  // job would undo all of that, and its `recordPending` would re-create rows a leave just purged
-  // (during a backoff there is no registry slot for a teardown path to find).
-  async function retryNow(job, bytes, dry) {
-    const { transferId } = job
-    // A manual resume, a reconcile-driven start, or a pause may have landed in the window; all
-    // of them outrank this. The record stays so the dry counter keeps measuring
-    // attempts-without-progress no matter who started them.
-    if (registry.has(transferId) || pausedHashes.has(transferId)) return
-    if (!ownerOnline(job.ownerKey)) return settleRetryAsPaused(job)
-    // Bookkeeping only — the scan itself iterates rows, so a purged one starts nothing either
-    // way; this is what releases the record so it cannot be inherited by a later transfer of
-    // the same path (the key is a stable spaceId|shareId|relPath).
-    const row = await getPendingFor(job.spaceId, job.pendingKey).catch(() => null)
-    if (!row) { cancelStallRetry(transferId); return }
-    log.debug('overlay download stall-retry:', job.relPath, '— attempt', dry + 1, 'at', bytes, 'bytes')
-    pokeResume(job.ownerKey, job.spaceId)
-  }
-
-  // Give up on a retry without a fetch to settle it: the row must still land in a terminal paused
-  // state, or the transfer is left with no event at all — emitPaused is what terminates the
-  // decoration, on either channel.
-  function settleRetryAsPaused(job) {
-    cancelStallRetry(job.transferId)
-    channel.emitPaused?.(job, pauseReasonFor(job))
-    channel.emitUpdated(job.spaceId)
-  }
 
   // === awaiting-republish: the owner is re-hashing this source ===
 
@@ -638,26 +565,6 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     )
   }
 
-  // Keyed, single-flighted, debounced scan scaffold: the first poke per (owner, space) fires
-  // after the debounce; overlapping scans can't stack (one queued trailing re-run absorbs pokes
-  // that land mid-scan). Shared by the resume (reconnect) and reconcile (append) drivers below.
-  function makeSingleFlightScan(fn) {
-    let inFlight = false
-    const queued = new Map()
-    const poke = makeKeyedCoalescer((ownerKey, spaceId) => { run(ownerKey, spaceId) },
-      { intervalMs: 250, keyOf: (ownerKey, spaceId) => ownerKey + '|' + spaceId })
-    async function run(ownerKey, spaceId) {
-      if (inFlight) { queued.set(ownerKey + '|' + spaceId, [ownerKey, spaceId]); return }
-      inFlight = true
-      try { await fn(ownerKey, spaceId) } catch (err) { log.debug('overlay reconcile scan failed:', err.message) }
-      finally {
-        inFlight = false
-        if (queued.size) { const q = [...queued.values()]; queued.clear(); for (const [o, s] of q) poke.flush(o, s) }
-      }
-    }
-    return (ownerKey, spaceId) => poke.poke(ownerKey, spaceId)
-  }
-
   // Reconcile our pending downloads from an owner whose catalog changed or who (re)connected.
   // ONE read per inactive row decides its fate (republishDecision): a tombstone or a re-add of
   // IDENTICAL content terminates the intent (a deliberate remove+re-add must not auto-resume); a
@@ -744,5 +651,5 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     if (pending) channel.emitRemovedByOwner?.(spaceId, pendingKey, pending, transferId)
   }
 
-  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), _registry: registry, _stallRetries: stallRetries }
+  return { start, pause, clearPauseMarker, cancel, cancelByKey, resumeForOwner, reconcileOnAppend, dropRemoved, supersede, releaseForRepublish, has, activeSlots: () => registry.entries(), _registry: registry, _stallRetries: retries.records }
 }
