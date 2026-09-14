@@ -8,7 +8,7 @@ import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-c
 import { createOverlayDownloadEngine } from './overlay-download.js'
 import { resetFetchSlots, drainFetchSlots } from './fetch-slots.js'
 import { registerFetchOwner, resetFetchClaims } from './fetch-claims.js'
-import { drainTransferAudit } from '../../transfer-audit.js'
+import { drainTransferAudit } from '../../../audit/transfer-audit.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import {

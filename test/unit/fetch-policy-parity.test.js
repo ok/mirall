@@ -7,6 +7,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 
 const ENGINE = 'shared/transfer/backends/overlay/overlay-download.js'
+// A rule the engine must not re-implement must not be re-implemented in the modules it was split
+// across either: scanning only the residue would pass while a private copy grew next door.
+const ENGINE_ALL = [ENGINE, 'shared/transfer/backends/overlay/stall-retry.js']
+  .map((f) => read(f)).join('\n')
 // The mirror is two files: the pass decides WHETHER to fetch, the fetch decides HOW and judges
 // what came back. A parity rule belongs to whichever half actually applies it.
 const MIRROR_PASS = 'shared/folders/mirror-pass.js'
@@ -43,14 +47,14 @@ test('one terminal-fault set, read by every producer that judges a fault', (t) =
   for (const f of [ENGINE, MIRROR, CHANNEL]) {
     t.ok(/isTerminalFault\(/.test(read(f)), `${f} consults the shared set`)
   }
-  t.absent(/SUPPRESSED_CODES\s*=/.test(read(ENGINE)), 'the engine keeps no private set')
+  t.absent(/SUPPRESSED_CODES\s*=/.test(ENGINE_ALL), 'the engine keeps no private set')
   t.absent(/USER_FACING_ERRORS\s*=/.test(read(CHANNEL)), 'the channel keeps no private set')
 })
 
 test('both producers reach the vendor through the shared instrumentation', (t) => {
-  for (const f of [ENGINE, MIRROR]) {
-    t.absent(/makeFetchDiag\(/.test(read(f)), `${f} does not build its own diag`)
-    t.absent(/makeProgressTicker\(/.test(read(f)), `${f} does not build its own ticker`)
+  for (const [label, src] of [['the engine', ENGINE_ALL], [MIRROR, read(MIRROR)]]) {
+    t.absent(/makeFetchDiag\(/.test(src), `${label} does not build its own diag`)
+    t.absent(/makeProgressTicker\(/.test(src), `${label} does not build its own ticker`)
   }
 })
 

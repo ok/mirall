@@ -92,7 +92,7 @@ test('the folder retire reads its settlement instead of catching a rejection tha
   const deferredSrc = read('shared/folders/work-item.js')
   t.absent(/new Promise\(\(resolve, reject\)/.test(deferredSrc), 'the lane ticket still has no reject path')
 
-  const backend = read('shared/transfer/backends/overlay/overlay-backend.js')
+  const backend = read('shared/transfer/backends/overlay/overlay-maintenance.js')
   const retire = backend.match(/retire: \(\{ spaceId, shareId, retires \}[\s\S]*?\n  \},/)?.[0] || ''
   t.ok(retire.length > 0, 'found the folder sweep retire')
   t.absent(/settled\.catch\(/.test(retire), 'no catch on a promise that never rejects')

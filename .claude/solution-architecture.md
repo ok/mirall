@@ -1335,7 +1335,6 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/content-peer-sockets.js` | Which authenticated identities ride which content socket; `destroyFor` |
 | `src/shared/transfer/announce-ledger.js` | The level-triggered retry ledger for per-(connection, space) identity-frame announcements — `announceStatus`, `escalationDue` |
 | `src/shared/transfer/chunk-map-cache.js` | The bounded byte-cost LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.7) |
-| `src/shared/transfer/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
 | `src/shared/transfer/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
 | `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
 | `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
@@ -1349,8 +1348,9 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/transfer/backends/overlay/index.js` | The `overlayBackend` contract object the seam hands out: `publishAdd`, `publishDelete`, `listOwn`, `listPeerWithMeta`, `requestDownload`, `ensureRemote`, `releaseRemote`, plus the optional `catalogVersion` / `init` / `attach` / `teardown` / `sweepPresence`. `ensureRemote` / `releaseRemote` have no production caller |
+| `src/shared/transfer/backends/overlay/index.js` | The `overlayBackend` contract object the seam hands out: `publishAdd`, `publishDelete`, `listOwn`, `listPeerWithMeta`, `requestDownload`, `ensureRemote`, `releaseRemote`, plus the optional `catalogVersion` / `init` / `attach` / `teardown` / `sweepPresence`. `catalogVersion` and `sweepPresence` are reached optionally |
 | `src/shared/transfer/backends/overlay/overlay-backend.js` | The adapter behind that contract, and the owner-side glue around it: worker wiring setters, on-disk hashing (`overlayHashFile`), serve registration (`makeServable` / `ensureServable`), `publishContent` + its revert, index compaction, the peer-catalog watch / list / version, active-transfer reconcile, the `folderChannel`, `overlayRequestDownload` and the engine forwarders, boot rehydrate, the presence sweep |
+| `src/shared/transfer/backends/overlay/overlay-maintenance.js` | The work that keeps the index and the serve maps honest rather than publishing or consuming: the single-flight index reclaim (two racing reclaims can strand a blob), the boot rehydrate (the serve maps are not persisted, so owned files stop being servable after a restart) and the folder presence sweep (§7.7) |
 | `src/shared/transfer/backends/overlay/overlay-instance.js` | The process-global `HyperOverlayV2`: constructed with the injected limiters, chunk-map cache, serve authorizer and ledger callbacks; mux attach, serve revocation, epoch bump, teardown, the security-denial audit row |
 | `src/shared/transfer/backends/overlay/overlay-download.js` | The consumer download engine factory (one instance per channel): in-flight slots, pause / cancel / supersede / republish-park, the stall auto-retry (§4.5), preflights, the settle ladder, two level-triggered reconcile scans |
 | `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` — the instance, the serve index and both download engines as one lifetime, built per lifetime here so nothing in this package constructs an engine at import time; claim-probe registration, detach / close ordering, the per-owner resume fan-out |
@@ -1359,6 +1359,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/backends/overlay/overlay-consume.js` | `cancelSpaceOn`, `reconcileActiveSlots` — the engine operations both channels share |
 | `src/shared/transfer/backends/overlay/overlay-serve-index.js` | The in-memory `contentHash → Set<(space, share, relPath)>` refcount the serve gate and the ledger read |
 | `src/shared/transfer/backends/overlay/overlay-refresh.js` | `makeKeyedCoalescer` keyed `spaceId\|shareId` — coalesces owner-side share-files refreshes during a large scan |
+| `src/shared/transfer/backends/overlay/single-flight-scan.js` | `makeSingleFlightScan(fn, log)` — a keyed, debounced scan that cannot stack: one queued trailing re-run absorbs every poke landing mid-scan. Knows nothing about what it scans, and closes over none of the engine's state, which is why the download engine's resume and reconcile drivers both take it from here (§4.5) |
+| `src/shared/transfer/backends/overlay/stall-retry.js` | `createStallRetry(deps)` — the backstop for a fetch whose bytes simply stopped: a holder that never disconnects fires neither auto-resume trigger. Retries while the owner is online and only while the retries bank bytes, so a wedged holder parks after the dry limit. Apart from the engine because it owns a timer per transfer that must not outlive the engine that armed it (§4.5) |
 | `src/shared/transfer/backends/overlay/fetch-run.js` | One instrumented vendor `fetchFile`: the ticker, the diag, the three callbacks; the mirror's throwing wrapper `runOverlayFetch` |
 | `src/shared/transfer/backends/overlay/fetch-claims.js` | The process-wide "who is fetching this transferId" registry — engine probes + mirror claims |
 | `src/shared/transfer/backends/overlay/fetch-slots.js` | The one fetch semaphore for the process (`downloadConcurrency`, §2), reset per lifetime |
@@ -1394,6 +1396,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
 | `src/shared/audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune / purge / export, config, the peer-bee watermarks and subject state. Imports `core/` and its pure audit siblings only, so the instrumentation call sites can't form a cycle |
 | `src/shared/audit/peer-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
+| `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
 | `src/shared/audit/peer-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
 | `src/shared/audit/peer-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
 | `src/shared/audit/network-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |

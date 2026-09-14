@@ -162,7 +162,7 @@ test('REGRESSION (FIX-PI1-4: an owned-folder file gone from disk is retired thro
 
 test('the presence sweep writes no catalog tombstone of its own', (t) => {
   const src = fs.readFileSync(
-    path.join(new URL('../../src/shared/transfer/backends/overlay/overlay-backend.js', import.meta.url).pathname),
+    path.join(new URL('../../src/shared/transfer/backends/overlay/overlay-maintenance.js', import.meta.url).pathname),
     'utf8',
   )
   const start = src.indexOf('const folderSweeper =')

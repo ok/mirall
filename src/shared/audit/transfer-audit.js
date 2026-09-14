@@ -7,11 +7,11 @@
 // An integrity failure is promoted out of the generic failure kind because it is a security
 // signal, not a network one: the bytes a holder served did not match the hash they advertised.
 import path from 'bare-path'
-import { record } from '../audit/audit-log.js'
+import { record } from './audit-log.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
-import { selfActor, spaceRef, targetRef } from '../audit/audit-record.js'
+import { selfActor, spaceRef, targetRef } from './audit-record.js'
 
 const log = createLogger('transfer-audit')
 
