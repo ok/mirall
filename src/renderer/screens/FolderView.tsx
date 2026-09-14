@@ -15,14 +15,11 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useFilteredTree } from '../hooks/useFilteredTree.js'
 import { useShareActions } from '../hooks/useShareActions.js'
-import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
-import FolderTree from '../components/widgets/FolderTree.js'
+import FolderListPane from '../components/widgets/FolderListPane.js'
 import FolderWorkStrip from '../components/widgets/FolderWorkStrip.js'
-import FolderControlsRow from '../components/widgets/FolderControlsRow.js'
-import LoadingFiles from '../components/widgets/LoadingFiles.js'
 import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
 import EditFolderModal from '../components/modals/EditFolderModal.js'
 import FolderPeopleCard from '../components/cards/FolderPeopleCard.js'
@@ -36,12 +33,10 @@ import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '..
 import { useOwnedMount } from '../hooks/useFolderMount.js'
 import { useIndexProgress } from '../hooks/useIndexProgress.js'
 import { deriveIndexSummary } from '../indexSummary.js'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { ShareRole } from '../types.js'
-import { useErrorText } from '../hooks/useErrorText.js'
 
 interface FolderEyebrowProps {
   isYou: boolean
@@ -103,7 +98,6 @@ interface FolderViewProps {
 
 export default function FolderView({ spaceId, share, onBack, onMirror }: FolderViewProps) {
   const { t } = useTranslation()
-  const errorText = useErrorText()
   const { locate, relocate } = useLocateShare(spaceId)
   const { profile } = useProfile()
   const { members } = useMembers(spaceId)
@@ -123,7 +117,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
   // exactly when the listing was truncated.
   const listingTruncated = !loading && !error && !!info && info.truncated
   const { mount: foreignMount, status: foreignStatus } = useForeignMount(spaceId, share.role === 'mirrored' ? share.id : '')
-  const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const {
@@ -342,78 +335,36 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           the height; `min-w-0` keeps the automatic minimum size `overflow-hidden` was providing, so
           a long file name cannot stretch the 1fr track. Rings paint into the gutter and column gap. */}
       <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
-        <div className="flex flex-col min-w-0 min-h-0">
-          <FolderControlsRow
-            value={filter}
-            onChange={setFilter}
-            matched={matched}
-            total={filterableTotal}
-            expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
-            onToggleExpand={toggleAll}
-            showExpand={allFolderPaths.length > 0}
-          />
-          {/* Scroll-pane rules: see SpaceView's pane. `pt-1` is allowed here — no sticky header. */}
-          <div
-            ref={filesRef}
-            className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
-          >
-            {loading ? (
-              <LoadingFiles label={t('folder.loading')} />
-            ) : error ? (
-              <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                <div className="flex items-center gap-3 mb-3">
-                  <Icon name="warning" size={32} className="text-error" />
-                  <h2 className="text-2xl font-headline font-bold text-accent">{t('folder.unavailable')}</h2>
-                </div>
-                <p className="text-on-surface-variant max-w-md leading-relaxed">{errorText(error)}</p>
-              </div>
-            ) : files.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                <h2 className="text-2xl font-headline font-bold text-accent mb-3">
-                  {sourceMissing ? t('share.mountPointGone') : t('folder.empty')}
-                </h2>
-                <p className="text-on-surface-variant max-w-md leading-relaxed">
-                  {sourceMissing
-                    ? t('folder.emptyHintMissing')
-                    : isYou
-                      ? t('folder.emptyHintMine')
-                      : owner && owner.online === false
-                        ? t('folder.emptyHintOfflineOwner', { owner: owner.displayName })
-                        : t('folder.emptyHintOther', { owner: owner?.displayName ?? '?' })}
-                </p>
-              </div>
-            ) : visibleTree.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
-                <h2 className="text-2xl font-headline font-bold text-accent mb-3">
-                  {t('folder.filterEmptyTitle', { term: deferredFilter.trim() })}
-                </h2>
-                <p className="text-on-surface-variant max-w-md leading-relaxed">
-                  {t('folder.filterEmptyHint', { count: filterableTotal })}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <FolderTree
-                  nodes={visibleTree}
-                  isExpanded={isExpanded}
-                  onToggle={toggle}
-                  isOwn={isYou}
-                  manualControls={manualControls}
-                  spaceId={spaceId}
-                  members={members}
-                  getDownloadSummary={getDownloadSummary}
-                  getDecoration={getDecoration}
-                  isSeeded={isSeeded}
-                  onDownload={downloadFile}
-                  onReveal={revealFile}
-                  onPause={pauseDownload}
-                  onCancel={cancelDownload}
-                  onDiscardPartial={discardPartial}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        <FolderListPane
+          filter={filter}
+          setFilter={setFilter}
+          deferredFilter={deferredFilter}
+          matched={matched}
+          filterableTotal={filterableTotal}
+          anyExpanded={anyExpanded}
+          allFolderPaths={allFolderPaths}
+          toggleAll={toggleAll}
+          visibleTree={visibleTree}
+          isExpanded={isExpanded}
+          toggle={toggle}
+          loading={loading}
+          error={error}
+          files={files}
+          sourceMissing={sourceMissing}
+          owner={owner}
+          isOwn={isYou}
+          manualControls={manualControls}
+          spaceId={spaceId}
+          members={members}
+          getDownloadSummary={getDownloadSummary}
+          getDecoration={getDecoration}
+          isSeeded={isSeeded}
+          onDownload={downloadFile}
+          onReveal={revealFile}
+          onPause={pauseDownload}
+          onCancel={cancelDownload}
+          onDiscardPartial={discardPartial}
+        />
 
         {/* `pr-4`: the same scrollbar gutter the list uses. Without it the tiles butt straight
             against their own scrollbar while the list sits 16px off its own. */}
