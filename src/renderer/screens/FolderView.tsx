@@ -97,16 +97,14 @@ function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal
 
 interface FolderViewProps {
   spaceId: string
-  /** Navigation snapshot: first-paint fallback only. Live state comes from useOwnedMount /
-   *  useForeignMount / useShares; the router owns the name (onRenamed). */
+  /** Resolved from the live listing by the router, so it is current rather than a snapshot of the
+   *  row that was clicked. Mount detail still comes from useOwnedMount / useForeignMount. */
   share: ShareWithRole
   onBack: () => void
   onMirror?: (share: ShareWithRole) => void
-  onUnmounted?: () => void
-  onRenamed?: (name: string) => void
 }
 
-export default function FolderView({ spaceId, share, onBack, onMirror, onUnmounted, onRenamed }: FolderViewProps) {
+export default function FolderView({ spaceId, share, onBack, onMirror }: FolderViewProps) {
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
@@ -312,7 +310,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
   async function handleUnmount() {
     try {
       await unmountForeignMount(spaceId, share.id)
-      onUnmounted?.()
     } catch (err) {
       toast.error(errorText(err))
     }
@@ -320,8 +317,6 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
 
   async function handleRename(name: string) {
     await request('share:rename', { spaceId, shareId: share.id, name })
-    // The router owns the name; hand it up.
-    onRenamed?.(name)
     toast.success(t('share.renameSuccess', { name }))
   }
 

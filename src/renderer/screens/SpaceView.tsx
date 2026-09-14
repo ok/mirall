@@ -1,17 +1,14 @@
 // Space screen: loose files and folder shares with drag-drop adding, transfer controls, member presence, and invites.
 //
-// Eight modals, each its own piece of state rather than one union, and nothing enforces that only
-// one is open: they are mutually exclusive because every path that opens one runs from a closed
-// screen. `busy` holds the public keys with an approve or deny in flight.
+// One `dialog` at a time — see SpaceDialog. `busy` holds the public keys with an approve or deny
+// in flight.
 //
-// Two inboxes carry actions from outside the screen — 'mirall:open-mirror-modal' from a share row
-// anywhere in the tree, and SPACE_ACTION_EVENT from the title bar. They are window events rather
-// than props because the senders are not this screen's ancestors. The action inbox re-reads the
-// space's gates on every event: `leave` is the only action a legacy or pending space keeps, because
-// every other one writes and the data layer refuses it.
+// Actions raised from outside the screen — mirror a folder from the folder screen, or a title-bar
+// command fired while the folder screen was open — arrive as `pendingAction` and are consumed once
+// this screen can act on them.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { FileEntry } from '../types.js'
+import type { FileEntry, JoinRequest, Space, SpaceMember } from '../types.js'
 import { useFiles } from '../hooks/useFiles.js'
 import { useDecorations } from '../hooks/useDecorations.js'
 import { useTransferControls } from '../hooks/useTransferControls.js'
@@ -47,7 +44,7 @@ import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
 import AvatarStack from '../components/primitives/AvatarStack.js'
 import DocsCard from '../components/widgets/DocsCard.js'
-import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
+import type { PendingSpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 import { useRunAction } from '../hooks/useRunAction.js'
@@ -127,14 +124,123 @@ function SpaceHeaderActions({
   )
 }
 
+// The dialogs this screen can show, one at a time by construction. They were eight independent
+// pieces of state and nothing held them apart: an action arriving from another screen could raise a
+// second dialog behind the one already up. Each carries exactly what it needs to open.
+type SpaceDialog =
+  | { kind: 'invite' }
+  | { kind: 'approval' }
+  | { kind: 'leave' }
+  | { kind: 'edit' }
+  | { kind: 'remove-file'; file: FileEntry }
+  | { kind: 'add-folder'; path: string }
+  | { kind: 'delete-share'; share: ShareWithRole }
+  | { kind: 'mirror-share'; share: ShareWithRole }
+
 interface SpaceViewProps {
   spaceId: string
+  // An action raised before this screen existed, waiting to be acted on.
+  pendingAction: PendingSpaceAction | null
+  onActionConsumed: () => void
   onBack: () => void
   onManageStorage: () => void
   onOpenShare?: (share: ShareWithRole) => void
 }
 
-export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
+// Every dialog the space screen can show, in one place: which one is on screen is the `dialog`
+// union's job, and this reads it. It lives apart from the screen because the screen's own body is
+// about the content behind them.
+function SpaceDialogs({
+  dialog, onClose, space, spaceId, spaceName, requests, busyKeys, members, existingShareNames,
+  onApproveMany, onDeny, onCreateInvite, onSaveSpace, onLeave, onLeft, onRemoveFile,
+}: {
+  dialog: SpaceDialog | null
+  onClose: () => void
+  space: Space | undefined
+  spaceId: string
+  spaceName: string
+  requests: JoinRequest[]
+  busyKeys: Set<string>
+  members: SpaceMember[]
+  existingShareNames: string[]
+  onApproveMany: (keys: string[]) => void
+  onDeny: (publicKey: string) => void
+  onCreateInvite: (opts: { autoApprove: boolean; expiresInMs: number }) => Promise<string>
+  onSaveSpace: (spaceId: string, name: string, icon: string, downloadFolder?: string | null) => Promise<Space>
+  onLeave: () => Promise<void>
+  onLeft: () => void
+  onRemoveFile: () => Promise<void>
+}) {
+  return (
+    <>
+      <ApprovalModal
+        isOpen={dialog?.kind === 'approval'}
+        requests={requests}
+        busyKeys={busyKeys}
+        onApproveMany={onApproveMany}
+        onDeny={onDeny}
+        onClose={onClose}
+      />
+      <InviteModal
+        isOpen={dialog?.kind === 'invite'}
+        onCreate={onCreateInvite}
+        onClose={onClose}
+      />
+      <LeaveSpaceModal
+        isOpen={dialog?.kind === 'leave'}
+        spaceName={spaceName}
+        spaceId={spaceId}
+        onClose={onClose}
+        onLeave={onLeave}
+        onComplete={onLeft}
+      />
+      {space && dialog?.kind === 'edit' && (
+        <EditSpaceModal
+          space={space}
+          onSave={onSaveSpace}
+          onClose={onClose}
+        />
+      )}
+      <RemoveFileModal
+        isOpen={dialog?.kind === 'remove-file'}
+        filePath={dialog?.kind === 'remove-file' ? dialog.file.path : ''}
+        onClose={onClose}
+        onRemove={onRemoveFile}
+      />
+      <AddFolderShareModal
+        isOpen={dialog?.kind === 'add-folder'}
+        spaceId={spaceId}
+        spaceName={spaceName}
+        existingShareNames={existingShareNames}
+        initialMountPath={dialog?.kind === 'add-folder' ? dialog.path : ''}
+        onClose={onClose}
+        onCreated={onClose}
+      />
+      <DeleteFolderShareModal
+        isOpen={dialog?.kind === 'delete-share'}
+        folderName={dialog?.kind === 'delete-share' ? dialog.share.name : ''}
+        spaceName={spaceName}
+        onClose={onClose}
+        onDelete={async () => {
+          if (dialog?.kind !== 'delete-share') return
+          await request('owned-folder:delete', { spaceId, shareId: dialog.share.id })
+          onClose()
+        }}
+      />
+      {dialog?.kind === 'mirror-share' && (
+        <MirrorFolderModal
+          isOpen
+          share={dialog.share}
+          owner={members.find((m) => m.publicKey === dialog.share.owner) ?? null}
+          onClose={onClose}
+          onMounted={onClose}
+        />
+      )}
+    </>
+  )
+}
+
+export default function SpaceView({ spaceId, pendingAction, onActionConsumed, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
   const { t } = useTranslation()
   const { profile } = useProfile()
   const {
@@ -164,14 +270,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   const toast = useToast()
   const errorText = useErrorText()
   const { locate } = useLocateShare(spaceId)
-  const [showInviteModal, setShowInviteModal] = useState(false)
-  const [showApproval, setShowApproval] = useState(false)
-  const [showLeaveModal, setShowLeaveModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [fileToRemove, setFileToRemove] = useState<FileEntry | null>(null)
-  const [folderPathForShare, setFolderPathForShare] = useState<string | null>(null)
-  const [shareToDelete, setShareToDelete] = useState<ShareWithRole | null>(null)
-  const [shareToMirror, setShareToMirror] = useState<ShareWithRole | null>(null)
+  const [dialog, setDialog] = useState<SpaceDialog | null>(null)
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -184,11 +283,11 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
 
   async function handleShareFolderRequest(droppedPath: string) {
     if (droppedPath && droppedPath.length > 0) {
-      setFolderPathForShare(droppedPath)
+      setDialog({ kind: 'add-folder', path: droppedPath })
       return
     }
     const picked = await window.bridge.browseShareFolder()
-    if (picked) setFolderPathForShare(picked)
+    if (picked) setDialog({ kind: 'add-folder', path: picked })
   }
 
   // Both list sources feed one pane; see spaceContentState.js for why emptiness needs both.
@@ -201,6 +300,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   }
 
   const runAction = useRunAction()
+  const closeDialog = useCallback(() => setDialog(null), [])
 
   const markBusy = (pk: string) => setBusy((prev) => new Set(prev).add(pk))
   const clearBusy = (pk: string) => setBusy((prev) => {
@@ -268,8 +368,8 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     runAction(() => request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id }))
   }, [spaceId, runAction])
 
-  const handleDeleteRequest = useCallback((share: ShareWithRole) => { setShareToDelete(share) }, [])
-  const handleMirrorRequest = useCallback((share: ShareWithRole) => { setShareToMirror(share) }, [])
+  const handleDeleteRequest = useCallback((share: ShareWithRole) => { setDialog({ kind: 'delete-share', share }) }, [])
+  const handleMirrorRequest = useCallback((share: ShareWithRole) => { setDialog({ kind: 'mirror-share', share }) }, [])
 
   const handleUnmount = useCallback((share: ShareWithRole) => {
     runAction(() => unmountForeignMount(share.spaceId, share.id))
@@ -284,35 +384,41 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   }, [runAction])
 
   useEffect(() => {
-    function handle(event: Event) {
-      const ev = event as CustomEvent<ShareWithRole>
-      if (ev.detail && ev.detail.spaceId === spaceId) {
-        setShareToMirror(ev.detail)
+    let live = true
+    if (!pendingAction) return
+    if (pendingAction.kind === 'mirror') {
+      const share = shares.find((s) => s.id === pendingAction.shareId)
+      // The listing is the authority on the folder. While it is still loading a miss means "not
+      // here yet", so the action waits; once it has loaded, a miss means the folder is gone and
+      // the action is dropped rather than held forever.
+      if (!share) {
+        if (!sharesLoading) onActionConsumed()
+        return
       }
+      setDialog({ kind: 'mirror-share', share })
+      onActionConsumed()
+      return
     }
-    window.addEventListener('mirall:open-mirror-modal', handle)
-    return () => window.removeEventListener('mirall:open-mirror-modal', handle)
-  }, [spaceId])
-
-  useEffect(() => {
-    function handle(event: Event) {
-      const action = (event as CustomEvent<SpaceAction>).detail
-      // Leave is the only action a legacy space keeps: everything else writes, and the data layer
-      // refuses it (SPACE_UNSUPPORTED) because there is no content key and no way to mint one.
-      if (action === 'leave') { setShowLeaveModal(true); return }
-      if (isPending || isLegacy) return
-      if (action === 'add-files') fileInputRef.current?.click()
-      else if (action === 'add-folder') void handleShareFolderRequest('')
-      else if (action === 'invite') setShowInviteModal(true)
-      else if (action === 'edit') setShowEditModal(true)
+    const { action } = pendingAction
+    // Leave is the only action a legacy space keeps: everything else writes, and the data layer
+    // refuses it (SPACE_UNSUPPORTED) because there is no content key and no way to mint one.
+    if (action === 'leave') setDialog({ kind: 'leave' })
+    else if (isPending || isLegacy) { /* refused below the UI; drop it rather than hold it */ }
+    else if (action === 'add-files') fileInputRef.current?.click()
+    else if (action === 'add-folder') {
+      // The folder picker is modal to the user, not to the app: they can leave this space while it
+      // is open, and a folder chosen after that belongs to a screen that is gone.
+      void window.bridge.browseShareFolder().then((picked) => { if (live && picked) setDialog({ kind: 'add-folder', path: picked }) })
     }
-    window.addEventListener(SPACE_ACTION_EVENT, handle)
-    return () => window.removeEventListener(SPACE_ACTION_EVENT, handle)
-  }, [isPending, isLegacy])
+    else if (action === 'invite') setDialog({ kind: 'invite' })
+    else if (action === 'edit') setDialog({ kind: 'edit' })
+    onActionConsumed()
+    return () => { live = false }
+  }, [pendingAction, shares, sharesLoading, isPending, isLegacy, onActionConsumed])
 
   function handleInvite() {
     if (isPending || isLegacy) return
-    setShowInviteModal(true)
+    setDialog({ kind: 'invite' })
   }
 
   function handleCancelRequest() {
@@ -327,16 +433,16 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   }
 
   async function handleUnshareFile() {
-    if (!fileToRemove) return
-    await unshareFile(fileToRemove.path)
-    setFileToRemove(null)
+    if (dialog?.kind !== 'remove-file') return
+    await unshareFile(dialog.file.path)
+    closeDialog()
   }
 
   const handleReveal = useCallback((file: FileEntry) => {
     runAction(() => revealFile(file.path))
   }, [revealFile, runAction])
 
-  const handleRemoveRequest = useCallback((file: FileEntry) => { setFileToRemove(file) }, [])
+  const handleRemoveRequest = useCallback((file: FileEntry) => { setDialog({ kind: 'remove-file', file }) }, [])
 
   const handleCancelPublish = useCallback((file: FileEntry) => {
     runAction(() => cancelPublish(file.path))
@@ -371,9 +477,9 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
             onCancelRequest={handleCancelRequest}
             onInvite={handleInvite}
             onToggleFavorite={() => runAction(() => toggleFavorite(spaceId))}
-            onEdit={() => setShowEditModal(true)}
+            onEdit={() => setDialog({ kind: 'edit' })}
             onManageStorage={onManageStorage}
-            onLeave={() => setShowLeaveModal(true)}
+            onLeave={() => setDialog({ kind: 'leave' })}
           />
         }
       />
@@ -403,7 +509,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
             busyKeys={busy}
             onApprove={handleApprove}
             onDeny={handleDeny}
-            onReview={() => setShowApproval(true)}
+            onReview={() => setDialog({ kind: 'approval' })}
           />
         </div>
       )}
@@ -613,69 +719,24 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         </div>
       )}
 
-      <ApprovalModal
-        isOpen={showApproval}
+      <SpaceDialogs
+        dialog={dialog}
+        onClose={closeDialog}
+        space={space}
+        spaceId={spaceId}
+        spaceName={space?.name || t('space.fallbackName')}
         requests={requests}
         busyKeys={busy}
+        members={members}
+        existingShareNames={shares.filter((s) => s.role === 'mine').map((s) => s.name)}
         onApproveMany={(keys) => void handleApproveMany(keys)}
         onDeny={handleDeny}
-        onClose={() => setShowApproval(false)}
-      />
-      <InviteModal
-        isOpen={showInviteModal}
-        onCreate={(opts) => createInvite(spaceId, opts)}
-        onClose={() => setShowInviteModal(false)}
-      />
-      <LeaveSpaceModal
-        isOpen={showLeaveModal}
-        spaceName={space?.name || t('space.fallbackName')}
-        spaceId={spaceId}
-        onClose={() => setShowLeaveModal(false)}
+        onCreateInvite={(opts) => createInvite(spaceId, opts)}
+        onSaveSpace={updateSpace}
         onLeave={handleLeave}
-        onComplete={onBack}
+        onLeft={onBack}
+        onRemoveFile={handleUnshareFile}
       />
-      {space && showEditModal && (
-        <EditSpaceModal
-          space={space}
-          onSave={updateSpace}
-          onClose={() => setShowEditModal(false)}
-        />
-      )}
-      <RemoveFileModal
-        isOpen={fileToRemove !== null}
-        filePath={fileToRemove?.path || ''}
-        onClose={() => setFileToRemove(null)}
-        onRemove={handleUnshareFile}
-      />
-      <AddFolderShareModal
-        isOpen={folderPathForShare !== null}
-        spaceId={spaceId}
-        spaceName={space?.name || t('space.fallbackName')}
-        existingShareNames={shares.filter((s) => s.role === 'mine').map((s) => s.name)}
-        initialMountPath={folderPathForShare ?? ''}
-        onClose={() => setFolderPathForShare(null)}
-        onCreated={() => setFolderPathForShare(null)}
-      />
-      <DeleteFolderShareModal
-        isOpen={shareToDelete !== null}
-        folderName={shareToDelete?.name ?? ''}
-        spaceName={space?.name || t('space.fallbackName')}
-        onClose={() => setShareToDelete(null)}
-        onDelete={async () => {
-          if (!shareToDelete) return
-          await request('owned-folder:delete', { spaceId, shareId: shareToDelete.id })
-          setShareToDelete(null)
-        }}
-      />
-      {shareToMirror && (
-        <MirrorFolderModal
-          isOpen
-          share={shareToMirror}
-          owner={members.find((m) => m.publicKey === shareToMirror.owner) ?? null}
-          onClose={() => setShareToMirror(null)}
-          onMounted={() => setShareToMirror(null)}
-        />
-      )}
     </div>
   )
 }
