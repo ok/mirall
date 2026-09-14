@@ -85,7 +85,7 @@ function sentenceFor(t: Translate, tErr: Translate, strip: FolderStrip, ownerNam
 }
 
 // The over-limit strip is the one whose live region has to PRE-EXIST (a role=status mounted
-// already-populated is not reliably announced), so FolderView owns that wrapper and this renders
+// already-populated is not reliably announced), so FolderScreen owns that wrapper and this renders
 // the visual only — a second role here would announce it twice.
 function liveRole(strip: FolderStrip): 'alert' | 'status' | undefined {
   if (strip.id === 'over-limit') return undefined

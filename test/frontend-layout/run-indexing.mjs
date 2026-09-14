@@ -9,7 +9,7 @@ import { runHarness } from './run-harness.mjs'
 
 const out = await runHarness({ html: 'harness-indexing.html', height: 900, width: 1280 })
 
-console.log('\n──────── FolderView indexing labels ────────')
+console.log('\n──────── FolderScreen indexing labels ────────')
 console.log(`owner  : folder "${out.ownFolderText.trim()}"`)
 console.log(`         row pill "${out.ownRowText.includes('Adding') ? 'Adding' : out.ownRowText.trim()}", bar "${out.ownBarLabel}"`)
 console.log(`member : folder "${out.memberFolderText.trim()}"`)

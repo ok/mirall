@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 
 // Session-scoped expansion store, keyed by shareId. Survives navigating away from a
-// folder and back within a session (FolderView unmounts/remounts); resets on app
+// folder and back within a session (FolderScreen unmounts/remounts); resets on app
 // restart. Deliberately not persisted — expansion is ephemeral view state.
 const store = new Map<string, Set<string>>()
 

@@ -57,7 +57,7 @@ function announceWork(working: Strip | null, peerWorking: Strip | null, ownerNam
  */
 function useMountState({ spaceId, share, isYou, owner, foreignMount, foreignStatus }: FolderViewModelInput) {
   // Live while mounted: owned-folder:list-all (a live mountRootAvailable check) re-derives on every
-  // mount-status event; the useShares projection covers SpaceView only.
+  // mount-status event; the useShares projection covers SpaceScreen only.
   const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, paused: ownedPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
   // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
   // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is

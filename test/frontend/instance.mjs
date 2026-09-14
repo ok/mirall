@@ -623,8 +623,8 @@ export class Instance {
     await this.click({ name: 'Resume syncing' })
   }
 
-  // Open a share's FolderView from the space view (the card's "Open <name>"
-  // button). FolderView lists files as a flat, recursive set of relPaths, so a
+  // Open a share's FolderScreen from the space view (the card's "Open <name>"
+  // button). FolderScreen lists files as a flat, recursive set of relPaths, so a
   // nested file shows as a "sub/dir/file.txt" row.
   async openFolder(name) {
     await this.click({ name: 'Open ' + name })

@@ -11,11 +11,11 @@ import {
 } from 'react'
 import { request, subscribe } from '../ipc.js'
 import { DHT_FAILURE_MS } from '../../shared/contract/limits.js'
-import type { CanaryResult, ConnectivityState, NetworkStatus, Reachability } from '../types.js'
+import type { CanaryResult, ConnectivityState, NetworkStatusScreen, Reachability } from '../types.js'
 
 interface ConnectionStatusContextValue {
   state: ConnectivityState
-  status: NetworkStatus | null
+  status: NetworkStatusScreen | null
   reachability: Reachability | null
   reconnect: () => Promise<void>
   probeCanary: (opts?: { force?: boolean }) => Promise<CanaryResult | null>
@@ -28,7 +28,7 @@ const ConnectionStatusContext = createContext<ConnectionStatusContextValue | nul
 // offline only after long enough that a working network would have answered.
 const BOOT_GRACE_MS = 15000
 
-function deriveState(status: NetworkStatus | null, browserOnline: boolean, now: number): ConnectivityState {
+function deriveState(status: NetworkStatusScreen | null, browserOnline: boolean, now: number): ConnectivityState {
   if (!browserOnline) return 'offline'
   if (!status) return 'online'
   if (status.suspended) return 'offline'
@@ -52,7 +52,7 @@ interface ProviderProps {
 }
 
 export function ConnectionStatusProvider({ children }: ProviderProps) {
-  const [status, setStatus] = useState<NetworkStatus | null>(null)
+  const [status, setStatus] = useState<NetworkStatusScreen | null>(null)
   const [browserOnline, setBrowserOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
   )
@@ -68,11 +68,11 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
     request('network:status:get')
       .then((data) => {
         if (cancelled) return
-        const payload = data as NetworkStatus | null | undefined
+        const payload = data as NetworkStatusScreen | null | undefined
         if (payload) setStatus(payload)
       })
       .catch(() => {})
-    const unsub = subscribe<NetworkStatus>('event:network-status', (msg) => {
+    const unsub = subscribe<NetworkStatusScreen>('event:network-status', (msg) => {
       setStatus(msg)
     })
     return () => {

@@ -229,7 +229,7 @@ test('a pushed value supersedes an in-flight read', async (t) => {
 })
 
 // REGRESSION (FIX-367-STORE: a hook reads the snapshot on its FIRST render, before the effect that
-// fetches has run. An entry that reported loading:false there would let SpaceView paint the
+// fetches has run. An entry that reported loading:false there would let SpaceScreen paint the
 // "nothing shared yet" hero over a space whose content is still arriving — the same flash FIX-367
 // fixed, reintroduced by the store.)
 test('REGRESSION (FIX-367-STORE): an unfetched entry reports loading, not empty', (t) => {
@@ -476,7 +476,7 @@ test('ADOPT-A1: a read for one share cannot land in another share entry', async 
   const tp = setup(t)
   const params = (shareId) => ({ spaceId: 'sp1', shareId })
 
-  // The navigation: FolderView opens share A, then the user picks share B while A's read is in
+  // The navigation: FolderScreen opens share A, then the user picks share B while A's read is in
   // flight. Two different entries, because params are part of the key.
   void fetchQuery('foreign-folder:get', params('A'), null)
   void fetchQuery('foreign-folder:get', params('B'), null)

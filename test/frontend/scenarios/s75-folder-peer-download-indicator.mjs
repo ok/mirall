@@ -8,8 +8,8 @@ import { workDir } from '../paths.mjs'
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // Folder-view parity for the sender-side "who is downloading" indicator (s73 covers
-// the loose-file row in SpaceView). The OWNER of an in-place folder share, viewing
-// the folder (FolderView), sees who is currently pulling a file from them: the row
+// the loose-file row in SpaceScreen). The OWNER of an in-place folder share, viewing
+// the folder (FolderScreen), sees who is currently pulling a file from them: the row
 // grows a "Show who is downloading" expander (avatar stack + aggregate bar) in place
 // of its status badge; expanding it names the peer with a per-peer bar; once the peer
 // finishes, the expander clears.

@@ -1,5 +1,5 @@
 // Join-request in-flight affordance test (LOCAL/dev-machine only — spawns a real Electron GUI
-// process, like the agent-desktop frontend suite). Mounts the real <SpaceView> with one pending
+// process, like the agent-desktop frontend suite). Mounts the real <SpaceScreen> with one pending
 // request, clicks Approve, and asserts the button disables in-flight while the derived request
 // row is never hidden, then re-enables once the (delayed) call settles.
 //
@@ -9,7 +9,7 @@ import { runHarness } from './run-harness.mjs'
 
 const out = await runHarness({ html: 'harness-approval.html', height: 900 })
 
-console.log('\n──────── SpaceView approval in-flight harness ────────')
+console.log('\n──────── SpaceScreen approval in-flight harness ────────')
 console.log(`initially enabled        : ${out.initiallyEnabled}`)
 console.log(`disabled while approving : ${out.disabledWhileBusy}`)
 console.log(`request row persists     : ${out.rowPersists}`)

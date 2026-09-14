@@ -1,5 +1,5 @@
 // One file row in a folder share: transfer status/progress, per-file actions, and the
-// owner-side who-is-downloading indicator. Extracted from FolderView so the collapsible
+// owner-side who-is-downloading indicator. Extracted from FolderScreen so the collapsible
 // tree and the flat list can share it.
 import InlineError from '../primitives/InlineError.js'
 import { memo, useState, useId, useEffect } from 'react'

@@ -7,7 +7,7 @@ import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
 import Button from '../primitives/Button.js'
 import IconButton from '../primitives/IconButton.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 
 interface ApprovalModalProps {
   isOpen: boolean

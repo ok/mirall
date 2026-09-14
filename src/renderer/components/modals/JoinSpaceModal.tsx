@@ -7,7 +7,7 @@ import { decodeInvite, extractInviteCode } from '../../../shared/contract/invite
 import Modal from '../primitives/Modal.js'
 import TextField from '../primitives/TextField.js'
 import Icon from '../primitives/Icon.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 

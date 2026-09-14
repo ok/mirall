@@ -1,4 +1,4 @@
-// Session state of the collapsible sidebar cards (Members on SpaceView, People on FolderView), keyed
+// Session state of the collapsible sidebar cards (Members on SpaceScreen, People on FolderScreen), keyed
 // by spaceId; survives leaving and returning, resets on restart. View state, so not config.json.
 //
 // The People fold is per SPACE, not per folder: the store is pruned against the live SPACE list, so a

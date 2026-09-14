@@ -1,18 +1,18 @@
 // Network settings: content-plane transfer caps. Settings only — live connection status
 // lives on the account screen.
-import InlineError from '../components/primitives/InlineError.js'
-import FieldLabel from '../components/primitives/FieldLabel.js'
+import InlineError from '../../components/primitives/InlineError.js'
+import FieldLabel from '../../components/primitives/FieldLabel.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { request } from '../ipc.js'
-import { formatSpeed } from '../utils.js'
-import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import PageHeader from '../components/layout/PageHeader.js'
-import SectionHeading from '../components/layout/SectionHeading.js'
-import RelaySettingsSection from '../components/settings/RelaySettingsSection.js'
-import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
-import { useMainQuery } from '../store/useMainQuery.js'
-import type { BandwidthLimits } from '../global.js'
+import { request } from '../../ipc.js'
+import { formatSpeed } from '../../utils.js'
+import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
+import PageHeader from '../../components/layout/PageHeader.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
+import RelaySettingsSection from './RelaySettingsSection.js'
+import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
+import { useMainQuery } from '../../store/useMainQuery.js'
+import type { BandwidthLimits } from '../../global.js'
 
 interface NetworkSettingsProps {
   onBack: () => void

@@ -12,7 +12,7 @@ interface OnboardingProps {
   onComplete: (data: { displayName: string; avatar: string | null }) => Promise<unknown>
 }
 
-export default function Onboarding({ onComplete }: OnboardingProps) {
+export default function OnboardingScreen({ onComplete }: OnboardingProps) {
   const { t } = useTranslation()
   const [displayName, setDisplayName] = useState('')
   const [avatar, setAvatar] = useState<string | null>(null)

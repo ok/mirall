@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 
-// Onboarding validation: a whitespace-only display name keeps Continue disabled;
+// OnboardingScreen validation: a whitespace-only display name keeps Continue disabled;
 // a real name enables it and advances to the spaces screen.
 export default async function s22({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })

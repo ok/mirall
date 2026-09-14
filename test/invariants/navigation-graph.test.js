@@ -5,7 +5,7 @@ import path from 'path'
 import { transformSync } from 'esbuild'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const ROUTER = path.join(root, 'src', 'renderer', 'components', 'layout', 'ScreenRouter.tsx')
+const ROUTER = path.join(root, 'src', 'renderer', 'ScreenRouter.tsx')
 
 // TypeScript the Node runner cannot import directly. The module has no imports of its own, so it
 // evaluates as-is.

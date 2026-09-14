@@ -88,7 +88,7 @@ interface FolderViewProps {
   onMirror?: (share: ShareWithRole) => void
 }
 
-export default function FolderView({ spaceId, share, onBack, onMirror }: FolderViewProps) {
+export default function FolderScreen({ spaceId, share, onBack, onMirror }: FolderViewProps) {
   const { t } = useTranslation()
   const { locate, relocate } = useLocateShare(spaceId)
   const { profile } = useProfile()

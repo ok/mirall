@@ -13,7 +13,7 @@ test('components/widgets does not come back', (t) => {
 
 // A list rather than a count: adding a folder is a decision, and taking a row here is how it gets
 // made deliberately instead of by whoever had nowhere else to put a file.
-const FOLDERS = ['activity', 'cards', 'folder', 'layout', 'modals', 'path', 'primitives', 'settings', 'share-drop', 'space', 'toast']
+const FOLDERS = ['activity', 'cards', 'folder', 'layout', 'modals', 'path', 'primitives', 'share-drop', 'space', 'toast']
 
 test('every components/ child is a named feature', (t) => {
   const actual = readdirSync(COMPONENTS)

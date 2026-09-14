@@ -1,5 +1,5 @@
 // Turns the flat ShareFileEntry[] list from useShareFiles into a nested folder/file
-// tree for the collapsible FolderView. Plain JS (no React, no bare-*/node imports) so
+// tree for the collapsible FolderScreen. Plain JS (no React, no bare-*/node imports) so
 // the same source feeds the esbuild renderer bundle AND the brittle-node unit suite,
 // which imports .js from src/renderer directly. Node shapes are typed in types.ts.
 

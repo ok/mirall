@@ -4,7 +4,7 @@ import ModalFooter from '../layout/ModalFooter.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 
 // The edit step of a folder-mount wizard: the dialog, its header, the body its caller fills, and the
 // wizard footer design.md calls footer shape 3 — Cancel plus a primary carrying a trailing arrow,

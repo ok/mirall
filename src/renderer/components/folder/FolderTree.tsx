@@ -1,4 +1,4 @@
-// Recursive renderer for the collapsible FolderView tree: folders are disclosure
+// Recursive renderer for the collapsible FolderScreen tree: folders are disclosure
 // buttons (aria-expanded + aria-controls) over native ShareFileRow leaves.
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'

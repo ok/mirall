@@ -1,6 +1,6 @@
 // Members-panel layout regression test (LOCAL/dev-machine only — spawns a real
 // Electron GUI process, like the agent-desktop frontend suite). Mounts the real
-// <SpaceView> in real Chromium and asserts the expanded Members card hugs its
+// <SpaceScreen> in real Chromium and asserts the expanded Members card hugs its
 // content for a small roster (collapsing the empty space below it) while still
 // capping at the available height and scrolling internally for a large one.
 //
@@ -20,7 +20,7 @@ const fmtPhase = (label, p) => {
     `scroll(client=${p.scrollClientH} content=${p.scrollContentH} overflow=${p.scrollOverflow})`
 }
 
-console.log('\n──────── SpaceView Members-panel layout harness ────────')
+console.log('\n──────── SpaceScreen Members-panel layout harness ────────')
 console.log(`innerHeight            : ${out.innerHeight}px`)
 console.log('measurements:')
 console.log(fmtPhase('few ', out.few))

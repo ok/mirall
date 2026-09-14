@@ -1,5 +1,5 @@
 // Real-Chromium harness for the full-bleed Drop-to-Share overlay. Mounts the REAL
-// <SpaceView> (the only place that can't be exercised by agent-desktop, since it
+// <SpaceScreen> (the only place that can't be exercised by agent-desktop, since it
 // drives the AX tree and can't synthesize a native file-drag), dispatches synthetic
 // DragEvents, and asserts the crossfade + geometry + copy in real layout.
 import './harness-bootstrap.js'
@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import SpaceView from './../../src/renderer/screens/SpaceView.js'
+import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 
 interface FakeDriver {
   SPACE_ID: string
@@ -42,7 +42,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
         <KeyboardProvider currentScreen="space-view" selectedSpaceId={f.SPACE_ID}>
-          <SpaceView spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
+          <SpaceScreen spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

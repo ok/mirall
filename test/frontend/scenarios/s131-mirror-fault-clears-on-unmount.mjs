@@ -13,7 +13,7 @@ import { workDir } from '../paths.mjs'
 // existed. Pressing that button sent foreign-folder:set-enabled for a shareId with no record.)
 //
 // The unmount does not leave the screen: ScreenRouter flips the selected share's role to 'browse'
-// in place, so FolderView stays mounted with the same identity. That is precisely the case the
+// in place, so FolderScreen stays mounted with the same identity. That is precisely the case the
 // hand-rolled hook could not clear, and why this is a screen test rather than a unit one.
 //
 // The fault is induced the only way a mirror's can be: the mirror writes into its own directory, so

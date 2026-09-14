@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // A1 — the LOOSE FileCard download exposes the same Pause/Resume controls the
 // folder-view row does (s48), on a different surface: the space-root list, not a
-// FolderView — its own a11y guarantee per row. 256 MB widens the mid-flight window
+// FolderScreen — its own a11y guarantee per row. 256 MB widens the mid-flight window
 // so we usually catch the running/paused controls; loopback can still finish inside
 // the AX poll, so the paused round-trip is best-effort and a lost race is not a
 // failure. The hard guarantee is the file landing "On your device"; the

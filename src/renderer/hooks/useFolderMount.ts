@@ -8,8 +8,8 @@ import { ANY_SHARES } from '../store/scopes.js'
 import type { OwnedMountRow, OwnedMountState } from '../ownedMount.js'
 import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types.js'
 
-// Same store entry as useShares: one value, two projections, one fence — SpaceView's badge and
-// FolderView's fault strip cannot disagree. Re-derives on the shares scope (README.md).
+// Same store entry as useShares: one value, two projections, one fence — SpaceScreen's badge and
+// FolderScreen's fault strip cannot disagree. Re-derives on the shares scope (README.md).
 export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState {
   const enabled = Boolean(spaceId && shareId)
   // Not `loading`: ownedMountSettled carries that reasoning, and not taking the flag at all is

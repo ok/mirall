@@ -200,7 +200,7 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
 | Entity title (a name someone typed) | `text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight truncate pb-1.5` | `components/layout/EntityHeader.tsx` |
 | Modal title | `text-2xl font-headline font-extrabold text-accent tracking-tight` | modals, `keyboard/*` |
 | Section heading | `text-xl font-headline font-bold text-accent mb-6` | `components/layout/SectionHeading.tsx` |
-| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLog.tsx` day headings, what's-new |
+| Eyebrow / group label | `text-xs font-bold uppercase tracking-wide text-secondary` | `keyboard/ShortcutsHint.tsx`, `screens/ActivityLogScreen.tsx` day headings, what's-new |
 | Body | default Manrope, muted via `text-on-surface-variant`; `leading-relaxed` on intros | everywhere |
 | Metadata / fine print | `text-xs` / `text-sm text-on-surface-variant` | cards, badges |
 
@@ -242,14 +242,14 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
   `<SectionHeading>` (the same label every settings sub-page uses) above a
   `bg-surface-container-low rounded-xl overflow-hidden` card of `p-6` rows —
   40px icon tile, `font-semibold text-accent` label, `text-xs` description,
-  trailing chevron, no dividers. Used by `screens/Settings.tsx` (one unlabelled
-  group) and `screens/Account.tsx`. A group the page title already names takes
+  trailing chevron, no dividers. Used by `screens/settings/SettingsScreen.tsx` (one unlabelled
+  group) and `screens/AccountScreen.tsx`. A group the page title already names takes
   no heading — Account's profile card sits directly under the `<h1>`. The eyebrow
   label is **not** used for this job: it is for sub-labels inside a surface
   (shortcut groups, activity-log day headings).
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
 - **Responsive:** effectively one breakpoint — `min-[900px]:grid-cols-[1fr_300px] gap-8`
-  (content + sidebar in `screens/SpaceView.tsx`, `screens/FolderView.tsx`), plus a
+  (content + sidebar in `screens/SpaceScreen.tsx`, `screens/FolderScreen.tsx`), plus a
   couple of `md:` tweaks on onboarding. No `sm`/`lg`/`xl` grid system.
 
 ---
@@ -509,7 +509,7 @@ border) — exported so a `<textarea>` is the same box with a height (`FeedbackM
   the two say different things. `invalid` + `describedBy` are for a field whose failure is reported
   elsewhere on the form (`JoinSpaceModal`: one message under both boxes).
 - `mono` for a pasted key or invite code.
-- The two settings-screen fields (`screens/Account.tsx`, `screens/Onboarding.tsx`) sit on
+- The two settings-screen fields (`screens/AccountScreen.tsx`, `screens/OnboardingScreen.tsx`) sit on
   `surface-container-lowest` with their own padding and are **not** TextFields.
 
 ### Field label — `primitives/FieldLabel.tsx`
@@ -590,8 +590,8 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
 - Panel default: `glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden`
   (override `max-w-*` per modal; `max-w-md` for compact/confirm, `max-w-2xl max-h-[80vh]` for What's New).
 - Anatomy: header `px-10 pt-10 pb-6` (title + close `IconButton`) — **one component,
-  `components/layout/ModalHeader.tsx`**, used by every dialog including the purge confirm that
-  `screens/ActivityLogSettings.tsx` mounts inline; `keyboard/ShortcutsHint.tsx` and
+  `components/primitives/ModalHeader.tsx`**, used by every dialog including the purge confirm that
+  `screens/settings/ActivityLogSettings.tsx` mounts inline; `keyboard/ShortcutsHint.tsx` and
   `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either a
   `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two sizes,
   and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
@@ -662,7 +662,7 @@ themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**
   (`border-2 border-surface-container-low` to cut it out of the image), not `Avatar`'s
   status ring.
 - Lists rely on spacing + surface tiers, **not dividers** — the one exception is
-  `screens/StorageSettings.tsx` (`divide-y divide-surface-container-high/30`).
+  `screens/settings/StorageSettings.tsx` (`divide-y divide-surface-container-high/30`).
 
 ### Avatar — `primitives/Avatar.tsx`
 Sizes `xs 20 / sm 32 / md 36 / lg 48 / xl 80` px, always `rounded-full`.
@@ -694,7 +694,7 @@ waiting on that hash, and neither is a transfer — the folder roll-up counts th
 and `available`/`owner-offline`/`unavailable`). Roles carry meaning by label, not color.
 The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by pills.
 
-### Folder screen bands — `screens/FolderView.tsx`
+### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 - **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned
   and a mirrored folder (browse has the primary alone). No owner avatar: the People tile names them.

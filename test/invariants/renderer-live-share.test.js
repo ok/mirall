@@ -17,12 +17,12 @@ test('navigation holds a share id, never a share', (t) => {
 })
 
 test('the folder screen is handed a share resolved from the listing', (t) => {
-  const router = read('components/layout/ScreenRouter.tsx')
+  const router = read('ScreenRouter.tsx')
   t.ok(/useShares\(/.test(router), 'the router reads the live listing')
   t.ok(/shares\.find\(\(s\) => s\.id === shareId\)/.test(router), 'and resolves the id against it')
   // The two patch callbacks are gone from both ends.
   t.absent(/onRenamed/.test(router), 'no rename is patched into a held share')
   t.absent(/onUnmounted/.test(router), 'no unmount reset is patched into a held share')
-  t.absent(/onRenamed|onUnmounted/.test(read('screens/FolderView.tsx')),
+  t.absent(/onRenamed|onUnmounted/.test(read('screens/FolderScreen.tsx')),
     'and the folder screen no longer reports either upward')
 })

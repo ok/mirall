@@ -1,5 +1,5 @@
 // Focus-ring clearance harness (LOCAL/dev-machine only — spawns a real Electron GUI process, like
-// the agent-desktop frontend suite). Mounts the REAL <FolderView> inside the REAL app-shell
+// the agent-desktop frontend suite). Mounts the REAL <FolderScreen> inside the REAL app-shell
 // wrappers and checks a geometric invariant the eye caught before any test did: a focusable
 // control that is fully visible must have at least `ring-2`'s worth of room inside EVERY clipping
 // ancestor, or its focus ring is shaved off by a scroll pane / an `overflow-hidden` wrapper.
@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import FolderView from './../../src/renderer/screens/FolderView.js'
+import FolderScreen from '../../src/renderer/screens/FolderScreen.js'
 
 const RING = 2
 
@@ -26,16 +26,16 @@ const share = {
   spaceId: f.SPACE_ID,
   createdAt: 0,
   role: 'mirrored',
-} as unknown as Parameters<typeof FolderView>[0]['share']
+} as unknown as Parameters<typeof FolderScreen>[0]['share']
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="min-h-screen bg-surface">
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
-        {/* FolderView registers its acts as palette commands while mounted, so it needs the
-            keyboard registry the same way SpaceView's harness does. */}
+        {/* FolderScreen registers its acts as palette commands while mounted, so it needs the
+            keyboard registry the same way SpaceScreen's harness does. */}
         <KeyboardProvider>
-          <FolderView spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
+          <FolderScreen spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

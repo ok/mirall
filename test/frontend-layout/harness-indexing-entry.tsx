@@ -1,4 +1,4 @@
-// Real-Chromium harness for the indexing labels in FolderView. Mounts the REAL
+// Real-Chromium harness for the indexing labels in FolderScreen. Mounts the REAL
 // <FolderTree> three times — an owner's folder mid-index, a member's folder waiting on that
 // index, and a member's folder with a real download alongside — and reads back what each one
 // actually says. Indexing is not a transfer: neither side may be told anything is downloading,

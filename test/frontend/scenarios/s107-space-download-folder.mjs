@@ -155,7 +155,7 @@ export default async function s107({ runDir, bootstrap }) {
     // space modal falls back to. They read the same shared copy, so the modal shows the new
     // folder without a read of its own.
     await r.ok('a download folder changed in Settings is the default the space modal shows', async () => {
-      // The step above ends inside FolderView; the header menu this needs lives in the space view.
+      // The step above ends inside FolderScreen; the header menu this needs lives in the space view.
       await B.click({ name: 'Back' })
       await B.waitText('Archive', 20000)
       await openEditModal()

@@ -6,7 +6,7 @@ import { makeReport, assert } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // FIX-132 (UI) — while the owner is still indexing a large folder, a browsing peer's open
-// FolderView must grow monotonically and never flash the "empty folder" panel. The peer-catalog
+// FolderScreen must grow monotonically and never flash the "empty folder" panel. The peer-catalog
 // read can transiently return empty/partial; the renderer now keeps its last good list and merges
 // (reconcileFiles) instead of a wholesale replace. Proven by: an early file stays present after a
 // late file appears — i.e. the list never blanked/reset mid-index.

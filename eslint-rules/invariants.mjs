@@ -84,7 +84,7 @@ export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'Ki
 // write after unmount, which React tolerates.
 export const unmountOnlyAsyncEffects = Object.freeze({
   'src/renderer/hooks/useConnectionStatus.tsx': { effects: 1, why: 'The net.online probe has [] deps and one read; transitions arrive on onNetOnlineChange. (The other effect in this file carries a cleanup flag and is not exempt.)' },
-  'src/renderer/screens/Account.tsx': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the screen is open.' },
+  'src/renderer/screens/AccountScreen.tsx': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the screen is open.' },
 })
 
 // OUT_OF_ORDER must stay EMPTY: an effect that re-fires can have two reads in flight and the older

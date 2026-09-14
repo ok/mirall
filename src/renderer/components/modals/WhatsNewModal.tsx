@@ -8,7 +8,7 @@ import { dismissChangelog, type ChangelogEntry } from '../../changelog.js'
 import type { WhatsNewState } from '../../whats-new.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import Modal from '../primitives/Modal.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 
 interface RenderedEntry {

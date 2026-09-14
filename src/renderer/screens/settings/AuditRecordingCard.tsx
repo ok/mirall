@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import SectionHeading from '../layout/SectionHeading.js'
-import SegmentedControl, { Segment } from '../primitives/SegmentedControl.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
+import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
 import { RETENTION_CHOICES } from '../../../shared/contract/limits.js'
 import type { AuditConfig } from '../../types.js'
 

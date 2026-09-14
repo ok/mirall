@@ -8,7 +8,7 @@ import { subscribe } from '../../ipc.js'
 import { formatSize } from '../../utils.js'
 import { useToast } from '../toast/ToastProvider.js'
 import Modal from '../primitives/Modal.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'
 

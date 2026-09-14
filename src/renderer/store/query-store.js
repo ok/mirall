@@ -251,7 +251,7 @@ export function pruneByParam(types, param, live) {
 
 // Drop entries whose key a predicate rejects — a space that was left must not keep its roster (and
 // avatars) cached for the session. Forget the VALUE but keep any entry that still has subscribers
-// (SpaceView prunes while useShares and useMembers are mounted): deleting it would orphan them,
+// (SpaceScreen prunes while useShares and useMembers are mounted): deleting it would orphan them,
 // never notified and never refetching. An entry with no subscribers is removed, which bounds the map.
 export function invalidateKey(shouldDrop) {
   const dropped = []

@@ -759,3 +759,23 @@ contract-only eslint rule **does** catch it (verified: `'../shared/core/ipc.js' 
 on all 37 files). So the guard worked; the process did not. Run `eslint` after a codemod, not only
 `tsc`: the typechecker cannot tell you that an import crossed a runtime boundary, and the lint rule
 that can is the one this repo already wrote for exactly that.
+
+## A worktree's node_modules goes stale when staging adds a dependency
+
+`test/integration/download-admission.test.js` failed 3/3 locally with
+
+```
+SyntaxError: The requested module 'ignore' does not provide an export named 'isPathValid'
+```
+
+after a rebase, in a worktree whose `npm install` predated #336 — the PR that introduced `ignore`.
+Nothing in the branch was wrong; the worktree simply had no copy of a package the rebased code now
+imports. `npm install` fixed it, and the same file then passed.
+
+The tell is the shape of the failure: **0/0 tests passed, exit 1** — the file died at load, before
+registering a single test. A genuine regression fails an assertion and reports a count.
+
+**The rule: rebase and `npm install` are one step in a worktree.** This sits beside the existing
+symlinked-node_modules lesson — both are the same class, a worktree whose dependency tree does not
+match its source tree, and both make a local run lie in the direction of *false red* rather than
+false green, which is the less dangerous direction but still costs a diagnosis.

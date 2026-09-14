@@ -5,8 +5,8 @@ import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // REGRESSION (FIX-EDA-…/F2): the "source missing" banner must appear and clear WHILE the
-// owner's FolderView stays open. It used to derive from the frozen navigation snapshot
-// (the only live subscriber unmounted with SpaceView), so a mount root vanishing mid-view
+// owner's FolderScreen stays open. It used to derive from the frozen navigation snapshot
+// (the only live subscriber unmounted with SpaceScreen), so a mount root vanishing mid-view
 // never rendered until the user navigated away and back.
 export default async function s79({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })

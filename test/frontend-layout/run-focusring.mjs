@@ -1,5 +1,5 @@
 // Focus-ring clearance test (LOCAL/dev-machine only — spawns a real Electron GUI process, like the
-// agent-desktop frontend suite). Mounts the real <FolderView> in real Chromium and asserts every
+// agent-desktop frontend suite). Mounts the real <FolderScreen> in real Chromium and asserts every
 // fully-visible focusable control has room for its 2px `focus-visible:ring-2` inside every
 // clipping ancestor. Catches the class of regression where an `overflow-hidden` wrapper or a
 // scroll pane sits flush against a control and shaves the ring off.

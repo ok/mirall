@@ -4,7 +4,12 @@ import { fileURLToPath } from 'url'
 
 const dir = fileURLToPath(new URL('../../src/renderer/screens', import.meta.url))
 const read = (f) => readFileSync(`${dir}/${f}`, 'utf8')
-const screens = readdirSync(dir).filter((f) => f.endsWith('.tsx'))
+// Recursive: the settings pages moved into a subfolder, and a flat readdir would silently stop
+// checking seven of the screens this guard exists for.
+const walkScreens = (root, prefix = '') => readdirSync(root, { withFileTypes: true }).flatMap((e) =>
+  e.isDirectory() ? walkScreens(`${root}/${e.name}`, `${prefix}${e.name}/`)
+    : e.name.endsWith('.tsx') ? [prefix + e.name] : [])
+const screens = walkScreens(dir)
 
 // Every settings-style screen scrolls its own body in a full-height container
 // (`h-[calc(100vh-…)] overflow-y-auto`) while the window itself never scrolls.
@@ -33,7 +38,7 @@ test('REGRESSION (FIX-1): full-height screen scrollers establish a containing bl
     if (!src.includes('h-[calc(100vh-')) continue
     const lines = src.split('\n').filter(isScroller)
     // A screen that has the height but no matching scroller line either uses a
-    // flex-column wrapper (SpaceView, FolderView, SharedSpaces) or wrapped its
+    // flex-column wrapper (SpaceScreen, FolderScreen, SpacesScreen) or wrapped its
     // className across lines, which this matcher would silently skip.
     if (lines.length === 0) {
       t.absent(/overflow-y-auto[\s\S]{0,200}h-\[calc\(100vh-|h-\[calc\(100vh-[\s\S]{0,200}overflow-y-auto/.test(src),
