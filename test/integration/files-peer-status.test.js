@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { peerFileStatus } from '../../src/shared/transfer/files.js'
+import { peerFileStatus } from '../../src/shared/transfer/file-listing.js'
 
 // peerFileStatus maps (downloaded, pendingRow, ownerOnline) → the row status shown in the file
 // list. Extracted from listFiles; this locks the precedence (downloaded wins, then error, then

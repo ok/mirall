@@ -3,7 +3,8 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace, getDrive } from '../../src/shared/spaces/space.js'
-import { initDownloads, addFile } from '../../src/shared/transfer/files.js'
+import { initDownloads } from '../../src/shared/transfer/files.js'
+import { addFile } from '../../src/shared/transfer/file-listing.js'
 import { getStorageInfo, getSpaceCacheBytes } from '../../src/shared/storage/storage.js'
 
 // Overlay copies no bytes into the per-space drive (it serves straight from the

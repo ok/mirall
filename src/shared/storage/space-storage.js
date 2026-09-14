@@ -11,7 +11,8 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { listSharesForSpace } from '../shares/share-registry.js'
 import { getContentBackend, UNSUPPORTED } from '../transfer/content-backends.js'
 import { getForeignMount } from '../folders/mount-store.js'
-import { listFiles, listVerifiedForShare } from '../transfer/files.js'
+import { listVerifiedForShare } from '../transfer/files.js'
+import { listFiles } from '../transfer/file-listing.js'
 
 const log = createLogger('space-storage')
 

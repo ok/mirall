@@ -118,7 +118,6 @@ test('no module in the data layer sits in an import cycle', (t) => {
   // ever shrinks, and a cycle that is NOT on it fails here.
   const KNOWN = [
     ['shares/share-catalog.js', 'spaces/space.js'],
-    ['transfer/files.js', 'transfer/loose-overlay.js'],
     [
       'shares/migrate-catalog-encrypt.js',
       'storage/legacy-peer-cache.js',

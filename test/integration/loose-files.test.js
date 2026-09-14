@@ -8,10 +8,8 @@ import { advertise, getOwnEntry, ownCatalogKeyHex, dropCatalog } from '../../src
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import {
-  initDownloads, addFile, removeFile, listFiles,
-  markOwnedSource, getOwnedSourcePath,
-} from '../../src/shared/transfer/files.js'
+import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
+import { addFile, removeFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import {
   initLooseOverlay, sweepLoosePresence, LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE,
