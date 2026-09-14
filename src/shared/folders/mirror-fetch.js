@@ -31,7 +31,7 @@ import { getVerifiedHash, isVerifiedUnchanged, markVerified } from '../transfer/
 import { freeBytesFor } from '../transfer/free-space-probe.js'
 import { shortfall } from '../transfer/free-space.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
-import { pathFromMount } from '../transfer/path-guard.js'
+import { pathFromMount } from './path-guard.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-ownership.js'

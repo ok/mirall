@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
-import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/transfer/handshake-guard.js'
+import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/network/handshake-guard.js'
 
 // The content plane authenticates each connection with a mirall/content-hello frame that binds
 // the profileKey to THIS connection's Noise key, reusing signNoiseBinding / verifyIdentityBinding.

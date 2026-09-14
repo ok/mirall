@@ -30,7 +30,7 @@ const unusedVars = {
 
 // EDA invariant: event handlers decorate rows, never construct row STATUS (worker-derived per read).
 // Scoped to ObjectExpression so destructured reads stay legal; the second selector closes the
-// quoted/computed-key bypass. Exported so test/unit/renderer-status-invariant.test.js parses the same
+// quoted/computed-key bypass. Exported so test/invariants/renderer-status-invariant.test.js parses the same
 // grammar. Rationale: .claude/testing.md, "Lint invariants".
 import {
   rendererStatusRestrictions,
@@ -42,6 +42,7 @@ import {
   unmountOnlyAsyncEffects,
   outOfOrderAsyncEffects,
   pureTransferModules,
+  pureNetworkModules,
   pureFolderPolicyModules,
 } from './eslint-rules/invariants.mjs'
 
@@ -104,6 +105,26 @@ export default [
   // The pure half of folders/ — see pureFolderPolicyModules.
   {
     files: pureFolderPolicyModules.map((name) => `src/shared/folders/${name}.js`),
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
+      }],
+    },
+  },
+
+  // The pure half of network/ — see pureNetworkModules.
+  {
+    files: pureNetworkModules.map((name) => `src/shared/network/${name}.js`),
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
+      }],
+    },
+  },
+
+  // The pure half of transfer/ — see pureTransferModules.
+  {
+    files: pureTransferModules.map((name) => `src/shared/transfer/${name}.js`),
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],

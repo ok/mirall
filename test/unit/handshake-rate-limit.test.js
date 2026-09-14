@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createRateLimiter, createDualRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
+import { createRateLimiter, createDualRateLimiter } from '../../src/shared/network/handshake-guard.js'
 import {
   getHandshakeRateLimit, getOverlayServeLimit, getRuntimeConfig, setRuntimeConfig,
 } from '../../src/shared/core/runtime-config.js'

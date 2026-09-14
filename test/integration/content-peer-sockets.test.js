@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createContentPeerSockets } from '../../src/shared/transfer/content-peer-sockets.js'
+import { createContentPeerSockets } from '../../src/shared/network/content-peer-sockets.js'
 
 // REGRESSION (FIX-3: a peer that left the space kept serving it). The content plane rides a second
 // Hyperswarm whose sockets the leave path never touched — hyperswarm's leave() un-announces the

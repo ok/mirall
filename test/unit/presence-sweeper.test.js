@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createPresenceSweeper } from '../../src/shared/transfer/presence-sweeper.js'
+import { createPresenceSweeper } from '../../src/shared/folders/retire-confirm.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import nodePath from 'path'

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createAnnounceLedger, escalationDue, announceStatus } from '../../src/shared/transfer/announce-ledger.js'
+import { createAnnounceLedger, escalationDue, announceStatus } from '../../src/shared/network/announce-ledger.js'
 
 const CFG = { baseMs: 1000, capMs: 8000, maxAttempts: 3 }
 const never = () => false

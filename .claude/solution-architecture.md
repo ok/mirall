@@ -210,7 +210,7 @@ sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary 
 
 **Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
 
-- **No module-level timers.** Arm periodic work in a `Subsystem._open` through `this.timers`, so it dies with the subsystem. Enforced by an eslint `no-restricted-syntax` selector on the data-layer block (`moduleLevelTimerRestrictions`), driven through eslint's own parser by `test/unit/module-level-timers.test.js`.
+- **No module-level timers.** Arm periodic work in a `Subsystem._open` through `this.timers`, so it dies with the subsystem. Enforced by an eslint `no-restricted-syntax` selector on the data-layer block (`moduleLevelTimerRestrictions`), driven through eslint's own parser by `test/invariants/module-level-timers.test.js`.
 - **No module-level construction that arms a resource, and none inside an import cycle.** The static rule cannot see a `const x = createFoo()` whose body arms a timer, nor a TDZ. `test/integration/import-time.test.js` covers both: importing every `src/shared` module behind a timer shim must create zero timers, and each member of the known import cycle must be importable *first* in a fresh Bare process.
 
 ---
@@ -462,7 +462,7 @@ Each user writes only to their own drive: no conflicts, inherent ownership, triv
 Two swarms, sharing the same Corestore (passed from main into the worker), so any incoming `store.replicate(socket)` works against the unified store:
 
 - **Main-process swarm** — joins only the upgrade-drive discovery key, as a client, for `pear-runtime-updater`.
-- **Worker swarm** (`transfer/swarm.js`) — one 32-byte topic per space; handles peer file-sharing connections.
+- **Worker swarm** (`network/swarm.js`) — one 32-byte topic per space; handles peer file-sharing connections.
 
 Topic join is non-blocking (`discovery.flushed()` in the background). `swarm.on('connection')` drops sockets immediately when the user is in zero spaces, so stray peers never reach handshake code.
 
@@ -485,7 +485,7 @@ Every identity-asserting frame carries a signature binding sender → socket Noi
 
 **Identity-frame rate limit.** `admitIdentityFrame` charges a per-socket dual-lane token bucket (`handshake-guard.js`) keyed on the Noise key: frames for a topic we joined ride the *matched* lane, everything else the generous *unmatched* lane, so a multi-space peer's foreign-topic frames can't starve the one that matters. The matched lane's burst is `handshakeBurst + handshakeBurstPerTopic x the distinct topics THAT SOCKET has matched` (8 + 3 per shared space, re-read per take and never counted past the topics we hold), because an honest reconnect legitimately sends one frame per shared space plus our reciprocal — a fixed burst banned any pair sharing 24+ spaces, while scaling by our own space count instead would hand a peer that matched one topic an allowance that grows with every space we join. Refill is 1/s; the drop counter decays at the same rate, and 24 consecutive drops on either lane evict the Noise key (`bannedNoiseKeys` -> the swarm firewall) for the process lifetime.
 
-**Leave frame:** broadcast by `space:leave` to every connected socket right after the durable `member/<S>` delete and before the heavyweight teardown (§6). `handleLeaveFrame` (`transfer/leave-protocol.js`) accepts it iff the sender proves it controls `profileKey` on **this** connection — the per-socket auth index (`socketToPeers`) or, when a teardown/reconnect race has cleared that index, the frame's own identity binding (§16), which is strictly stronger — so a third party still cannot evict a member. It then adopts the leaver's vouchees (a leaver whose record is unreadable is deferred, never tombstoned, so the replication path can retry), tombstones the leaver, revokes our vouch, acks, and evicts the socket from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`).
+**Leave frame:** broadcast by `space:leave` to every connected socket right after the durable `member/<S>` delete and before the heavyweight teardown (§6). `handleLeaveFrame` (`network/leave-protocol.js`) accepts it iff the sender proves it controls `profileKey` on **this** connection — the per-socket auth index (`socketToPeers`) or, when a teardown/reconnect race has cleared that index, the frame's own identity binding (§16), which is strictly stronger — so a third party still cannot evict a member. It then adopts the leaver's vouchees (a leaver whose record is unreadable is deferred, never tombstoned, so the replication path can retry), tombstones the leaver, revokes our vouch, acks, and evicts the socket from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`).
 
 **On receipt (`handleHandshake`):**
 
@@ -546,7 +546,7 @@ When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` op
 - **A config naming a private relay is not proof the identity is live.** A machine move that copied `config.json` but not `relay-ticket.enc`, or a vault unreadable under a new keyring, leaves the node presenting a different key. `setRelayThrough` refuses to install the relay in that case (`{ applied: 0, reason: 'identity-missing' }`) and stays direct, because routing every dial into a firewall refusal is worse than not relaying.
 - **Validation** stays in main, the trust boundary: `relay:parse` returns one of three error codes (`invalid-format` / `unsupported-version` / `checksum-failed`, never a generic "invalid"), and `relay:set` is the single writer for the slot and the vault. The renderer's `relay-key.ts` is a shape-only pre-check for typing feedback.
 - **Delivery**: the `bootstrap` frame carries `relayMode` / `relay` / `relaySeed`; live changes ride `network:set-relay` over the existing NDJSON channel. A change of **pinned identity** cannot be applied live — `defaultKeyPair` is fixed at DHT construction — so `relay:set` reports `identityChanged`, the renderer records a session-scoped pending flag (`renderer/relay-session.ts`) and the section offers **Reconnect now**. Only that button sends `shutdown`, which the existing respawn policy turns into a fresh boot frame and a window reload. Doing it automatically is what the reload cost makes wrong: it returns the user to the home screen with nothing to explain why. Until they press it the config is stored and the probe honestly reports the relay unreachable, because the worker really is still presenting its old identity.
-- **Application** — `setRelayThrough` (`transfer/swarm.js`) installs the relay function on **both** the control and content swarms. Configuring only the control swarm yields a build whose handshakes connect and whose transfers stall, so it must run **after** `initContentSwarm` — the two swarms are constructed on consecutive lines and `getContentSwarm()` is null in between.
+- **Application** — `setRelayThrough` (`network/swarm.js`) installs the relay function on **both** the control and content swarms. Configuring only the control swarm yields a build whose handshakes connect and whose transfers stall, so it must run **after** `initContentSwarm` — the two swarms are constructed on consecutive lines and `getContentSwarm()` is null in between.
 - **Mode** maps onto hyperswarm's own semantics: `off` installs no function at all (byte-identical to a build without relay support, and the only kill switch since the `relay` feature flag was retired), `auto` engages after a failed punch or on a randomized NAT, `always` relays every connection (the only way to *test* a relay end-to-end). Under `auto` we also **offer** our relay on the announce path, so a peer with no relay of its own can adopt ours — but never for a **private** relay: a stranger who adopted that key is not on the roster, and the refusal it gets is indistinguishable from the relay being offline.
 - **Probe** — `network:test-relay` dials the key and waits for the `blind-relay` Protomux channel to open, so a mistyped key fails at configuration time rather than weeks later as a space that silently never syncs. It runs on its own when a relay is added.
 - **Obtaining one** is an operator task. A relay publishes the public key of its `hyperdht` node — that string is the entire configuration for an open relay — or mints a per-member ticket for a private one.
@@ -1176,8 +1176,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/intents.js` | `createIntentLog()` — durable intent records + the per-kind reconcilers boot dispatches (§2) |
 | `src/shared/core/supervision.js` | `createSupervisionPolicy()` + `DEFAULT_POLICY` (`consecutiveBad: 2`, `maxRecoveries: 3`) — the condemn/recover/give-up counters. Pure |
 | `src/shared/core/concurrency.js` | `mapLimit` + `createSemaphore` (express lane, drain) — the `downloadConcurrency` gate's primitive (§2) |
-| `src/shared/core/identity-resolve.js` | Resolves M from `identity.enc`, or migrates a pre-envelope store's RocksDB seed into one (§16) |
-| `src/shared/core/coalescing-runner.js` | Per-key single-flight with one queued rerun that absorbs every request arriving mid-run; guards the owned-folder diff |
+| `src/shared/core/identity-envelope.js` | The secretbox envelope wrapping the master secret under a KEK — kept separate from `identity.js` because it imports no `bare-*` and `test/unit` drives it under plain Node |
+| `src/shared/core/identity.js` | Resolves M from `identity.enc`, or migrates a pre-envelope store's RocksDB seed into one (§16) |
 | `src/shared/core/pass-liveness.js` | Per-key heartbeat bookkeeping for supervised passes — the record `stall-verdict` reads |
 | `src/shared/core/errors.js` | `AppError`, `classifyTransferError`, `classifyLocalIoFault`, `isLocalDestFault`, `isRetryableTransferError`. The code vocabulary itself is `contract/errors.js#CODES`, imported from there directly |
 | `src/shared/core/crash-backstop.js` | Installs the pre-first-`await` rejection handler; 10 uncaught errors in 60 s exits the worker for respawn, latched to fire once |
@@ -1194,13 +1194,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/cancellation.js` | The worker's cancellation token — `{ aborted, reason, onAbort }` + `throwIfAborted` (`AbortController` is not a Bare global) |
 | `src/shared/core/identity-keys.js` | Corestore-identical keypair derivation from M (§16); must stay byte-identical to corestore internals |
 | `src/shared/core/diagnostics-redact.js` | Regex redaction for the diagnostics bundle, pure |
-| `src/shared/core/identity-envelope.js` | secretbox wrap / unwrap of M under a KEK (§16) |
-| `src/shared/core/intent-store.js` | `IntentsBee` — the intents bee's lifetime |
-| `src/shared/core/keyed-lock.js` | `createKeyedLock()` — per-key promise chain (§3.4) |
-| `src/shared/core/channel.js` | `deriveChannel({dev, appVersion})` → `dev` / `staging` / `prod`; dependency-free, consumed by `telemetry/feedback.js` |
+| `src/shared/telemetry/channel.js` | `deriveChannel({dev, appVersion})` → `dev` / `staging` / `prod`; dependency-free, consumed by `telemetry/feedback.js` |
 | `src/shared/core/atomic-file.js` | Crash-safe file write: write + fsync a sibling `.tmp`, then rename |
-| `src/shared/core/stall-verdict.js` | `stallVerdict(liveness, …)` — progress-not-elapsed-time: only a pass in flight **and** not advancing its heartbeat is stalled. Pure |
-| `src/shared/core/unlock-providers.js` | The unlock providers that yield the KEK (`os-keychain` today) (§16) |
 
 ### `src/shared/contract/` — the vocabulary all three runtimes share (plain ESM, imports nothing but siblings; test-enforced)
 
@@ -1231,7 +1226,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/shared/core/derived-view.js` | Generic durable-state view: watch N replicated bees, fold once per burst, liveness-tracked — `spaces/member-view.js` builds on it |
-| `src/shared/transfer/presence.js` | Presence leases — heartbeat-refreshed, TTL-expired, cleared on disconnect (§4.7) |
+| `src/shared/network/presence.js` | Presence leases — heartbeat-refreshed, TTL-expired, cleared on disconnect (§4.7) |
 | `src/shared/core/coalesce.js` | Keyed leading + trailing coalescer |
 | `src/shared/core/hints.js` | The `event:reconcile` hint bus over the coalescer (§4.7) |
 
@@ -1304,54 +1299,59 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/mount-fault.js` | The worker's import path for the mount-fault vocabulary: the status half from `contract/`, plus `faultFromError` (the errno half needs `core/errors.js`) |
 | `src/shared/folders/mirror-walk.js`, `src/shared/folders/mirror-reach.js`, `src/shared/folders/mirror-health.js` | Three pure loop rules: whether a tick must walk at all, whether a pass may reach for content, and the stalled / healthy verdict (`stallVerdict(poll × 20)`) |
 
+### `src/shared/network/` — reachability and swarm plumbing
+
+| File | Purpose |
+|---|---|
+| `src/shared/network/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection wiring, handshake apply + peer registry, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, `Swarm` |
+| `src/shared/network/connectivity.js` | "Are we reachable": DHT / NAT verdict watchers, the two-stage canary probe, the liveness ping loop, the interface poll, `getSwarmStatus` assembly, the debounced `event:network-status` + audit hook, `reconnectAll` |
+| `src/shared/network/leave-protocol.js` | Inbound `leave` apply (adopt vouchees → tombstone → revoke → ack → evict), the `leaving` marker set, leave-ack collection, and the pending-leave and pending-cancel replay lanes (§4.2, §6) |
+| `src/shared/network/convergence-tick.js` | The slow level-triggered re-drive: announce-ledger drain, roster-deficit escalation, listing re-poke, capture retry, stalled-transfer discovery refresh; supervised pass liveness |
+| `src/shared/network/content-swarm.js` | The bulk-content transport plane: a second Hyperswarm on the shared DHT node carrying only the overlay channel, the `mirall/content-hello` identity channel, its own banned-key firewall and topic maps; `ContentSwarm` (§7.7) |
+| `src/shared/network/membership-frames.js` | `sendMembershipGrant` / `sendMembershipDeny` / `broadcastMembershipCancel` — the three addressed outbound membership frames. The cancel goes to every open socket rather than one peer's channel, because a pending joiner is in nobody's `connectedPeers` and there is no membership to address it by (§4.2) |
+| `src/shared/network/presence-broadcast.js` | Presence heartbeat / departure frames and their inbound apply, plus the share-prepare and index-progress frames (owner → member) and their handlers; `resolveSpaceIdForTopic` (§4.7) |
+| `src/shared/network/frame-intake.js` | `receiveFrame(conn, str)` — everything an inbound peer frame passes before a handler sees it: the size cap and the per-socket budget charged BEFORE the decode (the budget exists to bound the work an unauthenticated peer can make us do, and `JSON.parse` is that work), the shape guard, the identity gate, and the routing table. Only a frame whose topic we joined pays for signature verification (§4.2) |
+| `src/shared/network/handshake-guard.js` | Pure frame-shape checks, the Noise-key identity binding sign / verify (§16), the leave / grant assertion checks, the dual-lane event rate limiter (§4.2) |
+| `src/shared/network/swarm-diagnostics.js` | The swarm's read-only reporting surface: address, routing-table size, peer reach / samples, DHT health, connect / relay stats, the offline status shape. Imports no `bare-*` |
+| `src/shared/network/support-bundle.js` | The support-bundle builder over `getSwarmStatus()` and the audit verdict history, redacted (`diagnostics:export`) |
+| `src/shared/network/swarm-registries.js` | The swarm's shared indexes — `connectedPeers`, `socketToPeers`, `spaceTopics`, the pending-requester and handler maps — plus `announceLedger` and `resetRegistries` (§4.4) |
+| `src/shared/network/net-impair.js` | Test-only link shaper (runtime-config `netImpair`) applied to a socket in place; production never sets it |
+| `src/shared/network/content-peer-sockets.js` | Which authenticated identities ride which content socket; `destroyFor` |
+| `src/shared/network/announce-ledger.js` | The level-triggered retry ledger for per-(connection, space) identity-frame announcements — `announceStatus`, `escalationDue` |
+| `src/shared/network/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
+| `src/shared/network/relay-install.js` | `setRelayThrough` / `testRelayReachable` — installs the relay function on BOTH swarms (configuring only the control plane yields a build whose handshakes connect and whose transfers stall) and probes one. The impure third of the relay trio: `relay.js` holds the pure rules, `relay-ticket.js` the codec (§4.8) |
+| `src/shared/network/relay-ticket.js` | The frozen 69-byte z-base-32 ticket codec shared with `mirall-relay`, `parseRelayInput`, `decodeRelayKey` (§4.8) |
+| `src/shared/network/deferred-admission.js` | Replays a parked joiner's handshake once an approval replicates in or a space is re-entered; `emitPeerSharesUpdated` (§4.2) |
+| `src/shared/network/admission-gates.js` | `createAdmissionGates` — the approval read gate, invite resolve, the creator-root cross-check the handshake asks before registering anyone (§4.2 step 2) |
+
 ### `src/shared/transfer/`
 
 | File | Purpose |
 |---|---|
-| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection wiring, handshake apply + peer registry, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, `Swarm` |
-| `src/shared/transfer/connectivity.js` | "Are we reachable": DHT / NAT verdict watchers, the two-stage canary probe, the liveness ping loop, the interface poll, `getSwarmStatus` assembly, the debounced `event:network-status` + audit hook, `reconnectAll` |
 | `src/shared/transfer/loose-overlay.js` | In-place loose files, both sides: admission (name + cap under the space lock), the `loose` publish channel (source-link resolve, `publishing` decoration, watch arming, direct unshare), boot rehydrate and the presence sweep as producers; peer-catalog listing / watch / reconcile, the `looseChannel` and the engine forwarders as the consumer |
 | `src/shared/transfer/file-listing.js` | The aggregated loose listing and the two verbs that change the set. A loose file has no single source of truth — the owner's catalog says it exists, the claim bee whether we have it, the pending row whether it is moving, the disk whether "on your device" is still true — and this is where they fold into one row per file (§3.5) |
 | `src/shared/transfer/reveal.js` | Showing a file in the OS file manager. A download and a share resolve to different places: a downloaded file sits at its claim path, a file we shared is wherever the user keeps it (recorded by `markOwnedSource` at share time). Both resolve to a local path before the reveal (§3.3) |
 | `src/shared/transfer/files.js` | The `downloads-meta` bee (claims, `verified:`, `src:` — §3.3), the claim verdict I/O, `addFile` / `removeFile`, the aggregated loose listing with status derivation (§3.5), reveal-in-file-manager, per-space cleanup, `DownloadsBee` |
 | `src/shared/transfer/serve-ledger.js` | Sender-side download indicator: who is pulling a file we own and how far — summary tier (always on) + per-peer detail tier (only while a row is subscribed), idle / paused sweeps, audit `serve.completed` sessions; `ServeLedger`. Fed by `overlay-instance.js`, read via `serving:*` |
-| `src/shared/transfer/leave-protocol.js` | Inbound `leave` apply (adopt vouchees → tombstone → revoke → ack → evict), the `leaving` marker set, leave-ack collection, and the pending-leave and pending-cancel replay lanes (§4.2, §6) |
 | `src/shared/transfer/bandwidth-limiter.js` | The byte token bucket pacing content-plane transfers — deficit round-robin over stream handles, anti-barge, oversized-chunk release. Pure (§7.7) |
-| `src/shared/transfer/convergence-tick.js` | The slow level-triggered re-drive: announce-ledger drain, roster-deficit escalation, listing re-poke, capture retry, stalled-transfer discovery refresh; supervised pass liveness |
-| `src/shared/transfer/content-swarm.js` | The bulk-content transport plane: a second Hyperswarm on the shared DHT node carrying only the overlay channel, the `mirall/content-hello` identity channel, its own banned-key firewall and topic maps; `ContentSwarm` (§7.7) |
-| `src/shared/transfer/membership-frames.js` | `sendMembershipGrant` / `sendMembershipDeny` / `broadcastMembershipCancel` — the three addressed outbound membership frames. The cancel goes to every open socket rather than one peer's channel, because a pending joiner is in nobody's `connectedPeers` and there is no membership to address it by (§4.2) |
-| `src/shared/transfer/presence-broadcast.js` | Presence heartbeat / departure frames and their inbound apply, plus the share-prepare and index-progress frames (owner → member) and their handlers; `resolveSpaceIdForTopic` (§4.7) |
-| `src/shared/transfer/frame-intake.js` | `receiveFrame(conn, str)` — everything an inbound peer frame passes before a handler sees it: the size cap and the per-socket budget charged BEFORE the decode (the budget exists to bound the work an unauthenticated peer can make us do, and `JSON.parse` is that work), the shape guard, the identity gate, and the routing table. Only a frame whose topic we joined pays for signature verification (§4.2) |
-| `src/shared/transfer/handshake-guard.js` | Pure frame-shape checks, the Noise-key identity binding sign / verify (§16), the leave / grant assertion checks, the dual-lane event rate limiter (§4.2) |
-| `src/shared/transfer/swarm-diagnostics.js` | The swarm's read-only reporting surface: address, routing-table size, peer reach / samples, DHT health, connect / relay stats, the offline status shape. Imports no `bare-*` |
-| `src/shared/transfer/diagnostics.js` | The support-bundle builder over `getSwarmStatus()` and the audit verdict history, redacted (`diagnostics:export`) |
 | `src/shared/transfer/reveal-exit.js` | `revealExitIsFailure(platform, code)` — `explorer.exe` exits 1 on success |
 | `src/shared/transfer/transfer-id.js` | The `spaceId\|shareId\|relPath` wire id the renderer round-trips, `LOOSE_SHARE_ID`, the loose routing predicate |
 | `src/shared/transfer/free-space-probe.js`, `src/shared/transfer/free-space.js` | The one `statfs` both producers ask through (fails open), and the pure `shortfall()` arithmetic with its 64 MiB headroom |
 | `src/shared/transfer/partial-suffix.js` | `PARTIAL_SUFFIX = '.mirall.part'` + `partialPathFor` — the one definition, injected into the vendored engine (§17) |
 | `src/shared/transfer/list-deficits.js` | The spaces whose last interactive listing gave up on a peer catalog under the read budget (take semantics; the convergence tick re-pokes them, §4.3) |
-| `src/shared/transfer/path-guard.js` | `pathFromMount(mount, rel)` — the single guarded mount-relative join every backend and the mirror use (path-traversal guard) |
-| `src/shared/transfer/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
-| `src/shared/transfer/presence-sweeper.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window cannot cascade a transient tombstone to every mirror. Pure — the caller supplies the key, probes and retire |
+| `src/shared/folders/path-guard.js` | `pathFromMount(mount, rel)` — the single guarded mount-relative join every backend and the mirror use (path-traversal guard) |
+| `src/shared/spaces/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
+| `src/shared/folders/retire-confirm.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window cannot cascade a transient tombstone to every mirror. Pure — the caller supplies the key, probes and retire |
 | `src/shared/transfer/download-dest.js` | `resolveDest` — collision-free Downloads naming — and `reuseDest`, the resume re-anchor rule (§3.5) |
 | `src/shared/transfer/download-claim.js` | `claimVerdict(...)` — the downloaded / prune ladder for one download-history claim, pure (§3.3) |
 | `src/shared/transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}` over `EtaEstimator`; shared by single-file transfers and folder mirroring |
-| `src/shared/transfer/swarm-registries.js` | The swarm's shared indexes — `connectedPeers`, `socketToPeers`, `spaceTopics`, the pending-requester and handler maps — plus `announceLedger` and `resetRegistries` (§4.4) |
 | `src/shared/transfer/file-dedupe.js` | The pure fold from per-owner loose-file candidates to listing rows: one row per distinct file, the most-progressed copy winning, the rest counted as `sharedByCount` (§3.5) |
 | `src/shared/transfer/transfer-status.js` | The pure consumer-row status ladder (`consumerRowStatusFor` & co.) for a share-file row (§7.3) |
 | `src/shared/transfer/content-backends.js` | The seam: `getContentBackend(share)` → the overlay backend, else `UNSUPPORTED`; the presence-sweep fan-out. Locked by `content-backend-conformance.test.js` (§7.7) |
-| `src/shared/transfer/net-impair.js` | Test-only link shaper (runtime-config `netImpair`) applied to a socket in place; production never sets it |
 | `src/shared/transfer/supersede-decision.js` | The decision ladder for an in-flight transfer whose owner's catalog changed (§4.5) |
-| `src/shared/transfer/content-peer-sockets.js` | Which authenticated identities ride which content socket; `destroyFor` |
-| `src/shared/transfer/announce-ledger.js` | The level-triggered retry ledger for per-(connection, space) identity-frame announcements — `announceStatus`, `escalationDue` |
 | `src/shared/transfer/chunk-map-cache.js` | The bounded byte-cost LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.7) |
-| `src/shared/transfer/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
 | `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
 | `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
-| `src/shared/transfer/relay-install.js` | `setRelayThrough` / `testRelayReachable` — installs the relay function on BOTH swarms (configuring only the control plane yields a build whose handshakes connect and whose transfers stall) and probes one. The impure third of the relay trio: `relay.js` holds the pure rules, `relay-ticket.js` the codec (§4.8) |
-| `src/shared/transfer/relay-ticket.js` | The frozen 69-byte z-base-32 ticket codec shared with `mirall-relay`, `parseRelayInput`, `decodeRelayKey` (§4.8) |
-| `src/shared/transfer/deferred-admission.js` | Replays a parked joiner's handshake once an approval replicates in or a space is re-entered; `emitPeerSharesUpdated` (§4.2) |
-| `src/shared/transfer/admission-gates.js` | `createAdmissionGates` — the approval read gate, invite resolve, the creator-root cross-check the handshake asks before registering anyone (§4.2 step 2) |
 | `src/shared/transfer/pending-transfers.js` | The `pending-transfers` bee CRUD with its per-key write lock (§3.4); `PendingTransfersBee` |
 
 ### `src/shared/transfer/backends/overlay/`
@@ -1389,6 +1389,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/storage/sweep-decision.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |
+| `src/shared/storage/migration-result.js` | `STAGES`, `MIGRATION_STATUS` and `migrationResult` — the answer shape every migration returns, in a leaf that imports nothing so a migration need not depend on the list that runs it |
 | `src/shared/storage/migrations.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (`durable` / `content`, §2) |
 | `src/shared/storage/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee (§16) |
 | `src/shared/storage/space-storage.js` | The per-space `{ totalBytes, onDeviceBytes }` summary behind the space storage widget |
@@ -1418,7 +1419,7 @@ Behaviour worth knowing (styling → `design.md`):
 |---|---|
 | `src/shared/telemetry/feedback.js` | HTTPS POST (via `bare-https`) of the feedback caption + optional screenshot. Sends `x-mirall-install-id`, `x-mirall-version`, `x-mirall-channel` |
 | `src/shared/telemetry/install-id.js` | Lazily mints + persists an opaque per-install UUID at `<storage>/install-id`, for rate-limit bucketing on the relay |
-| `src/shared/identity-limits.js` | `clampDisplayName`, `sanitizeAvatar` — the clamps for peer-supplied identity fields (§16) |
+| `src/shared/contract/identity-limits.js` | `clampDisplayName`, `sanitizeAvatar` — the clamps for peer-supplied identity fields (§16) |
 | `src/shared/package.json` | `"type": "module"` |
 
 ### `src/renderer/`
@@ -1492,7 +1493,7 @@ src/renderer/styles/tailwind.css ─@tailwindcss/cli──►  assets/dist/app.c
 
 ### Linux AppImage
 
-`electron-forge package --platform=linux` produces an unpacked tree; `scripts/build-app-image.sh` assembles the `.AppImage` via `app-builder-lib`. It bundles a custom `resources/linux/AppRun` that exports library paths and exec's the binary with `--no-sandbox`.
+`electron-forge package --platform=linux` produces an unpacked tree; `scripts/build/build-app-image.sh` assembles the `.AppImage` via `app-builder-lib`. It bundles a custom `resources/linux/AppRun` that exports library paths and exec's the binary with `--no-sandbox`.
 
 After `app-builder` finishes, the script **swaps the stock libfuse2-based AppImage runtime for `VHSgunzo/uruntime` in extract-and-run mode (`URUNTIME_MOUNT=0`)**, so the AppImage runs on Ubuntu 24.04 / Fedora 40+ where `libfuse2` is no longer installed by default. Pinned by the `URUNTIME_VERSION` constant in `build-app-image.sh`; bump by editing that line and triggering a dev build.
 
@@ -1552,7 +1553,7 @@ Structure only:
 
 `test/helpers/` is the shared harness: `peer.js` (`launchPeer`, `connectInSpace`, `addPeerToSpace`, `waitForCatalogEntry`), `store.js` (`freshPeer` — single in-process peer), `owned.js` (`setupOwnedShare`, `setupSelfMirror`), `fixtures.js`, `testnet.js` (`localTestnet` — 3-node DHT bootstrap), `fake-ipc.js`.
 
-Local scripts: `npm test` = `test:node` (`test:node:core` = unit + raw, then `test:flow`) + `test:bare` (integration). `npm run lint` = `eslint src`; `lint:ci` adds the comment-hygiene gate (`scripts/check-comment-hygiene.sh` — comments must be purpose-driven and self-contained; `.claude/solution-architecture.md` is the one permitted pointer target).
+Local scripts: `npm test` = `test:node` (`test:node:core` = unit + raw, then `test:flow`) + `test:bare` (integration). `npm run lint` = `eslint src`; `lint:ci` adds the comment-hygiene gate (`scripts/ci/check-comment-hygiene.sh` — comments must be purpose-driven and self-contained; `.claude/solution-architecture.md` is the one permitted pointer target).
 
 CI composition and the a11y bar → `testing.md`.
 

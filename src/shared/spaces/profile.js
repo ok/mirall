@@ -7,7 +7,7 @@ import { createBee, storeEpoch } from '../core/store.js'
 import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '../core/with-timeout.js'
 
 import { getResourceCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
-import { clampDisplayName, sanitizeAvatar } from '../identity-limits.js'
+import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
 import { voucheesToAdopt } from './member-set.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'

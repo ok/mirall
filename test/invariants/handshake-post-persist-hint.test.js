@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const swarmSrc = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'swarm.js'), 'utf8')
+const swarmSrc = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'network', 'swarm.js'), 'utf8')
 
 // The handshake's early event:files-updated fires BEFORE persistHandshakeMember commits the
 // peer's looseCatalogKey — a files view re-deriving on it can read the roster pre-persist,

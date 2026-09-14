@@ -3,7 +3,7 @@ import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
 import {
   initConnectivity, attachSwarmWatchers, resetConnectivity, probeCanary,
-} from '../../src/shared/transfer/connectivity.js'
+} from '../../src/shared/network/connectivity.js'
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }

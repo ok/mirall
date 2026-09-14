@@ -4,7 +4,7 @@
 // the transfer id's shape.
 
 import { getSpace } from '../../shared/spaces/space.js'
-import { isSpaceLeaving } from '../../shared/transfer/leave-protocol.js'
+import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listing.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
 import {
@@ -18,7 +18,7 @@ import {
 import { overlayPause, overlayCancel } from '../../shared/transfer/backends/overlay/overlay-backend.js'
 import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
-import { rescueStalledTransfers } from '../../shared/transfer/swarm.js'
+import { rescueStalledTransfers } from '../../shared/network/swarm.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'

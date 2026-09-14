@@ -21,7 +21,7 @@ import { bumpServeEpoch, revokeServesForSpace } from '../../shared/transfer/back
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { looseCancelSpace } from '../../shared/transfer/loose-overlay.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
-import { awaitLeaveAcks, cleanupSpaceDrives, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, leaveSpaceTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/transfer/swarm.js'
+import { awaitLeaveAcks, cleanupSpaceDrives, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, leaveSpaceTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/swarm.js'
 import { compactStore } from '../../shared/storage/compaction.js'
 
 export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {

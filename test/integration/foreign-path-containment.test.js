@@ -6,7 +6,7 @@ import { setupSelfMirror } from '../helpers/owned.js'
 import { getDrive } from '../../src/shared/spaces/space.js'
 import { applyChange, initialMaterializeScan } from '../../src/shared/folders/foreign-folders.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { pathFromMount } from '../../src/shared/transfer/path-guard.js'
+import { pathFromMount } from '../../src/shared/folders/path-guard.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 // MIR-06: a malicious owner writes a RAW Hyperbee entry under Hyperdrive's

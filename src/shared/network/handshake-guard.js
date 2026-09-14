@@ -8,7 +8,7 @@ import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
 import { HEX64 } from '../contract/invite-envelope.js'
 
-export { clampDisplayName } from '../identity-limits.js'
+export { clampDisplayName } from '../contract/identity-limits.js'
 
 const BINDING_CONTEXT = b4a.from('mirall/handshake-binding/v1')
 const BINDING_CONTEXT_V2 = b4a.from('mirall/handshake-binding/v2')

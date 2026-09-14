@@ -12,7 +12,7 @@ const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
 
 // Source-scanned rather than imported: the dispatch table lives in frame-intake.js, which pulls in the
 // Hyper stack and cannot load under a Node runner.
-const intake = read('shared/transfer/frame-intake.js')
+const intake = read('shared/network/frame-intake.js')
 
 test('every declared frame has a handler in the dispatch table', (t) => {
   const table = intake.slice(intake.indexOf('const PEER_FRAME_HANDLERS'), intake.indexOf('function toMembershipControl'))

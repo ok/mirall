@@ -3,7 +3,7 @@
 // owns — no loop state, no synced set — so it lives outside it.
 import { entryRef } from '../contract/entry-ref.js'
 import fs from 'bare-fs'
-import { pathFromMount } from '../transfer/path-guard.js'
+import { pathFromMount } from './path-guard.js'
 import { DEFAULT_IGNORE, dropUnsafeEntries } from './path-keys.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'

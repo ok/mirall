@@ -1,6 +1,7 @@
-// The invariant tables the flat config applies and the guard tests read back. They live here rather
+// The invariant tables the flat config applies and ten guard tests read back. They live here rather
 // than in eslint.config.mjs because they are the statement of an invariant, not lint configuration:
-// a test asserts each one still describes the tree, and eslint.config.mjs is left as the config.
+// a test asserts each one still describes the tree, and eslint.config.mjs is left as the ~160 lines
+// of actual config.
 
 const statusMessage = 'Do not construct row status in an event handler — status is worker-derived (level-triggered). Decorate instead.'
 export const rendererStatusRestrictions = [
@@ -11,7 +12,7 @@ export const rendererStatusRestrictions = [
 // Lifecycle invariant, import-time corner only: a timer armed at module level runs at import, so no
 // close() can reach it. The broad property (every periodic call dies with its subsystem) is not
 // decidable statically; test/integration/timer-lifecycle.test.js measures it at runtime. Exported so
-// test/invariants/module-level-timers.test.js parses the same grammar.
+// test/unit/module-level-timers.test.js parses the same grammar.
 export const moduleLevelTimerRestrictions = [{
   // `:not(:function *)` alone is the whole rule: it matches a set*() call that has no function
   // ancestor, i.e. one that runs at import. Scoping it to top-level statement types instead would
@@ -49,7 +50,7 @@ export const moduleScopeTimerHandleRestrictions = [
 // Mechanism invariant: chokidar's options are per-INSTANCE (network mounts need polling, an erroring
 // watcher spins), and src/main/watch-host.js is the single owner of every chokidar decision; a second
 // require('chokidar') is how a divergence comes back. Exported so
-// test/invariants/watch-host-single-owner.test.js parses the same grammar.
+// test/unit/watch-host-single-owner.test.js parses the same grammar.
 const chokidarMessage = 'Only src/main/watch-host.js may load chokidar — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
 export const chokidarSingleOwnerRestrictions = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='chokidar']", message: chokidarMessage },
@@ -60,7 +61,7 @@ export const chokidarSingleOwnerRestrictions = [
 // src/shared/. The data layer imports bare-*, Hyper* and Node modules the sandboxed renderer cannot
 // bundle, and every renderer "twin" this codebase has deleted began as an import that was not
 // allowed and a copy that was. The re-export shims that used to stand in for this rule are gone;
-// the rule is what replaces them. Exported so test/invariants/renderer-contract-only-imports.test.js
+// the rule is what replaces them. Exported so test/unit/renderer-contract-only-imports.test.js
 // enforces the same grammar through eslint's parser.
 export const rendererContractOnlyImports = [{
   regex: '(^|/)shared/(?!contract/)',
@@ -96,43 +97,47 @@ export const outOfOrderAsyncEffects = Object.freeze({})
 // test/invariants/folder-module-boundaries.test.js can check that each one really has a unit test.
 // The same rule for transfer/: these import no bare-*, so a unit test can drive them under Node.
 export const pureTransferModules = [
-  'admission-gates',
-  'announce-ledger',
   'bandwidth-limiter',
   'chunk-map-cache',
   'content-backends',
-  'content-peer-sockets',
-  'content-swarm',
-  'convergence-tick',
-  'deferred-admission',
-  'diagnostics',
   'download-claim',
   'eta-estimator',
   'file-dedupe',
   'free-space',
-  'handshake-guard',
-  'leave-protocol',
   'list-deficits',
-  'net-impair',
   'partial-suffix',
   'pending-transfers',
-  'presence-broadcast',
-  'presence-sweeper',
   'progress-ticker',
-  'relay',
-  'relay-ticket',
   'reveal-exit',
-  'sck-seal',
   'serve-ledger',
   'supersede-decision',
-  'swarm-diagnostics',
-  'swarm-registries',
   'transfer-id',
   'transfer-status',
+]
+
+// The pure half of network/ — the same rule, split from pureTransferModules when the folder was
+// split, because the eslint block is keyed on the folder.
+export const pureNetworkModules = [
+  'admission-gates',
+  'announce-ledger',
+  'content-peer-sockets',
+  'content-swarm',
+  'convergence-tick',
+  'deferred-admission',
+  'handshake-guard',
+  'leave-protocol',
+  'net-impair',
+  'presence',
+  'presence-broadcast',
+  'relay',
+  'relay-ticket',
+  'support-bundle',
+  'swarm-diagnostics',
+  'swarm-registries',
 ]
 
 export const pureFolderPolicyModules = [
   'echo-guard', 'fetch-attempts', 'integrity-seen', 'mirror-health', 'mirror-loop', 'mirror-ownership',
   'mirror-reach', 'mirror-walk', 'mount-fault', 'path-keys', 'preview-detail', 'preview-tally',
-  'publish-queue', 'publish-scheduler', 'share-limits', 'temp-paths', 'work-item',
+  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'temp-paths', 'work-item',
 ]

@@ -23,7 +23,7 @@ import { makeProgressTicker } from './progress-ticker.js'
 import { nextFreeName } from '../folders/path-keys.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
-import { createKeyedLock } from '../core/keyed-lock.js'
+import { createKeyedLock } from '../core/concurrency.js'
 import { getPublishScheduler, registerPublishChannel } from '../folders/publish-service.js'
 import { OP, PRIORITY } from '../folders/work-item.js'
 import { fileStatPresent, statFacts } from '../folders/disk-presence.js'
@@ -31,7 +31,7 @@ import { createLogger } from '../core/logger.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { createOverlayChannel } from './backends/overlay/overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/overlay-consume.js'
-import { createPresenceSweeper } from './presence-sweeper.js'
+import { createPresenceSweeper } from '../folders/retire-confirm.js'
 
 const log = createLogger('loose-overlay')
 

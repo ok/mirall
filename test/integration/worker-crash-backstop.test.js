@@ -5,7 +5,7 @@ import { installCrashBackstop } from '../../src/shared/core/crash-backstop.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 const workerMainSrc = fs.readFileSync(path.join(srcRoot, 'worker', 'main.js'), 'utf8')
-const intakeSrc = fs.readFileSync(path.join(srcRoot, 'shared', 'transfer', 'frame-intake.js'), 'utf8')
+const intakeSrc = fs.readFileSync(path.join(srcRoot, 'shared', 'network', 'frame-intake.js'), 'utf8')
 
 // REGRESSION (FIX: worker survives an unhandled rejection from a fire-and-forget task).
 // A STORAGE_EMPTY thrown by corestore's replication machinery when it serves a half-written

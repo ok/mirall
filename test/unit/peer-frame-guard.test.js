@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { validFrameShape, createRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
+import { validFrameShape, createRateLimiter } from '../../src/shared/network/handshake-guard.js'
 
 // REGRESSION (FIX-FRAME-NULL: JSON.parse('null') returns null, and the `msg.type` read that
 // followed sat OUTSIDE the message handler's try — it reached protomux's _ondata, which

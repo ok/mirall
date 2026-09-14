@@ -4,7 +4,7 @@
 
 import b4a from 'b4a'
 import { PEER_FRAME } from '../contract/peer-frames.js'
-import { sealSck } from './sck-seal.js'
+import { sealSck } from '../spaces/sck-seal.js'
 import { getProfileKey } from '../spaces/profile.js'
 import { socketMsgHandlers } from './swarm-registries.js'
 

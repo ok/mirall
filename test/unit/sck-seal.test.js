@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { sealSck, openSealedSck } from '../../src/shared/transfer/sck-seal.js'
+import { sealSck, openSealedSck } from '../../src/shared/spaces/sck-seal.js'
 
 test('sealSck/openSealedSck round-trips a 32-byte SCK to the bound signer', (t) => {
   const recipient = crypto.keyPair()

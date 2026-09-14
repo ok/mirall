@@ -4,9 +4,9 @@
 import os from 'bare-os'
 import { getRuntimeConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import { getRequestFailureCounters, getRequestMetrics } from '../../shared/core/ipc.js'
-import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/transfer/diagnostics.js'
+import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/network/support-bundle.js'
 import { queryAudit } from '../../shared/audit/audit-log.js'
-import { deriveChannel } from '../../shared/core/channel.js'
+import { deriveChannel } from '../../shared/telemetry/channel.js'
 import { getInstallId } from '../../shared/telemetry/install-id.js'
 import { listRecentSweeps } from '../../shared/storage/sweep-journal.js'
 import {
@@ -14,7 +14,7 @@ import {
   getVerdictHistory,
   getDiagnosticCounters,
   getPeerSamples,
-} from '../../shared/transfer/swarm.js'
+} from '../../shared/network/swarm.js'
 
 const DIAGNOSTIC_HISTORY_LIMIT = 50
 

@@ -3,7 +3,7 @@
 // starts, updated with byte progress and error codes, and cleared on completion — surviving
 // rows are what drive resume after a restart and the paused/error states the UI derives.
 import { createLocalBee, storeEpoch } from '../core/store.js'
-import { createKeyedLock } from '../core/keyed-lock.js'
+import { createKeyedLock } from '../core/concurrency.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
