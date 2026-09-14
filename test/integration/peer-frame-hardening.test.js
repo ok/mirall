@@ -127,15 +127,28 @@ test('a maximal join request is admitted by the intake that judges it', (t) => {
 // that caused it. The receiver's warn line is on the wrong machine, and it names no frame type.
 test('an oversize frame is reported by its sender, at error level', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'swarm.js'), 'utf8')
-  const sender = src.slice(src.indexOf('function sendFrame('), src.indexOf('async function sendSingleHandshake('))
+  const transfer = path.join(here, '..', '..', 'src', 'shared', 'transfer')
+  const src = fs.readFileSync(path.join(transfer, 'swarm.js'), 'utf8')
+  const senderAt = src.indexOf('function sendFrame(')
+  t.ok(senderAt >= 0, 'found sendFrame — a marker that stops matching makes the rest vacuous')
+  const sender = src.slice(senderAt, src.indexOf('async function sendSingleHandshake(', senderAt))
 
   t.ok(/getPeerFrameMaxBytes\(\)/.test(sender), 'the send path measures against the same cap the intake enforces')
   t.ok(/log\.error\(/.test(sender), 'and says so at error level, not warn')
   t.ok(/frame\.type/.test(sender), 'naming the frame type that overflowed')
-  for (const frameType of ['type: PEER_FRAME.MEMBERSHIP_REQUEST', 'type: PEER_FRAME.HANDSHAKE', 'type: PEER_FRAME.MEMBERSHIP_GRANT']) {
-    const at = src.indexOf(frameType)
-    t.ok(src.lastIndexOf('sendFrame(', at) > src.lastIndexOf('.send(JSON.stringify(', at),
+
+  // Each frame is checked in whichever module builds it: the membership frames are addressed, so
+  // they live apart from the swarm that carries them, and the property is per-builder.
+  const builders = {
+    'type: PEER_FRAME.MEMBERSHIP_REQUEST': 'swarm.js',
+    'type: PEER_FRAME.HANDSHAKE': 'swarm.js',
+    'type: PEER_FRAME.MEMBERSHIP_GRANT': 'membership-frames.js',
+  }
+  for (const [frameType, file] of Object.entries(builders)) {
+    const text = file === 'swarm.js' ? src : fs.readFileSync(path.join(transfer, file), 'utf8')
+    const at = text.indexOf(frameType)
+    t.ok(at >= 0, frameType + ' is built in ' + file)
+    t.ok(text.lastIndexOf('sendFrame(', at) > text.lastIndexOf('.send(JSON.stringify(', at),
       frameType + ' goes out through the measured send path')
   }
 })
