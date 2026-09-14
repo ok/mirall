@@ -207,7 +207,7 @@ test('shouldIgnore: exact basename anywhere in the tree', (t) => {
 test('shouldIgnore: suffix globs match the end, not a prefix', (t) => {
   t.ok(shouldIgnore('big.iso.mirall.part', DEFAULT_IGNORE))
   t.ok(shouldIgnore('a/b/download.mirall.part', DEFAULT_IGNORE), 'in a subfolder')
-  t.ok(shouldIgnore('notes.txt~', DEFAULT_IGNORE))
+  t.ok(shouldIgnore('notes.txt~', ['*~']))
   t.absent(shouldIgnore('part.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
   // Only OUR token is excluded. A bare `*.part` glob would silently drop a third-party
   // in-progress download — or any legitimately named file — out of an owned folder.
@@ -215,36 +215,48 @@ test('shouldIgnore: suffix globs match the end, not a prefix', (t) => {
   t.absent(shouldIgnore('big.iso.partial', DEFAULT_IGNORE), "another app's .partial is publishable")
 })
 
-test('shouldIgnore: dir/** matches the dir and everything under it, not look-alikes', (t) => {
-  t.ok(shouldIgnore('.git', DEFAULT_IGNORE), 'the directory itself')
-  t.ok(shouldIgnore('.git/config', DEFAULT_IGNORE))
-  t.ok(shouldIgnore('node_modules/pkg/deep/index.js', DEFAULT_IGNORE), 'deeply nested')
-  t.absent(shouldIgnore('src/.gitignore', DEFAULT_IGNORE), '.gitignore is not .git/**')
-  t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
+// The default list is three pieces of litter, and every one of them is a name the user did not
+// create. A folder's own contents — including a repository and its dependencies — publish.
+test('DEFAULT_IGNORE withholds OS litter and our own partials, nothing else', (t) => {
+  t.alike(DEFAULT_IGNORE, ['.DS_Store', 'Thumbs.db', '*.mirall.part'])
+  t.absent(shouldIgnore('.git/config', DEFAULT_IGNORE), 'a repository publishes')
+  t.absent(shouldIgnore('sub/.git/HEAD', DEFAULT_IGNORE), 'a nested repository publishes')
+  t.absent(shouldIgnore('node_modules/pkg/index.js', DEFAULT_IGNORE), 'dependencies publish')
+  t.absent(shouldIgnore('notes.txt~', DEFAULT_IGNORE), 'an editor backup publishes')
+})
+
+test('shouldIgnore: a directory glob covers the directory and everything under it', (t) => {
+  const patterns = ['.git/', 'node_modules/']
+  t.ok(shouldIgnore('.git/config', patterns))
+  t.ok(shouldIgnore('node_modules/pkg/deep/index.js', patterns), 'deeply nested')
+  t.ok(shouldIgnore('src/vendor/node_modules/pkg/index.js', patterns), 'a nested directory of that name')
+  t.absent(shouldIgnore('src/.gitignore', patterns), '.gitignore is not .git')
+  t.absent(shouldIgnore('my-node_modules-notes.md', patterns))
 })
 
 // ── one ignore matcher for the watcher and the reconcile ───────────────────────
 // The owned-folder watcher (Electron main) and the periodic reconcile (the Bare worker's disk
 // walk) must answer the same question the same way, or a file one of them withholds the other
-// publishes. These are the patterns the two hand-written matchers disagreed on.
+// publishes. chokidar asks about a directory and skips its whole subtree on a yes; the walk asks
+// per file. Both readings have to agree.
 test('REGRESSION (FIX-221: watcher and reconcile disagree on ignore-glob semantics)', (t) => {
-  // `dir/**` covers the directory anywhere in the tree AND everything beneath it, at any depth.
-  t.ok(shouldIgnore('build/main.js', ['build/**']), 'root-level content of the ignored dir')
-  t.ok(shouldIgnore('src/build/x.js', ['build/**']), 'content of a NESTED ignored dir')
-  t.ok(shouldIgnore('src/build', ['build/**']), 'the nested dir itself (basename match)')
-  t.ok(shouldIgnore('build', ['build/**']), 'the dir itself at the root')
-  t.ok(shouldIgnore('src/node_modules/pkg/index.js', DEFAULT_IGNORE), 'nested node_modules')
-  t.ok(shouldIgnore('sub/.git/HEAD', DEFAULT_IGNORE), 'a nested git repository')
+  t.ok(shouldIgnore('build/main.js', ['build/']), 'root-level content of the ignored dir')
+  t.ok(shouldIgnore('src/build/x.js', ['build/']), 'content of a NESTED ignored dir')
+  t.ok(shouldPruneDir('src/build', ['build/']), 'the nested dir itself')
+  t.ok(shouldPruneDir('build', ['build/']), 'the dir itself at the root')
 
-  // A bare name matches by basename anywhere; it says nothing about what is under it.
+  // A bare name names a directory as readily as a file, so it withholds the subtree too — which
+  // is the reading chokidar takes when it declines to descend.
   t.ok(shouldIgnore('dist', ['dist']), 'at the root')
   t.ok(shouldIgnore('a/b/dist', ['dist']), 'anywhere in the tree')
-  t.absent(shouldIgnore('dist/app.js', ['dist']), 'a bare name is not a directory glob')
+  t.ok(shouldIgnore('dist/app.js', ['dist']), 'and its contents')
+  t.ok(shouldPruneDir('dist', ['dist']), 'so the descent is skipped')
 
-  // Look-alikes stay publishable now that the glob reaches into the tree.
-  t.absent(shouldIgnore('src/.gitignore', DEFAULT_IGNORE))
-  t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
-  t.absent(shouldIgnore('rebuild/x.js', ['build/**']), 'a name-suffix sibling directory')
+  // A directory-only glob still declines a FILE of that name.
+  t.absent(shouldIgnore('build', ['build/']), 'a file named like the directory publishes')
+
+  t.absent(shouldIgnore('src/.gitignore', ['.git/']))
+  t.absent(shouldIgnore('rebuild/x.js', ['build/']), 'a name-suffix sibling directory')
 })
 
 // The gitignore spelling of "anywhere in the tree". It reaches the matcher from a share's
@@ -269,48 +281,88 @@ test('REGRESSION (FIX-245: a `**/` pattern matches nothing)', (t) => {
   // A `**/` prefix on a pattern that already carries its own semantics keeps them.
   t.ok(shouldIgnore('src/build/x.js', ['**/build/**']))
   t.absent(shouldIgnore('rebuild/x.js', ['**/build/**']))
-
-  // A bare `**/` names nothing, so it withholds nothing.
-  t.absent(shouldIgnore('docs/readme.md', ['**/']))
 })
 
-test('shouldPruneDir: directory-shaped globs prune, others do not', (t) => {
-  t.ok(shouldPruneDir('node_modules', DEFAULT_IGNORE), 'at the root')
-  t.ok(shouldPruneDir('src/vendor/node_modules', DEFAULT_IGNORE), 'nested')
-  t.ok(shouldPruneDir('.git', DEFAULT_IGNORE))
-  t.ok(shouldPruneDir('sub/.git', DEFAULT_IGNORE), 'a nested repository')
-  t.ok(shouldPruneDir('build', ['build/**']))
-  t.ok(shouldPruneDir('a/b', ['a/b/**']), 'a multi-segment prefix')
-  t.ok(shouldPruneDir('x/a/b', ['a/b/**']), 'a multi-segment prefix, nested')
+// Every one of these is an ordinary spelling from a .gitignore, and every one of them answered
+// for no path at all. A confidentiality control that cannot read its own vocabulary fails open.
+test('shouldIgnore: the gitignore vocabulary answers, it does not go quiet', (t) => {
+  t.ok(shouldIgnore('tmp/a.txt', ['tmp/']), 'a trailing slash names a directory')
+  t.ok(shouldIgnore('src/tmp/a.txt', ['tmp/']), 'anywhere in the tree')
+  t.absent(shouldIgnore('tmp.txt', ['tmp/']), 'and not a file that merely starts with it')
 
+  t.ok(shouldIgnore('src/a/tmp', ['src/*/tmp']), 'an interior star spans one segment')
+  t.absent(shouldIgnore('src/a/b/tmp', ['src/*/tmp']), 'and only one')
+
+  t.ok(shouldIgnore('file1.txt', ['file?.txt']), 'a single-character wildcard')
+  t.absent(shouldIgnore('file12.txt', ['file?.txt']))
+
+  t.ok(shouldIgnore('x.o', ['*.[oa]']), 'a character class')
+  t.ok(shouldIgnore('x.a', ['*.[oa]']))
+  t.absent(shouldIgnore('x.c', ['*.[oa]']))
+
+  t.ok(shouldIgnore('root.txt', ['/root.txt']), 'a leading slash anchors to the mount root')
+  t.absent(shouldIgnore('sub/root.txt', ['/root.txt']))
+
+  t.ok(shouldIgnore('secret.pdf', ['*', '!keep.txt']), 'a negation re-includes')
+  t.absent(shouldIgnore('keep.txt', ['*', '!keep.txt']))
+})
+
+// The list is persisted with the mount, so a value that cannot be a pattern would raise on every
+// scan and every watcher start, for the life of the share.
+test('shouldIgnore: a pattern that is not a string withholds nothing and raises nothing', (t) => {
+  t.ok(shouldIgnore('a.txt', [123, null, undefined, {}, '*.txt']), 'the usable pattern still answers')
+  t.absent(shouldIgnore('a.md', [123, null, undefined, {}, '*.txt']))
+  t.absent(shouldIgnore('a.txt', [123, null]), 'a list with no usable pattern withholds nothing')
+})
+
+// `ignores` rejects a path outside its domain rather than answering false, and this predicate runs
+// inside chokidar's ignore callback, where a throw takes the watcher down with it.
+test('shouldIgnore: a path the matcher cannot judge is published, not thrown on', (t) => {
+  t.absent(shouldIgnore('', DEFAULT_IGNORE), 'empty')
+  t.absent(shouldIgnore('/abs/.DS_Store', DEFAULT_IGNORE), 'absolute')
+  t.absent(shouldIgnore('../.DS_Store', DEFAULT_IGNORE), 'escaping the mount')
+  t.absent(shouldPruneDir('../x', DEFAULT_IGNORE), 'and the same for the prune probe')
+  t.absent(shouldPruneDir(null, DEFAULT_IGNORE), 'including one that is not a path at all')
+})
+
+test('shouldPruneDir: a glob that names a directory prunes the descent', (t) => {
+  const patterns = ['.git/', 'node_modules/']
+  t.ok(shouldPruneDir('node_modules', patterns), 'at the root')
+  t.ok(shouldPruneDir('src/vendor/node_modules', patterns), 'nested')
+  t.ok(shouldPruneDir('.git', patterns))
+  t.ok(shouldPruneDir('sub/.git', patterns), 'a nested repository')
+  t.ok(shouldPruneDir('build', ['build/']))
+  t.ok(shouldPruneDir('a/b', ['a/b/']), 'a multi-segment path')
   t.ok(shouldPruneDir('node_modules', ['**/node_modules']))
   t.ok(shouldPruneDir('a/node_modules', ['**/node_modules']))
   t.ok(shouldPruneDir('a/logs.log', ['**/*.log']), 'a segment glob matches a directory name')
-  t.ok(shouldPruneDir('src/build', ['**/build/**']), 'a multi-segment remainder ending /**')
+  t.ok(shouldPruneDir('src/build', ['**/build/']))
+  t.ok(shouldPruneDir('dist', ['dist']), 'a bare name names a directory too')
 
-  // These shapes name the directory ENTRY and nothing beneath it, so the descent must continue.
-  t.absent(shouldPruneDir('dist', ['dist']), 'a bare name is not a directory glob')
-  t.absent(shouldPruneDir('a/dist', ['dist']))
-  t.absent(shouldPruneDir('cache~', ['*~']), 'a suffix glob names one path')
-  t.absent(shouldPruneDir('builder', ['build*']), 'a prefix glob names one path')
-  t.absent(shouldPruneDir('src/gen', ['**/src/gen']), 'a multi-segment remainder without /**')
-
-  t.absent(shouldPruneDir('rebuild', ['build/**']), 'a name-suffix sibling')
-  t.absent(shouldPruneDir('my-node_modules-notes', DEFAULT_IGNORE))
-  t.absent(shouldPruneDir('anything', ['/**']), 'an empty prefix prunes nothing')
-  t.absent(shouldPruneDir('anything', ['**/']), 'an empty remainder prunes nothing')
+  t.ok(shouldPruneDir('builder', ['build*/']), 'a prefix glob reaches every name it spans')
+  t.absent(shouldPruneDir('cache', ['build*/']), 'and no name it does not')
+  t.absent(shouldPruneDir('rebuild', ['build/']), 'a name-suffix sibling')
+  t.absent(shouldPruneDir('my-node_modules-notes', patterns))
   t.absent(shouldPruneDir('node_modules', []))
   t.absent(shouldPruneDir('node_modules', undefined))
 })
 
-// One alphabet, every pattern shape the matcher has, every path up to three segments. Generated
-// rather than listed so a shape nobody thought of is still covered: the prune predicate mirrors
-// `matchPattern`'s branches, and a branch added to one without the other is what this catches.
-// A new shape in the matcher means a new spelling in SHAPES or PAIR_SHAPES.
+// A directory-only glob is the one shape that separates the two probes: it answers for the
+// directory the walk declines to enter, and declines a file wearing the same name.
+test('shouldPruneDir: a directory-only glob prunes the directory and spares the file', (t) => {
+  t.ok(shouldPruneDir('src/build', ['build/']), 'the directory prunes')
+  t.ok(shouldIgnore('src/build/x.js', ['build/']), 'so its contents are withheld')
+  t.absent(shouldIgnore('src/build', ['build/']), 'a file of that name is published')
+})
+
+// One alphabet, every pattern shape the vocabulary carries, every path up to three segments.
+// Generated rather than listed so a shape nobody thought of is still covered: the two probes have
+// to stay reconcilable across the whole grammar, not just the spellings someone wrote a case for.
+// A new shape means a new spelling in SHAPES or PAIR_SHAPES.
 const PRUNE_SEGMENTS = ['a', 'b', 'node_modules', '.git', 'build', 'dist', 'x~', 'a.log', 'gen', 'src']
 const PRUNE_SHAPES = [
-  (s) => s, (s) => s + '/**', (s) => '**/' + s, (s) => '**/' + s + '/**',
-  (s) => '*' + s, (s) => s + '*',
+  (s) => s, (s) => s + '/', (s) => s + '/**', (s) => '**/' + s, (s) => '**/' + s + '/**',
+  (s) => '*' + s, (s) => s + '*', (s) => '/' + s,
 ]
 const PRUNE_PAIR_SHAPES = [
   (a, b) => `${a}/${b}`, (a, b) => `${a}/${b}/**`,
@@ -358,21 +410,25 @@ test('shouldPruneDir: a pruned directory ignores its whole subtree', (t) => {
   t.is(unsound.length, 0, unsound.slice(0, 5).join('; '))
 })
 
-test('shouldPruneDir is a subset of shouldIgnore', (t) => {
+// The prune probe presents a path AS a directory, so it legitimately answers for a shape the
+// per-file probe declines — a directory-only glob. What must never happen is the reverse: a
+// descent continuing into a directory whose own entry is already withheld, which would hand the
+// walk files it then has to discard one at a time.
+test('shouldPruneDir: nothing the per-file probe withholds is descended into', (t) => {
   const { dirs, patterns } = pruneCorpus()
   const leaks = []
   for (const pat of patterns) {
     for (const dir of dirs) {
-      if (shouldPruneDir(dir, [pat]) && !shouldIgnore(dir, [pat])) leaks.push(`${pat} / ${dir}`)
+      if (shouldIgnore(dir, [pat]) && !shouldPruneDir(dir, [pat])) leaks.push(`${pat} / ${dir}`)
     }
   }
   t.is(leaks.length, 0, leaks.slice(0, 5).join('; '))
 })
 
 test('shouldPruneDir: any member of the set may prune', (t) => {
-  t.ok(shouldPruneDir('node_modules', ['dist', 'node_modules/**']))
-  t.ok(shouldPruneDir('node_modules', DEFAULT_IGNORE.concat(['*.tmp'])))
-  t.absent(shouldPruneDir('dist', ['dist', '*~']))
+  t.ok(shouldPruneDir('node_modules', ['dist', 'node_modules/']))
+  t.ok(shouldPruneDir('node_modules', DEFAULT_IGNORE.concat(['node_modules/'])))
+  t.absent(shouldPruneDir('vendor', ['dist', '*~']))
 })
 
 test('shouldIgnore: ordinary files pass; empty/missing patterns ignore nothing', (t) => {
