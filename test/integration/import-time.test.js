@@ -118,13 +118,6 @@ test('no module in the data layer sits in an import cycle', (t) => {
   // ever shrinks, and a cycle that is NOT on it fails here.
   const KNOWN = [
     ['shares/share-catalog.js', 'spaces/space.js'],
-    [
-      'shares/migrate-catalog-encrypt.js',
-      'storage/legacy-peer-cache.js',
-      'storage/metadata-migration.js',
-      'storage/migrations.js',
-      'transfer/backends/overlay/migrate-overlay-index-encrypt.js',
-    ],
   ].map((g) => g.join(' ↔ '))
   t.alike(sccs.map((g) => g.join(' ↔ ')).sort(), [...KNOWN].sort(), 'no import cycle beyond the tracked ones')
 })

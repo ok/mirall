@@ -1,4 +1,4 @@
-import { migrationResult, MIGRATION_STATUS } from './migrations.js'
+import { migrationResult, MIGRATION_STATUS } from './migration-result.js'
 import b4a from 'b4a'
 import { getStore, getStoragePath, createBee, createLocalBee, LOCAL_BEE_NAMES, hasMasterSecret } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
