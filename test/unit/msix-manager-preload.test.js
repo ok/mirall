@@ -18,14 +18,16 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
 
+const protocolSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'app-protocol.js'), 'utf8')
+
 function preloadAsarCacheBody() {
-  const m = mainSrc.match(/function preloadAsarCache\s*\(\)\s*\{([\s\S]*?)\n\}/)
+  const m = protocolSrc.match(/function preloadAsarCache[\s\S]*?\{([\s\S]*?)\n\}/)
   return m ? m[1] : null
 }
 
 test('REGRESSION (FIX-2: Windows OTA "Cannot find module msix-manager"): preloadAsarCache warms msix-manager on win32 before the noAsar window opens', (t) => {
   const body = preloadAsarCacheBody()
-  t.ok(body, 'preloadAsarCache() exists in src/main/main.js')
+  t.ok(body, 'preloadAsarCache() exists in src/main/app-protocol.js')
 
   // Must warm msix-manager from a win32-gated branch so its Module._cache
   // entry is in place before wrapWithNoAsar (see getPear()) flips noAsar=true

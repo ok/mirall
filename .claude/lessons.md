@@ -588,9 +588,7 @@ gate passed: `no-undef` resolved `crypto` to the environment's own global instea
 surfaced in the flow suite, as `Error: crypto is not defined` from the worker subprocess — seven
 tests failing in under a second each.
 
-**The rule:** a module split is only proven by something that RUNS the worker. `no-undef` is blind
-to any identifier that shadows a global (`crypto`, `fetch`, `performance`, `Buffer`, `URL`), which
-is exactly the set a Node-flavoured import list is most likely to contain. After moving handlers
+**The rule:** a module split is only proven by something that RUNS the worker. After moving handlers
 between worker modules, run one flow test that exercises them — the static gates cannot stand in for
 it, and the failure they miss is a runtime crash, not a warning.
 
@@ -629,3 +627,30 @@ carried real coverage, and one decision that contradicted itself (A.4).
 **The rule:** spend the first pass of every box verifying its claims against the tree, and expect the
 box to shrink. Three defects were found this way that a straight read would have missed. The
 verification is not overhead — it is most of the value.
+
+**Fixed since:** `crypto` is now `'off'` in the eslint globals for `src/shared`, `src/worker` and
+`src/main`, so the missing import is a `no-undef` error rather than a silent bind to WebCrypto
+(`test/unit/crypto-global-off.test.js` pins it). The general hazard remains for every *other*
+identifier that shadows a global — `fetch`, `performance`, `URL`, `Response` — so the flow-test rule
+above still stands.
+
+## Nothing in CI runs the Electron main process
+
+Splitting `src/main/main.js` into modules produced two breaks that `typecheck`, `lint:ci` and all
+2,256 unit tests passed:
+
+1. **A TDZ error.** `registerRelaySlot({ … })` was called at line 186 while its `require` sat at
+   line 245 — legal to lint, fatal at load: *"Cannot access 'registerRelaySlot' before
+   initialization"*. In the entry, a `const … = require(…)` placed below its own call site is a
+   crash, not a hoisting nicety.
+2. **`ERR_REQUIRE_ESM_RACE_CONDITION`.** `window.js` did `require('../shared/contract/limits.js')`
+   at module scope. The contract package is ESM; requiring it while the entry's own CJS load is
+   still in flight trips Node's require(esm) race guard. It worked before the split only because
+   the same require sat much later in one file. The fix is a lazy require inside `createWindow`.
+
+**The rule:** the flow suite drives the worker directly (`test/helpers/peer.js` spawns
+`src/worker/main.js`), and no unit or integration test loads `src/main/**`. Only `test:fe` runs the
+real Electron main, and it is a heavy local-only suite. So after ANY change to `src/main`, boot the
+app once and read the log — `npx electron . --storage=<tmpdir>`, wait ~15s, assert the process is
+alive and the log has no `threw`/`Error`. It takes seconds, needs no AX tree, and catches exactly
+the class of failure the static gates cannot see: module-load order.
