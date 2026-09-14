@@ -14,6 +14,12 @@ const { logRing } = require('./log-ring')
 const { sendToAll, loadRedactLine, installMainLogForwarding, MAIN_LOG_PREFIX } = require('./logging.js')
 const { initPrefs, getPrefs, setPrefs } = require('./prefs.js')
 const { isQuitting, markQuitting } = require('./quit-state.js')
+const {
+  initSettings,
+  registerSettingsIpc,
+  readDownloadFolder,
+  readBandwidth,
+} = require('./settings-ipc.js')
 const { createQuitSequence } = require('./lifecycle.js')
 
 // Custom app:// scheme. Registered as standard+secure so the renderer
@@ -165,6 +171,8 @@ function config() {
   }
   return configStore
 }
+
+initSettings({ config })
 
 // === pear-runtime + OTA updater ===
 
@@ -428,47 +436,6 @@ function destroyTray() {
   tray = null
 }
 
-function setOpenAtLogin(enabled) {
-  if (isMac) {
-    app.setLoginItemSettings({ openAtLogin: enabled })
-    return
-  }
-  if (isWindows) {
-    app.setLoginItemSettings({
-      openAtLogin: enabled,
-      args: ['--hidden'],
-      enabled: true,
-      name: pkg.build?.appId || pkg.name,
-    })
-    return
-  }
-  if (isLinux) writeLinuxAutostart(enabled)
-}
-
-function writeLinuxAutostart(enabled) {
-  const dir = path.join(os.homedir(), '.config', 'autostart')
-  const file = path.join(dir, `${appName}.desktop`)
-  if (!enabled) {
-    try { fs.rmSync(file, { force: true }) } catch {}
-    return
-  }
-  const exec = process.env.APPIMAGE || process.execPath
-  const lines = [
-    '[Desktop Entry]',
-    'Type=Application',
-    `Name=${appName}`,
-    `Exec="${exec}" --hidden`,
-    `Icon=${appName}`,
-    'Terminal=false',
-    'X-GNOME-Autostart-enabled=true',
-    'Hidden=false',
-    `X-AppImage-Version=${version}`,
-    '',
-  ]
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(file, lines.join('\n'))
-}
-
 function maybeShowFirstHideNotice() {
   if (firstHideNoticeShown || getPrefs().firstHideNoticeShown) return
   firstHideNoticeShown = true
@@ -519,52 +486,6 @@ const mainRequests = createMainRequestRouter({
 })
 
 // === Download folder + bandwidth settings ===
-
-function getDefaultDownloadFolder() {
-  return app.getPath('downloads')
-}
-
-function readDownloadFolder() {
-  if (process.env.MIRALL_DOWNLOAD_FOLDER) return process.env.MIRALL_DOWNLOAD_FOLDER
-  const folder = config().get('downloads.folder')
-  if (typeof folder === 'string' && folder.length > 0) return folder
-  return getDefaultDownloadFolder()
-}
-
-function readBandwidth() {
-  const network = config().get('network')
-  return {
-    downloadKBps: network?.downloadKBps ?? 0,
-    uploadKBps: network?.uploadKBps ?? 0,
-  }
-}
-
-function writeDownloadFolder(folder) {
-  config().set('downloads.folder', folder)
-}
-
-function validateDownloadFolder(folder) {
-  if (typeof folder !== 'string' || folder.length === 0) {
-    throw new Error('Path is empty')
-  }
-  if (!path.isAbsolute(folder)) {
-    throw new Error('Path must be absolute')
-  }
-  let stat
-  try { stat = fs.statSync(folder) } catch {
-    throw new Error('Folder does not exist')
-  }
-  if (!stat.isDirectory()) throw new Error('Path is not a directory')
-  const probe = path.join(folder, '.mirall-write-test')
-  try {
-    fs.writeFileSync(probe, '')
-    fs.unlinkSync(probe)
-  } catch {
-    throw new Error('Folder is not writable')
-  }
-}
-
-// === Worker spawn + renderer⇄worker IPC relay ===
 
 // Asks every live worker to exit. Called once, from the quit sequence.
 //
@@ -881,38 +802,7 @@ ipcMain.handle('window:setBounds', (evt, bounds) => {
   win.setBounds(bounds)
 })
 
-ipcMain.handle('downloads:get', () => readDownloadFolder())
-
-ipcMain.handle('downloads:set', (_evt, folder) => {
-  validateDownloadFolder(folder)
-  writeDownloadFolder(folder)
-  return folder
-})
-
-ipcMain.handle('bandwidth:get', () => readBandwidth())
-
-ipcMain.handle('bandwidth:set', (_evt, patch) => config().setBandwidth(patch))
-
-ipcMain.handle('prefs:get', () => getPrefs())
-
-ipcMain.handle('prefs:set', (_evt, partial) => {
-  const prefs = getPrefs()
-  if (!partial || typeof partial !== 'object') return prefs
-  const next = { ...prefs, ...partial }
-  if (typeof partial.openAtLogin === 'boolean' && partial.openAtLogin !== prefs.openAtLogin) {
-    setOpenAtLogin(partial.openAtLogin)
-  }
-  if (typeof partial.minimizeToTray === 'boolean' && partial.minimizeToTray !== prefs.minimizeToTray) {
-    if (partial.minimizeToTray) createTray()
-    else destroyTray()
-  }
-  const menuChanged = typeof partial.appMenuAutoHide === 'boolean' && partial.appMenuAutoHide !== prefs.appMenuAutoHide
-  setPrefs(next)
-  if (menuChanged) {
-    for (const w of BrowserWindow.getAllWindows()) applyAppMenuVisibility(w)
-  }
-  return getPrefs()
-})
+registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, targetWindow })
 
 ipcMain.handle('tray:setLabels', (_evt, labels) => {
   if (!labels || typeof labels !== 'object') return
@@ -922,21 +812,6 @@ ipcMain.handle('tray:setLabels', (_evt, labels) => {
   if (typeof labels.tooltip === 'string' && labels.tooltip.length > 0) trayLabels.tooltip = labels.tooltip
   refreshTrayMenu()
 })
-
-async function pickDirectory(evt, defaultPath) {
-  const options = { properties: ['openDirectory', 'createDirectory'] }
-  if (typeof defaultPath === 'string' && defaultPath.length > 0) options.defaultPath = defaultPath
-  const result = await dialog.showOpenDialog(targetWindow(evt), options)
-  if (result.canceled || result.filePaths.length === 0) return null
-  return result.filePaths[0]
-}
-
-ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(
-  evt,
-  typeof defaultPath === 'string' && defaultPath.length > 0 ? defaultPath : readDownloadFolder(),
-))
-
-ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 
 // The one quit teardown. Electron re-emits before-quit to every listener on every
 // app.quit(), so the update-apply step's deferral (preventDefault → apply → quit

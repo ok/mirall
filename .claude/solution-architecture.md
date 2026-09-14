@@ -1120,6 +1120,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/relay-keys.js` | Relay-slot validation for `config-store` — decode, mode, sanitize (§4.8) |
 | `src/main/relay-slot.js` | `registerRelaySlot(deps)` — the one relay this node offers: `relay:parse` classifies a pasted key or ticket with no side effects and no secret in the reply; `relay:set` stores the seed and re-applies the slot (§5) |
 | `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
+| `src/main/settings-ipc.js` | `registerSettingsIpc(deps)` — the download folder (validated against the same rules a per-space folder gets), the bandwidth caps, the general preferences and the two directory pickers, plus the login-item/XDG autostart writer. `prefs:set` takes its tray and app-menu actions as injected deps rather than re-implementing them (§5) |
 | `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
 | `src/main/window-shortcuts.js` | Classifies a `before-input-event` into DevTools toggle / zoom command / nothing, pure (§2 step 6) |
