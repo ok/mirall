@@ -167,11 +167,11 @@ export default function FolderView({ spaceId, share, onBack, onMirror, onUnmount
     revealedForRef.current = term
     expandAll([...new Set([...preFilterRef.current, ...revealPaths])])
   }, [deferredFilter, revealPaths, expandAll])
-  // Seed the default (top-level folders open) once, only if nothing was set this session.
-  const seededRef = useRef(false)
+  // Seed the default (top-level folders open) unless this share already has an expansion stored
+  // this session. The store is the only gate: the screen is keyed per share, so a mount is a share,
+  // and expandAll writes through to the store before this can run twice.
   useEffect(() => {
-    if (seededRef.current || hasStored() || tree.length === 0) return
-    seededRef.current = true
+    if (hasStored() || tree.length === 0) return
     const top = topLevelFolderPaths(tree)
     if (top.length) expandAll(top)
   }, [tree, hasStored, expandAll])
