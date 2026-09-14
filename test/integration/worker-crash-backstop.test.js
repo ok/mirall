@@ -5,7 +5,7 @@ import { installCrashBackstop } from '../../src/shared/core/crash-backstop.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 const workerMainSrc = fs.readFileSync(path.join(srcRoot, 'worker', 'main.js'), 'utf8')
-const swarmSrc = fs.readFileSync(path.join(srcRoot, 'shared', 'transfer', 'swarm.js'), 'utf8')
+const intakeSrc = fs.readFileSync(path.join(srcRoot, 'shared', 'transfer', 'frame-intake.js'), 'utf8')
 
 // REGRESSION (FIX: worker survives an unhandled rejection from a fire-and-forget task).
 // A STORAGE_EMPTY thrown by corestore's replication machinery when it serves a half-written
@@ -89,7 +89,7 @@ test('REGRESSION (FIX: crash backstop is installed before the core-opening boot 
 
 test('REGRESSION (FIX-1 wiring): the fire-and-forget handshake dispatch is .catch-guarded', (t) => {
   t.ok(
-    /handleHandshake\([^)]*\)\s*\.catch\s*\(/.test(swarmSrc),
+    /handleHandshake\([^)]*\)\s*\.catch\s*\(/.test(intakeSrc),
     'dispatchFrame guards the async handleHandshake call with .catch — an un-awaited rejection would otherwise escape the synchronous try/catch around dispatchFrame'
   )
 })

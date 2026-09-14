@@ -1235,6 +1235,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/shared/spaces/space.js` | Spaces-meta CRUD; serialized roster mutation (`mutateSpace` / `mutateMembers`, + the arrival audit row); durable leave state (the `leaving` marker, `left/` tombstones, `pendingleave/`, `resumeInterruptedLeave`, §6); drive naming / open / load / purge; the RocksDB core-purge primitives (`purgeCoreDk`, `clearAndPurgeCore`, `purgeAlias`); the join-request caches; creator-root pin / divergence / backfill; `SpacesBee` + `SpaceDrives` |
+| `src/shared/spaces/peer-profile-watch.js` | `fetchPeerAvatar` and the ONE held profile-bee session per peer — a live Hyperbee with an append listener, which is what turns a co-member's later profile edit into a local update with no poll. The session is why this is a module: it has to be closed, and closed once (§6) |
 | `src/shared/spaces/profile.js` | The user's replicated profile bee: identity + `ProfileBee`, the signer, `openProfileBee`; the membership-manifest writers and their bounded peer readers (`member/`, `approved/`, `invite/`, `request/`, `denied/`, §3.1); `withPeerBee` — the one bounded peer read (§3.1); peer-bee capture; the per-space key announcements (`drive/`, `loosecat/`, `loosecatEnc/`) |
 | `src/shared/spaces/member-registry.js` | One live member view per space: fold → `space.members` reconcile, the local leave tombstones (`lefts`) and observed-leave revoke, pending-request reconcile, capture refcounts; `MemberViews` (§6) |
 | `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
@@ -1296,7 +1297,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection frame intake and budget, the identity-frame gate (§4.2), the frame dispatch ladder, handshake apply + peer registry, the peer profile-bee watch + avatar fetch, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, RocksDB compaction, the blind-relay install + probe (§4.8), `Swarm` |
+| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection wiring, handshake apply + peer registry, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, `Swarm` |
 | `src/shared/transfer/connectivity.js` | "Are we reachable": DHT / NAT verdict watchers, the two-stage canary probe, the liveness ping loop, the interface poll, `getSwarmStatus` assembly, the debounced `event:network-status` + audit hook, `reconnectAll` |
 | `src/shared/transfer/loose-overlay.js` | In-place loose files, both sides: admission (name + cap under the space lock), the `loose` publish channel (source-link resolve, `publishing` decoration, watch arming, direct unshare), boot rehydrate and the presence sweep as producers; peer-catalog listing / watch / reconcile, the `looseChannel` and the engine forwarders as the consumer |
 | `src/shared/transfer/files.js` | The `downloads-meta` bee (claims, `verified:`, `src:` — §3.3), the claim verdict I/O, `addFile` / `removeFile`, the aggregated loose listing with status derivation (§3.5), reveal-in-file-manager, per-space cleanup, `DownloadsBee` |
@@ -1305,7 +1306,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/bandwidth-limiter.js` | The byte token bucket pacing content-plane transfers — deficit round-robin over stream handles, anti-barge, oversized-chunk release. Pure (§7.7) |
 | `src/shared/transfer/convergence-tick.js` | The slow level-triggered re-drive: announce-ledger drain, roster-deficit escalation, listing re-poke, capture retry, stalled-transfer discovery refresh; supervised pass liveness |
 | `src/shared/transfer/content-swarm.js` | The bulk-content transport plane: a second Hyperswarm on the shared DHT node carrying only the overlay channel, the `mirall/content-hello` identity channel, its own banned-key firewall and topic maps; `ContentSwarm` (§7.7) |
+| `src/shared/transfer/membership-frames.js` | `sendMembershipGrant` / `sendMembershipDeny` / `broadcastMembershipCancel` — the three addressed outbound membership frames. The cancel goes to every open socket rather than one peer's channel, because a pending joiner is in nobody's `connectedPeers` and there is no membership to address it by (§4.2) |
 | `src/shared/transfer/presence-broadcast.js` | Presence heartbeat / departure frames and their inbound apply, plus the share-prepare and index-progress frames (owner → member) and their handlers; `resolveSpaceIdForTopic` (§4.7) |
+| `src/shared/transfer/frame-intake.js` | `receiveFrame(conn, str)` — everything an inbound peer frame passes before a handler sees it: the size cap and the per-socket budget charged BEFORE the decode (the budget exists to bound the work an unauthenticated peer can make us do, and `JSON.parse` is that work), the shape guard, the identity gate, and the routing table. Only a frame whose topic we joined pays for signature verification (§4.2) |
 | `src/shared/transfer/handshake-guard.js` | Pure frame-shape checks, the Noise-key identity binding sign / verify (§16), the leave / grant assertion checks, the dual-lane event rate limiter (§4.2) |
 | `src/shared/transfer/swarm-diagnostics.js` | The swarm's read-only reporting surface: address, routing-table size, peer reach / samples, DHT health, connect / relay stats, the offline status shape. Imports no `bare-*` |
 | `src/shared/transfer/diagnostics.js` | The support-bundle builder over `getSwarmStatus()` and the audit verdict history, redacted (`diagnostics:export`) |
@@ -1333,6 +1336,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
 | `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
 | `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
+| `src/shared/transfer/relay-install.js` | `setRelayThrough` / `testRelayReachable` — installs the relay function on BOTH swarms (configuring only the control plane yields a build whose handshakes connect and whose transfers stall) and probes one. The impure third of the relay trio: `relay.js` holds the pure rules, `relay-ticket.js` the codec (§4.8) |
 | `src/shared/transfer/relay-ticket.js` | The frozen 69-byte z-base-32 ticket codec shared with `mirall-relay`, `parseRelayInput`, `decodeRelayKey` (§4.8) |
 | `src/shared/transfer/deferred-admission.js` | Replays a parked joiner's handshake once an approval replicates in or a space is re-entered; `emitPeerSharesUpdated` (§4.2) |
 | `src/shared/transfer/admission-gates.js` | `createAdmissionGates` — the approval read gate, invite resolve, the creator-root cross-check the handshake asks before registering anyone (§4.2 step 2) |
@@ -1366,6 +1370,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
+| `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/storage/sweep-decision.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |

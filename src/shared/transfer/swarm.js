@@ -16,49 +16,39 @@ import c from 'compact-encoding'
 import fs from 'bare-fs'
 import b4a from 'b4a'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
-import {
-  getProfileKey, getProfile, openProfileBee, getIdentitySigner, } from '../spaces/profile.js'
-import {
-  getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
-} from '../spaces/space.js'
-import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
-import { enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair, decodeRelayKey } from './relay.js'
-import BlindRelay from 'blind-relay'
+import { getProfileKey, getProfile, getIdentitySigner } from '../spaces/profile.js'
+import { getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish } from '../spaces/space.js'
+import { getRuntimeConfig, getResourceCaps, getConvergenceConfig, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
+import { relayIdentityKeyPair } from './relay.js'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../contract/invite-envelope.js'
-import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
-import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, getContentSwarm } from './content-swarm.js'
+import { clampDisplayName, signNoiseBinding } from './handshake-guard.js'
+import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { clearListDeficits } from './list-deficits.js'
-import { observePeerProfile } from '../audit/peer-watch.js'
 import { peerLost, peerLostMeta, peerSeen, resetNetworkWatch } from '../audit/network-watch.js'
-import { sealSck } from './sck-seal.js'
+
 import { sanitizeAvatar } from '../identity-limits.js'
 import { createPresence } from './presence.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
+import { initRelayInstall, pinRelayIdentity, relaySelectionCount, resetRelayInstall } from './relay-install.js'
+import { initPeerProfileWatch, fetchPeerAvatar, resetPeerProfileWatch } from '../spaces/peer-profile-watch.js'
+import { initMembershipFrames } from './membership-frames.js'
+import { initFrameIntake, createFrameLimiters, receiveFrame, isBannedNoiseKey, forgetPeerLimits, getDroppedFrameCounters, resetFrameIntake } from './frame-intake.js'
+import { compactStore, settleCompaction } from '../storage/compaction.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
-import { PEER_FRAME, IDENTITY_ASSERTING } from '../contract/peer-frames.js'
+import { PEER_FRAME } from '../contract/peer-frames.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries, authorizedOn, detachPeerFromSpace } from './swarm-registries.js'
-import {
-  initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic,
-  handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame,
-} from './presence-broadcast.js'
+import { initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic } from './presence-broadcast.js'
 // Re-exported so swarm.js stays the public address for these: worker/main.js and the overlay
 // backend import them from here.
 export { broadcastDeparture, broadcastSharePrepareProgress, broadcastShareIndexProgress } from './presence-broadcast.js'
-import {
-  initDeferredAdmission, resetDeferredAdmission,
-  reconcilePendingRequestersForApprover, emitPeerSharesUpdated,
-} from './deferred-admission.js'
+import { initDeferredAdmission, resetDeferredAdmission } from './deferred-admission.js'
 export { readmitConnectedMembers } from './deferred-admission.js'
-import {
-  initLeaveProtocol, resetLeaveProtocol,
-  handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck,
-  sendPendingLeaveFrames, sendPendingCancelFrames,
-} from './leave-protocol.js'
+import { initLeaveProtocol, resetLeaveProtocol, sendPendingLeaveFrames, sendPendingCancelFrames } from './leave-protocol.js'
 // Every one of these has callers in worker/main.js or worker/ipc/space-leave.js, so swarm.js stays
 // their public address.
 export {
@@ -69,15 +59,9 @@ export {
   configurePendingCancels, registerPendingCancel, hasPendingCancel,
   joinPendingCancelTopic, leavePendingCancelTopic, sendPendingCancelToConnected,
 } from './leave-protocol.js'
-import {
-  initConvergenceTick, resetConvergenceTick, startConvergenceTick, forgetSpaceConvergence,
-  convergenceHealth, restartConvergenceTick,
-} from './convergence-tick.js'
+import { initConvergenceTick, resetConvergenceTick, startConvergenceTick, forgetSpaceConvergence, convergenceHealth, restartConvergenceTick } from './convergence-tick.js'
 export { rescueStalledTransfers } from './convergence-tick.js'
-import {
-  initConnectivity, resetConnectivity, attachSwarmWatchers,
-  noteBooted, noteConnection, noteAnnounced, scheduleStatusEmit,
-} from './connectivity.js'
+import { initConnectivity, resetConnectivity, attachSwarmWatchers, noteBooted, noteConnection, noteAnnounced, scheduleStatusEmit } from './connectivity.js'
 // The renderer's whole network picture comes through these; worker/main.js and the diagnostics
 // bundle import them from swarm.js.
 export {
@@ -140,15 +124,7 @@ let membershipControlHandler = null     // membership:* frames (join request / g
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
 let stalledOwnersHook = null            // worker-supplied probe: which owners are we waiting on?
 let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
-const profileBeeAppendListeners = new Map()  // profileKey hex → { bee, listener } — the ONE held bee per peer
-const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
-let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
-let frameLimiter = null                 // general per-socket budget charged for EVERY frame type
 // Why a frame was dropped, for diagnostics — hardening nobody can see is hardening nobody can tune.
-const droppedFrames = { oversize: 0, rate: 0, parse: 0, shape: 0, unknown: 0 }
-function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
-function getDroppedFrameCounters() { return { ...droppedFrames } }
-let testDrop = null                     // test-only inbound identity-frame drop window
 
 const DHT_VERSION = (() => {
   try {
@@ -167,7 +143,7 @@ const DHT_VERSION = (() => {
 // reassign `swarm`, and relaySelections is a counter this module keeps.
 const diag = createSwarmDiagnostics({
   getSwarm: () => swarm,
-  getRelaySelections: () => relaySelections,
+  getRelaySelections: relaySelectionCount,
   getDhtVersion: () => DHT_VERSION,
 })
 // The join gates. Deferred admission reads the registries itself (swarm-registries.js) and takes
@@ -227,6 +203,10 @@ let corruptionDiagnosed = false
 // === Connection intake & frame dispatch ===
 
 function initSwarm(_ipc, relaySeedHex = null) {
+  initRelayInstall({ getSwarm: () => swarm })
+  initPeerProfileWatch({ getIpc: () => ipcRef, connectedPeers })
+  initFrameIntake({ handleHandshake, getMembershipControlHandler: () => membershipControlHandler })
+  initMembershipFrames({ handlerForPeer, sendFrame, getLocalBinding })
   if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
@@ -245,20 +225,17 @@ function initSwarm(_ipc, relaySeedHex = null) {
     ...(dhtBootstrap ? { bootstrap: dhtBootstrap } : {}),
     keyPair: relayIdentityKeyPair(relaySeedHex),
   })
-  relayIdentityPinned = typeof relaySeedHex === 'string' && relaySeedHex.length > 0
+  pinRelayIdentity(relaySeedHex)
   swarm = new Hyperswarm({
     dht,
     maxServerConnections: caps.serverConnections || Infinity,
     maxClientConnections: caps.clientConnections || Infinity,
     // firewall returns true to REJECT — drop reconnects from a Noise key we evicted for flooding.
-    firewall: (remoteKey) => bannedNoiseKeys.has(b4a.toString(remoteKey, 'hex')),
+    firewall: (remoteKey) => isBannedNoiseKey(b4a.toString(remoteKey, 'hex')),
   })
   // The matched lane's cap follows the topics we joined (read per take, so joins and leaves
   // need no re-plumbing) — see createDualRateLimiter.
-  rateLimiter = createDualRateLimiter({ ...getHandshakeRateLimit(), topics: () => spaceTopics.size })
-  frameLimiter = createRateLimiter(getPeerFrameLimits())
-  const dropWindow = getIdentityFrameDropWindow()
-  testDrop = dropWindow.count > 0 ? { ...dropWindow, seen: 0 } : null
+  createFrameLimiters()
   noteBooted()
   log.info('initialized')
 
@@ -299,64 +276,14 @@ function initSwarm(_ipc, relaySeedHex = null) {
     const noiseHex = peerInfo?.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : null
     const msgHandler = channel.addMessage({
       encoding: c.string,
-      onmessage(str) {
-        // Charged BEFORE the decode: the point of a frame budget is to bound the work an
-        // unauthenticated peer can make us do, and JSON.parse is that work. Every type is metered
-        // here — the identity lanes below cover only handshake and membership:request, so without
-        // this a peer could flood presence or share-prepare-progress (one renderer decoration
-        // event per frame) at line rate.
-        // str.length is a cheap lower bound on the UTF-8 size (every UTF-16 unit costs at least one
-        // byte), so it rejects the clearly-oversized without a scan; byteLength settles the rest,
-        // because a cap named in bytes that counted UTF-16 units would admit ~3x what it claims.
-        const maxBytes = getPeerFrameMaxBytes()
-        if (maxBytes > 0 && (str.length > maxBytes || b4a.byteLength(str) > maxBytes)) {
-          countDroppedFrame('oversize')
-          log.warn('dropping oversize peer frame:', str.length, 'bytes from', remoteKey + '...')
-          return
-        }
-        if (noiseHex && frameLimiter) {
-          const r = frameLimiter.take(noiseHex)
-          if (!r.ok) {
-            countDroppedFrame('rate')
-            if (r.ban) {
-              log.warn('evicting peer flooding the frame channel', remoteKey + '...')
-              bannedNoiseKeys.add(noiseHex)
-              try { peerInfo.ban(true) } catch {}
-              socket.destroy()
-            }
-            return
-          }
-        }
-
-        let msg
-        // debug, not error: a malformed frame is metered and counted, and error-level would hand
-        // any peer on the topic a log-spam primitive.
-        try { msg = JSON.parse(str) } catch (err) { countDroppedFrame('parse'); log.debug('handshake parse error:', err.message); return }
-        if (!validFrameShape(msg)) {
-          countDroppedFrame('shape')
-          log.debug('dropping malformed peer frame from', remoteKey + '...')
-          return
-        }
-
-        // A frame asserting the SENDER's profileKey (handshake, membership:request) must be
-        // well-formed and — when enforced — carry a signature binding the claimed profileKey to this
-        // connection's Noise key. Gated before pendingRequesters.set so a spoofed request can't
-        // capture a grant.
-        if (IDENTITY_ASSERTING.includes(msg.type) && !admitIdentityFrame(conn, msg)) return
-
-        try {
-          dispatchFrame(conn, msg)
-        } catch (err) {
-          log.error('handshake dispatch error:', err)
-        }
-      },
+      onmessage(str) { receiveFrame(conn, str) },
     })
 
     // One live control connection: the socket, who is on the other end, the Noise key they are
     // reached by, and the channel frames go out on. The frame path takes this whole rather than its
     // fields. Declared after the channel because it carries the channel's handler; onmessage above
     // closes over it and cannot run before channel.open() below.
-    const conn = { socket, peerInfo, remoteKey, msgHandler }
+    const conn = { socket, peerInfo, remoteKey, msgHandler, noiseHex }
 
     // Let content backends bind extra protocol channels on THIS mux (overlay's
     // hyper-overlay/v2). Synchronous + before channel.open() — protomux won't pair
@@ -390,105 +317,6 @@ function initSwarm(_ipc, relaySeedHex = null) {
       handleDisconnect(socket)
     })
   })
-}
-
-// Gate for frames that assert the sender's profileKey (handshake, membership:request).
-// Order matters: resolve the topic FIRST (a Map scan, no crypto) and charge the lane it
-// picks — frames for topics we didn't join are dropped cheaply on a generous lane and can
-// never starve the shared-space frame. Only matched frames pay for signature verification and
-// reach dispatch. Both lanes ban on a sustained flood. Returns false if the frame was
-// dropped/rejected.
-function admitIdentityFrame(conn, msg) {
-  const { socket, peerInfo, remoteKey } = conn
-  if (testDrop) {
-    const i = testDrop.seen++
-    if (i >= testDrop.after && i < testDrop.after + testDrop.count) {
-      log.debug('TEST drop identity frame', msg.type, 'from', remoteKey + '...')
-      return false
-    }
-  }
-  const matched = typeof msg.spaceTopic === 'string' &&
-    HEX64.test(msg.spaceTopic) && !!resolveSpaceIdForTopic(msg.spaceTopic)
-  const noiseHex = peerInfo?.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : null
-  if (noiseHex && rateLimiter) {
-    // The topic is charged only when it matched one of ours, so the lane's cap grows with the
-    // spaces this peer has actually proven it shares — not with our own space count.
-    const r = rateLimiter.take(noiseHex, matched, matched ? msg.spaceTopic : null)
-    if (!r.ok) {
-      log.debug('rate-limited', msg.type, 'from', remoteKey + '...')
-      if (r.ban) {
-        log.warn('evicting flooding peer', remoteKey + '...')
-        bannedNoiseKeys.add(noiseHex)
-        try { peerInfo.ban(true) } catch {}
-        socket.destroy()
-      }
-      return false
-    }
-  }
-  if (!matched) {
-    // Nothing to do with it (handleHandshake would return on the topic miss anyway) —
-    // drop before paying for the signature verify.
-    log.debug(msg.type, 'topic not matched locally:', String(msg.spaceTopic).slice(0, 16) + '...')
-    return false
-  }
-  const verdict = checkInboundSender(peerInfo, msg, { enforceBinding: isHandshakeIdentityBindingEnabled() })
-  if (!verdict.ok) {
-    log.warn('rejected', msg.type, 'from', remoteKey + '... -', verdict.reason)
-    return false
-  }
-  if (typeof msg.signerKey === 'string' && HEX64.test(msg.signerKey)) boundSignerKeys.set(msg.profileKey, msg.signerKey)
-  return true
-}
-
-// A pending joiner has no drive/handshake yet, so remember its socket to deliver a grant later.
-// Bounded by the pendingRequesters cap; an already-tracked requester re-registering is allowed.
-function registerPendingRequester(conn, msg) {
-  const { socket, remoteKey } = conn
-  const cap = getResourceCaps().pendingRequesters
-  if (!cap || pendingRequesters.size < cap || pendingRequesters.has(msg.profileKey)) {
-    pendingRequesters.set(msg.profileKey, socket)
-  } else {
-    log.debug('pendingRequesters cap reached, dropping request from', remoteKey + '...')
-  }
-}
-
-// The frame vocabulary and what each frame means live in contract/peer-frames.js; this is only the
-// routing. A frame with no entry in the table is counted and dropped.
-const PEER_FRAME_HANDLERS = Object.freeze({
-  // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around the dispatch
-  // cannot catch its rejection. A failure handling one peer's handshake (e.g. a transiently
-  // unopenable peer drive) must degrade that peer, not crash the worker.
-  [PEER_FRAME.HANDSHAKE]: ({ socket, peerInfo }, msg) =>
-    handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
-  [PEER_FRAME.PRESENCE]: ({ socket }, msg) => handlePresenceFrame(socket, msg),
-  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) => handleLeaveFrame(socket, peerInfo, msg),
-  [PEER_FRAME.LEAVE_ACK]: ({ socket }, msg) => handleLeaveAckFrame(socket, msg),
-  [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
-  [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
-  [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
-  [PEER_FRAME.MEMBERSHIP_REQUEST]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_GRANT]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_DENY]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_CANCEL]: toMembershipControl,
-})
-
-// The handler verifies a grant's identity binding and asserted root itself, which is why these
-// four leave the swarm rather than being answered here.
-function toMembershipControl(conn, msg) {
-  const { socket, peerInfo, msgHandler } = conn
-  if (msg.type === PEER_FRAME.MEMBERSHIP_REQUEST && msg.profileKey) registerPendingRequester(conn, msg)
-  const reply = (payload) => { try { msgHandler.send(JSON.stringify(payload)) } catch {} }
-  membershipControlHandler?.(msg, { socket, peerInfo, reply })
-}
-
-function dispatchFrame(conn, msg) {
-  const handle = PEER_FRAME_HANDLERS[msg.type]
-  if (!handle) {
-    countDroppedFrame('unknown')
-    log.debug('ignoring unknown peer frame type:', msg.type)
-    return
-  }
-  handle(conn, msg)
 }
 
 async function sendHandshakeMessages(socket, msgHandler) {
@@ -661,101 +489,8 @@ async function handleHandshake(socket, peerInfo, msg) {
   })
 }
 
-// The avatar value lives in the peer's profile bee. At handshake time that block may
-// not have replicated yet, and a churning ("space-jump") connection can drop before it
-// arrives — the pending block read then rejects with BLOCK_NOT_AVAILABLE instead of
-// completing. It is transient: the block lands once the connection stabilizes (or on a
-// reconnect), so retry a few times before giving up rather than leaving the member as
-// initials. A genuinely unset avatar (null) is not retried.
-const AVATAR_FETCH_ATTEMPTS = 4
-const AVATAR_RETRY_BASE_MS = 1500
-
-function isBlockUnavailable(err) {
-  return err?.code === 'BLOCK_NOT_AVAILABLE' || /not available|avatar sync timeout/i.test(err?.message || '')
-}
-
-// The long-lived holder: ONE bee per peer for the process lifetime, carrying the append listener
-// that drives admission re-evaluation, the share-list refresh and the audit observer. Every other
-// touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee).
-function ensurePeerProfileWatch(peerKey, profileKeyHex) {
-  const held = profileBeeAppendListeners.get(peerKey)
-  if (held) return held
-  const peerProfileBee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  {
-    const listener = () => {
-      // The append may be a new approved/<space>/<joiner> record — re-evaluate any
-      // join request we hold for a peer this member may have just approved. (The fold's
-      // own watchers handle member-set re-derivation; this only drives admission.)
-      reconcilePendingRequestersForApprover(peerKey).catch(err => {
-        log.warn('approval-driven admit failed:', err.message)
-      })
-      // …or a new/removed `share/<space>/*` record (shares live in the peer's profile bee).
-      // This is the only peer-side trigger that refreshes the share LIST — the drive-append
-      // listener only covers files.
-      emitPeerSharesUpdated(peerKey).catch(err => {
-        log.warn('peer shares-updated emit failed:', err.message)
-      })
-      // The same append is the only signal that a peer created/deleted a folder share or started
-      // mirroring one of ours. This hook is coarse — it fires for ANY bee change — so the
-      // observer diffs the bee's own history rather than trusting the poke.
-      observePeerProfile(peerKey, peerProfileBee)
-    }
-    peerProfileBee.core.on('append', listener)
-    profileBeeAppendListeners.set(peerKey, { bee: peerProfileBee, listener })
-    // Baseline now, not on the first append — otherwise the first share a peer creates after we
-    // meet them is swallowed as "history".
-    // Drop the entry if the bee never opens: a cached broken holder would make every later avatar
-    // fetch for this peer fail for the process lifetime.
-    peerProfileBee.ready().then(
-      () => observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true }),
-      (err) => {
-        log.warn('peer profile bee failed to open — dropping the watch so the next handshake retries:', err.message)
-        if (profileBeeAppendListeners.get(peerKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(peerKey)
-        try { peerProfileBee.core.off('append', listener) } catch {}
-        peerProfileBee.close().catch(() => {})
-      },
-    )
-  }
-  return profileBeeAppendListeners.get(peerKey)
-}
-
-async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
-  const { bee: peerProfileBee } = ensurePeerProfileWatch(peerKey, msg.profileKey)
-  await peerProfileBee.ready()
-
-  for (let attempt = 0; attempt < AVATAR_FETCH_ATTEMPTS; attempt++) {
-    try {
-      await Promise.race([
-        peerProfileBee.core.update({ wait: true }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('avatar sync timeout')), 10000)),
-      ])
-      const avatarEntry = await peerProfileBee.get('avatar')
-      const peerAvatar = sanitizeAvatar(avatarEntry?.value || null, getResourceCaps().avatarMaxBytes)
-      if (!peerAvatar) return
-
-      const peerEntry = connectedPeers.get(peerKey)
-      if (peerEntry) peerEntry.avatar = peerAvatar
-
-      // Persist avatar to space members (atomic merge — won't clobber a concurrent
-      // membership write, and no-ops if the avatar is unchanged or the member is gone).
-      if (space) {
-        await upsertMember(spaceId, { publicKey: peerKey, avatar: peerAvatar }, { create: false })
-      }
-
-      ipcRef.emit('event:member-avatar-updated', { spaceId, publicKey: peerKey, avatar: peerAvatar })
-      return
-    } catch (err) {
-      if (!isBlockUnavailable(err) || attempt === AVATAR_FETCH_ATTEMPTS - 1) {
-        log.debug('avatar not available yet for', msg.displayName, '-', err.message)
-        return
-      }
-      await new Promise((r) => setTimeout(r, AVATAR_RETRY_BASE_MS * (attempt + 1)))
-    }
-  }
-}
-
 function handleDisconnect(socket) {
-  if (rateLimiter && socket.remotePublicKey) rateLimiter.forget(b4a.toString(socket.remotePublicKey, 'hex'))
+  if (socket.remotePublicKey) forgetPeerLimits(b4a.toString(socket.remotePublicKey, 'hex'))
   announceLedger.forgetSocket(socket)
   for (const [profileKey, sock] of pendingRequesters) {
     if (sock === socket) {
@@ -964,50 +699,6 @@ export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact
   }
 }
 
-// Returns tombstoned blocks to the OS. core.clear() / drive.clearAll() only mark
-// blocks deleted in the shared RocksDB store; the bytes are not reclaimed from
-// disk until a compaction with blob GC runs. Both leave-space and
-// clear-peer-cache rely on this to actually shrink on-disk usage.
-const COMPACTION_SETTLE_MS = 250
-
-// Lets a test park the compaction tail so the bounded wait in destroySwarm is observable.
-export function _compactStoreForTests(makeTail) {
-  compactionTail = makeTail()
-}
-let compactionTail = Promise.resolve()
-
-function chainCompaction(opts, label) {
-  const run = compactionTail.catch(() => {}).then(async () => {
-    const db = getStore()?.storage?.db
-    if (!db) return
-    const t0 = Date.now()
-    log.info('PROBE compaction start:', label)
-    try {
-      await db.flush()
-      await db.compactRange(null, null, opts)
-    } finally {
-      log.info('PROBE compaction done:', label, 'in', Date.now() - t0, 'ms')
-    }
-  })
-  compactionTail = run
-  return run
-}
-
-// Forced full-range blob-GC compaction — used only by the rare user-initiated reclaim
-// paths (leave-space, clear-cache, reclaim sweep). Always runs; chained so it never
-// overlaps another compaction. `exclusive` blocks background compactions for the
-// duration so they can't drop a swept block's delete tombstone before this blob-GC
-// pass accounts its garbage — that race strands the blob value on disk permanently
-// (orphaned blob files no later compaction can reclaim).
-export function compactStore() {
-  return chainCompaction({
-    exclusive: true,
-    blobGarbageCollectionPolicy: 1,
-    blobGarbageCollectionAgeCutoff: 1.0,
-    bottommostLevelCompaction: 2,
-  }, 'forced full-range')
-}
-
 // === Liveness queries, membership frames & network status ===
 
 // Online peers in a space (presence lease, not socket liveness) — the display liveness that
@@ -1079,53 +770,6 @@ function handlerForPeer(profileKeyHex) {
   return sock ? socketMsgHandlers.get(sock) || null : null
 }
 
-// Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
-// joiner pins creatorKey only from this authenticated assertion — never from the bearer
-// invite. creatorKeyHex is our own pinned/derived root; granterKey + binding let the joiner
-// verify WE are an authorized member making the claim.
-export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyHex, recipientSignerPkEd) {
-  const handler = handlerForPeer(profileKeyHex)
-  // Sealed-only: without the recipient's bound signer key we cannot seal, so we refuse to
-  // grant rather than fall back to a plaintext SCK a transport observer could capture.
-  if (!handler || !recipientSignerPkEd) return false
-  try {
-    const sckSealed = b4a.toString(sealSck(b4a.from(sckHex, 'hex'), recipientSignerPkEd), 'hex')
-    sendFrame(handler, {
-      type: PEER_FRAME.MEMBERSHIP_GRANT,
-      spaceTopic: topicHex,
-      sckSealed,
-      creator: creatorKeyHex || null,
-      granterKey: b4a.toString(getProfileKey(), 'hex'),
-      ...(getLocalBinding() || {}),
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Withdraw our own pending join request (an ephemeral request-lifecycle signal, not
-// convergence gossip): tell connected members so their "wants to join" banner clears. A
-// pending joiner isn't admitted anywhere, so it isn't in any peer's connectedPeers — and
-// cancelling doesn't promptly close the shared socket — so send over every socket;
-// recipients no-op if they hold no matching request.
-export function broadcastMembershipCancel(spaceId, topicHex, joinerKey) {
-  for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: topicHex, joinerKey })) } catch {}
-  }
-}
-
-export function sendMembershipDeny(profileKeyHex, topicHex) {
-  const handler = handlerForPeer(profileKeyHex)
-  if (!handler) return false
-  try {
-    handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, spaceTopic: topicHex }))
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function destroySwarm() {
   if (!swarm) return
   log.info('destroying swarm...')
@@ -1135,21 +779,10 @@ async function destroySwarm() {
   resetConvergenceTick()
   resetRegistries()
   clearListDeficits()
-  testDrop = null
   presence.clearAll()
-  for (const k of Object.keys(droppedFrames)) droppedFrames[k] = 0
+  resetFrameIntake()
   localBindings.clear()
-  // Close the one held bee per peer, not just the map: each carries a live session and an
-  // append listener.
-  for (const held of profileBeeAppendListeners.values()) {
-    try { held.bee.core.off('append', held.listener) } catch {}
-    held.bee.close().catch(() => {})
-  }
-  profileBeeAppendListeners.clear()
-  bannedNoiseKeys.clear()
-  rateLimiter?.clear()
-  rateLimiter = null
-  frameLimiter = null
+  resetPeerProfileWatch()
   membersPoke.reset()
   ipcRef = null
   overlayReconnectHook = null
@@ -1161,8 +794,7 @@ async function destroySwarm() {
   resetLeaveProtocol()
   resetDeferredAdmission()
   corruptionDiagnosed = false
-  relaySelections = 0
-  relayIdentityPinned = false
+  resetRelayInstall()
   try {
     await swarm.destroy()
   } catch {}
@@ -1170,87 +802,8 @@ async function destroySwarm() {
   // A compaction reads cores the durable tier closes right after this. Bounded on its own: it
   // runs under the runtime tier's shared budget, and a full-range compactRange the user just
   // started would otherwise spend the whole budget and skip every subsystem after this one.
-  await Promise.race([
-    compactionTail.catch(() => {}),
-    new Promise((resolve) => { const t = setTimeout(resolve, COMPACTION_SETTLE_MS); t.unref?.() }),
-  ])
-  compactionTail = Promise.resolve()
+  await settleCompaction()
   log.info('swarm destroyed')
-}
-
-// === Blind relay ===
-
-const RELAY_PROBE_TIMEOUT_MS = 10000
-
-// hyperdht increments dht.stats.relaying only on its ANNOUNCE path (Server._relayConnection);
-// the dialing side is never counted. Since the relay function is ours, counting its
-// selections is the one signal that covers both directions — without it the diagnostics
-// read 0 on the peer doing the relaying, which is precisely the peer checking.
-let relaySelections = 0
-// Whether this node actually booted with a pinned member identity. A config that names a private
-// relay is not proof: the vault can be missing (a machine move that copied config.json but not
-// relay-ticket.enc) or unreadable under a new keyring, and readRelaySeedHex degrades to null.
-let relayIdentityPinned = false
-
-// BOTH swarms, always. The content plane carries every file byte, so configuring only
-// the control swarm produces a build whose handshakes connect and whose transfers stall.
-// Call this after the ContentSwarm subsystem has started — getContentSwarm() is null until its
-// _open runs, which is why boot.js applies the relay config only once both swarms are up.
-export function setRelayThrough(relay, mode) {
-  // A private relay names a member the firewall matches by key. Without the seed live on this
-  // node we present a different key, so installing it would route every dial into a refusal
-  // instead of letting it fall back to a direct connection — the silent-never-connects failure
-  // the ticket format exists to prevent. Refuse loudly and stay direct.
-  const identityMissing = relay?.kind === 'private' && !relayIdentityPinned
-  if (identityMissing) log.warn('relay: a private relay is configured but no member identity is live — not installing it')
-
-  const keys = identityMissing ? [] : enabledRelayKeys(relay)
-  const fn = relayFunctionFor(keys, mode, () => { relaySelections++ }, {
-    offerable: relay?.kind !== 'private',
-  })
-  for (const s of [swarm, getContentSwarm()]) {
-    if (!s) continue
-    s.relayThrough = fn
-  }
-  return identityMissing ? { applied: 0, reason: 'identity-missing' } : { applied: fn ? keys.length : 0 }
-}
-
-// A mistyped or stale key is otherwise invisible until a space silently fails to sync
-// weeks later. Reaching the Noise stream only proves something answers on that key, so
-// the verdict waits for the blind-relay protomux channel to open.
-export async function testRelayReachable(publicKey) {
-  const key = decodeRelayKey(publicKey)
-  if (!key) return { ok: false, reason: 'invalid-key' }
-  const dht = swarm?.dht
-  if (!dht) return { ok: false, reason: 'offline' }
-
-  let socket = null
-  let settle = null
-  const verdict = new Promise((resolve) => { settle = resolve })
-  const timer = setTimeout(() => settle({ ok: false, reason: 'timeout' }), RELAY_PROBE_TIMEOUT_MS)
-  timer.unref?.()
-
-  try {
-    socket = dht.connect(key)
-    socket.on('error', () => settle({ ok: false, reason: 'unreachable' }))
-    socket.on('close', () => settle({ ok: false, reason: 'unreachable' }))
-    const client = BlindRelay.Client.from(socket, { id: socket.publicKey })
-    // 'open' fires when the remote opens ITS side of the blind-relay channel, which is
-    // what distinguishes a relay from any other reachable hyperdht node. The Client
-    // class emits only open/close/destroy/pair — it has no 'error' event — so a peer
-    // that answers but speaks no blind-relay is caught by close/destroy or the timeout.
-    client.on('open', () => settle({ ok: true }))
-    client.on('close', () => settle({ ok: false, reason: 'not-a-relay' }))
-    client.on('destroy', () => settle({ ok: false, reason: 'not-a-relay' }))
-  } catch (err) {
-    log.debug('relay probe failed:', err.message)
-    settle({ ok: false, reason: 'unreachable' })
-  }
-
-  const result = await verdict
-  clearTimeout(timer)
-  if (socket) { try { socket.destroy() } catch {} }
-  return result
 }
 
 export class Swarm extends Subsystem {

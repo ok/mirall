@@ -10,12 +10,12 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..', 'src')
 const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
 
-// Source-scanned rather than imported: the dispatch table lives in swarm.js, which pulls in the
+// Source-scanned rather than imported: the dispatch table lives in frame-intake.js, which pulls in the
 // Hyper stack and cannot load under a Node runner.
-const swarm = read('shared/transfer/swarm.js')
+const intake = read('shared/transfer/frame-intake.js')
 
 test('every declared frame has a handler in the dispatch table', (t) => {
-  const table = swarm.slice(swarm.indexOf('const PEER_FRAME_HANDLERS'), swarm.indexOf('function toMembershipControl'))
+  const table = intake.slice(intake.indexOf('const PEER_FRAME_HANDLERS'), intake.indexOf('function toMembershipControl'))
   t.ok(table.length > 0, 'found the dispatch table')
 
   const routed = new Set([...table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)].map((m) => m[1]))
@@ -25,7 +25,7 @@ test('every declared frame has a handler in the dispatch table', (t) => {
 })
 
 test('the dispatch table routes nothing the contract does not declare', (t) => {
-  const table = swarm.slice(swarm.indexOf('const PEER_FRAME_HANDLERS'), swarm.indexOf('function toMembershipControl'))
+  const table = intake.slice(intake.indexOf('const PEER_FRAME_HANDLERS'), intake.indexOf('function toMembershipControl'))
   for (const m of table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)) {
     t.ok(m[1] in PEER_FRAME, `PEER_FRAME.${m[1]} exists`)
   }
@@ -63,7 +63,7 @@ test('every declared frame is sent somewhere, and no send names a raw literal', 
 
 test('the identity-asserting pair is exactly the two frames that claim a profileKey', (t) => {
   t.alike([...IDENTITY_ASSERTING], [PEER_FRAME.HANDSHAKE, PEER_FRAME.MEMBERSHIP_REQUEST])
-  t.ok(swarm.includes('IDENTITY_ASSERTING.includes(msg.type)'),
+  t.ok(intake.includes('IDENTITY_ASSERTING.includes(msg.type)'),
     'and the admission gate reads it rather than re-listing the pair')
 })
 

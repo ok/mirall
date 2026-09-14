@@ -7,7 +7,7 @@ import { listSpaces, getDrive } from '../spaces/space.js'
 import { getStoragePath } from '../core/store.js'
 import { purgeLeftovers } from './leftover.js'
 import { shouldReclaimOrphanDrives, markOrphanDrivesReclaimed } from './legacy-orphan-drives.js'
-import { compactStore } from '../transfer/swarm.js'
+import { compactStore } from './compaction.js'
 
 const log = createLogger('storage')
 

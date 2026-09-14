@@ -7,7 +7,7 @@ import {
   markSpaceLeaving, isSpaceLeaving, getSwarmDht,
 } from '../../src/shared/transfer/swarm.js'
 import { ContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
-import { _compactStoreForTests } from '../../src/shared/transfer/swarm.js'
+import { _compactStoreForTests } from '../../src/shared/storage/compaction.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 
 const stubOverlayBackend = {

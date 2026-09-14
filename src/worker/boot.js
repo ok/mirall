@@ -34,11 +34,20 @@ import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-insta
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import {
-  Swarm, joinSpaceTopic, compactStore, broadcastDeparture, broadcastSharePrepareProgress,
-  broadcastShareIndexProgress, setRelayThrough,
-  configurePendingLeaves, registerPendingLeave, joinPendingLeaveTopic, leavePendingLeaveTopic,
-  configurePendingCancels, leavePendingCancelTopic,
+  Swarm,
+  joinSpaceTopic,
+  broadcastDeparture,
+  broadcastSharePrepareProgress,
+  broadcastShareIndexProgress,
+  configurePendingLeaves,
+  registerPendingLeave,
+  joinPendingLeaveTopic,
+  leavePendingLeaveTopic,
+  configurePendingCancels,
+  leavePendingCancelTopic,
 } from '../shared/transfer/swarm.js'
+import { setRelayThrough } from '../shared/transfer/relay-install.js'
+import { compactStore } from '../shared/storage/compaction.js'
 import { ContentSwarm } from '../shared/transfer/content-swarm.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
