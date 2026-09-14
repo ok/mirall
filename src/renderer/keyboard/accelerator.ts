@@ -1,5 +1,6 @@
 // Accelerator spec parsing ('mod+shift+h') and KeyboardEvent matching, plus platform-aware display tokens (⌘⇧H vs Ctrl+Shift+H).
 import type { CommandContext } from './registry.js'
+import type { Screen } from '../navigation.js'
 
 export const isMacRuntime: boolean =
   typeof window !== 'undefined' && window.bridge?.getPlatform?.() === 'darwin'
@@ -72,7 +73,7 @@ export function shouldIgnore(e: KeyboardEvent, allowList: ReadonlyArray<string>)
 }
 
 export function createCommandContext(args: {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
 }): CommandContext {
   const target = document.activeElement

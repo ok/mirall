@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { request, subscribe } from '../ipc.js'
-import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
+import { useSpeedTracker } from './useSpeedTracker.js'
 import type { PeerDownloadSummary } from '../types.js'
 
 interface SummaryEvent {
@@ -26,19 +26,16 @@ export const SERVE_TTL_MS = 35000
 // a caller keying its rows any other way sees no peers.
 export function usePeerDownloads(spaceId: string) {
   const [byPath, setByPath] = useState(new Map<string, PeerDownloadSummary>())
-  const samplersRef = useRef(new Map<string, SpeedSampler>())
-  const lastSeenRef = useRef(new Map<string, number>())
+  const speed = useSpeedTracker()
 
   useEffect(() => {
     // A stale space's rows must never bleed into the next: clear the maps on every space change
     // (they are keyed by path only, so a same-named file in two spaces would otherwise collide).
     setByPath(new Map())
-    samplersRef.current.clear()
-    lastSeenRef.current.clear()
+    speed.reset()
     let alive = true
     const drop = (path: string) => {
-      samplersRef.current.delete(path)
-      lastSeenRef.current.delete(path)
+      speed.forget(path)
       setByPath((prev) => {
         if (!prev.has(path)) return prev
         const next = new Map(prev)
@@ -50,12 +47,8 @@ export function usePeerDownloads(spaceId: string) {
       if (!alive || msg.spaceId !== spaceId) return
       const path = msg.path
       if (!msg.peers || msg.peers.length === 0) { drop(path); return }
-      const sampler = samplersRef.current.get(path) ?? new SpeedSampler()
-      samplersRef.current.set(path, sampler)
       const now = Date.now()
-      sampler.push(now, msg.bytes)
-      lastSeenRef.current.set(path, now)
-      const avgSpeed = sampler.avg(now) ?? 0
+      const avgSpeed = speed.observe(path, now, msg.bytes)
       setByPath((prev) => {
         const next = new Map(prev)
         next.set(path, { spaceId: msg.spaceId, path, peerKeys: msg.peers, pausedKeys: msg.pausedKeys ?? [], bytes: msg.bytes, total: msg.total, avgSpeed })
@@ -72,7 +65,7 @@ export function usePeerDownloads(spaceId: string) {
       .then((rows) => {
         if (!alive) return
         for (const row of rows) {
-          if (lastSeenRef.current.has(row.path)) continue
+          if (speed.seen(row.path)) continue
           apply(row)
         }
       })
@@ -88,10 +81,10 @@ export function usePeerDownloads(spaceId: string) {
         let changed = false
         const next = new Map(prev)
         for (const [path, summary] of prev) {
-          if ((lastSeenRef.current.get(path) ?? 0) + SERVE_TTL_MS < now) {
-            samplersRef.current.delete(path); lastSeenRef.current.delete(path); next.delete(path); changed = true; continue
+          if (speed.expired(path, now, SERVE_TTL_MS)) {
+            speed.forget(path); next.delete(path); changed = true; continue
           }
-          const avgSpeed = decayedSpeed(samplersRef.current.get(path), now, summary.avgSpeed)
+          const avgSpeed = speed.decay(path, now, summary.avgSpeed)
           if (avgSpeed !== null && avgSpeed !== summary.avgSpeed) {
             next.set(path, { ...summary, avgSpeed })
             changed = true
@@ -101,7 +94,7 @@ export function usePeerDownloads(spaceId: string) {
       })
     }, 1000)
 
-    return () => { alive = false; unsub(); clearInterval(heartbeat); samplersRef.current.clear(); lastSeenRef.current.clear() }
+    return () => { alive = false; unsub(); clearInterval(heartbeat); speed.reset() }
   }, [spaceId])
 
   function getDownloadSummary(path: string): PeerDownloadSummary | null {

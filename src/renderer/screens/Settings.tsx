@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import Icon, { type IconName } from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import type { Screen } from '../navigation.js'
 
 interface SettingsProps {
   onBack: () => void
-  onNavigate: (screen: string) => void
+  onNavigate: (screen: Screen) => void
 }
 
 export default function Settings({ onBack, onNavigate }: SettingsProps) {
@@ -15,7 +16,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
   const isMac = window.bridge.getPlatform() === 'darwin'
   const generalDesc = isMac ? t('settings.generalDescMac') : t('settings.generalDesc')
 
-  const items: Array<{ icon: IconName; label: string; desc: string; bg: string; fg: string; screen: string }> = [
+  const items: Array<{ icon: IconName; label: string; desc: string; bg: string; fg: string; screen: Screen }> = [
     { icon: 'desktop_windows', label: t('settings.general'),       desc: generalDesc,                  bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'general-settings' },
     { icon: 'palette',         label: t('settings.appearance'),    desc: t('settings.appearanceDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'appearance-settings' },
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },

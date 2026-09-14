@@ -142,7 +142,9 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onOpenLog={() => nav.openActivityLog()}
         />
       )
-    default:
-      return null
   }
+  // Every screen in the graph has a branch above, and TypeScript is what says so: a screen added to
+  // `navigation.ts` with no case here fails to compile rather than rendering a blank window.
+  const unrendered: never = currentScreen
+  return unrendered
 }

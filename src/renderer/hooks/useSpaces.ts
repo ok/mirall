@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { refetchQuery, invalidateKey } from '../store/query-store.js'
+import { refetchQuery, pruneByParam } from '../store/query-store.js'
 import { SPACES_SCOPES } from '../store/scopes.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
@@ -10,16 +10,10 @@ import { pruneSpaceCardState } from './useSpaceCardState.js'
 import { pruneShareCache } from './useShares.js'
 import type { Space } from '../types.js'
 
-const SPACE_SCOPED_REQUESTS = ['members:online', 'space:pending-requests', 'space:storage-summary']
+const SPACE_SCOPED_REQUESTS = ['members:online', 'space:pending-requests', 'space:storage-summary'] as const
 
 function pruneSpaceScopedQueries(liveSpaceIds: string[]) {
-  const live = new Set(liveSpaceIds)
-  invalidateKey((key) => {
-    const type = key.split('?')[0]
-    if (!SPACE_SCOPED_REQUESTS.includes(type)) return false
-    const match = /spaceId=([^&]*)/.exec(key)
-    return match ? !live.has(match[1]) : false
-  })
+  pruneByParam(SPACE_SCOPED_REQUESTS, 'spaceId', liveSpaceIds)
 }
 
 // The store keeps the last-known list across mounts, which the home screen needs: it unmounts on

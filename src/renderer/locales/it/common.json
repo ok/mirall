@@ -105,6 +105,7 @@
     "joinRequestsDesc": "Approva le persone per dare loro accesso a questo spazio.",
     "approveAll": "Approva tutte ({{count}})",
     "approveSelected": "Approva selezionate ({{count}})",
+    "approvePartial": "Approvate {{done}} su {{total}} — {{failed}} non riuscite",
     "selectNamed": "Seleziona {{name}}",
     "waitingApproval": "In attesa di accesso a {{name}}…",
     "waitingApprovalHint": "Un membro di questo spazio deve approvarti. Puoi lasciare questa finestra aperta: verrai ammesso automaticamente non appena qualcuno sarà online.",

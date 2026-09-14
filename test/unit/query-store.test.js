@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   configureQueryStore, fetchQuery, invalidate, keyOf, peek, subscribeKey, resetQueryStore,
-  setQueryData, refetchQuery, invalidateKey,
+  setQueryData, refetchQuery, invalidateKey, pruneByParam,
 } from '../../src/renderer/store/query-store.js'
 
 // A transport that records every call and lets a test settle each one by hand, so concurrency is
@@ -376,6 +376,35 @@ test('invalidateKey aborts a dropped entry whether or not it has subscribers', a
   fetchQuery('space:members', { spaceId: 'orphan' }).catch(() => {})
   invalidateKey((k) => k === keyOf('space:members', { spaceId: 'orphan' }))
   t.alike(tr.aborted, ['space:members'], 'unwatched entry is deleted outright, and still aborted first')
+})
+
+// The eviction the four prune callers make. The interesting cases are the ones a hand-rolled
+// predicate got wrong: a key of the right type but a param it cannot read must be KEPT, because
+// evicting on a failed parse drops live data.
+test('pruneByParam evicts by a named param and keeps what it cannot read', (t) => {
+  setup(t)
+  const live = ['a']
+  for (const id of ['a', 'b']) {
+    fetchQuery('space:members', { spaceId: id }).catch(() => {})
+    fetchQuery('share:list', { spaceId: id }).catch(() => {})
+  }
+  // Same type, a second param — the id must still be read out of the middle of the key.
+  fetchQuery('space:members', { spaceId: 'b', since: '7' }).catch(() => {})
+  // Right type, no param at all, and a type the caller did not name.
+  fetchQuery('space:members').catch(() => {})
+  fetchQuery('spaces:list').catch(() => {})
+
+  const dropped = pruneByParam(['space:members'], 'spaceId', live).sort()
+  t.alike(dropped, [
+    keyOf('space:members', { spaceId: 'b' }),
+    keyOf('space:members', { spaceId: 'b', since: '7' }),
+  ].sort(), 'only the dead ids of the named type, param read wherever it sits in the key')
+  setQueryData('space:members', { spaceId: 'a' }, [{ key: 'k' }])
+  pruneByParam(['space:members'], 'spaceId', live)
+  t.alike(peek(keyOf('space:members', { spaceId: 'a' })).data, [{ key: 'k' }], 'a live id keeps its value')
+  t.alike(pruneByParam(['space:members'], 'spaceId', []).sort(),
+    [keyOf('space:members', { spaceId: 'a' })],
+    'a key with no spaceId is kept even when nothing is live')
 })
 
 test('a settled read leaves no controller behind for a later abandon to fire', async (t) => {

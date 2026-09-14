@@ -50,6 +50,7 @@ import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 
 interface SpaceHeaderActionsProps {
@@ -199,6 +200,8 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     shareCount: shares.length,
   }
 
+  const runAction = useRunAction()
+
   const markBusy = (pk: string) => setBusy((prev) => new Set(prev).add(pk))
   const clearBusy = (pk: string) => setBusy((prev) => {
     if (!prev.has(pk)) return prev
@@ -216,6 +219,30 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
       toast.error(errorText(err))
     } finally {
       clearBusy(pk)
+    }
+  }
+
+  // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
+  // the roster, and firing them together lets the last write land on a roster the earlier ones had
+  // already grown. Every failure is counted rather than raised, so a batch reports once instead of
+  // stacking a toast per request behind a closed dialog.
+  async function handleApproveMany(keys: string[]) {
+    const pending = keys.filter((pk) => !busy.has(pk))
+    if (pending.length === 0) return
+    pending.forEach(markBusy)
+    let done = 0
+    for (const pk of pending) {
+      try {
+        await approveMember(spaceId, pk)
+        done++
+      } catch {
+        // Counted in the summary below.
+      } finally {
+        clearBusy(pk)
+      }
+    }
+    if (done < pending.length) {
+      toast.error(t('space.approvePartial', { done, total: pending.length, failed: pending.length - done }))
     }
   }
 
@@ -237,24 +264,24 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
   // out of useLocateShare already wrapped, for the same reason.
   const handleOpenShare = useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare])
 
-  const handleOpenInFinder = useCallback(async (share: ShareWithRole) => {
-    try { await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id }) } catch {}
-  }, [spaceId])
+  const handleOpenInFinder = useCallback((share: ShareWithRole) => {
+    runAction(() => request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id }))
+  }, [spaceId, runAction])
 
   const handleDeleteRequest = useCallback((share: ShareWithRole) => { setShareToDelete(share) }, [])
   const handleMirrorRequest = useCallback((share: ShareWithRole) => { setShareToMirror(share) }, [])
 
-  const handleUnmount = useCallback(async (share: ShareWithRole) => {
-    await unmountForeignMount(share.spaceId, share.id)
-  }, [])
+  const handleUnmount = useCallback((share: ShareWithRole) => {
+    runAction(() => unmountForeignMount(share.spaceId, share.id))
+  }, [runAction])
 
-  const handlePauseMirror = useCallback(async (share: ShareWithRole) => {
-    await setForeignMountEnabled(share.spaceId, share.id, false)
-  }, [])
+  const handlePauseMirror = useCallback((share: ShareWithRole) => {
+    runAction(() => setForeignMountEnabled(share.spaceId, share.id, false))
+  }, [runAction])
 
-  const handleResumeMirror = useCallback(async (share: ShareWithRole) => {
-    await setForeignMountEnabled(share.spaceId, share.id, true)
-  }, [])
+  const handleResumeMirror = useCallback((share: ShareWithRole) => {
+    runAction(() => setForeignMountEnabled(share.spaceId, share.id, true))
+  }, [runAction])
 
   useEffect(() => {
     function handle(event: Event) {
@@ -288,9 +315,11 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     setShowInviteModal(true)
   }
 
-  async function handleCancelRequest() {
-    await leaveSpace(spaceId)
-    onBack()
+  function handleCancelRequest() {
+    runAction(async () => {
+      await leaveSpace(spaceId)
+      onBack()
+    })
   }
 
   async function handleLeave() {
@@ -303,13 +332,15 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
     setFileToRemove(null)
   }
 
-  const handleReveal = useCallback(async (file: FileEntry) => {
-    await revealFile(file.path)
-  }, [revealFile])
+  const handleReveal = useCallback((file: FileEntry) => {
+    runAction(() => revealFile(file.path))
+  }, [revealFile, runAction])
 
   const handleRemoveRequest = useCallback((file: FileEntry) => { setFileToRemove(file) }, [])
 
-  const handleCancelPublish = useCallback((file: FileEntry) => { void cancelPublish(file.path) }, [cancelPublish])
+  const handleCancelPublish = useCallback((file: FileEntry) => {
+    runAction(() => cancelPublish(file.path))
+  }, [cancelPublish, runAction])
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
@@ -339,7 +370,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
             favorite={!!space?.favorite}
             onCancelRequest={handleCancelRequest}
             onInvite={handleInvite}
-            onToggleFavorite={() => toggleFavorite(spaceId)}
+            onToggleFavorite={() => runAction(() => toggleFavorite(spaceId))}
             onEdit={() => setShowEditModal(true)}
             onManageStorage={onManageStorage}
             onLeave={() => setShowLeaveModal(true)}
@@ -586,7 +617,7 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
         isOpen={showApproval}
         requests={requests}
         busyKeys={busy}
-        onApprove={handleApprove}
+        onApproveMany={(keys) => void handleApproveMany(keys)}
         onDeny={handleDeny}
         onClose={() => setShowApproval(false)}
       />
