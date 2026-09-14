@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { mergeMemberIdentity, displayNameOrNull, UNKNOWN_NAME } from '../../src/shared/spaces/member-identity.js'
+import { mergeMemberIdentity, displayNameOrNull, UNKNOWN_NAME } from '../../src/shared/spaces/membership/fold.js'
 
 const K = 'a'.repeat(64)
 const DK = 'd'.repeat(64)

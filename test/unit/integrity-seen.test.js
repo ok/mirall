@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createIntegritySeen, DEFAULT_INTEGRITY_ROW_CAP } from '../../src/shared/folders/integrity-seen.js'
+import { createIntegritySeen, DEFAULT_INTEGRITY_ROW_CAP } from '../../src/shared/folders/mirror-budgets.js'
 
 const M = 'space1|folder1'
 

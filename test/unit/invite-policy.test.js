@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { classifyInvite, snapshotCandidates } from '../../src/shared/spaces/invite-policy.js'
+import { classifyInvite, snapshotCandidates } from '../../src/shared/spaces/invites.js'
 
 const NOW = 1_000_000
 

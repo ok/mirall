@@ -1,7 +1,7 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex, CAP_MEMBERSHIP_MANIFEST } from './profile.js'
-import { foldMembership } from './member-set.js'
+import { foldMembership } from './membership/fold.js'
 import { createDerivedView } from '../core/derived-view.js'
 import { getResourceCaps } from '../core/runtime-config.js'
 import { peerReadTimeoutMs } from '../core/with-timeout.js'

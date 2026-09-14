@@ -7,7 +7,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { materializeCatalogFile, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
-import { createIntegritySeen } from '../../src/shared/folders/integrity-seen.js'
+import { createIntegritySeen } from '../../src/shared/folders/mirror-budgets.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // src/shared/folders/ contained ZERO record( calls: a mirror holder serving bytes that fail their

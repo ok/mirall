@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { decideSweep, SWEEP_REFUSAL } from '../../src/shared/storage/sweep-decision.js'
+import { decideSweep, SWEEP_REFUSAL } from '../../src/shared/sweep/sweep-rules.js'
 
 const caps = { minSweepPurgeCores: 8, maxSweepPurgeCores: 64, maxSweepPurgeRatio: 0.5 }
 const gap = [{ stage: 'own-catalog:s1', detail: 'no sck' }]

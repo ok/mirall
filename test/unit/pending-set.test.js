@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { foldPendingSet } from '../../src/shared/spaces/pending-set.js'
+import { foldPendingSet } from '../../src/shared/spaces/membership/fold.js'
 
 const C = 'c'.repeat(64), D = 'd'.repeat(64)
 const req = (entries) => new Map(entries)

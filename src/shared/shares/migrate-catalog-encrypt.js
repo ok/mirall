@@ -1,4 +1,4 @@
-import { migrationResult, MIGRATION_STATUS } from '../storage/migration-result.js'
+import { migrationResult, MIGRATION_STATUS } from '../storage/migrations/migration-result.js'
 import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.js'
 import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'

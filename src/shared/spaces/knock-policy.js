@@ -5,7 +5,7 @@
 // side effect — so a knock the records already settle must be answered without ever looking one
 // up. Reading the invite first would revoke a link behind a peer we were about to re-grant.
 
-import { reconnectGrantAllowed } from './member-set.js'
+import { reconnectGrantAllowed } from './membership/fold.js'
 
 // Verdicts the records settle on their own, before any invite is read.
 // `null` means the invite has to be resolved to decide.

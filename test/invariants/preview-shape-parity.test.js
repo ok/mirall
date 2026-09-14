@@ -24,7 +24,7 @@ for (const file of ['shared/folders/owned-preview.js', 'shared/folders/foreign-p
 // above them silently belong to a different runner.
 for (const file of [
   'shared/folders/preview-tally.js',
-  'shared/folders/preview-detail.js',
+
   'shared/folders/path-keys.js',
   'shared/transfer/partial-suffix.js',
 ]) {

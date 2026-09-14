@@ -1,5 +1,5 @@
 // The space:leave handler. Its teardown ORDER is shared with boot's interrupted-leave pass through
-// spaces/leave-flow.js (LEAVE_PHASES + runLeaveTeardown), so the two cannot drift.
+// spaces/membership/leave-state.js (LEAVE_PHASES + runLeaveTeardown), so the two cannot drift.
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from '../../shared/audit/audit-record.js'
 import { record } from '../../shared/audit/audit-log.js'
@@ -13,7 +13,7 @@ import { readOwnShares, tombstoneShare } from '../../shared/shares/shares.js'
 import { closeMemberView } from '../../shared/spaces/member-registry.js'
 import { clearOwnMembership, getLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { forgetSpaceRecord, getSpace, markSpaceLeavingDurable, persistPendingLeave, purgeSpace, purgeSpaceDrive } from '../../shared/spaces/space.js'
-import { runLeaveTeardown } from '../../shared/spaces/leave-flow.js'
+import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { getSpaceCacheBytes } from '../../shared/storage/storage.js'
 import { overlayCancelSpace } from '../../shared/transfer/backends/overlay/overlay-backend.js'
@@ -121,7 +121,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         }
         // The durable departure (member/<S> del) is authored BEFORE the frame is broadcast, so it is
         // written and announced when co-members apply the leave and their live-follow can re-host it
-        // for members offline at leave time. Same step order as boot's pass (spaces/leave-flow.js);
+        // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js);
         // this path also stops the in-memory machinery — watcher, mirror loop, periodic reconcile,
         // publish lane — that would otherwise keep writing to the drive the purge below closes.
         await runLeaveTeardown(msg.spaceId, {

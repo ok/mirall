@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
-import { migrateLocalBeesToEncrypted } from '../../src/shared/storage/metadata-migration.js'
+import { migrateLocalBeesToEncrypted } from '../../src/shared/storage/migrations/metadata-migration.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function listDks(store) {

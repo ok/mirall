@@ -6,7 +6,7 @@ import { isTerminalFault } from '../../src/shared/transfer/backends/overlay/fetc
 import { CODES } from '../../src/shared/contract/errors.js'
 
 // REGRESSION (FIX-MIRROR-CHECKSUM): a holder serving bytes that fail their advertised hash was
-// re-downloaded by the mirror on every 30s tick and every catalog append, forever. integrity-seen
+// re-downloaded by the mirror on every 30s tick and every catalog append, forever. mirror-budgets
 // caps the AUDIT rows, so past the cap the loop was silent too: unbounded bandwidth, no user-visible
 // error, no terminal state. The engine has treated the same fault as terminal since v1.7 —
 // architecture §4.5, "re-fetching from the same holder would fail identically".

@@ -5,7 +5,7 @@ import {
   runMaterializeTick, startForeignLoop, stopForeignLoop, restartForeignLoop, mirrorHealth,
   unmountForeignFolder,
 } from '../../src/shared/folders/foreign-folders.js'
-import { STALL_FACTOR } from '../../src/shared/folders/mirror-health.js'
+import { STALL_FACTOR } from '../../src/shared/folders/mirror-policy.js'
 import { wedgedMirror, waitUntil, delay } from '../helpers/wedged-mirror.js'
 
 // runMaterializeTick serialises passes per mount: a tick arriving while one runs is handed the

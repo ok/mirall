@@ -86,7 +86,7 @@ test('the peer-online edge has one dispatcher, not one hook per producer', (t) =
 for (const f of [
   'shared/transfer/backends/overlay/fetch-policy.js',
   'shared/transfer/free-space.js',
-  'shared/folders/mirror-reach.js',
+  'shared/folders/mirror-policy.js',
 ]) {
   test(`${f} imports no bare-* module`, (t) => {
     t.absent(/from '(bare-[a-z]+)'/.test(read(f)), 'stays unit-testable under Node')

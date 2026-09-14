@@ -16,7 +16,7 @@ import {
   initialPublishScan,
   stopOwnedFolder,
 } from '../../shared/folders/owned-folders.js'
-import { mountRootAvailable } from '../../shared/folders/publish-runner.js'
+import { mountRootAvailable } from '../../shared/folders/publish-service.js'
 import {
   getOwnedMount,
   patchOwnedMount,

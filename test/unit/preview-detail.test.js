@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from '../../src/shared/folders/preview-detail.js'
+import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from '../../src/shared/folders/preview-tally.js'
 
 test('includePerFile: at or below the cap shows the detailed list', (t) => {
   t.is(PREVIEW_DETAIL_MAX_FILES, 50)

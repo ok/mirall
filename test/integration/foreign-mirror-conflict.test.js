@@ -158,7 +158,7 @@ test('REGRESSION (FIX-D2-3): a non-file at the mirror path is moved aside, not w
 // mirror writes a mount-relative path, a manual download an absolute one into the downloads folder.
 // A download's record therefore vouched for a file in another directory, and when the user's edit
 // happened to match it the guard read OURS and overwrote the edit in place — no conflict copy, the
-// one outcome mirror-ownership.js says must fail closed.
+// one outcome mirror-policy.js says must fail closed.
 test('REGRESSION (FIX-D2-4): a record that vouches for another path does not authorise an overwrite', async (t) => {
   const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'owner-bytes' } })
   await initDownloads()

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { classifyBeeKind } from '../../src/shared/storage/leftover-classify.js'
+import { classifyBeeKind } from '../../src/shared/sweep/sweep-rules.js'
 
 test('classifyBeeKind: a profile bee is recognised by its keys', (t) => {
   t.is(classifyBeeKind(['displayName', 'avatar']), 'profile')

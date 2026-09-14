@@ -1,11 +1,11 @@
 import { migrationResult, MIGRATION_STATUS } from './migration-result.js'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
-import { listSpaces, getSpaceContentKey } from '../spaces/space.js'
-import { getStore, createLocalBee } from '../core/store.js'
-import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { HEX64 } from '../contract/invite-envelope.js'
-import { createLogger } from '../core/logger.js'
+import { listSpaces, getSpaceContentKey } from '../../spaces/space.js'
+import { getStore, createLocalBee } from '../../core/store.js'
+import { getLocalPublicKeyHex } from '../../spaces/profile.js'
+import { HEX64 } from '../../contract/invite-envelope.js'
+import { createLogger } from '../../core/logger.js'
 
 const log = createLogger('legacy-peer-cache')
 const MIGRATION_FLAG = 'legacy-peer-cache-clear-v2'

@@ -2,8 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshDurable } from '../helpers/store.js'
-import { MIGRATIONS, runMigrations } from '../../src/shared/storage/migrations.js'
-import { STAGES } from '../../src/shared/storage/migration-result.js'
+import { MIGRATIONS, runMigrations } from '../../src/shared/storage/migrations/index.js'
+import { STAGES } from '../../src/shared/storage/migrations/migration-result.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 
@@ -39,7 +39,7 @@ test('the list is ordered by stage', (t) => {
 // running on every install, and one still called directly from the root runs twice or out of order.
 test('every migration the composition root used to call is in the list, and none is still called there', (t) => {
   const boot = fs.readFileSync(path.join(srcRoot, 'worker', 'boot.js'), 'utf8')
-  const registry = fs.readFileSync(path.join(srcRoot, 'shared', 'storage', 'migrations.js'), 'utf8')
+  const registry = fs.readFileSync(path.join(srcRoot, 'shared', 'storage', 'migrations', 'index.js'), 'utf8')
   const entryPoints = [
     'migrateLocalBeesToEncrypted',
     'migrateCatalogsToEncrypted',

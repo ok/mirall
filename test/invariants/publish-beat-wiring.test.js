@@ -17,7 +17,7 @@ const read = (...parts) => readFileSync(path.join(root, ...parts), 'utf8')
 // take minutes on a large share — reported nothing, so a healthy publish read as wedged and, once
 // recovery was wired, would have had its slot reclaimed mid-hash.)
 test('REGRESSION (FIX-PUBLISH-HEARTBEAT): every phase of a publish beats, not just the hash', (t) => {
-  const runner = read('src', 'shared', 'folders', 'publish-runner.js')
+  const runner = read('src', 'shared', 'folders', 'publish-service.js')
   const beats = [...runner.matchAll(/\bbeat\(\)/g)].length
   t.ok(beats >= 2, `the runner beats after resolve and after the catalog settle (found ${beats})`)
   t.ok(runner.includes('beat }'), 'and hands the beat on to the channel')

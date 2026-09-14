@@ -13,8 +13,8 @@
 // `id` is this list's own name, not a durable key: the durable keys are frozen inside each module.
 import { migrateLocalBeesToEncrypted } from './metadata-migration.js'
 import { reclaimLegacyPeerCaches } from './legacy-peer-cache.js'
-import { migrateCatalogsToEncrypted } from '../shares/migrate-catalog-encrypt.js'
-import { migrateOverlayIndexToEncrypted } from '../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
+import { migrateCatalogsToEncrypted } from '../../shares/migrate-catalog-encrypt.js'
+import { migrateOverlayIndexToEncrypted } from '../../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MIGRATION_STATUS, migrationResult } from './migration-result.js'
 
 // test seam

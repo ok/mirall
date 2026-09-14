@@ -6,7 +6,7 @@ import { initPendingTransfers, recordPending } from '../../src/shared/transfer/p
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { resetFetchSlots, drainFetchSlots, fetchSlotStats, FETCH_OWNER_MIRROR, acquireFetchSlot } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+import { resetFetchSlots, drainFetchSlots, fetchSlotStats, FETCH_OWNER_MIRROR, acquireFetchSlot } from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
 const SPACE = 'space1'

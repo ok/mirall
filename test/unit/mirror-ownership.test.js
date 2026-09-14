@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { classifyLocalCopy, mayOverwriteInPlace, LOCAL_COPY } from '../../src/shared/folders/mirror-ownership.js'
+import { classifyLocalCopy, mayOverwriteInPlace, LOCAL_COPY } from '../../src/shared/folders/mirror-policy.js'
 
 const OWNER = 'o'.repeat(64)
 const OURS = 'a'.repeat(64)

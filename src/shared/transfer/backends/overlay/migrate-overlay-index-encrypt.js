@@ -6,7 +6,7 @@
 // hasMasterSecret; must run before the overlay backend opens the index. A purge failure propagates so
 // the marker stays unwritten and the pass retries — leaving the plaintext cores marked-done-but-
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
-import { migrationResult, MIGRATION_STATUS } from '../../../storage/migration-result.js'
+import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/migration-result.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
 import { clearAndPurgeCore, purgeAlias } from '../../../spaces/space.js'
 import { FileIndex, indexCoreName } from './vendor/file-index.js'

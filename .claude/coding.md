@@ -281,7 +281,7 @@ Reference: `src/shared/core/` and `src/worker/boot.js`'s partial-root handoff.
 (`boot(config, { swarm: false })`); `root.close()` is the production stop. Use `freshDurable` when
 the subject is work `boot()` itself does.
 - **Shared step order instead of a second implementation.** `worker/ipc/space-leave.js` and
-`shared/spaces/leave-flow.js` share `LEAVE_PHASES` + `runLeaveTeardown`, so the live path and
+`shared/spaces/membership/leave-state.js` share `LEAVE_PHASES` + `runLeaveTeardown`, so the live path and
 boot's interrupted-leave pass cannot drift.
 - **Zero-import contract package.** `src/shared/contract/` — one declaration per vocabulary, frozen
 (`Object.freeze`), with a `.d.ts` twin pinned by `contract-declarations.test.js`.

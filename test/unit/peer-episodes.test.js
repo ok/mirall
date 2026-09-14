@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   createPeerPresenceTracker, peerKeyOf, PEER_DWELL_MS, KIND_PEER_LOST, KIND_PEER_BACK,
-} from '../../src/shared/audit/peer-episodes.js'
+} from '../../src/shared/audit/presence-episodes.js'
 
 const T0 = 1700000000000
 const META = { memberName: 'Anna Keller', spaceName: 'Design Team' }

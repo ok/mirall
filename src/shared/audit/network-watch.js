@@ -9,8 +9,8 @@
 // so "re-check on the next emit" would leave a held-down row unwritten forever.
 import { createLogger } from '../core/logger.js'
 import { record, getNetworkState, setNetworkState } from './audit-log.js'
-import { createEpisodeTracker, evidenceFor } from './network-episodes.js'
-import { createPeerPresenceTracker } from './peer-episodes.js'
+import { createEpisodeTracker, evidenceFor } from './connectivity-episodes.js'
+import { createPeerPresenceTracker } from './presence-episodes.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, systemActor, targetRef } from './audit-record.js'
 

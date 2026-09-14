@@ -9,7 +9,7 @@ import { listSharesForSpace } from '../../src/shared/shares/share-registry.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { mountRootAvailable } from '../../src/shared/folders/publish-runner.js'
+import { mountRootAvailable } from '../../src/shared/folders/publish-service.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function share(name) {

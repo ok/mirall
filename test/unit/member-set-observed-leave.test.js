@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { deriveMemberSet } from '../../src/shared/spaces/member-view.js'
-import { observedLeavers } from '../../src/shared/spaces/member-set.js'
+import { observedLeavers } from '../../src/shared/spaces/membership/fold.js'
 
 const rec = (active, approvals = [], memberTs = 1) => ({ active, approvals, memberTs })
 const reader = (db) => async (k) => db.get(k) ?? null

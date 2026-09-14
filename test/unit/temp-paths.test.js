@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isEphemeralSourcePath } from '../../src/shared/folders/temp-paths.js'
+import { isEphemeralSourcePath } from '../../src/shared/transfer/temp-paths.js'
 
 // Dragging an unsaved screenshot thumbnail or a Photo Booth capture into the
 // drop zone hands us an NSFilePromise materialized into a per-session temp
