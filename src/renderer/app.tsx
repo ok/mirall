@@ -8,6 +8,8 @@ import { useAppNavigation } from './hooks/useAppNavigation.js'
 import { useAppShellEffects } from './hooks/useAppShellEffects.js'
 import Onboarding from './screens/Onboarding.js'
 import ScreenRouter from './components/layout/ScreenRouter.js'
+import { useCanGoBack } from './hooks/useCanGoBack.js'
+import type { Screen } from './navigation.js'
 import TopNav from './components/layout/TopNav.js'
 import FeedbackModal from './components/modals/FeedbackModal.js'
 import WhatsNewModal from './components/modals/WhatsNewModal.js'
@@ -23,7 +25,7 @@ import CommandPalette from './keyboard/CommandPalette.js'
 import ShortcutsHint from './keyboard/ShortcutsHint.js'
 import { isInSpace, type Command, type CommandContext } from './keyboard/registry.js'
 import { spaceDigitAccelerator } from './keyboard/known-commands.js'
-import { dispatchSpaceAction, type SpaceAction } from './space-actions.js'
+import type { SpaceAction } from './space-actions.js'
 import { docsUrl } from './docs-links.js'
 import type { AppNavigation } from './hooks/useAppNavigation.js'
 import type { Space } from './types.js'
@@ -93,9 +95,7 @@ export default function App() {
   const openFeedbackModal = useCallback(() => setShowFeedback(true), [])
   const showJoinModal = useCallback(() => setShowJoin(true), [])
 
-  // Suppress back navigation at the root and while a top-level modal is open
-  // (so the gesture doesn't navigate the screen out from under a dialog).
-  const canGoBack = nav.currentScreen !== 'spaces' && !showCreate && !showJoin && !showFeedback
+  const canGoBack = useCanGoBack(nav.currentScreen)
 
   // If the space we're viewing vanishes (e.g. a pending join was denied and the
   // worker dropped it), don't leave the user staring at a dead view — go home.
@@ -246,7 +246,7 @@ interface SpaceCommandsProps {
   toggleFavorite: (spaceId: string) => Promise<void>
 }
 
-const SCREEN_COMMANDS: ReadonlyArray<{ id: string; labelKey: string; screen: string }> = [
+const SCREEN_COMMANDS: ReadonlyArray<{ id: string; labelKey: string; screen: Screen }> = [
   { id: 'activity.openSettings',  labelKey: 'shortcuts.openActivityLogSettings',  screen: 'activity-log-settings' },
   { id: 'network.status',         labelKey: 'shortcuts.openNetworkStatus',        screen: 'network-status' },
   { id: 'settings.appearance',    labelKey: 'shortcuts.openAppearanceSettings',   screen: 'appearance-settings' },
@@ -401,14 +401,8 @@ function SpaceCommands({ nav, spaces, toggleFavorite }: SpaceCommandsProps) {
     [isPendingSpace],
   )
 
-  const runSpaceAction = useCallback((c: CommandContext, action: SpaceAction) => {
-    if (c.currentScreen === 'space-view') {
-      dispatchSpaceAction(action)
-      return
-    }
-    navRef.current.setSelectedShare(null)
-    navRef.current.setCurrentScreen('space-view')
-    window.setTimeout(() => dispatchSpaceAction(action), 0)
+  const runSpaceAction = useCallback((_c: CommandContext, action: SpaceAction) => {
+    navRef.current.requestSpaceAction(action)
   }, [])
 
   useRegisterCommand(

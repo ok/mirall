@@ -1,19 +1,24 @@
 import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { ShareWithRole } from './useShares.js'
 import type { AuditFilters } from '../types.js'
+import { parentOf, type Screen } from '../navigation.js'
+import type { SpaceAction, PendingSpaceAction } from '../space-actions.js'
 
 export interface AppNavigation {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
-  selectedShare: ShareWithRole | null
+  selectedShareId: string | null
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogPreset: Partial<AuditFilters> | null
-  setCurrentScreen: Dispatch<SetStateAction<string>>
-  setSelectedShare: Dispatch<SetStateAction<ShareWithRole | null>>
+  pendingSpaceAction: PendingSpaceAction | null
+  setCurrentScreen: Dispatch<SetStateAction<Screen>>
+  setSelectedShareId: Dispatch<SetStateAction<string | null>>
   navigateToSpace: (spaceId: string) => void
+  requestSpaceAction: (action: SpaceAction) => void
+  requestMirror: (shareId: string) => void
+  clearPendingSpaceAction: () => void
   openSettings: () => void
   openAccount: () => void
   openStorageSettings: (from: 'settings' | 'space-view') => void
@@ -25,16 +30,19 @@ export interface AppNavigation {
 }
 
 export function useAppNavigation(): AppNavigation {
-  const [currentScreen, setCurrentScreen] = useState('spaces')
+  const [currentScreen, setCurrentScreen] = useState<Screen>('spaces')
   const [preSettingsScreen, setPreSettingsScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [preAccountScreen, setPreAccountScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [storageBackTarget, setStorageBackTarget] = useState<'settings' | 'space-view'>('settings')
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
-  const [selectedShare, setSelectedShare] = useState<ShareWithRole | null>(null)
+  // The id, not the folder: the folder screen resolves it against the live listing, so a rename
+  // or an unmount is reflected rather than patched back into a snapshot by hand.
+  const [selectedShareId, setSelectedShareId] = useState<string | null>(null)
   const [activityLogPreset, setActivityLogPreset] = useState<Partial<AuditFilters> | null>(null)
+  const [pendingSpaceAction, setPendingSpaceAction] = useState<PendingSpaceAction | null>(null)
   // The viewer hangs off Account, but the connectivity screens now cross-link into it too, so Back
   // has to return where the user came from rather than always to Account.
-  const [activityLogBackTarget, setActivityLogBackTarget] = useState<string>('account')
+  const [activityLogBackTarget, setActivityLogBackTarget] = useState<Screen>('account')
 
   const openSettings = useCallback(() => {
     setPreSettingsScreen((prev) => {
@@ -72,33 +80,32 @@ export function useAppNavigation(): AppNavigation {
     setCurrentScreen('space-view')
   }, [])
 
+  // Both of these go to the space screen first — from the folder screen it is not mounted, and
+  // from the space screen the pending action is picked up on the same render.
+  const toSpaceView = useCallback((pending: PendingSpaceAction) => {
+    setSelectedShareId(null)
+    setCurrentScreen('space-view')
+    setPendingSpaceAction(pending)
+  }, [])
+  const requestSpaceAction = useCallback((action: SpaceAction) => toSpaceView({ kind: 'action', action }), [toSpaceView])
+  const requestMirror = useCallback((shareId: string) => toSpaceView({ kind: 'mirror', shareId }), [toSpaceView])
+  const clearPendingSpaceAction = useCallback(() => setPendingSpaceAction(null), [])
+
   // Single source of truth for "go up one screen", mirroring each screen's
   // on-screen back button. Wired to the OS-level back affordances (mouse back
   // button, Windows browser-backward app-command, macOS swipe, mod+←) so they
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
-    switch (currentScreen) {
-      case 'space-view': setCurrentScreen('spaces'); break
-      case 'folder-view': setSelectedShare(null); setCurrentScreen('space-view'); break
-      case 'settings': setCurrentScreen(preSettingsScreen); break
-      case 'account': setCurrentScreen(preAccountScreen); break
-      case 'storage-settings': setCurrentScreen(storageBackTarget); break
-      case 'appearance-settings':
-      case 'notification-settings':
-      case 'network-settings':
-      case 'general-settings': setCurrentScreen('settings'); break
-      case 'network-status': setCurrentScreen('account'); break
-      case 'connection-problem': setCurrentScreen('spaces'); break
-      // The viewer hangs off Account and the config off Settings, so each backs out to its own
-      // parent; a cross-link between them is a lateral jump, not a step in a history stack.
-      case 'activity-log': setCurrentScreen(activityLogBackTarget); break
-      case 'activity-log-settings': setCurrentScreen('settings'); break
-      default: break
-    }
+    const parent = parentOf(currentScreen, {
+      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget,
+    })
+    if (!parent) return
+    if (currentScreen === 'folder-view') setSelectedShareId(null)
+    setCurrentScreen(parent)
   }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget])
 
   const goHome = useCallback(() => {
-    setSelectedShare(null)
+    setSelectedShareId(null)
     setSelectedSpaceId(null)
     setCurrentScreen('spaces')
   }, [])
@@ -112,14 +119,18 @@ export function useAppNavigation(): AppNavigation {
   return {
     currentScreen,
     selectedSpaceId,
-    selectedShare,
+    selectedShareId,
     preSettingsScreen,
     preAccountScreen,
     storageBackTarget,
     activityLogPreset,
+    pendingSpaceAction,
     setCurrentScreen,
-    setSelectedShare,
+    setSelectedShareId,
     navigateToSpace,
+    requestSpaceAction,
+    requestMirror,
+    clearPendingSpaceAction,
     openSettings,
     openAccount,
     openStorageSettings,

@@ -13,12 +13,12 @@ interface ApprovalModalProps {
   isOpen: boolean
   requests: JoinRequest[]
   busyKeys: Set<string>
-  onApprove: (publicKey: string) => void
+  onApproveMany: (publicKeys: string[]) => void
   onDeny: (publicKey: string) => void
   onClose: () => void
 }
 
-export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, onDeny, onClose }: ApprovalModalProps) {
+export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMany, onDeny, onClose }: ApprovalModalProps) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -39,14 +39,15 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, o
 
   // Approve closes rather than waiting, and busyKeys gates Deny alone. The asymmetry is
   // deliberate: approving is the expected outcome and its progress is visible on the space screen
-  // the modal closes onto, while a deny is destructive and must not be issued twice.
+  // the modal closes onto, while a deny is destructive and must not be issued twice. The batch goes
+  // out as one call so its outcome can be reported once, rather than as N calls nothing joins back up.
   function approveAll() {
-    requests.forEach((r) => onApprove(r.publicKey))
+    onApproveMany(requests.map((r) => r.publicKey))
     onClose()
   }
 
   function approveSelected() {
-    selected.forEach((k) => onApprove(k))
+    onApproveMany([...selected])
     onClose()
   }
 

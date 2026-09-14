@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { request, subscribe } from '../ipc.js'
-import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
+import { useSpeedTracker } from './useSpeedTracker.js'
 import { SERVE_TTL_MS } from './usePeerDownloads.js'
 import type { PeerDownloadPeer } from '../types.js'
 
@@ -35,25 +35,21 @@ interface DetailSnapshot {
 // a teardown is not a query, and the store has no way to tell the worker to stop producing answers.
 export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownloadPeer[] {
   const [peers, setPeers] = useState<PeerDownloadPeer[]>([])
-  const samplersRef = useRef(new Map<string, SpeedSampler>())
-  const lastSeenRef = useRef(new Map<string, number>())
+  const speed = useSpeedTracker()
 
   useEffect(() => {
     let active = true
-    const samplers = samplersRef.current
-    const lastSeen = lastSeenRef.current
 
     const apply = (list: DetailPeer[]) => {
       const now = Date.now()
-      const present = new Set(list.map((p) => p.peerKey))
-      for (const key of [...samplers.keys()]) if (!present.has(key)) { samplers.delete(key); lastSeen.delete(key) }
-      setPeers(list.map((p) => {
-        const sampler = samplers.get(p.peerKey) ?? new SpeedSampler()
-        samplers.set(p.peerKey, sampler)
-        sampler.push(now, p.bytes)
-        lastSeen.set(p.peerKey, now)
-        return { peerKey: p.peerKey, bytes: p.bytes, total: p.total, avgSpeed: sampler.avg(now) ?? 0, paused: !!p.paused }
-      }))
+      speed.retain(new Set(list.map((p) => p.peerKey)))
+      setPeers(list.map((p) => ({
+        peerKey: p.peerKey,
+        bytes: p.bytes,
+        total: p.total,
+        avgSpeed: speed.observe(p.peerKey, now, p.bytes),
+        paused: !!p.paused,
+      })))
     }
 
     request('serving:detail-subscribe', { spaceId, path }).then((snap) => {
@@ -73,11 +69,11 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
         // Soft-state expiry: a peer whose authoritative snapshot went silent past the TTL is dropped.
         // A paused peer gets the longer PAUSED_SERVE_TTL_MS (the worker holds paused rows far longer)
         // but still ages out, so a missed clearing frame can't strand it forever.
-        const live = prev.filter((p) => (lastSeen.get(p.peerKey) ?? 0) + (p.paused ? PAUSED_SERVE_TTL_MS : SERVE_TTL_MS) >= now)
-        for (const p of prev) if (!live.includes(p)) { samplers.delete(p.peerKey); lastSeen.delete(p.peerKey) }
+        const live = prev.filter((p) => !speed.expired(p.peerKey, now, p.paused ? PAUSED_SERVE_TTL_MS : SERVE_TTL_MS))
+        speed.retain(new Set(live.map((p) => p.peerKey)))
         let changed = live.length !== prev.length
         const next = live.map((p) => {
-          const avgSpeed = decayedSpeed(samplers.get(p.peerKey), now, p.avgSpeed)
+          const avgSpeed = speed.decay(p.peerKey, now, p.avgSpeed)
           if (avgSpeed !== null && avgSpeed !== p.avgSpeed) { changed = true; return { ...p, avgSpeed } }
           return p
         })
@@ -89,8 +85,7 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
       active = false
       unsub()
       clearInterval(heartbeat)
-      samplers.clear()
-      lastSeen.clear()
+      speed.reset()
       request('serving:detail-unsubscribe', { spaceId, path }).catch(() => {})
     }
   }, [spaceId, path])

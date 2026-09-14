@@ -1,7 +1,7 @@
 // Shared per-space roster (avatars included) for card facepiles: spaces:list ships slim rosters, so
 // avatar-rendering consumers read space:members once per space — the entry useMembers also reads.
 import { useQuery } from '../store/useQuery.js'
-import { invalidateKey } from '../store/query-store.js'
+import { pruneByParam } from '../store/query-store.js'
 import type { SpaceMember } from '../types.js'
 
 const EMPTY: SpaceMember[] = []
@@ -13,12 +13,7 @@ export function membersScopes(spaceId: string) {
 // Left/deleted spaces must not keep their rosters (avatars included) cached for the session —
 // useSpaces prunes against every fresh spaces list.
 export function pruneRosterCache(liveSpaceIds: Iterable<string>) {
-  const live = new Set(liveSpaceIds)
-  invalidateKey((key) => {
-    if (!key.startsWith('space:members?')) return false
-    const spaceId = key.slice('space:members?spaceId='.length)
-    return !live.has(spaceId)
-  })
+  pruneByParam(['space:members'], 'spaceId', liveSpaceIds)
 }
 
 export function useSpaceMembers(spaceId: string): SpaceMember[] {

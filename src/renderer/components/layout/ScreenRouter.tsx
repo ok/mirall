@@ -15,6 +15,8 @@ import ActivityLog from '../../screens/ActivityLog.js'
 import ActivityLogSettings from '../../screens/ActivityLogSettings.js'
 import ConnectionProblem from '../../screens/ConnectionProblem.js'
 import { useConnectionGate } from '../../hooks/useConnectionGate.js'
+import { useShares } from '../../hooks/useShares.js'
+import { useEffect } from 'react'
 
 interface ScreenRouterProps {
   nav: AppNavigation
@@ -25,8 +27,41 @@ interface ScreenRouterProps {
   onShowJoin: () => void
 }
 
+// The folder screen reads its folder from the live listing rather than from the row that was
+// clicked. A snapshot of that row goes stale the moment the folder is renamed or unmounted, which
+// is why the router used to spread corrections back into it by hand.
+function FolderViewRoute({ nav, profile, spaceId, shareId }: {
+  nav: AppNavigation
+  profile: Profile | null
+  spaceId: string
+  shareId: string
+}) {
+  const { shares, loading } = useShares(spaceId, profile?.publicKey ?? null)
+  const share = shares.find((s) => s.id === shareId) ?? null
+  const missing = !share && !loading
+  useEffect(() => {
+    // Deleted under us, or the space was left: there is no folder to show, so leave the screen
+    // rather than hold an empty one.
+    if (missing) nav.goBack()
+  }, [missing, nav])
+  if (!share) return null
+  return (
+    // Keyed, so a folder is a fresh mount rather than a reused instance carrying the previous one's
+    // fold, expansion snapshot and filter. Load-bearing: useShareFiles, useTreeExpansion and
+    // FolderView's preFilterRef all assume a mount per share, and a re-target without this key
+    // unions one folder's rows into another's first incomplete listing, silently.
+    <FolderView
+      key={share.id}
+      spaceId={spaceId}
+      share={share}
+      onBack={nav.goBack}
+      onMirror={(s) => nav.requestMirror(s.id)}
+    />
+  )
+}
+
 export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedback, onShowCreate, onShowJoin }: ScreenRouterProps) {
-  const { currentScreen, selectedSpaceId, selectedShare } = nav
+  const { currentScreen, selectedSpaceId, selectedShareId } = nav
   const gate = useConnectionGate()
   switch (currentScreen) {
     case 'spaces':
@@ -56,37 +91,23 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       return selectedSpaceId ? (
         <SpaceView
           spaceId={selectedSpaceId}
+          pendingAction={nav.pendingSpaceAction}
+          onActionConsumed={nav.clearPendingSpaceAction}
           onBack={() => nav.setCurrentScreen('spaces')}
           onManageStorage={() => nav.openStorageSettings('space-view')}
           onOpenShare={(share) => {
-            nav.setSelectedShare(share)
+            nav.setSelectedShareId(share.id)
             nav.setCurrentScreen('folder-view')
           }}
         />
       ) : null
     case 'folder-view':
-      return selectedSpaceId && selectedShare ? (
-        // Keyed, so a folder is a fresh mount rather than a reused instance carrying the previous
-        // one's fold, expansion snapshot and filter. Load-bearing: useShareFiles, useTreeExpansion
-        // and FolderView's preFilterRef all assume a mount per share, and a re-target without this
-        // key unions one folder's rows into another's first incomplete listing, silently.
-        <FolderView
-          key={selectedShare.id}
+      return selectedSpaceId && selectedShareId ? (
+        <FolderViewRoute
+          nav={nav}
+          profile={profile}
           spaceId={selectedSpaceId}
-          share={selectedShare}
-          onBack={() => {
-            nav.setSelectedShare(null)
-            nav.setCurrentScreen('space-view')
-          }}
-          onMirror={(share) => {
-            nav.setSelectedShare(null)
-            nav.setCurrentScreen('space-view')
-            window.setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('mirall:open-mirror-modal', { detail: share }))
-            }, 0)
-          }}
-          onUnmounted={() => nav.setSelectedShare((s) => (s ? { ...s, role: 'browse', mirrorEnabled: undefined, mountStatus: undefined } : s))}
-          onRenamed={(name) => nav.setSelectedShare((s) => (s ? { ...s, name } : s))}
+          shareId={selectedShareId}
         />
       ) : null
     case 'settings':
@@ -142,7 +163,9 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onOpenLog={() => nav.openActivityLog()}
         />
       )
-    default:
-      return null
   }
+  // Every screen in the graph has a branch above, and TypeScript is what says so: a screen added to
+  // `navigation.ts` with no case here fails to compile rather than rendering a blank window.
+  const unrendered: never = currentScreen
+  return unrendered
 }

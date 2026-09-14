@@ -105,6 +105,7 @@
     "joinRequestsDesc": "Nimm Personen an, um ihnen Zugriff auf diesen Space zu geben.",
     "approveAll": "Alle annehmen ({{count}})",
     "approveSelected": "Ausgewählte annehmen ({{count}})",
+    "approvePartial": "{{done}} von {{total}} angenommen — {{failed}} fehlgeschlagen",
     "selectNamed": "{{name}} auswählen",
     "waitingApproval": "Warten auf Freigabe für {{name}} …",
     "waitingApprovalHint": "Ein Mitglied dieses Space muss dich freigeben. Du kannst dieses Fenster offen lassen — sobald jemand online ist, wirst du automatisch hinzugefügt.",

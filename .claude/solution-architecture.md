@@ -132,6 +132,10 @@ const off = subscribe('event:files-updated', ({ spaceId }) => …)
 
 It calls `window.bridge.startWorker('/src/worker/main.js')` once on mount; outgoing requests serialize to NDJSON with an `id`; incoming frames dispatch to pending resolvers (matched by `id`) or to event subscribers.
 
+`src/renderer/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `components/layout/ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
+
+`components/primitives/modalPresence.ts` counts the dialogs on screen, from inside `Modal` itself. Back navigation (`hooks/useCanGoBack.ts`) asks it rather than reading a list of per-screen dialog flags.
+
 `src/renderer/updates.ts` (singleton) subscribes to `bridge.onPearEvent('updated')` and exposes staged-update state to React (`UpdateBanner` + `useUpdates`). On `updated` it reads the staged version via `bridge.appVersion()`; dev builds simply reload the window. The banner is passive — the update applies in the background or at quit (§9). Dismiss only hides the banner; the About screen keeps showing the notice.
 
 ### Worker (`src/worker/main.js` entry + `src/worker/boot.js` root)

@@ -1,8 +1,10 @@
 // Command model for the keyboard layer: Command/CommandContext types and the global hotkeys that stay active inside text inputs.
+import type { Screen } from '../navigation.js'
+
 export type CommandGroup = 'navigation' | 'actions' | 'space' | 'system'
 
 export interface CommandContext {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
   isInputFocused: boolean
 }
@@ -21,7 +23,7 @@ export interface Command {
 export const GLOBAL_HOTKEYS = ['mod+k', 'mod+,', 'mod+/', 'mod+f'] as const
 
 // A folder view is still inside its space, so space-scoped commands stay available there;
-// the ones that need SpaceView's modals route through dispatchSpaceAction to get back first.
+// the ones that need SpaceView's modals raise a pending action, which navigates back there first.
 export function isInSpace(ctx: CommandContext): boolean {
   return ctx.currentScreen === 'space-view' || ctx.currentScreen === 'folder-view'
 }
