@@ -14,6 +14,7 @@ import { useMembers } from '../hooks/useMembers.js'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useFilteredTree } from '../hooks/useFilteredTree.js'
+import { useShareActions } from '../hooks/useShareActions.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
@@ -31,7 +32,6 @@ import { mountFault } from '../../shared/contract/mount-fault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
 import { deriveMirrorSync } from '../mirrorSync.js'
 import { rowBytesOnDevice } from '../rowView.js'
-import { request } from '../ipc.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useOwnedMount } from '../hooks/useFolderMount.js'
 import { useIndexProgress } from '../hooks/useIndexProgress.js'
@@ -39,7 +39,6 @@ import { deriveIndexSummary } from '../indexSummary.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
-import { useToast } from '../components/toast/ToastProvider.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { ShareRole } from '../types.js'
 import { useErrorText } from '../hooks/useErrorText.js'
@@ -104,7 +103,6 @@ interface FolderViewProps {
 
 export default function FolderView({ spaceId, share, onBack, onMirror }: FolderViewProps) {
   const { t } = useTranslation()
-  const toast = useToast()
   const errorText = useErrorText()
   const { locate, relocate } = useLocateShare(spaceId)
   const { profile } = useProfile()
@@ -239,57 +237,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
   const busy = isYou && indexing.active && !indexing.paused
   const filterableTotal = listingTruncated ? files.length : (info?.fileCount ?? files.length)
 
-  async function handleRevealFolder() {
-    try {
-      await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id })
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await request('owned-folder:delete', { spaceId, shareId: share.id })
-      onBack()
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
-  // One handler behind both surfaces (the strip and the menu), so no state can exist in one and
-  // not the other. Which durable flag it writes is the only thing the role changes.
-  async function setPaused(paused: boolean) {
-    try {
-      if (isYou) await request(paused ? 'owned-folder:pause-index' : 'owned-folder:resume-index', { spaceId, shareId: share.id })
-      else await setForeignMountEnabled(spaceId, share.id, !paused)
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
-  async function handleUnmount() {
-    try {
-      await unmountForeignMount(spaceId, share.id)
-    } catch (err) {
-      toast.error(errorText(err))
-    }
-  }
-
-  async function handleRename(name: string) {
-    await request('share:rename', { spaceId, shareId: share.id, name })
-    toast.success(t('share.renameSuccess', { name }))
-  }
-
-  async function handleRelocate(mountPath: string) {
-    if (isYou) return relocate(share, mountPath)
-    await request('foreign-folder:relocate', { spaceId, shareId: share.id, mountPath })
-    toast.success(t('share.mirrorLocationSuccess'))
-  }
-
-  function handleStripAction(action: 'locate' | 'resume' | 'pause') {
-    if (action === 'locate') void locate(share)
-    else void setPaused(action === 'pause')
-  }
+  const {
+    revealFolder, deleteShare, setPaused, unmount, rename, relocateTo, onStripAction,
+  } = useShareActions({ spaceId, share, isYou, onBack, locate, relocate, setForeignMountEnabled, unmountForeignMount })
 
   const paused = isYou ? ownedPaused : !foreignEnabled
   // The same acts the header offers, reachable from the command palette while this folder is on
@@ -301,9 +251,9 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
     paused,
     sourceMissing,
     canMirror: !!onMirror,
-    onOpen: handleRevealFolder,
+    onOpen: revealFolder,
     onLocate: () => { void locate(share) },
-    onSetPaused: (next) => { void setPaused(next) },
+    onSetPaused: setPaused,
     onMirror: () => onMirror?.(share),
     onEdit: () => setShowEdit(true),
   })
@@ -326,12 +276,12 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
       variant: 'danger',
       disabled: busy,
       hint: busy ? t('share.notWhileSyncing') : undefined,
-      onAction: handleUnmount,
+      onAction: unmount,
     }
   const menuItems: ActionMenuItemConfig[] = [
     paused
-      ? { id: 'resume', label: t('share.resumeSyncing'), icon: 'play_arrow', onAction: () => void setPaused(false) }
-      : { id: 'pause', label: t('share.pauseSyncing'), icon: 'pause', onAction: () => void setPaused(true) },
+      ? { id: 'resume', label: t('share.resumeSyncing'), icon: 'play_arrow', onAction: () => setPaused(false) }
+      : { id: 'pause', label: t('share.pauseSyncing'), icon: 'pause', onAction: () => setPaused(true) },
     { id: 'edit', label: t('share.editFolder'), icon: 'edit', onAction: () => setShowEdit(true) },
     destructive,
   ]
@@ -356,7 +306,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
             sourceMissing={sourceMissing}
             onMirror={onMirror ? () => onMirror(share) : undefined}
             onLocate={() => { void locate(share) }}
-            onReveal={handleRevealFolder}
+            onReveal={revealFolder}
             menuItems={menuItems}
           />
         }
@@ -369,14 +319,14 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           announced. It is `absolute` while empty, so it still costs no height. */}
       <div className={`shrink-0 space-y-2${strips.length > 0 ? ' pb-4' : ''}`}>
         {strips.filter((strip) => strip.id !== 'over-limit').map((strip) => (
-          <FolderWorkStrip key={strip.id} strip={strip} ownerName={ownerName} onAction={handleStripAction} />
+          <FolderWorkStrip key={strip.id} strip={strip} ownerName={ownerName} onAction={onStripAction} />
         ))}
         <div
           role="status"
           aria-live="polite"
           className={overLimit ? '' : 'sr-only'}
         >
-          {overLimit ? <FolderWorkStrip strip={overLimit} ownerName={ownerName} onAction={handleStripAction} /> : null}
+          {overLimit ? <FolderWorkStrip strip={overLimit} ownerName={ownerName} onAction={onStripAction} /> : null}
         </div>
       </div>
 
@@ -495,7 +445,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
         spaceName={space?.name || ''}
         onClose={() => setShowDelete(false)}
         onDelete={async () => {
-          await handleDelete()
+          await deleteShare()
           setShowDelete(false)
         }}
       />
@@ -507,8 +457,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           name={share.name}
           ownerName={ownerName}
           mountPath={isYou ? ownedPath : (foreignMount?.mountPath ?? null)}
-          onRename={handleRename}
-          onRelocate={handleRelocate}
+          onRename={rename}
+          onRelocate={relocateTo}
           onClose={() => setShowEdit(false)}
         />
       )}
