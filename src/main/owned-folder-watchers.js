@@ -36,11 +36,15 @@ async function startWatcher(shareId, mountPath, ignorePatterns, onEvent, onError
   if (!mod) return onError?.(new Error('ignore matcher unavailable - watcher not started'))
   // The await above is a second window for a concurrent start-watcher for this share.
   if (watchers.has(shareId)) return
-  const ignoreFn = (full) => {
+  // A directory is asked about as a directory — chokidar supplies the stats on the traversal
+  // decision, and a glob naming a directory only answers for one when it is presented as one.
+  const ignoreFn = (full, stats) => {
     if (full === mountPath) return false
     const rel = path.relative(mountPath, full)
     if (!rel) return false
-    return mod.shouldIgnore(rel.split(path.sep).join('/'), ignorePatterns)
+    const key = rel.split(path.sep).join('/')
+    if (stats && stats.isDirectory()) return mod.shouldPruneDir(key, ignorePatterns)
+    return mod.shouldIgnore(key, ignorePatterns)
   }
   // atomic:false — the retire executor re-confirms presence (publish-runner's
   // fileExactlyPresent) and the periodic reconcile re-derives the truth, so coalescing an

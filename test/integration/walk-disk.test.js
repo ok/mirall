@@ -139,7 +139,7 @@ test('an ignored directory tree is never read', async (t) => {
     t.pass('running with rights that ignore the mode bits — nothing to assert')
     return
   }
-  const { onDisk } = await walkDisk(root, ['node_modules/**'])
+  const { onDisk } = await walkDisk(root, ['node_modules/'])
   t.is(onDisk.size, 1)
   t.ok(onDisk.has('keep.txt'))
 })
@@ -158,7 +158,7 @@ test('no readdir is issued at or beneath a pruned directory', async (t) => {
   fs.promises.readdir = (dir, opts) => { seen.push(dir); return orig(dir, opts) }
   t.teardown(() => { fs.promises.readdir = orig })
 
-  const { onDisk } = await walkDisk(root, ['node_modules/**', '.git/**'])
+  const { onDisk } = await walkDisk(root, ['node_modules/', '.git/'])
 
   t.is(onDisk.size, 1, 'only the publishable file')
   t.ok(onDisk.has('src/a.js'))
@@ -187,13 +187,17 @@ test('pruning changes no key the ignore matcher would have kept', async (t) => {
   const patternSets = [
     [],
     DEFAULT_IGNORE,
+    ['build/'],
     ['build/**'],
     ['**/node_modules'],
     ['**/build/**'],
     ['dist'],
     ['*~'],
     ['logs'],
-    DEFAULT_IGNORE.concat(['build/**', 'dist', '*~']),
+    ['/dist'],
+    ['src/*/out.js'],
+    ['*', '!a.txt'],
+    DEFAULT_IGNORE.concat(['node_modules/', '.git/', 'build/', 'dist', '*~']),
   ]
   const { onDisk: everything } = await walkDisk(root, [])
   const allKeys = [...everything.keys()].sort()
@@ -205,14 +209,27 @@ test('pruning changes no key the ignore matcher would have kept', async (t) => {
   }
 })
 
-// A bare name and a `*` glob name one path each: they withhold the directory ENTRY, which is never
-// a file, so the walk must still descend and publish what is under it.
-test('a pattern that is not directory-shaped still descends', async (t) => {
+// A name answers for a directory as readily as for a file, so withholding the name withholds the
+// tree under it. This is the reading chokidar takes when it declines to descend, and the walk has
+// to reach the same set or the two sides of a share disagree.
+test('a name that is not directory-shaped still covers the tree beneath it', async (t) => {
   const root = tmp()
   writeTree(root, { 'dist/app.js': 'a', 'cache~/held.txt': 'b', 'keep.txt': 'k' })
   const { onDisk } = await walkDisk(root, ['dist', '*~'])
-  t.ok(onDisk.has('dist/app.js'), 'a bare name does not prune the tree')
-  t.ok(onDisk.has('cache~/held.txt'), 'a suffix glob does not prune the tree')
+  t.absent(onDisk.has('dist/app.js'), 'a bare name covers the tree')
+  t.absent(onDisk.has('cache~/held.txt'), 'a suffix glob covers the tree')
+  t.ok(onDisk.has('keep.txt'))
+})
+
+// A directory-only glob is the one shape that separates the two: it withholds the tree and leaves
+// a FILE wearing the same name publishable.
+test('a directory-only glob spares a file of the same name', async (t) => {
+  const root = tmp()
+  writeTree(root, { 'dist/app.js': 'a', 'dist.txt': 'b', 'sub/dist': 'c', 'keep.txt': 'k' })
+  const { onDisk } = await walkDisk(root, ['dist/'])
+  t.absent(onDisk.has('dist/app.js'), 'the directory tree is withheld')
+  t.ok(onDisk.has('sub/dist'), 'a file of that name publishes')
+  t.ok(onDisk.has('dist.txt'))
   t.ok(onDisk.has('keep.txt'))
 })
 

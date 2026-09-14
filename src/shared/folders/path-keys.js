@@ -6,6 +6,7 @@
 // Functions that need a path separator take it as an argument; callers pass their
 // real `path.sep`, tests pass an explicit `/` or `\` to exercise both platforms on
 // one machine.
+import ignore, { isPathValid } from 'ignore'
 import { PARTIAL_SUFFIX, pathContains } from '../contract/paths.js'
 
 // ─── share key ⇄ OS-relative path ─────────────────────────────────────────────
@@ -64,7 +65,7 @@ export function isAbsoluteDriveKey(key) {
 // PUT time, but a malicious peer can write a raw entry that bypasses that and
 // list() serves it verbatim, so the consuming side re-validates here. Returns true
 // when the key is unsafe and must be rejected; callers raise AppError (this module
-// stays import-free, see the header). A POSIX file literally named with a '\' is
+// carries no error type of its own). A POSIX file literally named with a '\' is
 // rejected too — vanishingly rare, and worth far less than blocking traversal.
 export function relKeyEscapes(relPath) {
   if (isAbsoluteDriveKey(relPath)) return true
@@ -77,7 +78,7 @@ export function relKeyEscapes(relPath) {
 
 // Drop poisoned peer entries at ingest so they never reach a materialize batch or a synced
 // record — one bad key must not abort a tick or DoS a mirror. `onDropped` is the caller's logger;
-// this module stays import-free (see the header), so it cannot log for itself.
+// this module carries no logger, so it cannot log for itself.
 export function dropUnsafeEntries(entries, onDropped = () => {}) {
   return entries.filter((e) => {
     if (!relKeyEscapes(e.relPath)) return true
@@ -110,78 +111,37 @@ export function overlapAllowed(aPath, aRole, bPath, bRole) {
 // The one matcher both sides of an owned folder ask: the recursive watcher in Electron main (as
 // chokidar's per-instance `ignored`) and the periodic reconcile's disk walk. A second
 // implementation is a share where a file one side withholds the other publishes.
-export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX, '*~', '.git/**', 'node_modules/**']
+export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX]
 
+// Keyed on the caller's array identity. Patterns are matched per path per scan, so building the
+// matcher per call would dominate the walk; every caller holds one array for the life of a walk or
+// a watcher, and a WeakMap still lets a short-lived one be collected.
+const matchers = new WeakMap()
+
+function matcherFor(patterns) {
+  let matcher = matchers.get(patterns)
+  if (!matcher) {
+    matcher = ignore().add(patterns.filter((pattern) => typeof pattern === 'string'))
+    matchers.set(patterns, matcher)
+  }
+  return matcher
+}
+
+// A path outside the matcher's domain (absolute, escaping, empty) is published rather than
+// withheld: asking about one raises, and this runs inside chokidar's ignore callback where a throw
+// stops the watcher. The walk discards those shapes before they reach here for its own reasons.
 export function shouldIgnore(rel, ignorePatterns) {
-  if (!ignorePatterns || ignorePatterns.length === 0) return false
-  const base = rel.split('/').pop() ?? rel
-  for (const pat of ignorePatterns) {
-    if (matchPattern(rel, pat)) return true
-    if (matchPattern(base, pat)) return true
-  }
-  return false
+  if (!Array.isArray(ignorePatterns) || ignorePatterns.length === 0) return false
+  if (!isPathValid(rel)) return false
+  return matcherFor(ignorePatterns).ignores(rel)
 }
 
-// The subset of `shouldIgnore` a directory walk may act on: true only when every path beneath the
-// directory is ignored too, so the descent can be skipped without changing which files a glob
-// covers. Always a subset of `shouldIgnore` — a directory pruned here is one the per-file pass
-// would have discarded anyway.
+// The subset of `shouldIgnore` a directory walk may act on. A trailing slash is what names a
+// directory to the matcher, and nothing beneath an excluded directory can be re-included — so a
+// descent skipped here drops only paths the per-file pass would have discarded anyway.
 export function shouldPruneDir(rel, ignorePatterns) {
-  if (!ignorePatterns || ignorePatterns.length === 0) return false
-  for (const pat of ignorePatterns) {
-    if (coversDescendants(pat) && matchPattern(rel, pat)) return true
-  }
-  return false
-}
-
-// Plain string comparisons, never a compiled regular expression: patterns arrive from a share's
-// configuration and are matched against every path of every scan, where a backtracking pattern
-// would be a stall the user cannot explain.
-function matchPattern(input, pattern) {
-  // `**/x` is the gitignore spelling of "x wherever it sits in the tree" — the form a user is
-  // likeliest to type. It names one segment, so it is answered per segment: any path holding a
-  // matching segment is covered, which withholds a matching directory's contents too. A `**/`
-  // prefix on a multi-segment pattern only widens where that pattern may sit, which is already
-  // what the rest of this matcher does, so the remainder is answered on its own terms.
-  if (pattern.startsWith('**/')) {
-    const rest = pattern.slice(3)
-    if (rest === '') return false
-    if (rest.includes('/')) return matchPattern(input, rest)
-    return input.split('/').some((segment) => matchSegment(segment, rest))
-  }
-  // `dir/**` covers that directory WHEREVER it sits in the tree, plus everything beneath it at
-  // any depth. Anchoring it to the mount root would publish a nested `node_modules` or `.git`
-  // while the same glob withheld the one at the top.
-  if (pattern.endsWith('/**')) {
-    const prefix = pattern.slice(0, -3)
-    return input === prefix || input.startsWith(prefix + '/') ||
-      input.endsWith('/' + prefix) || input.includes('/' + prefix + '/')
-  }
-  return matchSegment(input, pattern)
-}
-
-// True when matching a path implies matching everything beneath it — the property a prune needs.
-// `X/**` has it by construction: each of its four disjuncts survives appending a segment. A `**/`
-// prefix naming ONE segment has it because a descendant keeps every segment its ancestor had; a
-// multi-segment remainder is answered on its own terms, as `matchPattern` answers it. Every other
-// shape is matched against a whole key or a basename, so it covers the directory entry and nothing
-// under it. This mirrors `matchPattern`'s branches one for one and changes with it.
-function coversDescendants(pattern) {
-  if (pattern.startsWith('**/')) {
-    const rest = pattern.slice(3)
-    if (rest === '') return false
-    return rest.includes('/') ? coversDescendants(rest) : true
-  }
-  return pattern.endsWith('/**') && pattern.length > '/**'.length
-}
-
-// Exact name, leading-`*` suffix glob, or trailing-`*` prefix glob — the whole vocabulary a
-// pattern without a `**` has.
-function matchSegment(input, pattern) {
-  if (pattern === input) return true
-  if (pattern.startsWith('*')) return input.endsWith(pattern.slice(1))
-  if (pattern.endsWith('*')) return input.startsWith(pattern.slice(0, -1))
-  return false
+  if (typeof rel !== 'string') return false
+  return shouldIgnore(rel.endsWith('/') ? rel : rel + '/', ignorePatterns)
 }
 
 // ─── mirror deletion safety ───────────────────────────────────────────────────

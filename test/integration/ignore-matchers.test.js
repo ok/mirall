@@ -7,20 +7,18 @@ test('DEFAULT_IGNORE: exact basename matches', (t) => {
   t.ok(shouldIgnore('Thumbs.db', DEFAULT_IGNORE))
 })
 
-test('DEFAULT_IGNORE: suffix globs (*.mirall.part, *~)', (t) => {
+test('DEFAULT_IGNORE: our own partials, at any depth', (t) => {
   t.ok(shouldIgnore('big.iso.mirall.part', DEFAULT_IGNORE))
   t.ok(shouldIgnore('a/b/download.mirall.part', DEFAULT_IGNORE))
-  t.ok(shouldIgnore('notes.txt~', DEFAULT_IGNORE))
   t.absent(shouldIgnore('part.txt', DEFAULT_IGNORE), 'prefix, not suffix → not ignored')
   t.absent(shouldIgnore('big.iso.part', DEFAULT_IGNORE), "another app's .part is not ours to ignore")
 })
 
-test('DEFAULT_IGNORE: dir/** prefix globs', (t) => {
-  t.ok(shouldIgnore('.git', DEFAULT_IGNORE), 'the dir itself')
-  t.ok(shouldIgnore('.git/config', DEFAULT_IGNORE))
-  t.ok(shouldIgnore('node_modules/pkg/index.js', DEFAULT_IGNORE))
-  t.absent(shouldIgnore('src/.gitignore', DEFAULT_IGNORE), '.gitignore is not .git/**')
-  t.absent(shouldIgnore('my-node_modules-notes.md', DEFAULT_IGNORE))
+test('DEFAULT_IGNORE: a folder publishes its own contents, tooling included', (t) => {
+  t.absent(shouldIgnore('.git/config', DEFAULT_IGNORE))
+  t.absent(shouldIgnore('sub/.git/HEAD', DEFAULT_IGNORE))
+  t.absent(shouldIgnore('node_modules/pkg/index.js', DEFAULT_IGNORE))
+  t.absent(shouldIgnore('notes.txt~', DEFAULT_IGNORE))
 })
 
 test('shouldIgnore: ordinary files pass through', (t) => {
@@ -34,8 +32,9 @@ test('shouldIgnore: empty/missing patterns ignore nothing', (t) => {
 })
 
 test('the walk skips the same directory trees chokidar does', (t) => {
+  const patterns = ['node_modules/', '.git/']
   for (const dir of ['node_modules', 'src/node_modules', '.git', 'sub/.git']) {
-    t.ok(shouldIgnore(dir, DEFAULT_IGNORE), 'the watcher withholds it')
-    t.ok(shouldPruneDir(dir, DEFAULT_IGNORE), 'and the walk does not descend into it')
+    t.ok(shouldPruneDir(dir, patterns), 'the walk does not descend into it')
+    t.ok(shouldIgnore(dir + '/any.txt', patterns), 'and the watcher withholds what is under it')
   }
 })
