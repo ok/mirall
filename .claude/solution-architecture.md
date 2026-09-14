@@ -1107,6 +1107,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/ipc-frame.js` | Byte-level NDJSON splitter for worker→main control frames, with a 64 KB per-frame gate |
 | `src/main/lifecycle.js` | The quit teardown: one ordered `before-quit` sequence (mark-quitting → owned watchers → loose watchers → config flush → workers → apply update), run at most once per process so the update-apply deferral cannot tear the app down twice |
 | `src/main/log-ring.js` | Bounded in-memory ring of recent log lines from all three processes, for the diagnostics bundle; never written to disk |
+| `src/main/logging.js` | `sendToAll` (broadcast to every live webContents, swallowing a disposed frame per target) plus the main-console → log-ring → renderer forwarding with its re-entrancy guard, and the lazy redaction loader. Installed by the entry before anything else logs (§10) |
 | `src/main/loose-file-watchers.js` | Individual watched paths for in-place loose-file shares, over the watch host; path → `Set<spaceId>` fan-out (§2 step 12) |
 | `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`, capped unknown-command warnings |
 | `src/main/menu.js` | The application-menu template — a pure function of platform + UI context |

@@ -1,24 +1,34 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
 // The failure only manifests inside Electron (webContents + a disposed render frame), so —
-// like msix-manager-preload.test.js — this pins the structural invariants in main.js source:
+// like msix-manager-preload.test.js — this pins the structural invariants in the main process's
+// source:
 // a failed send must be swallowed per-target, and the log-forwarding console override must
 // be re-entrancy-guarded, or Electron's own "Error sending from webFrameMain" log re-enters
 // the override, forwards again, fails again — an unbounded loop that hangs main.
 const here = path.dirname(fileURLToPath(import.meta.url))
-const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
+const mainDir = path.join(here, '..', '..', 'src', 'main')
+const mainSrc = readFileSync(path.join(mainDir, 'main.js'), 'utf8')
+
+// The entry and the modules it wires are one process. A function moving from main.js into a module
+// beside it does not change the invariant, so the body scans read the whole directory; only the
+// call-ORDER assertion below is about the entry file itself.
+const processSrc = readdirSync(mainDir)
+  .filter((f) => f.endsWith('.js'))
+  .map((f) => readFileSync(path.join(mainDir, f), 'utf8'))
+  .join('\n')
 
 function fnBody(name) {
-  const m = mainSrc.match(new RegExp('function ' + name + '\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\}'))
+  const m = processSrc.match(new RegExp('function ' + name + '\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\}'))
   return m ? m[1] : null
 }
 
 test('REGRESSION (FIX-EDA-4: main log forwarding cannot loop on a disposed render frame)', (t) => {
   const sendToAll = fnBody('sendToAll')
-  t.ok(sendToAll, 'sendToAll() exists in src/main/main.js')
+  t.ok(sendToAll, 'sendToAll() exists in the main process')
   t.ok(/try\s*\{\s*wc\.send\(channel,\s*payload\)\s*\}\s*catch\s*\{\}/.test(sendToAll),
     'sendToAll swallows a per-target send failure (disposed render frame) instead of throwing')
 
@@ -55,7 +65,7 @@ test('REGRESSION (FIX-ARGV-RING-1): the argv warnings are emitted after the cons
 // bytes itself, and a chunk carrying only a split character is the one it needs most.
 test('a chunk that decodes to nothing prints nothing, and is still forwarded', (t) => {
   for (const stream of ['stdout', 'stderr']) {
-    const m = mainSrc.match(new RegExp(`worker\\.${stream}\\.on\\('data'[\\s\\S]*?\\n  \\}\\)`))
+    const m = processSrc.match(new RegExp(`worker\\.${stream}\\.on\\('data'[\\s\\S]*?\\n  \\}\\)`))
     t.ok(m, `the ${stream} handler exists`)
     const body = m[0]
     const forward = body.indexOf('sendToAll')
@@ -66,7 +76,7 @@ test('a chunk that decodes to nothing prints nothing, and is still forwarded', (
 
   // And whatever the decoders still hold at process death is flushed, rather than dropped with the
   // last line the worker wrote.
-  const exit = mainSrc.slice(mainSrc.indexOf("worker.once('exit'"))
+  const exit = processSrc.slice(processSrc.indexOf("worker.once('exit'"))
   t.ok(/stdoutDecoder\.end\(\)/.test(exit) && /stderrDecoder\.end\(\)/.test(exit),
     'both decoders are flushed on worker exit')
 })
