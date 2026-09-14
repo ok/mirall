@@ -27,13 +27,14 @@ import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets } from '
 import { applyNetImpairment } from './net-impair.js'
 import { clearListDeficits } from './list-deficits.js'
 import { peerLost, peerLostMeta, peerSeen, resetNetworkWatch } from '../audit/network-watch.js'
-import { sealSck } from './sck-seal.js'
+
 import { sanitizeAvatar } from '../identity-limits.js'
 import { createPresence } from './presence.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
 import { initRelayInstall, pinRelayIdentity, relaySelectionCount, resetRelayInstall } from './relay-install.js'
 import { initPeerProfileWatch, fetchPeerAvatar, resetPeerProfileWatch } from '../spaces/peer-profile-watch.js'
+import { initMembershipFrames } from './membership-frames.js'
 import { initFrameIntake, createFrameLimiters, receiveFrame, isBannedNoiseKey, forgetPeerLimits, getDroppedFrameCounters, resetFrameIntake } from './frame-intake.js'
 import { compactStore, settleCompaction } from '../storage/compaction.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -205,6 +206,7 @@ function initSwarm(_ipc, relaySeedHex = null) {
   initRelayInstall({ getSwarm: () => swarm })
   initPeerProfileWatch({ getIpc: () => ipcRef, connectedPeers })
   initFrameIntake({ handleHandshake, getMembershipControlHandler: () => membershipControlHandler })
+  initMembershipFrames({ handlerForPeer, sendFrame, getLocalBinding })
   if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
@@ -766,53 +768,6 @@ function handlerForPeer(profileKeyHex) {
   }
   const sock = pendingRequesters.get(profileKeyHex)
   return sock ? socketMsgHandlers.get(sock) || null : null
-}
-
-// Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
-// joiner pins creatorKey only from this authenticated assertion — never from the bearer
-// invite. creatorKeyHex is our own pinned/derived root; granterKey + binding let the joiner
-// verify WE are an authorized member making the claim.
-export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyHex, recipientSignerPkEd) {
-  const handler = handlerForPeer(profileKeyHex)
-  // Sealed-only: without the recipient's bound signer key we cannot seal, so we refuse to
-  // grant rather than fall back to a plaintext SCK a transport observer could capture.
-  if (!handler || !recipientSignerPkEd) return false
-  try {
-    const sckSealed = b4a.toString(sealSck(b4a.from(sckHex, 'hex'), recipientSignerPkEd), 'hex')
-    sendFrame(handler, {
-      type: PEER_FRAME.MEMBERSHIP_GRANT,
-      spaceTopic: topicHex,
-      sckSealed,
-      creator: creatorKeyHex || null,
-      granterKey: b4a.toString(getProfileKey(), 'hex'),
-      ...(getLocalBinding() || {}),
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Withdraw our own pending join request (an ephemeral request-lifecycle signal, not
-// convergence gossip): tell connected members so their "wants to join" banner clears. A
-// pending joiner isn't admitted anywhere, so it isn't in any peer's connectedPeers — and
-// cancelling doesn't promptly close the shared socket — so send over every socket;
-// recipients no-op if they hold no matching request.
-export function broadcastMembershipCancel(spaceId, topicHex, joinerKey) {
-  for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: topicHex, joinerKey })) } catch {}
-  }
-}
-
-export function sendMembershipDeny(profileKeyHex, topicHex) {
-  const handler = handlerForPeer(profileKeyHex)
-  if (!handler) return false
-  try {
-    handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, spaceTopic: topicHex }))
-    return true
-  } catch {
-    return false
-  }
 }
 
 async function destroySwarm() {
