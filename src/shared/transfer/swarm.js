@@ -22,12 +22,11 @@ import {
   getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
 import { getRuntimeConfig, isHandshakeIdentityBindingEnabled, getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, isSeparateContentPlaneEnabled, getPeerFrameMaxBytes, getPeerFrameLimits, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
-import { enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair, decodeRelayKey } from './relay.js'
-import BlindRelay from 'blind-relay'
+import { relayIdentityKeyPair } from './relay.js'
 import { catalogKeyField } from '../shares/share-catalog.js'
 import { HEX64 } from '../contract/invite-envelope.js'
 import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
-import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, getContentSwarm } from './content-swarm.js'
+import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { clearListDeficits } from './list-deficits.js'
 import { observePeerProfile } from '../audit/peer-watch.js'
@@ -37,6 +36,7 @@ import { sanitizeAvatar } from '../identity-limits.js'
 import { createPresence } from './presence.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
+import { initRelayInstall, pinRelayIdentity, relaySelectionCount, resetRelayInstall } from './relay-install.js'
 import { compactStore, settleCompaction } from '../storage/compaction.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
@@ -168,7 +168,7 @@ const DHT_VERSION = (() => {
 // reassign `swarm`, and relaySelections is a counter this module keeps.
 const diag = createSwarmDiagnostics({
   getSwarm: () => swarm,
-  getRelaySelections: () => relaySelections,
+  getRelaySelections: relaySelectionCount,
   getDhtVersion: () => DHT_VERSION,
 })
 // The join gates. Deferred admission reads the registries itself (swarm-registries.js) and takes
@@ -228,6 +228,7 @@ let corruptionDiagnosed = false
 // === Connection intake & frame dispatch ===
 
 function initSwarm(_ipc, relaySeedHex = null) {
+  initRelayInstall({ getSwarm: () => swarm })
   if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
@@ -246,7 +247,7 @@ function initSwarm(_ipc, relaySeedHex = null) {
     ...(dhtBootstrap ? { bootstrap: dhtBootstrap } : {}),
     keyPair: relayIdentityKeyPair(relaySeedHex),
   })
-  relayIdentityPinned = typeof relaySeedHex === 'string' && relaySeedHex.length > 0
+  pinRelayIdentity(relaySeedHex)
   swarm = new Hyperswarm({
     dht,
     maxServerConnections: caps.serverConnections || Infinity,
@@ -1118,8 +1119,7 @@ async function destroySwarm() {
   resetLeaveProtocol()
   resetDeferredAdmission()
   corruptionDiagnosed = false
-  relaySelections = 0
-  relayIdentityPinned = false
+  resetRelayInstall()
   try {
     await swarm.destroy()
   } catch {}
@@ -1129,81 +1129,6 @@ async function destroySwarm() {
   // started would otherwise spend the whole budget and skip every subsystem after this one.
   await settleCompaction()
   log.info('swarm destroyed')
-}
-
-// === Blind relay ===
-
-const RELAY_PROBE_TIMEOUT_MS = 10000
-
-// hyperdht increments dht.stats.relaying only on its ANNOUNCE path (Server._relayConnection);
-// the dialing side is never counted. Since the relay function is ours, counting its
-// selections is the one signal that covers both directions — without it the diagnostics
-// read 0 on the peer doing the relaying, which is precisely the peer checking.
-let relaySelections = 0
-// Whether this node actually booted with a pinned member identity. A config that names a private
-// relay is not proof: the vault can be missing (a machine move that copied config.json but not
-// relay-ticket.enc) or unreadable under a new keyring, and readRelaySeedHex degrades to null.
-let relayIdentityPinned = false
-
-// BOTH swarms, always. The content plane carries every file byte, so configuring only
-// the control swarm produces a build whose handshakes connect and whose transfers stall.
-// Call this after the ContentSwarm subsystem has started — getContentSwarm() is null until its
-// _open runs, which is why boot.js applies the relay config only once both swarms are up.
-export function setRelayThrough(relay, mode) {
-  // A private relay names a member the firewall matches by key. Without the seed live on this
-  // node we present a different key, so installing it would route every dial into a refusal
-  // instead of letting it fall back to a direct connection — the silent-never-connects failure
-  // the ticket format exists to prevent. Refuse loudly and stay direct.
-  const identityMissing = relay?.kind === 'private' && !relayIdentityPinned
-  if (identityMissing) log.warn('relay: a private relay is configured but no member identity is live — not installing it')
-
-  const keys = identityMissing ? [] : enabledRelayKeys(relay)
-  const fn = relayFunctionFor(keys, mode, () => { relaySelections++ }, {
-    offerable: relay?.kind !== 'private',
-  })
-  for (const s of [swarm, getContentSwarm()]) {
-    if (!s) continue
-    s.relayThrough = fn
-  }
-  return identityMissing ? { applied: 0, reason: 'identity-missing' } : { applied: fn ? keys.length : 0 }
-}
-
-// A mistyped or stale key is otherwise invisible until a space silently fails to sync
-// weeks later. Reaching the Noise stream only proves something answers on that key, so
-// the verdict waits for the blind-relay protomux channel to open.
-export async function testRelayReachable(publicKey) {
-  const key = decodeRelayKey(publicKey)
-  if (!key) return { ok: false, reason: 'invalid-key' }
-  const dht = swarm?.dht
-  if (!dht) return { ok: false, reason: 'offline' }
-
-  let socket = null
-  let settle = null
-  const verdict = new Promise((resolve) => { settle = resolve })
-  const timer = setTimeout(() => settle({ ok: false, reason: 'timeout' }), RELAY_PROBE_TIMEOUT_MS)
-  timer.unref?.()
-
-  try {
-    socket = dht.connect(key)
-    socket.on('error', () => settle({ ok: false, reason: 'unreachable' }))
-    socket.on('close', () => settle({ ok: false, reason: 'unreachable' }))
-    const client = BlindRelay.Client.from(socket, { id: socket.publicKey })
-    // 'open' fires when the remote opens ITS side of the blind-relay channel, which is
-    // what distinguishes a relay from any other reachable hyperdht node. The Client
-    // class emits only open/close/destroy/pair — it has no 'error' event — so a peer
-    // that answers but speaks no blind-relay is caught by close/destroy or the timeout.
-    client.on('open', () => settle({ ok: true }))
-    client.on('close', () => settle({ ok: false, reason: 'not-a-relay' }))
-    client.on('destroy', () => settle({ ok: false, reason: 'not-a-relay' }))
-  } catch (err) {
-    log.debug('relay probe failed:', err.message)
-    settle({ ok: false, reason: 'unreachable' })
-  }
-
-  const result = await verdict
-  clearTimeout(timer)
-  if (socket) { try { socket.destroy() } catch {} }
-  return result
 }
 
 export class Swarm extends Subsystem {

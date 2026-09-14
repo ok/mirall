@@ -4,12 +4,12 @@
 import { setRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import {
   getSwarmStatus,
-  testRelayReachable,
   reconnectAll,
   probeCanary,
   setBrowserOnlineHint,
   checkLivenessNow,
 } from '../../shared/transfer/swarm.js'
+import { testRelayReachable } from '../../shared/transfer/relay-install.js'
 
 export function registerNetwork(ipc, { applyRelayConfig }) {
   ipc.handle('network:status:get', async () => getSwarmStatus())

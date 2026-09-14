@@ -1296,7 +1296,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection frame intake and budget, the identity-frame gate (§4.2), the frame dispatch ladder, handshake apply + peer registry, the peer profile-bee watch + avatar fetch, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, the blind-relay install + probe (§4.8), `Swarm` |
+| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection frame intake and budget, the identity-frame gate (§4.2), the frame dispatch ladder, handshake apply + peer registry, the peer profile-bee watch + avatar fetch, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, `Swarm` |
 | `src/shared/transfer/connectivity.js` | "Are we reachable": DHT / NAT verdict watchers, the two-stage canary probe, the liveness ping loop, the interface poll, `getSwarmStatus` assembly, the debounced `event:network-status` + audit hook, `reconnectAll` |
 | `src/shared/transfer/loose-overlay.js` | In-place loose files, both sides: admission (name + cap under the space lock), the `loose` publish channel (source-link resolve, `publishing` decoration, watch arming, direct unshare), boot rehydrate and the presence sweep as producers; peer-catalog listing / watch / reconcile, the `looseChannel` and the engine forwarders as the consumer |
 | `src/shared/transfer/files.js` | The `downloads-meta` bee (claims, `verified:`, `src:` — §3.3), the claim verdict I/O, `addFile` / `removeFile`, the aggregated loose listing with status derivation (§3.5), reveal-in-file-manager, per-space cleanup, `DownloadsBee` |
@@ -1333,6 +1333,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
 | `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
 | `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
+| `src/shared/transfer/relay-install.js` | `setRelayThrough` / `testRelayReachable` — installs the relay function on BOTH swarms (configuring only the control plane yields a build whose handshakes connect and whose transfers stall) and probes one. The impure third of the relay trio: `relay.js` holds the pure rules, `relay-ticket.js` the codec (§4.8) |
 | `src/shared/transfer/relay-ticket.js` | The frozen 69-byte z-base-32 ticket codec shared with `mirall-relay`, `parseRelayInput`, `decodeRelayKey` (§4.8) |
 | `src/shared/transfer/deferred-admission.js` | Replays a parked joiner's handshake once an approval replicates in or a space is re-entered; `emitPeerSharesUpdated` (§4.2) |
 | `src/shared/transfer/admission-gates.js` | `createAdmissionGates` — the approval read gate, invite resolve, the creator-root cross-check the handshake asks before registering anyone (§4.2 step 2) |
