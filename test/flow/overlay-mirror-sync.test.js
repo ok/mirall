@@ -5,18 +5,15 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, waitForFile, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { waitFor } from '../helpers/poll.js'
 
 const FLAGS = { overlayEnabled: true }
 
 // Poll a mirrored file's CONTENT (waitForFile only checks presence) until it
 // matches, or fail — for asserting the mirror re-fetched an owner edit.
-async function waitForContent(file, want, ms = scaled(70000)) {
-  const deadline = Date.now() + ms
-  while (Date.now() < deadline) {
-    try { if (fs.readFileSync(file).equals(want)) return } catch {}
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-  throw new Error(`content at ${file} never matched (${want.length}B) within ${ms}ms`)
+async function waitForContent(file, want, ms = 70000) {
+  const matches = () => { try { return fs.readFileSync(file).equals(want) } catch { return false } }
+  await waitFor(matches, ms, { interval: 1000, label: `content at ${file} to match (${want.length}B)` })
 }
 
 // Ongoing overlay mirror sync: after the initial mirror is active, an owner EDIT

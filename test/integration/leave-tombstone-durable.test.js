@@ -10,14 +10,10 @@ import {
   persistLeftTombstone, loadLeftTombstones, clearLeftTombstone, forgetSpaceRecord, createSpace,
 } from '../../src/shared/spaces/space.js'
 import { openMemberView, closeMemberView, isLeft, isMember } from '../../src/shared/spaces/member-registry.js'
-import { scaled } from '../helpers/bare-timing.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
+import { until } from '../helpers/bare-poll.js'
 
-const waitFor = async (pred, ms = 5000) => {
-  const t0 = Date.now()
-  while (Date.now() - t0 < scaled(ms)) { if (await pred()) return true; await new Promise((r) => setTimeout(r, 25)) }
-  return pred()
-}
+const waitFor = (pred, ms = 5000) => until(pred, ms, { interval: 25 })
 // A standalone peer bee (its own store) replicated into ours, standing in for a remote member.
 async function makePeer(t) {
   const dir = tmpDir('tomb-peer')

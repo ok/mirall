@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { initOwnedFolders, onFsEvent } from '../../src/shared/folders/owned-folders.js'
 import { setOwnedActivity, setOwnedFault, getOwnedMount } from '../../src/shared/folders/mount-store.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { until } from '../helpers/bare-poll.js'
 
 // A watcher event schedules a trailing catch-up reconcile (2s debounce). That reconcile used to
 // run fire-and-forget: it healed the catalog but its OUTCOME went nowhere, so nothing persisted a
@@ -13,7 +13,6 @@ import { scaled } from '../helpers/bare-timing.js'
 // EDGE — so a source folder that vanished and came back inside one probe window produced no
 // signal at all and the "source folder moved" banner stayed up forever (frontend s79).
 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 const CATCHUP_SETTLED_MS = 4000   // POST_EVENT_RECONCILE_MS (2s) plus room for the scan itself
 
 // Stand-in for the worker's settleScanStatus: records every settled outcome and applies the same
@@ -46,9 +45,7 @@ function recordingSettle(ctx) {
 // Returns whether an outcome landed. Callers bail out on false: with nothing recorded, every
 // assertion after it would throw on an empty array and bury the real failure.
 async function waitForSettle(settled, timeout = CATCHUP_SETTLED_MS) {
-  const deadline = Date.now() + scaled(timeout)
-  while (Date.now() < deadline && settled.length === 0) await delay(50)
-  return settled.length > 0
+  return until(() => settled.length > 0, timeout, { interval: 50 })
 }
 
 test('REGRESSION (FIX-S79: a watcher event’s catch-up reconcile settles its outcome)', async (t) => {

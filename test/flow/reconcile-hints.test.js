@@ -5,6 +5,7 @@ import path from 'path'
 import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
 import { mkTmpDir, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { until } from '../helpers/poll.js'
 
 const FLAGS = { overlayEnabled: true }
 const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && (spaceId == null || m.scope.spaceId === spaceId)
@@ -39,7 +40,7 @@ test('REGRESSION (FIX-EDA-18): member and share transitions fan reconcile hints'
   })
 
 // Companion coverage for FIX-B1 (the red-first pin is structural, in
-// test/unit/handshake-post-persist-hint.test.js — the reciprocal handshake round makes a
+// test/invariants/handshake-post-persist-hint.test.js — the reciprocal handshake round makes a
 // pure ordering assertion pass even without the fix): a joiner must end up with a files
 // hint after the member persist AND actually list a loose file shared before it ever
 // connected — the "Nothing shared yet" wedge scenario end-to-end.
@@ -69,8 +70,7 @@ test('a joiner gets files hints after member persist and lists a pre-connect loo
       const m = seq.indexOf('members')
       return m !== -1 && seq.slice(m + 1).includes('files')
     }
-    const deadline = Date.now() + scaled(30000)
-    while (!filesAfterMembers() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100))
+    await until(filesAfterMembers, 30000, { interval: 100 })
     t.ok(filesAfterMembers(), `a files hint follows the member persist (saw: ${seq.join(',')})`)
 
     const entry = await waitForCatalogEntry(B, spaceId, '/note.txt')

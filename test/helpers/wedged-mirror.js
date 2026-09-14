@@ -11,17 +11,11 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-folders.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { waitFor } from './bare-poll.js'
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function waitUntil(pred, ms = 5000) {
-  const deadline = Date.now() + ms
-  while (Date.now() < deadline) {
-    if (pred()) return
-    await delay(20)
-  }
-  throw new Error('condition not met within ' + ms + 'ms')
-}
+export const waitUntil = (pred, ms = 5000) => waitFor(pred, ms, { interval: 20, scale: false })
 
 export function cancelled() {
   const err = new Error('cancelled'); err.code = 'ECANCELLED'

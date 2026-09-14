@@ -3,16 +3,10 @@ import fs from 'bare-fs'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
 import { tmpDir } from './bare-tmp.js'
+import { until } from './bare-poll.js'
 
 // Async-capable poll: pred may return a value or a promise.
-export async function waitFor(pred, ms = 5000) {
-  const t0 = Date.now()
-  while (Date.now() - t0 < ms) {
-    if (await pred()) return true
-    await new Promise((r) => setTimeout(r, 20))
-  }
-  return await pred()
-}
+export const waitFor = (pred, ms = 5000) => until(pred, ms, { interval: 20, scale: false })
 
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
 // membership bee, replicated into the local store so openProfileBee(peerKey) can read it.

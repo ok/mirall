@@ -9,24 +9,15 @@ import {
   stopForeignLoop,
   onPeerDriveChanged,
 } from '../../src/shared/folders/foreign-folders.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { until } from '../helpers/bare-poll.js'
 
 async function waitForFile(p, present, ms = 5000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (fs.existsSync(p) === present) return true
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  return false
+  return until(() => fs.existsSync(p) === present, ms, { interval: 50 })
 }
 
 async function waitForContent(p, expected, ms = 5000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    try { if (fs.readFileSync(p, 'utf8') === expected) return true } catch {}
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  return false
+  const matches = () => { try { return fs.readFileSync(p, 'utf8') === expected } catch { return false } }
+  return until(matches, ms, { interval: 50 })
 }
 
 // REGRESSION (FIX-MIRROR-PROMPT): owner-side changes used to reflect on the

@@ -13,16 +13,10 @@ import {
 import { getOwnEntry, advertise } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { until as pollUntil } from '../helpers/bare-poll.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(fn, ms = 10000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (await fn()) return true
-    await sleep(10)
-  }
-  return false
-}
+const until = (pred, ms = 10000) => pollUntil(pred, ms, { interval: 10 })
 
 // prepareForServe is the single choke point for the streaming read every publish performs — loose
 // or folder — so counting it counts real work on the shared lane.

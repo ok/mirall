@@ -10,7 +10,7 @@ import { createLifecycle } from '../../src/shared/core/subsystem.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { waitFor } from '../helpers/bare-poll.js'
 
 // REGRESSION (FIX-MIRROR-STOP): a mirror paused mid-download and then unmounted while online
 // left the holder's "who is downloading" row stuck at 'paused'. The pause released the in-flight
@@ -20,16 +20,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // on unmount. Deterministic + network-free: the overlay's fetchFile/cancelFetch/notifyTransferStopped
 // are stubbed to record calls.
 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
-
-async function waitUntil(pred, ms = 5000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (pred()) return
-    await delay(20)
-  }
-  throw new Error('condition not met within ' + scaled(ms) + 'ms')
-}
+const waitUntil = (pred, ms = 5000) => waitFor(pred, ms, { interval: 20 })
 
 async function setupOverlayMirror(t, { relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024 } = {}) {
   const ctx = await freshPeer(t)
