@@ -696,3 +696,21 @@ The layout harnesses are one npm script per harness. Listing several on one line
 :mirrorers` runs `modaltitle` alone and exits 0. Nothing warns, and the output looks like a pass for
 all of them. Run each as its own command. (The same shape bites `test:fe`, where a scenario id IS a
 real argument — so `test:fe s120 s121` runs s120 only.)
+
+## `gh pr merge --delete-branch` CLOSES any PR stacked on that branch
+
+Merging the lower half of a two-PR stack with `--delete-branch` deleted `ok/tier2-210-scaffolding`,
+and GitHub immediately **closed** the upper PR whose base it was. The close is not recoverable:
+`gh pr reopen` fails with *"Could not open the pull request"* even after the base branch is pushed
+back, and `gh pr edit --base` refuses because the PR is closed. The branch and its commits are never
+touched — only the pull request is lost, along with its review thread and CI history.
+
+**The rule:** before merging the bottom of a stack, **retarget the upper PR to the base the lower one
+is merging into** (`gh pr edit <upper> --base staging`), THEN merge the lower one. Retargeting first
+costs nothing and keeps the PR alive. If the branch is already deleted and the PR already closed,
+the only path is a new PR from the same branch — point it at the closed one so the history is
+followable.
+
+Note this is a *different* failure from [stacked PR merge order](#) stranding commits: here nothing
+is stranded, the content is fine, and the loss is the PR object itself. Both argue for the same
+habit — deal with the top of the stack before the bottom moves under it.
