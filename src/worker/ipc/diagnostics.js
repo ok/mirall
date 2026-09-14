@@ -3,7 +3,7 @@
 
 import os from 'bare-os'
 import { getRuntimeConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
-import { getRequestFailureCounters, getRequestMetrics, getQueueDepth, getInFlightCount } from '../../shared/core/ipc.js'
+import { getRequestFailureCounters, getRequestMetrics } from '../../shared/core/ipc.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/transfer/diagnostics.js'
 import { queryAudit } from '../../shared/audit/audit-log.js'
 import { deriveChannel } from '../../shared/core/channel.js'
@@ -55,10 +55,10 @@ export function registerDiagnostics(ipc, { health, getRoot }) {
       requestFailures: getRequestFailureCounters(),
       requestMetrics: getRequestMetrics(),
       health: health.snapshot({
-        queueDepth: getQueueDepth(),
+        queueDepth: ipc.queueDepth(),
         subsystems: root?.health() || [],
         supervision: root?.supervision() || null,
-        inFlightRequests: getInFlightCount(),
+        inFlightRequests: ipc.inFlightCount(),
       }),
       peerSamples: getPeerSamples(),
     }, msg?.redact !== false)

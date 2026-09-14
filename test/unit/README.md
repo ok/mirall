@@ -26,7 +26,8 @@ Pure-logic tests of `src/shared/*` and `src/renderer/*` helpers — **no I/O, no
 ### C. IPC transport
 | File | Scenarios |
 |------|-----------|
-| `ipc.test.js` | `createIPC`: requests queue until `start()` then dispatch; NDJSON frame split across chunks reassembles; unknown command → `NOT_FOUND`; handler rejection returns `error` + `code` (default `UNKNOWN`); a `bootstrap` line resolves `getBootstrapPromise` and is **not** dispatched; `emit` writes `{type, ...payload}` and `respond` with no id is a no-op; a malformed JSON line is skipped, not fatal (recovers on the next line). |
+| `ipc.test.js` | `createIPC`: requests queue until `start()` then dispatch; NDJSON frame split across chunks reassembles; unknown command → `NOT_FOUND`; handler rejection returns `error` + `code` (default `UNKNOWN`); a `bootstrap` line resolves `ipc.bootstrapPromise` and is **not** dispatched; `emit` writes `{type, ...payload}` and `respond` with no id is a no-op; a malformed JSON line is skipped, not fatal (recovers on the next line). |
+| `frame-reader.test.js` | `createFrameReader`: NDJSON byte framing — split frames and multi-byte boundaries reassemble; the per-frame cap is measured in BYTES on both discard paths (unterminated buffer, terminated frame); an unterminated stream stays bounded (`bufferedBytes`) and resyncs at the next newline without the discarded tail ever being returned; a caller's chunk is never held as-is across ticks. |
 
 ### D. Transfer-error classification
 | File | Scenarios |

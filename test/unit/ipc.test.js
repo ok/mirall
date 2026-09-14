@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { EventEmitter } from 'events'
-import { createIPC, getBootstrapPromise, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
+import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
@@ -124,14 +124,14 @@ test('handler rejection returns error + code (default UNKNOWN)', async (t) => {
   t.is(pipe.lastMsg().code, 'UNKNOWN')
 })
 
-test('bootstrap line resolves getBootstrapPromise and is not dispatched', async (t) => {
+test('bootstrap line resolves ipc.bootstrapPromise and is not dispatched', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   let called = false
   ipc.handle('bootstrap', () => { called = true })
   ipc.start()
   pipe.feed({ type: 'bootstrap', storage: '/tmp/x', appVersion: '1' })
-  const boot = await getBootstrapPromise()
+  const boot = await ipc.bootstrapPromise
   t.is(boot.storage, '/tmp/x')
   await tick()
   t.absent(called, 'bootstrap handler not invoked')

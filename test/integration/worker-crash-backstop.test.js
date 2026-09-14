@@ -76,8 +76,9 @@ test('REGRESSION (FIX-3 wiring): the worker installs the crash backstop at boot'
 // therefore boot(), which is where every core open now lives.
 test('REGRESSION (FIX: crash backstop is installed before the core-opening boot init)', (t) => {
   const backstopAt = workerMainSrc.indexOf('installCrashBackstop(log,')
-  const firstAwaitAt = workerMainSrc.indexOf('await getBootstrapPromise()')
+  const firstAwaitAt = workerMainSrc.indexOf('await ipc.bootstrapPromise')
   const bootAt = workerMainSrc.indexOf('await boot(bootstrap')
+  // The > 0 guard is what keeps this red rather than vacuous when a marker is renamed.
   t.ok(backstopAt > 0 && firstAwaitAt > 0 && bootAt > 0, 'all boot markers present')
   t.ok(backstopAt < firstAwaitAt, 'backstop is installed before the entry\'s first await')
   t.ok(backstopAt < bootAt, 'backstop is installed before boot() — i.e. before every core open')

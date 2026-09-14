@@ -18,7 +18,7 @@ test('config.json defines the key the frame reads', (t) => {
 
 test('the worker reads the frame into the runtime config', (t) => {
   const worker = read('worker/main.js')
-  t.ok(/const bootstrap = await getBootstrapPromise\(\)\s*\n\s*setRuntimeConfig\(bootstrap\)/.test(worker),
+  t.ok(/const bootstrap = await ipc\.bootstrapPromise\s*\n\s*setRuntimeConfig\(bootstrap\)/.test(worker),
     'the frame is handed to setRuntimeConfig verbatim')
   // buildConfig copies every key of DEFAULTED off the frame, so the value needs a default entry
   // to be carried at all — without it the frame key is silently dropped.
