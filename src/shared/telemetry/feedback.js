@@ -7,7 +7,7 @@ import b4a from 'b4a'
 import { getRuntimeConfig } from '../core/runtime-config.js'
 import { getInstallId } from './install-id.js'
 import { createLogger } from '../core/logger.js'
-import { deriveChannel } from '../core/channel.js'
+import { deriveChannel } from './channel.js'
 
 const log = createLogger('feedback')
 

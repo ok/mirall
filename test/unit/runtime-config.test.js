@@ -3,7 +3,7 @@ import {
   getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
-import { AVATAR_MAX_BYTES } from '../../src/shared/identity-limits.js'
+import { AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
 
 test('downloadFolder defaults to null when not provided in bootstrap', (t) => {
   setRuntimeConfig({})

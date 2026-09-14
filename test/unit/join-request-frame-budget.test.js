@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { sanitizeAvatar } from '../../src/shared/identity-limits.js'
+import { sanitizeAvatar } from '../../src/shared/contract/identity-limits.js'
 import { NAME_MAX, JOIN_REQUEST_FRAME_OVERHEAD } from '../../src/shared/contract/limits.js'
 import {
   getRuntimeConfig, setRuntimeConfig, getPeerFrameMaxBytes, getResourceCaps, joinRequestAvatarMaxBytes,

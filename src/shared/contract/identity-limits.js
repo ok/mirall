@@ -3,7 +3,7 @@
 
 // 256 KB data-URI string length. Tunable per-ingest via runtime-config getResourceCaps().avatarMaxBytes;
 // this is the production default. The renderer reads the same constant from contract/limits.js.
-import { AVATAR_MAX_BYTES, NAME_MAX } from './contract/limits.js'
+import { AVATAR_MAX_BYTES, NAME_MAX } from './limits.js'
 export { AVATAR_MAX_BYTES }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i

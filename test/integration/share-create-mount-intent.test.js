@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { getIntentsBee } from '../../src/shared/core/intent-store.js'
+import { getIntentsBee } from '../../src/shared/core/intents.js'
 import { createIntentLog } from '../../src/shared/core/intents.js'
 import { registerFolderIntents } from '../../src/shared/folders/folder-intents.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { clampDisplayName, sanitizeAvatar, AVATAR_MAX_BYTES } from '../../src/shared/identity-limits.js'
+import { clampDisplayName, sanitizeAvatar, AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
 import { NAME_MAX } from '../../src/shared/contract/invite-envelope.js'
 
 const dataUri = (n, mime = 'image/png') => `data:${mime};base64,${'A'.repeat(n)}`
