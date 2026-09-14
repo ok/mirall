@@ -81,8 +81,11 @@ function snapshot(): Record<string, number> {
   return { ...renders }
 }
 
-// FolderView memoizes buildFileTree(files) on [files] and filterTree on [tree, …]. Counting the
-// first stands in for both: they share the one dependency that a per-frame row rewrite would churn.
+// The memo under test lives in useFilteredTree, which FolderView calls: buildFileTree(files) on
+// [files], filterTree on [tree, …]. This harness re-implements the same useMemo rather than calling
+// the hook, because the hook also owns expansion state and a session store the harness has no
+// business driving — but that means it measures the SHAPE, not the hook. If useFilteredTree ever
+// drops a dep, this still passes. The hook's own deps are pinned in test/unit/folder-memo-deps.
 let treeBuilds = 0
 function countedTree(files: ShareFileEntry[]): FileTreeNode[] {
   treeBuilds++

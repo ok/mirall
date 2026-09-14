@@ -57,12 +57,17 @@ test('showSpaceLoading: already-rendered content is never replaced by the indica
 // (mirrors test/unit/foreign-resume-wiring.test.js) — a refactor that reverts either one
 // reopens the flash with every predicate test still green.
 
-test('REGRESSION (FIX-367): SpaceView decides both gates through the two-source predicates', (t) => {
-  const src = read('screens', 'SpaceView.tsx')
-  t.ok(/loading: sharesLoading \} = useShares\(/.test(src), 'the shares loading flag is consumed')
-  t.ok(/showSpaceEmptyState\(pane\)/.test(src), 'the empty hero is gated by the predicate')
-  t.ok(/showSpaceLoading\(pane\)/.test(src), 'the loading indicator is gated by the predicate')
-  t.absent(/!loading && !error && shares\.length === 0/.test(src), 'the single-source gate is gone')
+// The screen reads both sources and hands them over as `pane`; the pane component applies them.
+test('REGRESSION (FIX-367): the space screen decides both gates through the two-source predicates', (t) => {
+  const screen = read('screens', 'SpaceView.tsx')
+  const pane = read('components', 'widgets', 'SpaceContentPane.tsx')
+  t.ok(/loading: sharesLoading \} = useShares\(/.test(screen), 'the shares loading flag is consumed')
+  t.ok(/sharesLoading,/.test(screen), 'and reaches the pane')
+  t.ok(/showSpaceEmptyState\(pane\)/.test(pane), 'the empty hero is gated by the predicate')
+  t.ok(/showSpaceLoading\(pane\)/.test(pane), 'the loading indicator is gated by the predicate')
+  for (const src of [screen, pane]) {
+    t.absent(/!loading && !error && shares\.length === 0/.test(src), 'the single-source gate is gone')
+  }
 })
 
 test('REGRESSION (FIX-367): the space list holds its empty hero until spaces:list settles', (t) => {

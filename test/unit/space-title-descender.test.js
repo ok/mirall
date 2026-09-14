@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url'
 const root = new URL('../../', import.meta.url)
 const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
-const SPACEVIEW = 'src/renderer/screens/SpaceView.tsx'
+// SpaceView reaches the header through SpaceHeaderBar, which is where its title now is.
+const SPACEHEADER = 'src/renderer/components/layout/SpaceHeaderBar.tsx'
 const FOLDERVIEW = 'src/renderer/screens/FolderView.tsx'
 const ENTITYHEADER = 'src/renderer/components/layout/EntityHeader.tsx'
 const SPACECARD = 'src/renderer/components/cards/SpaceCard.tsx'
@@ -36,7 +37,7 @@ test('REGRESSION (FIX-1): text-4xl space/folder titles get leading-tight + pb he
   t.ok(cls.includes('truncate'), 'the title still truncates long names')
   t.ok(cls.includes('leading-tight'), 'the title loosens the tight text-4xl line box')
   t.ok(/\bpb-\d/.test(cls), 'the title has bottom padding for clip headroom')
-  for (const [name, path] of [['SpaceView', SPACEVIEW], ['FolderView', FOLDERVIEW]]) {
+  for (const [name, path] of [['SpaceHeaderBar', SPACEHEADER], ['FolderView', FOLDERVIEW]]) {
     t.ok(read(path).includes('<EntityHeader'), `${name} takes its title from EntityHeader`)
   }
 })

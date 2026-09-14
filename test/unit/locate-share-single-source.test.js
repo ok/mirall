@@ -43,8 +43,8 @@ test('relocate propagates; only the browse-then-relocate path toasts', (t) => {
 })
 
 // The foreign half is a different channel and a different sentence, and it is deliberately not
-// shared — one folder screen issues it, from the branch the owner half returns before.
+// shared — one place issues it, from the branch the owner half returns before.
 test('the mirror relocate stays where it is', (t) => {
-  const screens = files.filter((f) => f.src.includes("'foreign-folder:relocate'")).map((f) => f.rel)
-  t.alike(screens, ['screens/FolderView.tsx'])
+  const issuers = files.filter((f) => f.src.includes("'foreign-folder:relocate'")).map((f) => f.rel)
+  t.alike(issuers, ['hooks/useShareActions.ts'])
 })
