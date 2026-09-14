@@ -161,6 +161,9 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s134 | `s134-mirror-over-cap-advisory.mjs` | Mirroring a share over the display cap warns before commit with the primary action still enabled (contrast s104, which refuses). |
 | s138 | `s138-mirror-offline-quiet.mjs` | A mirrored folder whose owner is offline stays quiet — no rotating "Preparing…" badge under the offline banner. |
 | s139 | `s139-mirror-offline-incomplete.mjs` | **REGRESSION (FIX-M4):** a mirror demonstrably short of the owner's listing must not read "Up to date" while the owner is away, and the People card must not call the mirrorer "Syncing…" when nothing is being fetched — the folder shows the `Owner offline` pill instead. |
+| s140 | `s140-modal-failure-escape-routes.mjs` | **REGRESSION (FIX-D8 / FIX-D9):** a confirm dialog whose action rejects must still be escapable — the busy flag that gates Escape and the backdrop has to clear on failure, not only on success. |
+| s141 | `s141-scan-preview-singular.mjs` | **REGRESSION (FIX-PLURAL-SUFFIX):** the Add-Folder preview counts in the singular — a folder holding one file reads "Upload 1 file". |
+| s142 | `s142-paused-and-missing-one-state.mjs` | **REGRESSION (A.4):** a paused folder whose source went missing shows one state, not both — the fault the user can act on, with the pause resurfacing once it clears. |
 
 ### I. Owned folders — live file operations (ongoing edits to a shared folder)
 These drive the real *filesystem → chokidar → publish → replicate → materialize* path: the scenario mutates files on disk in the owner's mount directory, the running app's watcher publishes, and the scenario asserts on the peer's folder view and the mirror's on-disk contents.

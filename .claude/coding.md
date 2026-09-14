@@ -97,17 +97,25 @@ different word — do not disambiguate with a comment.
 domain, one file per cohesive unit that shares consumers and purity.**
 
 - Put new data-layer code in its domain folder (`spaces/`, `shares/`, `folders/`, `audit/`,
-`storage/`, `transfer/`), not in a technical-layer bucket.
+`storage/`, `sweep/`, `network/`, `transfer/`), not in a technical-layer bucket. `network/` answers
+"are we reachable"; `transfer/` answers "did the bytes arrive".
+- Renderer code goes in a named bucket too: `shell/ ipc/ platform/ model/ format/ errors/ types/`
+for modules, and `components/<feature>/` for UI. Both sets are pinned by a guard, so adding a folder
+is a decision that takes a row rather than a default for whatever had nowhere else to go.
 - New IPC handlers follow the `ipc/space-leave.js` precedent: a `registerX(ipc, deps)` module under
 `src/worker/ipc/`. Do not grow `worker/main.js`.
 - New main-process concerns are their own module exposing `register(deps)`. Do not grow `main/main.js`.
-- A screen that needs derivation gets a pure, Node-testable module (`folderStrips.js`,
-`folderStatus.js`, `mirrorStateLabel.js` are the pattern) and stays a renderer of that result.
+- A screen that needs derivation gets a pure, Node-testable module (`model/folder-strips.js`,
+`model/folder-status.js`, `model/mirror-state-label.js` are the pattern) and stays a renderer of that result.
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
 in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
-(`spaces/space.js`, `network/swarm.js`, `overlay-download.js`, `overlay-backend.js`,
-`folders/owned-folders.js`) are known debt — do not add responsibilities to them.
+(`network/swarm.js` 858, `spaces/space.js` 821, `folders/owned-folders.js` 678,
+`overlay/overlay-download.js` 664, `network/connectivity.js` 631, `overlay/overlay-backend.js` 601,
+`core/runtime-config.js` 598, `renderer/app.tsx` 596, `transfer/loose-overlay.js` 552,
+`audit/audit-log.js` 543, `shares/share-catalog.js` 518) are known debt — do not add
+responsibilities to them. Splitting them is its own tier of work, tracked separately from the
+folder reorganisation, because a merge can legitimately grow a file while removing duplication.
 
 **When *not* to split:** a one-line re-export "for the import path". Those shims are all deleted;
 importers name the real module. Adding a file that only re-exports another is a regression.

@@ -59,7 +59,7 @@ Each row names the file, the **primitive guarantee** it pins down, and the **use
 
 ## Deferred / out of scope
 
-- **CRIT-9, resume-on-return half.** The README originally scoped this as "unavailable while offline → *completes when the owner returns*." The unavailability half is proven deterministically here. The *return* half depends on Hyperswarm **reconnection** after a peer churns its swarm keypair, which is timing-dependent and too slow/flaky to assert at this layer (first-time discovery is fast; reconnection is not). The genuine "queue while owner offline → auto-resume" behaviour is owned by `test/flow/resume-transfer.test.js`, where it is exercised against the worker's queueing logic — exactly where it belongs.
+- **CRIT-9, resume-on-return half.** The README originally scoped this as "unavailable while offline → *completes when the owner returns*." The unavailability half is proven deterministically here. The *return* half depends on Hyperswarm **reconnection** after a peer churns its swarm keypair, which is timing-dependent and too slow/flaky to assert at this layer (first-time discovery is fast; reconnection is not). The genuine "queue while owner offline → auto-resume" behaviour is owned by the flow layer, where it is exercised against the worker's queueing logic — exactly where it belongs.
 - **Anything needing Mirall logic.** Publish/reconcile, materialize, the `shouldHonorDeletions` decision, collision naming — proven at integration/flow/unit, not here. This suite only characterizes the primitives underneath them.
 
 ## Layering
