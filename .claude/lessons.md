@@ -669,3 +669,30 @@ old one **imports** it — never two definitions, and never a retyped literal. I
 persisted or on the wire, say so in a comment at the definition, because its blast radius is not
 visible from the call site. Suspect every hand-copied string in a refactor whose value you did not
 paste from the original.
+## A layout harness can be dead rather than failing — reproduce on untouched staging first
+
+`npm run test:layout:modaltitle` reported *"HARNESS ERROR: expected 2 dialogs, got 0"* during a
+renderer refactor that had just restructured the dialog it mounts. The obvious read — the refactor
+broke it — was wrong. Its entry mounts the real `RemoveFileModal`, which calls `useToast()` to
+report a rejected removal, and the harness had no `<ToastProvider>`: the dialog threw on mount and
+rendered nothing. That had been true since the dialog gained its toast, so the harness had been
+reporting nothing about the thing it guards for however long.
+
+**How it was settled in one step:** `git worktree add --detach <tmp> HEAD`, symlink `node_modules`,
+run the same harness there. Identical failure on untouched staging — so the diff was innocent, with
+no bisect and no argument. That move is cheap for any local-only suite and should be the first
+response to a red that a change *could* plausibly explain.
+
+**The rule:** a harness that errors before its assertions run is not a failing test, it is an absent
+one. When one goes red next to a plausible culprit, reproduce on a detached checkout of the base
+commit before reading the diff. And a harness that mounts a real screen or dialog needs the same
+providers the app gives it — `ToastProvider` at minimum; a missing one fails as "found nothing"
+rather than as a missing-provider error, because the throw happens inside React's render.
+
+## `npm run test:layout:<a> <b> <c>` silently runs only `<a>`
+
+The layout harnesses are one npm script per harness. Listing several on one line passes the rest as
+**arguments to the first runner**, which ignores them: `npm run test:layout:modaltitle :members
+:mirrorers` runs `modaltitle` alone and exits 0. Nothing warns, and the output looks like a pass for
+all of them. Run each as its own command. (The same shape bites `test:fe`, where a scenario id IS a
+real argument — so `test:fe s120 s121` runs s120 only.)
