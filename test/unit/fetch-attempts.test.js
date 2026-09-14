@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createAttemptBudget, DEFAULT_ATTEMPT_LIMIT, DEFAULT_MAX_KEYS } from '../../src/shared/folders/fetch-attempts.js'
+import { createAttemptBudget, DEFAULT_ATTEMPT_LIMIT, DEFAULT_MAX_KEYS } from '../../src/shared/folders/mirror-budgets.js'
 
 const M = 'space:share'
 

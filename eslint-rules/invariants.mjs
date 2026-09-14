@@ -137,7 +137,7 @@ export const pureNetworkModules = [
 ]
 
 export const pureFolderPolicyModules = [
-  'echo-guard', 'fetch-attempts', 'integrity-seen', 'mirror-loop', 'mirror-policy',
+  'echo-guard', 'mirror-budgets', 'mirror-loop', 'mirror-policy',
   'mount-fault', 'path-keys', 'preview-detail', 'preview-tally',
   'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'temp-paths', 'work-item',
 ]
