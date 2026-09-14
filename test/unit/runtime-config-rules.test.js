@@ -105,10 +105,11 @@ test('peer-frame lane: burst admits 0, refill and threshold do not', (t) => {
   t.is(bad.refillMs, 20, 'an Infinite refill never decays; falls back')
 })
 
-// The asymmetry inside the matched handshake lane: burstPerTopic multiplies a live per-socket count,
-// so it is the one cell that is validated. Pinning the raw cells here is what makes giving one of
-// them a rule a deliberate change rather than a quiet one.
-test('handshake matched lane: burstPerTopic is validated, its siblings are read raw', (t) => {
+// The asymmetry inside the matched handshake lane: burstPerTopic multiplies a live per-socket count
+// and refillMs divides into an elapsed time, so both are validated, while burst and abuseThreshold
+// are read raw. Pinning the raw cells here is what makes giving one of them a rule a deliberate
+// change rather than a quiet one.
+test('handshake matched lane: only the cells whose arithmetic can invert are validated', (t) => {
   const saved = getRuntimeConfig()
   t.teardown(() => setRuntimeConfig(saved))
 
@@ -157,16 +158,19 @@ test('both relay-mode paths coerce identically', (t) => {
   }
 })
 
-// The 17 keys that carry a validation rule, and the 46 that do not. A key absent from this map is
-// read RAW — including every getResourceCaps cell and three of the four cells of the matched
-// handshake lane. Adding a row changes a DoS bound or a user-facing cap: do it deliberately, with
-// the behaviour test that proves the new rule, and update this expectation in the same change.
+// The 20 keys that carry a validation rule, and the 43 that do not. A key absent from this map is
+// read RAW — including every getResourceCaps cell and the burst and threshold of every rate-limited
+// lane. Adding a row changes a DoS bound or a user-facing cap: do it deliberately, with the
+// behaviour test that proves the new rule, and update this expectation in the same change.
 const EXPECTED_RULES = {
   supervisionRecoverBudgetMs: { rule: 'finiteAtLeast', min: 1 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   peerFrameRefillMs: { rule: 'finiteAtLeast', min: 1 },
+  handshakeRefillMs: { rule: 'finiteAtLeast', min: 1 },
+  handshakeUnmatchedRefillMs: { rule: 'finiteAtLeast', min: 1 },
+  overlayServeRefillMs: { rule: 'finiteAtLeast', min: 1 },
   peerFrameAbuseThreshold: { rule: 'finiteAtLeast', min: 1 },
   peerFrameBurst: { rule: 'finiteAtLeast', min: 0 },
   peerFrameMaxBytes: { rule: 'finiteAtLeast', min: 0 },
@@ -189,8 +193,8 @@ test('the rules table is exactly the declared set', (t) => {
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
   t.is(defaultedKeys, 63, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 17, 'of which carry a validation rule')
-  t.is(defaultedKeys - Object.keys(ruled).length, 46, 'the rest are read raw')
+  t.is(Object.keys(ruled).length, 20, 'of which carry a validation rule')
+  t.is(defaultedKeys - Object.keys(ruled).length, 43, 'the rest are read raw')
 })
 
 test('every ruled key is a DEFAULTED key', (t) => {

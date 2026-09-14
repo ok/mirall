@@ -283,10 +283,10 @@ function failOpen(value) {
   return isPositiveFinite(value) ? value : 0
 }
 
-// Which rule validates which key. A key ABSENT here is read raw — that is 46 of the 63 DEFAULTED
-// keys, including every getResourceCaps cell and three of the four cells of the matched handshake
-// lane. Absence is not an oversight to tidy up: giving one of those keys a rule CHANGES A DOS BOUND
-// or a user-facing cap, so it is a deliberate change that needs the behaviour test to prove it.
+// Which rule validates which key. A key ABSENT here is read raw — that is 43 of the 63 DEFAULTED
+// keys, including every getResourceCaps cell and the burst and threshold of every rate-limited lane.
+// Absence is not an oversight to tidy up: giving one of those keys a rule CHANGES A DOS BOUND or a
+// user-facing cap, so it is a deliberate change that needs the behaviour test to prove it.
 const RULES = {
   // Deadlines, where both DEFAULTED sentinels invert: 0 makes stallVerdict condemn every pass the
   // instant it starts, so the supervisor evicts every healthy publish and abandons every healthy
@@ -297,8 +297,17 @@ const RULES = {
   publishStallWindowMs: { rule: finiteAtLeast, min: 1 },
   convergenceStallWindowMs: { rule: finiteAtLeast, min: 1 },
 
-  // Rate-limiter arithmetic: a 0 refill divides, a 0 threshold bans on the first frame.
+  // Every refill interval is a DIVISOR — take() decays a bucket by (elapsed / refillMs) — so a 0
+  // makes the first take compute 0/0, and NaN never exceeds the cap: the lane then admits every
+  // frame forever. A limiter that fails OPEN is the one direction a limiter must never fail, which
+  // is why all four lanes carry this rule while their bursts and thresholds (which fail closed,
+  // loudly) do not.
   peerFrameRefillMs: { rule: finiteAtLeast, min: 1 },
+  handshakeRefillMs: { rule: finiteAtLeast, min: 1 },
+  handshakeUnmatchedRefillMs: { rule: finiteAtLeast, min: 1 },
+  overlayServeRefillMs: { rule: finiteAtLeast, min: 1 },
+
+  // A 0 threshold bans on the first drop.
   peerFrameAbuseThreshold: { rule: finiteAtLeast, min: 1 },
 
   // Lane budgets whose 0 is the documented "switch it off" override.
