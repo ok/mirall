@@ -1112,9 +1112,11 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/loose-file-watchers.js` | Individual watched paths for in-place loose-file shares, over the watch host; path → `Set<spaceId>` fan-out (§2 step 12) |
 | `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`, capped unknown-command warnings |
 | `src/main/menu.js` | The application-menu template — a pure function of platform + UI context |
+| `src/main/net-online.js` | `registerNetOnline` / `startNetOnlineWatch` — Chromium's `net.online`, polled and pushed to the renderer on change. Asymmetric by design: false declares offline, true is inconclusive and never declares healthy (§5) |
 | `src/main/notifications.js` | Native `Notification` IPC (`notify:*`) + the `shell:showInFolder` reveal allowlist |
 | `src/main/owned-folder-watchers.js` | Per-share recursive roots over the watch host, plus the watcher-side ignore matcher (§2 step 12, §7) |
 | `src/main/relay-keys.js` | Relay-slot validation for `config-store` — decode, mode, sanitize (§4.8) |
+| `src/main/relay-slot.js` | `registerRelaySlot(deps)` — the one relay this node offers: `relay:parse` classifies a pasted key or ticket with no side effects and no secret in the reply; `relay:set` stores the seed and re-applies the slot (§5) |
 | `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
 | `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
