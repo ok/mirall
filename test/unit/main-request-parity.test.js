@@ -202,7 +202,7 @@ test('no ipcMain channel duplicates a main-request command', (t) => {
 // any synchronously-dispatched spawn added above the declaration turns the first worker frame into
 // a TDZ ReferenceError thrown inside a stream listener, where nothing catches it.
 test('the router is built before the worker handler that closes over it', (t) => {
-  const src = readFileSync(path.join(SRC, 'main', 'main.js'), 'utf8')
+  const src = readFileSync(path.join(SRC, 'main', 'worker-host.js'), 'utf8')
   const router = src.indexOf('const mainRequests = createMainRequestRouter')
   const reader = src.indexOf('function getWorker')
   t.ok(router !== -1 && reader !== -1, 'found both')

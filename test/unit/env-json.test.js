@@ -1,11 +1,5 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import path from 'path'
 import { envJson } from '../../src/main/env-json.js'
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
 
 function captureWarnings(fn) {
   const warnings = []
@@ -65,9 +59,6 @@ test('a scalar is refused like a malformed value', (t) => {
 
 // main.js only runs inside Electron, so the wiring is pinned by source — the
 // renderer-cancellation-wiring.test.js pattern.
-test('REGRESSION (FIX-ENVJSON-1): the worker bootstrap reads the DHT knob through envJson', (t) => {
-  t.ok(mainSrc.includes("dhtBootstrap: envJson('MIRALL_DHT_BOOTSTRAP')"),
-    'the bootstrap field goes through the swallow-and-warn helper')
-  t.absent(/JSON\.parse\(process\.env\.MIRALL_DHT_BOOTSTRAP\)/.test(mainSrc),
-    'and no bare parse is left to throw inside getWorker')
-})
+
+// The bootstrap's own use of envJson is driven end-to-end in worker-host.test.js: a malformed
+// MIRALL_DHT_BOOTSTRAP leaves the field absent from the frame instead of failing the spawn.

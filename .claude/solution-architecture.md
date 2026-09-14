@@ -1127,6 +1127,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
 | `src/main/window-shortcuts.js` | Classifies a `before-input-event` into DevTools toggle / zoom command / nothing, pure (§2 step 6) |
 | `src/main/worker-entrypoints.js` | The worker spawn allowlist (`contract/workers.js`), resolved before the `noAsar` window opens |
+| `src/main/worker-host.js` | `registerWorkerHost()`, `getWorker`, `sendToWorker`, `stopWorkers` — spawning a Bare worker, the one guarded path that frames anything onto its pipe, the bootstrap frame (the worker's whole starting state, sent once), the stdout/stderr mirror and the exit reaper. A bootstrap that fails to write fails the spawn rather than caching a worker nothing can talk to (§3) |
 | `src/main/xdg-integration.js` | Linux AppImage `.desktop` + icon integration (`integrateXdgLinux`, §2 step 11) |
 
 ### `src/worker/`

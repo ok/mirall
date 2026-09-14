@@ -8,17 +8,9 @@ const read = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf
 
 // The defect this pins was never a wrong value: getDownloadConcurrency() read a key that main
 // never put in the bootstrap frame and config.json never carried, so a shipped build always ran
-// the hardcoded default and the documented rollback lever did not exist. Nothing fails when a
-// knob is wired at one end only, which is why it needs a source-level guard (the precedent is
-// worker-epipe-guard.test.js / foreign-resume-wiring.test.js).
-test('the bootstrap frame carries the configured download concurrency', (t) => {
-  const main = read('main/main.js')
-  const frame = main.match(/const bootstrap = \{[\s\S]*?\n  \}/)?.[0] || ''
-  t.ok(frame.length > 0, 'found the bootstrap frame literal')
-  t.ok(/downloadConcurrency: config\(\)\.get\('network\.downloadConcurrency'\)/.test(frame),
-    'the frame reads network.downloadConcurrency, or the setting is inert')
-})
-
+// the hardcoded default and the documented rollback lever did not exist. Nothing fails when a knob
+// is wired at one end only. The frame half is now driven directly in worker-host.test.js; what is
+// checked here is the other two ends — the config default, and the worker reading the frame.
 test('config.json defines the key the frame reads', (t) => {
   t.ok(/network: \{[^}]*\bdownloadConcurrency\b/.test(read('main/config-store.js')),
     'the network defaults carry downloadConcurrency')
