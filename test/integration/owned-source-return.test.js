@@ -108,3 +108,61 @@ test('REGRESSION (FIX-S79: a source still missing at catch-up time settles as mo
   t.is(settled[0].result?.skipped, 'mount-point-gone', 'the outcome names the missing root')
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'mount-point-gone', 'persisted, so a reload re-derives it')
 })
+
+const baselineKey = (shareId) => 'owned-folder:' + shareId
+
+// REGRESSION (FIX-287-1: the pause was checked before the root, so a PAUSED folder whose source
+// went missing reported 'index-paused' and recorded nothing — no durable fault, and no absence in
+// the probe baseline. The folder's return was then not an edge, the probe emitted nothing, and the
+// screen kept the missing-source strip it had painted from the listing's own live check.)
+//
+// The real boot wiring, not recordingSettle above: the production outcome → status mapping is the
+// subject here.
+test('REGRESSION (FIX-287-1: a paused index still notices that its root is gone)', async (t) => {
+  const ctx = await setupOwnedShare(t, { files: { 'q1.txt': 'numbers' } })
+  const mounts = ctx.root.mounts
+  mounts.lastMountPointStatus.set(baselineKey(ctx.share.id), true)
+
+  await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'precondition: paused')
+
+  const abs = path.join(ctx.mountPath, 'q1.txt')
+  fs.rmSync(ctx.mountPath, { recursive: true, force: true })
+  await onFsEvent(ctx.spaceId, ctx.share.id, 'unlink', 'q1.txt', abs)
+  await until(async () => (await getOwnedMount(ctx.spaceId, ctx.share.id)).status === 'mount-point-gone',
+    CATCHUP_SETTLED_MS)
+
+  const read = await getOwnedMount(ctx.spaceId, ctx.share.id)
+  t.is(read.status, 'mount-point-gone', 'the missing source outranks the pause it was recorded under')
+  t.ok(read.indexPaused, 'and the pause is kept in its own field, not erased')
+  t.is(mounts.lastMountPointStatus.get(baselineKey(ctx.share.id)), false,
+    'the absence reaches the probe baseline, so the return will be an edge')
+})
+
+// The other half at this layer: away and back with no probe tick in between still announces the
+// return, and lands back on the pause the user set.
+test('REGRESSION (FIX-287-1: a paused source that leaves and returns between two probes is announced)', async (t) => {
+  const ctx = await setupOwnedShare(t, { files: { 'q1.txt': 'numbers' } })
+  const mounts = ctx.root.mounts
+  mounts.lastMountPointStatus.set(baselineKey(ctx.share.id), true)
+  await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
+
+  const abs = path.join(ctx.mountPath, 'q1.txt')
+  fs.rmSync(ctx.mountPath, { recursive: true, force: true })
+  await onFsEvent(ctx.spaceId, ctx.share.id, 'unlink', 'q1.txt', abs)
+  t.ok(await until(() => mounts.lastMountPointStatus.get(baselineKey(ctx.share.id)) === false, CATCHUP_SETTLED_MS),
+    'precondition: the departure is recorded')
+
+  fs.mkdirSync(ctx.mountPath, { recursive: true })
+  fs.writeFileSync(abs, 'numbers')
+  const before = ctx.fake.events.filter((e) => e.type === 'event:owned-folder-mount-status').length
+
+  await mounts.probeMountPoints()
+
+  t.comment('status events on the return: ' +
+    (ctx.fake.events.filter((e) => e.type === 'event:owned-folder-mount-status').length - before))
+  t.ok(ctx.fake.events.filter((e) => e.type === 'event:owned-folder-mount-status').length > before,
+    'the return is announced, so the renderer re-reads the listing')
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused',
+    'and a folder coming back is not a Resume')
+})

@@ -11,8 +11,8 @@ import { workDir } from '../paths.mjs'
 // outcome are two facts; the screen shows the one the user can act on, and the pause resurfaces
 // once the source is back.)
 //
-// The restore step waits past the 60s mount-point probe interval: the folder coming back is not the
-// user pressing Resume, so nothing else re-derives the status.
+// The restore step needs no wait before it: the departure is recorded when it is noticed
+// (FIX-287-1), so the return is an edge the probe reports whether or not it saw the folder leave.
 export default async function s142({ runDir }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -75,11 +75,6 @@ export default async function s142({ runDir }) {
     // probe's return edge never reached the UI, the second if it reached it as the wrong state —
     // and one timeout covering both names neither. The budget is three probe intervals.
     await r.ok('the returning source clears the missing state', async () => {
-      // The strip above can appear from the listing's own live mountRootAvailable, before the 60s
-      // mount-point probe has recorded anything. The probe reports a TRANSITION, so a folder that
-      // leaves and returns inside one interval leaves it with nothing to report and the screen keeps
-      // the stale listing. Wait out a full interval here so the departure is recorded first.
-      await new Promise((done) => setTimeout(done, 70000))
       renameSync(movedDir, ownDir)
       await waitFor(async () => !/source folder moved or unavailable/i.test(allText(await A.snap())),
         190000, 'the missing-source strip goes when the folder comes back')

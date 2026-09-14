@@ -426,12 +426,11 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   const key = spaceId + ':' + shareId
   const mount = await getOwnedMount(spaceId, shareId)
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount missing')
-  // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
-  // It is also what makes a pause survive a restart by construction — boot's resume pass, the
-  // reconcile timer and the watcher's catch-up all call in through here.
-  if (mount.indexPaused) return { skipped: 'index-paused', totalOnDisk: 0 }
-  const share = await loadShareForMount(mount)
-
+  // The root before the pause: a paused INDEX does not make a missing root un-missing, and this
+  // pass is the only one a paused mount runs — so reporting 'index-paused' over an absent root
+  // leaves the absence unrecorded, and the probe then reads the folder's RETURN as no transition
+  // at all.
+  //
   // A missing root is ambiguous (transient vs. permanent) and guessing "deleted" would enqueue a
   // retire for every file in the share. Bail without touching the catalog or the queue; the probe
   // loop restarts us when the path returns.
@@ -440,6 +439,12 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
     ipcRef?.emit('event:owned-folder-mount-status', { spaceId, shareId, status: MOUNT_STATUS.MOUNT_POINT_GONE })
     return { skipped: MOUNT_STATUS.MOUNT_POINT_GONE, totalOnDisk: 0 }
   }
+  // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
+  // It is also what makes a pause survive a restart by construction — boot's resume pass, the
+  // reconcile timer and the watcher's catch-up all call in through here.
+  if (mount.indexPaused) return { skipped: 'index-paused', totalOnDisk: 0 }
+  const share = await loadShareForMount(mount)
+
   if (isUnsupportedShare(share)) {
     log.warn('skipping scan for unsupported content mode:', share.contentMode, shareId)
     return { skipped: 'unsupported-content-mode', totalOnDisk: 0 }

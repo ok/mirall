@@ -493,6 +493,23 @@ missing" until the next real change. The tell is a badge that only clears after 
 (`src/worker/mounts-runtime.js`) is the single entry for "the source is gone" from either signal,
 so the return is always an edge.
 
+**Two more writers were bypassing that entry, and the rule alone was not enough (issue #287).**
+A *paused* index never noticed at all: `diffAndEnqueue` checked `mount.indexPaused` before the root,
+so the catch-up reconcile the fix above installed reported `index-paused` over an absent root and
+recorded nothing — and the pause is the case a user is most likely to be in when they move a folder.
+`pauseIndex` wrote the other half only: a durable `mount-point-gone` through a bare `recordFault`,
+with the baseline left saying "present". That second one is worse than a stale banner — it is a
+durable latch that survives restarts, because boot's paused branch re-derives status from the
+record, and only an explicit Resume (the one writer allowed to clear a fault) gets the folder out.
+Both were invisible to the suite because no test paused a folder *and* took its root away.
+
+**The second rule:** the probe's baseline is "what I last saw", but what the UI shows is what was
+last *announced* — the durable record. Reconcile the two on every tick (`mount.status ===
+MOUNT_POINT_GONE ? false : lastSeen`) so a disagreement is a transition regardless of which writer
+forgot. Keep the early `continue` while doing it: `_announce` emits on every call, changed record or
+not, so a probe without the short-circuit pokes the shares scope once per mount per minute and every
+folder screen refetches on a timer. Level-triggered in effect, edge-triggered in cost.
+
 ## `gh pr checks` serves a previous commit's results as current
 
 A rebase-and-force-push during a fast-moving `staging` produced ten green rows from run

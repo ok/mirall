@@ -2,7 +2,10 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
+import { createOwnedMount, getOwnedMount, setOwnedFault } from '../../src/shared/folders/mount-store.js'
+
+const statusEvents = (ctx, shareId) => ctx.fake.events
+  .filter((e) => e.type === 'event:owned-folder-mount-status' && e.payload?.shareId === shareId).length
 
 async function plantedMount(t, { makePath }) {
   const ctx = await freshPeer(t)
@@ -65,4 +68,66 @@ test('REGRESSION (A.4): a paused mount returns to paused when its source comes b
   t.ok(back.indexPaused)
   t.absent(ctx.root.mounts.periodicTimers.has(mount.spaceId + ':' + mount.shareId),
     'a returning folder is not a resume, so no cadence is armed')
+})
+
+// REGRESSION (FIX-287-2: pauseIndex recorded a durable mount-point-gone with a bare recordFault,
+// leaving the probe baseline saying "present". The folder's return was then present→present, the
+// probe emitted nothing, and the fault survived every restart after it — boot's paused branch
+// re-derives the status from the record, so only an explicit Resume could clear it.)
+test('REGRESSION (FIX-287-2): pausing over a missing root records the absence the probe reads', async (t) => {
+  const { ctx, mount } = await plantedMount(t, {
+    makePath: (p) => fs.mkdirSync(p, { recursive: true }),
+  })
+  fs.rmSync(mount.mountPath, { recursive: true, force: true })
+
+  const res = await ctx.root.mounts.pauseIndex(mount.spaceId, mount.shareId)
+
+  t.ok(res.mountPointGone, 'the caller is told')
+  t.is((await getOwnedMount(mount.spaceId, mount.shareId)).status, 'mount-point-gone', 'and it is durable')
+  t.is(ctx.root.mounts.lastMountPointStatus.get('owned-folder:' + mount.shareId), false,
+    'recorded where the probe reads it')
+
+  fs.mkdirSync(mount.mountPath, { recursive: true })
+  await ctx.root.mounts.probeMountPoints()
+  const back = await getOwnedMount(mount.spaceId, mount.shareId)
+  t.is(back.status, 'paused', 'so the return clears the fault and restores the pause')
+  t.ok(back.indexPaused)
+})
+
+// REGRESSION (FIX-287-3: the probe's baseline is "what I last saw", but what the UI shows is what
+// was last ANNOUNCED — the durable record. A record already saying mount-point-gone over a path
+// that is back must be a transition the probe acts on, whoever wrote that record and whether or
+// not this probe saw the departure.)
+test('REGRESSION (FIX-287-3): a record that disagrees with the disk is a transition', async (t) => {
+  const { ctx, mount } = await plantedMount(t, {
+    makePath: (p) => fs.mkdirSync(p, { recursive: true }),
+  })
+  // Written through the store rather than through handleOwnedMountGone on purpose: the point is
+  // that the probe repairs the disagreement without the baseline having been set for it.
+  await setOwnedFault(mount.spaceId, mount.shareId, 'mount-point-gone', null)
+  ctx.root.mounts.lastMountPointStatus.set('owned-folder:' + mount.shareId, true)
+  const before = statusEvents(ctx, mount.shareId)
+
+  await ctx.root.mounts.probeMountPoints()
+
+  t.comment('status events on the disagreement: ' + (statusEvents(ctx, mount.shareId) - before))
+  t.ok(statusEvents(ctx, mount.shareId) > before, 'the disagreement is announced')
+  t.not((await getOwnedMount(mount.spaceId, mount.shareId)).status, 'mount-point-gone',
+    'and reconciled — the path is there, so the record may not keep saying it is not')
+  t.is(ctx.root.mounts.lastMountPointStatus.get('owned-folder:' + mount.shareId), true,
+    'the baseline follows the disk')
+})
+
+// The cost guard the fix is not allowed to break: _announce emits on every call, changed record or
+// not, so a probe that stopped short-circuiting would poke the shares scope once per mount per
+// minute and make every folder screen refetch on a timer.
+test('a probe tick over an unchanged, healthy mount stays silent', async (t) => {
+  const { ctx, mount } = await plantedMount(t, {
+    makePath: (p) => fs.mkdirSync(p, { recursive: true }),
+  })
+  await ctx.root.mounts.probeMountPoints()
+  const before = statusEvents(ctx, mount.shareId)
+  await ctx.root.mounts.probeMountPoints()
+  await ctx.root.mounts.probeMountPoints()
+  t.is(statusEvents(ctx, mount.shareId), before, 'two further ticks over an unchanged mount emit nothing')
 })
