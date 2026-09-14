@@ -334,7 +334,11 @@ export class MountsRuntime extends Subsystem {
       // The same question the resume passes ask — is a DIRECTORY there — so a path replaced by a
       // file cannot read present here and absent to them.
       const exists = mountRootAvailable(mount.mountPath)
-      const prev = this.lastMountPointStatus.get(key)
+      // The baseline is "what I last saw"; what the UI shows is what was last ANNOUNCED — the
+      // durable record. A record that says gone over a path that is back is a transition, whoever
+      // wrote it. The early return still bounds the cost: _announce emits on every call, changed
+      // record or not, so a probe without it pokes the shares scope once per mount per minute.
+      const prev = mount.status === MOUNT_STATUS.MOUNT_POINT_GONE ? false : this.lastMountPointStatus.get(key)
       if (prev === exists) continue
       const wasGone = prev === false
       this.lastMountPointStatus.set(key, exists)

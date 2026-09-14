@@ -753,6 +753,8 @@ Imports only `PARTIAL_SUFFIX` (`transfer/partial-suffix.js`, which holds to the 
 
 Mounts survive restarts: `MountsRuntime` (§2 boot step 9) rehydrates both mount kinds from `mounts-meta` and arms the 60 s **mount-probe loop**, which watches every mount's disk path — a USB eject or network-share drop flips the share to `mount-point-gone` and stops its watcher/loop; reappearance restarts it. State is instance state on the subsystem (`lastMountPointStatus`, `periodicTimers`), and the probe rides `this.timers`, so `_close` is the bulk stop — it was previously a module-level map plus a top-level interval with a per-share cancel but no bulk one, and so nothing could stop it.
 
+The probe acts on a **transition**, and each tick reconciles its `lastMountPointStatus` baseline against the durable record before comparing: a record that already reads `mount-point-gone` over a path that is back is an edge, whether or not the probe saw the departure itself. That is what makes "source missing" clearable — the owned listing (`owned-folder:list-all`) stamps `mountPointMissing` from a live `mountRootAvailable` on every read and the renderer's precedence takes it first, so the strip *appears* level-triggered off any read, while clearing it needs an `event:owned-folder-mount-status` to poke the shares scope. Every writer that notices an absent root records it through `handleOwnedMountGone`, which is what puts the absence where the probe reads it; the reconcile is the backstop for one that does not.
+
 ### 7.7 Content backend (`overlay`)
 
 Every share — folder and loose — moves bytes through the **overlay** backend (`transfer/backends/overlay/`). The canonical bytes are the user's **real file on disk**; nothing is copied into a Hyperdrive blob store.
