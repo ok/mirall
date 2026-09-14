@@ -41,7 +41,7 @@ import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
 import { PEER_FRAME } from '../contract/peer-frames.js'
-import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries, authorizedOn, detachPeerFromSpace } from './swarm-registries.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, boundSignerKeys, announceLedger, resetRegistries, authorizedOn, detachPeerFromSpace, forgetBoundSignerKey } from './swarm-registries.js'
 import { initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, resolveSpaceIdForTopic } from './presence-broadcast.js'
 // Re-exported so swarm.js stays the public address for these: worker/main.js and the overlay
 // backend import them from here.
@@ -495,7 +495,7 @@ function handleDisconnect(socket) {
   for (const [profileKey, sock] of pendingRequesters) {
     if (sock === socket) {
       pendingRequesters.delete(profileKey)
-      if (!connectedPeers.has(profileKey)) boundSignerKeys.delete(profileKey)
+      forgetBoundSignerKey(profileKey)
     }
   }
   const peerKeys = socketToPeers.get(socket)
@@ -518,7 +518,7 @@ function handleDisconnect(socket) {
 
     presence.clear(peerKey)
     connectedPeers.delete(peerKey)
-    if (!pendingRequesters.has(peerKey)) boundSignerKeys.delete(peerKey)
+    forgetBoundSignerKey(peerKey)
   }
   scheduleStatusEmit()
 }
@@ -677,7 +677,13 @@ function disconnectPeersFromSpace(spaceId) {
     // The overlay content channel rides the CONTENT socket, not this one. Dropping only the
     // control socket leaves the bulk plane serving a space we have just left.
     try { destroyContentPeerSockets(key) } catch {}
+    // The close handler that follows will find this key already gone from connectedPeers and skip
+    // the rest of its per-peer teardown, so finish it here. Leaving the bound signer key behind is
+    // the one that bites: a grant sealed after a later reconnect, before the fresh identity frame
+    // rewrites it, would be sealed to a key the peer no longer holds.
+    presence.clear(key)
     connectedPeers.delete(key)
+    forgetBoundSignerKey(key)
   }
 }
 

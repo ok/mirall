@@ -12,7 +12,10 @@ import {
   safeSend,
   broadcastToSpace,
   detachPeerFromSpace,
+  forgetBoundSignerKey,
   forgetPeerOnSocket,
+  boundSignerKeys,
+  pendingRequesters,
 } from '../../src/shared/transfer/swarm-registries.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -125,6 +128,31 @@ test('detachPeerFromSpace tolerates a peer with no loose catalog map', (t) => {
   t.ok(detachPeerFromSpace(p, 'space-a'))
 })
 
+// REGRESSION (FIX-SIGNER-STRAND): the rule both teardown paths ask, in one place. A key kept for a
+// peer that is neither connected nor pending is a key a later grant can be sealed to after the peer
+// has rotated it — sendMembershipGrant cannot tell a stale key from a current one.
+test('forgetBoundSignerKey keeps the key only while the peer is connected or pending', (t) => {
+  resetRegistries()
+  const p1 = peer({ id: 's1' }, ['space-a'])
+  connectedPeers.set('connected', p1)
+  boundSignerKeys.set('connected', 'signer-connected')
+  pendingRequesters.set('pending', { id: 's2' })
+  boundSignerKeys.set('pending', 'signer-pending')
+  boundSignerKeys.set('gone', 'signer-gone')
+
+  forgetBoundSignerKey('connected')
+  t.is(boundSignerKeys.get('connected'), 'signer-connected', 'a still-connected peer keeps its key')
+
+  forgetBoundSignerKey('pending')
+  t.is(boundSignerKeys.get('pending'), 'signer-pending', 'so does one still awaiting a grant')
+
+  forgetBoundSignerKey('gone')
+  t.absent(boundSignerKeys.has('gone'), 'neither connected nor pending → forgotten')
+
+  forgetBoundSignerKey('never-seen')
+  t.absent(boundSignerKeys.has('never-seen'), 'and an unknown key is a no-op')
+})
+
 test('forgetPeerOnSocket drops the socket entry only once no identity rides it', (t) => {
   resetRegistries()
   const sock = { id: 's1' }
@@ -138,6 +166,27 @@ test('forgetPeerOnSocket drops the socket entry only once no identity rides it',
   t.absent(socketToPeers.has(sock), 'the last identity takes the entry with it')
   forgetPeerOnSocket(sock, 'key2')
   t.absent(socketToPeers.has(sock), 'and forgetting an unknown socket is a no-op')
+})
+
+// Same rule as the one below, for the eviction the grant path depends on: a hand-rolled
+// `boundSignerKeys.delete` is how a teardown path ends up asking a different question than the
+// others (FIX-SIGNER-STRAND was two such paths asking none at all).
+test('no module deletes a bound signer key behind forgetBoundSignerKey', (t) => {
+  const root = path.join(here, '..', '..', 'src')
+  const files = []
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const p = path.join(dir, name)
+      if (statSync(p).isDirectory()) { if (name !== 'vendor' && name !== 'node_modules') walk(p) }
+      else if (name.endsWith('.js') && name !== 'swarm-registries.js') files.push(p)
+    }
+  }
+  walk(root)
+
+  for (const file of files) {
+    t.absent(/boundSignerKeys\.delete\(/.test(readFileSync(file, 'utf8')),
+      `${path.relative(root, file)} calls forgetBoundSignerKey rather than deleting the entry itself`)
+  }
 })
 
 // The authorization rule has one implementation. content-peer-sockets.js is exempt on purpose: the

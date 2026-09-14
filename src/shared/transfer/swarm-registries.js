@@ -95,6 +95,15 @@ export function detachPeerFromSpace(peer, spaceId) {
   return peer.spaces.size === 0
 }
 
+// Forget the signer key a departing peer bound. The key may only outlive the socket while the peer
+// is still connected elsewhere or still pending a grant; otherwise it has to go, or a grant sealed
+// after a later reconnect can be sealed to a key that peer no longer holds. Every teardown path —
+// a socket close, and a leave that strands a peer in no space — asks this one question.
+export function forgetBoundSignerKey(profileKey) {
+  if (connectedPeers.has(profileKey) || pendingRequesters.has(profileKey)) return
+  boundSignerKeys.delete(profileKey)
+}
+
 // Remove one identity from a socket's set, and the socket once no identity rides it. The
 // disconnect path does not use this: there the socket itself is gone, so its whole entry goes at
 // once.
