@@ -593,3 +593,39 @@ to any identifier that shadows a global (`crypto`, `fetch`, `performance`, `Buff
 is exactly the set a Node-flavoured import list is most likely to contain. After moving handlers
 between worker modules, run one flow test that exercises them — the static gates cannot stand in for
 it, and the failure they miss is a runtime crash, not a warning.
+
+## `git checkout -- <path>` restores from the INDEX, not from the last edit
+
+Undoing a deliberate one-line test mutation with `git checkout -- src/shared/transfer/swarm.js`
+discarded an hour of unstaged work on that file, because nothing had been staged: the index still
+held the pristine `HEAD` copy. The mutation was reverted; so was everything else.
+
+**The rule:** to undo a temporary mutation, copy the file to `/tmp` first and copy it back. Reserve
+`git checkout -- <path>` for a file you are certain has no work in it. The symptom is silent — the
+command succeeds and prints one line — so the tell is a test that suddenly passes for the wrong
+reason, or a `grep -c` that returns 0.
+
+## A source-scanning guard can live in test/integration, and a signature change makes it vacuous
+
+`test/integration/peer-frame-hardening.test.js` slices `swarm.js` between two string markers and
+asserts an ordering inside the slice. When box 2.7 changed `dispatchFrame`'s signature, the closing
+marker stopped matching, `indexOf` returned `-1`, and `slice(start, -1)` quietly became "to the end of
+the file". The ordering assertions kept passing against the wrong region for two days.
+
+**The rule:** before pushing a rename, grep the WHOLE test tree for the old spelling —
+`test/integration/` as much as `test/unit/`. And when a guard slices source by markers, assert the
+markers were found (`t.ok(at >= 0)`) before asserting anything about what lies between them. An
+`indexOf` that can return `-1` is a guard with an off switch.
+
+## Verify the box before implementing it — the estimate is usually wrong in both directions
+
+Across eleven boxes of the Tier 2 refactor, the issue's own description was wrong more often than
+right: counts inflated (~35 writers → 21; 7 auth guards → 5; 9 fan-out loops → 4), work already done
+(`mountKey`, `prefixRange`, `OUTCOME`/`ACTOR_TYPE`), items that never existed (`spaceIdFromTopic`,
+`probeKey`, `folderJob`, `CONNECTIVITY_STATE`), one item impossible as specified
+(`startWatcher`/`stopWatcher` — the watchers live in Electron main), two tests it said to delete that
+carried real coverage, and one decision that contradicted itself (A.4).
+
+**The rule:** spend the first pass of every box verifying its claims against the tree, and expect the
+box to shrink. Three defects were found this way that a straight read would have missed. The
+verification is not overhead — it is most of the value.
