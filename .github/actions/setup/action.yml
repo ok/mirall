@@ -11,7 +11,8 @@ runs:
     # checked out before `uses: ./.github/actions/setup` can be found at all.
     - uses: actions/setup-node@v6
       with:
-        # One place for the pin. It was written in five, and a bump reached four of them.
+        # One pin for every job in this workflow; it was written four times here.
+        # build-electron.yml keeps its own — it runs a different matrix and does not use this action.
         node-version: '24.20.0'
         cache: 'npm'
     - if: inputs.install == 'true'

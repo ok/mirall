@@ -3,7 +3,9 @@ import { execFileSync } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { readFileSync } from 'fs'
 import { CASES } from '../frontend-layout/cases.mjs'
+import { htmlNameFor } from '../frontend-layout/build.mjs'
 import { createRequire } from 'module'
 
 const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../frontend-layout')
@@ -43,4 +45,18 @@ test('the case runner is reachable from package.json', (t) => {
   const pkg = createRequire(import.meta.url)('../../package.json')
   t.ok(pkg.scripts['test:layout:case'], 'npm run test:layout:case is defined')
   t.ok(existsSync(path.join(HERE, 'run-case.mjs')), 'run-case.mjs exists')
+})
+
+// The link the generation actually broke: the runner names an HTML file by string, and the
+// generator renamed the default case's output from harness.html to harness-harness.html. Every
+// other check here passed while `npm run test:layout` could not load its page at all.
+test('every runner names an HTML file the generator emits', (t) => {
+  const emitted = new Set(CASES.map((c) => htmlNameFor(c.name)))
+  for (const c of CASES) {
+    const runner = c.name === 'harness' ? 'run.mjs' : `run-${c.name}.mjs`
+    const src = readFileSync(path.join(HERE, runner), 'utf8')
+    const named = src.match(/html:\s*'([^']+)'/)
+    if (!named) continue
+    t.ok(emitted.has(named[1]), `${runner} loads ${named[1]}, which build.mjs writes`)
+  }
 })

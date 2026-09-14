@@ -5,7 +5,7 @@ import path from 'path'
 import { until, waitFor } from '../helpers/poll.js'
 
 const testRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SCANNED = ['unit', 'integration', 'flow', 'raw', 'helpers']
+const SCANNED = ['unit', 'invariants', 'integration', 'flow', 'raw', 'helpers']
 
 // The loop, not the name: the eighteen copies this replaced went under five different names, so a
 // name list would have missed the next one. A deadline computed from Date.now() and then polled is

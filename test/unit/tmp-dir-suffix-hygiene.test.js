@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const testRoot = path.join(here, '..')
 
 // Every dir whose names reach the app as a mount root or a download destination.
-const SCANNED = ['flow', 'helpers', 'integration', 'raw', 'unit']
+const SCANNED = ['flow', 'helpers', 'integration', 'invariants', 'raw', 'unit']
 const HEX = /^[0-9a-f]*$/
 
 function scannedFiles() {

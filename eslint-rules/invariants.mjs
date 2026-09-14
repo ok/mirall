@@ -12,7 +12,7 @@ export const rendererStatusRestrictions = [
 // Lifecycle invariant, import-time corner only: a timer armed at module level runs at import, so no
 // close() can reach it. The broad property (every periodic call dies with its subsystem) is not
 // decidable statically; test/integration/timer-lifecycle.test.js measures it at runtime. Exported so
-// test/unit/module-level-timers.test.js parses the same grammar.
+// test/invariants/module-level-timers.test.js parses the same grammar.
 export const moduleLevelTimerRestrictions = [{
   // `:not(:function *)` alone is the whole rule: it matches a set*() call that has no function
   // ancestor, i.e. one that runs at import. Scoping it to top-level statement types instead would
@@ -50,7 +50,7 @@ export const moduleScopeTimerHandleRestrictions = [
 // Mechanism invariant: chokidar's options are per-INSTANCE (network mounts need polling, an erroring
 // watcher spins), and src/main/watch-host.js is the single owner of every chokidar decision; a second
 // require('chokidar') is how a divergence comes back. Exported so
-// test/unit/watch-host-single-owner.test.js parses the same grammar.
+// test/invariants/watch-host-single-owner.test.js parses the same grammar.
 const chokidarMessage = 'Only src/main/watch-host.js may load chokidar — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
 export const chokidarSingleOwnerRestrictions = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='chokidar']", message: chokidarMessage },
@@ -61,7 +61,7 @@ export const chokidarSingleOwnerRestrictions = [
 // src/shared/. The data layer imports bare-*, Hyper* and Node modules the sandboxed renderer cannot
 // bundle, and every renderer "twin" this codebase has deleted began as an import that was not
 // allowed and a copy that was. The re-export shims that used to stand in for this rule are gone;
-// the rule is what replaces them. Exported so test/unit/renderer-contract-only-imports.test.js
+// the rule is what replaces them. Exported so test/invariants/renderer-contract-only-imports.test.js
 // enforces the same grammar through eslint's parser.
 export const rendererContractOnlyImports = [{
   regex: '(^|/)shared/(?!contract/)',
@@ -71,7 +71,7 @@ export const rendererContractOnlyImports = [{
 // Presentation invariant: one byte size means one string. src/renderer/formatSize.js owns the decimal
 // ladder because the divisor and the labels must agree; a unit-ladder array literal is the shape a
 // re-implementation always takes, whatever it is named. Exported so
-// test/unit/byte-formatter-single-owner.test.js parses the same grammar.
+// test/invariants/byte-formatter-single-owner.test.js parses the same grammar.
 const byteLadderMessage = 'Only src/renderer/formatSize.js may declare a byte-unit ladder — call formatSize so the divisor and the labels stay in one place.'
 export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB', 'TiB'].map((unit) => ({
   selector: `ArrayExpression > Literal[value='${unit}']`,

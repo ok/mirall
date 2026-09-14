@@ -19,6 +19,9 @@ const common = {
 
 const entryFor = (name) => (name === 'harness' ? 'harness-entry.tsx' : `harness-${name}-entry.tsx`)
 const bundleFor = (name) => (name === 'harness' ? 'harness.js' : `harness-${name}.js`)
+// The default case is `harness.html`, not `harness-harness.html`: run.mjs and electron-main.cjs
+// both fall back to that name.
+export const htmlNameFor = (name) => (name === 'harness' ? 'harness.html' : `harness-${name}.html`)
 
 // Generated, not committed: the 19 files this replaced differed only in <title> and the bundle src,
 // and a hand-maintained copy is where a harness silently stops linking the real stylesheet.
@@ -55,6 +58,6 @@ if (import.meta.filename === process.argv[1]) {
     entryPoints: [path.join(HERE, entryFor(c.name))],
     outfile: path.join(HERE, 'dist', bundleFor(c.name)),
   })))
-  for (const c of CASES) writeFileSync(path.join(HERE, `harness-${c.name}.html`), htmlFor(c))
+  for (const c of CASES) writeFileSync(path.join(HERE, htmlNameFor(c.name)), htmlFor(c))
   console.error('[build] harness bundled')
 }
