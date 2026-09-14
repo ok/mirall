@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { createPreviewTally } from '../../src/shared/folders/preview-tally.js'
-import { PREVIEW_DETAIL_MAX_FILES } from '../../src/shared/folders/preview-detail.js'
+import { PREVIEW_DETAIL_MAX_FILES } from '../../src/shared/folders/preview-tally.js'
 
 test('an empty tally is a well-formed result for either direction', (t) => {
   const up = createPreviewTally().result('add-owned-folder', 'upload')

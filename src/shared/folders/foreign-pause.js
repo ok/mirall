@@ -12,7 +12,7 @@ import { classifyLocalIoFault } from '../core/errors.js'
 import { faultFromError, STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from './mount-fault.js'
 import { getForeignMount, patchForeignMount, mutateForeignMount } from './mount-store.js'
 import { setMirrorState } from './mirror-records.js'
-import { mountRootAvailable } from './publish-runner.js'
+import { mountRootAvailable } from './publish-service.js'
 
 // Injected by foreign-folders.js: the mirror's own state, its loop control and its two record
 // writers all belong to the module that owns the loop, and a pause is one of the things that

@@ -37,7 +37,7 @@ import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-policy.js'
 import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName, driveKeyToSegments } from './path-keys.js'
-import { mountRootAvailable } from './publish-runner.js'
+import { mountRootAvailable } from './publish-service.js'
 
 const log = createLogger('mirror-fetch')
 

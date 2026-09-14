@@ -3,7 +3,6 @@
 // verified-download record it wrote itself — but they answer the same dialog, and one component
 // renders both. Keeping the accumulator here makes "the two previews agree on their shape" an
 // assertion rather than a convention.
-import { PREVIEW_DETAIL_MAX_FILES, includePerFile } from './preview-detail.js'
 
 export function createPreviewTally() {
   let count = 0
@@ -35,4 +34,14 @@ export function createPreviewTally() {
       }
     },
   }
+}
+
+// The per-file preview list is a confirmation aid, not a manifest. Above this many
+// action-set files (uploads for owned, downloads for foreign) the dialog shows the
+// summary counts only and omits the list. `actionCount` is the number of files that
+// would populate the list (toUpload / toDownload), not the total files on disk.
+export const PREVIEW_DETAIL_MAX_FILES = 50
+
+export function includePerFile(actionCount) {
+  return actionCount <= PREVIEW_DETAIL_MAX_FILES
 }
