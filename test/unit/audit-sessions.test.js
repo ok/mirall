@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createSessionStore, sessionKey } from '../../src/shared/audit/audit-sessions.js'
+import { createSessionStore, sessionKey } from '../../src/shared/transfer/serve-sessions.js'
 
 test('a start/progress/end cycle yields one session with summed bytes and a duration', (t) => {
   const s = createSessionStore()
