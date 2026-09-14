@@ -59,13 +59,13 @@ const cardHandlers = {
 }
 
 const toastItems: ToastItem[] = [
-  { id: 'short', variant: 'error', message: 'Disk full', duration: 0, createdAt: 0 },
+  { id: 'short', seq: 1, variant: 'error', message: 'Disk full', duration: 0 },
   {
     id: 'long',
+    seq: 2,
     variant: 'error',
     message: `Not enough disk space for “${LONG_NAME}” — free up space, then retry the download`,
     duration: 0,
-    createdAt: 0,
   },
 ]
 

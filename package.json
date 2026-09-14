@@ -55,7 +55,8 @@
     "test:layout:focusring": "node test/frontend-layout/run-focusring.mjs",
     "test:layout:truncation": "node test/frontend-layout/run-truncation.mjs",
     "test:layout:segments": "node test/frontend-layout/run-segments.mjs",
-    "test:layout:errorassoc": "node test/frontend-layout/run-errorassoc.mjs"
+    "test:layout:errorassoc": "node test/frontend-layout/run-errorassoc.mjs",
+    "test:layout:toastdedupe": "node test/frontend-layout/run-toastdedupe.mjs"
   },
   "devDependencies": {
     "@axe-core/react": "^4.13.0",
