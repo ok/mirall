@@ -11,7 +11,7 @@ import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
-import PathRow from '../widgets/PathRow.js'
+import PathRow from '../path/PathRow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface EditFolderModalProps {
