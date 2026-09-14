@@ -1123,6 +1123,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
 | `src/main/settings-ipc.js` | `registerSettingsIpc(deps)` — the download folder (validated against the same rules a per-space folder gets), the bandwidth caps, the general preferences and the two directory pickers, plus the login-item/XDG autostart writer. `prefs:set` takes its tray and app-menu actions as injected deps rather than re-implementing them (§5) |
 | `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
+| `src/main/window.js` | `registerWindow()`, `createWindow()` and everything persisted about the window — zoom, bounds and theme. The window is hidden rather than closed, so its state has to survive a hide as well as a quit, which is why every read and write goes through config.json rather than the window object (§5) |
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
 | `src/main/window-shortcuts.js` | Classifies a `before-input-event` into DevTools toggle / zoom command / nothing, pure (§2 step 6) |
 | `src/main/worker-entrypoints.js` | The worker spawn allowlist (`contract/workers.js`), resolved before the `noAsar` window opens |

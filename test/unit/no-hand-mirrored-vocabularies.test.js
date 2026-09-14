@@ -16,7 +16,7 @@ const MIRRORED = [
   ['shared/core/reachability.js', /DHT_FAILURE_MS\s*=\s*\d/],
   ['renderer/hooks/useConnectionStatus.tsx', /DHT_FAILURE_MS\s*=\s*\d/],
   ['renderer/window-bounds.ts', /MIN_(WIDTH|HEIGHT)\s*=\s*\d/],
-  ['main/main.js', /min(Width|Height):\s*\d/],
+  ['main/window.js', /min(Width|Height):\s*\d/],
 ]
 
 test('no module re-declares a vocabulary the contract package owns', (t) => {
