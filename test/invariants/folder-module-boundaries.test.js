@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+// The modules are driven from test/unit; this guard lives in test/invariants, so the scan must name
+// that directory rather than its own — scanning `here` would pass while nothing drove anything.
+const unitDir = path.resolve(here, '../unit')
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 import { pureFolderPolicyModules } from '../../eslint.config.mjs'
 
@@ -38,9 +41,9 @@ test('owned-folders.js re-exports nothing it does not own', (t) => {
 // is that something actually loads them under Node. A listed module with no unit importer is a
 // purity claim nobody exercises.
 test('every pure folder-policy module is driven by a unit test', (t) => {
-  const suite = readdirSync(here)
-    .filter((f) => f.endsWith('.test.js') && f !== 'folder-module-boundaries.test.js')
-    .map((f) => readFileSync(path.join(here, f), 'utf8'))
+  const suite = readdirSync(unitDir)
+    .filter((f) => f.endsWith('.test.js'))
+    .map((f) => readFileSync(path.join(unitDir, f), 'utf8'))
     .join('\n')
   for (const name of pureFolderPolicyModules) {
     t.ok(suite.includes(`shared/folders/${name}.js`), `${name}.js is imported by a unit test`)

@@ -53,7 +53,7 @@ function uncleared(source, filePath) {
     .map(([variable, lines]) => `${variable.name} (armed at ${lines.join(', ')})`)
 }
 
-// The companion to test/unit/module-level-timers.test.js, which proves the IMPORT-TIME property and
+// The companion to test/invariants/module-level-timers.test.js, which proves the IMPORT-TIME property and
 // is correct about it. What neither can prove — and what the lint message used to imply — is that a
 // handle's reset is actually CALLED before the process that armed it goes away: three of the owners
 // are module singletons, not Subsystems, so that needs a call graph across modules. The runtime
