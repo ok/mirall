@@ -68,11 +68,11 @@ export const rendererContractOnlyImports = [{
   message: 'The renderer may import src/shared/contract/** and nothing else under src/shared/ — move the rule into the contract package or ask the worker over IPC.',
 }]
 
-// Presentation invariant: one byte size means one string. src/renderer/formatSize.js owns the decimal
+// Presentation invariant: one byte size means one string. src/renderer/format/formatSize.js owns the decimal
 // ladder because the divisor and the labels must agree; a unit-ladder array literal is the shape a
 // re-implementation always takes, whatever it is named. Exported so
 // test/invariants/byte-formatter-single-owner.test.js parses the same grammar.
-const byteLadderMessage = 'Only src/renderer/formatSize.js may declare a byte-unit ladder — call formatSize so the divisor and the labels stay in one place.'
+const byteLadderMessage = 'Only src/renderer/format/formatSize.js may declare a byte-unit ladder — call formatSize so the divisor and the labels stay in one place.'
 export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB', 'TiB'].map((unit) => ({
   selector: `ArrayExpression > Literal[value='${unit}']`,
   message: byteLadderMessage,

@@ -8,7 +8,7 @@ import { byteFormatterSingleOwnerRestrictions } from '../../eslint-rules/invaria
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')
-const OWNER = path.join(rendererDir, 'formatSize.js')
+const OWNER = path.join(rendererDir, 'format', 'formatSize.js')
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -36,7 +36,7 @@ function verify(linter, source, filename) {
 // test/unit/audit-row.test.js pinned the wrong numbers. Deleting that ladder fixes today's
 // discrepancy; this rule is what stops the NEXT one, in any spelling: it matches the SHAPE of a
 // unit ladder, an array literal carrying a byte-unit element, not a variable called BYTES_UNITS.)
-test('REGRESSION (FIX-BYTES-2): src/renderer/formatSize.js is the only module that declares a byte ladder', (t) => {
+test('REGRESSION (FIX-BYTES-2): src/renderer/format/formatSize.js is the only module that declares a byte ladder', (t) => {
   const linter = new Linter()
 
   t.ok(verify(linter, "const U = ['B', 'KB', 'MB', 'GB', 'TB']\n", 'control.js').length > 0, 'a decimal ladder is caught')

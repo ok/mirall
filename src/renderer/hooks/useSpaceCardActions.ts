@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
-import { request } from '../ipc.js'
+import { request } from '../ipc/ipc.js'
 import { setForeignMountEnabled, unmountForeignMount } from './useForeignMount.js'
 import { useRunAction } from './useRunAction.js'
-import type { FileEntry } from '../types.js'
+import type { FileEntry } from '../types/types.js'
 import type { ShareWithRole } from './useShares.js'
 import type { SpaceDialog } from '../components/modals/SpaceDialogs.js'
 

@@ -5,7 +5,7 @@
 // role="alert" node would not be re-announced — (3) the ring restarts from full, and (4) a
 // DIFFERENT sentence still stacks beside it.
 import './harness-bootstrap.js'
-import './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
 import { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ToastProvider, useToast } from './../../src/renderer/components/toast/ToastProvider.js'

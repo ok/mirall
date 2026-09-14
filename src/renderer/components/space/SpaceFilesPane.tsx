@@ -4,7 +4,7 @@ import FileCard from '../cards/FileCard.js'
 import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import SpaceSection from './SpaceSection.js'
 import type { ComponentProps } from 'react'
-import type { FileEntry } from '../../types.js'
+import type { FileEntry } from '../../types/types.js'
 
 // The per-row callbacks and lookups are FileCard's contract, not this section's: forwarded
 // untouched, so re-declaring them here would be a second copy to keep in step.

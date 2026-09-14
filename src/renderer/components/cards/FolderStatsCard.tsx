@@ -4,9 +4,9 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
-import { badgeStyle } from '../../statusBadge.js'
-import { formatSize } from '../../utils.js'
-import type { FolderStatus } from '../../folderStatus.js'
+import { badgeStyle } from '../../model/statusBadge.js'
+import { formatSize } from '../../format/utils.js'
+import type { FolderStatus } from '../../model/folderStatus.js'
 
 interface FolderStatsCardProps {
   folderName: string

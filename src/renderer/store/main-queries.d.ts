@@ -1,4 +1,4 @@
-import type { AppPrefs, BandwidthLimits, MirallBridge } from '../global.js'
+import type { AppPrefs, BandwidthLimits, MirallBridge } from '../platform/global.js'
 
 export type MainQueryName =
   | 'main:prefs'

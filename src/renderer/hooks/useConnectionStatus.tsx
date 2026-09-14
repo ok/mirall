@@ -9,9 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { DHT_FAILURE_MS } from '../../shared/contract/limits.js'
-import type { CanaryResult, ConnectivityState, NetworkStatusScreen, Reachability } from '../types.js'
+import type { CanaryResult, ConnectivityState, NetworkStatusScreen, Reachability } from '../types/types.js'
 
 interface ConnectionStatusContextValue {
   state: ConnectivityState

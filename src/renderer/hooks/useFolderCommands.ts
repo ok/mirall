@@ -4,8 +4,8 @@
 // context never has to carry a share id. Which entries are offered, and under which label, is
 // decided by deriveFolderCommands; this hook only binds them to the screen's handlers.
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
-import { deriveFolderCommands } from '../folderCommands.js'
-import type { ShareRole } from '../types.js'
+import { deriveFolderCommands } from '../model/folderCommands.js'
+import type { ShareRole } from '../types/types.js'
 
 interface FolderCommandsArgs {
   name: string

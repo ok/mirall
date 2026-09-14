@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { denialReasonKey } from '../../src/renderer/auditRow.js'
+import { denialReasonKey } from '../../src/renderer/model/auditRow.js'
 import { DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
 
 // Every locale must carry the SAME translation keys as the reference (en) for

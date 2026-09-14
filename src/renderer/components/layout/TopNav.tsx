@@ -2,7 +2,7 @@
 // controls (the avatar ring reflects connection status), with the update banner beneath.
 import { useTranslation } from 'react-i18next'
 import UpdateBanner from './UpdateBanner.js'
-import type { Profile, UpdateInfo } from '../../types.js'
+import type { Profile, UpdateInfo } from '../../types/types.js'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import Button from '../primitives/Button.js'
 import IconButton from '../primitives/IconButton.js'

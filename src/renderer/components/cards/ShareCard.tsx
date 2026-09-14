@@ -3,16 +3,16 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ShareWithRole } from '../../hooks/useShares.js'
-import type { Profile, SpaceMember } from '../../types.js'
+import type { Profile, SpaceMember } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
 import Badge from '../primitives/Badge.js'
 import Avatar from '../primitives/Avatar.js'
-import { roleBadge } from '../../statusBadge.js'
+import { roleBadge } from '../../model/statusBadge.js'
 import { isMountFault } from '../../../shared/contract/mount-fault.js'
-import { shareSizeLine } from '../../shareSizeLine.js'
-import { formatSize } from '../../utils.js'
+import { shareSizeLine } from '../../model/shareSizeLine.js'
+import { formatSize } from '../../format/utils.js'
 
 interface ShareCardProps {
   share: ShareWithRole

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeTabIntentTracker } from '../../src/renderer/tabIntent.js'
+import { makeTabIntentTracker } from '../../src/renderer/shell/tabIntent.js'
 
 // REGRESSION (FIX-SKIP-1: revealing the hidden window from the tray made Chromium
 // focus-advance to the skip link with no keyboard input, flashing "Skip to content"

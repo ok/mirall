@@ -3,7 +3,7 @@
 // warning, so the user learns the folder is gone instead of reading "Transfer failed" on every
 // download that tries to land there.
 import { useCallback, useEffect, useState } from 'react'
-import { subscribe } from '../ipc.js'
+import { subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery } from '../store/query-store.js'
 

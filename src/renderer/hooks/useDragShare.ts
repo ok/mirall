@@ -1,7 +1,7 @@
 // Owns drag-and-drop state for a drop region: classifies dragged payloads (files vs folder) via depth-tracked enter/leave and routes drops to the callbacks.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { inspectDragItems, isFolderDrop, firstDirectoryName } from '../dragShare.js'
-import { mountPathFromDrop } from '../sharePaths.js'
+import { inspectDragItems, isFolderDrop, firstDirectoryName } from '../model/dragShare.js'
+import { mountPathFromDrop } from '../model/sharePaths.js'
 
 export type DragKind = 'idle' | 'files' | 'folder'
 

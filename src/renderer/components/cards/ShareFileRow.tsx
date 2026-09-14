@@ -9,12 +9,12 @@ import IconButton from '../primitives/IconButton.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
 import RowLane from './RowLane.js'
 import FileName from '../primitives/FileName.js'
-import { formatSize, getFileIcon } from '../../utils.js'
-import { errorCodeToI18nKey } from '../../errorMessages.js'
-import { fileRowAction } from '../../fileRowAction.js'
-import { deriveRowView } from '../../rowView.js'
+import { formatSize, getFileIcon } from '../../format/utils.js'
+import { errorCodeToI18nKey } from '../../errors/errorMessages.js'
+import { fileRowAction } from '../../model/fileRowAction.js'
+import { deriveRowView } from '../../model/rowView.js'
 import type { Decoration } from '../../types/ui.js'
-import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
+import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
 
 // test seam
 export interface ShareFileRowProps {

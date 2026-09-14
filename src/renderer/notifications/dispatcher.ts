@@ -1,8 +1,8 @@
 // Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap dedupe.
-import i18n from '../i18n.js'
-import { subscribe } from '../ipc.js'
-import type { NotificationSpec } from '../global.d.js'
-import { errorCodeToI18nKey } from '../errorMessages.js'
+import i18n from '../platform/i18n.js'
+import { subscribe } from '../ipc/ipc.js'
+import type { NotificationSpec } from '../platform/global.d.js'
+import { errorCodeToI18nKey } from '../errors/errorMessages.js'
 import { getPrefs } from './prefs.js'
 import { pausedBodyKey } from './pausedToast.js'
 

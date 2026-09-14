@@ -149,7 +149,7 @@ test('an oversized control frame is said out loud; an oversized response is not'
 // console artifact this entire bug class is diagnosed from. A ratchet, because ipc.ts is TypeScript
 // and cannot be imported from a brittle-node test.)
 test('REGRESSION (FIX-R3): the renderer decodes worker output as a stream', (t) => {
-  const src = readFileSync(new URL('../../src/renderer/ipc.ts', import.meta.url), 'utf8')
+  const src = readFileSync(new URL('../../src/renderer/ipc/ipc.ts', import.meta.url), 'utf8')
 
   const decodes = [...src.matchAll(/(\w+)\.decode\(([^)]*)\)/g)]
   t.ok(decodes.length >= 3, `found the decode sites (${decodes.length})`)

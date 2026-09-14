@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveMirrorSync } from '../../src/renderer/mirrorSync.js'
+import { deriveMirrorSync } from '../../src/renderer/model/mirrorSync.js'
 
 const file = (status, size, extra = {}) => ({ relPath: status + size, size, hash: 'h', mtime: 0, status, ...extra })
 

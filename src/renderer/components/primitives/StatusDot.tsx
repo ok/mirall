@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { ConnectivityState } from '../../types.js'
+import type { ConnectivityState } from '../../types/types.js'
 
 interface Props {
   state: ConnectivityState

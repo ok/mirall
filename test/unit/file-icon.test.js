@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { getFileIcon } from '../../src/renderer/fileIcon.js'
+import { getFileIcon } from '../../src/renderer/model/fileIcon.js'
 
 // The folder views (browse / on-demand / eager / mirrored) used to hard-code the
 // generic "description" icon for every file row, while the space view derived a

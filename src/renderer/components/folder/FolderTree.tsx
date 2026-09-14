@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
 import ShareFileRow from '../cards/ShareFileRow.js'
-import { formatSize } from '../../utils.js'
-import { badgeStyle } from '../../statusBadge.js'
+import { formatSize } from '../../format/utils.js'
+import { badgeStyle } from '../../model/statusBadge.js'
 import type { Decoration } from '../../types/ui.js'
-import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types.js'
+import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
 
 interface FileRowCallbacks {
   isOwn: boolean

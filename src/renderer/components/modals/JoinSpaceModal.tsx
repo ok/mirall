@@ -2,7 +2,7 @@
 // space name from the invite envelope.
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Space } from '../../types.js'
+import type { Space } from '../../types/types.js'
 import { decodeInvite, extractInviteCode } from '../../../shared/contract/invite-envelope.js'
 import Modal from '../primitives/Modal.js'
 import TextField from '../primitives/TextField.js'

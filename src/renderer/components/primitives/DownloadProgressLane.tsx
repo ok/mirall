@@ -1,4 +1,4 @@
-import { progressValueText } from '../../utils.js'
+import { progressValueText } from '../../format/utils.js'
 
 interface DownloadProgressLaneProps {
   value: number

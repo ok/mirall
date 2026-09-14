@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { showSpaceEmptyState, showSpaceLoading } from '../../src/renderer/spaceContentState.js'
+import { showSpaceEmptyState, showSpaceLoading } from '../../src/renderer/model/spaceContentState.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')

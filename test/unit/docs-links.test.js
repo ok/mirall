@@ -2,10 +2,10 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { docsUrl } from '../../src/renderer/docs-links.js'
+import { docsUrl } from '../../src/renderer/shell/docs-links.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const DTS = path.resolve(here, '../../src/renderer/docs-links.d.ts')
+const DTS = path.resolve(here, '../../src/renderer/shell/docs-links.d.ts')
 
 // Every link the UI renders, pinned to the exact URL a user lands on.
 const SHIPPING_LINKS = [

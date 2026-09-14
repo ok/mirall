@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { deriveFolderCommands } from '../../src/renderer/folderCommands.js'
+import { deriveFolderCommands } from '../../src/renderer/model/folderCommands.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const ROLES = ['mine', 'mirrored', 'browse']

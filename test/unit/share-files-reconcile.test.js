@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { reconcileFiles } from '../../src/renderer/shareFilesReconcile.js'
+import { reconcileFiles } from '../../src/renderer/model/shareFilesReconcile.js'
 
 const row = (relPath, extra = {}) => ({ relPath, size: 1, hash: 'h', mtime: 0, status: 'remote', ...extra })
 

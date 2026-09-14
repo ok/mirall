@@ -16,7 +16,7 @@ function loadModule(relPath) {
   return mod.exports
 }
 
-const { SCREENS, parentOf } = loadModule('src/renderer/navigation.ts')
+const { SCREENS, parentOf } = loadModule('src/renderer/shell/navigation.ts')
 
 // The back targets a screen can remember. Every combination has to land somewhere: these are the
 // two ends of each remembered range, so a target that cannot reach the root shows up here.

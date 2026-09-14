@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import type { SpaceMember, PeerDownloadSummary } from '../../types.js'
-import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../utils.js'
+import type { SpaceMember, PeerDownloadSummary } from '../../types/types.js'
+import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../format/utils.js'
 import AvatarStack from '../primitives/AvatarStack.js'
 import Icon from '../primitives/Icon.js'
 

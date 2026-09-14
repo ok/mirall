@@ -3,7 +3,7 @@
 // holds the cache, the latest-wins guard and the reconcile subscription.
 import { useQuery } from '../store/useQuery.js'
 import { pruneByParam } from '../store/query-store.js'
-import type { MirrorParticipant } from '../types.js'
+import type { MirrorParticipant } from '../types/types.js'
 
 const EMPTY: MirrorParticipant[] = []
 

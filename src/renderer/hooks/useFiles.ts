@@ -1,13 +1,13 @@
 // A space's loose-file listing, read through the query store, plus the optimistic rows a publish
 // shows before the worker has indexed the file.
 import { useState, useCallback, useMemo } from 'react'
-import { request, addFileToSpace } from '../ipc.js'
+import { request, addFileToSpace } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery } from '../store/query-store.js'
-import { mergeOptimistic } from '../optimisticRows.js'
+import { mergeOptimistic } from '../model/optimisticRows.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
-import type { FileEntry } from '../types.js'
+import type { FileEntry } from '../types/types.js'
 
 const EMPTY: FileEntry[] = []
 

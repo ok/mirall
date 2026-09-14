@@ -6,9 +6,9 @@ import SpaceEmptyState from './SpaceEmptyState.js'
 import SpaceSharesSection from './SpaceSharesSection.js'
 import SpaceFilesPane from './SpaceFilesPane.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
-import { showSpaceEmptyState, showSpaceLoading } from '../../spaceContentState.js'
+import { showSpaceEmptyState, showSpaceLoading } from '../../model/spaceContentState.js'
 import type { ComponentProps } from 'react'
-import type { SpaceMember } from '../../types.js'
+import type { SpaceMember } from '../../types/types.js'
 
 type SharesProps = ComponentProps<typeof SpaceSharesSection>
 type FilesProps = ComponentProps<typeof SpaceFilesPane>

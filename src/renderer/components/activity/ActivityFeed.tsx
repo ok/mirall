@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
 import InlineError from '../primitives/InlineError.js'
-import { actorInitials, avatarKind, denialReasonKey, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence, systemIcon } from '../../auditRow.js'
-import type { AuditEntry } from '../../types.js'
-import type { emptyStateFor, groupByDay } from '../../auditRow.js'
+import { actorInitials, avatarKind, denialReasonKey, metaParts, rowBadge, sentenceKey, sentenceValues, sentinelValues, splitSentence, systemIcon } from '../../model/auditRow.js'
+import type { AuditEntry } from '../../types/types.js'
+import type { emptyStateFor, groupByDay } from '../../model/auditRow.js'
 
 function timeOf(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

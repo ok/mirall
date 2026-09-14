@@ -4,7 +4,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '../store/useQuery.js'
 import { membersScopes } from './useSpaceMembers.js'
-import type { JoinRequest, SpaceMember } from '../types.js'
+import type { JoinRequest, SpaceMember } from '../types/types.js'
 
 const NO_MEMBERS: SpaceMember[] = []
 const NO_REQUESTS: JoinRequest[] = []

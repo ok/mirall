@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { SpaceMember } from '../../types.js'
+import type { SpaceMember } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
 import Avatar from '../primitives/Avatar.js'
 

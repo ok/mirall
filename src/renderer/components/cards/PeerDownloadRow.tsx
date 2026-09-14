@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import type { SpaceMember } from '../../types.js'
-import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../utils.js'
+import type { SpaceMember } from '../../types/types.js'
+import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../format/utils.js'
 import Avatar from '../primitives/Avatar.js'
 
 interface PeerDownloadRowProps {

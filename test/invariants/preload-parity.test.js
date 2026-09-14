@@ -6,7 +6,7 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 const preloadPath = path.join(root, 'src', 'preload', 'preload.js')
-const dtsPath = path.join(root, 'src', 'renderer', 'global.d.ts')
+const dtsPath = path.join(root, 'src', 'renderer', 'platform', 'global.d.ts')
 
 // The renderer's ONLY view of the preload bridge is global.d.ts, and nothing compares the two.
 // preload.js is plain JS outside tsconfig's include, so TypeScript checks every call site against a

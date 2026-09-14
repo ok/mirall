@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { PendingSpaceAction } from '../space-actions.js'
+import type { PendingSpaceAction } from '../shell/space-actions.js'
 import type { ShareWithRole } from './useShares.js'
 import type { SpaceDialog } from '../components/modals/SpaceDialogs.js'
 

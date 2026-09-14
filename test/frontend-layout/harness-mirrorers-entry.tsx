@@ -9,9 +9,9 @@
 // rather than stacked in the eyebrow column, where it wore the eyebrows' colour and weight.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import i18n from './../../src/renderer/i18n.js'
+import i18n from '../../src/renderer/platform/i18n.js'
 import FolderPeopleCard from './../../src/renderer/components/cards/FolderPeopleCard.js'
-import type { MirrorParticipant, Profile, SpaceMember } from './../../src/renderer/types.js'
+import type { MirrorParticipant, Profile, SpaceMember } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean

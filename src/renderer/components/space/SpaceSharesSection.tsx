@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import ShareCard from '../cards/ShareCard.js'
 import SpaceSection from './SpaceSection.js'
 import type { ComponentProps } from 'react'
-import type { SpaceMember } from '../../types.js'
+import type { SpaceMember } from '../../types/types.js'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 
 // The row callbacks are ShareCard's contract, not this section's.

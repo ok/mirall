@@ -8,7 +8,7 @@ import MountWizardStep from './MountWizardStep.js'
 import ScanPreviewModal from './ScanPreviewModal.js'
 import { validateOwnedMount, previewOwnedMount, cancelOwnedPreview, createShareThenMount } from '../../hooks/useFolderMount.js'
 import { useMountWizard } from '../../hooks/useMountWizard.js'
-import { basename, isValidShareName } from '../../sharePaths.js'
+import { basename, isValidShareName } from '../../model/sharePaths.js'
 
 interface AddFolderShareModalProps {
   isOpen: boolean

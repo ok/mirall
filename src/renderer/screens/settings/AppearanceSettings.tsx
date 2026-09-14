@@ -1,8 +1,8 @@
 // Appearance settings: theme (light/dark/system), language, and UI zoom.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../i18n.js'
-import { applyTheme, getStoredTheme, type ThemeMode } from '../../theme.js'
+import i18n, { setLocale, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../platform/i18n.js'
+import { applyTheme, getStoredTheme, type ThemeMode } from '../../platform/theme.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import { useZoom, ZOOM_LEVELS, nearestZoomLevel } from '../../hooks/useZoom.js'

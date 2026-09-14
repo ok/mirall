@@ -1,12 +1,12 @@
 // Owned-folder mount state and RPC wrappers (validate/preview/mount); useOwnedMount projects the
 // owned-folder:list-all entry the query store already holds.
 import { useMemo } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { ownedMountSettled, projectOwnedMount } from '../ownedMount.js'
+import { ownedMountSettled, projectOwnedMount } from '../model/ownedMount.js'
 import { ANY_SHARES } from '../store/scopes.js'
-import type { OwnedMountRow, OwnedMountState } from '../ownedMount.js'
-import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types.js'
+import type { OwnedMountRow, OwnedMountState } from '../model/ownedMount.js'
+import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types/types.js'
 
 // Same store entry as useShares: one value, two projections, one fence — SpaceScreen's badge and
 // FolderScreen's fault strip cannot disagree. Re-derives on the shares scope (README.md).

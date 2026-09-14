@@ -3,7 +3,7 @@
 // than a language suffix on every link.
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { docsUrl, type DocsTarget } from '../../docs-links.js'
+import { docsUrl, type DocsTarget } from '../../shell/docs-links.js'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import DocsLink from '../primitives/DocsLink.js'

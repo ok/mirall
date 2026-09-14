@@ -4,13 +4,13 @@
 // The two mount listings take no parameters, so they are one store entry each, shared by every
 // space.
 import { useCallback, useMemo } from 'react'
-import { request } from '../ipc.js'
+import { request } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { pruneByParam } from '../store/query-store.js'
-import { unhealthyOwnedStatus } from '../ownedMount.js'
+import { unhealthyOwnedStatus } from '../model/ownedMount.js'
 import { ANY_SHARES, sharesScope } from '../store/scopes.js'
-import type { OwnedMountRow } from '../ownedMount.js'
-import type { Share, ShareRole, ForeignFolderMount } from '../types.js'
+import type { OwnedMountRow } from '../model/ownedMount.js'
+import type { Share, ShareRole, ForeignFolderMount } from '../types/types.js'
 
 // Dropped when a space leaves the roster, so re-joining the same id never renders the rows it held
 // before (the twin of pruneRosterCache / pruneMirrorCache, called from the same place).

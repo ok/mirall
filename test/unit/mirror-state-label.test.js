@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { mirrorStateLabelKey } from '../../src/renderer/mirrorStateLabel.js'
+import { mirrorStateLabelKey } from '../../src/renderer/model/mirrorStateLabel.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const en = JSON.parse(fs.readFileSync(path.resolve(here, '../../src/renderer/locales/en/common.json'), 'utf8'))

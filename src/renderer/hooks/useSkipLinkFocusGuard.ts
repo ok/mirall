@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { FocusEvent } from 'react'
-import { makeTabIntentTracker } from '../tabIntent.js'
+import { makeTabIntentTracker } from '../shell/tabIntent.js'
 
 const tabIntent = makeTabIntentTracker()
 

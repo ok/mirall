@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveRowView, rowBytesOnDevice } from '../../src/renderer/rowView.js'
+import { deriveRowView, rowBytesOnDevice } from '../../src/renderer/model/rowView.js'
 
 const file = (o) => ({
   path: '/s/f', size: 100, hash: 'h', owner: { displayName: 'O', publicKey: 'k' },

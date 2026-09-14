@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getUpdateState, onUpdateState, dismissUpdate } from '../updates.js'
+import { getUpdateState, onUpdateState, dismissUpdate } from '../platform/updates.js'
 
 export function useUpdates() {
   const [state, setState] = useState(getUpdateState())

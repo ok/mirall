@@ -6,10 +6,10 @@
 // > 0 = formatted, and a >0 eta with a decayed (0) speed = stalled → hidden.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import './../../src/renderer/i18n.js'
-import i18n from './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
+import i18n from '../../src/renderer/platform/i18n.js'
 import DownloadProgressLane from '../../src/renderer/components/primitives/DownloadProgressLane.js'
-import { resolveEta, etaFromRate } from './../../src/renderer/utils.js'
+import { resolveEta, etaFromRate } from '../../src/renderer/format/utils.js'
 
 interface HarnessResults {
   pass: boolean

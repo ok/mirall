@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { fileName as getFileName } from '../../utils.js'
+import { fileName as getFileName } from '../../format/utils.js'
 import { useToast } from '../toast/ToastProvider.js'
 import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'

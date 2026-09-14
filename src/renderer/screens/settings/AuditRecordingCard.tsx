@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
 import { RETENTION_CHOICES } from '../../../shared/contract/limits.js'
-import type { AuditConfig } from '../../types.js'
+import type { AuditConfig } from '../../types/types.js'
 
 interface AuditRecordingCardProps {
   /** Null until audit:get-config answers — every read below falls back rather than guessing on. */

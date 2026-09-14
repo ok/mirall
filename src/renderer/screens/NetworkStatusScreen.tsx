@@ -1,7 +1,7 @@
 // Network diagnostics screen: connectivity verdict plus DHT/swarm details with maskable, copyable fields.
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { reachableState, formatDuration } from '../connectivity.js'
+import { reachableState, formatDuration } from '../model/connectivity.js'
 import DiagnosticsCard from './DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
@@ -9,7 +9,7 @@ import Button from '../components/primitives/Button.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
-import type { NetworkStatusScreen, Reachability } from '../types.js'
+import type { NetworkStatusScreen, Reachability } from '../types/types.js'
 
 interface Props {
   onBack: () => void

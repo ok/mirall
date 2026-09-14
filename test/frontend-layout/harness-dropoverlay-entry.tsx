@@ -4,7 +4,7 @@
 // DragEvents, and asserts the crossfade + geometry + copy in real layout.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import i18n from './../../src/renderer/i18n.js'
+import i18n from '../../src/renderer/platform/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
 import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'

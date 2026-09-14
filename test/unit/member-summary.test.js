@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { summarizeMembers } from '../../src/renderer/memberSummary.js'
+import { summarizeMembers } from '../../src/renderer/model/memberSummary.js'
 
 const m = (k) => ({ publicKey: k, displayName: k })
 

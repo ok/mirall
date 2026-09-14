@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { deriveFolderStatus } from '../../src/renderer/folderStatus.js'
-import { badgeStyle } from '../../src/renderer/statusBadge.js'
+import { deriveFolderStatus } from '../../src/renderer/model/folderStatus.js'
+import { badgeStyle } from '../../src/renderer/model/statusBadge.js'
 import { BADGE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const BASE = {

@@ -1,4 +1,4 @@
-import { subscribe } from '../ipc.js'
+import { subscribe } from '../ipc/ipc.js'
 import { invalidate, refetchQuery, setQueryData } from './query-store.js'
 import { SPACES_SCOPES } from './scopes.js'
 import type { ScopePattern } from '../../shared/contract/scope.js'

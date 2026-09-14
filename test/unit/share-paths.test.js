@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { basename, mountPathFromDrop, splitPathForDisplay, splitFilenameForDisplay, middleTruncateToWidth } from '../../src/renderer/sharePaths.js'
+import { basename, mountPathFromDrop, splitPathForDisplay, splitFilenameForDisplay, middleTruncateToWidth } from '../../src/renderer/model/sharePaths.js'
 
 // The drop zone derives the mount path from webUtils.getPathForFile(file), which
 // for a dropped FOLDER returns the folder's own absolute path. A regression

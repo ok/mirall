@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuditFacets, hasActiveFilters, EMPTY_FILTERS } from './useAuditLog.js'
-import { emptyStateFor } from '../auditRow.js'
+import { emptyStateFor } from '../model/auditRow.js'
 import { KINDS } from '../../shared/contract/audit-kinds.js'
-import type { AuditCategory, AuditFilters } from '../types.js'
+import type { AuditCategory, AuditFilters } from '../types/types.js'
 
 // The kind names, so a search term typed in any locale can be matched against the TRANSLATED
 // labels and turned into a `kinds` filter: the stored search blob is proper nouns only.

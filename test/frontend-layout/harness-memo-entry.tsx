@@ -20,12 +20,12 @@
 // checks together are equivalent to counting the real component.
 import { memo, useCallback, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
 import ShareFileRow, { type ShareFileRowProps } from './../../src/renderer/components/cards/ShareFileRow.js'
-import { reconcileFiles } from './../../src/renderer/shareFilesReconcile.js'
-import { buildFileTree } from './../../src/renderer/fileTree.js'
+import { reconcileFiles } from '../../src/renderer/model/shareFilesReconcile.js'
+import { buildFileTree } from '../../src/renderer/model/fileTree.js'
 import type { Decoration } from './../../src/renderer/hooks/useDecorations.js'
-import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary } from './../../src/renderer/types.js'
+import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean

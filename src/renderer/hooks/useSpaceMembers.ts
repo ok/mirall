@@ -2,7 +2,7 @@
 // avatar-rendering consumers read space:members once per space — the entry useMembers also reads.
 import { useQuery } from '../store/useQuery.js'
 import { pruneByParam } from '../store/query-store.js'
-import type { SpaceMember } from '../types.js'
+import type { SpaceMember } from '../types/types.js'
 
 const EMPTY: SpaceMember[] = []
 

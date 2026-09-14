@@ -1,6 +1,6 @@
 import type { ScopePattern } from '../../shared/contract/scope.js'
 import type { RequestName } from '../../shared/contract/requests.js'
-import type { RequestOptions } from '../ipc.js'
+import type { RequestOptions } from '../ipc/ipc.js'
 
 export interface QuerySnapshot<T> {
   data: T | undefined

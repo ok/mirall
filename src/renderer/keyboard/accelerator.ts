@@ -1,6 +1,6 @@
 // Accelerator spec parsing ('mod+shift+h') and KeyboardEvent matching, plus platform-aware display tokens (⌘⇧H vs Ctrl+Shift+H).
 import type { CommandContext } from './registry.js'
-import type { Screen } from '../navigation.js'
+import type { Screen } from '../shell/navigation.js'
 
 export const isMacRuntime: boolean =
   typeof window !== 'undefined' && window.bridge?.getPlatform?.() === 'darwin'

@@ -1,5 +1,5 @@
 // Notification preference store: defaults + shape coercion over config-client, change listeners, one-time localStorage migration.
-import { getNotificationPrefs, setNotificationPrefs } from '../config-client.js'
+import { getNotificationPrefs, setNotificationPrefs } from '../platform/config-client.js'
 
 export interface NotificationEventPrefs {
   memberJoined: boolean

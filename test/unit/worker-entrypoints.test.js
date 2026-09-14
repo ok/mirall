@@ -62,7 +62,7 @@ test('preload asks only for a declared specifier', (t) => {
 // channel with every gate still green. It names the worker now, and the contract derives the
 // allowlist from that name.
 test('the renderer names its worker through the contract, not by position', (t) => {
-  const src = readFileSync(path.join(REPO, 'src', 'renderer', 'ipc.ts'), 'utf8')
+  const src = readFileSync(path.join(REPO, 'src', 'renderer', 'ipc', 'ipc.ts'), 'utf8')
   t.ok(/const WORKER_SPEC = MAIN_WORKER_SPEC/.test(src), 'WORKER_SPEC is the named main worker')
   t.absent(/WORKER_SPECS\s*\[/.test(src), 'and nothing indexes the allowlist')
   // Any quote style: the old check only matched single quotes, so a double-quoted literal passed.

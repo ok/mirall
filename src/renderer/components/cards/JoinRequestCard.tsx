@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { JoinRequest } from '../../types.js'
+import type { JoinRequest } from '../../types/types.js'
 import Avatar from '../primitives/Avatar.js'
 import AvatarStack from '../primitives/AvatarStack.js'
 import Button from '../primitives/Button.js'

@@ -4,7 +4,7 @@ import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import Icon from '../../components/primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
-import type { Screen } from '../../navigation.js'
+import type { Screen } from '../../shell/navigation.js'
 
 interface SettingsProps {
   onBack: () => void

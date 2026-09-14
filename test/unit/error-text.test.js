@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errorText.js'
+import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errors/errorText.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ModalFooter from '../layout/ModalFooter.js'
-import type { JoinRequest } from '../../types.js'
+import type { JoinRequest } from '../../types/types.js'
 import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
 import Button from '../primitives/Button.js'

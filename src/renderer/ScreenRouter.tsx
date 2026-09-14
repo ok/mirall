@@ -1,5 +1,5 @@
 import type { AppNavigation } from './hooks/useAppNavigation.js'
-import type { Profile } from './types.js'
+import type { Profile } from './types/types.js'
 import SpacesScreen from './screens/SpacesScreen.js'
 import SpaceScreen from './screens/SpaceScreen.js'
 import FolderScreen from './screens/FolderScreen.js'

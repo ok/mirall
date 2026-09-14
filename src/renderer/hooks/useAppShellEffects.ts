@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
-import i18n from '../i18n.js'
-import { applyTheme, getStoredTheme } from '../theme.js'
-import { trackWindowBounds } from '../window-bounds.js'
+import i18n from '../platform/i18n.js'
+import { applyTheme, getStoredTheme } from '../platform/theme.js'
+import { trackWindowBounds } from '../platform/window-bounds.js'
 import { startNotifications } from '../notifications/dispatcher.js'
-import type { Space } from '../types.js'
+import type { Space } from '../types/types.js'
 
 // Boot-time side effects that depend on nothing but `spaces`: theme + window bounds,
 // stray file-drop swallowing, the first-hide tray notice, and member-name resolution
