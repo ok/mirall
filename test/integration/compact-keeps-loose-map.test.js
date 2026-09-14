@@ -9,7 +9,8 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initContentBackendOverlay, compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { initLooseOverlay, LOOSE_SHARE_ID } from '../../src/shared/transfer/loose-overlay.js'
-import { initDownloads, addFile } from '../../src/shared/transfer/files.js'
+import { initDownloads } from '../../src/shared/transfer/files.js'
+import { addFile } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 
 // REGRESSION (FIX-149: compaction's "served" set was built only from readOwnShares

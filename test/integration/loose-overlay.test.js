@@ -10,7 +10,8 @@ import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
-import { initDownloads, markDownloaded, markVerified, isVerifiedDownload, listFiles, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, markVerified, isVerifiedDownload, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
+import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import {
   initLooseOverlay, looseShareFile, looseUnshareFile, looseListOwn, looseCancel, looseCancelPublish,
@@ -367,10 +368,16 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
   t.ok(row.inPlace, 'flagged in-place')
 })
 
-test('REGRESSION (FIX-cycle): files.js <-> loose-overlay.js import without a circular crash', async (t) => {
+// The cycle this pinned is gone: the owned-source records loose-overlay needed stayed with the
+// claim bee, and the listing that needed loose-overlay moved out. The absence is now asserted for
+// the whole data layer in import-time.test.js; what is left worth checking here is that each side
+// still loads on its own, which is what a half-initialised module would fail.
+test('REGRESSION (FIX-cycle): the loose modules each import standalone', async (t) => {
   const fmod = await import('../../src/shared/transfer/files.js')
+  const listing = await import('../../src/shared/transfer/file-listing.js')
   const lmod = await import('../../src/shared/transfer/loose-overlay.js')
-  t.is(typeof fmod.addFile, 'function')
+  t.is(typeof fmod.markOwnedSource, 'function')
+  t.is(typeof listing.addFile, 'function')
   t.is(typeof lmod.looseShareFile, 'function')
 })
 

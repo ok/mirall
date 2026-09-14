@@ -3,25 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace, getDrive } from '../../src/shared/spaces/space.js'
-import {
-  initDownloads,
-  addFile,
-  removeFile,
-  markDownloaded,
-  getDownloadedPath,
-  getOwnedSourcePath,
-  resolveRevealTarget,
-  isDownloadedFile,
-  markVerified,
-  getVerifiedHash,
-  isVerifiedUnchanged,
-  cleanupDownloadHistory,
-  listDownloadClaimsForShare,
-  listVerifiedForShare,
-  pruneDownloadClaims,
-  verdictForClaim,
-  createDirProbe,
-} from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
+import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
+import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
