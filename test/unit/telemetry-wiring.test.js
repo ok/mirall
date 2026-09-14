@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { EventEmitter } from 'events'
-import { createIPC, getQueueDepth } from '../../src/shared/core/ipc.js'
+import { createIPC } from '../../src/shared/core/ipc.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const workerDir = path.join(here, '..', '..', 'src', 'worker')
@@ -23,10 +23,11 @@ const entry = [mainEntry, ...walk(path.join(workerDir, 'ipc')).map((f) => readFi
 // requestMetrics (#120) were both built, tested and shipped as no-ops because nothing handed them
 // to buildDiagnostics. That wiring runs at module scope under the worker entry — importing it
 // would boot the data layer and exit the process — so it is pinned by source text, the same way
-// the crash-backstop suite pins the core-opening call sites in boot.js.
+// the crash-backstop suite pins the core-opening call sites in boot.js. The router's own numbers
+// travel the same hop and are pinned on the VALUE that comes out, in
+// test/integration/diagnostics-router-wiring.test.js.
 test('REGRESSION (FIX-R09-7): the entry feeds the health block into the diagnostics context', (t) => {
   t.ok(/health:\s*health\.snapshot\(/.test(entry), 'diagnostics ctx carries health: health.snapshot(...)')
-  t.ok(/queueDepth:\s*getQueueDepth\(\)/.test(entry), 'and the queue depth is measured, not hard-coded')
 })
 
 test('REGRESSION (FIX-R09-7): the entry starts and stops the monitor', (t) => {
@@ -50,17 +51,17 @@ function fakePipe() {
 
 const QUEUE_REQUESTS = Object.freeze({ 'q:one': { kind: 'command', args: {} } })
 
-test('getQueueDepth reports frames parked before the router goes live', async (t) => {
+test('queueDepth reports frames parked before the router goes live', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: QUEUE_REQUESTS })
   ipc.handle('q:one', async () => null)
   pipe.feed({ id: '1', type: 'q:one' })
   pipe.feed({ id: '2', type: 'q:one' })
   await new Promise((r) => setImmediate(r))
-  t.is(getQueueDepth(), 2, 'the parked frames are visible')
+  t.is(ipc.queueDepth(), 2, 'the parked frames are visible')
   ipc.start()
   await new Promise((r) => setImmediate(r))
-  t.is(getQueueDepth(), 0, 'and the queue drains when it goes live')
+  t.is(ipc.queueDepth(), 0, 'and the queue drains when it goes live')
 })
 
 test('REGRESSION (FIX-R09-2): the entry feeds the per-subsystem health into the same block', (t) => {

@@ -148,7 +148,7 @@ Bootstrap:
 
 1. `createIPC(Bare.IPC)` — buffered NDJSON router on the stdio pipe.
 2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
-3. `getBootstrapPromise()` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
+3. `await ipc.bootstrapPromise` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
 4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. *(Cross-references to this inner list are written `§2 boot step N`, to keep them apart from the numbered main-process list above.)* The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
    1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.

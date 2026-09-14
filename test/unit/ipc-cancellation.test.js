@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { EventEmitter } from 'events'
 import {
-  createIPC, getInFlightCount, getRequestFailureCounters, resetRequestFailureCounters,
+  createIPC, getRequestFailureCounters, resetRequestFailureCounters,
 } from '../../src/shared/core/ipc.js'
 import { throwIfAborted } from '../../src/shared/core/cancellation.js'
 import { FRAME } from '../../src/shared/contract/ipc-frames.js'
@@ -49,14 +49,14 @@ test('a cancel frame aborts an in-flight request', async (t) => {
   ipc.start()
   pipe.feed({ id: 7, type: 'slow' })
   await tick()
-  t.is(getInFlightCount(), 1, 'registered while it runs')
+  t.is(ipc.inFlightCount(), 1, 'registered while it runs')
   pipe.feed({ type: FRAME.CANCEL, id: 7 })
   await tick()
   release()
   await tick()
   t.is(pipe.lastMsg().code, 'ECANCELLED')
   t.is(pipe.lastMsg().id, 7)
-  t.is(getInFlightCount(), 0, 'the registry is emptied by the settle, not by the abort')
+  t.is(ipc.inFlightCount(), 0, 'the registry is emptied by the settle, not by the abort')
 })
 
 test('a handler that ignores the signal still answers normally', async (t) => {
@@ -74,7 +74,7 @@ test('a handler that ignores the signal still answers normally', async (t) => {
   release()
   await tick()
   t.is(pipe.lastMsg().data, 'done anyway', 'no hang, no error — the renderer has stopped listening')
-  t.is(getInFlightCount(), 0)
+  t.is(ipc.inFlightCount(), 0)
 })
 
 test('cancelling a queued frame drops it and start() never runs it', async (t) => {
@@ -108,7 +108,7 @@ test('a cancel for an unknown, settled or twice-cancelled id is a silent no-op',
   pipe.feed({ type: FRAME.CANCEL, id: 1 })
   await tick()
   t.is(pipe.written.length, after, 'no response, no throw')
-  t.is(getInFlightCount(), 0)
+  t.is(ipc.inFlightCount(), 0)
 })
 
 test('a cancel is not counted as a request', async (t) => {
@@ -130,7 +130,7 @@ test('a frame with no id gets no token and cannot leak one', async (t) => {
   pipe.feed({ type: 'ctx' })
   await tick()
   t.is(seen, null, 'nothing can name it, so nothing can cancel it')
-  t.is(getInFlightCount(), 0)
+  t.is(ipc.inFlightCount(), 0)
 })
 
 test('abortAll cancels every outstanding request', async (t) => {
@@ -148,11 +148,11 @@ test('abortAll cancels every outstanding request', async (t) => {
   pipe.feed({ id: 10, type: 'slow' })
   pipe.feed({ id: 11, type: 'slow' })
   await tick()
-  t.is(getInFlightCount(), 2)
+  t.is(ipc.inFlightCount(), 2)
   t.is(ipc.abortAll('worker is shutting down'), 2)
   await tick()
   t.alike(seen, ['ECANCELLED', 'ECANCELLED'], 'both handlers were woken by the abort, not by a timer')
-  t.is(getInFlightCount(), 0)
+  t.is(ipc.inFlightCount(), 0)
 })
 
 // The two vocabularies share one wire and are keyed by the same `type` field, so a name in both is
@@ -181,11 +181,11 @@ test('cancel works against the real contract, not just a test vocabulary', async
   ipc.start()
   pipe.feed({ id: 21, type: 'share:list-files', spaceId: 'sp', shareId: 'sh', ownerKey: 'k' })
   await tick()
-  t.is(getInFlightCount(), 1)
+  t.is(ipc.inFlightCount(), 1)
   pipe.feed({ type: FRAME.CANCEL, id: 21 })
   await tick()
   release()
   await tick()
   t.is(pipe.lastMsg().code, 'ECANCELLED', 'the request the renderer store actually cancels')
-  t.is(getInFlightCount(), 0)
+  t.is(ipc.inFlightCount(), 0)
 })

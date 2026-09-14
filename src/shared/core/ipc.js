@@ -111,7 +111,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   //
   // Per-instance, like `queued` and unlike the metrics counters: it is control state, so a second
   // router in the same process (every test that builds one) must not be able to abort the first
-  // one's work. getInFlightCount() reaches it through the singleton, the way getQueueDepth() does.
+  // one's work.
   const inFlight = new Map()
   const queued = []
   let ready = false
@@ -294,30 +294,15 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     queued.length = 0
   }
 
-  ipcSingleton.bootstrapPromise = bootstrapPromise
-  ipcSingleton.queueDepth = () => queued.length
-  ipcSingleton.inFlightCount = () => inFlight.size
-  return { handle, emit, respond, start, cancel, abortAll }
-}
-
-const ipcSingleton = { bootstrapPromise: null, queueDepth: null, inFlightCount: null }
-
-// The pre-start queue is otherwise invisible: it is bounded now, and a caller that keeps hitting
-// that bound during a slow boot is exactly the condition worth surfacing.
-export function getQueueDepth() {
-  return ipcSingleton.queueDepth ? ipcSingleton.queueDepth() : 0
-}
-
-// The one number that proves the registry does not leak: it must return to 0 after every settle,
-// cancelled or not. requestMetrics' per-type inFlight answers a different question (which request is
-// slow) and would hide a leak in one type behind traffic in another.
-export function getInFlightCount() {
-  return ipcSingleton.inFlightCount ? ipcSingleton.inFlightCount() : 0
-}
-
-export function getBootstrapPromise() {
-  if (!ipcSingleton.bootstrapPromise) {
-    throw new Error('IPC not initialized; call createIPC(pipe) first')
+  return {
+    handle, emit, respond, start, cancel, abortAll,
+    bootstrapPromise,
+    // The pre-start queue is otherwise invisible: it is bounded, and a caller that keeps hitting that
+    // bound during a slow boot is exactly the condition worth surfacing.
+    queueDepth: () => queued.length,
+    // The one number that proves the registry does not leak: it must return to 0 after every settle,
+    // cancelled or not. requestMetrics' per-type inFlight answers a different question (which request
+    // is slow) and would hide a leak in one type behind traffic in another.
+    inFlightCount: () => inFlight.size,
   }
-  return ipcSingleton.bootstrapPromise
 }

@@ -10,7 +10,7 @@
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
 // every handler is registered, so no frame is dispatched before its handler exists.
 
-import { createIPC, getBootstrapPromise } from '../shared/core/ipc.js'
+import { createIPC } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
 import { registerAudit } from './ipc/audit.js'
@@ -107,7 +107,7 @@ async function safeShutdown(reason, exitCode = 0) {
 
 // Register the pipe-close teardown BEFORE the bootstrap await. If the parent dies
 // during startup (before sending the bootstrap line), the IPC pipe closes while
-// we're parked on getBootstrapPromise; without these handlers in place the
+// we're parked on ipc.bootstrapPromise; without these handlers in place the
 // worker would sit at that await forever as an idle orphan. safeShutdown's
 // teardown steps all no-op safely when called before init.
 Bare.IPC.on('end', () => { safeShutdown('ipc-end') })
@@ -116,7 +116,7 @@ Bare.IPC.on('error', (err) => { safeShutdown('ipc-error: ' + (err && err.message
 
 // === Bootstrap frame ===
 
-const bootstrap = await getBootstrapPromise()
+const bootstrap = await ipc.bootstrapPromise
 setRuntimeConfig(bootstrap)
 
 // === Boot: the composition root constructs and starts the data layer ===
