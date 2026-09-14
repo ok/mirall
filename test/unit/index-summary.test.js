@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveIndexSummary } from '../../src/renderer/indexSummary.js'
+import { deriveIndexSummary } from '../../src/renderer/model/index-summary.js'
 
 test('no status yet is not an active scan', (t) => {
   t.absent(deriveIndexSummary(null).active, 'null (before the first read) shows nothing')

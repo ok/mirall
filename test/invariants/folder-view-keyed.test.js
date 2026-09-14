@@ -33,7 +33,7 @@ test('nothing re-clears share state during render now that the key does it', (t)
   // on the SHARE, because that is the invariant the router now owns.
   t.absent(/FolderScreen is reused/.test(src('hooks/useShareFiles.ts')),
     'useShareFiles no longer resets its fold on a share change')
-  t.absent(/resetFold/.test(src('shareFilesFold.js')), 'and the fold has no reset to call')
+  t.absent(/resetFold/.test(src('model/share-files-fold.js')), 'and the fold has no reset to call')
   t.ok(/live\]\.join|live \]\.join|, live\]/.test(src('hooks/useIndexProgress.ts')),
     'useIndexProgress still watches liveness, which changes without a remount')
 })

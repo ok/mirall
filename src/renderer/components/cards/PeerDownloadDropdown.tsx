@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { SpaceMember } from '../../types.js'
+import type { SpaceMember } from '../../types/types.js'
 import { usePeerDownloadDetail } from '../../hooks/usePeerDownloadDetail.js'
 import PeerDownloadRow from './PeerDownloadRow.js'
 

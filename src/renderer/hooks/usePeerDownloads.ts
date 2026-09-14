@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { useSpeedTracker } from './useSpeedTracker.js'
-import type { PeerDownloadSummary } from '../types.js'
+import type { PeerDownloadSummary } from '../types/types.js'
 
 interface SummaryEvent {
   channel?: string

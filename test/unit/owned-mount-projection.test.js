@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { projectOwnedMount, ownedMountSettled, unhealthyOwnedStatus, NO_OWNED_MOUNT } from '../../src/renderer/ownedMount.js'
+import { projectOwnedMount, ownedMountSettled, unhealthyOwnedStatus, NO_OWNED_MOUNT } from '../../src/renderer/model/owned-mount.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'

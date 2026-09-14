@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Space } from "../../types.js";
-import { gradientForSpaceId } from "../../utils.js";
+import type { Space } from "../../types/types.js";
+import { gradientForSpaceId } from "../../format/utils.js";
 import IconPicker from "../primitives/IconPicker.js";
 import TextField from "../primitives/TextField.js"
 import FieldLabel from "../primitives/FieldLabel.js"
 import Modal from "../primitives/Modal.js";
-import Icon, { type IconName } from "../primitives/Icon.js";
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 import ModalHeader from "../primitives/ModalHeader.js";
 import Button from "../primitives/Button.js";
 import { useErrorText } from "../../hooks/useErrorText.js";

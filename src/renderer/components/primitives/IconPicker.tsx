@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 const iconOptions: Array<{ id: IconName }> = [
   { id: 'folder' },

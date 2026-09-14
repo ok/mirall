@@ -3,8 +3,8 @@ import {
   actorInitials, actorLabel, avatarKind, dayKey, denialReasonKey, formatBytes, formatCount,
   groupByDay, isSystemRow, metaParts, rowBadge, sentenceKey, sentenceValues,
   splitSentence, sentinelValues, systemIcon, emptyStateFor, FIELD_SENTINEL, SENTENCE_FIELDS,
-} from '../../src/renderer/auditRow.js'
-import { formatSize } from '../../src/renderer/formatSize.js'
+} from '../../src/renderer/model/audit-row.js'
+import { formatSize } from '../../src/renderer/format/bytes.js'
 
 const row = (over = {}) => ({
   v: 1, seq: 1, ts: Date.now(), tzOffset: 0,

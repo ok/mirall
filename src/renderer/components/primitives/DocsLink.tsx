@@ -5,7 +5,7 @@
 // rather than the initial containing block, where its static position inside a scrolled
 // container would extend the document's own scroll area.
 import { useTranslation } from 'react-i18next'
-import { docsUrl, type DocsTarget } from '../../docs-links.js'
+import { docsUrl, type DocsTarget } from '../../shell/docs-links.js'
 import Icon from '../primitives/Icon.js'
 
 interface DocsLinkProps {

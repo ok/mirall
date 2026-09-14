@@ -15,7 +15,7 @@ const MIRRORED = [
   ['shared/contract/identity-limits.js', /NAME_MAX\s*=\s*\d|AVATAR_MAX_BYTES\s*=\s*\d/],
   ['shared/core/reachability.js', /DHT_FAILURE_MS\s*=\s*\d/],
   ['renderer/hooks/useConnectionStatus.tsx', /DHT_FAILURE_MS\s*=\s*\d/],
-  ['renderer/window-bounds.ts', /MIN_(WIDTH|HEIGHT)\s*=\s*\d/],
+  ['renderer/platform/window-bounds.ts', /MIN_(WIDTH|HEIGHT)\s*=\s*\d/],
   ['main/window.js', /min(Width|Height):\s*\d/],
 ]
 

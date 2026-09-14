@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { AuditFilters } from '../types.js'
-import { parentOf, type Screen } from '../navigation.js'
-import type { SpaceAction, PendingSpaceAction } from '../space-actions.js'
+import type { AuditFilters } from '../types/types.js'
+import { parentOf, type Screen } from '../shell/navigation.js'
+import type { SpaceAction, PendingSpaceAction } from '../shell/space-actions.js'
 
 export interface AppNavigation {
   currentScreen: Screen

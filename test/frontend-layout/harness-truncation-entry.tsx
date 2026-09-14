@@ -9,7 +9,7 @@
 // either fits inside the field's content box or it does not.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
 import PathRow from '../../src/renderer/components/path/PathRow.js'
 import FileName from '../../src/renderer/components/primitives/FileName.js'
 

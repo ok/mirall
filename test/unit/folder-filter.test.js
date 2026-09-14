@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { buildFileTree } from '../../src/renderer/fileTree.js'
-import { filterTree } from '../../src/renderer/folderFilter.js'
+import { buildFileTree } from '../../src/renderer/model/file-tree.js'
+import { filterTree } from '../../src/renderer/model/folder-filter.js'
 
 function entry(relPath, extra = {}) {
   return { relPath, size: 10, hash: 'h', mtime: 0, status: 'remote', ...extra }

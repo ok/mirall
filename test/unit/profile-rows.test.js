@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { connectionDesc, activityDesc } from '../../src/renderer/profileRows.js'
+import { connectionDesc, activityDesc } from '../../src/renderer/model/profile-rows.js'
 
 // Echoes the key plus its interpolations, so composition is observable without i18next. Rendered
 // as key[a=1,b=2] rather than JSON so a nested call stays readable instead of being escaped.

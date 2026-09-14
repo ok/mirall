@@ -6,8 +6,8 @@ import RemoveFileModal from './RemoveFileModal.js'
 import AddFolderShareModal from './AddFolderShareModal.js'
 import DeleteFolderShareModal from './DeleteFolderShareModal.js'
 import MirrorFolderModal from './MirrorFolderModal.js'
-import { request } from '../../ipc.js'
-import type { FileEntry, JoinRequest, Space, SpaceMember } from '../../types.js'
+import { request } from '../../ipc/ipc.js'
+import type { FileEntry, JoinRequest, Space, SpaceMember } from '../../types/types.js'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 
 // The dialogs this screen can show, one at a time by construction. They were eight independent

@@ -28,7 +28,7 @@ import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '..
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
-import type { ShareRole } from '../types.js'
+import type { ShareRole } from '../types/types.js'
 
 interface FolderEyebrowProps {
   isYou: boolean

@@ -4,9 +4,9 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const src = readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'ipc.ts'), 'utf8')
+const src = readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'ipc', 'ipc.ts'), 'utf8')
 
-// src/renderer/ipc.ts reaches window.bridge and only runs inside Electron, so its wiring is pinned
+// src/renderer/ipc/ipc.ts reaches window.bridge and only runs inside Electron, so its wiring is pinned
 // structurally — the renderer-reconcile-subscriptions.test.js pattern. The behaviour these
 // properties produce is asserted where it can be: query-store.test.js drives the only production
 // caller that passes a signal, and ipc-cancellation.test.js drives the worker end of the frame.

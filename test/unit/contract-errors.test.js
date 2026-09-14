@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { CODES, CODE_NAMES, UNUSED_CODES, EXPECTED_CODES, INTERNAL_CODES } from '../../src/shared/contract/errors.js'
-import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errorMessages.js'
+import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errors/error-messages.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')

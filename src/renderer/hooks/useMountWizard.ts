@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePreviewFlow, type PreviewHandle } from './usePreviewFlow.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
-import type { MountValidationResult, PreviewProgress } from '../types.js'
+import type { MountValidationResult, PreviewProgress } from '../types/types.js'
 
 type MountWizardStepName = 'edit' | 'preview'
 

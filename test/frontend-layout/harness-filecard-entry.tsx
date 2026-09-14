@@ -6,10 +6,10 @@
 // cap while a short one stays at content width.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import i18n from './../../src/renderer/i18n.js'
+import i18n from '../../src/renderer/platform/i18n.js'
 import FileCard from './../../src/renderer/components/cards/FileCard.js'
 import ToastContainer from './../../src/renderer/components/toast/ToastContainer.js'
-import type { FileEntry } from './../../src/renderer/types.js'
+import type { FileEntry } from '../../src/renderer/types/types.js'
 import type { ToastItem } from './../../src/renderer/components/toast/types.js'
 
 interface HarnessResults {

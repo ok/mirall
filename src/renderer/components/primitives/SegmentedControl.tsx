@@ -1,7 +1,8 @@
 // The pill row of `aria-pressed` buttons the settings screens and the Activity Log filter bar select
 // with. `Segment` reserves its selected (semibold) width in every state, so only the highlight moves.
 import type { ReactNode } from 'react'
-import Icon, { type IconName } from './Icon.js'
+import Icon from './Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface SegmentedControlProps {
   children: ReactNode

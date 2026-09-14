@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Button from '../primitives/Button.js'
 import ModalHeader from '../primitives/ModalHeader.js'
-import { formatSize } from '../../formatSize.js'
+import { formatSize } from '../../format/bytes.js'
 
 interface Props {
   isOpen: boolean

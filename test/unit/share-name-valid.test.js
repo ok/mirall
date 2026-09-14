@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isValidShareName } from '../../src/renderer/sharePaths.js'
+import { isValidShareName } from '../../src/renderer/model/share-paths.js'
 
 test('rejects empty, over-long, reserved, and illegal-char names', (t) => {
   t.is(isValidShareName(''), false)

@@ -3,12 +3,12 @@
 // across successive reads, the header totals derived from both, and which failures are terminal —
 // and hands out the per-row decoration lookups the rows derive their lane from.
 import { useState, useCallback, useMemo } from 'react'
-import { request } from '../ipc.js'
+import { request } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { foldListing, emptyFold, resolveListing, type Fold } from '../shareFilesFold.js'
+import { foldListing, emptyFold, resolveListing, type Fold } from '../model/share-files-fold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
-import type { ShareFileEntry, ShareFileStatus } from '../types.js'
+import type { ShareFileEntry, ShareFileStatus } from '../types/types.js'
 
 interface ServerEntry {
   relPath: string

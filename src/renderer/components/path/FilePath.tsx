@@ -1,4 +1,4 @@
-import { splitPathForDisplay } from '../../sharePaths.js'
+import { splitPathForDisplay } from '../../model/share-paths.js'
 
 interface FilePathProps {
   path: string

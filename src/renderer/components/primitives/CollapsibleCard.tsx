@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import Icon, { type IconName } from './Icon.js'
+import Icon from './Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface CollapsibleCardProps {
   icon: IconName

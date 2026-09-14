@@ -3,18 +3,18 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { CODES } from '../../src/shared/contract/errors.js'
-import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errorMessages.js'
-import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errorText.js'
+import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errors/error-messages.js'
+import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errors/error-text.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
-const src = readFileSync(path.join(root, 'src', 'renderer', 'ipc.ts'), 'utf8')
+const src = readFileSync(path.join(root, 'src', 'renderer', 'ipc', 'ipc.ts'), 'utf8')
 const enErrors = JSON.parse(readFileSync(path.join(root, 'src', 'renderer', 'locales', 'en', 'errors.json'), 'utf8'))
 
 const tr = (key) => 'T:' + key
 const withCode = (message, code) => Object.assign(new Error(message), { code })
 
-// src/renderer/ipc.ts reaches window.bridge and only runs inside Electron, so its wiring is pinned
+// src/renderer/ipc/ipc.ts reaches window.bridge and only runs inside Electron, so its wiring is pinned
 // structurally — the renderer-cancellation-wiring.test.js pattern. The copy half below is driven
 // through the real display boundary.
 

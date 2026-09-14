@@ -13,7 +13,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../ToastProvider.js'
 import { useConnectionStatus } from '../../../hooks/useConnectionStatus.js'
-import type { ConnectivityState, ReachabilityCause, ReachabilityVerdict } from '../../../types.js'
+import type { ConnectivityState, ReachabilityCause, ReachabilityVerdict } from '../../../types/types.js'
 
 const TOAST_ID = 'connectivity'
 

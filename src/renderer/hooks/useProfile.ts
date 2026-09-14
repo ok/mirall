@@ -1,10 +1,10 @@
 // Owns the local profile and the needs-setup flag; listens for event:profile-needed and saves via profile:set.
 import { useCallback, useEffect, useState } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { setQueryData } from '../store/query-store.js'
-import { projectProfile } from '../profileGate.js'
-import type { Profile } from '../types.js'
+import { projectProfile } from '../model/profile-gate.js'
+import type { Profile } from '../types/types.js'
 
 // Scope-less deliberately: the profile changes only when this app writes it, and saveProfile pushes
 // the new record into the entry rather than re-reading it.

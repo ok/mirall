@@ -4,7 +4,7 @@ import {
   shareFileStatusToBadge,
   badgeStyle,
   roleBadge,
-} from '../../src/renderer/statusBadge.js'
+} from '../../src/renderer/model/status-badge.js'
 import { FILE_STATUSES, SHARE_FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const SHARE_STATUSES = SHARE_FILE_STATUSES

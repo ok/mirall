@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { foldListing, emptyFold, resolveListing } from '../../src/renderer/shareFilesFold.js'
+import { foldListing, emptyFold, resolveListing } from '../../src/renderer/model/share-files-fold.js'
 
 const toEntry = (e) => ({ relPath: e.relPath, size: 1, hash: 'h', mtime: 1, status: 'remote' })
 const res = (paths) => ({ entries: paths.map((relPath) => ({ relPath })), complete: true })

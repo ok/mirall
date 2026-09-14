@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { useSpeedTracker } from './useSpeedTracker.js'
 import { SERVE_TTL_MS } from './usePeerDownloads.js'
-import type { PeerDownloadPeer } from '../types.js'
+import type { PeerDownloadPeer } from '../types/types.js'
 
 // A paused peer is kept far longer than an active one — the worker holds paused rows for
 // PAUSED_DROP_MS (300s) and re-announces every ~10s — but not forever: if those re-announces

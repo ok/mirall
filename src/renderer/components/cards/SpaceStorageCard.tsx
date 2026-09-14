@@ -3,7 +3,7 @@
 // badge. The pair that folds is the people one (Members here, People there); the pair that states
 // a size does not.
 import { useTranslation } from 'react-i18next'
-import { formatSize } from '../../utils.js'
+import { formatSize } from '../../format/utils.js'
 import Icon from '../primitives/Icon.js'
 import { useSpaceStorage } from '../../hooks/useSpaceStorage.js'
 

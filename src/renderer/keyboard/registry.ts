@@ -1,5 +1,5 @@
 // Command model for the keyboard layer: Command/CommandContext types and the global hotkeys that stay active inside text inputs.
-import type { Screen } from '../navigation.js'
+import type { Screen } from '../shell/navigation.js'
 
 export type CommandGroup = 'navigation' | 'actions' | 'space' | 'system'
 

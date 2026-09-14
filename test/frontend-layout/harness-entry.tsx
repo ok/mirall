@@ -8,7 +8,7 @@
 // in harness.html), so `ipc.ts` and every hook/component run unmodified.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import FolderScreen from '../../src/renderer/screens/FolderScreen.js'
 import { offenders, positioned, bodyChildren, containerMetrics, documentScrollable } from './document-overflow.js'

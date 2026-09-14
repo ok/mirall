@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveStrips } from '../../src/renderer/folderStrips.js'
+import { deriveStrips } from '../../src/renderer/model/folder-strips.js'
 
 const IDLE_INDEX = { active: false, scanning: false, paused: false, files: 0, bytesQueued: 0 }
 const OWNER = { role: 'mine', isYou: true, indexing: IDLE_INDEX, ownerOnline: true }

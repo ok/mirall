@@ -9,12 +9,12 @@
 // harness-spaceoverflow.html), so `ipc.ts` and every hook/component run unmodified.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import './../../src/renderer/i18n.js'
+import '../../src/renderer/platform/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
 import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 import { offenders, positioned, bodyChildren, containerMetrics, documentScrollable, ancestorChain } from './document-overflow.js'
-import type { FileEntry, Share } from './../../src/renderer/types.js'
+import type { FileEntry, Share } from '../../src/renderer/types/types.js'
 
 interface Phase {
   overflow: number

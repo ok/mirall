@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isFolderDrop, looksLikeFolderDrag, firstDirectoryName, inspectDragItems } from '../../src/renderer/dragShare.js'
+import { isFolderDrop, looksLikeFolderDrag, firstDirectoryName, inspectDragItems } from '../../src/renderer/model/drag-share.js'
 
 // A DataTransferItemList-like fixture: each item exposes the three fields the
 // heuristics read (kind, type, webkitGetAsEntry()).

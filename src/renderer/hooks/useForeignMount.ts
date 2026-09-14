@@ -1,10 +1,10 @@
 // Foreign (mirror) mount state and RPC wrappers (validate/preview/mount/enable/unmount);
 // useForeignMount reads the durable record through the query store.
 import { useMemo } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { sharesScope } from '../store/scopes.js'
-import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types.js'
+import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types/types.js'
 
 // Re-derives on the SHARES scope — that is where the worker maps mount-status transitions (README.md).
 

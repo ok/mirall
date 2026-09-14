@@ -1,5 +1,5 @@
 import { useAnyModalOpen } from '../components/primitives/modalPresence.js'
-import type { Screen } from '../navigation.js'
+import type { Screen } from '../shell/navigation.js'
 
 // Whether the OS-level back affordances (mouse back button, swipe, mod+←) should do anything: not
 // at the root, and not out from under an open dialog — any dialog, which is why it asks the dialog

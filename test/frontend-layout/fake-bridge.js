@@ -1,5 +1,5 @@
 // Classic (non-module) script — MUST load before the ESM harness bundle so that
-// `src/renderer/ipc.ts`, which calls `ensureWorker()` at import time, finds a
+// `src/renderer/ipc/ipc.ts`, which calls `ensureWorker()` at import time, finds a
 // populated `window.bridge`. We fake the worker end of the bridge: the renderer
 // writes NDJSON request envelopes via `writeWorkerIPC`, and we reply through the
 // `onWorkerIPC` callback exactly like the real main↔worker pipe — so the real

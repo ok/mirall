@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
 import { useTreeExpansion } from './useTreeExpansion.js'
-import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
-import { filterTree } from '../folderFilter.js'
-import type { FileTreeNode, ShareFileEntry } from '../types.js'
+import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../model/file-tree.js'
+import { filterTree } from '../model/folder-filter.js'
+import type { FileTreeNode, ShareFileEntry } from '../types/types.js'
 
 /**
  * The folder tree a share's file list renders as: built, filtered, and expanded.

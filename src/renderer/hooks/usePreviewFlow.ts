@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import type { ScanPreview, PreviewProgress } from '../types.js'
+import type { ScanPreview, PreviewProgress } from '../types/types.js'
 
 export interface PreviewHandle {
   previewId: string

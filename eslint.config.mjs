@@ -178,7 +178,7 @@ export default [
   // The one module the byte-ladder rule exists to protect. The renderer's status invariant still
   // applies to it, so only the ladder restriction is dropped.
   {
-    files: ['src/renderer/formatSize.js'],
+    files: ['src/renderer/format/bytes.js'],
     rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions] },
   },
 

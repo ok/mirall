@@ -10,8 +10,8 @@
 // Named subscriptions, not reconcile scopes: both are `decoration` events
 // (test/unit/event-taxonomy.test.js), so they carry no scope and must never get a POKE_SCOPE row.
 import { useState, useEffect } from 'react'
-import { request, subscribe } from '../ipc.js'
-import type { IndexStatus } from '../indexSummary.js'
+import { request, subscribe } from '../ipc/ipc.js'
+import type { IndexStatus } from '../model/index-summary.js'
 
 interface IndexProgressEvent extends IndexStatus {
   spaceId: string

@@ -1,19 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { subscribe } from '../ipc.js'
-import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
-
-// test seam
-export type DecorationPhase = 'verifying' | 'preparing' | 'publishing'
-
-export interface Decoration {
-  bytes: number
-  total: number
-  speed: number
-  avgSpeed: number
-  eta: number | null
-  phase?: DecorationPhase
-  verifyFraction?: number
-}
+import { subscribe } from '../ipc/ipc.js'
+import { SpeedSampler, decayedSpeed } from '../format/speed-sampler.js'
+import type { Decoration, DecorationPhase } from '../types/ui.js'
 
 interface DecorationEvent {
   channel: string

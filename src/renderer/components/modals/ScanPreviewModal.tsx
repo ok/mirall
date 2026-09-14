@@ -9,8 +9,8 @@ import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import ProgressBar from '../primitives/ProgressBar.js'
 import FilePath from '../path/FilePath.js'
-import { formatSize } from '../../utils.js'
-import type { ScanPreview, PreviewProgress } from '../../types.js'
+import { formatSize } from '../../format/utils.js'
+import type { ScanPreview, PreviewProgress } from '../../types/types.js'
 
 interface ScanPreviewModalProps {
   isOpen: boolean

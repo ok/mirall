@@ -2,7 +2,7 @@
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../utils.js'
+import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../format/utils.js'
 import Icon from '../components/primitives/Icon.js'
 import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'

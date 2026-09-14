@@ -1,7 +1,7 @@
 // Banner under the top nav shown when an update has been downloaded and will apply on next start.
 import { useRef, useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { UpdateInfo } from '../../types.js'
+import type { UpdateInfo } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
 
 interface UpdateBannerProps {

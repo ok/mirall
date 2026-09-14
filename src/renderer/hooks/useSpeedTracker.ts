@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { SpeedSampler, decayedSpeed } from '../speedSampler.js'
+import { SpeedSampler, decayedSpeed } from '../format/speed-sampler.js'
 
 // The speed sampler and the last-seen clock for a set of live rows. They are one thing: a sampler
 // outlives its row unless it is dropped with it, and a last-seen with no sampler reports no speed.

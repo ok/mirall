@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ToastItem, ToastVariant } from './types.js'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface VariantStyles {
   bg: string

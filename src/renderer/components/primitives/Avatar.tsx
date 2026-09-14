@@ -5,7 +5,7 @@
 // and without one it renders the neutral ring and says nothing.
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getInitials } from '../../utils.js'
+import { getInitials } from '../../format/utils.js'
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 type AvatarRing = 'none' | 'surface-container-lowest' | 'surface-container-low' | 'status'

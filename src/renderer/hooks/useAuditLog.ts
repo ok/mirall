@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { request, subscribe } from '../ipc.js'
+import { request, subscribe } from '../ipc/ipc.js'
 import { Scope, scopeMatches } from '../../shared/contract/scope.js'
 import { useQuery } from '../store/useQuery.js'
-import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types.js'
+import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types/types.js'
 import { useErrorText } from './useErrorText.js'
 
 // Sized against the list's visible window (~8-10 rows) rather than the query budget: a page much

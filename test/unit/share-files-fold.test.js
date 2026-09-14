@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { foldListing, emptyFold } from '../../src/renderer/shareFilesFold.js'
+import { foldListing, emptyFold } from '../../src/renderer/model/share-files-fold.js'
 
 // The hook's mapper, reduced to what the fold needs. Rows arrive sorted by relPath — the catalog
 // read stream is key-ordered — which is what reconcileFiles' two-pointer merge relies on.

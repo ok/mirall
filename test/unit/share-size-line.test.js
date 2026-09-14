@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { shareSizeLine } from '../../src/renderer/shareSizeLine.js'
+import { shareSizeLine } from '../../src/renderer/model/share-size-line.js'
 
 // Minimal i18next stand-in for the three keys the size line composes.
 const t = (key, opts = {}) => {

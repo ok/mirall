@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { formatSize } from '../../src/renderer/formatSize.js'
+import { formatSize } from '../../src/renderer/format/bytes.js'
 
 // The renderer divided byte counts by 1024 (binary) but labeled the result with
 // decimal units (KB/MB/GB/TB). macOS Finder and GNOME Files both use decimal

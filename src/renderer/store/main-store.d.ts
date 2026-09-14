@@ -1,5 +1,5 @@
 import type { MainQueryName, MainQueryValue } from './main-queries.js'
-import type { MirallBridge } from '../global.js'
+import type { MirallBridge } from '../platform/global.js'
 
 export interface MainSnapshot<T> {
   data: T | undefined

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { fixStepsFor, reachableState, formatDuration } from '../../src/renderer/connectivity.js'
+import { fixStepsFor, reachableState, formatDuration } from '../../src/renderer/model/connectivity.js'
 
 const status = (over = {}) => ({
   dhtReady: true,

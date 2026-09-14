@@ -2,15 +2,16 @@
 // right-hand lane between publish/verify/download progress, the who-is-downloading indicator, and the status pill.
 import { memo, useState, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatSize, getFileIcon, fileName } from '../../utils.js'
-import { errorCodeToI18nKey } from '../../errorMessages.js'
-import { deriveRowView } from '../../rowView.js'
-import type { FileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
-import type { Decoration } from '../../hooks/useDecorations.js'
+import { formatSize, getFileIcon, fileName } from '../../format/utils.js'
+import { errorCodeToI18nKey } from '../../errors/error-messages.js'
+import { deriveRowView } from '../../model/row-view.js'
+import type { FileEntry, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
+import type { Decoration } from '../../types/ui.js'
 import FileName from '../primitives/FileName.js'
 import RowLane from './RowLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface FileCardProps {
   file: FileEntry

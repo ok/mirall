@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { fileRowAction } from '../../src/renderer/fileRowAction.js'
+import { fileRowAction } from '../../src/renderer/model/file-row-action.js'
 
 const manual = (status, hasTransferId = false) => fileRowAction({ status, manualControls: true, hasTransferId })
 const mirror = (status, hasTransferId = false) => fileRowAction({ status, manualControls: false, hasTransferId })

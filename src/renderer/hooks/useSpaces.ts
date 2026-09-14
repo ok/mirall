@@ -1,6 +1,6 @@
 // Owns the spaces list plus create/join/invite actions. Holds no subscription: the event:state push and the membership re-reads live in installPushBridges (store/reconcile.ts).
 import { useEffect } from 'react'
-import { request } from '../ipc.js'
+import { request } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, pruneByParam } from '../store/query-store.js'
 import { SPACES_SCOPES } from '../store/scopes.js'
@@ -8,7 +8,7 @@ import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
 import { pruneSpaceCardState } from './useSpaceCardState.js'
 import { pruneShareCache } from './useShares.js'
-import type { Space } from '../types.js'
+import type { Space } from '../types/types.js'
 
 const SPACE_SCOPED_REQUESTS = ['members:online', 'space:pending-requests', 'space:storage-summary'] as const
 
