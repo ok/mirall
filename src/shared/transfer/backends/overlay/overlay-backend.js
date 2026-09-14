@@ -15,40 +15,32 @@ import { createStreamingHasher } from './vendor/chunker.js'
 import { getOverlay } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeSharesRefresh } from './overlay-refresh.js'
-import {
-  advertise as catalogAdvertise,
-  tombstone as catalogTombstone,
-  setMaterializedHash,
-  getOwnEntry,
-  listOwnShare,
-  collectOwnShare,
-  collectPeerShare,
-  getPeerEntry,
-  getPeerEntryState,
-  watchPeerCatalog,
-  setOwnCatalogAppendHook,
-  resolvePeerCatalog,
-  peerCatalogVersion,
-  catalogKeyField,
-} from '../../../shares/share-catalog.js'
-import { getOwnedMount } from '../../../folders/mount-store.js'
-import { fileExactlyPresent } from '../../../folders/disk-presence.js'
-import { readOwnShares, readPeerShareEntry } from '../../../shares/shares.js'
-import { listSpaces, clearAndPurgeCore } from '../../../spaces/space.js'
-import { getStore } from '../../../core/store.js'
-import { compactStore } from '../../../storage/compaction.js'
-import { pathFromMount } from '../../path-guard.js'
+import { advertise as catalogAdvertise, tombstone as catalogTombstone, setMaterializedHash, getOwnEntry, collectOwnShare, collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, setOwnCatalogAppendHook, resolvePeerCatalog, peerCatalogVersion, catalogKeyField } from '../../../shares/share-catalog.js'
+
+import { readPeerShareEntry } from '../../../shares/shares.js'
+
 import { shareDecoKey } from '../../../contract/decoration-key.js'
 import { makeProgressTicker } from '../../progress-ticker.js'
 import { reuseDest } from '../../download-dest.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './overlay-consume.js'
-import { createPresenceSweeper } from '../../presence-sweeper.js'
+
 import { getPendingFor } from '../../pending-transfers.js'
-import { LOOSE_SHARE_ID, transferIdFor } from '../../transfer-id.js'
+import { transferIdFor } from '../../transfer-id.js'
 import { getDownloadDir } from '../../../core/paths.js'
 import { createLogger } from '../../../core/logger.js'
 import { DELIBERATE_STOPS, FETCH_OUTCOME } from './fetch-outcome.js'
+
+import {
+  initOverlayMaintenance,
+  resetOverlayMaintenance,
+  compactOverlayIndex,
+  rehydrateOwnedFiles,
+  overlaySweepPresence,
+} from './overlay-maintenance.js'
+
+// Maintenance keeps its address here: boot and the sweeps reach the overlay through this module.
+export { compactOverlayIndex, rehydrateOwnedFiles, overlaySweepPresence }
 
 const log = createLogger('overlay')
 
@@ -122,14 +114,15 @@ export function initContentBackendOverlay(ipc) {
   // every share in the space plus the loose channel, so an append names no single share.
   setOwnCatalogAppendHook((spaceId) => sharesRefresh.touch(spaceId, undefined))
 }
-export function resetContentBackendState() { ipcRef = null; setOwnCatalogAppendHook(null); sharesRefresh.reset(); peerPrepareBroadcast = null; publishLane = null; folderSweeper.reset(); publishesAborting = false }
+export function resetContentBackendState() { ipcRef = null; setOwnCatalogAppendHook(null); sharesRefresh.reset(); peerPrepareBroadcast = null; resetOverlayMaintenance(); publishesAborting = false }
 export function abortInFlightPublishes() { publishesAborting = true }
 export function setSharePrepareBroadcast(fn) { peerPrepareBroadcast = fn }
 // The owner's publish lane, installed by owned-folders — which owns the scheduler and imports this
 // module, so the edge cannot run the other way. `isPending` keeps the presence sweep off a path
 // whose publish has not started; `enqueueRetire` is how the sweep proposes a reclaim.
-let publishLane = null
-export function setFolderPublishLane(lane) { publishLane = lane }
+export function setFolderPublishLane(lane) {
+  initOverlayMaintenance({ makeServable, publishLane: lane })
+}
 
 // Notified with (spaceId) whenever an owner's catalog appends, so a foreign mirror can
 // materialize the change promptly instead of waiting for its poll. (The catalog is the
@@ -373,45 +366,6 @@ export async function overlayPublishDelete(spaceId, share, relPath, { catalog = 
   else sharesRefresh.touch(spaceId, share.id)
 }
 
-// Reclaim the overlay index: rebuild it without chunk maps for content no longer
-// shared or held, then return the freed disk to the OS. Non-destructive — a dropped
-// map is content-addressed and re-chunks on the next serve.
-// Single-flight so two reclaims can't race the same core purge. A transfer write
-// that lands mid-compaction is rebuildable (chunk maps re-chunk, file:/sync:/tree:
-// re-derive from the catalog/source), so no user data is at risk.
-let compactingIndex = false
-export async function compactOverlayIndex() {
-  const overlay = getOverlay()
-  if (!overlay || compactingIndex) return { compacted: false }
-  compactingIndex = true
-  try {
-    // Authoritative "still served" set = the live owned-catalog hashes. serveIndex is
-    // rebuilt from it on boot but accumulates superseded hashes across a session, so it
-    // can't be trusted to decide which content-addressed maps are dead.
-    const served = new Set()
-    const addCatalogHashes = async (spaceId, shareId) => {
-      for await (const entry of listOwnShare(spaceId, shareId)) {
-        if (entry.contentHash) served.add(entry.contentHash)
-      }
-    }
-    for (const space of await listSpaces()) {
-      for (const share of await readOwnShares(space.spaceId)) await addCatalogHashes(space.spaceId, share.id)
-      // Loose single-file shares aren't in readOwnShares — they live under the loose
-      // pseudo-share. Miss them here and compaction drops the chunk maps of files still
-      // being shared, forcing a re-chunk on the next serve.
-      await addCatalogHashes(space.spaceId, LOOSE_SHARE_ID)
-    }
-    const oldCore = await overlay.compactIndex({ isServed: (hash) => served.has(hash) })
-    if (!oldCore) return { compacted: false } // nothing droppable — index left untouched
-    const cs = getStore()
-    await clearAndPurgeCore(cs, oldCore)
-    await compactStore()
-    return { compacted: true }
-  } finally {
-    compactingIndex = false
-  }
-}
-
 // Deep-scan (relocate, the Nth periodic pass) verdict for one file, by content hash:
 //   'unchanged' — same size + same hash: serving is re-pointed at the path, a drifted mtime is
 //                 refreshed without re-advertising (no mirror churn), and the publish is skipped;
@@ -609,79 +563,3 @@ export async function overlayCancelSpace(spaceId) {
 }
 export const resumeOverlayForOwner = (ownerKey, spaceId) => engine().resumeForOwner(ownerKey, spaceId)
 export const overlayHasTransfer = (transferId) => engine().has(transferId)
-
-// === boot rehydrate + presence sweep ===
-
-// Boot rehydrate: the facade serve maps (_contentHashPaths) are NOT persisted,
-// so after a worker restart owned files stop being servable until re-registered.
-// Re-register every owned overlay file whose source still exists.
-async function rehydrateShare(spaceId, shareId, mountPath) {
-  for await (const entry of listOwnShare(spaceId, shareId)) {
-    if (!entry.contentHash) continue
-    try {
-      const abs = pathFromMount(mountPath, entry.relPath)
-      if (!fs.statSync(abs).isFile()) continue
-      await makeServable(spaceId, shareId, entry.relPath, abs, entry.contentHash, entry.size)
-    } catch (err) {
-      log.debug('rehydrate skipped:', entry.relPath, '-', err.message)
-    }
-  }
-}
-
-// Walk every owned overlay share that has a mount, invoking cb(spaceId, shareId,
-// mountPath). Shared by rehydrate (boot) and the presence sweep (backstop).
-async function forEachOwnedOverlayShare(cb) {
-  for (const space of await listSpaces()) {
-    let shares
-    try { shares = await readOwnShares(space.spaceId) } catch { continue }
-    for (const share of shares) {
-      if (share.contentMode !== 'overlay') continue
-      const mount = await getOwnedMount(space.spaceId, share.id)
-      if (mount?.mountPath) await cb(space.spaceId, share.id, mount.mountPath)
-    }
-  }
-}
-
-export async function rehydrateOwnedFiles() {
-  await forEachOwnedOverlayShare(rehydrateShare)
-}
-
-const folderSweeper = createPresenceSweeper({
-  keyOf: ({ spaceId, shareId }, entry) => spaceId + '\0' + shareId + '\0' + entry.relPath,
-  isPending: ({ spaceId, shareId }, entry) => !!publishLane?.isPending(spaceId, shareId, entry.relPath),
-  // Exact-name presence, like the retire executor: a following stat would keep a case-only
-  // rename's old key alive forever on a case-folding volume.
-  presentAt: ({ mountPath }, entry) => {
-    try { return fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch { return false }
-  },
-  // Onto the shared publish lane, exactly as the loose sweep retires: the runner re-confirms the
-  // file is really gone, the write joins the space's catalog batch, and the eviction rides with it.
-  retire: ({ spaceId, shareId, retires }, entry) => {
-    const settled = publishLane?.enqueueRetire(spaceId, shareId, entry.relPath)
-    // The lane's ticket RESOLVES with a settlement and never rejects — work-item.js's deferred has
-    // no reject path — so this has to read the outcome; a .catch here could never fire. (The loose
-    // twin may catch because settledWithTail rethrows for it. A cancel is the user stopping it, not
-    // a failure.)
-    if (settled) {
-      retires.push(settled.then((s) => {
-        if (s?.outcome === 'failed') log.debug('folder retire failed:', entry.relPath, '-', s.error?.message || 'the publish runner refused it')
-      }))
-    }
-  },
-})
-
-// Backstop: tombstone catalog entries whose source file vanished but whose
-// chokidar unlink event was missed. Mount-root guarded — a temporarily-
-// unavailable mount must never mass-tombstone a share.
-export async function overlaySweepPresence() {
-  await forEachOwnedOverlayShare(async (spaceId, shareId, mountPath) => {
-    try { if (!fs.statSync(mountPath).isDirectory()) return } catch { return } // root gone → skip
-    const retires = []
-    for await (const entry of listOwnShare(spaceId, shareId)) {
-      await folderSweeper.consider({ spaceId, shareId, mountPath, retires }, entry)
-    }
-    if (!retires.length) return
-    await Promise.all(retires)
-    await publishLane?.settle(spaceId)
-  })
-}
