@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import FileCard from '../cards/FileCard.js'
-import LoadingFiles from './LoadingFiles.js'
+import LoadingFiles from '../widgets/LoadingFiles.js'
 import SpaceSection from './SpaceSection.js'
 import type { ComponentProps } from 'react'
 import type { FileEntry } from '../../types.js'
