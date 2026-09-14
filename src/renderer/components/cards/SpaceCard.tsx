@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
 import { gradientForSpaceId, formatDate } from '../../utils.js'
 import { useSpaceMembers } from '../../hooks/useSpaceMembers.js'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 import AvatarStack from '../primitives/AvatarStack.js'
 
 interface SpaceCardProps {

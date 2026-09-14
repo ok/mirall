@@ -1,4 +1,4 @@
-import type { Decoration } from './hooks/useDecorations.js'
+import type { Decoration } from './types/ui.js'
 import type { BadgeAppearance } from './statusBadge.js'
 import type { FileEntry, FileStatus, ShareFileEntry, ShareFileStatus, PeerDownloadSummary } from './types.js'
 

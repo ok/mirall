@@ -4,7 +4,8 @@
 // It inherits its colour rather than choosing one, so a button that needs a non-inherited ink (the
 // destructive ones) passes it through iconClassName.
 import type { MouseEvent } from 'react'
-import Icon, { type IconName } from './Icon.js'
+import Icon from './Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface IconButtonProps {
   icon: IconName

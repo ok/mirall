@@ -6,11 +6,12 @@ import { formatSize, getFileIcon, fileName } from '../../utils.js'
 import { errorCodeToI18nKey } from '../../errorMessages.js'
 import { deriveRowView } from '../../rowView.js'
 import type { FileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
-import type { Decoration } from '../../hooks/useDecorations.js'
+import type { Decoration } from '../../types/ui.js'
 import FileName from '../primitives/FileName.js'
 import RowLane from './RowLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 interface FileCardProps {
   file: FileEntry

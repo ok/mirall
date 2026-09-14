@@ -1,7 +1,8 @@
 // Settings hub: tile navigation into the general / appearance / notifications / network / storage / activity-log subscreens.
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
-import Icon, { type IconName } from '../../components/primitives/Icon.js'
+import Icon from '../../components/primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import type { Screen } from '../../navigation.js'
 

@@ -6,7 +6,7 @@
 // consistently across the app.
 
 /**
- * @typedef {import('./components/primitives/Icon.js').IconName} IconName
+ * @typedef {import('./types/ui.js').IconName} IconName
  */
 
 /** @type {Record<string, IconName>} */

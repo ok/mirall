@@ -3,7 +3,8 @@
 // an action that deletes — and `size` is 'sm' everywhere except a hero call to action. Anything a
 // variant cannot express belongs in the variant table below, not in a className at the call site.
 import type { MouseEvent, ReactNode, Ref } from 'react'
-import Icon, { type IconName } from './Icon.js'
+import Icon from './Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger'
 

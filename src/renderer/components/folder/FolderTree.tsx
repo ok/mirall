@@ -7,7 +7,7 @@ import Badge from '../primitives/Badge.js'
 import ShareFileRow from '../cards/ShareFileRow.js'
 import { formatSize } from '../../utils.js'
 import { badgeStyle } from '../../statusBadge.js'
-import type { Decoration } from '../../hooks/useDecorations.js'
+import type { Decoration } from '../../types/ui.js'
 import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
 interface FileRowCallbacks {

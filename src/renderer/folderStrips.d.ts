@@ -1,4 +1,4 @@
-import type { IconName } from './components/primitives/Icon.js'
+import type { IconName } from './types/ui.js'
 import type { ShareRole } from './types.js'
 import type { MountFault } from '../shared/contract/mount-fault.js'
 

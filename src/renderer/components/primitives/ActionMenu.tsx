@@ -7,7 +7,8 @@ import { useMenuTriggerState } from '@react-stately/menu'
 import { useTreeState, type TreeState } from '@react-stately/tree'
 import { Item } from '@react-stately/collections'
 import type { Node, Key, CollectionElement, FocusStrategy } from '@react-types/shared'
-import Icon, { type IconName } from '../primitives/Icon.js'
+import Icon from '../primitives/Icon.js'
+import type { IconName } from '../../types/ui.js'
 
 export interface ActionMenuItemConfig {
   id: string

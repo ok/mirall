@@ -13,7 +13,7 @@ import { formatSize, getFileIcon } from '../../utils.js'
 import { errorCodeToI18nKey } from '../../errorMessages.js'
 import { fileRowAction } from '../../fileRowAction.js'
 import { deriveRowView } from '../../rowView.js'
-import type { Decoration } from '../../hooks/useDecorations.js'
+import type { Decoration } from '../../types/ui.js'
 import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types.js'
 
 // test seam
