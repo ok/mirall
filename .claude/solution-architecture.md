@@ -1254,6 +1254,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
+| `src/shared/shares/catalog-keys.js` | The catalog's key grammar: `FILE_PREFIX` (PERSISTED — it addresses every replicated entry), `fileKey`, the `catalogKey`/`…Enc` field convention read and written in one place, and `classifyEntryNode`. Pure, so the modules that need only the grammar stop importing the catalog itself (§3.7) |
 | `src/shared/shares/share-catalog.js` | The per-(owner, space) catalog bee (§3.7): own writes + purge; peer reads behind a refcounted LRU with append watchers and bounded drains (§4.3); the catalog-key field convention; `Catalogs` |
 | `src/shared/shares/share-listing.js` | The display listing for one folder share: catalog entries in, status-bearing rows keyed by drive path out (`/<name>/<relPath>`); prefetch, prune |
 | `src/shared/shares/catalog-writer.js` | The batched catalog writer a bulk publish pass writes through, with read-your-writes generations (§7.2) |

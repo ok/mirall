@@ -18,6 +18,12 @@ import { Subsystem } from '../core/subsystem.js'
 import { createRefCountedLru } from '../core/lru.js'
 import { prefixRange } from '../core/bee-keys.js'
 
+import { FILE_PREFIX, fileKey, readCatalogKey, classifyEntryNode } from './catalog-keys.js'
+
+// The grammar keeps its address here too: the overlay backend and the loose channel reach a
+// catalog through this module, and the key convention is part of that surface.
+export { fileKey, catalogKeyField, readCatalogKey, classifyEntryNode } from './catalog-keys.js'
+
 const log = createLogger('share-catalog')
 
 // One replicated catalog Hyperbee per (owner, space) — same cardinality as the
@@ -25,7 +31,6 @@ const log = createLogger('share-catalog')
 // metadata only (no bytes): the bytes stay in the owner's mounted folder and are
 // materialised into the drive on demand. The catalog core key is published in the
 // share record so peers open it read-only by key and replicate it.
-const FILE_PREFIX = 'file/'
 
 const ownCatalogs = new Map()   // spaceId -> Hyperbee (writable)
 // Notified with (spaceId) whenever OUR OWN catalog core appends, so the owner's listing refreshes
@@ -42,10 +47,6 @@ const peerCatalogs = createRefCountedLru({
   limit: () => getPeerCatalogCacheLimit(),
   onEvict: (keyHex, bee) => { bee.close().catch(() => {}) },
 })
-
-export function fileKey(shareId, relPath) {
-  return FILE_PREFIX + shareId + '/' + relPath
-}
 
 function sharePrefixKey(shareId) {
   return FILE_PREFIX + shareId + '/'
@@ -215,24 +216,6 @@ function openPeerCatalog(catalogKeyHex, sck = null) {
   return bee
 }
 
-// The catalog-key field convention has ONE owner (read + write) so a future variant can't drift
-// across the many sites that touch it. A v2 (SCK-encrypted) key lives in the '<prefix>Enc'
-// field, a v1/plaintext key in '<prefix>'; prefix is 'catalogKey' for share records/jobs,
-// 'looseCatalogKey' for profile/handshake/member records.
-export function catalogKeyField(keyHex, encrypted, prefix = 'catalogKey') {
-  return { [encrypted ? prefix + 'Enc' : prefix]: keyHex }
-}
-
-// Read the catalog key + whether it's encrypted from a share/member/job/pending record. The …Enc
-// field wins; a plaintext key (written before catalog encryption, or by a peer that has not yet
-// migrated) falls back. Recognises both the 'catalogKey' and 'looseCatalogKey' field pairs so one
-// reader serves shares, members, and persisted rows.
-export function readCatalogKey(rec) {
-  const enc = rec?.catalogKeyEnc || rec?.looseCatalogKeyEnc || null
-  if (enc) return { keyHex: enc, encrypted: true }
-  return { keyHex: rec?.catalogKey || rec?.looseCatalogKey || null, encrypted: false }
-}
-
 // Resolve which catalog to read for a record + with what key. `readable` folds the whole gate:
 // false when there's no key, or the catalog is encrypted but we hold no SCK (a pending joiner) —
 // callers return their empty value. `space` may be injected to skip a getSpace read in hot loops.
@@ -363,17 +346,6 @@ export async function peerCatalogVersion(spaceId, rec, { space } = {}) {
 export async function listPeerShareMeta(catalogKeyHex, shareId, { sck = null } = {}) {
   const { entries, complete } = await collectPeerShare(catalogKeyHex, shareId, { sck })
   return { entries, complete }
-}
-
-// Map a raw catalog node to the consumer-visible entry state — the one place that encodes
-// tombstone vs. mid-rehash vs. absent. null = absent/unreadable (UNKNOWN, never "removed").
-// `seq` is the Hyperbee block the value lives at: monotonic per key, bumped by every re-write
-// (so a remove+re-add lands a higher seq even for identical content), replicated identically
-// across peers — the migration-free generation marker a receiver uses to spot a re-publish.
-export function classifyEntryNode(node) {
-  if (!node?.value) return null
-  if (node.value.deletedAt) return { removed: true }
-  return { removed: false, seq: node.seq, size: node.value.size, mtime: node.value.mtime, contentHash: node.value.contentHash ?? null }
 }
 
 // Like getPeerEntry but surfaces a tombstone as { removed: true } instead of collapsing it

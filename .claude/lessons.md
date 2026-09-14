@@ -654,3 +654,18 @@ real Electron main, and it is a heavy local-only suite. So after ANY change to `
 app once and read the log — `npx electron . --storage=<tmpdir>`, wait ~15s, assert the process is
 alive and the log has no `threw`/`Error`. It takes seconds, needs no AX tree, and catches exactly
 the class of failure the static gates cannot see: module-load order.
+
+## Never retype a persisted constant during a move — import it
+
+Extracting the catalog key grammar into `shares/catalog-keys.js`, the `FILE_PREFIX` that addresses
+every entry inside a catalog bee was hand-written as `'file:'`. The real value is `'file/'`. That
+prefix is **persisted and replicated**: every catalog row a peer already holds is keyed by it, so
+the typo would have re-addressed the entire catalog — old rows unreadable, new rows written
+somewhere no reader looks. `lint`, `tsc` and `no-undef` all passed; `test/unit/catalog-writer.test.js`
+caught it because it builds its expected keys with the same `fileKey()` the writer uses.
+
+**The rule:** when a move separates a constant from its users, the new module **exports** it and the
+old one **imports** it — never two definitions, and never a retyped literal. If the constant is
+persisted or on the wire, say so in a comment at the definition, because its blast radius is not
+visible from the call site. Suspect every hand-copied string in a refactor whose value you did not
+paste from the original.
