@@ -1,5 +1,7 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { preloadEntrypoints, entrypointFor } from '../../src/main/worker-entrypoints.js'
@@ -7,6 +9,7 @@ import { MAIN_WORKER_SPEC, WORKER_SPECS } from '../../src/shared/contract/worker
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.join(here, '..', '..')
+const require = createRequire(import.meta.url)
 
 // REGRESSION (FIX-H5-1: a specifier that missed the allowlist fell through to
 // `require.resolve(path.join(__dirname, '..', '..', specifier))`, so any string the renderer handed
@@ -72,10 +75,13 @@ test('the renderer names its worker through the contract, not by position', (t) 
 // that left the allowlist EMPTY — and since the allowlist is now the only thing pear:startWorker
 // resolves against, main would refuse to spawn its own declared worker.
 test('the allowlist is resolved before anything in boot that can throw', (t) => {
-  const src = readFileSync(path.join(REPO, 'src', 'main', 'main.js'), 'utf8')
-  const body = src.slice(src.indexOf('function preloadAsarCache'))
-  const preload = body.indexOf('preloadEntrypoints(')
-  const walk = body.indexOf('walk(uiRoot)')
-  t.ok(preload !== -1 && walk !== -1, 'found both')
-  t.ok(preload < walk, 'the entrypoints are resolved first')
+  const { preloadAsarCache } = require('../../src/main/app-protocol.js')
+  // A source checkout that has its worker but no built assets/ — the shape that emptied the
+  // allowlist when the entrypoints were resolved after the walk.
+  const root = mkdtempSync(path.join(tmpdir(), 'mirall-no-assets-'))
+  mkdirSync(path.join(root, 'src', 'worker'), { recursive: true })
+  writeFileSync(path.join(root, 'src', 'worker', 'main.js'), '')
+  t.exception(() => preloadAsarCache({ repoRoot: root }), 'the assets walk throws with no assets/')
+  t.ok(entrypointFor(MAIN_WORKER_SPEC), 'and the allowlist is already resolved, so the worker can still spawn')
+  t.teardown(() => { preloadEntrypoints(REPO); rmSync(root, { recursive: true, force: true }) })
 })

@@ -50,7 +50,7 @@ const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
 const { buildAppMenuTemplate } = require('./menu.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { ConfigStore } = require('./config-store.js')
-const { primeFeatureFlags, readFeatureFlags } = require('./feature-flags.js')
+const { readFeatureFlags } = require('./feature-flags.js')
 const { envJson } = require('./env-json.js')
 const relaySecret = require('./relay-secret.js')
 const { initDebugGate, isDebug, isVerbose, setVerbose } = require('./debug-gate.js')
@@ -114,7 +114,7 @@ const workers = new Map()
 
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createMainRequestRouter } = require('./main-requests.js')
-const { preloadEntrypoints, entrypointFor } = require('./worker-entrypoints.js')
+const { entrypointFor } = require('./worker-entrypoints.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
 
@@ -1312,81 +1312,9 @@ async function createWindow() {
 
 // === app:// asset serving, deep links, app lifecycle ===
 
-const APP_PROTOCOL_MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.mjs': 'application/javascript; charset=utf-8',
-  '.map': 'application/json',
-  '.json': 'application/json; charset=utf-8',
-  '.woff2': 'font/woff2',
-  '.woff': 'font/woff',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8',
-}
-
-// Preloaded at boot (see preloadAsarCache): the protocol handler serves from this map instead of
-// reading app.asar per request, which would race the OTA updater's noAsar window (see
-// wrapWithNoAsar). The assets/ payload is small enough to hold in RAM.
-const APP_PROTOCOL_CACHE = new Map()
-
-function preloadAsarCache() {
-  // FIRST: everything below can throw (a missing assets/dist in a source checkout is an ENOENT out
-  // of readdirSync), and this function has no catch. The allowlist is what pear:startWorker
-  // resolves against, so losing it means the app refuses to spawn its OWN worker.
-  const repoRoot = path.join(__dirname, '..', '..')
-  preloadEntrypoints(repoRoot)
-
-  const uiRoot = path.join(__dirname, '..', '..', 'assets')
-  const walk = (dir) => {
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-    for (const e of entries) {
-      const abs = path.join(dir, e.name)
-      if (e.isDirectory()) walk(abs)
-      else if (e.isFile()) {
-        const rel = path.relative(uiRoot, abs).split(path.sep).join('/')
-        APP_PROTOCOL_CACHE.set(rel, fs.readFileSync(abs))
-      }
-    }
-  }
-  walk(uiRoot)
-
-  // feature-flags.json is asar-internal too: read + cache it here, before getPear opens the
-  // noAsar window, or a flag read in that window silently disables every flag.
-  primeFeatureFlags(repoRoot)
-
-  // pear-runtime-updater.applyUpdate lazily require()s msix-manager on win32 — inside the noAsar
-  // window wrapWithNoAsar opens, where the resolution fails MODULE_NOT_FOUND and OTA never applies.
-  // Warm Module._cache here, from the updater's OWN context (Module.createRequire(updaterIndex)):
-  // Node's pathCache key includes the requiring module's parent.paths, so a preload from main.js's
-  // context would not satisfy the updater's later lookup.
-  if (isWindows) {
-    const Module = require('module')
-    const updaterIndex = require.resolve('pear-runtime-updater')
-    Module.createRequire(updaterIndex)('msix-manager')
-  }
-}
-
-function registerAppProtocol() {
-  electronProtocol.handle('app', async (request) => {
-    let url
-    try { url = new URL(request.url) } catch { return new Response('Bad Request', { status: 400 }) }
-    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html'
-    if (rel.includes('..')) return new Response('Forbidden', { status: 403 })
-    const data = APP_PROTOCOL_CACHE.get(rel)
-    if (!data) return new Response('Not Found', { status: 404 })
-    const mime = APP_PROTOCOL_MIME[path.extname(rel).toLowerCase()] || 'application/octet-stream'
-    return new Response(data, { headers: { 'Content-Type': mime, 'Cache-Control': 'no-cache' } })
-  })
-}
-
 app.setAsDefaultProtocolClient(protocol)
 
+const { preloadAsarCache, registerAppProtocol } = require('./app-protocol.js')
 const { parseDeepLink } = require('./deeplink')
 
 const pendingDeepLinks = []

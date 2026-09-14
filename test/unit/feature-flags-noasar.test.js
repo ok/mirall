@@ -117,15 +117,16 @@ test('malformed MIRALL_FEATURE_FLAGS is ignored (with a warning), base preserved
 // must not reintroduce a lazy asar read of feature-flags.json.
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'main.js'), 'utf8')
+const protocolSrc = readFileSync(path.join(here, '..', '..', 'src', 'main', 'app-protocol.js'), 'utf8')
 
 test('REGRESSION (structural): preloadAsarCache primes feature flags before the noAsar window, and no lazy asar read remains', (t) => {
-  const body = mainSrc.match(/function preloadAsarCache\s*\(\)\s*\{([\s\S]*?)\n\}/)
+  const body = protocolSrc.match(/function preloadAsarCache[\s\S]*?\{([\s\S]*?)\n\}/)
   t.ok(body, 'preloadAsarCache() exists')
   t.ok(/primeFeatureFlags\s*\(/.test(body[1]), 'preloadAsarCache calls primeFeatureFlags() before getPear opens the noAsar window')
 
-  t.ok(/require\(['"]\.\/feature-flags(\.js)?['"]\)/.test(mainSrc), "main.js requires './feature-flags.js'")
-  t.absent(/readFileSync\([^)]*getAppPath\(\)[^)]*feature-flags\.json/.test(mainSrc),
-    'main.js no longer does a lazy fs read of the asar feature-flags.json path')
+  t.ok(/require\(['"]\.\/feature-flags(\.js)?['"]\)/.test(protocolSrc), "app-protocol.js requires './feature-flags.js'")
+  t.absent(/readFileSync\([^)]*getAppPath\(\)[^)]*feature-flags\.json/.test(mainSrc + protocolSrc),
+    'no lazy fs read of the asar feature-flags.json path remains')
 })
 
 // The identity KEK resolve used to sit behind `if (!process.env.MIRALL_INSECURE_IDENTITY)`, which
