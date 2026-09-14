@@ -35,7 +35,6 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | File | Covers |
 |------|--------|
 | `owned-mount-fault.test.js` | **REGRESSION (FIX-PI12-1)** a pass whose publishes all failed on ENOSPC settles `paused-enospc`, not `active` (the scheduler counted `failed` and dropped it); EACCES → `paused-error` + the CODE; an unclassified item failure is not a mount fault; **REGRESSION (FIX-PI12-2)** a classified whole-pass failure records the code, never `err.message`, on the record or the wire; an unclassified one keeps its message; a root gone mid-pass settles `mount-point-gone` and records the absence; **REGRESSION (FIX-PI12-3)** a pass that declined to run does not consume a pending fault; `settleScanStatus`'s four outcomes each asserted; **CHARACTERISATION** a fault clears on the next clean pass with its cadence still armed, and a watcher item's fault is not lost between passes. |
-| `foreign-materialize.test.js` | `applyChange` put (byte-exact) / del / hash-skip; **REGRESSION** EACCES→`paused-error`, ENOSPC→`paused-enospc`; tick re-applies; **FIX-6** offline tick doesn't delete; `syncedPaths` records exactly the share paths; **REGRESSION** tick auto-unmounts an orphaned mirror after the owner tombstones the share (vs. left-to-retry when merely unreadable); disabled mount is a no-op. |
 | `foreign-del-guard.test.js` | **FIX-6** `shouldHonorDeletions` predicate — deletions honored only when owner online AND listing non-empty. |
 | `foreign-toggle.test.js` | `setForeignEnabled` pause stops the tick + surfaces `paused`; resume restores `active` + materializes. |
 | `foreign-prompt-materialize.test.js` | **FIX-MIRROR-PROMPT** a peer-drive change triggers a prompt tick (not the 30s poll); **FIX-MIRROR-ECHO** an owner edit within the echo-guard TTL still re-downloads. |
@@ -78,7 +77,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | `cleanup-orphans.test.js` | **FIX-2** `cleanupOrphanedData` does not purge a member's replicated peer drive (meta + blobs cores preserved). |
 | `storage-info.test.js` | `getStorageInfo` per-space byte breakdown is internally consistent and grows with content; `getSpaceCacheBytes` (the "X MB will be freed" figure) reports the local-drive footprint and grows with content. |
 
-**FIX index:** FIX-2 (cleanup-orphans), FIX-3 (transfers-resolve-dest), FIX-4/FIX-5 (owned-folder-edge), FIX-6 (foreign-del-guard + foreign-materialize), FIX-MIRROR-PROMPT/FIX-MIRROR-ECHO (foreign-prompt-materialize), FIX-UNMOUNT-REFRESH (foreign-unmount), FIX-WATCHER-MISS (owned-concurrent-add).
+**FIX index:** FIX-2 (cleanup-orphans), FIX-3 (transfers-resolve-dest), FIX-4/FIX-5 (owned-folder-edge), FIX-6 (foreign-del-guard), FIX-MIRROR-PROMPT/FIX-MIRROR-ECHO (foreign-prompt-materialize), FIX-UNMOUNT-REFRESH (foreign-unmount), FIX-WATCHER-MISS (owned-concurrent-add).
 
 ---
 
