@@ -19,6 +19,9 @@ console.log(line('folder name', out.folderName))
 console.log(line('folder path', out.folderPath))
 console.log(line('mirror name', out.mirrorName))
 console.log(line('mount path', out.mountPath))
+console.log(line('create name', out.createName))
+console.log(`${'create alert'.padEnd(12)}: announced ${out.createAlert}`)
+console.log(`${'unhandled'.padEnd(12)}: ${out.unhandled} escaped promise rejection(s)`)
 if (out.error) console.log(`error: ${out.error}`)
 
 const pass = out.pass === true

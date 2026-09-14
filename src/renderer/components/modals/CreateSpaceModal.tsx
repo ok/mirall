@@ -9,6 +9,7 @@ import Modal from "../primitives/Modal.js";
 import Icon, { type IconName } from "../primitives/Icon.js";
 import ModalHeader from "../layout/ModalHeader.js";
 import Button from "../primitives/Button.js";
+import { useErrorText } from "../../hooks/useErrorText.js";
 
 interface CreateSpaceModalProps {
   isOpen: boolean;
@@ -24,10 +25,12 @@ export default function CreateSpaceModal({
   onCreated,
 }: CreateSpaceModalProps) {
   const { t } = useTranslation();
+  const errorText = useErrorText();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("folder");
   const [createdSpace, setCreatedSpace] = useState<Space | null>(null);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // setCreating lands a render later; the ref is what stops a held Enter creating two spaces.
   const creatingRef = useRef(false);
 
@@ -35,9 +38,12 @@ export default function CreateSpaceModal({
     if (name.trim().length < 2 || creating || creatingRef.current) return;
     creatingRef.current = true;
     setCreating(true);
+    setError(null);
     try {
       const space = await onCreate(name.trim(), icon);
       setCreatedSpace(space);
+    } catch (err) {
+      setError(errorText(err));
     } finally {
       creatingRef.current = false;
       setCreating(false);
@@ -51,6 +57,7 @@ export default function CreateSpaceModal({
     setName("");
     setIcon("folder");
     setCreatedSpace(null);
+    setError(null);
     onClose();
     if (justCreated) onCreated?.(justCreated);
   }
@@ -81,8 +88,10 @@ export default function CreateSpaceModal({
                   label={t("createSpace.nameLabel")}
                   autoFocus
                   placeholder={t("createSpace.namePlaceholder")}
+                  invalid={!!error}
+                  describedBy={error ? "create-space-error" : undefined}
                   value={name}
-                  onChange={setName}
+                  onChange={(v) => { setName(v); setError(null); }}
                 />
               </div>
 
@@ -116,6 +125,11 @@ export default function CreateSpaceModal({
           )}
 
           <div className="pt-4 flex flex-col gap-4">
+            {error && (
+              <div id="create-space-error" className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
+                {error}
+              </div>
+            )}
             {!createdSpace ? (
               <Button size="lg" fullWidth onClick={handleCreate} disabled={name.trim().length < 2 || creating}>
                 {creating ? t("createSpace.creating") : t("createSpace.initialize")}

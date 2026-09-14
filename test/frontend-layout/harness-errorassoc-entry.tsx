@@ -5,14 +5,15 @@
 // tree exposes neither `aria-invalid` nor `aria-describedby`, so the agent-desktop suite cannot see
 // this at all — the real DOM is the only layer that can.
 //
-// Drives the REAL <EditSpaceModal>, <EditFolderModal> and <MountPathField> into their failure
-// states and resolves each field's description the way assistive tech does.
+// Drives the REAL <EditSpaceModal>, <EditFolderModal>, <MountPathField> and <CreateSpaceModal>
+// into their failure states and resolves each field's description the way assistive tech does.
 import './harness-bootstrap.js'
 import { createRoot, type Root } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import EditSpaceModal from './../../src/renderer/components/modals/EditSpaceModal.js'
 import EditFolderModal from './../../src/renderer/components/modals/EditFolderModal.js'
 import MountPathField from './../../src/renderer/components/widgets/MountPathField.js'
+import CreateSpaceModal from './../../src/renderer/components/modals/CreateSpaceModal.js'
 import type { Space } from './../../src/renderer/types.js'
 
 // The download-folder read fails for the whole page, so the space dialog carries BOTH a folder
@@ -47,11 +48,21 @@ interface HarnessResults {
   folderPath: FieldProbe
   mirrorName: FieldProbe
   mountPath: FieldProbe
+  createName: FieldProbe
+  // The create-space failure must also be ANNOUNCED, not only associated: it appears after a
+  // submit, with nothing else on the form changing.
+  createAlert: boolean
+  // A submit handler that never catches does not merely fail to report — the rejection escapes as
+  // an unhandled promise rejection, which is the same defect seen from the other side.
+  unhandled: number
 }
 
 declare global {
   interface Window { __results: HarnessResults }
 }
+
+let unhandledRejections = 0
+window.addEventListener('unhandledrejection', () => { unhandledRejections += 1 })
 
 const MISSING: FieldProbe = { found: false, invalid: false, describedBy: '' }
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -84,12 +95,19 @@ function pathButton(label: string): HTMLButtonElement | null {
 }
 
 function saveButton(): HTMLButtonElement | null {
-  return Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.includes('Save Changes')) ?? null
+  return labelledButton('Save Changes')
+}
+
+function labelledButton(text: string): HTMLButtonElement | null {
+  return Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.includes(text)) ?? null
 }
 
 // A mapped code, so the save failure reads as its own sentence rather than the generic one the
 // folder read falls back to — the two must stay distinguishable from the field they hang off.
 const rejects = () => Promise.reject(Object.assign(new Error('boom'), { code: 'SHARE_NAME_COLLISION' }))
+// The create path fails for a reason that is nobody's typing: the worker cannot service the
+// request. It still has to reach the person who pressed the button.
+const rejectsUnavailable = () => Promise.reject(Object.assign(new Error('worker is still starting'), { code: 'WORKER_UNAVAILABLE' }))
 const noop = () => {}
 
 async function run(root: Root): Promise<HarnessResults> {
@@ -102,6 +120,9 @@ async function run(root: Root): Promise<HarnessResults> {
     folderPath: MISSING,
     mirrorName: MISSING,
     mountPath: MISSING,
+    createName: MISSING,
+    createAlert: false,
+    unhandled: 0,
   }
 
   root.render(<EditSpaceModal space={SPACE} onSave={rejects} onClose={noop} />)
@@ -163,6 +184,18 @@ async function run(root: Root): Promise<HarnessResults> {
   await sleep(300)
   results.mountPath = probe(pathButton('Change'))
 
+  // REGRESSION (#279): a failed space creation reported nothing at all — no catch, no error state,
+  // no surface to render one into. The button simply went back to "Initialize Space".
+  root.render(<CreateSpaceModal isOpen onClose={noop} onCreate={rejectsUnavailable} />)
+  await sleep(300)
+  typeInto(document.getElementById('create-space-name') as HTMLInputElement, 'Aurora')
+  await sleep(50)
+  labelledButton('Initialize Space')?.click()
+  await sleep(300)
+  results.createName = probe(document.getElementById('create-space-name'))
+  results.createAlert = document.getElementById('create-space-error')?.getAttribute('role') === 'alert'
+  results.unhandled = unhandledRejections
+
   results.pass =
     results.spaceName.invalid &&
     results.spaceName.describedBy.includes('Could not save changes') &&
@@ -177,7 +210,11 @@ async function run(root: Root): Promise<HarnessResults> {
     !results.mirrorName.invalid &&
     results.mirrorName.describedBy.includes('Vhinz') &&
     results.mountPath.describedBy.includes('Folder on this Mac') &&
-    results.mountPath.describedBy.includes('inside another share')
+    results.mountPath.describedBy.includes('inside another share') &&
+    results.createName.invalid &&
+    results.createName.describedBy.includes("background service isn't available") &&
+    results.createAlert &&
+    results.unhandled === 0
 
   return results
 }
@@ -195,6 +232,9 @@ run(root).then(
       folderPath: MISSING,
       mirrorName: MISSING,
       mountPath: MISSING,
+      createName: MISSING,
+      createAlert: false,
+      unhandled: unhandledRejections,
     }
   },
 )
