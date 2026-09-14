@@ -5,7 +5,8 @@
 
 import { getSpace } from '../../shared/spaces/space.js'
 import { isSpaceLeaving } from '../../shared/transfer/leave-protocol.js'
-import { listFiles, removeFile, revealFile, addFile } from '../../shared/transfer/files.js'
+import { listFiles, removeFile, addFile } from '../../shared/transfer/files.js'
+import { revealFile } from '../../shared/transfer/reveal.js'
 import {
   looseDownload,
   loosePause,

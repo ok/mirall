@@ -25,18 +25,20 @@ import { isEphemeralSourcePath } from '../folders/temp-paths.js'
 import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import os from 'bare-os'
-import { spawn } from 'bare-subprocess'
-import { getDownloadDir, getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
+
+import { getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
-import { revealExitIsFailure } from './reveal-exit.js'
+
 import { looseShareFile, looseUnshareFile, looseHasOwn, looseListOwn, looseListPeer, looseTransferActive } from './loose-overlay.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { unhashedStatusFor } from './transfer-status.js'
 import { dedupeFileRows } from './file-dedupe.js'
 import { claimVerdict } from './download-claim.js'
 import { prefixRange } from '../core/bee-keys.js'
+
+// Reveal keeps its address here: the IPC layer reaches a file's on-disk location through this
+// module, and the resolution it needs is the claim path this bee records.
 
 const log = createLogger('files')
 
@@ -435,61 +437,6 @@ export async function removeFile(spaceId, filePath) {
 // per-space roots did not exist when they were written.
 export function claimedPathFor(filePath, rec) {
   return rec?.localPath || path.join(getGlobalDownloadDir(), path.basename(filePath))
-}
-
-// Where "Open in folder" should point: a downloaded file lives at its landed
-// path; a file you own lives at its original source. Only when we know neither
-// do we guess <Downloads>/<name> — a last resort, since for an owned file that
-// guess points at a Downloads folder the file was never in (which is why
-// markOwnedSource records the real source at share time).
-// test seam
-export async function resolveRevealTarget(spaceId, filePath) {
-  return (await getDownloadedPath(spaceId, filePath))
-    || (await getOwnedSourcePath(spaceId, filePath))
-    || path.join(getDownloadDir(spaceId), path.basename(filePath))
-}
-
-export async function revealFile(spaceId, filePath) {
-  return revealLocalPath(await resolveRevealTarget(spaceId, filePath))
-}
-
-// missingCode is the caller's, because the same walk backs revealing a file and revealing a folder
-// and "This file isn't on this device yet." is the wrong sentence for a folder.
-export function revealLocalPath(target, missingCode = CODES.FILE_NOT_ON_DEVICE) {
-  const platform = os.platform()
-  const exists = fs.existsSync(target)
-  const folder = path.dirname(target)
-
-  log.info('reveal requested:', target, '(platform:', platform + ', exists:', exists + ')')
-
-  if (!exists && !fs.existsSync(folder)) {
-    throw new AppError(missingCode, 'Reveal target is not on this device')
-  }
-
-  const opts = { stdio: 'ignore', detached: true }
-  let child
-  try {
-    if (platform === 'darwin') {
-      child = exists
-        ? spawn('open', ['-R', target], opts)
-        : spawn('open', [folder], opts)
-    } else if (platform === 'win32') {
-      child = exists
-        ? spawn('explorer.exe', ['/select,', target], opts)
-        : spawn('explorer.exe', [folder], opts)
-    } else {
-      child = spawn('xdg-open', [folder], opts)
-    }
-  } catch (err) {
-    log.error('reveal spawn threw:', err.message)
-    throw new AppError(CODES.UNKNOWN, 'Could not reveal file')
-  }
-
-  child.on('error', (err) => log.error('reveal subprocess error:', err.message))
-  child.on('exit', (code) => {
-    if (revealExitIsFailure(platform, code)) log.warn('reveal exited with code:', code)
-  })
-  child.unref()
 }
 
 export async function cleanupDownloadHistory(spaceId) {

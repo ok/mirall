@@ -10,7 +10,6 @@ import {
   markDownloaded,
   getDownloadedPath,
   getOwnedSourcePath,
-  resolveRevealTarget,
   isDownloadedFile,
   markVerified,
   getVerifiedHash,
@@ -22,6 +21,7 @@ import {
   verdictForClaim,
   createDirProbe,
 } from '../../src/shared/transfer/files.js'
+import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
