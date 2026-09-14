@@ -7,7 +7,7 @@
 // is live before the first keystroke, and FeedbackModal screenshots the dialog as displayed.
 import { forwardRef, useEffect, useRef, type ForwardedRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useDialog, FocusScope } from 'react-aria'
-import CrystalBackdrop from '../widgets/CrystalBackdrop.js'
+import ModalBackdrop from './ModalBackdrop.js'
 import { isMac } from '../../keyboard/accelerator.js'
 import { describeModalKeyEvent, modalKeyAction } from './modalKeys.js'
 import { useModalPresence } from './modalPresence.js'
@@ -101,7 +101,7 @@ function ModalContents({
       ref={setWrapperRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
     >
-      <CrystalBackdrop onClick={onBackdropClick} />
+      <ModalBackdrop onClick={onBackdropClick} />
       {/* No `autoFocus` on FocusScope: it would land on the header ✕, and Enter would dismiss. A
           field with its own `autoFocus` still claims focus at commit; otherwise useDialog focuses
           the panel, which announces the dialog and lets Enter reach the handler below. */}

@@ -60,7 +60,7 @@ test('showSpaceLoading: already-rendered content is never replaced by the indica
 // The screen reads both sources and hands them over as `pane`; the pane component applies them.
 test('REGRESSION (FIX-367): the space screen decides both gates through the two-source predicates', (t) => {
   const screen = read('screens', 'SpaceView.tsx')
-  const pane = read('components', 'widgets', 'SpaceContentPane.tsx')
+  const pane = read('components', 'space', 'SpaceContentPane.tsx')
   t.ok(/loading: sharesLoading \} = useShares\(/.test(screen), 'the shares loading flag is consumed')
   t.ok(/sharesLoading,/.test(screen), 'and reaches the pane')
   t.ok(/showSpaceEmptyState\(pane\)/.test(pane), 'the empty hero is gated by the predicate')

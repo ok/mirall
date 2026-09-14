@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import SegmentedControl, { Segment } from '../primitives/SegmentedControl.js'
-import ActionMenu, { type ActionMenuItemConfig } from './ActionMenu.js'
+import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
 import { AUDIT_CATEGORIES } from '../../hooks/useAuditLog.js'
 import type { RefObject } from 'react'
 import type { useActivityFilters } from '../../hooks/useActivityFilters.js'

@@ -11,9 +11,9 @@
 // at-risk — it exists for the boot and recovery transitions the verdict does not cover.
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useToast } from '../toast/ToastProvider.js'
-import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
-import type { ConnectivityState, ReachabilityCause, ReachabilityVerdict } from '../../types.js'
+import { useToast } from '../ToastProvider.js'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus.js'
+import type { ConnectivityState, ReachabilityCause, ReachabilityVerdict } from '../../../types.js'
 
 const TOAST_ID = 'connectivity'
 

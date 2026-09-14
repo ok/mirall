@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
-import FilenameTitle from '../widgets/FilenameTitle.js'
+import FilenameTitle from '../primitives/FilenameTitle.js'
 
 interface DeleteFolderShareModalProps {
   isOpen: boolean

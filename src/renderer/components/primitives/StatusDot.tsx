@@ -24,7 +24,7 @@ const RING: Record<ConnectivityState, string> = {
 }
 
 // The lamp on the Account screen. Named for assistive tech by the state, never by a visible label.
-export default function NetworkStatusIndicator({ state, className }: Props) {
+export default function StatusDot({ state, className }: Props) {
   const { t } = useTranslation()
   return (
     <span className={`inline-flex items-center gap-2 ${className ?? ''}`} role="img" aria-label={t(`connectivity.${state}`)}>

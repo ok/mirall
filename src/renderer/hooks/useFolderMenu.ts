@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
+import type { ActionMenuItemConfig } from '../components/primitives/ActionMenu.js'
 
 type FolderMenuInput = {
   isYou: boolean

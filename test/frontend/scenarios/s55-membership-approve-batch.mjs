@@ -8,7 +8,7 @@ const settle = (ms = 600) => new Promise((res) => setTimeout(res, ms))
 // Membership approval — four accounts. A (creator) + three joiners (Bob, Carol, Dan).
 // All three join and wait; A reviews them in the batch modal, approves one via
 // "Approve selected", then the rest via "Approve all". Exercises the multi-request
-// JoinRequestBanner, the ApprovalModal (checkboxes + both footer actions), and the
+// JoinRequestCard, the ApprovalModal (checkboxes + both footer actions), and the
 // "N waiting" SpaceCard badge on the spaces list. Local-only (real Electron + AX).
 export default async function s55({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })

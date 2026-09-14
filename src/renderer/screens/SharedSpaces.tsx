@@ -6,7 +6,7 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
 import Button from '../components/primitives/Button.js'
-import DocsCard from '../components/widgets/DocsCard.js'
+import DocsCard from '../components/cards/DocsCard.js'
 
 interface YourSpacesProps {
   onSelectSpace: (spaceId: string) => void

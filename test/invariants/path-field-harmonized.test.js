@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// One filesystem path the user can act on has ONE presentation: `widgets/PathRow.tsx`. Five
+// One filesystem path the user can act on has ONE presentation: `path/PathRow.tsx`. Five
 // surfaces show one (Add Folder, Mirror to Disk, Edit Folder, Edit Space, Storage settings) and
 // they had drifted into two shapes — three shared the filled field while two rendered a bare line
 // of text beside a shorter, dimmer `secondary` button, so the same fact looked like a different
@@ -26,13 +26,13 @@ function sourceFiles(dir) {
 }
 
 const files = sourceFiles(RENDERER).map((f) => ({ rel: path.relative(RENDERER, f), src: read(f) }))
-const pathRow = read(path.join(RENDERER, 'components/widgets/PathRow.tsx'))
+const pathRow = read(path.join(RENDERER, 'components/path/PathRow.tsx'))
 
 // `FilePath` renders the path text alone. Beside an action it is the bare-text form this
 // consolidation removed, so its every use is listed here with the reason it is not a path field.
 // A new name in this list is the review question: should this be a PathRow?
 const FILE_PATH_CALLERS = new Set([
-  'components/widgets/PathRow.tsx',          // the path field itself
+  'components/path/PathRow.tsx',          // the path field itself
   'components/modals/ScanPreviewModal.tsx',  // rows of a file list, not a path the user re-picks
   'screens/StorageSettings.tsx',             // the app-storage location: display-only, with Copy
 ])
@@ -82,7 +82,7 @@ test('the path button label is derived, never passed', (t) => {
     'PathRow derives the label from the presence of a path')
   t.absent(/actionLabel/.test(pathRow), 'and keeps no override for a caller to reach for')
   for (const f of files) {
-    if (f.rel === 'components/widgets/PathRow.tsx') continue
+    if (f.rel === 'components/path/PathRow.tsx') continue
     t.absent(/<PathRow[^>]*actionLabel/s.test(f.src), `${f.rel} must not override the path button label`)
   }
 })

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const LOCALES_DIR = path.resolve(here, '../../src/renderer/locales')
 
-// The file-listing loading copy renders an animated trailing ellipsis (LoadingFiles
+// The file-listing loading copy renders an animated trailing ellipsis (LoadingHeadline
 // + .loading-dots). The label string itself must therefore carry NO trailing dots,
 // otherwise the UI doubles up ("Lade Dateien…...").
 const LOADING_LABELS = [

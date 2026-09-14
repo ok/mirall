@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import Button from '../primitives/Button.js'
-import ActionMenu from '../widgets/ActionMenu.js'
+import ActionMenu from '../primitives/ActionMenu.js'
 import EntityHeader from './EntityHeader.js'
 
 interface SpaceHeaderActionsProps {

@@ -3,11 +3,11 @@
 // belong here; transient errors stay on the row state and self-heal via auto-resume.
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { subscribe } from '../../ipc.js'
-import { useToast } from '../toast/ToastProvider.js'
-import { basename } from '../../sharePaths.js'
-import { isMountFault } from '../../../shared/contract/mount-fault.js'
-import { mountFaultReasonKey } from '../../errorMessages.js'
+import { subscribe } from '../../../ipc.js'
+import { useToast } from '../ToastProvider.js'
+import { basename } from '../../../sharePaths.js'
+import { isMountFault } from '../../../../shared/contract/mount-fault.js'
+import { mountFaultReasonKey } from '../../../errorMessages.js'
 
 interface TransferSupersededMessage {
   transferId: string

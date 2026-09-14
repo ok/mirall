@@ -8,7 +8,7 @@ import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import ProgressBar from '../primitives/ProgressBar.js'
-import FilePath from '../widgets/FilePath.js'
+import FilePath from '../path/FilePath.js'
 import { formatSize } from '../../utils.js'
 import type { ScanPreview, PreviewProgress } from '../../types.js'
 

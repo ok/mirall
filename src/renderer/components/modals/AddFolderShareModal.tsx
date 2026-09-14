@@ -3,7 +3,7 @@
 import TextField from '../primitives/TextField.js'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import MountPathField from '../widgets/MountPathField.js'
+import MountPathField from '../path/MountPathField.js'
 import MountWizardStep from './MountWizardStep.js'
 import ScanPreviewModal from './ScanPreviewModal.js'
 import { validateOwnedMount, previewOwnedMount, cancelOwnedPreview, createShareThenMount } from '../../hooks/useFolderMount.js'

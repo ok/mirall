@@ -11,7 +11,7 @@ interface StorageIndicatorProps {
   spaceId: string
 }
 
-export default function StorageIndicator({ spaceId }: StorageIndicatorProps) {
+export default function SpaceStorageCard({ spaceId }: StorageIndicatorProps) {
   const { t } = useTranslation()
   // Space-wide totals (folders + loose files); on-device is what is actually on
   // this disk — owned content fully, mirrors their materialized subset.

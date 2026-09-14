@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
-import DocsCard from './DocsCard.js'
+import DocsCard from '../cards/DocsCard.js'
 
 /**
  * The first thing a member of an empty space sees: the two things that can go in one, and the
  * three docs pages that say how. Shown only once BOTH lists have loaded empty — see
  * spaceContentState.js for why emptiness needs both.
  */
-export default function SpaceEmptyHero() {
+export default function SpaceEmptyState() {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col min-h-[24rem] mt-12">

@@ -1,17 +1,17 @@
-import DropZone from './DropZone.js'
-import DropOverlay from './DropOverlay.js'
-import MembersBox from './MembersBox.js'
-import StorageIndicator from './StorageIndicator.js'
-import SpaceEmptyHero from './SpaceEmptyHero.js'
+import DropZone from '../share-drop/DropZone.js'
+import DropOverlay from '../share-drop/DropOverlay.js'
+import SpaceMembersCard from '../cards/SpaceMembersCard.js'
+import SpaceStorageCard from '../cards/SpaceStorageCard.js'
+import SpaceEmptyState from './SpaceEmptyState.js'
 import SpaceSharesSection from './SpaceSharesSection.js'
-import SpaceFilesSection from './SpaceFilesSection.js'
+import SpaceFilesPane from './SpaceFilesPane.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../../spaceContentState.js'
 import type { ComponentProps } from 'react'
 import type { SpaceMember } from '../../types.js'
 
 type SharesProps = ComponentProps<typeof SpaceSharesSection>
-type FilesProps = ComponentProps<typeof SpaceFilesSection>
+type FilesProps = ComponentProps<typeof SpaceFilesPane>
 type DropProps = ComponentProps<typeof DropOverlay>
 
 // The card handlers arrive as one object because they are memoized together and every one of them
@@ -55,7 +55,7 @@ interface SpaceContentPaneProps {
  * and the fixed sidebar beside it, inside the box that accepts a drop.
  *
  * Not rendered for a pending space — with no read key there is no content to lay out, and
- * SpacePendingPanel takes the whole area instead.
+ * PendingSpaceHero takes the whole area instead.
  */
 export default function SpaceContentPane(props: SpaceContentPaneProps) {
   const { spaceId, members, isLegacy, pane, shares, cardActions: a, listing, drag } = props
@@ -81,7 +81,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
         className={`relative overflow-y-auto scrollbar-thin min-h-0 -mx-1 pl-1 pb-4 space-y-8${filesOverflow ? ' pr-4' : ' pr-1'}`}
       >
         {showSpaceEmptyState(pane) ? (
-          <SpaceEmptyHero />
+          <SpaceEmptyState />
         ) : (
           <>
             <SpaceSharesSection
@@ -97,7 +97,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
               onPauseMirror={a.pauseMirror}
               onResumeMirror={a.resumeMirror}
             />
-            <SpaceFilesSection
+            <SpaceFilesPane
               {...listing}
               members={members}
               loading={showSpaceLoading(pane)}
@@ -122,9 +122,9 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
         {/* People above size, the same order the folder screen's sidebar uses. Members is the
           one that folds and the one that grows, so it takes the flexible slot; Storage is a
           fixed three-line statement and sits under it. */}
-        <MembersBox spaceId={spaceId} members={members} />
+        <SpaceMembersCard spaceId={spaceId} members={members} />
         <div className="shrink-0">
-          <StorageIndicator spaceId={spaceId} />
+          <SpaceStorageCard spaceId={spaceId} />
         </div>
       </div>
 

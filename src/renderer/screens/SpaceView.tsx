@@ -18,13 +18,13 @@ import { useShares, type ShareWithRole } from '../hooks/useShares.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useDragShare } from '../hooks/useDragShare.js'
 import SpaceDialogs, { type SpaceDialog } from '../components/modals/SpaceDialogs.js'
-import JoinRequestBanner from '../components/widgets/JoinRequestBanner.js'
+import JoinRequestCard from '../components/cards/JoinRequestCard.js'
 import HiddenFileInput from '../components/primitives/HiddenFileInput.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import SpaceHeaderBar from '../components/layout/SpaceHeaderBar.js'
-import SpaceAlertBanner from '../components/widgets/SpaceAlertBanner.js'
-import SpaceContentPane from '../components/widgets/SpaceContentPane.js'
-import SpacePendingPanel from '../components/widgets/SpacePendingPanel.js'
+import SpaceAlert from '../components/space/SpaceAlert.js'
+import SpaceContentPane from '../components/space/SpaceContentPane.js'
+import PendingSpaceHero from '../components/space/PendingSpaceHero.js'
 import type { PendingSpaceAction } from '../space-actions.js'
 import { useRunAction } from '../hooks/useRunAction.js'
 import { useMembershipRequests } from '../hooks/useMembershipRequests.js'
@@ -134,12 +134,12 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
         onLeave={() => setDialog({ kind: 'leave' })}
       />
 
-      {isLegacy && <SpaceAlertBanner text={t('space.legacyWarning')} />}
-      {space?.creatorDivergence && <SpaceAlertBanner text={t('space.creatorDivergenceWarning')} />}
+      {isLegacy && <SpaceAlert text={t('space.legacyWarning')} />}
+      {space?.creatorDivergence && <SpaceAlert text={t('space.creatorDivergenceWarning')} />}
 
       {space?.status !== 'pending' && requests.length > 0 && (
         <div className="shrink-0 pb-4">
-          <JoinRequestBanner
+          <JoinRequestCard
             requests={requests}
             busyKeys={busy}
             onApprove={handleApprove}
@@ -150,7 +150,7 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
       )}
 
       {space?.status === 'pending' ? (
-        <SpacePendingPanel
+        <PendingSpaceHero
           spaceName={space?.name || t('space.fallbackName')}
           inviters={members.filter((m) => m.publicKey !== profile?.publicKey)}
         />

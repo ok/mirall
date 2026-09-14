@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import FolderTree from './FolderTree.js'
 import FolderControlsRow from './FolderControlsRow.js'
-import LoadingFiles from './LoadingFiles.js'
+import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import type { ComponentProps } from 'react'
@@ -68,7 +68,7 @@ export default function FolderListPane(props: FolderListPaneProps) {
         className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
       >
         {loading ? (
-          <LoadingFiles label={t('folder.loading')} />
+          <LoadingHeadline label={t('folder.loading')} />
         ) : error ? (
           <div role="alert" className="bg-surface-container-lowest rounded-xl p-12 flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-3 mb-3">

@@ -21,7 +21,7 @@ model: CSS custom properties define the palette, Tailwind maps them to
 | Theme persistence (`appearance.theme`) | `src/renderer/config-client.ts` (`config.json`) |
 | Fonts (self-hosted woff2) | `assets/fonts/manrope.woff2`, `assets/fonts/plusjakarta.woff2` |
 | Primitives | `src/renderer/components/primitives/` |
-| Cards, layout, modals, toasts, widgets | `src/renderer/components/{cards,layout,modals,toast,widgets}/` |
+| Cards, layout, modals, toasts, widgets | `src/renderer/components/{activity,cards,folder,layout,modals,path,primitives,settings,share-drop,space,toast}/` |
 
 ---
 
@@ -286,7 +286,7 @@ card uses `rounded-2xl` (1.5rem), and modal panels sit one step above at
   - **TopNav & Onboarding header** are the only true glass surfaces:
     `bg-surface-container-lowest/70 backdrop-blur-xl` (the floating
     "atmospheric header").
-  - **Modal backdrop** (`components/widgets/CrystalBackdrop.tsx`):
+  - **Modal backdrop** (`components/primitives/ModalBackdrop.tsx`):
     `bg-primary/10 backdrop-blur-sm` in light; `dark:bg-surface/60` plus an
     animated crystalline SVG pattern in dark mode.
   - **Modal panels are opaque.** The `.glass-modal` class is *not* glass — it is
@@ -427,7 +427,7 @@ amber and weight, and reads as another heading rather than the one pressable thi
 tile. `npm run test:layout:mirrorers` measures the flush right edge on the People tile.
 
 Still hand-rolled elsewhere: Activity Log's "Clear all" (`font-semibold`, its own padding)
-and `widgets/DocsLink.tsx` (an anchor with leading/trailing glyphs, not this primitive).
+and `primitives/DocsLink.tsx` (an anchor with leading/trailing glyphs, not this primitive).
 
 ### Icon button — `primitives/IconButton.tsx`
 `w-10 h-10 rounded-full hover:bg-surface-container-high`. Requires `ariaLabel`;
@@ -464,7 +464,7 @@ its badges, and a status badge that says so rather than one still claiming a ver
 longer being applied. Whatever *manages* the row — its overflow menu — stays at full strength:
 dimming is a statement about the setting, never a reason to strip the only way to change it.
 
-### Dropdown button — `widgets/ActionMenu.tsx`
+### Dropdown button — `primitives/ActionMenu.tsx`
 The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
 trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a
 trailing `keyboard_arrow_down` that rotates 180° when open:
@@ -522,7 +522,7 @@ The `text-error` sentence under the thing that failed, with `role="alert"` so it
 it appears. `size="sm"` under a field, `xs` in a dense row. `FileCard` is the one exception: its
 error rides inside the meta paragraph as a `<span>` so a failed row keeps its resting height.
 
-### Path field — `widgets/PathRow.tsx`
+### Path field — `path/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same
 shape: the path in a filled `px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates
 and carries the full path for assistive tech), with an optional button beside it that re-picks it.
@@ -530,7 +530,7 @@ Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings
 second form — a bare line of path text next to a `secondary` button is the drift this replaced, and
 it read as a different kind of thing depending on which door you came through.
 
-The two mount wizards reach it through **`widgets/MountPathField.tsx`**, which adds the field's
+The two mount wizards reach it through **`path/MountPathField.tsx`**, which adds the field's
 headline label and its `role="alert"` validation line. The label is a `<span>` with an id rather
 than a `<label>`, because the row's action is a button, not a form control — the association goes
 through `aria-describedby`.
@@ -636,7 +636,7 @@ subsystem** (network down, download folder unreachable) is a **sticky toast**, n
 `duration: 0`, a stable `id` so re-detection replaces rather than stacks, an `action` pointing at
 the screen that fixes it, and a `success` toast on recovery. Drive it from a renderless *bridge*
 component that watches the state and emits transitions —
-`widgets/ConnectivityToastBridge.tsx` and `widgets/DownloadFolderToastBridge.tsx` are the two
+`toast/bridges/ConnectivityToastBridge.tsx` and `toast/bridges/DownloadFolderToastBridge.tsx` are the two
 worked examples; copy their shape rather than inventing a surface. Toasting only on a
 **transition** is what lets a dismissed toast stay dismissed while the fault persists.
 
@@ -645,10 +645,10 @@ resolve itself (the update is staged until the app restarts) and so needs manual
 the only banner, and it owns `--banner-h`; adding a second one means reworking that variable's
 ownership and every screen's scroll-height math, so reach for a toast first. Per-*screen*
 affordances that are neither (a pending join request inside a space) are ordinary in-screen cards
-— see `widgets/JoinRequestBanner.tsx`, which despite its name is a card, not a banner.
+— see `cards/JoinRequestCard.tsx`, which despite its name is a card, not a banner.
 
 ### Cards — `components/cards/`
-Folder rows (`ShareCard`, `widgets/FolderTree`) rest on `bg-surface-container-low dark:bg-surface-container-lowest`;
+Folder rows (`ShareCard`, `folder/FolderTree`) rest on `bg-surface-container-low dark:bg-surface-container-lowest`;
 file rows (`FileCard`, `ShareFileRow`) on `bg-surface-container-lowest dark:bg-surface-container-low`;
 `SpaceCard` on `bg-surface-container-lowest`. All lift to `hover:bg-surface-container-highest` in both
 themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**:
@@ -698,12 +698,12 @@ The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by p
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 - **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned
   and a mirrored folder (browse has the primary alone). No owner avatar: the People tile names them.
-- **Work strip** (`widgets/FolderWorkStrip.tsx`) — a full-width band *outside* the scroll pane,
+- **Work strip** (`folder/FolderWorkStrip.tsx`) — a full-width band *outside* the scroll pane,
   present only while the folder is working, paused or broken, so its height returns to the file pane
   when it clears. One tone per condition (`bg-info/20` busy, `bg-warning-container` paused — the
   container pair, per §2 — `bg-error-container` broken, `bg-surface-container-low` informational)
   and at most one verb.
-- **Controls row** (`widgets/FolderControlsRow.tsx`) — pinned directly above the first file row and
+- **Controls row** (`folder/FolderControlsRow.tsx`) — pinned directly above the first file row and
   never scrolling with it: the filter field (count and clear *inside* the field) plus Expand all.
 - **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
   `cards/FolderStatsCard.tsx` (size, file count, and a status pill top-right drawn from the same
@@ -717,7 +717,7 @@ updates would spam screen readers). All five bars — this primitive,
 `DownloadProgressLane`, `PeerDownloadIndicator`, `PeerDownloadRow`, and the
 `LeaveSpaceModal` bar — share that track/fill pair.
 
-The transfer-row variant — `widgets/DownloadProgressLane.tsx` — adds a meta line
+The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line
 (speed · ETA, ETA alone, or downloaded-so-far) and an **indeterminate** mode used
 while the ETA is still warming up (no stable rate yet). Indeterminate renders a
 40%-wide `on-info` segment that sweeps the track
@@ -737,8 +737,8 @@ Open by default, and uncontrolled unless the caller passes `open` + `onOpenChang
 
 | | Folder view | Space view |
 |---|---|---|
-| **People** — folds, header count | `cards/FolderPeopleCard.tsx` | `widgets/MembersBox.tsx` |
-| **Size** — never folds | `cards/FolderStatsCard.tsx` | `widgets/StorageIndicator.tsx` |
+| **People** — folds, header count | `cards/FolderPeopleCard.tsx` | `cards/SpaceMembersCard.tsx` |
+| **Size** — never folds | `cards/FolderStatsCard.tsx` | `cards/SpaceStorageCard.tsx` |
 
 The size tile can't fold because `FolderStatsCard`'s top-right corner is taken by the
 status badge, which is exactly where the chevron would go; Space Storage gave up its fold
@@ -766,7 +766,7 @@ match the surrounding screen:
 Never use `expand_more` + `rotate-180` (a down → up flip): the resting state must be a
 right-pointing chevron, so a closed row reads as "opens downward."
 
-### Drop zone — `components/widgets/DropZone.tsx` + `DropOverlay.tsx`
+### Drop zone — `components/share-drop/DropZone.tsx` + `DropOverlay.tsx`
 Resting zone: `border-2 border-dashed border-outline bg-surface-container-low rounded-2xl` —
 the "Drop to Share" title + "Share…" picker. A drag anywhere over the space-view content
 grid promotes it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-8 top-16 z-20 rounded-2xl`,

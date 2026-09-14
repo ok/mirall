@@ -34,7 +34,7 @@ const BARS = [
   'src/renderer/components/cards/PeerDownloadIndicator.tsx',
   'src/renderer/components/cards/PeerDownloadRow.tsx',
   'src/renderer/components/primitives/ProgressBar.tsx',
-  'src/renderer/components/widgets/DownloadProgressLane.tsx',
+  'src/renderer/components/primitives/DownloadProgressLane.tsx',
   'src/renderer/components/modals/LeaveSpaceModal.tsx',
 ]
 
