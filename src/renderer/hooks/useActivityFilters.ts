@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuditFacets, hasActiveFilters, EMPTY_FILTERS } from './useAuditLog.js'
-import { emptyStateFor } from '../model/auditRow.js'
+import { emptyStateFor } from '../model/audit-row.js'
 import { KINDS } from '../../shared/contract/audit-kinds.js'
 import type { AuditCategory, AuditFilters } from '../types/types.js'
 

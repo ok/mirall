@@ -7,7 +7,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import FolderTree from '../../src/renderer/components/folder/FolderTree.js'
-import { buildFileTree } from '../../src/renderer/model/fileTree.js'
+import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { Decoration, DecorationPhase } from './../../src/renderer/hooks/useDecorations.js'
 import type { ShareFileEntry, FileTreeNode } from '../../src/renderer/types/types.js'
 

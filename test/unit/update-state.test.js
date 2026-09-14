@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { initialUpdateState, reduceDetectedUpdate, reduceDismissed } from '../../src/renderer/platform/updateState.js'
+import { initialUpdateState, reduceDetectedUpdate, reduceDismissed } from '../../src/renderer/platform/update-state.js'
 
 const v = (semver, length = 0, fork = 0) => ({ fork, length, semver })
 

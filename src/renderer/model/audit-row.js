@@ -4,7 +4,7 @@
 // Every field it reads is snapshotted in the record itself — nothing here joins against live
 // state, because a row routinely outlives the space, share or peer it describes.
 import { formatDuration } from './connectivity.js'
-import { formatSize } from '../format/formatSize.js'
+import { formatSize } from '../format/bytes.js'
 
 // Which participant a row is "about". `actorLabelKey` distinguishes the three cases the copy
 // has to handle: you did it, a named peer did it, or the app did it on its own.

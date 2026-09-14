@@ -1,9 +1,9 @@
 import i18n from '../platform/i18n.js'
-import { formatSize as formatSizeImpl } from './formatSize.js'
+import { formatSize as formatSizeImpl } from './bytes.js'
 
 // getFileIcon and formatSize live in pure, dependency-free modules so they can be
 // unit-tested by the brittle-node suite; re-exported / wrapped here for callers.
-export { getFileIcon } from '../model/fileIcon.js'
+export { getFileIcon } from '../model/file-icon.js'
 
 const AVATAR_SIZE = 160
 

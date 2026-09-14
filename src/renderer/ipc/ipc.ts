@@ -37,7 +37,7 @@ interface IpcEnvelope {
   [key: string]: unknown
 }
 
-import { makeRespawnPolicy } from './workerRespawn.js'
+import { makeRespawnPolicy } from './worker-respawn.js'
 
 // Recreated on worker exit: a worker that died mid-multibyte UTF-8 chunk must not leave
 // continuation state that corrupts the next worker's first frame (main needs no reset — its reader

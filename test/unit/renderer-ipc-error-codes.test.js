@@ -3,8 +3,8 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { CODES } from '../../src/shared/contract/errors.js'
-import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errors/errorMessages.js'
-import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errors/errorText.js'
+import { ERROR_I18N_KEY_BY_CODE } from '../../src/renderer/errors/error-messages.js'
+import { errorTextFor, FALLBACK_KEY } from '../../src/renderer/errors/error-text.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')

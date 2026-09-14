@@ -14,12 +14,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 function loadTracker() {
   const stubs = {
     react: { useRef: (initial) => ({ current: initial }) },
-    '../format/speedSampler.js': null,
+    '../format/speed-sampler.js': null,
   }
-  const sampler = readFileSync(join(root, 'src/renderer/format/speedSampler.js'), 'utf8')
+  const sampler = readFileSync(join(root, 'src/renderer/format/speed-sampler.js'), 'utf8')
   const samplerMod = { exports: {} }
   new Function('module', 'exports', transformSync(sampler, { loader: 'js', format: 'cjs' }).code)(samplerMod, samplerMod.exports)
-  stubs['../format/speedSampler.js'] = samplerMod.exports
+  stubs['../format/speed-sampler.js'] = samplerMod.exports
 
   const src = readFileSync(join(root, 'src/renderer/hooks/useSpeedTracker.ts'), 'utf8')
   const mod = { exports: {} }

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeRespawnPolicy } from '../../src/renderer/ipc/workerRespawn.js'
+import { makeRespawnPolicy } from '../../src/renderer/ipc/worker-respawn.js'
 import { WORKER_EXIT_UNSTABLE } from '../../src/shared/contract/exit-codes.js'
 
 // REGRESSION (FIX-140): a worker that dies (crash / OOM on a very large folder) must be

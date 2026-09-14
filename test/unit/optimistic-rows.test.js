@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { mergeOptimistic } from '../../src/renderer/model/optimisticRows.js'
+import { mergeOptimistic } from '../../src/renderer/model/optimistic-rows.js'
 
 const row = (path, status = 'available') => ({ path, status })
 

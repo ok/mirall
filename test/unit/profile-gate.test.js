@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { projectProfile, profileSettled } from '../../src/renderer/model/profileGate.js'
+import { projectProfile, profileSettled } from '../../src/renderer/model/profile-gate.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')

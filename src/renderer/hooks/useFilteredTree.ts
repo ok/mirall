@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
 import { useTreeExpansion } from './useTreeExpansion.js'
-import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../model/fileTree.js'
-import { filterTree } from '../model/folderFilter.js'
+import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../model/file-tree.js'
+import { filterTree } from '../model/folder-filter.js'
 import type { FileTreeNode, ShareFileEntry } from '../types/types.js'
 
 /**

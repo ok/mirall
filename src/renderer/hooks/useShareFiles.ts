@@ -5,7 +5,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { request } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { foldListing, emptyFold, resolveListing, type Fold } from '../model/shareFilesFold.js'
+import { foldListing, emptyFold, resolveListing, type Fold } from '../model/share-files-fold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
 import type { ShareFileEntry, ShareFileStatus } from '../types/types.js'

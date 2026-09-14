@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnosticsBundle.js'
+import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
 import { request } from '../ipc/ipc.js'
 import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModal.js'
 import Toggle from '../components/primitives/Toggle.js'

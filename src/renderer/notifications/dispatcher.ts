@@ -2,7 +2,7 @@
 import i18n from '../platform/i18n.js'
 import { subscribe } from '../ipc/ipc.js'
 import type { NotificationSpec } from '../platform/global.d.js'
-import { errorCodeToI18nKey } from '../errors/errorMessages.js'
+import { errorCodeToI18nKey } from '../errors/error-messages.js'
 import { getPrefs } from './prefs.js'
 import { pausedBodyKey } from './pausedToast.js'
 

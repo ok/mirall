@@ -1,5 +1,5 @@
 import type { Decoration } from '../types/ui.js'
-import type { BadgeAppearance } from './statusBadge.js'
+import type { BadgeAppearance } from './status-badge.js'
 import type { FileEntry, FileStatus, ShareFileEntry, ShareFileStatus, PeerDownloadSummary } from '../types/types.js'
 
 export type LaneName = 'publish' | 'verify' | 'download' | 'preparing' | 'indicator' | 'rest'

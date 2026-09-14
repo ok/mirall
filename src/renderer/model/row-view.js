@@ -11,7 +11,7 @@
 // Status is worker-derived; this only decorates. It never reads or writes IPC.
 
 import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
-import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './statusBadge.js'
+import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-badge.js'
 
 const pct = (bytes, total) => (total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0)
 

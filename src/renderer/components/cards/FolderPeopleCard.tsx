@@ -9,7 +9,7 @@ import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import TextButton from '../primitives/TextButton.js'
 import { useSpaceMirrors } from '../../hooks/useSpaceMirrors.js'
 import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
-import { mirrorStateLabelKey } from '../../model/mirrorStateLabel.js'
+import { mirrorStateLabelKey } from '../../model/mirror-state-label.js'
 import type { MirrorParticipant, Profile, SpaceMember } from '../../types/types.js'
 
 const STACK_MAX = 5

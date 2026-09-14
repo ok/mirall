@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { setQueryData } from '../store/query-store.js'
-import { projectProfile } from '../model/profileGate.js'
+import { projectProfile } from '../model/profile-gate.js'
 import type { Profile } from '../types/types.js'
 
 // Scope-less deliberately: the profile changes only when this app writes it, and saveProfile pushes

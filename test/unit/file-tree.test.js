@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   buildFileTree, collectFolderPaths, topLevelFolderPaths, statusCategory
-} from '../../src/renderer/model/fileTree.js'
+} from '../../src/renderer/model/file-tree.js'
 
 const f = (relPath, size = 0, status = 'remote') => ({ relPath, size, status, hash: '', mtime: 0 })
 

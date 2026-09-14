@@ -26,3 +26,19 @@ test('every renderer folder is a named bucket', (t) => {
   const actual = readdirSync(ROOT).filter((f) => statSync(path.join(ROOT, f)).isDirectory()).sort()
   t.alike(actual, [...BUCKETS].sort(), 'a new renderer folder takes a row here')
 })
+
+// coding.md §2: kebab-case for modules everywhere. The root carried 33 camelCase names in three
+// casings. components/ and screens/ are PascalCase by the same rule, and hooks are use*, so only
+// the module buckets are held to this.
+const KEBAB_BUCKETS = ['shell', 'ipc', 'platform', 'model', 'format', 'errors', 'types']
+
+test('every module in a renderer bucket is kebab-case', (t) => {
+  const bad = []
+  for (const bucket of KEBAB_BUCKETS) {
+    for (const file of readdirSync(path.join(ROOT, bucket))) {
+      const base = file.replace(/\.d\.ts$/, '').replace(/\.(ts|tsx|js)$/, '')
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(base)) bad.push(`${bucket}/${file}`)
+    }
+  }
+  t.alike(bad.sort(), [], 'coding.md §2: kebab-case for modules')
+})

@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatSize, formatSpeed, resolveEta } from '../../format/utils.js'
-import type { RowKind, RowView } from '../../model/rowView.js'
+import type { RowKind, RowView } from '../../model/row-view.js'
 import type { SpaceMember, PeerDownloadSummary } from '../../types/types.js'
 import Badge from '../primitives/Badge.js'
 import VerifiedCheck from '../primitives/VerifiedCheck.js'

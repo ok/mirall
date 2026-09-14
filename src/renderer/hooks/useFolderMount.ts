@@ -3,9 +3,9 @@
 import { useMemo } from 'react'
 import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { ownedMountSettled, projectOwnedMount } from '../model/ownedMount.js'
+import { ownedMountSettled, projectOwnedMount } from '../model/owned-mount.js'
 import { ANY_SHARES } from '../store/scopes.js'
-import type { OwnedMountRow, OwnedMountState } from '../model/ownedMount.js'
+import type { OwnedMountRow, OwnedMountState } from '../model/owned-mount.js'
 import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types/types.js'
 
 // Same store entry as useShares: one value, two projections, one fence — SpaceScreen's badge and

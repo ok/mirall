@@ -6,8 +6,8 @@ import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
 import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 import { formatSize } from '../../format/utils.js'
-import { mountFaultReasonKey } from '../../errors/errorMessages.js'
-import type { FolderStrip, StripAction, StripData, StripTone } from '../../model/folderStrips.js'
+import { mountFaultReasonKey } from '../../errors/error-messages.js'
+import type { FolderStrip, StripAction, StripData, StripTone } from '../../model/folder-strips.js'
 
 interface FolderWorkStripProps {
   strip: FolderStrip

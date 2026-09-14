@@ -5,9 +5,9 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { subscribe } from '../../../ipc/ipc.js'
 import { useToast } from '../ToastProvider.js'
-import { basename } from '../../../model/sharePaths.js'
+import { basename } from '../../../model/share-paths.js'
 import { isMountFault } from '../../../../shared/contract/mount-fault.js'
-import { mountFaultReasonKey } from '../../../errors/errorMessages.js'
+import { mountFaultReasonKey } from '../../../errors/error-messages.js'
 
 interface TransferSupersededMessage {
   transferId: string

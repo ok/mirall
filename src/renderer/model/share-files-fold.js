@@ -1,5 +1,5 @@
-import { reconcileFiles } from './shareFilesReconcile.js'
-import { deriveFolderInfo } from './folderInfo.js'
+import { reconcileFiles } from './share-files-reconcile.js'
+import { deriveFolderInfo } from './folder-info.js'
 
 // The listing folded across successive share:list-files responses. A peer read can come back empty
 // or partial while the owner is still indexing, so a response is merged into what is on screen

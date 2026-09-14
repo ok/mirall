@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveFolderInfo } from '../../src/renderer/model/folderInfo.js'
+import { deriveFolderInfo } from '../../src/renderer/model/folder-info.js'
 
 const rows = (sizes) => sizes.map((size, i) => ({ relPath: 'f' + i, size }))
 

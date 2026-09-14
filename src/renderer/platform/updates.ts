@@ -1,5 +1,5 @@
 import type { UpdateInfo } from '../types/types.js'
-import { initialUpdateState, reduceDetectedUpdate, reduceDismissed } from './updateState.js'
+import { initialUpdateState, reduceDetectedUpdate, reduceDismissed } from './update-state.js'
 
 interface UpdateState {
   update: UpdateInfo | null

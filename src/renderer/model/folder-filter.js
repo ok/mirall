@@ -6,7 +6,7 @@
 // tracks inside it. A folder that does not match survives only through its descendants, which is
 // what keeps a deep hit reachable.
 
-import { collectFolderPaths, rollupNodes } from './fileTree.js'
+import { collectFolderPaths, rollupNodes } from './file-tree.js'
 
 // Revealing every matched branch is "Expand all, on every keystroke", so it is gated on the size of
 // the result rather than on the length of the term: a term that matches almost everything (typing a

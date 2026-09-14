@@ -1430,7 +1430,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `errorText.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |
 | `hooks/useErrorText.ts` | The React binding for `errorTextFor` |
 | `keyboard/` | `KeyboardProvider` + `registry`, `accelerator` (chord parsing) + `AcceleratorLabel`, `CommandPalette` (`⌘K`), `ShortcutsHint`, `known-commands.ts`. Screens register via `useRegisterCommand` (SpaceView: `⌘U` add files, `⌘⇧U` add folder, `⌘J` join, `⌘⇧L` leave) |
-| `utils.ts` | `formatSize` (over `formatSize.js`), `formatSpeed`, `resolveEta` / `etaFromRate` / `progressValueText`, `resizeAvatar`, `fileName`, `gradientForSpaceId`; re-exports `getFileIcon` from `fileIcon.js` — the two pure modules unit-test under brittle-node |
+| `utils.ts` | `formatSize` (over `bytes.js`), `formatSpeed`, `resolveEta` / `etaFromRate` / `progressValueText`, `resizeAvatar`, `fileName`, `gradientForSpaceId`; re-exports `getFileIcon` from `fileIcon.js` — the two pure modules unit-test under brittle-node |
 | `platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; theme apply; window-bounds **tracking** (debounced `setWindowBounds` on resize / blur / hide / unload — main restores bounds itself at launch, §2 step 5) |
 | `dev-console.ts` | `window.mirall` debugging surface (§8) |
 | `global.d.ts` | Type declarations for `window.bridge` |

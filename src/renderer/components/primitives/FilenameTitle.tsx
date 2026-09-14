@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { middleTruncateToWidth } from '../../model/sharePaths.js'
+import { middleTruncateToWidth } from '../../model/share-paths.js'
 
 interface FilenameTitleProps {
   i18nKey: string

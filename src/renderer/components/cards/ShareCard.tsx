@@ -9,9 +9,9 @@ import IconButton from '../primitives/IconButton.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
 import Badge from '../primitives/Badge.js'
 import Avatar from '../primitives/Avatar.js'
-import { roleBadge } from '../../model/statusBadge.js'
+import { roleBadge } from '../../model/status-badge.js'
 import { isMountFault } from '../../../shared/contract/mount-fault.js'
-import { shareSizeLine } from '../../model/shareSizeLine.js'
+import { shareSizeLine } from '../../model/share-size-line.js'
 import { formatSize } from '../../format/utils.js'
 
 interface ShareCardProps {

@@ -3,8 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { CODE_NAMES } from '../../src/shared/contract/errors.js'
-import { ERROR_I18N_KEY_BY_CODE, mountFaultReasonKey } from '../../src/renderer/errors/errorMessages.js'
-import { FALLBACK_KEY } from '../../src/renderer/errors/errorText.js'
+import { ERROR_I18N_KEY_BY_CODE, mountFaultReasonKey } from '../../src/renderer/errors/error-messages.js'
+import { FALLBACK_KEY } from '../../src/renderer/errors/error-text.js'
 
 // REGRESSION (FIX-DLDIR-3: DOWNLOAD_FAILED was a code the download engine emits and the renderer
 // had no mapping for, so it fell through to the generic "Transfer failed" — which is how an entire

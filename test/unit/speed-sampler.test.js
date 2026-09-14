@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { SpeedSampler, decayedSpeed } from '../../src/renderer/format/speedSampler.js'
+import { SpeedSampler, decayedSpeed } from '../../src/renderer/format/speed-sampler.js'
 
 const MB = 1024 * 1024
 

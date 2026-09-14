@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { subscribe } from '../ipc/ipc.js'
-import { SpeedSampler, decayedSpeed } from '../format/speedSampler.js'
+import { SpeedSampler, decayedSpeed } from '../format/speed-sampler.js'
 import type { Decoration, DecorationPhase } from '../types/ui.js'
 
 interface DecorationEvent {
