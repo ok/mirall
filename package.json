@@ -9,7 +9,7 @@
   "main": "src/main/main.js",
   "engines": {
     "node": ">=22.9.0",
-    "npm": ">=11"
+    "npm": ">=11.19.1"
   },
   "scripts": {
     "postinstall": "node -e \"const fs=require('fs');const p='node_modules/.bin/bare';try{if(!fs.existsSync(p))fs.symlinkSync('../bare-runtime/bin/bare',p)}catch{}\"",
