@@ -1,15 +1,9 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createLocalBee } from '../../src/shared/core/store.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `mir40-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
@@ -21,7 +15,7 @@ async function rawContains(core, needle) {
 
 test('REGRESSION (MIR-40): createLocalBee is encrypted at rest, decrypts in-process', async (t) => {
   const M = b4a.from('44'.repeat(32), 'hex')
-  const root = tmp('enc')
+  const root = tmpDir('mir40-enc')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -37,7 +31,7 @@ test('REGRESSION (MIR-40): createLocalBee is encrypted at rest, decrypts in-proc
 })
 
 test('REGRESSION (MIR-40): insecure mode (no M) keeps the bee plaintext (unchanged)', async (t) => {
-  const root = tmp('plain')
+  const root = tmpDir('mir40-plain')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -51,7 +45,7 @@ test('REGRESSION (MIR-40): insecure mode (no M) keeps the bee plaintext (unchang
 })
 
 test('REGRESSION (MIR-40): createLocalBee rejects an unregistered bee name', async (t) => {
-  const root = tmp('reject')
+  const root = tmpDir('mir40-reject')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))

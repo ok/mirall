@@ -1,7 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
@@ -16,6 +15,7 @@ import {
   initDeferredAdmission, resetDeferredAdmission,
   readmitConnectedMembers, reconcilePendingRequestersForApprover,
 } from '../../src/shared/transfer/deferred-admission.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Deferred admission has two entry points over one shared replay, and the whole point of the module
 // is that they guard it DIFFERENTLY: the reconcile path re-runs the approval gate, the derived path
@@ -33,14 +33,8 @@ const settle = async (turns = 4) => {
   for (let i = 0; i < turns; i++) await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `defadm-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 async function boot(t, label) {
-  const root = tmp(label)
+  const root = tmpDir(`defadm-${label}`)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {
     try { await getStore().close() } catch {}

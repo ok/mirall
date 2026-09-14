@@ -1,8 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
-import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
 import { freshPeer } from '../helpers/store.js'
@@ -13,6 +11,7 @@ import {
 } from '../../src/shared/spaces/space.js'
 import { openMemberView, closeMemberView, isLeft, isMember } from '../../src/shared/spaces/member-registry.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 const waitFor = async (pred, ms = 5000) => {
   const t0 = Date.now()
@@ -21,8 +20,7 @@ const waitFor = async (pred, ms = 5000) => {
 }
 // A standalone peer bee (its own store) replicated into ours, standing in for a remote member.
 async function makePeer(t) {
-  const dir = path.join(os.tmpdir(), `tomb-peer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
+  const dir = tmpDir('tomb-peer')
   const store = new Corestore(dir)
   await store.ready()
   const core = store.get({ name: 'profile' })

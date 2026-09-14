@@ -1,17 +1,11 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `ovmig-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function rawContains(core, needle) {
   for (let i = 0; i < core.length; i++) {
@@ -33,7 +27,7 @@ const CHUNK = [{ hash: 'cd'.repeat(32), offset: 0, length: 100 }]
 
 test('REGRESSION: migration copies the plaintext overlay index into an encrypted generation and purges the plaintext', async (t) => {
   const M = b4a.from('55'.repeat(32), 'hex')
-  const root = tmp('run')
+  const root = tmpDir('ovmig-run')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -68,7 +62,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
 
 test('REGRESSION: the purged plaintext generation reopens clean across a restart (alias dropped, no STORAGE_EMPTY)', async (t) => {
   const M = b4a.from('77'.repeat(32), 'hex')
-  const root = tmp('reopen')
+  const root = tmpDir('ovmig-reopen')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
   const storePath = path.join(root, 'app-storage')
 
@@ -97,7 +91,7 @@ test('REGRESSION: the purged plaintext generation reopens clean across a restart
 
 test('REGRESSION: migration purges an orphaned older (compacted) plaintext generation too', async (t) => {
   const M = b4a.from('66'.repeat(32), 'hex')
-  const root = tmp('orphan')
+  const root = tmpDir('ovmig-orphan')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -131,7 +125,7 @@ test('REGRESSION: migration purges an orphaned older (compacted) plaintext gener
 })
 
 test('migration is a no-op without a master secret', async (t) => {
-  const root = tmp('nom')
+  const root = tmpDir('ovmig-nom')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))

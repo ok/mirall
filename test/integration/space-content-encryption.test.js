@@ -1,20 +1,14 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createDrive } from '../../src/shared/core/store.js'
 import { initSpaceKeys, putContentKey, getContentKey } from '../../src/shared/spaces/space-keys.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `sck-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 test('v2 drive encrypts BOTH metadata and blobs under the SCK', async (t) => {
   const M = b4a.from('77'.repeat(32), 'hex')
-  const root = tmp('store')
+  const root = tmpDir('sck-store')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -38,7 +32,7 @@ test('v2 drive encrypts BOTH metadata and blobs under the SCK', async (t) => {
 
 test('space-keys.enc round-trips a joined SCK across restart', async (t) => {
   const M = b4a.from('33'.repeat(32), 'hex')
-  const root = tmp('vault')
+  const root = tmpDir('sck-vault')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 

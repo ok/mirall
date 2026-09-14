@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const testRoot = path.join(here, '..')
 
 // Every dir whose names reach the app as a mount root or a download destination.
-const SCANNED = ['flow', 'helpers', 'raw']
+const SCANNED = ['flow', 'helpers', 'integration', 'raw']
 const HEX = /^[0-9a-f]*$/
 
 function scannedFiles() {
@@ -48,7 +48,7 @@ test('the generated suffix is hex, long enough to isolate concurrent runs, and h
   t.ok(shortest >= 5, `>= 20 bits of suffix entropy (shortest sample: ${shortest} hex chars)`)
 })
 
-test('REGRESSION: no base36 temp-dir suffix under test/flow, test/helpers or test/raw', (t) => {
+test('REGRESSION: no base36 temp-dir suffix in any dir whose names reach the app', (t) => {
   // Nothing in these dirs has a legitimate use for base36, so the whole call is the tell —
   // the suffix and the tmpdir() join are not always on the same line.
   const offenders = scannedFiles().filter((rel) =>

@@ -1,16 +1,8 @@
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
-import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
-
-function tmpDir() {
-  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
-  const dir = path.join(os.tmpdir(), `pb-peer-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from './bare-tmp.js'
 
 // Async-capable poll: pred may return a value or a promise.
 export async function waitFor(pred, ms = 5000) {
@@ -25,7 +17,7 @@ export async function waitFor(pred, ms = 5000) {
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
 // membership bee, replicated into the local store so openProfileBee(peerKey) can read it.
 export async function makePeer(t) {
-  const dir = tmpDir()
+  const dir = tmpDir('pb-peer')
   const store = new Corestore(dir)
   await store.ready()
   const core = store.get({ name: 'profile' })

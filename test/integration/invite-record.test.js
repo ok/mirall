@@ -1,5 +1,4 @@
 import test from 'brittle'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore } from '../../src/shared/core/store.js'
@@ -8,21 +7,16 @@ import {
   markInvite, readOwnInvite, revokeInvite, listOwnInvites, sweepExpiredInvites,
 } from '../../src/shared/spaces/profile.js'
 import { classifyInvite } from '../../src/shared/spaces/invite-policy.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Per-link invite records authored into the replicated profile bee: own-side author/read, expiry
 // classification (by timestamp, not pruned on read), the sweep, and revoke. The cross-member union
 // read is multi-peer and lives in the flow suite.
 
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `invite-rec-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 const S = 'spaceabc00000000'
 
 async function bootstrap(t) {
-  const root = tmp('store')
+  const root = tmpDir('invite-rec-store')
   await openStore(path.join(root, 'app-storage'))
   await initProfile()
   await setProfile({ displayName: 'Self', avatar: null })

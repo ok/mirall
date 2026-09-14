@@ -8,13 +8,7 @@ import { setSpaceDownloadRoot, hydrateDownloadRoots } from '../../src/shared/cor
 import { createOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
 import { freshPeer } from '../helpers/store.js'
 import { CODES } from '../../src/shared/contract/errors.js'
-
-function tmpDir(t) {
-  const d = path.join(os.tmpdir(), 'mv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
-  fs.mkdirSync(d, { recursive: true })
-  if (t) t.teardown(() => { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} })
-  return d
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 function codeOf(fn) {
   try { fn(); return null } catch (e) { return e.code }
@@ -31,7 +25,7 @@ const SYSTEM_PATH = {
 }[os.platform()] || '/proc/x'
 
 test('accepts an ordinary writable path', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const r = validateMountPathSync(dir, 'owned-folder', [])
   t.ok(typeof r.mountPath === 'string' && r.mountPath.length > 0, 'returns a normalized path')
   t.ok(Array.isArray(r.advisories), 'returns advisories')
@@ -49,7 +43,7 @@ test('rejects system folders', (t) => {
 })
 
 test('rejects NESTED overlap with an existing mount (parent/child)', (t) => {
-  const parent = tmpDir(t)
+  const parent = tmpDir('mv', t)
   const child = path.join(parent, 'child')
   fs.mkdirSync(child, { recursive: true })
   const existingParent = [{ role: 'owned-folder', shareId: 's1', mountPath: parent }]
@@ -59,14 +53,14 @@ test('rejects NESTED overlap with an existing mount (parent/child)', (t) => {
 })
 
 test('ALLOWS the same exact folder shared as a second owned share (multi-space)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const existing = [{ role: 'owned-folder', shareId: 's1', mountPath: dir }]
   const r = validateMountPathSync(dir, 'owned-folder', existing, { shareId: 's2' })
   t.ok(r.mountPath, 'second owned share at the same path is allowed (owned folders are publish-only)')
 })
 
 test('still rejects same-path overlap when a mirror is involved', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const withForeign = [{ role: 'foreign-folder', shareId: 'f1', mountPath: dir }]
   t.is(codeOf(() => validateMountPathSync(dir, 'owned-folder', withForeign, { shareId: 's2' })), CODES.MOUNT_OVERLAPS, 'owned source cannot co-locate with a mirror')
   const withOwned = [{ role: 'owned-folder', shareId: 's1', mountPath: dir }]
@@ -75,14 +69,14 @@ test('still rejects same-path overlap when a mirror is involved', (t) => {
 })
 
 test('revalidating the same mount (same role + shareId) is allowed', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const existing = [{ role: 'owned-folder', shareId: 's1', mountPath: dir }]
   const r = validateMountPathSync(dir, 'owned-folder', existing, { shareId: 's1' })
   t.ok(r.mountPath, 'no overlap error when re-pointing the same share')
 })
 
 test('rejects any mount inside the download folder', (t) => {
-  const downloads = tmpDir(t)
+  const downloads = tmpDir('mv', t)
   setDownloadFolder(downloads)
   t.teardown(() => setDownloadFolder(null))
   const inside = path.join(downloads, 'mirror')
@@ -95,7 +89,7 @@ test('rejects any mount inside the download folder', (t) => {
 })
 
 test('rejects a cloud-sync location outright (both roles)', (t) => {
-  const base = tmpDir(t)
+  const base = tmpDir('mv', t)
   const cloud = path.join(base, 'Dropbox', 'mirror')
   fs.mkdirSync(cloud, { recursive: true })
   t.is(codeOf(() => validateMountPathSync(cloud, 'owned-folder', [])), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, 'cloud-sync folder is a hard reject, not an advisory')
@@ -103,7 +97,7 @@ test('rejects a cloud-sync location outright (both roles)', (t) => {
 })
 
 test('an ordinary path carries no advisories', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const r = validateMountPathSync(dir, 'owned-folder', [])
   t.is(r.advisories.length, 0, 'no advisories for a plain temp dir')
 })
@@ -139,14 +133,14 @@ test('REGRESSION (MIR-21): both validators reject the same illegal Windows segme
 })
 
 test('rejects a path that is not writable', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   fs.chmodSync(dir, 0o500)                       // r-x: the write probe will fail
   t.teardown(() => { try { fs.chmodSync(dir, 0o755) } catch {} })
   t.is(codeOf(() => validateMountPathSync(dir, 'owned-folder', [])), CODES.MOUNT_NOT_WRITABLE)
 })
 
 test('REGRESSION (MIR-34: validateDownloadFolder accepts an existing writable dir)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   t.is(validateDownloadFolder(dir), dir, 'returns the folder on success')
 })
 
@@ -162,19 +156,19 @@ test('REGRESSION (MIR-34: validateDownloadFolder rejects a relative path)', (t) 
 })
 
 test('REGRESSION (MIR-34: validateDownloadFolder rejects a non-existent path)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   t.is(codeOf(() => validateDownloadFolder(path.join(dir, 'nope'))), CODES.DOWNLOAD_FOLDER_INVALID)
 })
 
 test('REGRESSION (MIR-34: validateDownloadFolder rejects a file, not a directory)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const file = path.join(dir, 'a-file')
   fs.writeFileSync(file, 'x')
   t.is(codeOf(() => validateDownloadFolder(file)), CODES.DOWNLOAD_FOLDER_INVALID)
 })
 
 test('REGRESSION (MIR-34: validateDownloadFolder rejects a non-writable dir)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const ro = path.join(dir, 'readonly')
   fs.mkdirSync(ro)
   fs.chmodSync(ro, 0o500)
@@ -183,7 +177,7 @@ test('REGRESSION (MIR-34: validateDownloadFolder rejects a non-writable dir)', (
 })
 
 test('REGRESSION (MIR-34: validateDownloadFolder does not create a missing target)', (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   const missing = path.join(dir, 'should-not-be-created')
   try { validateDownloadFolder(missing) } catch {}
   let created = false
@@ -199,7 +193,7 @@ test('REGRESSION (MIR-34: invalid folder does not mutate the live downloadFolder
 
 test('REGRESSION (MIR-34: valid folder updates the live downloadFolder)', (t) => {
   setRuntimeConfig({ downloadFolder: '/tmp/known-good' })
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   setDownloadFolder(validateDownloadFolder(dir))
   t.is(getRuntimeConfig().downloadFolder, dir, 'a valid folder is applied')
 })
@@ -207,8 +201,8 @@ test('REGRESSION (MIR-34: valid folder updates the live downloadFolder)', (t) =>
 // Per-space download folders mean the "no mirror inside downloads" rule can no longer
 // look at a single directory — a mirror inside ANY space's folder is the same hazard.
 test('rejects a foreign mount inside a per-space download root', (t) => {
-  const globalDl = tmpDir(t)
-  const spaceDl = tmpDir(t)
+  const globalDl = tmpDir('mv', t)
+  const spaceDl = tmpDir('mv', t)
   setDownloadFolder(globalDl)
   hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: spaceDl }])
   t.teardown(() => { setDownloadFolder(null); hydrateDownloadRoots([]) })
@@ -223,7 +217,7 @@ test('rejects a foreign mount inside a per-space download root', (t) => {
 // OWNED folder get auto-published by its watcher, and a mirror inside a download folder
 // intermixes a mirrored tree with flat downloads.
 test('validateDownloadFolderAgainstMounts rejects overlap with a mount, in both directions', async (t) => {
-  const base = tmpDir(t)
+  const base = tmpDir('mv', t)
   const mount = path.join(base, 'shared')
   const inside = path.join(mount, 'downloads')
   fs.mkdirSync(inside, { recursive: true })
@@ -249,8 +243,8 @@ test('validateDownloadFolderAgainstMounts rejects overlap with a mount, in both 
 // the hazard the error text describes — "downloads there would be published to your peers" —
 // stayed reachable simply by choosing the download folder first and sharing its parent second.
 test('rejects an OWNED share that overlaps a download root, in both directions', (t) => {
-  const globalDl = tmpDir(t)
-  const base = tmpDir(t)
+  const globalDl = tmpDir('mv', t)
+  const base = tmpDir('mv', t)
   const spaceDl = path.join(base, 'space-dl')
   fs.mkdirSync(spaceDl, { recursive: true })
   setDownloadFolder(globalDl)
@@ -270,7 +264,7 @@ test('rejects an OWNED share that overlaps a download root, in both directions',
 // REGRESSION (DL-4): the write probe ran first, so a folder the very next line REFUSED had a
 // probe file created and renamed inside it — inside a watched, published share.
 test('a rejected download folder is never written to', async (t) => {
-  const mount = tmpDir(t)
+  const mount = tmpDir('mv', t)
   const inside = path.join(mount, 'downloads')
   fs.mkdirSync(inside, { recursive: true })
 
@@ -284,7 +278,7 @@ test('a rejected download folder is never written to', async (t) => {
 })
 
 test('validateDownloadFolderAgainstMounts allows a folder already used by another space', async (t) => {
-  const dir = tmpDir(t)
+  const dir = tmpDir('mv', t)
   await freshPeer(t)
   await initMounts()
   setSpaceDownloadRoot('other-space', dir)

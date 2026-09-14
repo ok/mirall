@@ -1,7 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
@@ -13,20 +12,15 @@ import {
   backfillSelfCreatedCreatorKey, pinCreatorKey, flagUnverifiedJoinedCreators,
   markCreatorDivergence, clearCreatorDivergence,
 } from '../../src/shared/spaces/space.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // The membership fold (phase a) folds an OR-Set whose only base case is the space
 // CREATOR — the one member with no approval record. So the creator key must be a
 // durable, agreed fact: stamped at creation, carried in invites, and seeded by every
 // peer. These tests lock the data plumbing (the fold itself is tested in later steps).
 
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `ckey-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 async function boot(t, label) {
-  const root = tmp(label)
+  const root = tmpDir(`ckey-${label}`)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {
     try { await getStore().close() } catch {}

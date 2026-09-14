@@ -1,7 +1,5 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import os from 'bare-os'
-import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret } from '../../src/shared/core/store.js'
 import { initAuditLog, flushAudit, queryAudit, purgeAudit, setAuditConfig, getNetworkState } from '../../src/shared/audit/audit-log.js'
@@ -9,6 +7,7 @@ import {
   initNetworkWatch, resetNetworkWatch, observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft,
 } from '../../src/shared/audit/network-watch.js'
 import { createTimers } from '../../src/shared/core/timers.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // The watch arms its dwell timeouts through the owning subsystem's set (AuditLog hands it
 // this.timers), so a test driving the module directly has to supply one too — without it the
@@ -18,18 +17,11 @@ let watchTimers = null
 const DWELL = 60
 const META = { memberName: 'Anna Keller', spaceName: 'Design Team' }
 
-let seq = 0
-function tmpDir(label) {
-  const dir = path.join(os.tmpdir(), `netwatch-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${seq++}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const settle = () => sleep(DWELL * 4)
 
 async function boot(t, { session = 'run-1' } = {}) {
-  const storage = tmpDir('store')
+  const storage = tmpDir('netwatch-store')
   t.teardown(() => {
     resetNetworkWatch()
     watchTimers?.close()

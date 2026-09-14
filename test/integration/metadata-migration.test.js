@@ -1,16 +1,10 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import { migrateLocalBeesToEncrypted } from '../../src/shared/storage/metadata-migration.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `mir40-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function listDks(store) {
   const out = new Set()
@@ -28,7 +22,7 @@ async function rawContains(core, needle) {
 
 test('REGRESSION (MIR-40): legacy plaintext bee migrates to encrypted, entries preserved + legacy purged', async (t) => {
   const M = b4a.from('55'.repeat(32), 'hex')
-  const root = tmp('migrate')
+  const root = tmpDir('mir40-migrate')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -58,7 +52,7 @@ test('REGRESSION (MIR-40): legacy plaintext bee migrates to encrypted, entries p
 
 test('REGRESSION (MIR-40): migration is idempotent', async (t) => {
   const M = b4a.from('66'.repeat(32), 'hex')
-  const root = tmp('idem')
+  const root = tmpDir('mir40-idem')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -83,7 +77,7 @@ test('REGRESSION (MIR-40): migration is idempotent', async (t) => {
 
 test('REGRESSION (MIR-40): fresh install writes the marker and migrates nothing', async (t) => {
   const M = b4a.from('77'.repeat(32), 'hex')
-  const root = tmp('fresh')
+  const root = tmpDir('mir40-fresh')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -101,7 +95,7 @@ test('REGRESSION (MIR-40): fresh install writes the marker and migrates nothing'
 })
 
 test('REGRESSION (MIR-40): no M → migration is a no-op, leaves no marker', async (t) => {
-  const root = tmp('nokey')
+  const root = tmpDir('mir40-nokey')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -115,7 +109,7 @@ test('REGRESSION (MIR-40): no M → migration is a no-op, leaves no marker', asy
 
 test('REGRESSION (MIR-40): an existing install leaves no plaintext metadata core', async (t) => {
   const M = b4a.from('88'.repeat(32), 'hex')
-  const root = tmp('nolinger')
+  const root = tmpDir('mir40-nolinger')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   await openStore(path.join(root, 'app-storage'))
@@ -138,7 +132,7 @@ test('REGRESSION (MIR-40): an existing install leaves no plaintext metadata core
 
 test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idempotent', async (t) => {
   const M = b4a.from('99'.repeat(32), 'hex')
-  const root = tmp('rerun')
+  const root = tmpDir('mir40-rerun')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   const sp = path.join(root, 'app-storage')
@@ -168,7 +162,7 @@ test('REGRESSION (MIR-40): re-run after the marker is removed is clean and idemp
 
 test('REGRESSION (MIR-40): a marker-write failure does not crash boot and is retried', async (t) => {
   const M = b4a.from('ab'.repeat(32), 'hex')
-  const root = tmp('markerfail')
+  const root = tmpDir('mir40-markerfail')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
   const sp = path.join(root, 'app-storage')

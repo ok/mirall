@@ -1,7 +1,5 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import os from 'bare-os'
-import path from 'bare-path'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
@@ -11,6 +9,7 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { collectPeerShare } from '../../src/shared/shares/share-catalog.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 const BUDGET = 300
 const PREFIX = 'file/' + LOOSE_SHARE_ID + '/'
@@ -29,8 +28,7 @@ async function setup(t) {
 // length; with `readFirst` we also read the rows so their blocks land on our disk. With `depart`
 // the owner then goes away: length known, no serving peer, blocks present or missing as configured.
 async function catalogOwner(t, { readFirst = false, depart = true } = {}) {
-  const dir = path.join(os.tmpdir(), 'mirall-test-owner-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
-  fs.mkdirSync(dir, { recursive: true })
+  const dir = tmpDir('mirall-test-owner')
   const store = new Corestore(dir)
   await store.ready()
   const core = store.get({ name: 'catalog' })
