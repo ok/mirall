@@ -12,8 +12,9 @@ const renderer = path.join(here, '..', '..', 'src', 'renderer')
 // worth guarding is that nobody reintroduces a twin.
 test('the renderer holds no audit-kind twin', (t) => {
   t.absent(existsSync(path.join(renderer, 'auditKinds.ts')), 'the shim is gone')
-  const screen = readFileSync(path.join(renderer, 'screens', 'ActivityLog.tsx'), 'utf8')
-  t.ok(/from '\.\.\/\.\.\/shared\/contract\/audit-kinds\.js'/.test(screen), 'ActivityLog imports the contract')
+  // The kind list is read where the search term is turned into a kinds filter.
+  const hook = readFileSync(path.join(renderer, 'hooks', 'useActivityFilters.ts'), 'utf8')
+  t.ok(/from '\.\.\/\.\.\/shared\/contract\/audit-kinds\.js'/.test(hook), 'useActivityFilters imports the contract')
 })
 
 test('every kind has a label and a sentence key in the English catalogue', (t) => {
