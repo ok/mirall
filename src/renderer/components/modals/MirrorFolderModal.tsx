@@ -1,5 +1,6 @@
 // Two-step wizard for mirroring a peer's shared folder to a local path: pick and
 // validate the destination, then confirm via the scan preview.
+import InlineError from '../primitives/InlineError.js'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
@@ -44,7 +45,7 @@ function OwnerLine({ owner, ownerName, folderName, info, infoError }: OwnerLineP
         {/* A failed read is said, not filled in: rendering the fallback totals would put a
             fabricated measurement of the folder in front of the person about to mirror it. */}
         {infoError ? (
-          <p role="alert" className="text-xs text-error">{t('mirrorFolder.infoUnavailable')}</p>
+          <InlineError size="xs">{t('mirrorFolder.infoUnavailable')}</InlineError>
         ) : (
           <p className="text-xs text-on-surface-variant">
             {t('mirrorFolder.ownerLine', {

@@ -113,7 +113,7 @@ function ShareCard({
         type="button"
         onClick={() => onOpen(share)}
         aria-label={t('share.openFolder', { name: share.name })}
-        className="absolute inset-0 rounded-xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+        className="absolute inset-0 rounded-xl cursor-pointer focus-ring"
       />
 
       <div className="flex items-center gap-4 min-w-0 flex-grow pointer-events-none">

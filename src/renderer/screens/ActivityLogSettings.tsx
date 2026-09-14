@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ConfirmDestructiveModal from '../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
@@ -10,9 +11,7 @@ import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
-import Modal from '../components/primitives/Modal.js'
 import Button from '../components/primitives/Button.js'
-import ModalHeader from '../components/layout/ModalHeader.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 
 interface ActivityLogSettingsProps {
@@ -96,7 +95,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
               type="button"
               onClick={onOpenLog}
               aria-label={t('activityLogSettings.openLog')}
-              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer"
+              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
             >
               <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
                 <Icon name="history" />
@@ -125,7 +124,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
                   aria-checked={config?.enabled ?? false}
                   aria-label={t('activityLogSettings.recordActivity')}
                   onClick={() => void patch({ enabled: !(config?.enabled ?? false) })}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors focus-ring ${
                     config?.enabled ? 'bg-primary' : 'bg-surface-container-high'
                   }`}
                 >
@@ -186,32 +185,15 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
         </div>
       </div>
 
-      <Modal
+      <ConfirmDestructiveModal
         isOpen={confirmPurge}
+        title={t('activityLogSettings.deleteConfirmTitle')}
+        body={t('activityLogSettings.deleteConfirmBody')}
+        confirmLabel={t('activityLogSettings.deleteAction')}
+        busy={busy}
         onClose={() => setConfirmPurge(false)}
-        isDismissable={!busy}
-        role="alertdialog"
-        ariaDescribedBy="purge-activity-body"
-        ariaLabel={t('activityLogSettings.deleteConfirmTitle')}
-        panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
-      >
-        <ModalHeader
-          title={t('activityLogSettings.deleteConfirmTitle')}
-          onClose={() => setConfirmPurge(false)}
-          closeDisabled={busy}
-        />
-        <div className="px-10 pb-10 space-y-6">
-          <p id="purge-activity-body" className="text-on-surface-variant font-medium">{t('activityLogSettings.deleteConfirmBody')}</p>
-          <div className="flex gap-3">
-            <Button variant="secondary" size="lg" autoFocus className="flex-1" onClick={() => setConfirmPurge(false)} disabled={busy}>
-              {t('actions.cancel')}
-            </Button>
-            <Button variant="danger" size="lg" className="flex-1" onClick={() => void handlePurge()} disabled={busy}>
-              {t('activityLogSettings.deleteAction')}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onConfirm={() => void handlePurge()}
+      />
     </div>
   )
 }

@@ -4,6 +4,7 @@
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Avatar from '../primitives/Avatar.js'
+import AvatarStack from '../primitives/AvatarStack.js'
 import CollapsibleCard from '../primitives/CollapsibleCard.js'
 import TextButton from '../primitives/TextButton.js'
 import { useSpaceMirrors } from '../../hooks/useSpaceMirrors.js'
@@ -58,21 +59,20 @@ function MirrorStack({ mirrorers, label }: { mirrorers: Mirrorer[]; label: strin
   const stack = mirrorers.slice(0, STACK_MAX)
   const overflow = mirrorers.length - stack.length
   return (
-    <div role="img" aria-label={label} className="flex items-center">
-      {stack.map((m, i) => (
-        <span key={m.key} className={i === 0 ? '' : '-ml-3'}>
-          <Avatar src={m.avatar} displayName={m.name} size="md" className={ringClass(m.state, m.online)} decorative />
-        </span>
-      ))}
-      {overflow > 0 && (
-        <span
-          style={{ boxShadow: '0 0 0 2px var(--color-surface-container-low)' }}
-          className="-ml-3 w-9 h-9 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-bold text-sm"
-        >
-          <span aria-hidden="true">+{overflow}</span>
-        </span>
-      )}
-    </div>
+    <AvatarStack
+      size="md"
+      surface="surface-container-low"
+      ringless
+      announce="group"
+      label={label}
+      overflow={overflow}
+      avatars={stack.map((m) => ({
+        key: m.key,
+        src: m.avatar,
+        displayName: m.name,
+        className: ringClass(m.state, m.online),
+      }))}
+    />
   )
 }
 

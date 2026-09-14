@@ -37,7 +37,7 @@ export function Segment({ label, selected, onSelect, icon, ariaLabel }: SegmentP
       onClick={onSelect}
       aria-label={ariaLabel}
       aria-pressed={selected}
-      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
+      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus-ring ${
         selected
           ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
           : 'text-on-surface-variant hover:text-accent font-medium'

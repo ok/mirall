@@ -1,5 +1,7 @@
 // Network settings: content-plane transfer caps. Settings only — live connection status
 // lives on the account screen.
+import InlineError from '../components/primitives/InlineError.js'
+import FieldLabel from '../components/primitives/FieldLabel.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
@@ -103,9 +105,9 @@ function LimitRow({
 
       {custom && (
         <div className="mt-4 space-y-2">
-          <label htmlFor={inputId} className="font-headline text-sm font-bold text-accent px-1 block">
+          <FieldLabel htmlFor={inputId} className="block">
             {t(`networkSettings.${direction}CustomLabel`)}
-          </label>
+          </FieldLabel>
           <input
             id={inputId}
             type="number"
@@ -121,7 +123,7 @@ function LimitRow({
             // pre-clamp draft while a clamped value was already stored — show what was
             // actually committed.
             onKeyDown={(e) => { if (e.key === 'Enter') setDraft(String(commit())) }}
-            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 transition-all text-lg tabular-nums"
+            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface focus-ring transition-all text-lg tabular-nums"
           />
           {belowFloor ? (
             <div id={helpId} role="status" className="rounded-xl bg-warning px-5 py-3 text-sm font-medium text-on-warning">
@@ -209,11 +211,11 @@ export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
                   <LimitRow {...rowProps('download', limits)} />
                   <LimitRow {...rowProps('upload', limits)} />
                   {readError && (
-                    <p role="alert" className="text-sm text-error">{t('networkSettings.limitSaveFailed')}</p>
+                    <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
                   )}
                 </>
               ) : readError ? (
-                <p role="alert" className="text-sm text-error">{t('networkSettings.limitsUnavailable')}</p>
+                <InlineError>{t('networkSettings.limitsUnavailable')}</InlineError>
               ) : (
                 <p role="status" className="text-sm text-on-surface-variant">{t('networkSettings.limitsLoading')}</p>
               )}

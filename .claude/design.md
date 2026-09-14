@@ -302,9 +302,9 @@ card uses `rounded-2xl` (1.5rem), and modal panels sit one step above at
 ## 7. Components
 
 Most components live under `src/renderer/components/` (`keyboard/` is a sibling).
-Every interactive control uses the
-universal focus ring `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30`
-(danger uses `ring-error/30`) and `active:scale-95` press feedback unless noted.
+Every interactive control uses the universal focus ring — the **`focus-ring` utility**, declared
+once in `styles/tailwind.css` as `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30`
+(danger uses `ring-error/30`, still spelled out) — and `active:scale-95` press feedback unless noted.
 
 The ring is painted **outside** the border box, so it needs 2px of clearance inside every clipping
 ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against a control shaves it
@@ -499,14 +499,28 @@ pins it in real Chromium.
 segments in a `rounded-xl` track, `font-bold` in both states — a different shape that
 cannot jitter.
 
-### Inputs
-No dedicated primitive yet — inputs are styled inline:
-`bg-surface-container-lowest` (or `-low`), `border-none rounded-xl px-4/5 py-4`,
-focus via the universal ring (a **ring**, not a border). See `screens/Onboarding.tsx`,
-`keyboard/CommandPalette.tsx`. The copies are **not** consistent: only `AddFolderShareModal`
-and `AddRelayModal` wire `aria-invalid` + `aria-describedby` on an invalid field. A new field
-belongs in a shared `TextField` primitive that owns the label / input / error trio, not in a
-thirteenth copy of the class string.
+### Text field — `primitives/TextField.tsx`
+Label, input, help line and error message as one control. It owns the association a hand-rolled
+field keeps getting wrong: `aria-invalid` when it fails, and an `aria-describedby` that resolves to
+its help text and its error together. The surface is `FIELD_SURFACE` —
+`bg-surface-container-low border-none rounded-xl px-6 py-4` with the `focus-ring` (a **ring**, not a
+border) — exported so a `<textarea>` is the same box with a height (`FeedbackModal`).
+- `error` renders an `InlineError` and marks the field invalid; `help` stays put beneath it, because
+  the two say different things. `invalid` + `describedBy` are for a field whose failure is reported
+  elsewhere on the form (`JoinSpaceModal`: one message under both boxes).
+- `mono` for a pasted key or invite code.
+- The two settings-screen fields (`screens/Account.tsx`, `screens/Onboarding.tsx`) sit on
+  `surface-container-lowest` with their own padding and are **not** TextFields.
+
+### Field label — `primitives/FieldLabel.tsx`
+`font-headline text-sm font-bold text-accent px-1`, and the element is the point: `htmlFor` renders
+a `<label>` for a real form control, `id` renders a `<span>` for something that is not one (the icon
+picker, a `PathRow` whose action is a button), which points `aria-labelledby` back at it.
+
+### Inline error — `primitives/InlineError.tsx`
+The `text-error` sentence under the thing that failed, with `role="alert"` so it is announced when
+it appears. `size="sm"` under a field, `xs` in a dense row. `FileCard` is the one exception: its
+error rides inside the meta paragraph as a `<span>` so a failed row keeps its resting height.
 
 ### Path field — `widgets/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same
@@ -561,10 +575,13 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   a link, a select, anything contenteditable, or a widget role that binds it — the command palette).
 - **Cmd/Ctrl+Enter** fires `onConfirm` from anywhere, including a textarea. It is the only way to
   send Feedback from the keyboard, and it is in the cheatsheet like every other chord.
-- **No `onConfirm` means no keyboard confirm.** The destructive confirms
-  (Remove file, Delete folder, Leave space, Delete activity log) deliberately pass none, declare
-  `role="alertdialog"` with `ariaDescribedBy` pointing at their body text, and put `autoFocus` on
-  Cancel: an alert dialog rests on its least destructive action.
+- **No `onConfirm` means no keyboard confirm.** The destructive confirms deliberately pass none,
+  declare `role="alertdialog"` with `ariaDescribedBy` pointing at their body text, and put
+  `autoFocus` on Cancel: an alert dialog rests on its least destructive action. All of that is
+  **`modals/ConfirmDestructiveModal.tsx`** (Remove file, Delete folder, Delete activity log, relay
+  removal) — the role and the described body are one contract, so neither is a prop. `LeaveSpaceModal`
+  is the exception: only its confirm step is an alert, and the progress step it becomes has no
+  description to announce.
 - **Initial focus** is the first field with `autoFocus`, else the panel itself — never the header ✕.
   (`FocusScope`'s own `autoFocus` takes the first *tabbable* element, which is that ✕, which is why
   Enter used to cancel dialogs that wired no confirm.)
@@ -578,10 +595,12 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.t
   `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either a
   `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two sizes,
   and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
-  Three footer shapes:
-  1. A single full-width `lg` button.
-  2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`), both `flex-1 h-14`.
-  3. **Wizard step** — `flex justify-end gap-3`, Cancel(`secondary`) + Action(`primary`)
+  Footer: **`components/layout/ModalFooter.tsx`**, in one of two layouts —
+  `split` (`gap-4`, each button half the width: a decision, where neither answer is the small one)
+  or `end` (`justify-end gap-3`: a step that continues rather than decides). Three shapes use them:
+  1. A single full-width `lg` button (no footer component).
+  2. **Confirm/destructive** — `split`, Cancel(`secondary`) + Action(`danger`), both `h-14`.
+  3. **Wizard step** — `end`, Cancel(`secondary`) + Action(`primary`)
      at default `sm` size, the action carrying a trailing `arrow_forward`. Owned by
      **`modals/MountWizardStep.tsx`** (header + body slot + this footer), which Add Folder and
      Mirror to Disk both render; their shared second step is `modals/ScanPreviewModal.tsx`, and the
@@ -627,7 +646,7 @@ file rows (`FileCard`, `ShareFileRow`) on `bg-surface-container-lowest dark:bg-s
 `SpaceCard` on `bg-surface-container-lowest`. All lift to `hover:bg-surface-container-highest` in both
 themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**:
 - **SpaceCard** — `p-5 rounded-2xl`; flat-color icon tile
-  (`gradientForSpaceId`) + overlapping avatar stack (`-space-x-3`).
+  (`gradientForSpaceId`) + an `AvatarStack`.
 - **ShareCard / FileCard** — `rounded-xl`, row layout, action buttons revealed on
   hover (`opacity-0 group-hover:opacity-100`). FileCard uses a container query
   (`@container/row`) to drop the status badge when narrow.
@@ -644,6 +663,13 @@ Image (`object-cover`), initials fallback on `surface-container-highest`, or a
 silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
 states animate `avatar-issue-pulse-error` / `-warning` (2.4s pulse, CSS in
 `tailwind.css`).
+
+### Avatar stack — `primitives/AvatarStack.tsx`
+Overlapping faces (`-space-x-3`) with a `+N` disc for the rest, cut out of whatever surface the
+strip sits on — one token drives both the avatars' rings and the chip's, so they cannot drift apart.
+`announce` is the choice each site makes: `hidden` where the control around it already says who is
+there, `group` where the strip is one named thing, `each` where every face reads its own name and
+the chip carries the remainder.
 
 ### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/statusBadge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and

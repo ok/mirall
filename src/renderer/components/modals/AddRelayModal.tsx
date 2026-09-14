@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ModalFooter from '../layout/ModalFooter.js'
 import { parseRelayInput, type RelayKind, type RelayParseErrorCode } from '../../config-client.js'
 import { truncateRelayKey } from '../../relay-key.js'
+import TextField from '../primitives/TextField.js'
 import Badge from '../primitives/Badge.js'
 import Button from '../primitives/Button.js'
 import CopyButton from '../primitives/CopyButton.js'
@@ -134,47 +136,38 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
                 </>
               )}
 
-              <div className="space-y-3">
-                <label htmlFor="add-relay-label" className="font-headline text-sm font-bold text-accent px-1">
-                  {t('networkSettings.relays.labelLabel')}
-                </label>
-                <input
-                  id="add-relay-label"
-                  autoFocus
-                  className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all"
-                  placeholder={t('networkSettings.relays.labelPlaceholder')}
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                />
-              </div>
+              <TextField
+                id="add-relay-label"
+                label={t('networkSettings.relays.labelLabel')}
+                autoFocus
+                placeholder={t('networkSettings.relays.labelPlaceholder')}
+                value={label}
+                onChange={setLabel}
+              />
 
-              <div className="pt-2 flex justify-end gap-3">
+              <ModalFooter layout="end">
                 <Button variant="secondary" onClick={() => { setDecoded(null); setError(null) }}>
                   {t('actions.back')}
                 </Button>
                 <Button onClick={handleAdd} disabled={saving}>
                   {t('networkSettings.relays.addAction')}
                 </Button>
-              </div>
+              </ModalFooter>
             </>
           ) : (
             <>
-              <div className="space-y-3">
-                <label htmlFor="add-relay-input" className="font-headline text-sm font-bold text-accent px-1">
-                  {t('networkSettings.relays.inputLabel')}
-                </label>
-                <input
-                  id="add-relay-input"
-                  autoFocus
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? 'add-relay-error' : undefined}
-                  className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all font-mono text-sm"
-                  placeholder={t('networkSettings.relays.inputPlaceholder')}
-                  value={input}
-                  onChange={(e) => { setInput(e.target.value); setError(null) }}
-                />
-              </div>
-              <div className="pt-2 flex justify-end gap-3">
+              <TextField
+                id="add-relay-input"
+                label={t('networkSettings.relays.inputLabel')}
+                autoFocus
+                mono
+                invalid={!!error}
+                describedBy={error ? 'add-relay-error' : undefined}
+                placeholder={t('networkSettings.relays.inputPlaceholder')}
+                value={input}
+                onChange={(v) => { setInput(v); setError(null) }}
+              />
+              <ModalFooter layout="end">
                 <Button variant="secondary" onClick={handleClose}>
                   {t('actions.cancel')}
                 </Button>
@@ -182,7 +175,7 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
                   {t('actions.continue')}
                   <Icon name="arrow_forward" size={16} />
                 </Button>
-              </div>
+              </ModalFooter>
             </>
           )}
         </div>

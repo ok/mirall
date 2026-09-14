@@ -7,6 +7,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import RemoveFileModal from './../../src/renderer/components/modals/RemoveFileModal.js'
+// The dialog reports a rejected removal through a toast, so it needs the provider to mount at all.
+import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 
 const LONG_NAME = 'XXX-X002_T001_0401XI_16384x8192_25fps_409pt3_133pt2_S001_take_01_final.mov'
 const SHORT_NAME = 'notes.txt'
@@ -37,10 +39,12 @@ declare global {
 const noop = () => {}
 
 createRoot(document.getElementById('root') as HTMLElement).render(
-  <div className="bg-surface">
-    <RemoveFileModal isOpen filePath={'/shares/' + LONG_NAME} onClose={noop} onRemove={noop} />
-    <RemoveFileModal isOpen filePath={'/shares/' + SHORT_NAME} onClose={noop} onRemove={noop} />
-  </div>,
+  <ToastProvider>
+    <div className="bg-surface">
+      <RemoveFileModal isOpen filePath={'/shares/' + LONG_NAME} onClose={noop} onRemove={noop} />
+      <RemoveFileModal isOpen filePath={'/shares/' + SHORT_NAME} onClose={noop} onRemove={noop} />
+    </div>
+  </ToastProvider>,
 )
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))

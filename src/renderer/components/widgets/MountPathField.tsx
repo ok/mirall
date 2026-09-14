@@ -1,3 +1,5 @@
+import FieldLabel from '../primitives/FieldLabel.js'
+import InlineError from '../primitives/InlineError.js'
 import PathRow from './PathRow.js'
 
 interface MountPathFieldProps {
@@ -13,9 +15,9 @@ interface MountPathFieldProps {
 export default function MountPathField({ id, label, path, error, onBrowse }: MountPathFieldProps) {
   return (
     <div className="space-y-3">
-      <span id={id} className="block font-headline text-sm font-bold text-accent px-1">{label}</span>
+      <FieldLabel id={id}>{label}</FieldLabel>
       <PathRow path={path} onAction={onBrowse} ariaDescribedBy={error ? `${id} ${id}-error` : id} />
-      {error && <p id={`${id}-error`} role="alert" className="text-xs text-error px-1">{error}</p>}
+      {error && <InlineError id={`${id}-error`} size="xs" className="px-1">{error}</InlineError>}
     </div>
   )
 }

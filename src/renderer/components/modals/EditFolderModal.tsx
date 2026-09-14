@@ -2,6 +2,9 @@
 // the owner's share record and replicates, the path lives in the local mount, and a failure in one
 // must not silently roll back the other — so each reports its own error and each is skipped when
 // untouched.
+import TextField from '../primitives/TextField.js'
+import FieldLabel from '../primitives/FieldLabel.js'
+import InlineError from '../primitives/InlineError.js'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
@@ -59,7 +62,6 @@ export default function EditFolderModal({
   const canSave = nameValid && (nameChanged || pathChanged) && !saving
   // The non-owner note and the rename failure are both descriptions of the same field, so the
   // error joins the note rather than replacing it.
-  const nameDescribedBy = [!isOwner && 'edit-folder-name-note', nameError && 'edit-folder-name-error'].filter(Boolean).join(' ')
 
   async function handleBrowse() {
     setPathError(null)
@@ -107,32 +109,23 @@ export default function EditFolderModal({
 
         <div className="px-10 pb-10 space-y-8 overflow-y-auto">
           <div className="space-y-3">
-            <label htmlFor="edit-folder-name" className="font-headline text-sm font-bold text-accent px-1">
-              {t('editFolder.nameLabel')}
-            </label>
-            <input
+            <TextField
               id="edit-folder-name"
+              label={t('editFolder.nameLabel')}
               autoFocus={isOwner}
               disabled={!isOwner}
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameDescribedBy || undefined}
-              className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all disabled:opacity-60"
+              error={nameError}
+              help={isOwner ? undefined : t('editFolder.nameOwnedBy', { owner: ownerName })}
               placeholder={t('editFolder.namePlaceholder')}
               value={isOwner ? draftName : name}
-              onChange={(e) => setDraftName(e.target.value)}
+              onChange={setDraftName}
             />
-            {!isOwner && (
-              <p id="edit-folder-name-note" className="text-sm text-on-surface-variant px-1">
-                {t('editFolder.nameOwnedBy', { owner: ownerName })}
-              </p>
-            )}
-            {nameError && <p id="edit-folder-name-error" className="text-sm text-error px-1" role="alert">{nameError}</p>}
           </div>
 
           <div className="space-y-3">
-            <span id="edit-folder-path-label" className="block font-headline text-sm font-bold text-accent px-1">
+            <FieldLabel id="edit-folder-path-label">
               {isOwner ? t('editFolder.sourceLabel') : t('editFolder.mirrorLabel')}
-            </span>
+            </FieldLabel>
             <p id="edit-folder-path-desc" className="text-sm text-on-surface-variant px-1">
               {!canRelocate ? t('editFolder.sourceFixed') : isOwner ? t('editFolder.sourceDesc') : t('editFolder.mirrorDesc')}
             </p>
@@ -144,7 +137,7 @@ export default function EditFolderModal({
               onAction={canRelocate ? handleBrowse : undefined}
               ariaDescribedBy={`edit-folder-path-label edit-folder-path-desc${pathError ? ' edit-folder-path-error' : ''}`}
             />
-            {pathError && <p id="edit-folder-path-error" className="text-sm text-error px-1" role="alert">{pathError}</p>}
+            {pathError && <InlineError id="edit-folder-path-error" className="px-1">{pathError}</InlineError>}
           </div>
 
           <div className="pt-4">

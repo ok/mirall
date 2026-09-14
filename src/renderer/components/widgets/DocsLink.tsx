@@ -18,7 +18,7 @@ export default function DocsLink({ target, label }: DocsLinkProps) {
   return (
     <a
       href={docsUrl(target)}
-      className="relative flex items-center gap-2 rounded-lg -mx-1 px-1 py-1.5 text-sm font-headline font-bold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+      className="relative flex items-center gap-2 rounded-lg -mx-1 px-1 py-1.5 text-sm font-headline font-bold text-secondary hover:underline focus-ring"
     >
       <Icon name="arrow_forward" size={16} className="shrink-0" />
       <span>{label}</span>

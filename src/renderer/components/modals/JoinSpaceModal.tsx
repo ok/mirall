@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
 import { decodeInvite, extractInviteCode } from '../../../shared/contract/invite-envelope.js'
 import Modal from '../primitives/Modal.js'
+import TextField from '../primitives/TextField.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
@@ -89,14 +90,26 @@ export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClo
           onClose={handleClose}
         />
         <div className="px-10 pb-10 space-y-6">
-          <div className="space-y-3">
-            <label htmlFor="join-space-code" className="font-headline text-sm font-bold text-accent px-1">{t('joinSpace.codeLabel')}</label>
-            <input id="join-space-code" autoFocus aria-invalid={error ? true : undefined} aria-describedby={error ? 'join-space-error' : undefined} className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all font-mono text-sm" placeholder={t('joinSpace.codePlaceholder')} value={inviteCode} onChange={(e) => { setInviteCode(extractInviteCode(e.target.value)); setError(null) }} />
-          </div>
-          <div className="space-y-3">
-            <label htmlFor="join-space-name" className="font-headline text-sm font-bold text-accent px-1">{t('joinSpace.nameLabel')}</label>
-            <input id="join-space-name" className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all" placeholder={t('joinSpace.namePlaceholder')} value={name} onChange={(e) => { setName(e.target.value); setError(null) }} />
-          </div>
+          {/* The failure is one message under both fields, not one per field: an invite code that
+              the space rejects is not a fault of either box on its own. */}
+          <TextField
+            id="join-space-code"
+            label={t('joinSpace.codeLabel')}
+            autoFocus
+            mono
+            invalid={!!error}
+            describedBy={error ? 'join-space-error' : undefined}
+            placeholder={t('joinSpace.codePlaceholder')}
+            value={inviteCode}
+            onChange={(v) => { setInviteCode(extractInviteCode(v)); setError(null) }}
+          />
+          <TextField
+            id="join-space-name"
+            label={t('joinSpace.nameLabel')}
+            placeholder={t('joinSpace.namePlaceholder')}
+            value={name}
+            onChange={(v) => { setName(v); setError(null) }}
+          />
           {error && (
             <div id="join-space-error" className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
               {error}

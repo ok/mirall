@@ -1,5 +1,6 @@
 // Profile screen: display name and avatar; this device's connection, identity protection and
 // activity log; app version and resources.
+import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../utils.js'
@@ -139,7 +140,7 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
           type="button"
           onClick={() => fileRef.current?.click()}
           aria-label={t('settings.changeAvatar')}
-          className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center cursor-pointer overflow-hidden shrink-0 p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center cursor-pointer overflow-hidden shrink-0 p-0 border-0 focus-ring"
         >
           <Avatar src={avatar} size="xl" fallback="silhouette" decorative />
           <div className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity ${avatar ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
@@ -154,7 +155,7 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
             type="text"
             maxLength={NAME_MAX}
             aria-describedby="account-display-name-count"
-            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 transition-all"
+            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus-ring transition-all"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
@@ -164,13 +165,13 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
         </div>
       </div>
       {avatarError && (
-        <p role="alert" className="text-xs text-error">{avatarError}</p>
+        <InlineError size="xs">{avatarError}</InlineError>
       )}
       {hasChanges && (
         <button
           onClick={handleSave}
           disabled={!displayName.trim() || saving}
-          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 focus-ring"
         >
           {saving ? t('actions.saving') : t('actions.save')}
         </button>

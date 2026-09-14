@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import type { Space } from "../../types.js";
 import { gradientForSpaceId } from "../../utils.js";
 import IconPicker from "../widgets/IconPicker.js";
+import TextField from "../primitives/TextField.js"
+import FieldLabel from "../primitives/FieldLabel.js"
 import Modal from "../primitives/Modal.js";
 import Icon, { type IconName } from "../primitives/Icon.js";
 import ModalHeader from "../layout/ModalHeader.js";
@@ -74,23 +76,18 @@ export default function CreateSpaceModal({
           {!createdSpace && (
             <>
               <div className="space-y-3">
-                <label htmlFor="create-space-name" className="font-headline text-sm font-bold text-accent px-1">
-                  {t("createSpace.nameLabel")}
-                </label>
-                <input
+                <TextField
                   id="create-space-name"
+                  label={t("createSpace.nameLabel")}
                   autoFocus
-                  className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all"
                   placeholder={t("createSpace.namePlaceholder")}
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={setName}
                 />
               </div>
 
               <div className="space-y-3">
-                <label className="font-headline text-sm font-bold text-accent px-1">
-                  {t("createSpace.iconLabel")}
-                </label>
+                <FieldLabel>{t("createSpace.iconLabel")}</FieldLabel>
                 <IconPicker selected={icon} onSelect={setIcon} />
               </div>
             </>

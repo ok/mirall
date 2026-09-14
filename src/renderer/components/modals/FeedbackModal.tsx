@@ -1,5 +1,7 @@
 // Feedback form submitted through the worker; optionally attaches a screenshot
 // of the app, hiding itself during capture.
+import FieldLabel from '../primitives/FieldLabel.js'
+import TextField, { FIELD_SURFACE } from '../primitives/TextField.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { domToPng } from 'modern-screenshot'
@@ -139,12 +141,12 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             />
             <div className="px-10 pb-10 space-y-6">
               <div className="space-y-3">
-                <label htmlFor="feedback-message" className="font-headline text-sm font-bold text-accent px-1">{t('feedback.messageLabel')}</label>
+                <FieldLabel htmlFor="feedback-message">{t('feedback.messageLabel')}</FieldLabel>
                 <textarea
                   id="feedback-message"
                   autoFocus
                   maxLength={COMMENT_MAX_LENGTH}
-                  className="w-full h-32 bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all resize-none"
+                  className={`${FIELD_SURFACE} h-32 resize-none`}
                   placeholder={t('feedback.messagePlaceholder')}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -153,24 +155,17 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   {comment.length} / {COMMENT_MAX_LENGTH}
                 </p>
               </div>
-              <div className="space-y-3">
-                <label htmlFor="feedback-email" className="font-headline text-sm font-bold text-accent px-1">{t('feedback.emailLabel')} <span className="font-medium text-on-surface-variant/70">{t('feedback.emailOptional')}</span></label>
-                <input
-                  id="feedback-email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  aria-invalid={!emailValid}
-                  aria-describedby={!emailValid ? 'feedback-email-error' : undefined}
-                  className="w-full h-14 bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 text-accent font-medium placeholder:text-outline/50 transition-all"
-                  placeholder={t('feedback.emailPlaceholder')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                {!emailValid && (
-                  <p id="feedback-email-error" role="alert" className="px-1 text-xs font-medium text-error">{t('feedback.emailInvalid')}</p>
-                )}
-              </div>
+              <TextField
+                id="feedback-email"
+                label={<>{t('feedback.emailLabel')} <span className="font-medium text-on-surface-variant/70">{t('feedback.emailOptional')}</span></>}
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                error={emailValid ? null : t('feedback.emailInvalid')}
+                placeholder={t('feedback.emailPlaceholder')}
+                value={email}
+                onChange={setEmail}
+              />
               <label className="flex items-center gap-3 cursor-pointer px-1">
                 <input
                   type="checkbox"

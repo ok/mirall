@@ -28,7 +28,7 @@ export default function DiagnosticsPreviewModal({ isOpen, text, byteLength, reda
           tabIndex={0}
           role="region"
           aria-label={t('diagnostics.previewRegion')}
-          className="max-h-80 overflow-y-auto scrollbar-thin rounded-xl bg-surface-container-lowest p-5 text-xs font-mono whitespace-pre-wrap break-all text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="max-h-80 overflow-y-auto scrollbar-thin rounded-xl bg-surface-container-lowest p-5 text-xs font-mono whitespace-pre-wrap break-all text-on-surface-variant focus-ring"
         >
           {text}
         </pre>

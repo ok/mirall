@@ -125,6 +125,13 @@ body {
   }
 }
 
+/* The keyboard focus indicator, in one place. Every interactive control wears it, and a control
+   that spells it out itself is one that can drift from the rest — 64 copies of this string had
+   accumulated. Keyboard-only by design: focus-visible, so a pointer click leaves no ring. */
+@utility focus-ring {
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30;
+}
+
 /* Mirall is an app, not a webpage — text in labels, headings, paths, names,
  * and metadata is not user-selectable. Where copy is genuinely useful (e.g.
  * the storage path or the version string for support), the UI surfaces an

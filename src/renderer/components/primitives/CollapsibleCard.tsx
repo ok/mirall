@@ -49,7 +49,7 @@ export default function CollapsibleCard({
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          className="w-full flex items-center gap-2 text-left text-xl font-headline font-bold text-accent rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="w-full flex items-center gap-2 text-left text-xl font-headline font-bold text-accent rounded-lg focus-ring"
         >
           <Icon name={icon} className="text-secondary" />
           <span>{title}</span>

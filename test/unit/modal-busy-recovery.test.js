@@ -40,15 +40,30 @@ function guardBlocks(src) {
   return blocks
 }
 
+// A dialog reaches the busy gate two ways: directly through Modal's `isDismissable`, or by handing
+// the flag to ConfirmDestructiveModal, which sets the same gate from it. Both hold every exit route
+// behind that one flag, so both owe the rejection path below.
+const CONFIRM_SHELL = 'components/modals/ConfirmDestructiveModal.tsx'
+
+function busyFlag(f) {
+  const direct = f.src.match(/isDismissable=\{!(\w+)\}/)
+  if (direct) return direct[1]
+  const el = jsxElements(f.src, 'ConfirmDestructiveModal')[0]
+  const passed = el && el.match(/\bbusy=\{(\w+)\}/)
+  return passed ? passed[1] : null
+}
+
 // A dialog that refuses Escape and the backdrop while an operation runs (`isDismissable={!busy}`)
 // holds every exit route behind that one flag. The flag therefore has to be cleared on the
 // REJECTION path too — from a catch or a finally — or a failed confirm strands the dialog with no
 // way out at all.
 test('REGRESSION (FIX-D8/FIX-D9: a busy dialog clears its busy flag when the operation rejects)', (t) => {
-  const dialogs = files.filter((f) => /isDismissable=\{!\w+\}/.test(f.src))
-  t.ok(dialogs.length >= 4, `found ${dialogs.length} dialogs that gate dismissal on a busy flag`)
+  // The shell takes the flag as a prop: it has none of its own to clear, and its callers are the
+  // files this test reaches through it.
+  const dialogs = files.filter((f) => f.rel !== CONFIRM_SHELL && busyFlag(f))
+  t.ok(dialogs.length >= 5, `found ${dialogs.length} dialogs that gate dismissal on a busy flag`)
   for (const f of dialogs) {
-    const flag = f.src.match(/isDismissable=\{!(\w+)\}/)[1]
+    const flag = busyFlag(f)
     const clear = `set${flag[0].toUpperCase()}${flag.slice(1)}(false)`
     t.ok(f.src.includes(clear), `${f.rel}: ${clear} exists`)
     t.ok(guardBlocks(f.src).some((b) => b.includes(clear)),
@@ -66,9 +81,9 @@ const CLOSE_OFF_BUSY_BRANCH = new Map([
   ['components/modals/LeaveSpaceModal.tsx', 1],
 ])
 
-function modalHeaderElements(src) {
+function jsxElements(src, name) {
   const els = []
-  for (const m of src.matchAll(/<ModalHeader\b/g)) {
+  for (const m of src.matchAll(new RegExp(`<${name}\\b`, 'g'))) {
     // Scan to the element's own closing `>`, tracking `{}` depth: the first `/>` in the source
     // usually belongs to a nested element inside a prop (`titleNode={<FilenameTitle … />}`).
     let depth = 0
@@ -85,7 +100,7 @@ test('REGRESSION (FIX-D8: a busy dialog disables every close button it renders w
   const dialogs = files.filter((f) => /isDismissable=\{!\w+\}/.test(f.src))
   for (const f of dialogs) {
     const flag = f.src.match(/isDismissable=\{!(\w+)\}/)[1]
-    const closable = modalHeaderElements(f.src).filter((el) => el.includes('onClose'))
+    const closable = jsxElements(f.src, 'ModalHeader').filter((el) => el.includes('onClose'))
     const exempt = CLOSE_OFF_BUSY_BRANCH.get(f.rel) || 0
     const guarded = closable.filter((el) => el.includes(`closeDisabled={${flag}}`)).length
     t.is(guarded, closable.length - exempt,

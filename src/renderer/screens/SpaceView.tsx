@@ -45,7 +45,7 @@ import EditSpaceModal from '../components/modals/EditSpaceModal.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
-import Avatar from '../components/primitives/Avatar.js'
+import AvatarStack from '../components/primitives/AvatarStack.js'
 import DocsCard from '../components/widgets/DocsCard.js'
 import { SPACE_ACTION_EVENT, type SpaceAction } from '../space-actions.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../spaceContentState.js'
@@ -382,11 +382,18 @@ export default function SpaceView({ spaceId, onBack, onManageStorage, onOpenShar
           {(() => {
             const inviters = members.filter((m) => m.publicKey !== profile?.publicKey)
             return inviters.length > 0 ? (
-              <div className="flex items-center -space-x-3 mb-5">
-                {inviters.slice(0, 3).map((m) => (
-                  <Avatar key={m.publicKey} src={m.avatar} displayName={m.displayName} size="xl" ring="surface-container-lowest" />
-                ))}
-              </div>
+              <AvatarStack
+                className="mb-5"
+                size="xl"
+                surface="surface-container-lowest"
+                announce="each"
+                overflow={0}
+                avatars={inviters.slice(0, 3).map((m) => ({
+                  key: m.publicKey,
+                  src: m.avatar,
+                  displayName: m.displayName,
+                }))}
+              />
             ) : null
           })()}
           {/* The live region covers only the two strings that change; the card below is

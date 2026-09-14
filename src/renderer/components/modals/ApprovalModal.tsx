@@ -1,6 +1,7 @@
 // Review dialog for pending join requests: approve all, approve a selection, or deny individually.
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ModalFooter from '../layout/ModalFooter.js'
 import type { JoinRequest } from '../../types.js'
 import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
@@ -73,14 +74,14 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApprove, o
           </li>
         ))}
       </ul>
-      <div className="px-10 pb-10 pt-2 flex gap-3">
-        <Button size="lg" variant="secondary" className="flex-1" onClick={approveAll}>
+      <ModalFooter layout="split" className="px-10 pb-10">
+        <Button size="lg" variant="secondary" onClick={approveAll}>
           {t('space.approveAll', { count: requests.length })}
         </Button>
-        <Button size="lg" variant="primary" className="flex-1" disabled={selected.size === 0} onClick={approveSelected}>
+        <Button size="lg" variant="primary" disabled={selected.size === 0} onClick={approveSelected}>
           {t('space.approveSelected', { count: selected.size })}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
