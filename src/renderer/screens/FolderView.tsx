@@ -6,14 +6,14 @@
 // apply — hooks cannot be called in a branch: `mine` reads useOwnedMount plus useIndexProgress,
 // `mirrored` reads useForeignMount, and `browse` reads neither, because a browsed folder has no
 // local mount at all.
-import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
 import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
-import { useTreeExpansion } from '../hooks/useTreeExpansion.js'
+import { useFilteredTree } from '../hooks/useFilteredTree.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
@@ -26,8 +26,6 @@ import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.
 import EditFolderModal from '../components/modals/EditFolderModal.js'
 import FolderPeopleCard from '../components/cards/FolderPeopleCard.js'
 import FolderStatsCard from '../components/cards/FolderStatsCard.js'
-import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../fileTree.js'
-import { filterTree } from '../folderFilter.js'
 import { deriveStrips } from '../folderStrips.js'
 import { mountFault } from '../../shared/contract/mount-fault.js'
 import { deriveFolderStatus } from '../folderStatus.js'
@@ -43,7 +41,7 @@ import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
-import type { FileTreeNode, ShareRole } from '../types.js'
+import type { ShareRole } from '../types.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 
 interface FolderEyebrowProps {
@@ -130,49 +128,11 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [filter, setFilter] = useState('')
-
-  // The tree is derived from the flat file list; expansion state is separate and keyed by
-  // stable folder paths, so it survives every rebuild (incl. live progress ticks).
-  const tree = useMemo<FileTreeNode[]>(() => buildFileTree(files), [files])
-  const { expanded, isExpanded, toggle, expandAll, collapseAll, hasStored } = useTreeExpansion(share.id)
-  // Filtering a 5,000-row tree on every keystroke is two O(n) walks — cheap — but the RENDER of
-  // what comes back is not, so the typed value stays responsive while the tree lags a frame.
-  const deferredFilter = useDeferredValue(filter)
-  const { nodes: visibleTree, matched, revealPaths } = useMemo(() => filterTree(tree, deferredFilter), [tree, deferredFilter])
-  const allFolderPaths = useMemo<string[]>(() => collectFolderPaths(visibleTree), [visibleTree])
-  const anyExpanded = allFolderPaths.some(isExpanded)
-  // Expansion has exactly one home — the session store — so a disclosure button always toggles what
-  // it says it toggles. A reveal writes THROUGH it, and the pre-filter set is snapshotted, so
-  // clearing the filter puts back what the user had.
-  const expandedRef = useRef(expanded)
-  expandedRef.current = expanded
-  const preFilterRef = useRef<Set<string> | null>(null)
-  const revealedForRef = useRef<string | null>(null)
-  useEffect(() => {
-    const term = deferredFilter.trim()
-    if (!term) {
-      const snapshot = preFilterRef.current
-      preFilterRef.current = null
-      revealedForRef.current = null
-      if (snapshot) expandAll([...snapshot])
-      return
-    }
-    if (!preFilterRef.current) preFilterRef.current = new Set(expandedRef.current)
-    // Once per term, not once per rebuild: the tree is rebuilt on every progress tick, and
-    // re-applying the reveal each time would undo a branch the user collapsed under the filter.
-    if (!revealPaths || revealedForRef.current === term) return
-    revealedForRef.current = term
-    expandAll([...new Set([...preFilterRef.current, ...revealPaths])])
-  }, [deferredFilter, revealPaths, expandAll])
-  // Seed the default (top-level folders open) unless this share already has an expansion stored
-  // this session. The store is the only gate: the screen is keyed per share, so a mount is a share,
-  // and expandAll writes through to the store before this can run twice.
-  useEffect(() => {
-    if (hasStored() || tree.length === 0) return
-    const top = topLevelFolderPaths(tree)
-    if (top.length) expandAll(top)
-  }, [tree, hasStored, expandAll])
+  const {
+    filter, setFilter, deferredFilter,
+    visibleTree, matched, allFolderPaths, anyExpanded,
+    isExpanded, toggle, toggleAll,
+  } = useFilteredTree(share.id, files)
 
   const foreignEnabled = share.role === 'mirrored' && (foreignMount?.enabled ?? true) && foreignStatus !== 'paused'
   const manualControls = share.role === 'browse'
@@ -439,7 +399,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
             matched={matched}
             total={filterableTotal}
             expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
-            onToggleExpand={() => (anyExpanded ? collapseAll() : expandAll([...expanded, ...allFolderPaths]))}
+            onToggleExpand={toggleAll}
             showExpand={allFolderPaths.length > 0}
           />
           {/* Scroll-pane rules: see SpaceView's pane. `pt-1` is allowed here — no sticky header. */}
