@@ -5,12 +5,11 @@ import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
-import { RETENTION_CHOICES } from '../../shared/contract/limits.js'
 import type { AuditConfig, AuditEntry, AuditStats } from '../types.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import AuditRecordingCard from '../components/widgets/AuditRecordingCard.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
-import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import Button from '../components/primitives/Button.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 
@@ -110,51 +109,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
             </button>
           </section>
 
-          <section>
-            <SectionHeading>{t('activityLogSettings.recording')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
-              <div className="w-full p-6 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
-                <div className="pr-6">
-                  <p className="font-semibold text-accent">{t('activityLogSettings.recordActivity')}</p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.recordActivityDesc')}</p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={config?.enabled ?? false}
-                  aria-label={t('activityLogSettings.recordActivity')}
-                  onClick={() => void patch({ enabled: !(config?.enabled ?? false) })}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors focus-ring ${
-                    config?.enabled ? 'bg-primary' : 'bg-surface-container-high'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-surface-container-lowest transition-transform ${
-                      config?.enabled ? 'translate-x-5' : ''
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="px-6 py-5 border-t border-outline-variant/40 flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-accent">{t('activityLogSettings.retention')}</p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.retentionDesc')}</p>
-                </div>
-                <SegmentedControl className="shrink-0">
-                  {RETENTION_CHOICES.map((days) => (
-                    <Segment
-                      key={days}
-                      label={t('activityLogSettings.retentionDays', { count: days })}
-                      selected={config?.retentionDays === days}
-                      onSelect={() => void patch({ retentionDays: days })}
-                    />
-                  ))}
-                </SegmentedControl>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-on-surface-variant">{t('activityLogSettings.survivesLeave')}</p>
-          </section>
+          <AuditRecordingCard config={config} onPatch={patch} />
 
           <section>
             <SectionHeading>{t('activityLogSettings.export')}</SectionHeading>

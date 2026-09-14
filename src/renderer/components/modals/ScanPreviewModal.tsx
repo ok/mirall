@@ -93,28 +93,55 @@ interface ScanPreviewBodyProps {
   readOnlyWarning?: string
 }
 
+// The scan runs long enough to need saying so: a count while it has one, a sentence before it does.
+function ScanningState({ progress }: { progress: PreviewProgress | null }) {
+  const { t } = useTranslation()
+  return (
+    <div className="py-8" aria-live="polite">
+      <p className="text-on-surface-variant text-sm text-center mb-3">
+        {progress
+          ? t('scanPreview.scanning', { scanned: progress.scanned, total: progress.total, size: formatSize(progress.bytes) })
+          : t('scanPreview.computing')}
+      </p>
+      {progress && progress.total > 0 && (
+        <div className="flex justify-center">
+          <ProgressBar
+            value={Math.min(100, Math.round((progress.scanned / progress.total) * 100))}
+            label={t('scanPreview.scanning_label')}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// The one card that is always shown, because "no conflicts" is the answer the user came for as
+// much as a count is. An owned folder gets its own reassurance: nothing of theirs is overwritten,
+// which is a different promise from "nothing of yours is".
+function ConflictCard({ conflicts, flow }: { conflicts: number, flow: ScanPreview['flow'] }) {
+  const { t } = useTranslation()
+  if (conflicts > 0) {
+    return (
+      <SummaryCard
+        tone="warning"
+        title={t('scanPreview.conflicts', { count: conflicts })}
+        detail={t('scanPreview.conflictDetail')}
+      />
+    )
+  }
+  return (
+    <SummaryCard
+      tone="success"
+      title={t('scanPreview.noConflicts')}
+      detail={flow === 'add-owned-folder' ? t('scanPreview.noConflictDetailOwned') : t('scanPreview.noConflictDetail')}
+    />
+  )
+}
+
 function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPreviewBodyProps) {
   const { t } = useTranslation()
 
-  if (loading || !preview) {
-    return (
-      <div className="py-8" aria-live="polite">
-        <p className="text-on-surface-variant text-sm text-center mb-3">
-          {progress
-            ? t('scanPreview.scanning', { scanned: progress.scanned, total: progress.total, size: formatSize(progress.bytes) })
-            : t('scanPreview.computing')}
-        </p>
-        {progress && progress.total > 0 && (
-          <div className="flex justify-center">
-            <ProgressBar
-              value={Math.min(100, Math.round((progress.scanned / progress.total) * 100))}
-              label={t('scanPreview.scanning_label')}
-            />
-          </div>
-        )}
-      </div>
-    )
-  }
+  if (loading || !preview) return <ScanningState progress={progress ?? null} />
 
   if (preview.overFileLimit) {
     return <OverFileLimitCard totalFiles={preview.totalFiles ?? 0} fileLimit={preview.fileLimit ?? 0} />
@@ -136,17 +163,7 @@ function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPr
           detail={t('scanPreview.downloadDetail', { size: formatSize(preview.totalBytes) })}
         />
       )}
-      <SummaryCard
-        tone={preview.conflicts > 0 ? 'warning' : 'success'}
-        title={preview.conflicts > 0
-          ? t('scanPreview.conflicts', { count: preview.conflicts })
-          : t('scanPreview.noConflicts')}
-        detail={preview.conflicts > 0
-          ? t('scanPreview.conflictDetail')
-          : preview.flow === 'add-owned-folder'
-            ? t('scanPreview.noConflictDetailOwned')
-            : t('scanPreview.noConflictDetail')}
-      />
+      <ConflictCard conflicts={preview.conflicts} flow={preview.flow} />
 
       {preview.flow !== 'add-owned-folder' && preview.conflicts === 0 && preview.existingAtDestination > 0 && (
         <SummaryCard
