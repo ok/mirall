@@ -1,6 +1,5 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
@@ -8,15 +7,10 @@ import { resolveMasterSecret } from '../../src/shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../../src/shared/core/unlock-providers.js'
 import { randomKEK, wrap } from '../../src/shared/core/identity-envelope.js'
 import { deriveKeyPair, deriveDriveKeyPair } from '../../src/shared/core/identity-keys.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `identity-mig-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 test('REGRESSION (MIR-02): migration preserves identity, scrubs the seed, re-unlocks across restart', async (t) => {
-  const root = tmp('headline')
+  const root = tmpDir('identity-mig-headline')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -45,7 +39,7 @@ test('REGRESSION (MIR-02): migration preserves identity, scrubs the seed, re-unl
 })
 
 test('wrong KEK fails closed', async (t) => {
-  const root = tmp('wrongkek')
+  const root = tmpDir('identity-mig-wrongkek')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -65,7 +59,7 @@ test('wrong KEK fails closed', async (t) => {
 })
 
 test('interrupted migration: envelope present but seed not yet scrubbed → re-unlocks the same M', async (t) => {
-  const root = tmp('interrupted')
+  const root = tmpDir('identity-mig-interrupted')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -91,7 +85,7 @@ test('interrupted migration: envelope present but seed not yet scrubbed → re-u
 })
 
 test('resolves from an un-readied store (a freshly constructed Corestore, as the envelope path allows)', async (t) => {
-  const root = tmp('unready')
+  const root = tmpDir('identity-mig-unready')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 

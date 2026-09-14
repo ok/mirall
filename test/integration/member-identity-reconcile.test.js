@@ -1,6 +1,5 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
@@ -13,15 +12,10 @@ import {
 import { initSpaces, createSpace, getSpace } from '../../src/shared/spaces/space.js'
 import { configureMemberRegistry, openMemberView, closeAllMemberViews } from '../../src/shared/spaces/member-registry.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `mir-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function boot(t, label) {
-  const root = tmp(label)
+  const root = tmpDir(`mir-${label}`)
   const storage = path.join(root, 'app-storage')
   t.teardown(async () => {
     closeAllMemberViews()

@@ -1,12 +1,12 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import os from 'bare-os'
 import path from 'bare-path'
 import { listOverlayShareFiles } from '../../src/shared/shares/share-listing.js'
 import { claimVerdict } from '../../src/shared/transfer/download-claim.js'
 import { pathFromMount } from '../../src/shared/transfer/path-guard.js'
 import { consumerRowStatusFor, unhashedStatusFor } from '../../src/shared/transfer/transfer-status.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
+import { tmpDir, tmpPath } from '../helpers/bare-tmp.js'
 
 const SPACE = 'sp1'
 const SHARE = { id: 'sh1', name: 'Docs', owner: 'peer' }
@@ -144,7 +144,7 @@ test('the probe a listing hands out asks the filesystem once per folder', async 
     return { downloaded: false, prune: false, reason: 'volume-unavailable' }
   }
   await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(3)), deps)
-  const dir = path.join(os.tmpdir(), 'mirall-probe-' + Date.now().toString(36))
+  const dir = tmpPath('mirall-probe')
   t.is(probe(dir), false, 'absent folder')
   fs.mkdirSync(dir, { recursive: true })
   t.teardown(() => { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} })
@@ -304,7 +304,7 @@ function matrix() {
 const describe = (w) => Object.entries(w).map(([k, v]) => k + '=' + v).join(' ')
 
 test('every row of the decision space matches the pre-batching rule', async (t) => {
-  const root = path.join(os.tmpdir(), 'mirall-listing-parity-' + Date.now().toString(36))
+  const root = tmpDir('mirall-listing-parity')
   const present = path.join(root, 'present')
   const empty = path.join(root, 'empty')
   fs.mkdirSync(present, { recursive: true })
@@ -343,8 +343,7 @@ test('every row of the decision space matches the pre-batching rule', async (t) 
 })
 
 function mirrorDir(t, label, files) {
-  const root = path.join(os.tmpdir(), 'mirall-' + label + '-' + Date.now().toString(36))
-  fs.mkdirSync(root, { recursive: true })
+  const root = tmpDir('mirall-' + label)
   for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(root, name), body)
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
   return root

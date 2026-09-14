@@ -1,24 +1,17 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
-import path from 'bare-path'
 import Corestore from 'corestore'
 import { deriveKeyPair, deriveDriveKeyPair } from '../../src/shared/core/identity-keys.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Pins identity-keys.js against Corestore's own seed-derivation: the derived
 // public keys must equal what `new Corestore({ primaryKey: M })` produces, or the
 // carry-forward migration would change the user's identity. Re-run after any
 // corestore bump.
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `identity-pin-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 test('derived keys match Corestore seed-derivation byte-for-byte', async (t) => {
   const M = b4a.from('44'.repeat(32), 'hex')
-  const dir = tmp('cs')
+  const dir = tmpDir('identity-pin-cs')
   const store = new Corestore(dir, { primaryKey: M, unsafe: true })
   await store.ready()
   t.teardown(async () => {

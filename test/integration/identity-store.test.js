@@ -1,29 +1,23 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import { openStore, getStore, setMasterSecret, createBee, createDrive } from '../../src/shared/core/store.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Guards the explicit-keypair store path, including the private Hyperdrive `_db`
 // option: createBee/createDrive must open writable cores from a derived keyPair,
 // round-trip data (meta + blobs), reopen the same keys after a restart, and stay
 // byte-identical to today's seed-derived cores (so migration preserves identity).
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `identity-store-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 test('explicit-keypair createBee/createDrive: writable, round-trips, restart-stable, identity-preserving', async (t) => {
   const M = b4a.from('55'.repeat(32), 'hex')
-  const root = tmp('store')
+  const root = tmpDir('identity-store-store')
   const storagePath = path.join(root, 'app-storage')
 
   // What today's seed-derivation (primaryKey = M) produces, for the identity check.
-  const vanillaDir = tmp('vanilla')
+  const vanillaDir = tmpDir('identity-store-vanilla')
   const vanilla = new Corestore(vanillaDir, { primaryKey: M, unsafe: true })
   await vanilla.ready()
   const vBee = vanilla.get({ name: 'profile' })

@@ -1,12 +1,12 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import { resolveMasterSecret } from '../../src/shared/core/identity-resolve.js'
 import { osKeychainProvider } from '../../src/shared/core/unlock-providers.js'
 import { randomKEK } from '../../src/shared/core/identity-envelope.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // MIR-24: the prior MIR-02 migration set M = the RocksDB store seed and overwrote the
 // seed in place, but a plain setSeed leaves the old seed (= M) in the WAL/SST until a
@@ -14,12 +14,6 @@ import { randomKEK } from '../../src/shared/core/identity-envelope.js'
 // makes M independent of the store seed (fresh installs) and best-effort drops the old
 // seed blocks (migrating installs). These tests fail on the unfixed tree: the master
 // secret appears verbatim in the raw store files.
-
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `identity-seed-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
 
 function* walk(dir) {
   for (const entry of fs.readdirSync(dir)) {
@@ -40,7 +34,7 @@ function bytesAppearUnder(root, needle) {
 // never written as the store seed, so it cannot be recovered from a copy of the store.
 // Red on the unfixed tree (M = the auto-generated seed, which lingers in the WAL).
 test('REGRESSION (MIR-24): a fresh install never writes the master secret into the store', async (t) => {
-  const root = tmp('fresh')
+  const root = tmpDir('identity-seed-fresh')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -60,7 +54,7 @@ test('REGRESSION (MIR-24): a fresh install never writes the master secret into t
 // prior session's WAL/SST is best-effort only — the strong non-recoverability guarantee
 // is the fresh-install path above, where M is never the seed.)
 test('REGRESSION (MIR-24): a migrating install is detected, preserves identity, and replaces the on-disk seed', async (t) => {
-  const root = tmp('migrate')
+  const root = tmpDir('identity-seed-migrate')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 
@@ -85,7 +79,7 @@ test('REGRESSION (MIR-24): a migrating install is detected, preserves identity, 
 
 // A fresh install re-unlocks the same independent M across a restart (no regression).
 test('REGRESSION (MIR-24): a fresh install is identity-stable across restart', async (t) => {
-  const root = tmp('stable')
+  const root = tmpDir('identity-seed-stable')
   const storagePath = path.join(root, 'app-storage')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
 

@@ -1,5 +1,4 @@
 import test from 'brittle'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore } from '../../src/shared/core/store.js'
@@ -8,6 +7,7 @@ import {
   markOwnMembership, captureJoinerMembership,
 } from '../../src/shared/spaces/profile.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 // captureJoinerMembership is the offline-co-member-approval convergence fix: at approval time the
 // approver downloads a COMPLETE copy of the joiner's profile core while the joiner is still
@@ -17,14 +17,8 @@ import { scaled } from '../helpers/bare-timing.js'
 // the multi-peer convergence itself is exercised by the flow suite + the raw transitive test.
 // Root cause + design: .claude/tasks/plan-offline-member-convergence-fix.md.
 
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `capture-jm-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
-
 test('captureJoinerMembership: disabled / complete-copy / unreachable — bounded and never throws', async (t) => {
-  const root = tmp('store')
+  const root = tmpDir('capture-jm-store')
   await openStore(path.join(root, 'app-storage'))
   await initProfile()
   await setProfile({ displayName: 'Self', avatar: null })

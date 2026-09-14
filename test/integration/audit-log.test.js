@@ -1,6 +1,5 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
@@ -10,16 +9,10 @@ import {
   getPeerSubjectState, setPeerSubjectState, getSeenVersion, setSeenVersion,
   getNetworkState, setNetworkState,
 } from '../../src/shared/audit/audit-log.js'
-
-let seq = 0
-function tmpDir(label) {
-  const dir = path.join(os.tmpdir(), `audit-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${seq++}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function boot(t, { identity = true } = {}) {
-  const storage = tmpDir('store')
+  const storage = tmpDir('audit-store')
   t.teardown(() => { try { fs.rmSync(storage, { recursive: true, force: true }) } catch {} })
   await openStore(storage)
   setMasterSecret(identity ? crypto.randomBytes(32) : null)
