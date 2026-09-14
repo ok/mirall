@@ -12,6 +12,8 @@ const os = require('os')
 const { StringDecoder } = require('node:string_decoder')
 const { logRing } = require('./log-ring')
 const { sendToAll, loadRedactLine, installMainLogForwarding, MAIN_LOG_PREFIX } = require('./logging.js')
+const { initPrefs, getPrefs, setPrefs } = require('./prefs.js')
+const { isQuitting, markQuitting } = require('./quit-state.js')
 const { createQuitSequence } = require('./lifecycle.js')
 
 // Custom app:// scheme. Registered as standard+secure so the renderer
@@ -119,18 +121,8 @@ const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
 
 let tray = null
-let isQuitting = false
 let firstHideNoticeShown = false
 const trayLabels = { show: 'Show Mirall', settings: 'Settings…', quit: 'Quit Mirall', tooltip: 'Mirall' }
-
-const PREFS_DEFAULTS = {
-  minimizeToTray: true,
-  openAtLogin: false,
-  firstHideNoticeShown: false,
-  appMenuAutoHide: false,
-}
-
-let prefs = { ...PREFS_DEFAULTS }
 
 let menuCtx = { inSpace: false, spaces: [] }
 
@@ -354,14 +346,6 @@ function resolveBackgroundColor(mode) {
   return effective === 'dark' ? BG_DARK : BG_LIGHT
 }
 
-function readPrefs() {
-  return { ...PREFS_DEFAULTS, ...config().get('general') }
-}
-
-function writePrefs(next) {
-  config().set('general', next)
-}
-
 // === Tray, autostart, window reveal ===
 
 // The one answer to "which window does this act on": sender, then focused, then any live window
@@ -412,7 +396,7 @@ function buildTrayMenu() {
       },
     },
     { type: 'separator' },
-    { label: trayLabels.quit, click: () => { isQuitting = true; app.quit() } },
+    { label: trayLabels.quit, click: () => { markQuitting(); app.quit() } },
   ])
 }
 
@@ -486,10 +470,9 @@ function writeLinuxAutostart(enabled) {
 }
 
 function maybeShowFirstHideNotice() {
-  if (firstHideNoticeShown || prefs.firstHideNoticeShown) return
+  if (firstHideNoticeShown || getPrefs().firstHideNoticeShown) return
   firstHideNoticeShown = true
-  prefs = { ...prefs, firstHideNoticeShown: true }
-  writePrefs(prefs)
+  setPrefs({ ...getPrefs(), firstHideNoticeShown: true })
   sendToAll('pear:event:first-hide-notice', { platform: process.platform })
 }
 
@@ -516,7 +499,7 @@ function sendToWorker(worker, frame) {
     worker.write(Buffer.from(JSON.stringify(frame) + '\n'))
     return true
   } catch (err) {
-    if (isQuitting) {
+    if (isQuitting()) {
       if (isDebug()) console.error('worker frame write failed during quit:', frame.type, '-', err.message)
     } else if (!writeFailureReported.has(worker)) {
       writeFailureReported.add(worker)
@@ -696,7 +679,7 @@ function getWorker(specifier) {
       // that is the expected FIN race and the message is moot; outside one it is a request the
       // renderer is still waiting on, and nothing else reports that it never left. Once per worker,
       // for the same reason as sendToWorker.
-      if (isQuitting) {
+      if (isQuitting()) {
         if (isDebug()) console.error('worker write failed during quit:', err.message)
       } else if (!relayFailureReported) {
         relayFailureReported = true
@@ -910,9 +893,10 @@ ipcMain.handle('bandwidth:get', () => readBandwidth())
 
 ipcMain.handle('bandwidth:set', (_evt, patch) => config().setBandwidth(patch))
 
-ipcMain.handle('prefs:get', () => prefs)
+ipcMain.handle('prefs:get', () => getPrefs())
 
 ipcMain.handle('prefs:set', (_evt, partial) => {
+  const prefs = getPrefs()
   if (!partial || typeof partial !== 'object') return prefs
   const next = { ...prefs, ...partial }
   if (typeof partial.openAtLogin === 'boolean' && partial.openAtLogin !== prefs.openAtLogin) {
@@ -923,12 +907,11 @@ ipcMain.handle('prefs:set', (_evt, partial) => {
     else destroyTray()
   }
   const menuChanged = typeof partial.appMenuAutoHide === 'boolean' && partial.appMenuAutoHide !== prefs.appMenuAutoHide
-  prefs = next
-  writePrefs(prefs)
+  setPrefs(next)
   if (menuChanged) {
     for (const w of BrowserWindow.getAllWindows()) applyAppMenuVisibility(w)
   }
-  return prefs
+  return getPrefs()
 })
 
 ipcMain.handle('tray:setLabels', (_evt, labels) => {
@@ -963,7 +946,7 @@ ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 app.on('before-quit', createQuitSequence({
   // Read by the window close handler, which hides to tray unless the app is
   // quitting. Tray-menu Quit sets it directly before calling app.quit.
-  markQuitting: () => { isQuitting = true },
+  markQuitting,
   stopOwnedWatchers: () => ownedFolderWatchers.stopAllWatchers(),
   stopLooseWatchers: () => looseFileWatchers.stopLooseWatchers(),
   flushConfig: () => configStore?.flush(),
@@ -1050,7 +1033,7 @@ function refreshAppMenu() {
 
 function applyAppMenuVisibility(win) {
   if (isMac || !win || win.isDestroyed()) return
-  const autoHide = !!prefs.appMenuAutoHide
+  const autoHide = !!getPrefs().appMenuAutoHide
   win.setAutoHideMenuBar(autoHide)
   win.setMenuBarVisibility(!autoHide)
 }
@@ -1183,7 +1166,7 @@ async function createWindow() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
     if (!win.isDestroyed()) writeWindowBounds(win.getBounds())
 
-    if (isQuitting || !prefs.minimizeToTray) return
+    if (isQuitting() || !getPrefs().minimizeToTray) return
 
     e.preventDefault()
     win.hide()
@@ -1265,8 +1248,8 @@ if (!lock) {
   }
 
   app.whenReady().then(async () => {
-    prefs = readPrefs()
-    firstHideNoticeShown = prefs.firstHideNoticeShown
+    const loaded = initPrefs({ config })
+    firstHideNoticeShown = loaded.firstHideNoticeShown
     try {
       integrateXdgLinux({ appName, protocol, isLinux, homedir: os.homedir() })
     } catch (err) {
@@ -1313,7 +1296,7 @@ if (!lock) {
     }
 
     await createWindow()
-    if (prefs.minimizeToTray) createTray()
+    if (getPrefs().minimizeToTray) createTray()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow().catch((err) => console.error('createWindow failed:', err))
@@ -1324,7 +1307,7 @@ if (!lock) {
   })
 
   app.on('window-all-closed', () => {
-    if (prefs.minimizeToTray) return
+    if (getPrefs().minimizeToTray) return
     if (!isMac) app.quit()
   })
 }

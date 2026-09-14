@@ -1115,6 +1115,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/net-online.js` | `registerNetOnline` / `startNetOnlineWatch` — Chromium's `net.online`, polled and pushed to the renderer on change. Asymmetric by design: false declares offline, true is inconclusive and never declares healthy (§5) |
 | `src/main/notifications.js` | Native `Notification` IPC (`notify:*`) + the `shell:showInFolder` reveal allowlist |
 | `src/main/owned-folder-watchers.js` | Per-share recursive roots over the watch host, plus the watcher-side ignore matcher (§2 step 12, §7) |
+| `src/main/prefs.js` | The general-preferences record behind accessors — four places act on a change (tray, app menu, the window's close handler, `window-all-closed`), so none of them holds a copy that can go stale. `setPrefs` takes the whole next record because `prefs:set` compares three previous values before deciding what to re-apply (§5) |
+| `src/main/quit-state.js` | `isQuitting()` / `markQuitting()` — one flag with four readers and no natural owner: the worker writer (a write failure during teardown is expected, not a fault), the window's close handler (which otherwise hides to tray), the spawn path, and the quit sequence (§10) |
 | `src/main/relay-keys.js` | Relay-slot validation for `config-store` — decode, mode, sanitize (§4.8) |
 | `src/main/relay-slot.js` | `registerRelaySlot(deps)` — the one relay this node offers: `relay:parse` classifies a pasted key or ticket with no side effects and no secret in the reply; `relay:set` stores the seed and re-applies the slot (§5) |
 | `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
