@@ -80,3 +80,27 @@ test('a poll tick re-hashes a mirror file whose size changed even if mtime was p
   await materializeCatalogFile(cur, ctx.share, entry, { hashOf: spy })
   t.is(spy.calls(), 1, 'the size mismatch defeated the verified-cache short-circuit')
 })
+
+// REGRESSION (FIX-VERIFY-MTIME-2): the size check above is the only thing that caught an
+// mtime-preserving restore, so the SAME-size case walked straight through — every tick, forever.
+// Nothing else re-reads a mirrored file: there is no watcher over a foreign mount, and the
+// full-walk backstop forces a walk that hits this same short-circuit. A replacement whose mtime
+// did not move past the record must still be re-hashed, or the mirror reports a divergent file as
+// synced and verified for as long as the mount lives.
+test('a poll tick re-hashes a same-size mirror file whose mtime was preserved', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'aaaa' } })
+  await initDownloads()
+  await initialMaterializeScan(ctx.mount)
+
+  const abs = path.join(ctx.mirrorPath, 'a.txt')
+  fs.writeFileSync(abs, 'bbbb') // same size, different content — a restored older revision
+  const past = new Date(Date.now() - 60000)
+  fs.utimesSync(abs, past, past) // mtime carried over by cp -p / rsync -t, i.e. <= the record
+
+  const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
+  const { entries: [entry] } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
+  const spy = countingHash(overlayHashFile)
+  await materializeCatalogFile(cur, ctx.share, entry, { hashOf: spy })
+  t.is(spy.calls(), 1, 'the backdated same-size replacement defeated the verified-cache short-circuit')
+  t.is(fs.readFileSync(abs, 'utf8'), 'aaaa', 'and the owner’s bytes were put back')
+})

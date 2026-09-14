@@ -313,7 +313,16 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     // never 'remote' — which would re-download and duplicate the file.
     terminalCodes.delete(job.transferId)
     await markDownloaded(job.spaceId, job.pendingKey, job.finalPath, { hash: job.contentHash })
-    await markVerified(job.spaceId, job.verifyKey, job.contentHash, { local: job.finalPath })
+    // Stat the file we just landed, so the verified record fingerprints the bytes the transfer
+    // proved rather than whatever sits at the path later; a stat we cannot take costs the record
+    // its fingerprint, never its hash.
+    let landed = null
+    try {
+      landed = fs.statSync(job.finalPath)
+    } catch (err) {
+      log.debug('could not fingerprint a landed download:', job.relPath, '-', err.message)
+    }
+    await markVerified(job.spaceId, job.verifyKey, job.contentHash, { local: job.finalPath, stat: landed })
     // The claim above already decides the status; the row only matters to the resume scan,
     // which drops a claimed row itself (runReconcile). So a failed clear degrades to one extra
     // read at the next reconcile — but it has to be visible.

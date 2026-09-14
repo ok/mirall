@@ -253,7 +253,8 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
     try {
       diskHash = await hashOf(abs)
       if (diskHash === entry.contentHash) {
-        await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath })
+        // `onDisk` is the stat the hash above was taken against, so it fingerprints these bytes.
+        await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: onDisk })
         return 'present'
       }
     } catch (err) { log.debug('overlay hash skipped on disk:', err.message) }
@@ -388,8 +389,16 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     try { fs.copyFileSync(res.destPath, abs) } catch (err) { log.debug('overlay mirror local-copy failed:', entry.relPath, '-', err.message); return 'missing' }
   }
   // The transfer verified the content hash on landing — record it so the row can
-  // surface a "verified" indicator without re-hashing.
-  await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath })
+  // surface a "verified" indicator without re-hashing. Stat the file we just landed, so the record
+  // fingerprints the bytes the transfer proved; a stat we cannot take costs the record its
+  // fingerprint, never its hash.
+  let landed = null
+  try {
+    landed = await fs.promises.stat(abs)
+  } catch (err) {
+    log.debug('could not fingerprint a landed mirror file:', entry.relPath, '-', err.message)
+  }
+  await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: landed })
   attempts.succeed(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'present'
 }
