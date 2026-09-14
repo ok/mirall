@@ -34,7 +34,7 @@ const pathRow = read(path.join(RENDERER, 'components/path/PathRow.tsx'))
 const FILE_PATH_CALLERS = new Set([
   'components/path/PathRow.tsx',          // the path field itself
   'components/modals/ScanPreviewModal.tsx',  // rows of a file list, not a path the user re-picks
-  'screens/StorageSettings.tsx',             // the app-storage location: display-only, with Copy
+  'screens/settings/StorageSettings.tsx',             // the app-storage location: display-only, with Copy
 ])
 
 test('FilePath is rendered only where a path field would be wrong', (t) => {
@@ -101,7 +101,7 @@ test('the path field placeholder is muted TEXT, not a border colour', (t) => {
 test('a path still loading is a third state, not an absent path', (t) => {
   t.ok(/loading \? t\('pathField\.loading'\)/.test(pathRow), 'the field says it is loading')
   t.ok(/loading\?: boolean/.test(pathRow), 'and the state is declared, not inferred from an empty string')
-  for (const rel of ['screens/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
+  for (const rel of ['screens/settings/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
     const src = files.find((f) => f.rel === rel).src
     t.ok(/<PathRow[^>]*loading=/s.test(src), `${rel} resolves its folder asynchronously and must say so`)
   }
@@ -110,7 +110,7 @@ test('a path still loading is a third state, not an absent path', (t) => {
 // Both reads fell back to a folder that always exists, so a swallowed failure left the row
 // describing a state that would never end.
 test('a failed download-folder read is surfaced, never swallowed', (t) => {
-  for (const rel of ['screens/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
+  for (const rel of ['screens/settings/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
     const src = files.find((f) => f.rel === rel).src
     const read = src.slice(src.indexOf('window.bridge.getDownloadFolder()'))
     t.absent(/^\s*\.catch\(\(\) => \{\}\)/m.test(read.slice(0, 600)), `${rel} must not swallow the read`)

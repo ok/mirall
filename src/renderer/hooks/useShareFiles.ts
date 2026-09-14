@@ -94,7 +94,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
 
   // An accessor, not a merged field: merging built a NEW row object every frame, which rebuilt the
   // whole tree and re-ran the filter walk — two O(n) passes per frame for one row's lane. Which
-  // phase a frame may paint is rowView.js's judgement. useCallback because FolderView's mirrorSync
+  // phase a frame may paint is rowView.js's judgement. useCallback because FolderScreen's mirrorSync
   // memo takes this as a dependency, so it must change exactly when the decorations do (README.md).
   const getDecoration = useCallback(
     (relPath: string) => decorations.get(shareDecoKey(shareId, relPath)) ?? null,

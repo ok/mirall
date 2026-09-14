@@ -14,22 +14,33 @@ const read = (file) => readFileSync(path.join(SCREENS, file), 'utf8')
 test('no screen declares its own page title', (t) => {
   // Two heroes, both centred, neither with a back button or an actions cluster, both at a size no
   // other screen uses.
-  const HEROES = new Set(['SharedSpaces.tsx', 'Onboarding.tsx'])
+  const HEROES = new Set(['SpacesScreen.tsx', 'OnboardingScreen.tsx'])
+  // Recursive: the settings pages live in a subfolder, and a non-recursive walk would quietly
+  // stop checking seven of them.
+  const screenFiles = []
+  const walk = (dir, prefix = '') => {
+    for (const name of readdirSync(dir, { withFileTypes: true })) {
+      if (name.isDirectory()) walk(path.join(dir, name.name), `${prefix}${name.name}/`)
+      else if (name.name.endsWith('.tsx')) screenFiles.push(prefix + name.name)
+    }
+  }
+  walk(SCREENS)
+
   let checked = 0
-  for (const file of readdirSync(SCREENS)) {
-    if (!file.endsWith('.tsx') || HEROES.has(file)) continue
+  for (const file of screenFiles) {
+    if (HEROES.has(path.basename(file))) continue
     checked++
     t.absent(/<h1/.test(read(file)), `${file}: take the title from PageHeader or EntityHeader`)
   }
   t.ok(checked >= 13, `checked ${checked} screens`)
 })
 
-// SpaceView reaches EntityHeader through SpaceHeaderBar, which also carries its legacy badge. The
+// SpaceScreen reaches EntityHeader through SpaceHeaderBar, which also carries its legacy badge. The
 // hop is named here and closed below, so the indirection cannot become a hole.
-const SHELLS = new Map([['SpaceView.tsx', '../components/layout/SpaceHeaderBar.tsx']])
+const SHELLS = new Map([['SpaceScreen.tsx', '../components/layout/SpaceHeaderBar.tsx']])
 
 test('the two name-bearing screens use EntityHeader', (t) => {
-  for (const file of ['SpaceView.tsx', 'FolderView.tsx']) {
+  for (const file of ['SpaceScreen.tsx', 'FolderScreen.tsx']) {
     const shell = SHELLS.get(file)
     if (shell) {
       const shellSrc = readFileSync(path.resolve(SCREENS, shell), 'utf8')

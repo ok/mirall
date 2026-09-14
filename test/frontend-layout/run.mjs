@@ -15,7 +15,7 @@ const fmt = (list) => (list || []).map((o) => {
   return `      ${flag} <${o.tag} class="${o.cls}">  top=${o.top} bottom=${o.bottom} h=${o.height}`
 }).join('\n')
 
-console.log('\n──────── FolderView document-overflow harness ────────')
+console.log('\n──────── FolderScreen document-overflow harness ────────')
 console.log(`innerHeight            : ${out.innerHeight}px`)
 console.log(`baseline overflow      : ${out.baselineOverflow}px (before any download activity)`)
 console.log(`frames sampled         : ${out.frames}`)

@@ -42,7 +42,7 @@ interface SpaceViewProps {
   onOpenShare?: (share: ShareWithRole) => void
 }
 
-export default function SpaceView({ spaceId, pendingAction, onActionConsumed, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
+export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
   const { t } = useTranslation()
   const { profile } = useProfile()
   const {

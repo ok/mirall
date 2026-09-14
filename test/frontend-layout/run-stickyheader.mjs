@@ -1,5 +1,5 @@
 // Space-screen sticky-header test (LOCAL/dev-machine only — spawns a real Electron GUI process,
-// like the agent-desktop frontend suite). Mounts the real <SpaceView>, scrolls the list so rows
+// like the agent-desktop frontend suite). Mounts the real <SpaceScreen>, scrolls the list so rows
 // pass behind the pinned "Folders Shared" / "Files Shared" headers, and asserts each header sits
 // flush on the scrollport with no sliver of a row showing above it. Prints every header it
 // measured so a failure is self-diagnosing.
@@ -10,7 +10,7 @@ import { runHarness } from './run-harness.mjs'
 
 const out = await runHarness({ html: 'harness-stickyheader.html' })
 
-console.log('\n──────── SpaceView sticky-header harness ────────')
+console.log('\n──────── SpaceScreen sticky-header harness ────────')
 console.log(`innerHeight            : ${out.innerHeight}px`)
 console.log(`share cards rendered   : ${out.shareCards}`)
 console.log(`list pane scrolls      : ${out.paneScrolls}`)

@@ -11,7 +11,7 @@ interface SpaceSectionProps {
  * One titled block in the space pane's scroll column.
  *
  * The header is `sticky top-0` against the pane, which is why the pane carries no `pt-*`: padding
- * there would pin the header that far below the scrollport edge. See SpaceView's pane comment.
+ * there would pin the header that far below the scrollport edge. See SpaceScreen's pane comment.
  */
 export default function SpaceSection({ title, count, children }: SpaceSectionProps) {
   return (

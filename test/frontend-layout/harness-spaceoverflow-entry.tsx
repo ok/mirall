@@ -1,5 +1,5 @@
-// Real-Chromium document-overflow harness for the SPACE screen (the FolderView scenario in
-// harness-entry.tsx is its twin). Mounts the REAL <SpaceView> inside the REAL app-shell wrappers
+// Real-Chromium document-overflow harness for the SPACE screen (the FolderScreen scenario in
+// harness-entry.tsx is its twin). Mounts the REAL <SpaceScreen> inside the REAL app-shell wrappers
 // (root `min-h-screen` + `<main>` top-padding that, with the screen's
 // `h-[calc(100vh-5rem-var(--banner-h))]`, sum to exactly 100vh) with enough folder shares and
 // loose files to overflow the list, and asserts the DOCUMENT never becomes scrollable — the list
@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import SpaceView from './../../src/renderer/screens/SpaceView.js'
+import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 import { offenders, positioned, bodyChildren, containerMetrics, documentScrollable, ancestorChain } from './document-overflow.js'
 import type { FileEntry, Share } from './../../src/renderer/types.js'
 
@@ -75,7 +75,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
         <KeyboardProvider currentScreen="space-view" selectedSpaceId={SPACE_ID}>
-          <SpaceView spaceId={SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
+          <SpaceScreen spaceId={SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

@@ -54,7 +54,7 @@ test('a null response leaves the fold alone', (t) => {
   t.is(foldListing(seeded, null, toEntry), seeded, 'nothing to fold before the first read lands')
 })
 
-// FolderView is keyed per share, so each folder folds from emptyFold. This is the property that
+// FolderScreen is keyed per share, so each folder folds from emptyFold. This is the property that
 // makes the key sufficient: a fresh fold cannot inherit rows, so nothing has to clear one.
 test('a fresh fold cannot bleed the previous share into the next', (t) => {
   const seeded = foldListing(emptyFold, res([entry('a')]), toEntry)

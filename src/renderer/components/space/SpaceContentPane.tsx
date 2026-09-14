@@ -72,7 +72,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
     >
       <div
         ref={filesRef}
-        /* SCROLL-PANE RULES (the one statement; FolderView and ActivityLog point here).
+        /* SCROLL-PANE RULES (the one statement; FolderScreen and ActivityLog point here).
          `relative`: `sr-only` spans are `position: absolute` and clip only from their containing
          block, so an unpositioned pane lets rows below the fold grow the DOCUMENT into an OS
          scrollbar. `-mx-1 pl-1 pr-1`: 4px of ring room for a focused card, cancelled by the

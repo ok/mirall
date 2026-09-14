@@ -113,7 +113,7 @@ export default function ActivityFeed(props: ActivityFeedProps) {
               would otherwise stretch the screen without limit as pages are appended. It
               also makes the day headings pin the way they are meant to — against the list,
               not the page. */}
-          {/* `relative`: the scroll-pane rule, see SpaceView's pane. */}
+          {/* `relative`: the scroll-pane rule, see SpaceScreen's pane. */}
           <div className="relative max-h-[clamp(20rem,52vh,40rem)] overflow-y-auto scrollbar-thin">
             <ul>
               {groups.map((group) => (

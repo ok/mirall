@@ -14,7 +14,7 @@ export function useQuery<T>(
   const key = keyOf(type, params)
   const enabled = opts.enabled !== false
   // A disabled hook does not fetch, and it must not SUBSCRIBE either. invalidate() refetches any
-  // entry with a subscriber, so a disabled consumer — FolderView holding useOwnedMount for a
+  // entry with a subscriber, so a disabled consumer — FolderScreen holding useOwnedMount for a
   // mirrored share — kept the shared listing hot and made every shares-scoped hint issue a full
   // owned-folder:list-all (one live stat per owned mount) whose result it then discards. It also
   // stopped subscribeKey minting a scope-less entry for a key nothing ever fetches.

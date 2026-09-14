@@ -40,7 +40,7 @@ export default async function s28({ runDir, bootstrap }) {
     })
     await r.ok('the nested file shows in B’s folder view', async () => {
       await B.openFolder('Media')
-      // FolderView is a collapsible tree (s103): top-level folders open by default, deeper
+      // FolderScreen is a collapsible tree (s103): top-level folders open by default, deeper
       // ones stay collapsed, and leaves render their basename — so the replicated nesting
       // shows as a "trips" row containing a "2024" row, and the leaf appears once it's opened.
       await B.waitText('trips', 20000)

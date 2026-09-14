@@ -6,7 +6,7 @@ import { useUpdates } from './hooks/useUpdates.js'
 import { useSpaces } from './hooks/useSpaces.js'
 import { useAppNavigation } from './hooks/useAppNavigation.js'
 import { useAppShellEffects } from './hooks/useAppShellEffects.js'
-import Onboarding from './screens/Onboarding.js'
+import OnboardingScreen from './screens/OnboardingScreen.js'
 import ScreenRouter from './ScreenRouter.js'
 import { useCanGoBack } from './hooks/useCanGoBack.js'
 import type { Screen } from './navigation.js'
@@ -146,7 +146,7 @@ export default function App() {
       <p role="status" className="text-on-surface text-lg">{t('boot.loading')}</p>
     </main>
   )
-  if (needsSetup) return <Onboarding onComplete={saveProfile} />
+  if (needsSetup) return <OnboardingScreen onComplete={saveProfile} />
 
   return (
     <ToastProvider>

@@ -1,5 +1,5 @@
-// The folder screen's palette entries, registered while FolderView is mounted and unregistered
-// with it. That mount lifetime IS the scoping: the folder screen is the only place FolderView
+// The folder screen's palette entries, registered while FolderScreen is mounted and unregistered
+// with it. That mount lifetime IS the scoping: the folder screen is the only place FolderScreen
 // renders, so "this folder" in a label can only ever mean the folder on screen, and the command
 // context never has to carry a share id. Which entries are offered, and under which label, is
 // decided by deriveFolderCommands; this hook only binds them to the screen's handlers.

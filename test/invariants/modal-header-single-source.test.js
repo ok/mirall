@@ -65,7 +65,7 @@ const GROUPS = ['components/modals/SpaceDialogs.tsx']
 test('every dialog gets its header from the owner', (t) => {
   const dialogs = files.filter((f) => f.rel.startsWith('components/modals/')).map((f) => f.rel)
   t.ok(dialogs.length >= 16, `found ${dialogs.length} dialogs under components/modals`)
-  for (const rel of [...dialogs, 'screens/ActivityLogSettings.tsx']) {
+  for (const rel of [...dialogs, 'screens/settings/ActivityLogSettings.tsx']) {
     const src = read(rel)
     if (GROUPS.includes(rel)) {
       t.absent(src.includes('<Modal'), `${rel} is a group of dialogs and declares none of its own`)

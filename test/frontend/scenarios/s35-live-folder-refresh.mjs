@@ -6,7 +6,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // P1 / G10 — the peer is ALREADY viewing the folder when the owner changes it.
-// The open FolderView must refresh on its own (event-driven, `share-files-updated`)
+// The open FolderScreen must refresh on its own (event-driven, `share-files-updated`)
 // — a new file appears and a removed file disappears without re-navigating.
 export default async function s35({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })

@@ -23,7 +23,7 @@ export interface Command {
 export const GLOBAL_HOTKEYS = ['mod+k', 'mod+,', 'mod+/', 'mod+f'] as const
 
 // A folder view is still inside its space, so space-scoped commands stay available there;
-// the ones that need SpaceView's modals raise a pending action, which navigates back there first.
+// the ones that need SpaceScreen's modals raise a pending action, which navigates back there first.
 export function isInSpace(ctx: CommandContext): boolean {
   return ctx.currentScreen === 'space-view' || ctx.currentScreen === 'folder-view'
 }

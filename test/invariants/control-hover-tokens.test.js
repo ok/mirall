@@ -23,7 +23,7 @@ const root = new URL('../../', import.meta.url)
 const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
 const css = read('src/renderer/styles/tailwind.css')
-const chips = read('src/renderer/screens/SharedSpaces.tsx')
+const chips = read('src/renderer/screens/SpacesScreen.tsx')
 const button = read('src/renderer/components/primitives/Button.tsx')
 
 // Every .tsx under the renderer, so a pattern check cannot go stale by a control moving file.
@@ -142,7 +142,7 @@ test('light-mode primary is a fill that has left accent behind', (t) => {
   // the floor (the old #33253b/#281b30 pair) a 5 L* step was invisible to the person using it.
   const lighter = Math.max(lstar(k['color-primary']), lstar(k['color-primary-hover']))
   t.ok(lighter >= 27, `the plum pair reaches up off the ramp floor (L* ${lighter.toFixed(1)})`)
-  const src = read('src/renderer/screens/SharedSpaces.tsx') + read('src/renderer/components/primitives/Button.tsx')
+  const src = read('src/renderer/screens/SpacesScreen.tsx') + read('src/renderer/components/primitives/Button.tsx')
   t.absent(/text-primary\b/.test(src), 'primary is never used as an ink')
 })
 

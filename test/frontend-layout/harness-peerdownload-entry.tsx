@@ -2,7 +2,7 @@
 // <PeerDownloadIndicator> at several lane widths and the <PeerDownloadRow>, and asserts the
 // contract the unit/AX-tree layers can't see:
 //   - the collapsed meta never clips at any lane width or locale;
-//   - tokens shed lowest-priority first: the count word shows only on a wide (FolderView) lane,
+//   - tokens shed lowest-priority first: the count word shows only on a wide (FolderScreen) lane,
 //     ETA sheds next, speed is always kept;
 //   - aria-valuetext still carries count · speed · ETA even where the visible line is compacted;
 //   - the per-peer row puts the name on the left and right-aligns the avatar + bar at ~half width,
@@ -62,7 +62,7 @@ const bob: SpaceMember = { publicKey: 'k2', driveKey: 'd2', displayName: 'Bob', 
 // 50/100 MB at 5 MB/s → speed "5 MB/s", remaining 50 MB ÷ 5 MB/s = 10 → ETA "10s left", pct 50%.
 const summary: PeerDownloadSummary = { spaceId: 's1', path: '/file.bin', peerKeys: ['k1'], pausedKeys: [], bytes: 50 * MB, total: 100 * MB, avgSpeed: 5 * MB }
 
-// Representative lane widths: FolderView basis-72 (count word shown), FileCard basis-56 (count
+// Representative lane widths: FolderScreen basis-72 (count word shown), FileCard basis-56 (count
 // relies on avatars), the bumped 180px floor, and an ultra-narrow lane (speed only).
 const LANES: Array<{ id: string; w: number }> = [
   { id: 'folder', w: 288 },
@@ -184,7 +184,7 @@ async function measure(): Promise<void> {
       pass: false,
     }
 
-    // German worst case (count word + speed + verbose German ETA) at a FolderView-width lane,
+    // German worst case (count word + speed + verbose German ETA) at a FolderScreen-width lane,
     // in its own DOM host. Done last so flipping the locale can't disturb the EN measurements.
     await i18n.changeLanguage('de')
     const deHost = document.createElement('div')

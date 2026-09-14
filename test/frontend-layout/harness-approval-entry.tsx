@@ -1,5 +1,5 @@
 // Real-Chromium harness for the join-request in-flight affordance (LOCAL/dev-machine only —
-// spawns a real Electron GUI process). Mounts the REAL <SpaceView> with one pending request,
+// spawns a real Electron GUI process). Mounts the REAL <SpaceScreen> with one pending request,
 // clicks Approve, and asserts the button disables while the (deliberately delayed) approve RPC
 // is in flight, that the derived request row is NEVER hidden (Fix B keeps the projection as the
 // sole source of truth — no reconcile hint is emitted here), and that the button re-enables once
@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import SpaceView from './../../src/renderer/screens/SpaceView.js'
+import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 
 interface FakeDriver {
   SPACE_ID: string
@@ -39,7 +39,7 @@ createRoot(container).render(
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
         <KeyboardProvider currentScreen="space-view" selectedSpaceId={f.SPACE_ID}>
-          <SpaceView spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
+          <SpaceScreen spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

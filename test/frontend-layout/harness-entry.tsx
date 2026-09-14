@@ -1,4 +1,4 @@
-// Real-Chromium layout harness. Mounts the REAL <FolderView> inside the REAL
+// Real-Chromium layout harness. Mounts the REAL <FolderScreen> inside the REAL
 // app-shell wrappers (root `min-h-screen` + `<main>` top-padding that, together
 // with the screen's `h-[calc(100vh-5rem-var(--banner-h))]`, sum to exactly
 // 100vh), then reproduces the mirror-download re-render storm and measures
@@ -10,7 +10,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
-import FolderView from './../../src/renderer/screens/FolderView.js'
+import FolderScreen from '../../src/renderer/screens/FolderScreen.js'
 import { offenders, positioned, bodyChildren, containerMetrics, documentScrollable } from './document-overflow.js'
 
 const f = (window as unknown as { __fake: { SPACE_ID: string; SHARE_ID: string; OWNER_PK: string; files: Array<{ relPath: string; size: number }> } }).__fake
@@ -24,14 +24,14 @@ const share = {
   spaceId: f.SPACE_ID,
   createdAt: 0,
   role: 'mirrored',
-} as unknown as Parameters<typeof FolderView>[0]['share']
+} as unknown as Parameters<typeof FolderScreen>[0]['share']
 
 const container = document.getElementById('root') as HTMLElement
 createRoot(container).render(
   <div className="min-h-screen bg-surface">
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
-        <FolderView spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
+        <FolderScreen spaceId={f.SPACE_ID} share={share} onBack={() => {}} />
       </ToastProvider>
     </main>
   </div>,

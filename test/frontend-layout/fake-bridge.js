@@ -36,7 +36,7 @@
     { publicKey: OWNER_PK, driveKey: 'd'.repeat(64), displayName: 'Vhinz', online: true, avatar: null },
     { publicKey: SELF_PK, driveKey: 'e'.repeat(64), displayName: 'You', online: true, avatar: null },
   ]
-  // schemaVersion 2 is what every shipped space carries; without it SpaceView renders the
+  // schemaVersion 2 is what every shipped space carries; without it SpaceScreen renders the
   // legacy banner and hides the drop zone, i.e. not the screen users see.
   const space = {
     spaceId: SPACE_ID, name: 'Aurora', icon: 'folder', topic: 't'.repeat(64),
@@ -68,8 +68,8 @@
       case 'foreign-folder:get': return foreignMount
       case 'owned-folder:get': return null
       case 'features:get': return { overlay: false }
-      // Routes the full SpaceView mount (members layout harness) needs; the
-      // FolderView scenario never calls these, so the empties are inert there.
+      // Routes the full SpaceScreen mount (members layout harness) needs; the
+      // FolderScreen scenario never calls these, so the empties are inert there.
       // A harness that wants a populated space screen seeds these two through __HARNESS_CFG;
       // the scenarios that only need the shell keep the empty listings.
       case 'files:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.files) || []

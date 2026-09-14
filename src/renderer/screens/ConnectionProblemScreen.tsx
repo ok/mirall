@@ -21,7 +21,7 @@ function relativeCheck(at: number, now: number, t: (key: string, opts?: Record<s
   return t('connectionProblem.checkedMinutes', { count: minutes })
 }
 
-export default function ConnectionProblem({ onBack, onContinue, onShowDetails, onShowHistory }: Props) {
+export default function ConnectionProblemScreen({ onBack, onContinue, onShowDetails, onShowHistory }: Props) {
   const { t } = useTranslation()
   const { status, reachability, probeCanary } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()

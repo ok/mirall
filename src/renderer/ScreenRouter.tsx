@@ -1,19 +1,19 @@
 import type { AppNavigation } from './hooks/useAppNavigation.js'
 import type { Profile } from './types.js'
-import SharedSpaces from './screens/SharedSpaces.js'
-import SpaceView from './screens/SpaceView.js'
-import FolderView from './screens/FolderView.js'
-import Settings from './screens/settings/Settings.js'
+import SpacesScreen from './screens/SpacesScreen.js'
+import SpaceScreen from './screens/SpaceScreen.js'
+import FolderScreen from './screens/FolderScreen.js'
+import Settings from './screens/settings/SettingsScreen.js'
 import StorageSettings from './screens/settings/StorageSettings.js'
 import NotificationSettings from './screens/settings/NotificationSettings.js'
 import AppearanceSettings from './screens/settings/AppearanceSettings.js'
 import GeneralSettings from './screens/settings/GeneralSettings.js'
 import NetworkSettings from './screens/settings/NetworkSettings.js'
-import NetworkStatus from './screens/NetworkStatus.js'
-import Account from './screens/Account.js'
-import ActivityLog from './screens/ActivityLog.js'
+import NetworkStatusScreen from './screens/NetworkStatusScreen.js'
+import Account from './screens/AccountScreen.js'
+import ActivityLog from './screens/ActivityLogScreen.js'
 import ActivityLogSettings from './screens/settings/ActivityLogSettings.js'
-import ConnectionProblem from './screens/ConnectionProblem.js'
+import ConnectionProblemScreen from './screens/ConnectionProblemScreen.js'
 import { useConnectionGate } from './hooks/useConnectionGate.js'
 import { useShares } from './hooks/useShares.js'
 import { useEffect } from 'react'
@@ -48,9 +48,9 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
   return (
     // Keyed, so a folder is a fresh mount rather than a reused instance carrying the previous one's
     // fold, expansion snapshot and filter. Load-bearing: useShareFiles, useTreeExpansion and
-    // FolderView's preFilterRef all assume a mount per share, and a re-target without this key
+    // FolderScreen's preFilterRef all assume a mount per share, and a re-target without this key
     // unions one folder's rows into another's first incomplete listing, silently.
-    <FolderView
+    <FolderScreen
       key={share.id}
       spaceId={spaceId}
       share={share}
@@ -66,13 +66,13 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
   switch (currentScreen) {
     case 'spaces':
       return gate.showConnectionProblem ? (
-        <ConnectionProblem
+        <ConnectionProblemScreen
           onContinue={gate.dismiss}
           onShowDetails={() => nav.setCurrentScreen('network-status')}
           onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
         />
       ) : (
-        <SharedSpaces
+        <SpacesScreen
           onSelectSpace={nav.navigateToSpace}
           onShowCreate={onShowCreate}
           onShowJoin={onShowJoin}
@@ -80,7 +80,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       )
     case 'connection-problem':
       return (
-        <ConnectionProblem
+        <ConnectionProblemScreen
           onBack={() => nav.setCurrentScreen('spaces')}
           onContinue={() => nav.setCurrentScreen('spaces')}
           onShowDetails={() => nav.setCurrentScreen('network-status')}
@@ -89,7 +89,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       )
     case 'space-view':
       return selectedSpaceId ? (
-        <SpaceView
+        <SpaceScreen
           spaceId={selectedSpaceId}
           pendingAction={nav.pendingSpaceAction}
           onActionConsumed={nav.clearPendingSpaceAction}
@@ -143,7 +143,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-status':
       return (
-        <NetworkStatus
+        <NetworkStatusScreen
           onBack={() => nav.setCurrentScreen('account')}
           onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
         />

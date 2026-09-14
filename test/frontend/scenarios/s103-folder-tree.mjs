@@ -5,7 +5,7 @@ import { makeReport, assert, waitFor } from '../assert.mjs'
 import { findNode } from '../tree.mjs'
 import { workDir } from '../paths.mjs'
 
-// Collapsible folder tree in FolderView: nested folders render as disclosure rows
+// Collapsible folder tree in FolderScreen: nested folders render as disclosure rows
 // (folder buttons AX-targetable by name/role), top-level folders open by default
 // while deeper ones stay collapsed, and expand/collapse + collapse-all/expand-all
 // reveal and hide leaves. Leaves show basenames; the flat-list rendering is gone.

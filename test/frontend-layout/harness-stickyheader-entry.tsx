@@ -5,7 +5,7 @@
 // visible. That band is 4px of a card sliced off mid-row, right above the heading; nothing in the
 // AX tree can see it, which is why it lives here rather than in `test/frontend/`.
 //
-// Mounts the REAL <SpaceView> inside the REAL app-shell wrappers with more rows than the pane is
+// Mounts the REAL <SpaceScreen> inside the REAL app-shell wrappers with more rows than the pane is
 // tall, scrolls the list so rows sit behind each header in turn, and asserts the band is empty.
 //
 // `window.bridge` is installed by fake-bridge.js (a classic script loaded first in
@@ -15,7 +15,7 @@ import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import SpaceView from './../../src/renderer/screens/SpaceView.js'
+import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 import type { FileEntry, Share } from './../../src/renderer/types.js'
 
 interface HeaderMetrics {
@@ -100,7 +100,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
         <KeyboardProvider currentScreen="space-view" selectedSpaceId={SPACE_ID}>
-          <SpaceView spaceId={SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
+          <SpaceScreen spaceId={SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

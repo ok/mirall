@@ -1,5 +1,5 @@
 // Space-screen document-overflow test (LOCAL/dev-machine only — spawns a real Electron GUI
-// process, like the agent-desktop frontend suite). Mounts the real <SpaceView> with a list long
+// process, like the agent-desktop frontend suite). Mounts the real <SpaceScreen> with a list long
 // enough to scroll and asserts the DOCUMENT never becomes scrollable — an OS scrollbar over the
 // whole window means a box escaped the pane that was supposed to clip it. Prints the offending
 // elements so a failure is self-diagnosing.
@@ -19,7 +19,7 @@ const fmtPhase = (label, p) => p
   ? `      ${label}: documentOverflow=${p.overflow}px scrollable=${p.scrollable} (pane scrollTop=${p.paneScrollTop})`
   : `      ${label}: (not measured)`
 
-console.log('\n──────── SpaceView document-overflow harness ────────')
+console.log('\n──────── SpaceScreen document-overflow harness ────────')
 console.log(`innerHeight            : ${out.innerHeight}px`)
 console.log(`share cards rendered   : ${out.shareCards}`)
 console.log(`list pane scrolls      : ${out.paneScrolls}`)

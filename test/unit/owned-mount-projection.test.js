@@ -23,7 +23,7 @@ test('unhealthyOwnedStatus reports only the states that deserve a badge', (t) =>
 
 test('an unsettled read is distinguishable from a share with no row', (t) => {
   t.alike(projectOwnedMount(undefined, 'sp1', 'sh1', false), NO_OWNED_MOUNT, 'nothing read yet → loaded:false')
-  // The distinction FolderView depends on: loaded:false pins it to the frozen navigation snapshot,
+  // The distinction FolderScreen depends on: loaded:false pins it to the frozen navigation snapshot,
   // so reporting it for a folder that simply was never mounted would freeze that folder forever.
   t.alike(
     projectOwnedMount([], 'sp1', 'sh1', true),
@@ -36,7 +36,7 @@ test('an unsettled read is distinguishable from a share with no row', (t) => {
 // `!(loading && data === undefined)`. The store settles an entry on an ERROR as well as on data, so
 // a FAILED owned-folder:list-all read reports loading:false with data undefined, and that
 // expression called it settled. projectOwnedMount then found no row for the share and returned the
-// healthy answer with loaded:true, which FolderView takes outright — so a folder durably
+// healthy answer with loaded:true, which FolderScreen takes outright — so a folder durably
 // paused-error or mount-point-gone painted with no fault strip, no Try again and a null mountPath,
 // exactly when the worker was least able to correct it. The hand-rolled version this replaced left
 // loaded:false on a rejection and fell back to share.mountStatus.)
@@ -46,9 +46,9 @@ test('REGRESSION (REVIEW-1): a failed read is not settled, so the fault strip su
   t.ok(ownedMountSettled(true, [row()]), 'and so is a listing with rows')
   t.absent(ownedMountSettled(false, [row()]), 'a disabled hook has no answer to give')
 
-  // The consequence, end to end: what FolderView receives when the read rejected.
+  // The consequence, end to end: what FolderScreen receives when the read rejected.
   t.alike(projectOwnedMount(undefined, 'sp1', 'sh1', ownedMountSettled(true, undefined)), NO_OWNED_MOUNT,
-    'loaded:false, so FolderView falls back to the share mount status it already had')
+    'loaded:false, so FolderScreen falls back to the share mount status it already had')
 })
 
 // The trap is a parameter the function does not have, as with profileGate. This pins that shape,

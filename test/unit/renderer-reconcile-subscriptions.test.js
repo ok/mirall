@@ -91,7 +91,7 @@ test('a files hint cannot invalidate a share-files view', (t) => {
 const STORE_WRITERS = {
   'store/reconcile.ts': 'the app-wide push bridges — one subscription each, installed once in main.tsx',
   'hooks/useProfile.ts': 'post-mutation, so one call is one user action however many components are mounted',
-  'screens/ActivityLogSettings.tsx': 'post-mutation, same reason',
+  'screens/settings/ActivityLogSettings.tsx': 'post-mutation, same reason',
 }
 
 function walkRenderer(dir, out = []) {
@@ -124,7 +124,7 @@ test('REGRESSION (REVIEW-4): only the push bridges write the query store from a 
 
 // REGRESSION (REVIEW-3: useQuery called useSyncExternalStore outside its enabled check, so a
 // disabled consumer still subscribed the shared entry. invalidate() refetches any entry with a
-// subscriber, so FolderView holding useOwnedMount for a MIRRORED share — enabled:false, projecting
+// subscriber, so FolderScreen holding useOwnedMount for a MIRRORED share — enabled:false, projecting
 // NO_OWNED_MOUNT whatever comes back — made every shares-scoped hint in any space issue a full
 // owned-folder:list-all, which runs a live stat per owned mount, and then discarded the result.)
 test('REGRESSION (REVIEW-3): a disabled useQuery holds no subscription on the shared entry', (t) => {

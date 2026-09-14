@@ -317,7 +317,7 @@ export interface DiagnosticLogEntry {
   text: string
 }
 
-export interface NetworkStatus {
+export interface NetworkStatusScreen {
   state: ConnectivityState
   dhtReady: boolean
   announced: boolean

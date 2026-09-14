@@ -1,4 +1,4 @@
-// What FolderView and SpaceView each read out of the one `owned-folder:list-all` listing. Both
+// What FolderScreen and SpaceScreen each read out of the one `owned-folder:list-all` listing. Both
 // projections live here rather than in the hook so they are one declaration for two screens — and
 // so the precedence below is testable without React.
 
@@ -12,17 +12,17 @@ export function unhealthyOwnedStatus(m) {
 }
 
 // Settled means an answer LANDED — data or error — not `!loading`: the store settles an entry on an
-// error too, so a failed read is loading:false with no data, and FolderView takes this projection
+// error too, so a failed read is loading:false with no data, and FolderScreen takes this projection
 // outright once loaded. Undefined is unsettled whatever the reason; a never-mounted share is [].
 export function ownedMountSettled(enabled, rows) {
   return Boolean(enabled) && rows !== undefined
 }
 
-// The full FolderView projection, over the listing rather than a per-share read.
+// The full FolderScreen projection, over the listing rather than a per-share read.
 //
 // `settled` is the store's "a value has landed for this entry", which is NOT the same as "this
 // share has a row": a folder that was never mounted legitimately has no row, and reporting
-// loaded:false for it would pin FolderView to its frozen navigation snapshot forever. Settled with
+// loaded:false for it would pin FolderScreen to its frozen navigation snapshot forever. Settled with
 // no row is a healthy answer, not a missing one.
 //
 // Nothing here latches. Every field is read from the row on each call, so a share change re-derives

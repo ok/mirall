@@ -1,5 +1,5 @@
 // Real-Chromium layout harness for the Members panel. Mounts the REAL
-// <SpaceView> inside the REAL app-shell wrappers (root `min-h-screen` + `<main>`
+// <SpaceScreen> inside the REAL app-shell wrappers (root `min-h-screen` + `<main>`
 // top-padding that, with the screen's `h-[calc(100vh-5rem-var(--banner-h))]`,
 // sum to 100vh), expands the Members box, and measures whether the expanded card
 // hugs its content (collapsing the empty space below it) for a small roster while
@@ -12,7 +12,7 @@ import { createRoot } from 'react-dom/client'
 import i18n from './../../src/renderer/i18n.js'
 import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
 import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
-import SpaceView from './../../src/renderer/screens/SpaceView.js'
+import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 import type { SpaceMember } from './../../src/renderer/types.js'
 
 interface FakeDriver {
@@ -69,7 +69,7 @@ createRoot(container).render(
     <main className="pt-[calc(5rem+var(--banner-h,0px))]">
       <ToastProvider>
         <KeyboardProvider currentScreen="space-view" selectedSpaceId={f.SPACE_ID}>
-          <SpaceView spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
+          <SpaceScreen spaceId={f.SPACE_ID} onBack={() => {}} onManageStorage={() => {}} />
         </KeyboardProvider>
       </ToastProvider>
     </main>

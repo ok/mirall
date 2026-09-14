@@ -5,7 +5,7 @@ import { connectInSpace } from '../helpers.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
-// REGRESSION (FIX-UNMOUNT-NAV): unmounting a mirror from inside FolderView used
+// REGRESSION (FIX-UNMOUNT-NAV): unmounting a mirror from inside FolderScreen used
 // to call onBack() and jump to the space view. Unmounting only reverts the share
 // to a browse folder (it still exists), so the user must stay in the folder,
 // which now shows the browse affordances.

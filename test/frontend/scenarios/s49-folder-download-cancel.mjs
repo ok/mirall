@@ -6,7 +6,7 @@ import { makeReport, assert } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // Cancel mid-flight: row reverts to Available with a Download button, and the
-// partial does not land at the destination. This is the FolderView equivalent
+// partial does not land at the destination. This is the FolderScreen equivalent
 // of the FileCard cancel flow — same IPC, different surface, separate a11y
 // guarantee per row.
 export default async function s49({ runDir, bootstrap }) {

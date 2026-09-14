@@ -62,7 +62,7 @@ export default function FolderListPane(props: FolderListPaneProps) {
         onToggleExpand={toggleAll}
         showExpand={allFolderPaths.length > 0}
       />
-      {/* Scroll-pane rules: see SpaceView's pane. `pt-1` is allowed here — no sticky header. */}
+      {/* Scroll-pane rules: see SpaceScreen's pane. `pt-1` is allowed here — no sticky header. */}
       <div
         ref={filesRef}
         className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}

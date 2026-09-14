@@ -1,4 +1,4 @@
-// Not collapsible, and deliberately so: it is the SpaceView twin of the folder screen's
+// Not collapsible, and deliberately so: it is the SpaceScreen twin of the folder screen's
 // FolderStatsCard, which cannot fold because its top-right corner is spoken for by the status
 // badge. The pair that folds is the people one (Members here, People there); the pair that states
 // a size does not.

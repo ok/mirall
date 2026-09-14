@@ -7,7 +7,7 @@
 //   2. the props they receive keep their identity — the listing rows across a reconcile
 //      (shareFilesReconcile.js) and the handlers across a render (useFiles/useTransferControls).
 //   3. a live transfer frame reaches ONE row without touching the listing array, so the two O(n)
-//      walks FolderView runs over it (buildFileTree, then filterTree) do not re-run per frame.
+//      walks FolderScreen runs over it (buildFileTree, then filterTree) do not re-run per frame.
 //      `treeBuilds` is the measurement: it must not move when a decoration lands.
 //
 // HOW THE COUNT IS HONEST. The counter cannot live inside the real ShareFileRow without editing
@@ -81,7 +81,7 @@ function snapshot(): Record<string, number> {
   return { ...renders }
 }
 
-// The memo under test lives in useFilteredTree, which FolderView calls: buildFileTree(files) on
+// The memo under test lives in useFilteredTree, which FolderScreen calls: buildFileTree(files) on
 // [files], filterTree on [tree, …]. This harness re-implements the same useMemo rather than calling
 // the hook, because the hook also owns expansion state and a session store the harness has no
 // business driving — but that means it measures the SHAPE, not the hook. If useFilteredTree ever

@@ -9,7 +9,7 @@ import Button from '../components/primitives/Button.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
-import type { NetworkStatus, Reachability } from '../types.js'
+import type { NetworkStatusScreen, Reachability } from '../types.js'
 
 interface Props {
   onBack: () => void
@@ -162,7 +162,7 @@ function BootstrapList({ items, emptyLabel, countLabel }: BootstrapListProps) {
 
 interface VerdictBannerProps {
   reachability: Reachability | null
-  status: NetworkStatus | null
+  status: NetworkStatusScreen | null
   reconnecting: boolean
   reconnectThrottled: boolean
   onReconnect: () => void
@@ -217,7 +217,7 @@ function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled,
 // nat.firewalled initialises to true and reads true for nearly every home user, and
 // nat.randomized is the same predicate as publicPort === 0 — so neither earns a line of
 // its own. What is left is one statement per real finding.
-function buildSuggestions(status: NetworkStatus | null, browserOnline: boolean, t: (key: string) => string): string[] {
+function buildSuggestions(status: NetworkStatusScreen | null, browserOnline: boolean, t: (key: string) => string): string[] {
   const lines: string[] = []
   if (!status) return lines
   if (!browserOnline) {
@@ -238,7 +238,7 @@ function buildSuggestions(status: NetworkStatus | null, browserOnline: boolean, 
 }
 
 interface SummaryProps {
-  status: NetworkStatus | null
+  status: NetworkStatusScreen | null
   now: number
   onShowHistory: () => void
 }
@@ -295,7 +295,7 @@ function SuggestionsList({ lines }: { lines: string[] }) {
 }
 
 interface AdvancedDetailsProps {
-  status: NetworkStatus | null
+  status: NetworkStatusScreen | null
   now: number
 }
 
