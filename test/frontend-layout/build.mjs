@@ -1,14 +1,11 @@
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { CASES } from './cases.mjs'
 
 const HERE = import.meta.dirname
 const REPO = path.resolve(HERE, '../..')
-
-// Always rebuild the real app stylesheet (the harness links assets/dist/app.css):
-// Tailwind only emits classes it saw at build time, so a stale app.css silently
-// drops any class a source edit just introduced and the harness measures a lie.
-execFileSync('npm', ['run', 'build:css'], { cwd: REPO, stdio: 'inherit' })
 
 const common = {
   bundle: true,
@@ -20,104 +17,44 @@ const common = {
   logLevel: 'info',
 }
 
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-members-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-members.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-approval-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-approval.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-dropoverlay-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-dropoverlay.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-sharecard-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-sharecard.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-progress-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-progress.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-peerdownload-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-peerdownload.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-filecard-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-filecard.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-modaltitle-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-modaltitle.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-logohover-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-logohover.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-mirrorers-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-mirrorers.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-indexing-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-indexing.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-memo-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-memo.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-focusring-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-focusring.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-truncation-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-truncation.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-segments-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-segments.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-spaceoverflow-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-spaceoverflow.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-stickyheader-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-stickyheader.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-errorassoc-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-errorassoc.js'),
-})
-await build({
-  ...common,
-  entryPoints: [path.join(HERE, 'harness-toastdedupe-entry.tsx')],
-  outfile: path.join(HERE, 'dist/harness-toastdedupe.js'),
-})
-console.error('[build] harness bundled')
+const entryFor = (name) => (name === 'harness' ? 'harness-entry.tsx' : `harness-${name}-entry.tsx`)
+const bundleFor = (name) => (name === 'harness' ? 'harness.js' : `harness-${name}.js`)
+
+// Generated, not committed: the 19 files this replaced differed only in <title> and the bundle src,
+// and a hand-maintained copy is where a harness silently stops linking the real stylesheet.
+export function htmlFor({ name, title, cfg, note = "The REAL built stylesheet, so the harness uses the app's actual CSS." }) {
+  const cfgBlock = cfg
+    ? `  <!-- One pending request + a delayed approve reply so the in-flight disable is observable. -->\n  <script>\n    window.__HARNESS_CFG = {\n${cfg}\n    }\n  </script>\n`
+    : ''
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  <!-- ${note} -->
+  <link rel="stylesheet" href="../../assets/dist/app.css" />
+${cfgBlock}  <!-- Classic script: installs window.bridge BEFORE the ESM bundle imports ipc.ts. -->
+  <script src="./fake-bridge.js"></script>
+</head>
+<body style="background: var(--color-background);">
+  <div id="root"></div>
+  <script type="module" src="./dist/${bundleFor(name)}"></script>
+</body>
+</html>
+`
+}
+
+if (import.meta.filename === process.argv[1]) {
+  // Always rebuild the real app stylesheet (the harness links assets/dist/app.css):
+  // Tailwind only emits classes it saw at build time, so a stale app.css silently
+  // drops any class a source edit just introduced and the harness measures a lie.
+  execFileSync('npm', ['run', 'build:css'], { cwd: REPO, stdio: 'inherit' })
+  await Promise.all(CASES.map((c) => build({
+    ...common,
+    entryPoints: [path.join(HERE, entryFor(c.name))],
+    outfile: path.join(HERE, 'dist', bundleFor(c.name)),
+  })))
+  for (const c of CASES) writeFileSync(path.join(HERE, `harness-${c.name}.html`), htmlFor(c))
+  console.error('[build] harness bundled')
+}
