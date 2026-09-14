@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { stallVerdict } from '../../src/shared/core/stall-verdict.js'
+import { stallVerdict } from '../../src/shared/core/pass-liveness.js'
 
 const W = 1000
 

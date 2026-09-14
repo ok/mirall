@@ -2,6 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { tagged } from '../helpers/capture-console.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -166,14 +167,8 @@ test('malformed JSON is skipped, not fatal', async (t) => {
 // Both channels: the router logs its trace through console.log (debug) and its failures through
 // console.warn, which is what makes a failed request visible at the default level.
 function captureIpcLog(t) {
-  const realLog = console.log
-  const realWarn = console.warn
-  const lines = []
-  const grab = (real) => (...a) => { if (a[0] === '[ipc]') { lines.push(a.slice(1).join(' ')); return } real(...a) }
-  console.log = grab(realLog)
-  console.warn = grab(realWarn)
-  t.teardown(() => { console.log = realLog; console.warn = realWarn; setRuntimeConfig({}) })
-  return lines
+  t.teardown(() => setRuntimeConfig({}))
+  return tagged(t, '[ipc]', { join: true })
 }
 
 test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatches', async (t) => {

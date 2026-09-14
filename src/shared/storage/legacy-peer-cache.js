@@ -1,4 +1,4 @@
-import { migrationResult, MIGRATION_STATUS } from './migrations.js'
+import { migrationResult, MIGRATION_STATUS } from './migration-result.js'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
 import { listSpaces, getSpaceContentKey } from '../spaces/space.js'

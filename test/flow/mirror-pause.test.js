@@ -6,19 +6,16 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suffix.js'
+import { waitFor } from '../helpers/poll.js'
 
 // overlayEnabled for both peers; a short foreign poll so resume re-fetches
 // promptly instead of waiting the 30s production cadence.
 const OWNER_FLAGS = { overlayEnabled: true }
 const MIRROR_FLAGS = { overlayEnabled: true, foreignPollIntervalMs: 1500 }
 
-async function waitForSize(file, want, ms = scaled(60000)) {
-  const deadline = Date.now() + ms
-  while (Date.now() < deadline) {
-    try { if (fs.statSync(file).size === want) return } catch {}
-    await new Promise((r) => setTimeout(r, 200))
-  }
-  throw new Error(`file ${file} never reached ${want} bytes within ${ms}ms`)
+async function waitForSize(file, want, ms = 60000) {
+  const reached = () => { try { return fs.statSync(file).size === want } catch { return false } }
+  await waitFor(reached, ms, { interval: 200, label: `${file} to reach ${want} bytes` })
 }
 
 // REGRESSION (FIX-128): pausing a mirror must abort the file the overlay mirror

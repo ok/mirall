@@ -10,11 +10,11 @@ import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
 import { initSpaces, createSpace, recordJoinRequest, upsertMember } from '../../src/shared/spaces/space.js'
 import {
   connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters, resetRegistries,
-} from '../../src/shared/transfer/swarm-registries.js'
+} from '../../src/shared/network/swarm-registries.js'
 import {
   initDeferredAdmission, resetDeferredAdmission,
   readmitConnectedMembers, reconcilePendingRequestersForApprover,
-} from '../../src/shared/transfer/deferred-admission.js'
+} from '../../src/shared/network/deferred-admission.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Deferred admission has two entry points over one shared replay, and the whole point of the module

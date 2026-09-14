@@ -4,7 +4,7 @@ import path from 'bare-path'
 import url from 'bare-url'
 import { freshPeer } from '../helpers/store.js'
 import { getRuntimeConfig, setRuntimeConfig, getResourceCaps } from '../../src/shared/core/runtime-config.js'
-import { sanitizeAvatar } from '../../src/shared/identity-limits.js'
+import { sanitizeAvatar } from '../../src/shared/contract/identity-limits.js'
 import {
   getLocalPublicKeyHex, getProfileBee, setProfile, getProfile,
   readProfileRecord, markRequest, readPeerRequests,

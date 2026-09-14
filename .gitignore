@@ -10,3 +10,6 @@ test/frontend/evidence/
 test/frontend/fixtures/
 test/frontend/.work/
 test/frontend-layout/dist/
+
+# Generated from test/frontend-layout/cases.mjs by build.mjs.
+test/frontend-layout/harness*.html

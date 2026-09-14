@@ -8,7 +8,7 @@
 import { MOUNT_STATUS, MIRROR_STATE } from '../contract/statuses.js'
 import fs from 'bare-fs'
 
-import { onPeerOnline } from '../transfer/swarm.js'
+import { onPeerOnline } from '../network/swarm.js'
 
 import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
@@ -18,7 +18,7 @@ import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
-import { pathFromMount } from '../transfer/path-guard.js'
+import { pathFromMount } from './path-guard.js'
 
 import { hasContentBackend } from '../transfer/content-backends.js'
 

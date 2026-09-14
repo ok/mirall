@@ -5,7 +5,7 @@ import Hypercore from 'hypercore'
 import {
   clampDisplayName, validSenderFrame, signNoiseBinding, verifyIdentityBinding, checkInboundSender,
   leaveFrameBound,
-} from '../../src/shared/transfer/handshake-guard.js'
+} from '../../src/shared/network/handshake-guard.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 

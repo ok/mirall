@@ -10,7 +10,7 @@
 //
 // No domain knowledge and no bare-* imports: the bee arrives as a dependency, so this loads under
 // Node and unit-tests without a store.
-import { createKeyedLock } from './keyed-lock.js'
+import { createKeyedLock } from './concurrency.js'
 
 const MAX_ATTEMPTS = 3
 

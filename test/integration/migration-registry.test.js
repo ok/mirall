@@ -2,7 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshDurable } from '../helpers/store.js'
-import { MIGRATIONS, STAGES, runMigrations } from '../../src/shared/storage/migrations.js'
+import { MIGRATIONS, runMigrations } from '../../src/shared/storage/migrations.js'
+import { STAGES } from '../../src/shared/storage/migration-result.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 

@@ -11,7 +11,7 @@
 //  - the convergence watermark: the owner-catalog version the last converged pass walked, so a
 //    settled mirror re-walks only when that version moves.
 import fs from 'bare-fs'
-import { pathFromMount } from '../transfer/path-guard.js'
+import { pathFromMount } from './path-guard.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { driveKeyToSegments, nextFreeName } from './path-keys.js'
 import { patchForeignMount } from './mount-store.js'

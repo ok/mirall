@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createKeyedLock } from '../../src/shared/core/keyed-lock.js'
+import { createKeyedLock } from '../../src/shared/core/concurrency.js'
 
 test('runExclusive runs one key in call order, other keys in parallel, and releases drained keys', async (t) => {
   const lock = createKeyedLock()

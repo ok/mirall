@@ -1,6 +1,4 @@
 import test from 'brittle'
-import os from 'os'
-import path from 'path'
 import fs from 'fs'
 import b4a from 'b4a'
 import Corestore from 'corestore'
@@ -8,12 +6,9 @@ import Hyperdrive from 'hyperdrive'
 import Hyperbee from 'hyperbee'
 import Hyperswarm from 'hyperswarm'
 import createTestnet from 'hyperdht/testnet.js'
+import { tmpDir as makeTmpDir } from '../helpers/tmp.js'
 
-function tmpDir(label) {
-  const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+const tmpDir = (label) => makeTmpDir(`mirall-test-${label}`)
 
 async function setupPeer(testnet, label) {
   const dir = tmpDir(label)

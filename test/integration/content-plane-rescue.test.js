@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createContentPeerSockets } from '../../src/shared/transfer/content-peer-sockets.js'
+import { createContentPeerSockets } from '../../src/shared/network/content-peer-sockets.js'
 
 // REGRESSION (FIX-9, second root cause: the bulk plane stops re-dialing and never recovers).
 //

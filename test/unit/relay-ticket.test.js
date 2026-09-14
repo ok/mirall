@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import z32 from 'z32'
 import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
-import { _encodeTicketForTests, parseRelayInput, TICKET_CHARS, TICKET_PREFIX } from '../../src/shared/transfer/relay-ticket.js'
+import { _encodeTicketForTests, parseRelayInput, TICKET_CHARS, TICKET_PREFIX } from '../../src/shared/network/relay-ticket.js'
 
 // The frozen vector from the relay↔client contract §2.5, duplicated verbatim in
 // mirall-relay. If this fails, one of the two repos has drifted and the invite format is

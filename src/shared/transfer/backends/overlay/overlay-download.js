@@ -9,7 +9,7 @@ import { getOverlay, getJournalDir } from './overlay-instance.js'
 import { fetchContentToFile } from './overlay-backend.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { partialPathFor } from '../../partial-suffix.js'
-import { isOwnerOnline } from '../../swarm.js'
+import { isOwnerOnline } from '../../../network/swarm.js'
 import { markDownloaded, markVerified, isDownloadedFile, isDownloadedWithHash } from '../../files.js'
 import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,

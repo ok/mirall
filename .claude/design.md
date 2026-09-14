@@ -130,7 +130,7 @@ bar's total length vanishes — which is what shipped twice: first as `surface-c
 `progress-track` (`#d0cec9` / `#4a5160`) clears every host surface by at least 1.2:1 while
 keeping the `on-info` fill above 3:1 against the track. The same reasoning applies to the
 `PeerDownloadDropdown` divider, which uses `divide-progress-track` because dark
-`outline-variant` is *also* `#393f4a`. Pinned by `test/unit/progress-bar-contrast.test.js`;
+`outline-variant` is *also* `#393f4a`. Pinned by `test/invariants/progress-bar-contrast.test.js`;
 never re-point a track at a `surface-container-*` token.
 
 Theme is chosen via `theme.ts` (`light` | `dark` | `system`); `theme.ts` only
@@ -366,7 +366,7 @@ The tonal red is also the one fill that gets painted under a foreign ink — a d
 or card action is `text-error` at rest and only meets the fill on hover, where `error` on
 `error-container` is **2.94:1** in dark, under even the 3:1 non-text floor. Every
 `hover:bg-error-container` therefore carries `hover:text-on-error-container` with it.
-`test/unit/control-hover-tokens.test.js` holds all of it: the direction per theme and the two
+`test/invariants/control-hover-tokens.test.js` holds all of it: the direction per theme and the two
 documented ramp-end exceptions, the step floor as a function of distance from the page, AA on every label
 over *both* states, the neutral's clearance, and that pairing.
 
@@ -568,7 +568,7 @@ folder name ended up painted over the Browse button. `npm run test:layout:trunca
 ### Modal — `primitives/Modal.tsx`
 react-aria `useDialog` + `<FocusScope contain restoreFocus>`; `role="dialog" aria-modal="true"`.
 **The dialog owns Enter and Escape — no modal binds a key on its own field.** The decision is one
-pure function, `primitives/modalKeys.ts`, unit-tested in `test/unit/modal-keys.test.js`:
+pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-keys.test.js`:
 - **Escape** dismisses, and so does a backdrop click — both only when `isDismissable`, and so does
   the global `CLOSE_MODALS_EVENT`, so a hotkey cannot tear down a dialog holding a running operation.
 - **Enter** fires `onConfirm`, unless the focused control owns Enter itself (a textarea, a button,

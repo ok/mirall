@@ -31,7 +31,7 @@
      outside the surface-container ramp: a bar sits inside a row that lifts to
      `surface-container-highest` on hover and inside a toggle that lifts to
      `surface-container-high`, so any ramp token it borrows goes invisible in one of
-     those states. Pinned by test/unit/progress-bar-contrast.test.js. */
+     those states. Pinned by test/invariants/progress-bar-contrast.test.js. */
   --color-progress-track: #d0cec9;
   --color-on-surface: #1b1c1a;
   --color-on-surface-variant: #4a454b;

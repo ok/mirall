@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS, DIAGNOSTICS_SCHEMA } from '../../src/shared/transfer/diagnostics.js'
+import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS, DIAGNOSTICS_SCHEMA } from '../../src/shared/network/support-bundle.js'
 
 const PUBLIC_HOST = '203.0.113.7'
 const PUBLIC_KEY = 'a'.repeat(64)

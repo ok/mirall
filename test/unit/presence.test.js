@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createPresence, presenceFrameKind } from '../../src/shared/transfer/presence.js'
+import { createPresence, presenceFrameKind } from '../../src/shared/network/presence.js'
 
 // The receiver decision for an inbound presence frame (B1 departure): a well-formed frame with
 // offline:true is a graceful-quit departure (clear the lease), a well-formed heartbeat marks

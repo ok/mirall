@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const SCRIPT = path.join(here, '..', '..', 'scripts', 'check-comment-hygiene.sh')
+const SCRIPT = path.join(here, '..', '..', 'scripts', 'ci', 'check-comment-hygiene.sh')
 
 // The gate cds to its own parent's parent, so the copy sits under <tmp>/scripts/ and the fake tree
 // under <tmp>/src/ — the same shape it scans in the repo. One file per violation class, so a class
@@ -14,8 +14,8 @@ const SCRIPT = path.join(here, '..', '..', 'scripts', 'check-comment-hygiene.sh'
 function tree(t, files) {
   const root = mkdtempSync(path.join(tmpdir(), 'comment-hygiene-'))
   t.teardown(() => rmSync(root, { recursive: true, force: true }))
-  mkdirSync(path.join(root, 'scripts'))
-  copyFileSync(SCRIPT, path.join(root, 'scripts', 'check-comment-hygiene.sh'))
+  mkdirSync(path.join(root, 'scripts', 'ci'), { recursive: true })
+  copyFileSync(SCRIPT, path.join(root, 'scripts', 'ci', 'check-comment-hygiene.sh'))
   for (const [rel, body] of Object.entries(files)) {
     const abs = path.join(root, 'src', rel)
     mkdirSync(path.dirname(abs), { recursive: true })
@@ -25,7 +25,7 @@ function tree(t, files) {
 }
 
 function run(root, args = []) {
-  const r = spawnSync('bash', [path.join(root, 'scripts', 'check-comment-hygiene.sh'), ...args], { encoding: 'utf8' })
+  const r = spawnSync('bash', [path.join(root, 'scripts', 'ci', 'check-comment-hygiene.sh'), ...args], { encoding: 'utf8' })
   return { code: r.status, out: r.stdout + r.stderr }
 }
 

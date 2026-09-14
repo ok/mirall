@@ -5,7 +5,7 @@ import { Supervisor } from '../../src/shared/core/supervisor.js'
 import { initialPublishScan, getIndexStatus } from '../../src/shared/folders/owned-folders.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { waitFor } from '../helpers/bare-poll.js'
 
 // The publish lane is shared by every space, so a wedged item is not one share's problem: at the
 // shipped concurrency three of them stop publishing everywhere, with no crash and nothing in the
@@ -15,14 +15,7 @@ import { scaled } from '../helpers/bare-timing.js'
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function waitUntil(pred, ms = 5000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (pred()) return
-    await delay(10)
-  }
-  throw new Error('condition not met within ' + scaled(ms) + 'ms')
-}
+const waitUntil = (pred, ms = 5000) => waitFor(pred, ms, { interval: 10 })
 
 async function wedgedPublish(t) {
   const ctx = await setupOwnedShare(t, { files: { 'first.bin': 'aaa', 'second.bin': 'bbb' } })

@@ -1,14 +1,9 @@
 import test from 'brittle'
 import { readFileSync } from 'fs'
 import { MAIN_REQUEST_MAX_LINE, isControlFrameCandidate, createWorkerFrameReader } from '../../src/main/ipc-frame.js'
+import { capture } from '../helpers/capture-console.js'
 
-function muteWarn(t) {
-  const original = console.warn
-  const lines = []
-  console.warn = (...args) => lines.push(args.join(' '))
-  t.teardown(() => { console.warn = original })
-  return lines
-}
+const muteWarn = (t) => capture(t).warn
 
 const frameFor = (mountPath) => Buffer.from(JSON.stringify({
   type: 'main-request',

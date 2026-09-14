@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { dialOnce } from '../../src/shared/transfer/connectivity.js'
+import { dialOnce } from '../../src/shared/network/connectivity.js'
 
 function deadSocket() {
   const handlers = {}

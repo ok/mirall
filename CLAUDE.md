@@ -114,7 +114,7 @@ Mirall is a peer-to-peer file-sharing desktop app. Three-process architecture, a
 - **Electron renderer** (`src/renderer/` → `assets/dist/`) — sandboxed React 19 + Tailwind v4 UI, bundled by esbuild. Reaches main via `window.bridge` (contextBridge in `src/preload/preload.js`).
 - **Bare worker** (`src/worker/main.js`; data layer in `src/shared/*`) — spawned by `pear.run()`. Hosts all P2P data-layer logic: Corestore, Hyperbee, Hyperdrive, Hyperswarm, Protomux handshake (`mirall/handshake`), transfers, owned/foreign folder sync. Talks to the renderer through main over a Bare IPC pipe (NDJSON request/response + events). `src/shared/*` is the worker's data layer — the renderer imports nothing from it.
 
-Distribution: `.dmg` (macOS, signed + notarized) and `.msix` (Windows, signed locally via Certum) built by `electron-forge` makers; `.AppImage` (Linux, unsigned by convention) assembled by `scripts/build-app-image.sh` from forge's packaged output. CI builds every platform target in `.github/workflows/build-electron.yml`. OTA updates flow through a per-channel Pear Hyperdrive (channels `dev` / `staging` / `prod`) seeded by an Arch Linux VM running `mirall-seed.service` (`pear seed production`); 
+Distribution: `.dmg` (macOS, signed + notarized) and `.msix` (Windows, signed locally via Certum) built by `electron-forge` makers; `.AppImage` (Linux, unsigned by convention) assembled by `scripts/build/build-app-image.sh` from forge's packaged output. CI builds every platform target in `.github/workflows/build-electron.yml`. OTA updates flow through a per-channel Pear Hyperdrive (channels `dev` / `staging` / `prod`) seeded by an Arch Linux VM running `mirall-seed.service` (`pear seed production`); 
 
 ## Obligatory Reading
 

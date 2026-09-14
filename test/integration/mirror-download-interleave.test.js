@@ -14,7 +14,7 @@ import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR }
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { until as pollUntil } from '../helpers/bare-poll.js'
 
 // REGRESSION: the mirror and the folder engine could both fetch one file and both write its
 // decoration key, so the mirror probed the FOLDER engine's registry defensively before every fetch
@@ -23,14 +23,7 @@ import { scaled } from '../helpers/bare-timing.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function until(fn, ms = 10000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (await fn()) return true
-    await sleep(10)
-  }
-  return false
-}
+const until = (pred, ms = 10000) => pollUntil(pred, ms, { interval: 10 })
 
 async function mirrorCtx(t, opts = {}) {
   const ctx = await setupSelfMirror(t, opts)

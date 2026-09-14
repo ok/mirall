@@ -33,7 +33,7 @@ main can `require` it. **Never add an import to a `contract/` module.**
 Hard boundaries, each enforced by a gate rather than a comment:
 
 - The renderer imports `src/shared/contract/**` only (`no-restricted-imports` +
-`test/unit/renderer-contract-only-imports.test.js`). Need data-layer logic in the UI? Move the
+`test/invariants/renderer-contract-only-imports.test.js`). Need data-layer logic in the UI? Move the
 rule into `contract/`, or ask the worker over IPC. Do not copy it.
 - A module that a `test/unit` test loads under plain Node must not import `bare-*`. The pure half of
 `folders/` is listed in `eslint.config.mjs` → `pureFolderPolicyModules` and enforced there; do the
@@ -77,10 +77,10 @@ returns a decision is named for the decision (`supersedeDecision`, `stallVerdict
 **One word, one concept.** Word collisions across the data layer are the single biggest navigation
 tax here, because they make `grep` lie. Respect these splits:
 
-- *presence* = peer liveness (`state/presence.js`, `transfer/presence-broadcast.js`). File-on-disk
+- *presence* = peer liveness (`state/presence.js`, `network/presence-broadcast.js`). File-on-disk
 presence is *retire-confirm* / *disk-presence*.
 - *admission* = membership gating. The download engine's slot gating is a *fetch gate*.
-- *diagnostics*: `transfer/diagnostics.js` = support bundle; `swarm-diagnostics.js` = live status;
+- *diagnostics*: `network/support-bundle.js` = support bundle; `swarm-diagnostics.js` = live status;
 `core/diagnostics-redact.js` = redaction.
 - *health*: `core/health.js` = event-loop lag; `Subsystem.health()` = readiness.
 - Error codes are `CODES` (from `contract/errors.js`). The `ErrorCodes` alias is gone — do not
@@ -106,7 +106,7 @@ domain, one file per cohesive unit that shares consumers and purity.**
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
 in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
-(`spaces/space.js`, `transfer/swarm.js`, `overlay-download.js`, `overlay-backend.js`,
+(`spaces/space.js`, `network/swarm.js`, `overlay-download.js`, `overlay-backend.js`,
 `folders/owned-folders.js`) are known debt — do not add responsibilities to them.
 
 **When *not* to split:** a one-line re-export "for the import path". Those shims are all deleted;
@@ -153,7 +153,7 @@ vocabulary drift this codebase has had.
 
 - Every periodic or deferred job is owned by a `Subsystem` and armed through `this.timers`, inside
 `_open()`. **A timer armed at module level runs at import, where no `close()` can ever reach it**
-— banned by `moduleLevelTimerRestrictions` and pinned by `test/unit/module-level-timers.test.js`.
+— banned by `moduleLevelTimerRestrictions` and pinned by `test/invariants/module-level-timers.test.js`.
 - A timer handle that outlives the call that armed it (`announceTimer`, `presenceBeat`) must be
 owned by `this.timers` or a module's own `createTimers()` that its `reset` closes.
 - A module-level flag that nothing clears is a shutdown latch bug. State that survives a stop must
@@ -176,7 +176,7 @@ incident changed it, instead of the rule the code now enforces. But the best com
  the story matters, its home is a `REGRESSION (…)` test name, the commit message, or
  `.claude/lessons.md` — all three survive; a comment rots.
 3. **No internal ids in `src/`** — no `FIX-n`, `MIR-n`, `LIFECYCLE-n`. A contributor cannot resolve
- them from this repository. Blocked by `scripts/check-comment-hygiene.sh`.
+ them from this repository. Blocked by `scripts/ci/check-comment-hygiene.sh`.
 4. **No references a reader cannot follow from the repo** — no `.claude/` or plan-doc paths, no `§`
  section cites, no `#123` issue numbers in comments. The one permitted pointer target is
  `.claude/solution-architecture.md`. (`vendor/` is exempt: its tags are defined in `PROVENANCE.md`.)
@@ -237,7 +237,7 @@ concern; the screen renders.
 real module. All such shims have been deleted.
 - **Hand-mirrored vocabulary.** The renderer keeping its own copy of a data-layer rule because it
 "cannot import the worker". *Instead:* put it in `contract/` and import it. Pinned by
-`test/unit/no-hand-mirrored-vocabularies.test.js`.
+`test/invariants/no-hand-mirrored-vocabularies.test.js`.
 - **Two names for one object.** `CODES` and `ErrorCodes` for the same export. *Instead:* one name,
 renamed everywhere in a single change.
 - **Word collision across domains.** *presence*, *health*, *diagnostics*, *admission* meaning two
@@ -257,7 +257,7 @@ class. *Instead:* subsystem-owned state.
 exists in `contract/statuses.js`.
 - **Unused parameter kept for shape.** Every caller pays to pass it. Drop it.
 - **Locale keys and colour tokens outliving their use.** Guarded now by
-`test/unit/i18n-unreferenced-keys.test.js` and `test/unit/unused-color-tokens.test.js` — do not
+`test/invariants/i18n-unreferenced-keys.test.js` and `test/invariants/unused-color-tokens.test.js` — do not
 add an allowlist entry to silence them unless the key really is reached dynamically, and name the
 site when you do.
 
@@ -309,7 +309,7 @@ A change is not done until all of these hold.
   add a failing `REGRESSION (…)` test at the bug's layer before fixing. Docs/config-only → state `SKIP`.
 - [ ] `**npm run typecheck**` clean; no new `any`/`unknown`.
 - [ ] `**npm run lint**` — 0 errors, and no *new* warnings (the `lint:ci` ceiling is a downward ratchet).
-- [ ] `**bash scripts/check-comment-hygiene.sh**` exits 0.
+- [ ] `**bash scripts/ci/check-comment-hygiene.sh**` exits 0.
 - [ ] `**npm run test:unit**` and, for data-layer changes, `**npm run test:bare**` green.
 
   (`test:bare` names the file that failed — re-run that one file, `node test/bare-runner.mjs <file>`, not the suite.)

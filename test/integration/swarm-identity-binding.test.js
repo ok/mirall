@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
 import { getIdentitySigner, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/transfer/handshake-guard.js'
+import { signNoiseBinding, verifyIdentityBinding } from '../../src/shared/network/handshake-guard.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 

@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
-import { decodeRelayKey, enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair } from '../../src/shared/transfer/relay.js'
+import { decodeRelayKey, enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair } from '../../src/shared/network/relay.js'
 import { isValidRelayKey, normalizeRelayMode, sanitizeRelay, MAX_LABEL_LENGTH } from '../../src/main/relay-keys.js'
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 1))

@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
-import { signNoiseBinding, checkGrantAssertion } from '../../src/shared/transfer/handshake-guard.js'
+import { signNoiseBinding, checkGrantAssertion } from '../../src/shared/network/handshake-guard.js'
 import { reconcileAssertedRoot } from '../../src/shared/spaces/creator-root.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')

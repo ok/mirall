@@ -6,7 +6,7 @@
 const { ipcMain } = require('electron')
 const relaySecret = require('./relay-secret.js')
 
-const relayTicketReady = import('../shared/transfer/relay-ticket.js')
+const relayTicketReady = import('../shared/network/relay-ticket.js')
 
 function registerRelaySlot({ config, getPear }) {
   // Classify and validate a pasted relay input. No side effects, and no secret in the reply:

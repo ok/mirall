@@ -54,7 +54,7 @@ test('showSpaceLoading: already-rendered content is never replaced by the indica
 })
 
 // The two gates below can only be wrong at the call site, so pin the wiring by source
-// (mirrors test/unit/foreign-resume-wiring.test.js) — a refactor that reverts either one
+// (mirrors test/invariants/foreign-resume-wiring.test.js) — a refactor that reverts either one
 // reopens the flash with every predicate test still green.
 
 // The screen reads both sources and hands them over as `pane`; the pane component applies them.

@@ -13,6 +13,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { until as pollUntil } from '../helpers/bare-poll.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -38,22 +39,10 @@ function slowHash(t, ms, { only = null } = {}) {
 const fill = (dir, names, b = 'x') => { for (const n of names) fs.writeFileSync(path.join(dir, n), b.repeat(4096)) }
 
 async function settled(share, spaceId, want, ms = 90000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if ((await listRelPaths(share, spaceId)).length === want) return true
-    await sleep(100)
-  }
-  return false
+  return pollUntil(async () => (await listRelPaths(share, spaceId)).length === want, ms, { interval: 100 })
 }
 
-async function until(fn, ms = 30000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (await fn()) return true
-    await sleep(100)
-  }
-  return false
-}
+const until = (pred, ms = 30000) => pollUntil(pred, ms, { interval: 100 })
 
 async function entryFor(share, spaceId, relPath) {
   for await (const e of listOwnShare(spaceId, share.id)) if (e.relPath === relPath) return e

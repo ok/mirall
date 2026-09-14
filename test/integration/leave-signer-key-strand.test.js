@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { cleanupSpaceDrives, getBoundSignerKey } from '../../src/shared/transfer/swarm.js'
-import { connectedPeers, boundSignerKeys, pendingRequesters, resetRegistries } from '../../src/shared/transfer/swarm-registries.js'
+import { cleanupSpaceDrives, getBoundSignerKey } from '../../src/shared/network/swarm.js'
+import { connectedPeers, boundSignerKeys, pendingRequesters, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 
 // boundSignerKeys is the ONLY source a membership:grant seals an SCK against (worker/ipc/membership.js
 // → boundSignerPk), and sendMembershipGrant cannot tell a stale key from a current one: with no key

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createSwarmDiagnostics } from '../../src/shared/transfer/swarm-diagnostics.js'
+import { createSwarmDiagnostics } from '../../src/shared/network/swarm-diagnostics.js'
 
 // The module imports nothing from bare-*, which is what lets it be tested here rather than in the
 // slow integration tier. A future edit that pulls in a bare module breaks this file loudly.

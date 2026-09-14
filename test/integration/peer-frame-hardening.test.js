@@ -6,7 +6,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import url from 'bare-url'
 import b4a from 'b4a'
-import { validFrameShape, createRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
+import { validFrameShape, createRateLimiter } from '../../src/shared/network/handshake-guard.js'
 import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../../src/shared/core/runtime-config.js'
 import { NAME_MAX } from '../../src/shared/contract/limits.js'
 import { scaled } from '../helpers/bare-timing.js'
@@ -127,7 +127,7 @@ test('a maximal join request is admitted by the intake that judges it', (t) => {
 // that caused it. The receiver's warn line is on the wrong machine, and it names no frame type.
 test('an oversize frame is reported by its sender, at error level', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const transfer = path.join(here, '..', '..', 'src', 'shared', 'transfer')
+  const transfer = path.join(here, '..', '..', 'src', 'shared', 'network')
   const src = fs.readFileSync(path.join(transfer, 'swarm.js'), 'utf8')
   const senderAt = src.indexOf('function sendFrame(')
   t.ok(senderAt >= 0, 'found sendFrame — a marker that stops matching makes the rest vacuous')
@@ -155,7 +155,7 @@ test('an oversize frame is reported by its sender, at error level', (t) => {
 
 test('every frame type is metered, not just the two identity types', async (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'frame-intake.js'), 'utf8')
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'network', 'frame-intake.js'), 'utf8')
   const from = src.indexOf('export function receiveFrame(')
   t.ok(from >= 0, 'found receiveFrame — a marker that stops matching makes this ordering vacuous')
   const intake = src.slice(from, src.indexOf('dispatchFrame(conn, msg)', from))

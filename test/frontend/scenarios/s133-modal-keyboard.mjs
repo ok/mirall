@@ -5,7 +5,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // The dialog keyboard contract, end to end (the decision itself is unit-tested in
-// test/unit/modal-keys.test.js). Every dialog used to answer Enter differently: only the modals
+// test/invariants/modal-keys.test.js). Every dialog used to answer Enter differently: only the modals
 // that wired onConfirm heard Cmd/Ctrl+Enter at all, five bound their own field, and in the rest
 // FocusScope's autoFocus put focus on the header ✕ — so Enter quietly closed the dialog instead
 // of confirming it. s3 covers plain Enter inside a text field; this covers the other four cases.

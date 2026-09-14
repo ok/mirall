@@ -2,6 +2,7 @@ import test from 'brittle'
 import { createIPC, getRequestFailureCounters, resetRequestFailureCounters, getRequestMetrics, resetRequestMetrics } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { AppError } from '../../src/shared/core/errors.js'
+import { capture } from '../helpers/capture-console.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -19,14 +20,8 @@ const TEST_REQUESTS = Object.freeze({
 // The router logs through createLogger, which writes to console.warn / console.log. Capturing both
 // is the only way to assert the LEVEL, which is the entire point of this fix.
 function captureConsole(t) {
-  const warns = []
-  const logs = []
-  const origWarn = console.warn
-  const origLog = console.log
-  console.warn = (...a) => warns.push(a.join(' '))
-  console.log = (...a) => logs.push(a.join(' '))
-  t.teardown(() => { console.warn = origWarn; console.log = origLog })
-  return { warns, logs }
+  const { warn, log } = capture(t, ['warn', 'log'])
+  return { warns: warn, logs: log }
 }
 
 // The router consumes NDJSON from pipe.on('data'); feed it the way the real pipe does.

@@ -90,7 +90,7 @@ There is **no** automated pin-guard test — nothing fails CI when the version c
 
 **When Renovate bumps `react-aria` (or `@react-stately/*`), bump `@react-types/shared` in the same PR** to whatever the new `react-aria` resolves — `npm ls @react-types/shared` after the bump tells you. Leaving it behind gives the renderer types from one React Aria release against hooks from another.
 
-`test/unit/renderer-declared-dependencies.test.js` fails if the renderer imports a package that `package.json` does not declare, so a dropped declaration is caught; it does not pin the version, which is what this note is for.
+`test/invariants/renderer-declared-dependencies.test.js` fails if the renderer imports a package that `package.json` does not declare, so a dropped declaration is caught; it does not pin the version, which is what this note is for.
 
 ## Security PRs
 

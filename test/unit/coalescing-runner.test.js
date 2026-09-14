@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createCoalescingRunner } from '../../src/shared/core/coalescing-runner.js'
+import { createCoalescingRunner } from '../../src/shared/core/concurrency.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

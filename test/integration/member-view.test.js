@@ -9,19 +9,12 @@ import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, clearOwnMembership, readMembershipRecord,
 } from '../../src/shared/spaces/profile.js'
 import { createMemberView } from '../../src/shared/spaces/member-view.js'
-import { scaled } from '../helpers/bare-timing.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
+import { until } from '../helpers/bare-poll.js'
 
 const sorted = (it) => [...it].sort()
 
-async function waitFor(pred, ms = 5000) {
-  const t0 = Date.now()
-  while (Date.now() - t0 < scaled(ms)) {
-    if (pred()) return true
-    await new Promise((r) => setTimeout(r, 20))
-  }
-  return pred()
-}
+const waitFor = (pred, ms = 5000) => until(pred, ms, { interval: 20 })
 
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
 // membership bee, replicated into the local store so openProfileBee(peerKey) can read it —

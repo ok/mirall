@@ -5,7 +5,7 @@ import { makePeer, replicate } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { capturePeerBee, captureJoinerMembership, peerBeeLength, readPeerInvite, readPeerInviteSnapshot, openProfileBee } from '../../src/shared/spaces/profile.js'
-import { resolveInvite } from '../../src/shared/transfer/swarm.js'
+import { resolveInvite } from '../../src/shared/network/swarm.js'
 import { classifyInvite } from '../../src/shared/spaces/invite-policy.js'
 
 const SPACE = 'space-cap'

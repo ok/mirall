@@ -1,16 +1,11 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import os from 'bare-os'
 import path from 'bare-path'
 import { walkDisk } from '../../src/shared/folders/walk-disk.js'
 import { DEFAULT_IGNORE, shouldIgnore } from '../../src/shared/folders/path-keys.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
-let seq = 0
-function tmp() {
-  const dir = path.join(os.tmpdir(), `mirall-walk-${Date.now()}-${seq++}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+const tmp = () => tmpDir('mirall-walk')
 
 test('stat-only walk returns size+mtime and never a hash', async (t) => {
   const root = tmp()

@@ -8,8 +8,8 @@ import {
   probeCanary,
   setBrowserOnlineHint,
   checkLivenessNow,
-} from '../../shared/transfer/swarm.js'
-import { testRelayReachable } from '../../shared/transfer/relay-install.js'
+} from '../../shared/network/swarm.js'
+import { testRelayReachable } from '../../shared/network/relay-install.js'
 
 export function registerNetwork(ipc, { applyRelayConfig }) {
   ipc.handle('network:status:get', async () => getSwarmStatus())

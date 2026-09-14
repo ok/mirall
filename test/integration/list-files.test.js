@@ -16,6 +16,7 @@ import { initContentBackendOverlay } from '../../src/shared/transfer/backends/ov
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { until } from '../helpers/bare-poll.js'
 
 // listFiles is the source of truth for the space's loose-file list and each
 // file's status. The single-peer-observable guarantees: own files show as
@@ -87,11 +88,7 @@ test('two files added at once are listed as two rows while both are still prepar
 
   try {
     let files = []
-    const deadline = Date.now() + 10000
-    while (Date.now() < deadline && files.length < 2) {
-      files = await listFiles(ctx.spaceId, [])
-      if (files.length < 2) await new Promise((r) => setTimeout(r, 20))
-    }
+    await until(async () => (files = await listFiles(ctx.spaceId, [])).length >= 2, 10000, { interval: 20, scale: false })
 
     t.alike(files.map((f) => f.path).sort(), ['/a.txt', '/b.txt'], 'both in-progress files are listed')
     for (const f of files) {

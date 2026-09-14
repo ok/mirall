@@ -7,7 +7,7 @@ import IconButton from '../primitives/IconButton.js'
 // truncates, and `truncate` is `overflow: hidden`, which clips the 800-weight headline's descenders
 // unless the line box is loosened and given room below the baseline. That triple
 // (truncate + leading-tight + pb-1.5) is what makes this a second component rather than a flag on the
-// first, and test/unit/space-title-descender.test.js pins it.
+// first, and test/invariants/space-title-descender.test.js pins it.
 interface EntityHeaderProps {
   name: string
   titleAdornment?: ReactNode

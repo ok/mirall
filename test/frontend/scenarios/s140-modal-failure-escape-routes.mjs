@@ -14,7 +14,7 @@ import { workDir } from '../paths.mjs'
 //
 // The rejection itself is not reachable from the UI: `space:leave` answers ok even when its
 // teardown throws, and the only other rejection source — the worker dying — reloads the renderer.
-// The shape of both fixes is pinned at the unit layer (test/unit/modal-busy-recovery.test.js);
+// The shape of both fixes is pinned at the unit layer (test/invariants/modal-busy-recovery.test.js);
 // what this scenario holds is the property a person experiences: each dialog keeps a named,
 // reachable way out when it is not busy, exposes no live close button while it is, and its
 // happy path still lands.

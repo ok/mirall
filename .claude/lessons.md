@@ -552,7 +552,7 @@ unless it is a `REGRESSION` test, whose whole contract is naming the defect it p
 
 ## A new module under src/shared/** needs an arch-doc row, and that is a gate
 
-`test/unit/arch-doc-module-table.test.js` walks the data-layer, main and worker trees and fails on
+`test/invariants/arch-doc-module-table.test.js` walks the data-layer, main and worker trees and fails on
 any module with no row in `.claude/solution-architecture.md` §11. Adding
 `contract/mount-precedence.js` turned a PR red on CI after a full local pass of every *targeted* test
 file — the guard lives in a file targeted runs never load.
@@ -714,3 +714,31 @@ followable.
 Note this is a *different* failure from [stacked PR merge order](#) stranding commits: here nothing
 is stranded, the content is fine, and the loss is the PR object itself. Both argue for the same
 habit — deal with the top of the stack before the bottom moves under it.
+
+## A path codemod must resolve `.ts`/`.tsx`, or it silently rewires the renderer
+
+Moving `src/shared/transfer/*` to `network/` needed ~3,000 specifier edits, so the rewrite was
+scripted. Two ordering bugs, one of them dangerous:
+
+**Order.** The codemod ran *after* `git mv`. A file that moved carries intra-folder specifiers like
+`'./transfer-id.js'`, which now resolve to nothing — the map keyed on the *old* path never sees
+them. Either run the codemod before the move, or follow it with a repair pass.
+
+**The dangerous one.** The repair pass located a broken specifier by basename: "this `./ipc.js`
+does not resolve, and exactly one `ipc.js` exists in the tree, so point at that." In the data layer
+that is sound — it is all `.js`. In the renderer it is not: `./ipc.js` resolves to
+`src/renderer/ipc.ts` under `moduleResolution: bundler`, so `existsSync('…/ipc.js')` returns false,
+the only on-disk `ipc.js` is the **worker's** `src/shared/core/ipc.js`, and 37 renderer files were
+rewritten to import the data layer's IPC router instead of their own. `tsc` still passed, because
+the target is a real module with a `request` export.
+
+**The rule:** before declaring a specifier broken, try `.js`, `.ts` and `.tsx`. And when a repair is
+keyed on a basename rather than a resolved path, restrict it to one runtime — the renderer and the
+data layer share basenames (`ipc`, `errors`, `paths`, `connectivity`, `presence`) by design.
+
+What caught it was reading `git status` and asking why `src/renderer` appeared at all in a data-layer
+move. `tsc` passed — the target is a real module with a `request` export — but the renderer's
+contract-only eslint rule **does** catch it (verified: `'../shared/core/ipc.js' import is restricted`
+on all 37 files). So the guard worked; the process did not. Run `eslint` after a codemod, not only
+`tsc`: the typechecker cannot tell you that an import crossed a runtime boundary, and the lint rule
+that can is the one this repo already wrote for exactly that.

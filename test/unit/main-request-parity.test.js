@@ -6,6 +6,7 @@ import path from 'path'
 import { createMainRequestRouter } from '../../src/main/main-requests.js'
 import { MAIN_REQUEST, MAIN_REQUEST_NAMES, MAIN_REQUEST_FRAME } from '../../src/shared/contract/main-requests.js'
 import { parseSource, forEachNode, staticString, calleeName } from '../helpers/ast-scan.js'
+import { capture } from '../helpers/capture-console.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
@@ -86,13 +87,7 @@ function stubDeps() {
   }
 }
 
-function muteWarn(t) {
-  const original = console.warn
-  const lines = []
-  console.warn = (...args) => lines.push(args.join(' '))
-  t.teardown(() => { console.warn = original })
-  return lines
-}
+const muteWarn = (t) => capture(t).warn
 
 // REGRESSION (FIX-H3-1: handleMainRequest was five `if (command === …) return` blocks with nothing
 // after them, so an unrecognised command resolved undefined and the caller's .catch never fired.

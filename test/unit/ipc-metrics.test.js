@@ -127,7 +127,7 @@ test('metrics are kept per request type', async (t) => {
 // that way — counted correctly, surfaced nowhere — and the metrics added here would have too. The
 // unit suite was green throughout, because nothing covered the hop.)
 test('REGRESSION (FIX-DIAG-DROP): the bundle carries the request counters', async (t) => {
-  const { buildDiagnostics } = await import('../../src/shared/transfer/diagnostics.js')
+  const { buildDiagnostics } = await import('../../src/shared/network/support-bundle.js')
   const ctx = {
     status: {
       reachability: null, dhtReady: true, announced: true,

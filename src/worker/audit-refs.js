@@ -3,7 +3,7 @@
 // are the single place that resolution happens, and the reason they live in the worker rather than
 // beside the builders is that each one reaches live worker state the contract layer cannot see.
 
-import { getConnectedMemberMeta } from '../shared/transfer/swarm.js'
+import { getConnectedMemberMeta } from '../shared/network/swarm.js'
 import { displayNameOrNull } from '../shared/spaces/member-identity.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
 import { getLocalPublicKeyHex } from '../shared/spaces/profile.js'

@@ -1,16 +1,10 @@
-import os from 'os'
-import path from 'path'
 import fs from 'fs'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperswarm from 'hyperswarm'
+import { tmpDir as makeTmpDir } from '../helpers/tmp.js'
 
-export function tmpDir(label) {
-  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
-  const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+export const tmpDir = (label) => makeTmpDir(`mirall-test-${label}`)
 
 export async function setupPeer(testnet, label) {
   const dir = tmpDir(label)

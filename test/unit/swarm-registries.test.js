@@ -16,7 +16,7 @@ import {
   forgetPeerOnSocket,
   boundSignerKeys,
   pendingRequesters,
-} from '../../src/shared/transfer/swarm-registries.js'
+} from '../../src/shared/network/swarm-registries.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 

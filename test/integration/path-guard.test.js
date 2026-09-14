@@ -1,10 +1,10 @@
 // Focused coverage for the shared mount-relative path guard in
-// src/shared/transfer/path-guard.js, imported by the overlay backend and
+// src/shared/folders/path-guard.js, imported by the overlay backend and
 // worker/main.js pathFromMount. bare-path is Bare-only, so this lives in the
 // integration tier; this asserts the primitive directly.
 import test from 'brittle'
 import path from 'bare-path'
-import { pathFromMount } from '../../src/shared/transfer/path-guard.js'
+import { pathFromMount } from '../../src/shared/folders/path-guard.js'
 
 const MOUNT = path.join(path.sep + 'tmp', 'mirall-mount')
 

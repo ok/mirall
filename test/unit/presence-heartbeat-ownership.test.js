@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat, broadcastDeparture,
-} from '../../src/shared/transfer/presence-broadcast.js'
+} from '../../src/shared/network/presence-broadcast.js'
 import { createTimers } from '../../src/shared/core/timers.js'
 
 // The heartbeat arms through the owning subsystem's timer set (Swarm hands it this.timers), so a

@@ -1,7 +1,7 @@
 // The accelerator catalogue: the single source of truth for every key chord in the app.
 // Call sites never spell an accelerator out — useRegisterCommand looks it up by id — so a
 // chord that is not listed here does not exist at runtime and cannot be missing from the
-// cheatsheet. test/unit/keyboard-catalog.test.js enforces both directions.
+// cheatsheet. test/invariants/keyboard-catalog.test.js enforces both directions.
 import type { CommandGroup } from './registry.js'
 
 export interface KnownCommand {

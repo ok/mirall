@@ -10,17 +10,11 @@ import { setupOwnedShare } from './owned.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
 import { periodicReconcile } from '../../src/shared/folders/owned-folders.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { waitFor } from './bare-poll.js'
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function waitUntil(pred, ms = 5000) {
-  const deadline = Date.now() + ms
-  while (Date.now() < deadline) {
-    if (pred()) return
-    await delay(10)
-  }
-  throw new Error('condition not met within ' + ms + 'ms')
-}
+export const waitUntil = (pred, ms = 5000) => waitFor(pred, ms, { interval: 10, scale: false })
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 

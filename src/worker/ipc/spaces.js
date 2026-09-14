@@ -24,7 +24,7 @@ import {
   hasPendingLeave,
   unregisterPendingLeave,
   leavePendingLeaveTopic,
-} from '../../shared/transfer/swarm.js'
+} from '../../shared/network/swarm.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../../shared/folders/mirror-registry.js'
 import { setSpaceDownloadRoot } from '../../shared/core/paths.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'

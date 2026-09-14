@@ -3,16 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent, initialPublishScan, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
-import { scaled } from '../helpers/bare-timing.js'
+import { until } from '../helpers/bare-poll.js'
 
-async function waitUntil(fn, ms = 6000) {
-  const deadline = Date.now() + scaled(ms)
-  while (Date.now() < deadline) {
-    if (await fn()) return true
-    await new Promise((r) => setTimeout(r, 100))
-  }
-  return false
-}
+const waitUntil = (pred, ms = 6000) => until(pred, ms, { interval: 100 })
 
 // Mirrors the report: top-level files already published, then the SAME files are
 // copied into a new subfolder (identical content) and arrive as a burst of

@@ -2,18 +2,10 @@ import test from 'brittle'
 import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { around as capture } from '../helpers/capture-console.js'
 
 // Capture console.{log,warn,error} around a body. The logger maps debug/info →
 // console.log, warn → console.warn, gated on the runtime `verbose` flag.
-function capture(fn) {
-  const out = { log: [], warn: [], error: [] }
-  const orig = { log: console.log, warn: console.warn, error: console.error }
-  console.log = (...a) => out.log.push(a.join(' '))
-  console.warn = (...a) => out.warn.push(a.join(' '))
-  console.error = (...a) => out.error.push(a.join(' '))
-  try { fn() } finally { Object.assign(console, orig) }
-  return out
-}
 
 // Set `verbose` without clobbering the rest of runtime config (buildConfig is a
 // full rebuild from `next` only — merge over the current config), and restore the

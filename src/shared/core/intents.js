@@ -5,6 +5,8 @@
 // No domain knowledge and no bare-* imports: the bee arrives as a dependency, so this unit-tests
 // under Node and the reconcilers live with the flows they complete.
 import { prefixRange } from './bee-keys.js'
+import { createBee } from './store.js'
+import { Subsystem } from './subsystem.js'
 
 // test seam
 export const INTENT_PREFIX = 'intent/'
@@ -86,5 +88,30 @@ export function createIntentLog({ bee, log } = {}) {
     },
 
     kinds: () => [...reconcilers.keys()],
+  }
+}
+
+let bee
+
+async function initIntents() {
+  bee = createBee('intents')
+  await bee.ready()
+}
+
+export function getIntentsBee() {
+  if (!bee) throw new Error('intents bee not open')
+  return bee
+}
+
+// A bee of its own rather than a prefix on an existing one: intents span spaces, mounts and
+// transfers, so hanging them off any one of those would tie a flow's recoverability to that
+// store's lifetime. Durable tier — it must outlive every runtime subsystem whose flow it records.
+export class IntentsBee extends Subsystem {
+  async _open() { await initIntents() }
+
+  async _close() {
+    const b = bee
+    bee = undefined
+    await b?.close()
   }
 }
