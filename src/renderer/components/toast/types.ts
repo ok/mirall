@@ -13,6 +13,9 @@ export interface ToastOptions {
 
 export interface ToastItem {
   id: string
+  // Bumped on every show, replacements included, so a repeat of an id already on screen remounts
+  // its toast: the countdown restarts from the full duration and the alert node is announced again.
+  seq: number
   variant: ToastVariant
   message: string
   duration: number

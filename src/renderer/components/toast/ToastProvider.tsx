@@ -1,5 +1,8 @@
 // Toast state and context: id-keyed replace/dedupe, a capped visible stack, and
 // auto-dismiss timers with pause/resume; exposes window.__toast in dev builds.
+//
+// A caller that names no id gets one derived from the text (toastKey), so saying the same thing
+// twice replaces rather than stacks.
 import {
   createContext,
   useCallback,
@@ -11,6 +14,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { ToastApi, ToastItem, ToastOptions, ToastVariant } from './types.js'
+import { toastKey } from './toastKey.js'
 import ToastContainer from './ToastContainer.js'
 
 declare global {
@@ -36,6 +40,7 @@ interface Props {
 export function ToastProvider({ children }: Props) {
   const [items, setItems] = useState<ToastItem[]>([])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const seqRef = useRef(0)
 
   const dismiss = useCallback((id: string) => {
     const timer = timersRef.current.get(id)
@@ -57,10 +62,11 @@ export function ToastProvider({ children }: Props) {
 
   const show = useCallback(
     (variant: ToastVariant, message: string, opts: ToastOptions = {}): string => {
-      const id = opts.id ?? `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const id = opts.id ?? toastKey(variant, message)
       const duration = opts.duration ?? DEFAULT_DURATION
       const item: ToastItem = {
         id,
+        seq: ++seqRef.current,
         variant,
         message,
         duration,

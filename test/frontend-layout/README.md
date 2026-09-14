@@ -26,6 +26,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:truncation` | `run-truncation.mjs` | `<PathRow>` + `<FileName>` in a narrow field | exactly one run truncates; nothing overflows |
 | `test:layout:segments` | `run-segments.mjs` | `<SegmentedControl>` in its three shapes | the track and every segment keep their size across selections |
 | `test:layout:errorassoc` | `run-errorassoc.mjs` | `<EditSpaceModal>`, `<EditFolderModal>`, `<MountPathField>`, `<CreateSpaceModal>` in failure | each field marks itself invalid and describes itself with its OWN error; no submit rejection escapes |
+| `test:layout:toastdedupe` | `run-toastdedupe.mjs` | the real `<ToastProvider>` under a retried failure | one sentence said three times is one toast, remounted each time; a different sentence still stacks |
 
 Append `--no-build` to any runner to reuse the existing bundle. Exit `0` = the invariant held; on
 failure each runner prints the measured metrics. **Local/dev-machine only** — they spawn a real
