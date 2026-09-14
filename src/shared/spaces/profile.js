@@ -8,7 +8,7 @@ import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '..
 
 import { getResourceCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
 import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
-import { voucheesToAdopt } from './member-set.js'
+import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'

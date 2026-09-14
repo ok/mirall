@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { foldMemberSet, foldMembership, voucheesToAdopt, reconnectGrantAllowed, tombstoneActive } from '../../src/shared/spaces/member-set.js'
+import { foldMemberSet, foldMembership, voucheesToAdopt, reconnectGrantAllowed, tombstoneActive } from '../../src/shared/spaces/membership/fold.js'
 
 // Build a records Map from a terse spec: { key: { active, approvals: [...] } }.
 const recs = (spec) => new Map(Object.entries(spec).map(([k, v]) => [k, v]))

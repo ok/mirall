@@ -4,7 +4,7 @@
 // beside the builders is that each one reaches live worker state the contract layer cannot see.
 
 import { getConnectedMemberMeta } from '../shared/network/swarm.js'
-import { displayNameOrNull } from '../shared/spaces/member-identity.js'
+import { displayNameOrNull } from '../shared/spaces/membership/fold.js'
 import { listSharesForSpace } from '../shared/shares/share-registry.js'
 import { getLocalPublicKeyHex } from '../shared/spaces/profile.js'
 import { setAuditIdentity } from '../shared/audit/audit-log.js'

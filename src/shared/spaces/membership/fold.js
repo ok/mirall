@@ -129,3 +129,77 @@ export function observedLeavers(prevMembers, inactive) {
   for (const k of inactive) if (prevMembers.has(k)) out.push(k)
   return out
 }
+
+// Pure fold (mirrors member-set.js): from the request RECEIPTS and dismissal TOMBSTONES
+// authored by the current members of a space, compute who is waiting for approval. A pending
+// joiner's own bee is never replicated to members (read gate), so a request rides a member's
+// `request/<S>/<j>` receipt; a member's `denied/<S>/<j>` tombstone withdraws it.
+//
+// Joiner j is pending iff some member vouched a receipt for j, j is not already a member /
+// approved-by-any-member / a known leaver, and j's freshest receipt is newer than j's freshest
+// dismissal (LWW, last-writer-wins — a deny clears the ask, a later fresh knock re-surfaces
+// it; revocation is not modelled, the same stance as member-set.js).
+//
+//   requests : Map<joinerKey, { displayName, avatar, ts }>   (union across members, max ts)
+//   denied   : Map<joinerKey, ts>                            (union across members, max ts)
+//   members, approved, lefts : Set<keyHex>
+// Returns Map<joinerKey, { displayName, avatar, ts }> of current pending requests.
+
+const EMPTY_SET = new Set()
+const EMPTY_MAP = new Map()
+
+export function foldPendingSet({ requests, denied, members, approved, lefts }) {
+  const isMember = members || EMPTY_SET
+  const isApproved = approved || EMPTY_SET
+  const leftAt = lefts || EMPTY_MAP          // Map<joinerKey, leaveTs>
+  const tombstones = denied || EMPTY_MAP
+
+  const out = new Map()
+  for (const [j, meta] of (requests || EMPTY_MAP)) {
+    if (isMember.has(j) || isApproved.has(j)) continue
+    // A leaver stays suppressed only while their leave is at least as recent as this receipt; a
+    // strictly-newer receipt is a genuine re-request and must surface (mirrors the denial rule
+    // below). Without this a durable tombstone would hide a rejoin request forever on any co-member
+    // that learned of the request via replication rather than a direct frame.
+    const leaveTs = leftAt.get?.(j)
+    if (leaveTs != null && meta.ts <= leaveTs) continue
+    const deniedTs = tombstones.get(j)
+    if (deniedTs != null && deniedTs >= meta.ts) continue
+    out.set(j, { displayName: meta.displayName || 'Unknown', avatar: meta.avatar ?? null, ts: meta.ts })
+  }
+  return out
+}
+
+// Best-known identity for a member, merged from (highest priority first): live swarm meta (the
+// handshake — freshest), the replicated profile bee, then whatever we already hold; the
+// 'Unknown'/null placeholders rank last so we never regress a name we once knew. driveKey now also
+// falls back to the replicated bee (profile.driveKey) so a member derived from records with no live
+// handshake can still have its drive opened — otherwise that peer's files would be invisible.
+// Returns { entry, changed }; changed is false when held already equals the merge (skip the write+emit).
+// The inverse of the 'Unknown' default below: a caller that must not persist a placeholder asks
+// for the name it can actually stand behind. Audit rows snapshot names at write time and never
+// join at render, so an 'Unknown' written into one is a fake name pinned forever — null lets the
+// viewer degrade to the short key, which is at least correlatable.
+export function displayNameOrNull(name) {
+  return name && name !== UNKNOWN_NAME ? name : null
+}
+
+// test seam
+export const UNKNOWN_NAME = 'Unknown'
+
+export function mergeMemberIdentity({ publicKey, meta, profile, held }) {
+  const m = meta || {}
+  const p = profile || {}
+  const h = held || {}
+  const entry = {
+    publicKey,
+    driveKey: m.driveKey ?? p.driveKey ?? h.driveKey ?? null,
+    displayName: m.displayName || p.displayName || h.displayName || UNKNOWN_NAME,
+    avatar: m.avatar ?? p.avatar ?? h.avatar ?? null,
+    looseCatalogKey: m.looseCatalogKey ?? p.looseCatalogKey ?? h.looseCatalogKey ?? null,
+    looseCatalogKeyEnc: m.looseCatalogKeyEnc ?? p.looseCatalogKeyEnc ?? h.looseCatalogKeyEnc ?? null,
+  }
+  if (!held) return { entry, changed: true }
+  const changed = ['driveKey', 'displayName', 'avatar', 'looseCatalogKey', 'looseCatalogKeyEnc'].some((k) => entry[k] !== (held[k] ?? null))
+  return { entry, changed }
+}

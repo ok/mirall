@@ -644,7 +644,7 @@ that a third party had left. None of that ships: third-party removal is delibera
 decide which of two concurrent claims came first. Membership is instead a **derived** fact —
 recomputed from replicated records — rather than a handshake-time cache anyone patches.
 
-**The fold (`spaces/member-set.js`, pure).** `foldMembership(records, creatorKey)` is an order-independent,
+**The fold (`spaces/membership/fold.js`, pure).** `foldMembership(records, creatorKey)` is an order-independent,
 idempotent OR-Set fold over the roster's replicated profile-bee records. It keeps two questions strictly apart:
 
 | | Question | Record | Who may write it |
@@ -1243,11 +1243,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/spaces/profile.js` | The user's replicated profile bee: identity + `ProfileBee`, the signer, `openProfileBee`; the membership-manifest writers and their bounded peer readers (`member/`, `approved/`, `invite/`, `request/`, `denied/`, §3.1); `withPeerBee` — the one bounded peer read (§3.1); peer-bee capture; the per-space key announcements (`drive/`, `loosecat/`, `loosecatEnc/`) |
 | `src/shared/spaces/member-registry.js` | One live member view per space: fold → `space.members` reconcile, the local leave tombstones (`lefts`) and observed-leave revoke, pending-request reconcile, capture refcounts; `MemberViews` (§6) |
 | `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
-| `src/shared/spaces/member-set.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
+| `src/shared/spaces/membership/fold.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
 | `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key) + `SpaceKeysVault` (§16) |
 | `src/shared/spaces/bee-capture.js` | `makeCaptureScheduler` — per-key, single-flight, throttled peer-bee capture (§6) |
-| `src/shared/spaces/pending-set.js` | The pure pending-request fold: receipts minus dismissal tombstones (§3.1) |
-| `src/shared/spaces/member-identity.js` | Best-known identity for a member (live meta > profile > held), `UNKNOWN_NAME`, `displayNameOrNull` |
 | `src/shared/spaces/leave-flow.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
 | `src/shared/spaces/knock-policy.js` | `knockSettledByRecords` / `knockInviteVerdict` — the verdict table for a join request. Split in two because resolving an invite REVOKES an expired one, so a knock the records already settle is answered without reading one (§4.2) |
 | `src/shared/spaces/invite-policy.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
