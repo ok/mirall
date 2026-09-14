@@ -105,9 +105,9 @@ domain, one file per cohesive unit that shares consumers and purity.**
 `folderStatus.js`, `mirrorStateLabel.js` are the pattern) and stays a renderer of that result.
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
-in one sentence. Files over ~600 lines are a standing smell; the six that exceed it today
-(`worker/main.js`, `main/main.js`, `transfer/swarm.js`, `folders/foreign-folders.js`,
-`spaces/space.js`, `overlay-backend.js`) are known debt — do not add responsibilities to them.
+in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
+(`spaces/space.js`, `transfer/swarm.js`, `overlay-download.js`, `overlay-backend.js`,
+`folders/owned-folders.js`) are known debt — do not add responsibilities to them.
 
 **When *not* to split:** a one-line re-export "for the import path". Those shims are all deleted;
 importers name the real module. Adding a file that only re-exports another is a regression.

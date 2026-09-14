@@ -9,7 +9,7 @@ const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 const ENGINE = 'shared/transfer/backends/overlay/overlay-download.js'
 // The mirror is two files: the pass decides WHETHER to fetch, the fetch decides HOW and judges
 // what came back. A parity rule belongs to whichever half actually applies it.
-const MIRROR_PASS = 'shared/folders/foreign-folders.js'
+const MIRROR_PASS = 'shared/folders/mirror-pass.js'
 const MIRROR = 'shared/folders/mirror-fetch.js'
 const CHANNEL = 'shared/transfer/backends/overlay/overlay-channel.js'
 

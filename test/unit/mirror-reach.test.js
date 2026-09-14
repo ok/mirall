@@ -37,11 +37,11 @@ test('ownerOnline is coerced to a boolean, never leaked', (t) => {
 })
 
 // share-listing.js keeps its own `isOwn ? true : …` because it answers a different question (what to
-// DISPLAY, not whether to FETCH). foreign-folders.js must not grow a second hand-rolled copy of THIS
+// DISPLAY, not whether to FETCH). The pass must not grow a second hand-rolled copy of THIS
 // one: two copies of the self-mirror rule is how they drift, and the drift is silent.
-test('foreign-folders routes every fetch-reachability decision through mirrorMayFetch', (t) => {
+test('the mirror pass routes every fetch-reachability decision through mirrorMayFetch', (t) => {
   const here = path.dirname(fileURLToPath(import.meta.url))
-  const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'foreign-folders.js'), 'utf8')
+  const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'mirror-pass.js'), 'utf8')
   const direct = src.match(/isOwnerOnline\(/g) || []
   // Exactly one, inside mayFetch. The deletion guard used to call it raw, which read every
   // self-mirror as offline and refused the owner's deletions forever; it now asks mayFetch too.
