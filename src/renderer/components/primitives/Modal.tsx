@@ -10,6 +10,7 @@ import { useDialog, FocusScope } from 'react-aria'
 import CrystalBackdrop from '../widgets/CrystalBackdrop.js'
 import { isMac } from '../../keyboard/accelerator.js'
 import { describeModalKeyEvent, modalKeyAction } from './modalKeys.js'
+import { useModalPresence } from './modalPresence.js'
 
 export const CLOSE_MODALS_EVENT = 'mirall:close-modals'
 
@@ -53,6 +54,8 @@ function ModalContents({
   externalRef,
 }: ModalContentsProps) {
   const contentRef = useRef<HTMLDivElement>(null)
+  // ModalContents mounts only while the dialog is open, so its lifetime IS the dialog's.
+  useModalPresence()
   const { dialogProps } = useDialog(
     { 'aria-label': ariaLabel, 'aria-describedby': ariaDescribedBy, role },
     contentRef,
