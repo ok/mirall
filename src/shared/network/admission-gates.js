@@ -9,7 +9,7 @@ import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, 
 import { getSpace, recordJoinRequest, pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/space.js'
 import { isHandshakeIdentityBindingEnabled } from '../core/runtime-config.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
-import { snapshotCandidates } from '../spaces/invite-policy.js'
+import { snapshotCandidates } from '../spaces/invites.js'
 import { isLeft, openMemberView, closeMemberView } from '../spaces/member-registry.js'
 
 export function createAdmissionGates({ connectedPeers, log, getIpc }) {

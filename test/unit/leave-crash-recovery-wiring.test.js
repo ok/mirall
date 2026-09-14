@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { LEAVE_PHASES } from '../../src/shared/spaces/leave-flow.js'
+import { LEAVE_PHASES } from '../../src/shared/spaces/membership/leave-state.js'
 
 // The boot wiring isn't importable (it opens real cores under Bare), so pin the structural
 // invariants source-side, like worker-epipe-guard.test.js does: boot must complete interrupted
@@ -38,7 +38,7 @@ test('G4 wiring: boot completes interrupted leaves and excludes them from member
 
 test('G4 wiring: teardown persists the durable marker before clearOwnMembership', (t) => {
   // The member del now runs as the first step of the shared teardown order, so the phase name is
-  // stamped by leave-flow.js via onPhase rather than written inline. The invariant is unchanged:
+  // stamped by membership/leave-state.js via onPhase rather than written inline. The invariant is unchanged:
   // the durable marker must be written before the departure it makes recoverable.
   const ordered = entrySrc.match(/tracker\.phase = 'mark-leaving'[\s\S]*?markSpaceLeavingDurable[\s\S]*?clearMembership:[\s\S]*?clearOwnMembership\(/)
   t.ok(ordered, 'markSpaceLeavingDurable precedes the member del')

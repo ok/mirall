@@ -6,7 +6,7 @@ import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
 import {
   markInvite, readOwnInvite, revokeInvite, listOwnInvites, sweepExpiredInvites,
 } from '../../src/shared/spaces/profile.js'
-import { classifyInvite } from '../../src/shared/spaces/invite-policy.js'
+import { classifyInvite } from '../../src/shared/spaces/invites.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Per-link invite records authored into the replicated profile bee: own-side author/read, expiry

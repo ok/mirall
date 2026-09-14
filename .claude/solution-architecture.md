@@ -177,7 +177,7 @@ user's action over a bookkeeping write would be the worse outcome. A reconciler 
 its record for the next boot; an intent whose kind is unknown is left untouched, so a downgrade
 cannot eat a newer build's pending work. Converted so far: `owned-delete`, `foreign-unmount`.
 `space:leave` keeps its own `space.leaving` marker (load-bearing in the boot filter and the member
-fold) but shares the teardown ORDER with the boot pass through `spaces/leave-flow.js`, which is what
+fold) but shares the teardown ORDER with the boot pass through `spaces/membership/leave-state.js`, which is what
 the two used to encode independently and drift on.
 
 **Bounded by construction.** Three caps the review's scale findings asked for, each with a `0`
@@ -597,7 +597,7 @@ The codec is one declaration, `shared/contract/invite-envelope.js` — plain ESM
 Multi-step, with progress events (`event:leave-progress`). The handler (`worker/ipc/space-leave.js`) answers the renderer within 12 s whatever the teardown is doing — the load-bearing steps come first, the slow ones finish in the background, and a stall is logged with its phase.
 
 1. **Durable `leaving` marker** on the space record (`markSpaceLeavingDurable`) — the first durable act, so an interrupted teardown is completed at the next boot (below).
-2. **The shared teardown order** (`spaces/leave-flow.js#runLeaveTeardown`, the same sequence boot's interrupted-leave pass runs):
+2. **The shared teardown order** (`spaces/membership/leave-state.js#runLeaveTeardown`, the same sequence boot's interrupted-leave pass runs):
    - `clearOwnMembership(spaceId)` — the durable `member/<spaceId>` delete, authored **before** the frame so co-members can re-host it — then `sendLeaveFrameToConnectedPeers(spaceId)`, the instant signal on every live `mirall/handshake` channel (§4.2).
    - Owned mounts: cancel the periodic reconcile, stop the owned folder and its watcher, delete the mount record; then `stopPublishingForSpace` (awaited — a cancelled publish still writes its revert).
    - Tombstone our own share records, so a rejoining co-member does not read a stale advertisement back.
@@ -1245,10 +1245,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
 | `src/shared/spaces/membership/fold.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
 | `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key) + `SpaceKeysVault` (§16) |
-| `src/shared/spaces/bee-capture.js` | `makeCaptureScheduler` — per-key, single-flight, throttled peer-bee capture (§6) |
-| `src/shared/spaces/leave-flow.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
+| `src/shared/spaces/membership/leave-state.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
 | `src/shared/spaces/knock-policy.js` | `knockSettledByRecords` / `knockInviteVerdict` — the verdict table for a join request. Split in two because resolving an invite REVOKES an expired one, so a knock the records already settle is answered without reading one (§4.2) |
-| `src/shared/spaces/invite-policy.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
+| `src/shared/spaces/invites.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
 | `src/shared/spaces/creator-root.js` | `reconcileAssertedRoot` — the adopt / confirm / refuse table for a member-set root assertion (§16) |
 
 ### `src/shared/shares/`

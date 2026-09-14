@@ -1,7 +1,7 @@
 import { getSpace, listSpaces, mutateMembers, setDerivedRequests, clearJoinRequest, loadLeftTombstones, clearLeftTombstone, persistLeftTombstone } from './space.js'
 import { getLocalPublicKeyHex, revokeApproval, adoptVouchees, readMembershipRecord, capturePeerBee, peerBeeLength } from './profile.js'
 import { createMemberView } from './member-view.js'
-import { makeCaptureScheduler } from './bee-capture.js'
+import { makeCaptureScheduler } from './peer-bee.js'
 import { mergeMemberIdentity } from './membership/fold.js'
 import { foldPendingSet } from './membership/fold.js'
 import { tombstoneActive, observedLeavers } from './membership/fold.js'

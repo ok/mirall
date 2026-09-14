@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeCaptureScheduler } from '../../src/shared/spaces/bee-capture.js'
+import { makeCaptureScheduler } from '../../src/shared/spaces/peer-bee.js'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
