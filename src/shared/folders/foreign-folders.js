@@ -24,7 +24,7 @@ import { hasContentBackend } from '../transfer/content-backends.js'
 
 import { setOverlayCatalogChangeHook } from '../transfer/backends/overlay/overlay-backend.js'
 
-import { drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overlay/fetch-slots.js'
+import { drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overlay/fetch-gate.js'
 
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'

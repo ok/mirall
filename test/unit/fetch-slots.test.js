@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, resetFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
-import * as reimported from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, resetFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
+import * as reimported from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
 
 function withCap(t, cap) {
   const prev = getRuntimeConfig()

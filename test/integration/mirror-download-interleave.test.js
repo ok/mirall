@@ -9,8 +9,8 @@ import {
 } from '../../src/shared/folders/foreign-folders.js'
 import {
   claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
-} from '../../src/shared/transfer/backends/overlay/fetch-claims.js'
-import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-slots.js'
+} from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
+import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
@@ -115,7 +115,7 @@ test('a start() against a held claim records the pending row and returns the liv
 test('a browse listing still reads isActive from the folder engine', (t) => {
   const src = fs.readFileSync(new URL('../../src/shared/shares/share-listing.js', import.meta.url).pathname, 'utf8')
   t.ok(/isActive: deps\.overlayHasTransfer\(transferId\)/.test(src), 'the browse row still probes the engine directly')
-  t.absent(/fetch-claims/.test(src), 'and does not ask the claim registry')
+  t.absent(/fetch-gate/.test(src), 'and does not ask the claim registry')
 })
 
 test('the mirror releases its claim and its slot on every exit path', async (t) => {

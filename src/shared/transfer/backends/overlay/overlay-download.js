@@ -20,8 +20,8 @@ import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js
 import { republishDecision } from '../../supersede-decision.js'
 import { makeSingleFlightScan } from './single-flight-scan.js'
 import { createStallRetry } from './stall-retry.js'
-import { acquireFetchSlot } from './fetch-slots.js'
-import { fetchClaimedBy } from './fetch-claims.js'
+import { acquireFetchSlot } from './fetch-gate.js'
+import { fetchClaimedBy } from './fetch-gate.js'
 import { classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { CODES } from '../../../contract/errors.js'
 import { createLogger } from '../../../core/logger.js'
@@ -215,7 +215,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
 
   // The gated half of a download: everything past this point owns a chunk scheduler, a watchdog,
   // an fd and a ticker, which is what the limit exists to bound — and that cost is per fetch, not
-  // per producer, which is why the gate is process-wide (fetch-slots.js) rather than built here.
+  // per producer, which is why the gate is process-wide (fetch-gate.js) rather than built here.
   // start() has already reserved the registry slot synchronously, so a queued job still reads as
   // active and a second trigger cannot start a duplicate fetch while this waits.
   async function runFetchTask(slot, job, transferId) {

@@ -30,7 +30,7 @@ import { fileStatPresent, statFacts } from '../folders/disk-presence.js'
 import { createLogger } from '../core/logger.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { createOverlayChannel } from './backends/overlay/overlay-channel.js'
-import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/overlay-consume.js'
+import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/overlay-backend.js'
 import { createPresenceSweeper } from '../folders/retire-confirm.js'
 
 const log = createLogger('loose-overlay')
