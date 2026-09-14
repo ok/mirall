@@ -24,8 +24,19 @@ test('no screen declares its own page title', (t) => {
   t.ok(checked >= 13, `checked ${checked} screens`)
 })
 
+// SpaceView reaches EntityHeader through SpaceHeaderBar, which also carries its legacy badge. The
+// hop is named here and closed below, so the indirection cannot become a hole.
+const SHELLS = new Map([['SpaceView.tsx', '../components/layout/SpaceHeaderBar.tsx']])
+
 test('the two name-bearing screens use EntityHeader', (t) => {
   for (const file of ['SpaceView.tsx', 'FolderView.tsx']) {
+    const shell = SHELLS.get(file)
+    if (shell) {
+      const shellSrc = readFileSync(path.resolve(SCREENS, shell), 'utf8')
+      t.ok(read(file).includes(`<${path.basename(shell, '.tsx')}`), `${file} renders its header shell`)
+      t.ok(shellSrc.includes('<EntityHeader'), `and ${shell} renders <EntityHeader>`)
+      continue
+    }
     t.ok(read(file).includes('<EntityHeader'), `${file} renders <EntityHeader>`)
   }
 })
