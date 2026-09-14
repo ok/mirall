@@ -281,13 +281,12 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
     onFolderUnsupported: () => toast.info(t('dropZone.folderComingSoon')),
   })
 
-  async function handleShareFolderRequest(droppedPath: string) {
+  function handleShareFolderRequest(droppedPath: string) {
     if (droppedPath && droppedPath.length > 0) {
       setDialog({ kind: 'add-folder', path: droppedPath })
       return
     }
-    const picked = await window.bridge.browseShareFolder()
-    if (picked) setDialog({ kind: 'add-folder', path: picked })
+    openFolderPicker()
   }
 
   // Both list sources feed one pane; see spaceContentState.js for why emptiness needs both.
@@ -301,6 +300,26 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
 
   const runAction = useRunAction()
   const closeDialog = useCallback(() => setDialog(null), [])
+
+  // The folder picker is modal to the user, not to the app: it stays open for as long as they take,
+  // and they can leave the space or close the screen while it is. The guard is therefore scoped to
+  // the mount and the space — an effect's own cleanup flag is not, because the effect that opens
+  // the picker re-runs the moment the action it came from is consumed, which would cancel a picker
+  // the user has not answered yet.
+  const mounted = useRef(true)
+  const openSpace = useRef(spaceId)
+  useEffect(() => {
+    openSpace.current = spaceId
+    return () => { mounted.current = false }
+  }, [spaceId])
+
+  const openFolderPicker = useCallback(() => {
+    const openedFor = spaceId
+    void window.bridge.browseShareFolder().then((picked) => {
+      if (!picked || mounted.current !== true || openSpace.current !== openedFor) return
+      setDialog({ kind: 'add-folder', path: picked })
+    })
+  }, [spaceId])
 
   const markBusy = (pk: string) => setBusy((prev) => new Set(prev).add(pk))
   const clearBusy = (pk: string) => setBusy((prev) => {
@@ -384,7 +403,6 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
   }, [runAction])
 
   useEffect(() => {
-    let live = true
     if (!pendingAction) return
     if (pendingAction.kind === 'mirror') {
       const share = shares.find((s) => s.id === pendingAction.shareId)
@@ -405,16 +423,11 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
     if (action === 'leave') setDialog({ kind: 'leave' })
     else if (isPending || isLegacy) { /* refused below the UI; drop it rather than hold it */ }
     else if (action === 'add-files') fileInputRef.current?.click()
-    else if (action === 'add-folder') {
-      // The folder picker is modal to the user, not to the app: they can leave this space while it
-      // is open, and a folder chosen after that belongs to a screen that is gone.
-      void window.bridge.browseShareFolder().then((picked) => { if (live && picked) setDialog({ kind: 'add-folder', path: picked }) })
-    }
+    else if (action === 'add-folder') openFolderPicker()
     else if (action === 'invite') setDialog({ kind: 'invite' })
     else if (action === 'edit') setDialog({ kind: 'edit' })
     onActionConsumed()
-    return () => { live = false }
-  }, [pendingAction, shares, sharesLoading, isPending, isLegacy, onActionConsumed])
+  }, [pendingAction, shares, sharesLoading, isPending, isLegacy, onActionConsumed, openFolderPicker])
 
   function handleInvite() {
     if (isPending || isLegacy) return
