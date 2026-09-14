@@ -199,6 +199,67 @@ test('isVerifiedUnchanged vouches only for the path the bytes landed at', async 
   t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', stat.size, stat, { expectLocal: 'a.txt' }), false, 'a record with no landing path vouches for nothing')
 })
 
+// REGRESSION (FIX-VERIFY-MTIME-1): `rec.at` is stamped AFTER the bytes land, so a rule of "mtime not
+// newer than the record" accepts every file whose mtime is OLDER than the landing moment — which is
+// every mtime-preserving restore (cp -p, rsync -t, tar -x, a backup restore). With a same-size
+// replacement that is a silently divergent file the fast path vouches for forever, since nothing
+// else re-reads a mirrored file. The record must carry the fingerprint the hash was proven against
+// and require it back unchanged.
+test('REGRESSION (FIX-VERIFY-MTIME-1): a same-size backdated replacement is not unchanged', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const abs = path.join(tmpDir('vm'), 'a.txt')
+  const key = 'share1|a.txt'
+
+  fs.writeFileSync(abs, 'AAAAA')
+  const landed = fs.statSync(abs)
+  await markVerified(spaceId, key, 'oid-AAA', { local: 'a.txt', stat: landed })
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', 5, fs.statSync(abs), { expectLocal: 'a.txt' }), true, 'the file the record was written for is unchanged')
+
+  // The restore: same size, different bytes, mtime carried over from an older revision.
+  fs.writeFileSync(abs, 'BBBBB')
+  const backdated = (landed.mtimeMs - 60_000) / 1000
+  fs.utimesSync(abs, backdated, backdated)
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', 5, fs.statSync(abs), { expectLocal: 'a.txt' }), false, 'a backdated same-size replacement is re-read, not trusted')
+})
+
+// A replacement that swaps the file rather than writing through it (rsync's default temp+rename, an
+// unzip, an editor's atomic save) can land on the recorded mtime by chance; the inode cannot be
+// carried over by any of them.
+test('REGRESSION (FIX-VERIFY-MTIME-1): a replaced file is not unchanged even at the recorded mtime', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const dir = tmpDir('vi')
+  const abs = path.join(dir, 'a.txt')
+  const key = 'share1|a.txt'
+
+  fs.writeFileSync(abs, 'AAAAA')
+  const landed = fs.statSync(abs)
+  await markVerified(spaceId, key, 'oid-AAA', { local: 'a.txt', stat: landed })
+
+  const temp = path.join(dir, 'a.txt.tmp')
+  fs.writeFileSync(temp, 'BBBBB')
+  fs.renameSync(temp, abs)
+  const seconds = landed.mtimeMs / 1000
+  fs.utimesSync(abs, seconds, seconds) // the mtime the record remembers, on a different inode
+  const after = fs.statSync(abs)
+  t.not(after.ino, landed.ino, 'the rename really did swap the inode')
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', 5, after, { expectLocal: 'a.txt' }), false, 'a swapped file is re-read, not trusted')
+})
+
+// Records written before the fingerprint existed carry no mtime, and re-hashing every already-
+// mirrored file on upgrade is the CPU spike the verified fast path exists to avoid. They keep the
+// older, weaker rule and are replaced by a fingerprinted record on the next landing.
+test('a record written without a stat keeps the pre-fingerprint rule', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const abs = path.join(tmpDir('vl'), 'a.txt')
+  const key = 'share1|a.txt'
+
+  fs.writeFileSync(abs, 'AAAAA')
+  await markVerified(spaceId, key, 'oid-AAA', { local: 'a.txt' })
+  const past = (Date.now() - 60_000) / 1000
+  fs.utimesSync(abs, past, past)
+  t.is(await isVerifiedUnchanged(spaceId, key, 'oid-AAA', 5, fs.statSync(abs), { expectLocal: 'a.txt' }), true, 'an un-fingerprinted record still answers on mtime alone')
+})
+
 // The share listing reads every row's claim from one range scan instead of a point read per row,
 // so the scan must answer exactly what the point reads answered — no sibling share's keys, and
 // nothing retained for a row the listing will not render.

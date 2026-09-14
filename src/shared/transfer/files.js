@@ -7,7 +7,7 @@
 // The `downloads-meta` bee holds three namespaces, distinguished by prefix rather than by
 // separator, so a scan of one must not see another:
 //   <spaceId>:<filePath>            the downloaded-copy claim
-//   verified:<spaceId>:<key>        a hash-verified record: { hash, at }
+//   verified:<spaceId>:<key>        a hash-verified record: { hash, at, local, mtime, ino }
 //   src:<spaceId>:<filePath>        the owned source path of a loose file: { sourcePath, addedAt }
 import { verifiedPrefix } from '../contract/entry-ref.js'
 import { createLogger } from '../core/logger.js'
@@ -67,8 +67,15 @@ export async function getDownloadedPath(spaceId, filePath) {
 // mount-relative path for a mirror, the absolute final path for a manual download. The key names
 // the OWNER's path, and neither writer is obliged to use it — a mirror renames onto a free sibling
 // when a user file holds the natural name — so only `local` says which file the hash describes.
-export async function markVerified(spaceId, key, hash, { local = null } = {}) {
-  await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now(), local })
+//
+// `stat` fingerprints the exact file the hash was proven against — mtime floored to the integer-ms
+// resolution this record stores, plus the inode — so the fast path can demand the SAME file back
+// rather than merely one no newer than the record. It must be the stat the content was proven
+// against, never a fresher re-stat: a re-stat fingerprints bytes nobody checked. A caller that
+// cannot stat passes none, and the record falls back to the weaker rule below.
+export async function markVerified(spaceId, key, hash, { local = null, stat = null } = {}) {
+  const fingerprint = stat ? { mtime: Math.floor(stat.mtimeMs), ino: Number(stat.ino) || 0 } : {}
+  await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now(), local, ...fingerprint })
 }
 
 export async function getVerifiedHash(spaceId, key) {
@@ -145,13 +152,21 @@ async function getVerifiedRecord(spaceId, key) {
   return entry?.value || null
 }
 
-// True when the verified-download record proves the on-disk file (described by
-// `stat`) is still the unchanged content of `contentHash`/`expectedSize` without
-// re-reading it: same hash, same size, and mtime not advanced past when we recorded
-// it (floored to the record's integer-ms resolution so a sub-ms write→record gap
-// still matches). It is an mtime proxy — a same-size in-place edit that does not
-// advance mtime (a backdated utimes, or a coarse-granularity FS) can slip past; the
-// deliberate cost of not hashing on every check. `key` = `<shareId>|<relPath>`.
+// True when the verified-download record proves the on-disk file (described by `stat`) is still the
+// unchanged content of `contentHash`/`expectedSize` without re-reading it: same hash, same size, and
+// the same file the record fingerprinted — same mtime, same inode. `key` = `<shareId>|<relPath>`.
+//
+// Equality, not "no newer than the record": `at` is stamped AFTER the bytes land, so a file merely
+// older than it is every mtime-preserving restore there is (cp -p, rsync -t, tar -x, a backup
+// restore). Nothing else ever re-reads a mirrored file — a foreign mount has no watcher and the
+// full-walk backstop hits this same short-circuit — so anything admitted here is admitted for the
+// life of the mount.
+//
+// Still a proxy, and deliberately so: a same-size write that leaves both mtime and inode untouched
+// (a coarse-granularity filesystem, an in-place write inside its resolution) slips past, the cost of
+// not hashing on every check. `ctime` would catch that and is NOT used: it also moves on metadata
+// alone — xattrs, Finder tags, quarantine flags, antivirus — which would re-hash the whole mirror
+// on a tick, the CPU cost this fast path exists to remove.
 //
 // `expectLocal` is the path the caller is asking about; pass it whenever the record's key does not
 // by itself prove which file the hash describes (see markVerified). A record written before the
@@ -164,7 +179,15 @@ export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSiz
   try { rec = await getVerifiedRecord(spaceId, key) } catch { return false }
   if (!rec || rec.hash !== contentHash) return false
   if (expectLocal !== null && rec.local !== expectLocal) return false
-  return Math.floor(stat.mtimeMs) <= rec.at
+  // A record written before the fingerprint existed carries none. It keeps the older, weaker rule
+  // rather than forcing a re-hash of every already-mirrored file the first time a build with this
+  // check runs; the next landing or confirmation replaces it with a fingerprinted one.
+  if (typeof rec.mtime !== 'number') return Math.floor(stat.mtimeMs) <= rec.at
+  if (Math.floor(stat.mtimeMs) !== rec.mtime) return false
+  // Compared only when both sides report one: a filesystem that does not expose a stable inode
+  // reports 0, and reading that as a mismatch would re-hash every file on every tick.
+  if (rec.ino && stat.ino && Number(stat.ino) !== rec.ino) return false
+  return true
 }
 
 // A downloaded overlay file is "verified" when the hash recorded on landing (the
