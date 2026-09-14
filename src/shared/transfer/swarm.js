@@ -17,7 +17,7 @@ import fs from 'bare-fs'
 import b4a from 'b4a'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import {
-  getProfileKey, getProfile, openProfileBee, getIdentitySigner, } from '../spaces/profile.js'
+  getProfileKey, getProfile, getIdentitySigner, } from '../spaces/profile.js'
 import {
   getDrive, getSpace, upsertMember, clearJoinRequest, ownLooseCatalogPublish,
 } from '../spaces/space.js'
@@ -29,7 +29,6 @@ import { checkInboundSender, clampDisplayName, signNoiseBinding, createDualRateL
 import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets } from './content-swarm.js'
 import { applyNetImpairment } from './net-impair.js'
 import { clearListDeficits } from './list-deficits.js'
-import { observePeerProfile } from '../audit/peer-watch.js'
 import { peerLost, peerLostMeta, peerSeen, resetNetworkWatch } from '../audit/network-watch.js'
 import { sealSck } from './sck-seal.js'
 import { sanitizeAvatar } from '../identity-limits.js'
@@ -37,6 +36,7 @@ import { createPresence } from './presence.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
 import { initRelayInstall, pinRelayIdentity, relaySelectionCount, resetRelayInstall } from './relay-install.js'
+import { initPeerProfileWatch, fetchPeerAvatar, resetPeerProfileWatch } from '../spaces/peer-profile-watch.js'
 import { compactStore, settleCompaction } from '../storage/compaction.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
@@ -50,10 +50,7 @@ import {
 // Re-exported so swarm.js stays the public address for these: worker/main.js and the overlay
 // backend import them from here.
 export { broadcastDeparture, broadcastSharePrepareProgress, broadcastShareIndexProgress } from './presence-broadcast.js'
-import {
-  initDeferredAdmission, resetDeferredAdmission,
-  reconcilePendingRequestersForApprover, emitPeerSharesUpdated,
-} from './deferred-admission.js'
+import { initDeferredAdmission, resetDeferredAdmission } from './deferred-admission.js'
 export { readmitConnectedMembers } from './deferred-admission.js'
 import {
   initLeaveProtocol, resetLeaveProtocol,
@@ -141,7 +138,6 @@ let membershipControlHandler = null     // membership:* frames (join request / g
 let connectionAttachHook = null         // per-connection (mux, socket) hook so content backends bind extra protocol channels (overlay)
 let stalledOwnersHook = null            // worker-supplied probe: which owners are we waiting on?
 let revokeServesForSpaceHook = null     // membership changed → drop the serve grants cached for that space (overlay owns them; swarm must not import it)
-const profileBeeAppendListeners = new Map()  // profileKey hex → { bee, listener } — the ONE held bee per peer
 const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
 let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
 let frameLimiter = null                 // general per-socket budget charged for EVERY frame type
@@ -229,6 +225,7 @@ let corruptionDiagnosed = false
 
 function initSwarm(_ipc, relaySeedHex = null) {
   initRelayInstall({ getSwarm: () => swarm })
+  initPeerProfileWatch({ getIpc: () => ipcRef, connectedPeers })
   if (swarm) throw new Error('swarm: already running')
   ipcRef = _ipc
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
@@ -663,99 +660,6 @@ async function handleHandshake(socket, peerInfo, msg) {
   })
 }
 
-// The avatar value lives in the peer's profile bee. At handshake time that block may
-// not have replicated yet, and a churning ("space-jump") connection can drop before it
-// arrives — the pending block read then rejects with BLOCK_NOT_AVAILABLE instead of
-// completing. It is transient: the block lands once the connection stabilizes (or on a
-// reconnect), so retry a few times before giving up rather than leaving the member as
-// initials. A genuinely unset avatar (null) is not retried.
-const AVATAR_FETCH_ATTEMPTS = 4
-const AVATAR_RETRY_BASE_MS = 1500
-
-function isBlockUnavailable(err) {
-  return err?.code === 'BLOCK_NOT_AVAILABLE' || /not available|avatar sync timeout/i.test(err?.message || '')
-}
-
-// The long-lived holder: ONE bee per peer for the process lifetime, carrying the append listener
-// that drives admission re-evaluation, the share-list refresh and the audit observer. Every other
-// touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee).
-function ensurePeerProfileWatch(peerKey, profileKeyHex) {
-  const held = profileBeeAppendListeners.get(peerKey)
-  if (held) return held
-  const peerProfileBee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
-  {
-    const listener = () => {
-      // The append may be a new approved/<space>/<joiner> record — re-evaluate any
-      // join request we hold for a peer this member may have just approved. (The fold's
-      // own watchers handle member-set re-derivation; this only drives admission.)
-      reconcilePendingRequestersForApprover(peerKey).catch(err => {
-        log.warn('approval-driven admit failed:', err.message)
-      })
-      // …or a new/removed `share/<space>/*` record (shares live in the peer's profile bee).
-      // This is the only peer-side trigger that refreshes the share LIST — the drive-append
-      // listener only covers files.
-      emitPeerSharesUpdated(peerKey).catch(err => {
-        log.warn('peer shares-updated emit failed:', err.message)
-      })
-      // The same append is the only signal that a peer created/deleted a folder share or started
-      // mirroring one of ours. This hook is coarse — it fires for ANY bee change — so the
-      // observer diffs the bee's own history rather than trusting the poke.
-      observePeerProfile(peerKey, peerProfileBee)
-    }
-    peerProfileBee.core.on('append', listener)
-    profileBeeAppendListeners.set(peerKey, { bee: peerProfileBee, listener })
-    // Baseline now, not on the first append — otherwise the first share a peer creates after we
-    // meet them is swallowed as "history".
-    // Drop the entry if the bee never opens: a cached broken holder would make every later avatar
-    // fetch for this peer fail for the process lifetime.
-    peerProfileBee.ready().then(
-      () => observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true }),
-      (err) => {
-        log.warn('peer profile bee failed to open — dropping the watch so the next handshake retries:', err.message)
-        if (profileBeeAppendListeners.get(peerKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(peerKey)
-        try { peerProfileBee.core.off('append', listener) } catch {}
-        peerProfileBee.close().catch(() => {})
-      },
-    )
-  }
-  return profileBeeAppendListeners.get(peerKey)
-}
-
-async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
-  const { bee: peerProfileBee } = ensurePeerProfileWatch(peerKey, msg.profileKey)
-  await peerProfileBee.ready()
-
-  for (let attempt = 0; attempt < AVATAR_FETCH_ATTEMPTS; attempt++) {
-    try {
-      await Promise.race([
-        peerProfileBee.core.update({ wait: true }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('avatar sync timeout')), 10000)),
-      ])
-      const avatarEntry = await peerProfileBee.get('avatar')
-      const peerAvatar = sanitizeAvatar(avatarEntry?.value || null, getResourceCaps().avatarMaxBytes)
-      if (!peerAvatar) return
-
-      const peerEntry = connectedPeers.get(peerKey)
-      if (peerEntry) peerEntry.avatar = peerAvatar
-
-      // Persist avatar to space members (atomic merge — won't clobber a concurrent
-      // membership write, and no-ops if the avatar is unchanged or the member is gone).
-      if (space) {
-        await upsertMember(spaceId, { publicKey: peerKey, avatar: peerAvatar }, { create: false })
-      }
-
-      ipcRef.emit('event:member-avatar-updated', { spaceId, publicKey: peerKey, avatar: peerAvatar })
-      return
-    } catch (err) {
-      if (!isBlockUnavailable(err) || attempt === AVATAR_FETCH_ATTEMPTS - 1) {
-        log.debug('avatar not available yet for', msg.displayName, '-', err.message)
-        return
-      }
-      await new Promise((r) => setTimeout(r, AVATAR_RETRY_BASE_MS * (attempt + 1)))
-    }
-  }
-}
-
 function handleDisconnect(socket) {
   if (rateLimiter && socket.remotePublicKey) rateLimiter.forget(b4a.toString(socket.remotePublicKey, 'hex'))
   announceLedger.forgetSocket(socket)
@@ -1097,13 +1001,7 @@ async function destroySwarm() {
   presence.clearAll()
   for (const k of Object.keys(droppedFrames)) droppedFrames[k] = 0
   localBindings.clear()
-  // Close the one held bee per peer, not just the map: each carries a live session and an
-  // append listener.
-  for (const held of profileBeeAppendListeners.values()) {
-    try { held.bee.core.off('append', held.listener) } catch {}
-    held.bee.close().catch(() => {})
-  }
-  profileBeeAppendListeners.clear()
+  resetPeerProfileWatch()
   bannedNoiseKeys.clear()
   rateLimiter?.clear()
   rateLimiter = null
