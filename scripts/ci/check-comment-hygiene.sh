@@ -8,11 +8,11 @@
 # the id it pins (`REGRESSION (FIX-n: …)`), and that is the one place an id is the
 # reusable pointer. scripts/ and config are covered by review, not by this gate.
 #
-# Usage: scripts/check-comment-hygiene.sh
+# Usage: scripts/ci/check-comment-hygiene.sh
 #   exit 1 when any blocking finding exists (lint:ci runs it)
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 INCLUDES=(--include='*.js' --include='*.ts' --include='*.tsx' --include='*.css')
 SRC=src

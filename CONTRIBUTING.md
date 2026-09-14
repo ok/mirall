@@ -78,7 +78,7 @@ purpose-driven and self-contained:
 - Prefer no comment over a redundant one; JSDoc only where parameter shapes
   genuinely help on an exported helper.
 
-`scripts/check-comment-hygiene.sh` enforces the self-containment rules in CI.
+`scripts/ci/check-comment-hygiene.sh` enforces the self-containment rules in CI.
 
 ## Reporting bugs & security issues
 

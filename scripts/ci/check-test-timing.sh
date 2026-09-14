@@ -9,10 +9,10 @@
 #
 # Only brittle's per-test `{ timeout: scaled(...) }` takes a scaled value; it is not a helper.
 #
-# Usage: scripts/check-test-timing.sh
+# Usage: scripts/ci/check-test-timing.sh
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # `ms:` options feed until()/waitForFile(); the third arg of waitFor() is its deadline.
 hits="$(grep -rnE "ms: scaled\(|\.waitFor\([^)]*\)[^)]*, *scaled\(" test/ || true)"
@@ -36,7 +36,25 @@ fi
 # land. Such a helper carries no `scaled(` for the check above to see, so match the
 # declaration instead: in test/flow a millisecond parameter default is written
 # `ms = scaled(60000)` (or `unscaled(...)` where the bound must stay absolute).
-own="$(grep -rnE "\([^()]*\b[A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline)\b *= *[0-9]{3,}" test/flow/ || true)"
+#
+# A wrapper that DELEGATES to test/helpers/poll.js is the exception the rule wants, not a violation:
+# the helper scales what it receives, so the wrapper must pass a base value. Such a declaration is
+# followed within three lines by an until()/waitFor() call, and that is what is matched here.
+own_raw="$(grep -rnE "\([^()]*\b[A-Za-z_]*([Mm]s|[Tt]imeout|[Dd]eadline)\b *= *[0-9]{3,}" test/flow/ || true)"
+own=""
+while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  file="${hit%%:*}"
+  rest="${hit#*:}"
+  line="${rest%%:*}"
+  if grep -q "helpers/poll.js" "$file" && sed -n "${line},$((line + 3))p" "$file" | grep -qE '\b(until|waitFor)\('; then
+    continue
+  fi
+  own="$own$hit
+"
+done <<EOF
+$own_raw
+EOF
 
 if [ -n "$(printf '%s' "$own" | tr -d '[:space:]')" ]; then
   echo "ERROR: un-scaled deadline default in a flow helper — it ignores MIRALL_TEST_TIMEOUT_SCALE:" >&2

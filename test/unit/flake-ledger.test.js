@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { evaluateLedger, describeLedger, suiteOf } from '../../scripts/flake-ledger.mjs'
+import { evaluateLedger, describeLedger, suiteOf } from '../../scripts/ci/flake-ledger.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const budgetPaths = ['flow-flake-budget.json', 'bare-flake-budget.json'].map((f) => path.join(here, '..', f))

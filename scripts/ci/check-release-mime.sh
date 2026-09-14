@@ -9,10 +9,10 @@
 # a static guard on every PR, in addition to the post-upload head-object assertion that
 # only runs on a real release.
 #
-# Usage: scripts/check-release-mime.sh
+# Usage: scripts/ci/check-release-mime.sh
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 WF=".github/workflows/build-electron.yml"
 fail=0

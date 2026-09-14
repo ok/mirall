@@ -1,6 +1,6 @@
 #!/usr/bin/env electron
 // Rasterizes an SVG to a PNG with the Electron already in devDependencies:
-//   electron scripts/rasterize-svg.cjs <in.svg> <out.png> <size>
+//   electron scripts/build/rasterize-svg.cjs <in.svg> <out.png> <size>
 // <size> is `N` for N x N or `WxH` (the wordmark is 2835:844 and must not be squared).
 //
 // Not ImageMagick: `magick` renders SVG itself only when librsvg is absent, and its own renderer
@@ -16,7 +16,7 @@ const [width, height] = String(sizeArg ?? '').split('x').map(Number)
 const h = Number.isFinite(height) ? height : width
 
 if (!svgPath || !outPath || !Number.isInteger(width) || width <= 0 || !Number.isInteger(h) || h <= 0) {
-  console.error('usage: electron scripts/rasterize-svg.cjs <in.svg> <out.png> <N|WxH>')
+  console.error('usage: electron scripts/build/rasterize-svg.cjs <in.svg> <out.png> <N|WxH>')
   app.exit(2)
 }
 

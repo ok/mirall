@@ -1,0 +1,19 @@
+name: Set up Node and install
+description: The pinned Node with an npm cache, and a clean install. Checkout must run first.
+inputs:
+  install:
+    description: Run npm ci. Set false for a job that only needs the runtime.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    # No checkout here: a local action is resolved from the workspace, so the caller must have
+    # checked out before `uses: ./.github/actions/setup` can be found at all.
+    - uses: actions/setup-node@v6
+      with:
+        # One place for the pin. It was written in five, and a bump reached four of them.
+        node-version: '24.20.0'
+        cache: 'npm'
+    - if: inputs.install == 'true'
+      shell: bash
+      run: npm ci --no-audit --no-fund

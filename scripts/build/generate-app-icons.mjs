@@ -4,7 +4,7 @@
 // the generated PNG/ICNS/ICO files are committed, so a build never needs any of
 // this.
 //
-// Chromium rasterizes the SVG (scripts/rasterize-svg.cjs) and ImageMagick does
+// Chromium rasterizes the SVG (scripts/build/rasterize-svg.cjs) and ImageMagick does
 // the rest — resizing, compositing, the ICO. `magick` is deliberately never
 // pointed at the .svg: see rasterize-svg.cjs for the facetted corners that
 // caused.
@@ -20,7 +20,7 @@
 //   resources/win32/icon.ico            Windows app + Notification icon
 //   resources/win32/msix-assets/*.png   MSIX tile / store / target-size assets
 //
-// Afterwards run `node scripts/generate-tray-icons.mjs` — the Linux and Windows
+// Afterwards run `node scripts/build/generate-tray-icons.mjs` — the Linux and Windows
 // tray icons are derived from the files above and would otherwise still show
 // the previous artwork.
 //
@@ -292,7 +292,7 @@ try {
     report(dest)
   }
 
-  console.log('\nNow run: node scripts/generate-tray-icons.mjs')
+  console.log('\nNow run: node scripts/build/generate-tray-icons.mjs')
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true })
 }

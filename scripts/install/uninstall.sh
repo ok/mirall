@@ -2,12 +2,12 @@
 # uninstall.sh — remove Mirall artifacts on the current OS.
 #
 # Usage:
-#   ./scripts/uninstall.sh                  # remove Mirall (keep shared Pear runtime)
-#   ./scripts/uninstall.sh --purge-runtime  # also wipe the platform-wide Pear runtime
-#   ./scripts/uninstall.sh --dry-run        # print what would be removed
-#   ./scripts/uninstall.sh -h|--help
+#   ./scripts/install/uninstall.sh                  # remove Mirall (keep shared Pear runtime)
+#   ./scripts/install/uninstall.sh --purge-runtime  # also wipe the platform-wide Pear runtime
+#   ./scripts/install/uninstall.sh --dry-run        # print what would be removed
+#   ./scripts/install/uninstall.sh -h|--help
 #
-# Windows users: see scripts/uninstall-windows.ps1
+# Windows users: see scripts/install/uninstall-windows.ps1
 
 set -u
 
@@ -41,7 +41,7 @@ OS=$(uname -s)
 case "$OS" in
   Darwin) PLATFORM=macos ;;
   Linux)  PLATFORM=linux ;;
-  *)      echo "unsupported OS: $OS (Windows: use scripts/uninstall-windows.ps1)" >&2; exit 1 ;;
+  *)      echo "unsupported OS: $OS (Windows: use scripts/install/uninstall-windows.ps1)" >&2; exit 1 ;;
 esac
 say "detected platform: $PLATFORM   purge-runtime=$PURGE_RUNTIME   dry-run=$DRY_RUN"
 

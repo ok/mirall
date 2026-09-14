@@ -11,12 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.20.0'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - uses: ./.github/actions/setup
       - name: Typecheck
         run: npm run typecheck
       # a11y rules are errors (hard gate); complexity/unused-vars warnings are held at a
@@ -49,12 +44,7 @@ jobs:
       MIRALL_TEST_TIMEOUT_SCALE: '3'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.20.0'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - uses: ./.github/actions/setup
       - name: Flow tests (shard ${{ matrix.shard }}/6)
         run: |
           files="$(node test/flow-shard.mjs ${{ matrix.shard }} 6)"
@@ -99,10 +89,11 @@ jobs:
     needs: [flow, bare]
     if: always()
     steps:
+      # flake-ledger only reads JSON reports; it needs no dependencies.
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup
         with:
-          node-version: '24.20.0'
+          install: 'false'
       - uses: actions/download-artifact@v7
         continue-on-error: true
         with:
@@ -116,12 +107,12 @@ jobs:
           path: flake-reports-bare
           merge-multiple: true
       - name: Flow flake budget
-        run: node scripts/flake-ledger.mjs flake-reports-flow test/flow-flake-budget.json
+        run: node scripts/ci/flake-ledger.mjs flake-reports-flow test/flow-flake-budget.json
       # Its own step, and after the flow one: each suite's budget is its own ratchet, and a red here
       # has to say which suite spent it.
       - name: Bare flake budget
         if: always()
-        run: node scripts/flake-ledger.mjs flake-reports-bare test/bare-flake-budget.json
+        run: node scripts/ci/flake-ledger.mjs flake-reports-bare test/bare-flake-budget.json
 
   # Tier 2/3 in-process tests of the real bare-* modules, run by test/bare-runner.mjs as one bare
   # PROCESS per file: brittle's own -j is threads inside one process, where a single file's
@@ -139,12 +130,7 @@ jobs:
       MIRALL_TEST_TIMEOUT_SCALE: '3'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.20.0'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - uses: ./.github/actions/setup
       - name: Ensure bare runtime on PATH
         run: |
           # npm ci normally links node_modules/.bin/bare from the bare-runtime

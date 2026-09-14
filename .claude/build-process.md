@@ -97,7 +97,7 @@ bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
 - **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging
   (wired via env in `forge.config.js`) using an Apple Developer ID cert stored in
   repo secrets.
-- **Linux** — `electron-forge package` + `scripts/build-app-image.sh` assembles the
+- **Linux** — `electron-forge package` + `scripts/build/build-app-image.sh` assembles the
   AppImage (shipped unsigned by convention).
 - **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The
   `preMake` hook in `forge.config.js` rewrites the 4-part `Version` in
