@@ -8,6 +8,7 @@ import { useAppNavigation } from './hooks/useAppNavigation.js'
 import { useAppShellEffects } from './hooks/useAppShellEffects.js'
 import Onboarding from './screens/Onboarding.js'
 import ScreenRouter from './components/layout/ScreenRouter.js'
+import type { Screen } from './navigation.js'
 import TopNav from './components/layout/TopNav.js'
 import FeedbackModal from './components/modals/FeedbackModal.js'
 import WhatsNewModal from './components/modals/WhatsNewModal.js'
@@ -246,7 +247,7 @@ interface SpaceCommandsProps {
   toggleFavorite: (spaceId: string) => Promise<void>
 }
 
-const SCREEN_COMMANDS: ReadonlyArray<{ id: string; labelKey: string; screen: string }> = [
+const SCREEN_COMMANDS: ReadonlyArray<{ id: string; labelKey: string; screen: Screen }> = [
   { id: 'activity.openSettings',  labelKey: 'shortcuts.openActivityLogSettings',  screen: 'activity-log-settings' },
   { id: 'network.status',         labelKey: 'shortcuts.openNetworkStatus',        screen: 'network-status' },
   { id: 'settings.appearance',    labelKey: 'shortcuts.openAppearanceSettings',   screen: 'appearance-settings' },

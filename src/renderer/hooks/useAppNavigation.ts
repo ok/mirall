@@ -2,16 +2,17 @@ import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { ShareWithRole } from './useShares.js'
 import type { AuditFilters } from '../types.js'
+import { parentOf, type Screen } from '../navigation.js'
 
 export interface AppNavigation {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
   selectedShare: ShareWithRole | null
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogPreset: Partial<AuditFilters> | null
-  setCurrentScreen: Dispatch<SetStateAction<string>>
+  setCurrentScreen: Dispatch<SetStateAction<Screen>>
   setSelectedShare: Dispatch<SetStateAction<ShareWithRole | null>>
   navigateToSpace: (spaceId: string) => void
   openSettings: () => void
@@ -25,7 +26,7 @@ export interface AppNavigation {
 }
 
 export function useAppNavigation(): AppNavigation {
-  const [currentScreen, setCurrentScreen] = useState('spaces')
+  const [currentScreen, setCurrentScreen] = useState<Screen>('spaces')
   const [preSettingsScreen, setPreSettingsScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [preAccountScreen, setPreAccountScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [storageBackTarget, setStorageBackTarget] = useState<'settings' | 'space-view'>('settings')
@@ -34,7 +35,7 @@ export function useAppNavigation(): AppNavigation {
   const [activityLogPreset, setActivityLogPreset] = useState<Partial<AuditFilters> | null>(null)
   // The viewer hangs off Account, but the connectivity screens now cross-link into it too, so Back
   // has to return where the user came from rather than always to Account.
-  const [activityLogBackTarget, setActivityLogBackTarget] = useState<string>('account')
+  const [activityLogBackTarget, setActivityLogBackTarget] = useState<Screen>('account')
 
   const openSettings = useCallback(() => {
     setPreSettingsScreen((prev) => {
@@ -77,24 +78,14 @@ export function useAppNavigation(): AppNavigation {
   // button, Windows browser-backward app-command, macOS swipe, mod+←) so they
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
-    switch (currentScreen) {
-      case 'space-view': setCurrentScreen('spaces'); break
-      case 'folder-view': setSelectedShare(null); setCurrentScreen('space-view'); break
-      case 'settings': setCurrentScreen(preSettingsScreen); break
-      case 'account': setCurrentScreen(preAccountScreen); break
-      case 'storage-settings': setCurrentScreen(storageBackTarget); break
-      case 'appearance-settings':
-      case 'notification-settings':
-      case 'network-settings':
-      case 'general-settings': setCurrentScreen('settings'); break
-      case 'network-status': setCurrentScreen('account'); break
-      case 'connection-problem': setCurrentScreen('spaces'); break
-      // The viewer hangs off Account and the config off Settings, so each backs out to its own
-      // parent; a cross-link between them is a lateral jump, not a step in a history stack.
-      case 'activity-log': setCurrentScreen(activityLogBackTarget); break
-      case 'activity-log-settings': setCurrentScreen('settings'); break
-      default: break
-    }
+    const parent = parentOf(currentScreen, {
+      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget,
+    })
+    if (!parent) return
+    // The folder screen's share is a snapshot the router holds; leaving the screen is what makes it
+    // stale, so it goes at the same moment the screen does.
+    if (currentScreen === 'folder-view') setSelectedShare(null)
+    setCurrentScreen(parent)
   }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget])
 
   const goHome = useCallback(() => {

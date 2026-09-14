@@ -1,8 +1,10 @@
 // Command model for the keyboard layer: Command/CommandContext types and the global hotkeys that stay active inside text inputs.
+import type { Screen } from '../navigation.js'
+
 export type CommandGroup = 'navigation' | 'actions' | 'space' | 'system'
 
 export interface CommandContext {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
   isInputFocused: boolean
 }

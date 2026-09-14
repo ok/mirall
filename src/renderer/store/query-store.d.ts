@@ -19,5 +19,6 @@ export declare const EMPTY_SNAPSHOT: QuerySnapshot<never>
 export declare function peek<T> (key: string): QuerySnapshot<T>
 export declare function refetchQuery<T> (type: RequestName, params?: Record<string, unknown>, scopes?: ScopePattern | ScopePattern[] | null): Promise<T>
 export declare function invalidateKey (shouldDrop: (key: string) => boolean): string[]
+export declare function pruneByParam (types: readonly RequestName[], param: string, live: Iterable<string>): string[]
 export declare function resetQueryStore (): void
 export declare function setQueryData<T> (type: RequestName, params: Record<string, unknown>, data: T, scopes?: ScopePattern | ScopePattern[] | null): string

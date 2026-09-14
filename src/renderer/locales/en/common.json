@@ -129,6 +129,7 @@
     "joinRequestsDesc": "Approve people to give them access to this space.",
     "approveAll": "Approve all ({{count}})",
     "approveSelected": "Approve selected ({{count}})",
+    "approvePartial": "Approved {{done}} of {{total}} — {{failed}} failed",
     "selectNamed": "Select {{name}}",
     "waitingApproval": "Waiting to be let into {{name}}…",
     "waitingApprovalHint": "A member of this space needs to approve you. You can leave this open — you'll be let in automatically as soon as someone's online.",

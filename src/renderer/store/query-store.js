@@ -222,6 +222,33 @@ export function refetchQuery(type, params = {}, scopes = null) {
   return fetchQuery(type, params, scopes ?? entry?.scopes ?? null)
 }
 
+// Read one param back out of a key. keyOf writes `k=String(v)` joined with `&` and encodes
+// nothing, so the value is taken verbatim up to the next `&`.
+function paramOf(key, param) {
+  const q = key.indexOf('?')
+  if (q === -1) return null
+  for (const pair of key.slice(q + 1).split('&')) {
+    const eq = pair.indexOf('=')
+    if (eq !== -1 && pair.slice(0, eq) === param) return pair.slice(eq + 1)
+  }
+  return null
+}
+
+// Drop every cached entry of these request types whose `param` names something that is no longer
+// live — the roster of a space that was left, the shares of one that was deleted. A key whose param
+// cannot be read is KEPT: the prune is an eviction, and evicting on a key it failed to parse would
+// drop live data.
+export function pruneByParam(types, param, live) {
+  const kinds = new Set(types)
+  const alive = new Set(live)
+  return invalidateKey((key) => {
+    const q = key.indexOf('?')
+    if (!kinds.has(q === -1 ? key : key.slice(0, q))) return false
+    const value = paramOf(key, param)
+    return value === null ? false : !alive.has(value)
+  })
+}
+
 // Drop entries whose key a predicate rejects — a space that was left must not keep its roster (and
 // avatars) cached for the session. Forget the VALUE but keep any entry that still has subscribers
 // (SpaceView prunes while useShares and useMembers are mounted): deleting it would orphan them,

@@ -10,6 +10,7 @@ import {
   type DependencyList,
   type ReactNode,
 } from 'react'
+import type { Screen } from '../navigation.js'
 import type { Command, CommandContext } from './registry.js'
 import { GLOBAL_HOTKEYS } from './registry.js'
 import { createCommandContext, matchAccelerator, shouldIgnore } from './accelerator.js'
@@ -32,7 +33,7 @@ interface KeyboardApi {
 const KeyboardContext = createContext<KeyboardApi | null>(null)
 
 interface ProviderProps {
-  currentScreen: string
+  currentScreen: Screen
   selectedSpaceId: string | null
   children: ReactNode
 }
