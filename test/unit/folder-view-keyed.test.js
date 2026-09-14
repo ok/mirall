@@ -18,10 +18,13 @@ const src = (rel) => readFileSync(path.resolve(here, '../../src/renderer', rel),
 // line a later refactor removes without noticing.
 test('the router keys FolderView by share', (t) => {
   const router = src('components/layout/ScreenRouter.tsx')
-  const at = router.indexOf('<FolderView')
+  // `<FolderViewRoute` — the wrapper that resolves the share id against the live listing — sits
+  // above the screen itself and shares its opening characters, so the tag is matched on a word
+  // boundary. A plain indexOf finds the wrapper and reports a missing key that is right there.
+  const at = router.search(/<FolderView\b(?!Route)/)
   t.ok(at > 0, 'found the FolderView render — a moved tag would make the rest vacuous')
   const tag = router.slice(at, router.indexOf('>', at))
-  t.ok(/key=\{selectedShare\.id\}/.test(tag), 'rendered with key={selectedShare.id}')
+  t.ok(/key=\{share\.id\}/.test(tag), 'rendered with key={share.id}')
 })
 
 test('nothing re-clears share state during render now that the key does it', (t) => {
