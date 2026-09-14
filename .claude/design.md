@@ -624,6 +624,13 @@ not a status tint; the status hue lives only on the **icon** (`iconColor`). Exce
 `warning` keeps dark `on-warning` text because its container stays bright yellow in
 dark mode. A11y: error = `role="alert" aria-live="assertive"`, others = `status` / `polite`.
 
+**Identical text collapses by itself.** A toast with no `id` derives one from its variant and its
+message (`toastKey`), so the same sentence said twice replaces rather than stacks — a user retrying
+a failing action sees one banner, not one per attempt. Every replacement remounts its toast: the
+countdown restarts from the full duration and the `role="alert"` node is new, so the repeat is both
+seen (it re-pops) and announced. Pass an explicit `id` only when *different* text has to replace
+what is on screen — the fault bridges below — or when two same-worded toasts really must coexist.
+
 **Toast vs. banner — when to use which.** A **persistent, app-wide fault that blocks one
 subsystem** (network down, download folder unreachable) is a **sticky toast**, not a banner:
 `duration: 0`, a stable `id` so re-detection replaces rather than stacks, an `action` pointing at

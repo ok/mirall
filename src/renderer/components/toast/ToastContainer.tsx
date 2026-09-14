@@ -19,7 +19,7 @@ export default function ToastContainer({ items, onDismiss, onPause, onResume }: 
     >
       {items.map((item) => (
         <Toast
-          key={item.id}
+          key={`${item.id}:${item.seq}`}
           item={item}
           onDismiss={() => onDismiss(item.id)}
           onPause={() => onPause(item.id)}

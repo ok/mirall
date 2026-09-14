@@ -49,11 +49,20 @@ export default function Toast({ item, onDismiss, onPause, onResume }: Props) {
   const lastResumeRef = useRef(Date.now())
   const elapsedMsRef = useRef(0)
   const tickStartRef = useRef(Date.now())
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const styles = VARIANT_STYLES[item.variant]
 
   useEffect(() => {
     const handle = requestAnimationFrame(() => setEntered(true))
     return () => cancelAnimationFrame(handle)
+  }, [])
+
+  // A re-shown toast replaces this instance with a fresh one under the same id. A leave transition
+  // left running would then dismiss ITS toast, so the pending hand-off dies with the instance.
+  useEffect(() => {
+    return () => {
+      if (leaveTimerRef.current !== null) clearTimeout(leaveTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -77,7 +86,7 @@ export default function Toast({ item, onDismiss, onPause, onResume }: Props) {
   function handleDismiss(): void {
     if (leaving) return
     setLeaving(true)
-    setTimeout(onDismiss, LEAVE_TRANSITION_MS)
+    leaveTimerRef.current = setTimeout(onDismiss, LEAVE_TRANSITION_MS)
   }
 
   function handleMouseEnter(): void {
