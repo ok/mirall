@@ -111,8 +111,12 @@ export function recordMirrorIntegrityFailure(mount, share, entry) {
 // is already computed, so the check costs one bee read on a file about to be overwritten anyway.
 // Anything we cannot vouch for is moved aside first; the owner's version then lands at the
 // canonical path.
-async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs) {
-  const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey).catch(() => null)
+async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRelPath) {
+  // Path-qualified: the ancestor authorises overwriting THIS file, so a record written for anywhere
+  // else — a manual download of the same share path, which lands in the downloads folder and
+  // rewrites the same key — must not answer for it. No record leaves the verdict UNKNOWN, which
+  // fails closed into a conflict copy.
+  const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey, { expectLocal: localRelPath }).catch(() => null)
   if (mayOverwriteInPlace(classifyLocalCopy({ diskHash, ownerHash: entry.contentHash, ancestorHash }))) return
 
   const segs = driveKeyToSegments(entry.relPath)
@@ -333,7 +337,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     // unbounded slot wait, the overlay torn down) would otherwise have moved the user's file and
     // then not replaced it, leaving the canonical path empty until a later tick.
     if (localExists) {
-      try { await preserveLocalEdit(mount, entry, verifyKey, diskHash, abs) } catch { return 'missing' }
+      try { await preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRelPath) } catch { return 'missing' }
     }
     activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath, transferId })
     pausedHolders.supersede(streamKey)

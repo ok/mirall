@@ -78,9 +78,18 @@ export async function markVerified(spaceId, key, hash, { local = null, stat = nu
   await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now(), local, ...fingerprint })
 }
 
-export async function getVerifiedHash(spaceId, key) {
-  const entry = await downloadsBee.get('verified:' + spaceId + ':' + key)
-  return entry?.value?.hash || null
+// The hash this app last verified for `key`, or null. `expectLocal` is the path the caller is asking
+// about, and it takes the same grammar as isVerifiedUnchanged: pass it whenever the answer is about
+// one FILE rather than about the owner's path, and a record written for anywhere else answers null.
+//
+// The key names the OWNER's path, which two writers addressing `local` differently both write — a
+// mirror in mount-relative form, a manual download as an absolute path in the downloads folder — so
+// without it the answer is "some local path held this content", not "this file does."
+export async function getVerifiedHash(spaceId, key, { expectLocal = null } = {}) {
+  const rec = await getVerifiedRecord(spaceId, key)
+  if (!rec) return null
+  if (expectLocal !== null && rec.local !== expectLocal) return null
+  return rec.hash || null
 }
 
 // Bulk form of getVerifiedHash for one share: relPath -> verified hash, in a single

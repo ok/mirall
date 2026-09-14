@@ -149,3 +149,44 @@ test('REGRESSION (FIX-D2-3): a non-file at the mirror path is moved aside, not w
     'its contents survived intact')
   t.is(fs.readFileSync(abs, 'utf8'), 'owner-bytes', 'and the owner version took the canonical path')
 })
+
+// REGRESSION (FIX-D2-4): the ancestor must describe the file about to be overwritten.
+//
+// `preserveLocalEdit` asks "did we deliver THIS file?" but read it through getVerifiedHash, which
+// returns the hash and discards the `local` the record was written with — so it answered the weaker
+// "some local path held this content". The record has two writers addressing `local` differently: a
+// mirror writes a mount-relative path, a manual download an absolute one into the downloads folder.
+// A download's record therefore vouched for a file in another directory, and when the user's edit
+// happened to match it the guard read OURS and overwrote the edit in place — no conflict copy, the
+// one outcome mirror-ownership.js says must fail closed.
+test('REGRESSION (FIX-D2-4): a record that vouches for another path does not authorise an overwrite', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'owner-bytes' } })
+  await initDownloads()
+  await initialMaterializeScan(ctx.mount)
+
+  const abs = path.join(ctx.mirrorPath, 'a.txt')
+  userEdits(abs, 'my own edit')
+
+  // A manual download of the same share+relPath lands in the downloads folder and rewrites the one
+  // shared record with ITS path and ITS hash. Here that hash matches what the user wrote into the
+  // mount — the case where a path-blind ancestor reads as "ours".
+  const { markVerified } = await import('../../src/shared/transfer/files.js')
+  const { overlayHashFile } = await import('../../src/shared/transfer/backends/overlay/overlay-backend.js')
+  const downloaded = path.join(ctx.tmpDir('dl'), 'a.txt')
+  fs.writeFileSync(downloaded, 'my own edit')
+  await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(downloaded), {
+    local: downloaded, stat: fs.statSync(downloaded),
+  })
+
+  fs.writeFileSync(path.join(ctx.mountPath, 'a.txt'), 'v2-from-owner')
+  const { initialPublishScan } = await import('../../src/shared/folders/owned-folders.js')
+  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+
+  const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
+  await materializeCatalogFile(cur, ctx.share, await entryFor(ctx))
+
+  const conflict = path.join(ctx.mirrorPath, 'a (conflicted copy).txt')
+  const kept = fs.existsSync(conflict) ? fs.readFileSync(conflict, 'utf8') : null
+  t.is(kept, 'my own edit', 'the local edit was preserved, byte-exact')
+  t.is(fs.readFileSync(abs, 'utf8'), 'v2-from-owner', 'and the owner version holds the natural name')
+})
