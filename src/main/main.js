@@ -13,6 +13,7 @@ const { logRing } = require('./log-ring')
 const { sendToAll, loadRedactLine, installMainLogForwarding } = require('./logging.js')
 const { initPrefs, getPrefs } = require('./prefs.js')
 const { markQuitting } = require('./quit-state.js')
+const { initUpdater, registerUpdater, getPear, applyPendingUpdate } = require('./updater.js')
 const {
   initWorkerHost,
   registerWorkerHost,
@@ -73,15 +74,10 @@ childProcess.spawn = function (file, args, options) {
 }
 
 const { isMac, isLinux, isWindows } = require('which-runtime')
-const PearRuntime = require('pear-runtime')
-const Hyperswarm = require('hyperswarm')
-const Corestore = require('corestore')
-const debounceify = require('debounceify')
 const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
 const { ConfigStore } = require('./config-store.js')
-const { initDebugGate, isDebug, setVerbose } = require('./debug-gate.js')
+const { initDebugGate, setVerbose } = require('./debug-gate.js')
 const { integrateXdgLinux } = require('./xdg-integration.js')
-const applyErrors = require('./apply-error.js')
 
 installMainLogForwarding()
 
@@ -132,33 +128,12 @@ const isDev = !app.isPackaged || !!process.env.PEAR_DEV_SERVER_URL
 // is no renderer this early, and the log ring is written either way. See debug-gate.js.
 initDebugGate({ isDev })
 
-let pear = null
 let identityKEKHex = null
 let identityProtection = 'disabled'
 
 process.on('unhandledRejection', (reason) => {
   console.error('unhandledRejection:', reason && (reason.stack || reason.message || reason))
 })
-
-function getAppPath() {
-  if (!app.isPackaged) return null
-  // app.getAppPath returns ".../Mirall.app/Contents/Resources/app" — three
-  // levels up gets us the .app bundle root, which is what fsx.swap needs to
-  // atomically replace during OTA. Two levels lands inside Contents/ and
-  // produces a nested-bundle frankenswap.
-  if (isMac) return path.join(app.getAppPath(), '..', '..', '..')
-  if (isLinux && process.env.APPIMAGE) return process.env.APPIMAGE
-  // Windows OTA goes through msix-manager.addPackage(nextApp), which doesn't
-  // need a path to the currently-installed package — the swap is null here.
-  return null
-}
-
-function getRuntimeName() {
-  if (isMac) return appName + '.app'
-  if (isWindows) return appName + '.msix'
-  if (isLinux) return appName + '.AppImage'
-  return appName
-}
 
 function getDataDir() {
   if (customStorage) return customStorage
@@ -176,6 +151,7 @@ function config() {
   return configStore
 }
 
+initUpdater({ getDataDir, updatesEnabled })
 initSettings({ config })
 initWorkerHost({ config, getPear, isDev, identityKEK: () => identityKEKHex })
 initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })
@@ -188,107 +164,6 @@ initWindow({
   updatesEnabled,
   startHiddenFlag,
 })
-
-// === pear-runtime + OTA updater ===
-
-function getPear() {
-  if (pear) return pear
-  const dir = getDataDir()
-  fs.mkdirSync(dir, { recursive: true })
-
-  // Dev / source path: no UPGRADE_KEY is baked into package.json, so the OTA
-  // updater can't be constructed (PearRuntimeUpdater throws on missing
-  // upgrade). Return a minimal shim that supports worker spawning + storage
-  // path lookup. `updater` is null so the few code paths that touch it stay
-  // guarded by `if (updatesEnabled)` or `if (!p.updater)`.
-  if (!upgrade) {
-    pear = {
-      storage: path.join(dir, 'app-storage'),
-      updater: null,
-      run: (entrypoint, args = [], opts = {}) => PearRuntime.run(entrypoint, args, opts),
-    }
-    return pear
-  }
-
-  const store = new Corestore(path.join(dir, 'pear-runtime', 'corestore'))
-  const swarm = new Hyperswarm()
-  pear = new PearRuntime({
-    dir,
-    app: getAppPath(),
-    // pear-runtime-updater derives `bundled` from `!!opts.app` unless overridden.
-    // On Windows getAppPath is null (msix-manager doesn't need it), which
-    // would leave the updater dormant — no initial check, no append listener,
-    // no banner. Pass `bundled: app.isPackaged` explicitly on Windows so the
-    // updater runs whenever the user is on the installed MSIX.
-    bundled: isWindows ? app.isPackaged : undefined,
-    updates: updatesEnabled,
-    version,
-    upgrade,
-    name: getRuntimeName(),
-    store,
-    swarm,
-  })
-  // Electron's asar-fs wrapper intercepts any path matching /\.asar/i and
-  // tries to mount it as an archive. The OTA mirror writes the staged
-  // app.asar at .../next/<id>/by-arch/darwin-arm64/app/Mirall.app/Contents/
-  // Resources/app.asar — Electron sees the .asar in the destination, can't
-  // open the not-yet-written file as an archive, and throws "Invalid package
-  // <path>". Setting process.noAsar = true tells splitPath to short-circuit
-  // and treat the path as a regular file. We can't enable it globally — our
-  // own requires into the running app.asar go through the same wrapper —
-  // so we scope it to the updater's _update and applyUpdate calls.
-  const wrapWithNoAsar = (fn) => async (...args) => {
-    const prev = process.noAsar
-    process.noAsar = true
-    try { return await fn(...args) } finally { process.noAsar = prev }
-  }
-  const u = pear.updater
-  u._update = wrapWithNoAsar(u._update.bind(u))
-  u._debouncedUpdate = debounceify(u._update)
-  // fsx.swap (renameat2 RENAME_EXCHANGE) swaps directory entries, so the
-  // user-visible AppImage ends up pointing at the staged inode and inherits
-  // its mode. localdrive only writes 0o755 when the source Hyperdrive entry
-  // has executable=true; if that flag is missing we'd leave the user with a
-  // non-executable AppImage after every OTA. chmod the staged file before
-  // the swap to guarantee the post-swap mode regardless of seed metadata.
-  const applyWithNoAsar = wrapWithNoAsar(u.applyUpdate.bind(u))
-  u.applyUpdate = async () => {
-    if (isLinux && u.updated && !u.applied && u.next) {
-      const nextApp = path.join(u.next, 'by-arch', `linux-${process.arch}`, 'app', u.name)
-      try { await fs.promises.chmod(nextApp, 0o755) } catch (err) {
-        console.error('chmod staged AppImage failed:', err.message)
-      }
-    }
-    try {
-      const result = await applyWithNoAsar()
-      applyErrors.clearApplyError(getDataDir())
-      return result
-    } catch (err) {
-      applyErrors.recordApplyError(getDataDir(), err, { version, platform: process.platform })
-      throw err
-    }
-  }
-  if (updatesEnabled) {
-    swarm.on('connection', (connection) => store.replicate(connection))
-    swarm.join(u.drive.core.discoveryKey, { client: true, server: false })
-    u.on('error', (err) => console.error('pear updater error:', err))
-  }
-  // Windows: msix-manager.addPackage takes seconds and runs invisibly during
-  // before-quit, racing the user's relaunch and silently failing if the .msix
-  // is locked by the still-running process. Pre-stage the swap while the user
-  // is active so quit→relaunch is a plain restart with the new bits already
-  // registered. Linux benefits too — fsx.swap is fast but apply-on-quit means
-  // the staged AppImage sits unused until the user happens to quit cleanly.
-  // macOS keeps the at-quit path: fsx.swap mid-session would let any later
-  // disk re-read see new-version files mixed with old in-memory code.
-  if (updatesEnabled && (isWindows || isLinux)) {
-    u.on('updated', () => {
-      u.applyUpdate().catch((err) => console.error('background apply failed:', err))
-    })
-  }
-  pear.on('error', (err) => console.error('pear error:', err))
-  return pear
-}
 
 // === Download folder + bandwidth settings ===
 
@@ -311,22 +186,7 @@ ipcMain.handle('config:set', (_evt, patch) => { config().setRenderer(patch); ret
 registerRelaySlot({ config, getPear })
 registerNetOnline()
 
-ipcMain.handle('pear:appVersion', async () => {
-  const p = getPear()
-  if (!p?.updater?.drive) return { length: 0, fork: 0, semver: null }
-  const length = p.updater.drive.core.length
-  const fork = p.updater.drive.core.fork
-  let semver = null
-  try {
-    if (length > 0) {
-      const co = p.updater.drive.checkout(length)
-      const manifest = await co.get('/package.json')
-      await co.close()
-      if (manifest) semver = JSON.parse(manifest.toString()).version ?? null
-    }
-  } catch {}
-  return { length, fork, semver }
-})
+registerUpdater()
 
 ipcMain.handle('app:identityProtection', () => identityProtection)
 
@@ -339,11 +199,6 @@ ipcMain.handle('diagnostics:logs', async (_evt, opts) => {
 
 // null on the installs where no apply has ever failed — which is nearly all of them — so the
 // bundle can leave the key out entirely rather than carry a permanent empty slot.
-ipcMain.handle('diagnostics:lastApplyError', async (_evt, opts) => {
-  const redactLine = opts?.redact !== false ? await loadRedactLine() : null
-  if (opts?.redact !== false && !redactLine) return null
-  return applyErrors.readLiveApplyError(getDataDir(), { version, redactLine })
-})
 
 // Live verbose-logging toggle for main. Flips `debug` (so main's if(debug) logs
 // fire even on a production build) and the `verbose` worker-spawn seed (so a
@@ -351,33 +206,6 @@ ipcMain.handle('diagnostics:lastApplyError', async (_evt, opts) => {
 // separately over the worker IPC channel. A non-boolean arg leaves state
 // untouched and just reports it; turning off reverts to the build default.
 ipcMain.handle('app:setVerbose', (_evt, on) => setVerbose(on))
-
-ipcMain.handle('app:getChangelog', async () => {
-  const file = app.isPackaged
-    ? path.join(process.resourcesPath, 'CHANGELOG.md')
-    : path.join(__dirname, '..', '..', 'CHANGELOG.md')
-  try {
-    return await fs.promises.readFile(file, 'utf8')
-  } catch (err) {
-    if (isDebug()) console.error('app:getChangelog read failed:', err.message)
-    return ''
-  }
-})
-
-ipcMain.handle('pear:checkForUpdate', async () => {
-  const p = getPear()
-  if (!p.updater) return { triggered: false, reason: 'updater disabled' }
-  try {
-    await p.updater._debouncedUpdate()
-    return {
-      triggered: true,
-      length: p.updater.drive.core.length,
-      fork: p.updater.drive.core.fork
-    }
-  } catch (err) {
-    return { triggered: false, error: err.message }
-  }
-})
 
 registerWorkerHost()
 
@@ -402,11 +230,7 @@ app.on('before-quit', createQuitSequence({
   // promise defers the quit, because Electron does not await async listeners and
   // the swap must finish before the process exits — macOS/Linux: fsx.swap (fast);
   // Windows: MSIXManager.addPackage (seconds).
-  applyUpdate: () => {
-    if (!updatesEnabled) return null
-    if (!pear?.updater?.updated || pear.updater.applied) return null
-    return pear.updater.applyUpdate()
-  },
+  applyUpdate: applyPendingUpdate,
   quit: () => app.quit(),
   onStepError: (step, err) => console.error('quit teardown step failed:', step, err),
 }))
