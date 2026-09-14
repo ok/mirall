@@ -132,7 +132,7 @@ const off = subscribe('event:files-updated', ({ spaceId }) => …)
 
 It calls `window.bridge.startWorker('/src/worker/main.js')` once on mount; outgoing requests serialize to NDJSON with an `id`; incoming frames dispatch to pending resolvers (matched by `id`) or to event subscribers.
 
-`src/renderer/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `components/layout/ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
+`src/renderer/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
 
 `components/primitives/modalPresence.ts` counts the dialogs on screen, from inside `Modal` itself. Back navigation (`hooks/useCanGoBack.ts`) asks it rather than reading a list of per-screen dialog flags.
 
@@ -1420,7 +1420,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File / dir | Purpose |
 |---|---|
 | `main.tsx` | `createRoot(…)`; imports `platform.ts`, `theme.ts`, `dev-console.ts` for side effects |
-| `app.tsx` | Root — providers, screen routing (`layout/ScreenRouter`), the deep-link queue (`DeepLinkRouter`), the command registrations (`AppCommands` / `SpaceCommands`), the join-request toast bridge, outermost `ToastProvider`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
+| `app.tsx` | Root — providers, screen routing (`ScreenRouter`), the deep-link queue (`DeepLinkRouter`), the command registrations (`AppCommands` / `SpaceCommands`), the join-request toast bridge, outermost `ToastProvider`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
 | `ipc.ts` | Worker IPC wrapper — `request()`, `subscribe()`, `addFileToSpace()`, first-boot spawn and crash-respawn orchestration |
 | `updates.ts` | Singleton update state → `UpdateBanner` |
 | `config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |

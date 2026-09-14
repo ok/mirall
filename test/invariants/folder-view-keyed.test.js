@@ -17,7 +17,7 @@ const src = (rel) => readFileSync(path.resolve(here, '../../src/renderer', rel),
 // lives in a switch arm three files away from the state it protects, which is exactly the kind of
 // line a later refactor removes without noticing.
 test('the router keys FolderView by share', (t) => {
-  const router = src('components/layout/ScreenRouter.tsx')
+  const router = src('ScreenRouter.tsx')
   // `<FolderViewRoute` — the wrapper that resolves the share id against the live listing — sits
   // above the screen itself and shares its opening characters, so the tag is matched on a word
   // boundary. A plain indexOf finds the wrapper and reports a missing key that is right there.

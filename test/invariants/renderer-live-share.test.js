@@ -17,7 +17,7 @@ test('navigation holds a share id, never a share', (t) => {
 })
 
 test('the folder screen is handed a share resolved from the listing', (t) => {
-  const router = read('components/layout/ScreenRouter.tsx')
+  const router = read('ScreenRouter.tsx')
   t.ok(/useShares\(/.test(router), 'the router reads the live listing')
   t.ok(/shares\.find\(\(s\) => s\.id === shareId\)/.test(router), 'and resolves the id against it')
   // The two patch callbacks are gone from both ends.
