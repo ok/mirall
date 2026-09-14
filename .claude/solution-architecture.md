@@ -1296,7 +1296,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection frame intake and budget, the identity-frame gate (§4.2), the frame dispatch ladder, handshake apply + peer registry, the peer profile-bee watch + avatar fetch, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, RocksDB compaction, the blind-relay install + probe (§4.8), `Swarm` |
+| `src/shared/transfer/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction, per-connection frame intake and budget, the identity-frame gate (§4.2), the frame dispatch ladder, handshake apply + peer registry, the peer profile-bee watch + avatar fetch, disconnect, topic join / leave, the outbound frame builders, the leave-side peer eviction, the blind-relay install + probe (§4.8), `Swarm` |
 | `src/shared/transfer/connectivity.js` | "Are we reachable": DHT / NAT verdict watchers, the two-stage canary probe, the liveness ping loop, the interface poll, `getSwarmStatus` assembly, the debounced `event:network-status` + audit hook, `reconnectAll` |
 | `src/shared/transfer/loose-overlay.js` | In-place loose files, both sides: admission (name + cap under the space lock), the `loose` publish channel (source-link resolve, `publishing` decoration, watch arming, direct unshare), boot rehydrate and the presence sweep as producers; peer-catalog listing / watch / reconcile, the `looseChannel` and the engine forwarders as the consumer |
 | `src/shared/transfer/files.js` | The `downloads-meta` bee (claims, `verified:`, `src:` — §3.3), the claim verdict I/O, `addFile` / `removeFile`, the aggregated loose listing with status derivation (§3.5), reveal-in-file-manager, per-space cleanup, `DownloadsBee` |
@@ -1366,6 +1366,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
+| `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/storage/sweep-decision.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |

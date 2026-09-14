@@ -37,6 +37,7 @@ import { sanitizeAvatar } from '../identity-limits.js'
 import { createPresence } from './presence.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
+import { compactStore, settleCompaction } from '../storage/compaction.js'
 import { Subsystem } from '../core/subsystem.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { createAdmissionGates } from './admission-gates.js'
@@ -964,50 +965,6 @@ export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact
   }
 }
 
-// Returns tombstoned blocks to the OS. core.clear() / drive.clearAll() only mark
-// blocks deleted in the shared RocksDB store; the bytes are not reclaimed from
-// disk until a compaction with blob GC runs. Both leave-space and
-// clear-peer-cache rely on this to actually shrink on-disk usage.
-const COMPACTION_SETTLE_MS = 250
-
-// Lets a test park the compaction tail so the bounded wait in destroySwarm is observable.
-export function _compactStoreForTests(makeTail) {
-  compactionTail = makeTail()
-}
-let compactionTail = Promise.resolve()
-
-function chainCompaction(opts, label) {
-  const run = compactionTail.catch(() => {}).then(async () => {
-    const db = getStore()?.storage?.db
-    if (!db) return
-    const t0 = Date.now()
-    log.info('PROBE compaction start:', label)
-    try {
-      await db.flush()
-      await db.compactRange(null, null, opts)
-    } finally {
-      log.info('PROBE compaction done:', label, 'in', Date.now() - t0, 'ms')
-    }
-  })
-  compactionTail = run
-  return run
-}
-
-// Forced full-range blob-GC compaction — used only by the rare user-initiated reclaim
-// paths (leave-space, clear-cache, reclaim sweep). Always runs; chained so it never
-// overlaps another compaction. `exclusive` blocks background compactions for the
-// duration so they can't drop a swept block's delete tombstone before this blob-GC
-// pass accounts its garbage — that race strands the blob value on disk permanently
-// (orphaned blob files no later compaction can reclaim).
-export function compactStore() {
-  return chainCompaction({
-    exclusive: true,
-    blobGarbageCollectionPolicy: 1,
-    blobGarbageCollectionAgeCutoff: 1.0,
-    bottommostLevelCompaction: 2,
-  }, 'forced full-range')
-}
-
 // === Liveness queries, membership frames & network status ===
 
 // Online peers in a space (presence lease, not socket liveness) — the display liveness that
@@ -1170,11 +1127,7 @@ async function destroySwarm() {
   // A compaction reads cores the durable tier closes right after this. Bounded on its own: it
   // runs under the runtime tier's shared budget, and a full-range compactRange the user just
   // started would otherwise spend the whole budget and skip every subsystem after this one.
-  await Promise.race([
-    compactionTail.catch(() => {}),
-    new Promise((resolve) => { const t = setTimeout(resolve, COMPACTION_SETTLE_MS); t.unref?.() }),
-  ])
-  compactionTail = Promise.resolve()
+  await settleCompaction()
   log.info('swarm destroyed')
 }
 

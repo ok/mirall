@@ -4,7 +4,7 @@ import path from 'bare-path'
 import Hyperdrive from 'hyperdrive'
 import { freshPeer } from '../helpers/store.js'
 import { getStore, getStoragePath } from '../../src/shared/core/store.js'
-import { compactStore } from '../../src/shared/transfer/swarm.js'
+import { compactStore } from '../../src/shared/storage/compaction.js'
 
 function dirSize(dir) {
   let n = 0

@@ -11,7 +11,7 @@ import { getStore, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../core/st
 import { listSpaces, getDrive, purgeCoreDk } from '../spaces/space.js'
 import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { ownCatalog, readCatalogKey } from '../shares/share-catalog.js'
-import { compactStore } from '../transfer/swarm.js'
+import { compactStore } from './compaction.js'
 import { withReadTimeout } from '../core/with-timeout.js'
 import { mapLimit } from '../core/concurrency.js'
 import { classifyBeeKind } from './leftover-classify.js'
