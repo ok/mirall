@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { foldListing, emptyFold, resetFold } from '../../src/renderer/shareFilesFold.js'
+import { foldListing, emptyFold } from '../../src/renderer/shareFilesFold.js'
 
 // The hook's mapper, reduced to what the fold needs. Rows arrive sorted by relPath — the catalog
 // read stream is key-ordered — which is what reconcileFiles' two-pointer merge relies on.
@@ -54,13 +54,13 @@ test('a null response leaves the fold alone', (t) => {
   t.is(foldListing(seeded, null, toEntry), seeded, 'nothing to fold before the first read lands')
 })
 
-// FolderView is reused rather than keyed per share.
-test('resetting clears the fold so one share cannot bleed into the next', (t) => {
+// FolderView is keyed per share, so each folder folds from emptyFold. This is the property that
+// makes the key sufficient: a fresh fold cannot inherit rows, so nothing has to clear one.
+test('a fresh fold cannot bleed the previous share into the next', (t) => {
   const seeded = foldListing(emptyFold, res([entry('a')]), toEntry)
-  const cleared = resetFold()
-  t.alike(cleared.rows, [], 'no rows carry over')
-  t.is(cleared.res, null)
-  const next = foldListing(cleared, res([entry('z')]), toEntry)
+  t.alike(emptyFold.rows, [], 'no rows carry over')
+  t.is(emptyFold.res, null)
+  const next = foldListing(emptyFold, res([entry('z')]), toEntry)
   t.alike(next.rows.map((r) => r.relPath), ['z'], 'the new share starts from its own read')
   t.absent(next.rows.some((r) => r.relPath === 'a'), 'the previous share is gone')
   t.ok(seeded.rows.length === 1, 'and the old fold was not mutated')
