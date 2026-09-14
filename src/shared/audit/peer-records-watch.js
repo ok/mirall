@@ -1,5 +1,5 @@
 // Wires the pure peer-observer diff into the data layer: resolves names, applies the relevance
-// gates, and writes the rows. Split from peer-observer.js so the key grammar and the dedupe stay
+// gates, and writes the rows. Split from peer-records-observer.js so the key grammar and the dedupe stay
 // unit-testable without a Corestore.
 //
 // Relevance gates, both deliberate:
@@ -13,7 +13,7 @@ import { readOwnShares } from '../shares/shares.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record, getSeenVersion, setSeenVersion, getPeerSubjectState, setPeerSubjectState } from './audit-log.js'
-import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey } from './peer-observer.js'
+import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey } from './peer-records-observer.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from './audit-record.js'
 
@@ -126,7 +126,7 @@ async function applyCatalogChange(peerKey, spaceId, change) {
 }
 
 // One sweep of a peer bee: read what changed since our watermark, turn it into rows, advance the
-// watermark. On first sight it only adopts the baseline — see peer-observer.js.
+// watermark. On first sight it only adopts the baseline — see peer-records-observer.js.
 //
 // The baseline is taken at REGISTRATION, not lazily on the first append. Two failures otherwise:
 // adopting on the first append silently swallows it (the very act we wanted to record), and

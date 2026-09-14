@@ -2,7 +2,7 @@ import test from 'brittle'
 import {
   createEpisodeTracker, kindFor, evidenceFor, EPISODE_DWELL_MS,
   KIND_OFFLINE, KIND_BLOCKED, KIND_AT_RISK, KIND_RESTORED, NO_EPISODE, NO_OPINION,
-} from '../../src/shared/audit/network-episodes.js'
+} from '../../src/shared/audit/connectivity-episodes.js'
 
 const T0 = 1700000000000
 const SESSION = 'run-1'

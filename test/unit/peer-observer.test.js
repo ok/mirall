@@ -2,7 +2,7 @@ import test from 'brittle'
 import {
   classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince,
   stateOf, subjectKey, MAX_OPS_PER_SWEEP, STATE_ON, STATE_OFF,
-} from '../../src/shared/audit/peer-observer.js'
+} from '../../src/shared/audit/peer-records-observer.js'
 
 const LOOSE = '__loose__'
 

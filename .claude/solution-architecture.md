@@ -411,8 +411,8 @@ replicates and never leaves the device; `audit:purge` is the user's explicit wip
 
 A peer's profile bee and share catalog are append-only logs, so "what did they just do" needs no
 snapshot of their records — only the version we last processed (`seen/<beeId>`) plus
-`createHistoryStream`, which replays the put/del operations since then. `audit/peer-observer.js`
-classifies those operations; `audit/peer-watch.js` resolves names and writes the rows.
+`createHistoryStream`, which replays the put/del operations since then. `audit/peer-records-observer.js`
+classifies those operations; `audit/peer-records-watch.js` resolves names and writes the rows.
 
 Three rules make it correct:
 
@@ -1399,11 +1399,11 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
 | `src/shared/transfer/serve-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
 | `src/shared/audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune / purge / export, config, the peer-bee watermarks and subject state. Imports `core/` and its pure audit siblings only, so the instrumentation call sites can't form a cycle |
-| `src/shared/audit/peer-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
+| `src/shared/audit/peer-records-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
 | `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
-| `src/shared/audit/peer-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
-| `src/shared/audit/peer-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
-| `src/shared/audit/network-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |
+| `src/shared/audit/peer-records-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
+| `src/shared/audit/presence-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
+| `src/shared/audit/connectivity-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |
 | `src/shared/audit/network-watch.js` | The I/O half of both trackers: owns the timers, writes the rows, advances durable device state, and enforces that a peer row is only honest while our own connectivity is healthy |
 
 ### `src/shared/telemetry/` and root

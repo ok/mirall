@@ -222,7 +222,7 @@ const DEFAULTED = {
   downloadKBps: 0,
   uploadKBps: 0,
   // How long a peer must be unreachable before the audit log records the absence. 0 = use
-  // peer-episodes.js's own default (production).
+  // presence-episodes.js's own default (production).
   peerPresenceDwellMs: 0,
 }
 

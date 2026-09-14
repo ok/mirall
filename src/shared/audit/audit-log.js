@@ -23,7 +23,7 @@
 import { createLocalBee, getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { buildRecord, selfActor } from './audit-record.js'
-import { STATE_OFF } from './peer-observer.js'
+import { STATE_OFF } from './peer-records-observer.js'
 import { prefixRange } from '../core/bee-keys.js'
 import {
   AGE_HYSTERESIS,

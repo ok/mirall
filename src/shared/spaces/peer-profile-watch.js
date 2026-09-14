@@ -6,7 +6,7 @@
 
 import { openProfileBee } from './profile.js'
 import { upsertMember } from './space.js'
-import { observePeerProfile } from '../audit/peer-watch.js'
+import { observePeerProfile } from '../audit/peer-records-watch.js'
 import { reconcilePendingRequestersForApprover, emitPeerSharesUpdated } from '../network/deferred-admission.js'
 import { sanitizeAvatar } from '../contract/identity-limits.js'
 import { getResourceCaps } from '../core/runtime-config.js'
