@@ -62,3 +62,70 @@ test('each import-cycle member can be imported first without a TDZ ReferenceErro
     t.is(code, 0, rel + ' imported first')
   }
 })
+
+// A cycle is not a style problem: a module in one is evaluated half-initialised when it is the
+// entry, which is the TDZ class the ratchet above exists for. The list above is a ratchet of
+// modules that WERE cyclic; this is the property itself, so a new cycle fails the moment it is
+// written rather than the next time someone happens to import the wrong member first.
+test('no module in the data layer sits in an import cycle', (t) => {
+  const files = walk(shared)
+  const rel = (p) => path.relative(shared, p).split(path.sep).join('/')
+  const edges = new Map()
+  for (const file of files) {
+    const src = fs.readFileSync(file, 'utf8')
+    const out = new Set()
+    for (const m of src.matchAll(/^\s*(?:import|export)[^'"]*from\s*'(\.[^']+)'/gm)) {
+      const target = path.resolve(path.dirname(file), m[1])
+      if (files.includes(target)) out.add(rel(target))
+    }
+    edges.set(rel(file), out)
+  }
+  t.ok(edges.size > 100, `the scan read the data layer (${edges.size} modules) — an empty graph has no cycles`)
+
+  // Tarjan, iterative: the graph is small but deep enough that recursion is not worth the risk.
+  const index = new Map(); const low = new Map(); const onStack = new Set(); const stack = []
+  const sccs = []; let counter = 0
+  for (const root of edges.keys()) {
+    if (index.has(root)) continue
+    const work = [[root, 0]]
+    while (work.length) {
+      const frame = work[work.length - 1]
+      const [node, childIndex] = frame
+      if (childIndex === 0) { index.set(node, counter); low.set(node, counter); counter++; stack.push(node); onStack.add(node) }
+      const children = [...(edges.get(node) ?? [])]
+      if (childIndex < children.length) {
+        frame[1]++
+        const child = children[childIndex]
+        if (!index.has(child)) work.push([child, 0])
+        else if (onStack.has(child)) low.set(node, Math.min(low.get(node), index.get(child)))
+        continue
+      }
+      if (low.get(node) === index.get(node)) {
+        const group = []
+        let popped
+        do { popped = stack.pop(); onStack.delete(popped); group.push(popped) } while (popped !== node)
+        if (group.length > 1) sccs.push(group.sort())
+      }
+      work.pop()
+      if (work.length) {
+        const parent = work[work.length - 1][0]
+        low.set(parent, Math.min(low.get(parent), low.get(node)))
+      }
+    }
+  }
+
+  // Known, tracked in #234. Each entry is a cycle box 3.5 or 3.7 is meant to remove; the list only
+  // ever shrinks, and a cycle that is NOT on it fails here.
+  const KNOWN = [
+    ['shares/share-catalog.js', 'spaces/space.js'],
+    ['transfer/files.js', 'transfer/loose-overlay.js'],
+    [
+      'shares/migrate-catalog-encrypt.js',
+      'storage/legacy-peer-cache.js',
+      'storage/metadata-migration.js',
+      'storage/migrations.js',
+      'transfer/backends/overlay/migrate-overlay-index-encrypt.js',
+    ],
+  ].map((g) => g.join(' ↔ '))
+  t.alike(sccs.map((g) => g.join(' ↔ ')).sort(), [...KNOWN].sort(), 'no import cycle beyond the tracked ones')
+})
