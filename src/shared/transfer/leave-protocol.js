@@ -23,7 +23,7 @@ import { destroyContentPeerSockets } from './content-swarm.js'
 import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
 import { markLeft } from '../spaces/member-registry.js'
-import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket } from './swarm-registries.js'
+import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
@@ -151,6 +151,9 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   if (peer && detachPeerFromSpace(peer, spaceId)) {
     connectedPeers.delete(profileKey)
     forgetPeerOnSocket(peer.socket, profileKey)
+    // Their socket stays up, so no close handler will ever run this: the bound signer key has to be
+    // dropped here or it outlives every index that says the peer is reachable.
+    forgetBoundSignerKey(profileKey)
     // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
     // share any space with must lose that socket too, or we keep serving it bulk bytes.
     try { destroyContentPeerSockets(profileKey) } catch {}
