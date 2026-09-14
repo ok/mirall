@@ -5,7 +5,7 @@ import {
   getPublishConcurrency, getDownloadConcurrency, getPeerFrameMaxBytes, getPeerCatalogCacheLimit,
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
-  getConvergenceStallWindowMs,
+  getConvergenceStallWindowMs, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -154,5 +154,52 @@ test('both relay-mode paths coerce identically', (t) => {
     const viaBootstrap = getRelayConfig().mode
     setRelayConfig(mode, null)
     t.is(getRelayConfig().mode, viaBootstrap, `${String(mode)} coerces the same on both paths`)
+  }
+})
+
+// The 17 keys that carry a validation rule, and the 46 that do not. A key absent from this map is
+// read RAW — including every getResourceCaps cell and three of the four cells of the matched
+// handshake lane. Adding a row changes a DoS bound or a user-facing cap: do it deliberately, with
+// the behaviour test that proves the new rule, and update this expectation in the same change.
+const EXPECTED_RULES = {
+  supervisionRecoverBudgetMs: { rule: 'finiteAtLeast', min: 1 },
+  reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
+  publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
+  convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
+  peerFrameRefillMs: { rule: 'finiteAtLeast', min: 1 },
+  peerFrameAbuseThreshold: { rule: 'finiteAtLeast', min: 1 },
+  peerFrameBurst: { rule: 'finiteAtLeast', min: 0 },
+  peerFrameMaxBytes: { rule: 'finiteAtLeast', min: 0 },
+  peerCatalogCacheLimit: { rule: 'finiteAtLeast', min: 0 },
+  handshakeBurstPerTopic: { rule: 'finiteAtLeast', min: 0 },
+  publishConcurrency: { rule: 'intAtLeastOrInfinity', min: 1 },
+  downloadConcurrency: { rule: 'intAtLeast', min: 0 },
+  listFilesCap: { rule: 'capOrInfinity', min: undefined },
+  maxFilesPerShare: { rule: 'capOrInfinity', min: undefined },
+  serveChunkMapCacheBytes: { rule: 'boundedOrSentinel', min: undefined },
+  downloadKBps: { rule: 'failOpen', min: undefined },
+  uploadKBps: { rule: 'failOpen', min: undefined },
+}
+
+test('the rules table is exactly the declared set', (t) => {
+  t.alike(_rulesForTests().ruled, EXPECTED_RULES, 'no rule added, removed or re-bound')
+})
+
+// The module header states these two counts. Asserting them is what keeps them from rotting.
+test('the ruled and unruled key counts are the ones the header claims', (t) => {
+  const { ruled, defaultedKeys } = _rulesForTests()
+  t.is(defaultedKeys, 63, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 17, 'of which carry a validation rule')
+  t.is(defaultedKeys - Object.keys(ruled).length, 46, 'the rest are read raw')
+})
+
+test('every ruled key is a DEFAULTED key', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  setRuntimeConfig({})
+  const built = getRuntimeConfig()
+  for (const key of Object.keys(_rulesForTests().ruled)) {
+    t.ok(key in built, `${key} is built into the live config`)
   }
 })

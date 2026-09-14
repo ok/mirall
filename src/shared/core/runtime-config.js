@@ -326,6 +326,15 @@ function read(key) {
   return spec ? spec.rule(config[key], DEFAULTED[key], spec.min) : config[key]
 }
 
+// test seam — the rule table is the thing a reader is most likely to "complete" by filling in a
+// blank, and every blank is a DoS bound or a user cap. runtime-config-rules.test.js pins the set.
+export function _rulesForTests() {
+  return {
+    ruled: Object.fromEntries(Object.entries(RULES).map(([k, v]) => [k, { rule: v.rule.name, min: v.min }])),
+    defaultedKeys: Object.keys(DEFAULTED).length,
+  }
+}
+
 // --- Coercers ---------------------------------------------------------------------------------
 
 function coercePublishOrder(order) {
