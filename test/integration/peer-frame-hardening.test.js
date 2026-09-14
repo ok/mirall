@@ -142,8 +142,10 @@ test('an oversize frame is reported by its sender, at error level', (t) => {
 
 test('every frame type is metered, not just the two identity types', async (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
-  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'swarm.js'), 'utf8')
-  const intake = src.slice(src.indexOf('onmessage(str) {'), src.indexOf('dispatchFrame(conn, msg)'))
+  const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'frame-intake.js'), 'utf8')
+  const from = src.indexOf('export function receiveFrame(')
+  t.ok(from >= 0, 'found receiveFrame — a marker that stops matching makes this ordering vacuous')
+  const intake = src.slice(from, src.indexOf('dispatchFrame(conn, msg)', from))
 
   const sizeAt = intake.indexOf('getPeerFrameMaxBytes()')
   const limitAt = intake.indexOf('frameLimiter.take(')
