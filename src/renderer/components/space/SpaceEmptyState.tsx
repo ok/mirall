@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
-import DocsCard from '../widgets/DocsCard.js'
+import DocsCard from '../cards/DocsCard.js'
 
 /**
  * The first thing a member of an empty space sees: the two things that can go in one, and the

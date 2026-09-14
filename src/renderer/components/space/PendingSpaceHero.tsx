@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import AvatarStack from '../primitives/AvatarStack.js'
-import DocsCard from '../widgets/DocsCard.js'
+import DocsCard from '../cards/DocsCard.js'
 import type { SpaceMember } from '../../types.js'
 
 interface PendingSpaceHeroProps {

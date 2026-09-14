@@ -18,7 +18,7 @@ import { useShares, type ShareWithRole } from '../hooks/useShares.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useDragShare } from '../hooks/useDragShare.js'
 import SpaceDialogs, { type SpaceDialog } from '../components/modals/SpaceDialogs.js'
-import JoinRequestBanner from '../components/widgets/JoinRequestBanner.js'
+import JoinRequestCard from '../components/cards/JoinRequestCard.js'
 import HiddenFileInput from '../components/primitives/HiddenFileInput.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import SpaceHeaderBar from '../components/layout/SpaceHeaderBar.js'
@@ -139,7 +139,7 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
 
       {space?.status !== 'pending' && requests.length > 0 && (
         <div className="shrink-0 pb-4">
-          <JoinRequestBanner
+          <JoinRequestCard
             requests={requests}
             busyKeys={busy}
             onApprove={handleApprove}

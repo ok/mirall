@@ -5,7 +5,7 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { docsUrl, type DocsTarget } from '../../docs-links.js'
 import Icon, { type IconName } from '../primitives/Icon.js'
-import DocsLink from './DocsLink.js'
+import DocsLink from '../widgets/DocsLink.js'
 
 interface DocsCardEntry {
   target: DocsTarget

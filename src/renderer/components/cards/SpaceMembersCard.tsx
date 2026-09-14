@@ -12,7 +12,7 @@ interface MembersBoxProps {
   members: SpaceMember[]
 }
 
-export default function MembersBox({ spaceId, members }: MembersBoxProps) {
+export default function SpaceMembersCard({ spaceId, members }: MembersBoxProps) {
   const { t } = useTranslation()
   // The card's fold and the stack-vs-list choice inside it are independent, and both
   // are restored per space: a collapsed card can hold an expanded list underneath.

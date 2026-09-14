@@ -12,7 +12,7 @@ interface JoinRequestBannerProps {
   onReview: () => void
 }
 
-export default function JoinRequestBanner({ requests, busyKeys, onApprove, onDeny, onReview }: JoinRequestBannerProps) {
+export default function JoinRequestCard({ requests, busyKeys, onApprove, onDeny, onReview }: JoinRequestBannerProps) {
   const { t } = useTranslation()
   if (requests.length === 0) return null
 

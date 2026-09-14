@@ -1,7 +1,7 @@
 import DropZone from '../share-drop/DropZone.js'
 import DropOverlay from '../share-drop/DropOverlay.js'
-import MembersBox from '../widgets/MembersBox.js'
-import StorageIndicator from '../widgets/StorageIndicator.js'
+import SpaceMembersCard from '../cards/SpaceMembersCard.js'
+import SpaceStorageCard from '../cards/SpaceStorageCard.js'
 import SpaceEmptyState from './SpaceEmptyState.js'
 import SpaceSharesSection from './SpaceSharesSection.js'
 import SpaceFilesPane from './SpaceFilesPane.js'
@@ -122,9 +122,9 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
         {/* People above size, the same order the folder screen's sidebar uses. Members is the
           one that folds and the one that grows, so it takes the flexible slot; Storage is a
           fixed three-line statement and sits under it. */}
-        <MembersBox spaceId={spaceId} members={members} />
+        <SpaceMembersCard spaceId={spaceId} members={members} />
         <div className="shrink-0">
-          <StorageIndicator spaceId={spaceId} />
+          <SpaceStorageCard spaceId={spaceId} />
         </div>
       </div>
 
