@@ -1335,7 +1335,6 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/content-peer-sockets.js` | Which authenticated identities ride which content socket; `destroyFor` |
 | `src/shared/transfer/announce-ledger.js` | The level-triggered retry ledger for per-(connection, space) identity-frame announcements — `announceStatus`, `escalationDue` |
 | `src/shared/transfer/chunk-map-cache.js` | The bounded byte-cost LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.7) |
-| `src/shared/transfer/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
 | `src/shared/transfer/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
 | `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
 | `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
@@ -1397,6 +1396,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
 | `src/shared/audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune / purge / export, config, the peer-bee watermarks and subject state. Imports `core/` and its pure audit siblings only, so the instrumentation call sites can't form a cycle |
 | `src/shared/audit/peer-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
+| `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
 | `src/shared/audit/peer-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
 | `src/shared/audit/peer-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
 | `src/shared/audit/network-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |

@@ -8,7 +8,7 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/
 import { folderChannel } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { looseChannel } from '../../src/shared/transfer/loose-overlay.js'
 import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
-import { drainTransferAudit } from '../../src/shared/transfer/transfer-audit.js'
+import { drainTransferAudit } from '../../src/shared/audit/transfer-audit.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // The audit row for a download is written by the ENGINE, so these drive the engine over the REAL

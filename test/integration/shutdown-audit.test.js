@@ -4,7 +4,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { onServeStart, onChunkServed } from '../../src/shared/transfer/serve-ledger.js'
 import { createSpace } from '../../src/shared/spaces/space.js'
 import { queryAudit } from '../../src/shared/audit/audit-log.js'
-import { recordTransferOutcome } from '../../src/shared/transfer/transfer-audit.js'
+import { recordTransferOutcome } from '../../src/shared/audit/transfer-audit.js'
 
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)

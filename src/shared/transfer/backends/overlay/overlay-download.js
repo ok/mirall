@@ -15,7 +15,7 @@ import {
   recordPending, clearPending, recordPendingError, getPendingFor, updatePendingProgress, listPendingForSpace,
 } from '../../pending-transfers.js'
 import { createPausedHolders } from './paused-holders.js'
-import { recordTransferOutcome } from '../../transfer-audit.js'
+import { recordTransferOutcome } from '../../../audit/transfer-audit.js'
 import { pauseReasonFor as reasonForOwnerOnline } from '../../transfer-status.js'
 import { republishDecision } from '../../supersede-decision.js'
 import { makeSingleFlightScan } from './single-flight-scan.js'
