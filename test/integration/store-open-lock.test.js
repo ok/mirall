@@ -1,14 +1,10 @@
 import test from 'brittle'
-import os from 'bare-os'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore } from '../../src/shared/core/store.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 
-function tmp(label) {
-  const dir = path.join(os.tmpdir(), `store-lock-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+const tmp = (label) => tmpDir(`store-lock-${label}`)
 
 // The lock is exclusive per open file description, so a second Corestore on the same path
 // conflicts with the first even inside one process — which is what a reboot-in-place is.

@@ -1,17 +1,12 @@
 import test from 'brittle'
 import { createLogger, fields } from '../../src/shared/core/logger.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { tagged } from '../helpers/capture-console.js'
 
 function capture(t) {
-  const lines = []
-  const realLog = console.log
-  const realWarn = console.warn
-  const grab = (real) => (...a) => { if (a[0] === '[probe]') { lines.push(a.slice(1)); return } real(...a) }
-  console.log = grab(realLog)
-  console.warn = grab(realWarn)
   setRuntimeConfig({ verbose: true })
-  t.teardown(() => { console.log = realLog; console.warn = realWarn; setRuntimeConfig({}) })
-  return lines
+  t.teardown(() => setRuntimeConfig({}))
+  return tagged(t, '[probe]')
 }
 
 const joined = (lines) => lines.map((a) => a.join(' '))

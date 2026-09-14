@@ -4,19 +4,13 @@ import idEncoding from 'hypercore-id-encoding'
 import { localTestnet } from '../helpers/testnet.js'
 import { setRuntimeConfig, setRelayConfig } from '../../src/shared/core/runtime-config.js'
 import crypto from 'hypercore-crypto'
-import { Swarm, getSwarmDht, getSwarmStatus } from '../../src/shared/transfer/swarm.js'
-import { setRelayThrough, testRelayReachable } from '../../src/shared/transfer/relay-install.js'
-import { ContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
+import { Swarm, getSwarmDht, getSwarmStatus } from '../../src/shared/network/swarm.js'
+import { setRelayThrough, testRelayReachable } from '../../src/shared/network/relay-install.js'
+import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
+import { stubOverlayBackend } from '../helpers/overlay-stub.js'
 
 // The relay tests exercise the swarm, not the overlay; the backend is a dep so it is stubbed.
-const stubOverlayBackend = {
-  attach() {},
-  detach: async () => {},
-  resumeForOwner() {},
-  resumeForOwnerAllSpaces() {},
-  revokeServesForSpace() {},
-}
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const KEY_B = idEncoding.encode(b4a.alloc(32, 12))

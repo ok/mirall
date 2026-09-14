@@ -1,14 +1,7 @@
-import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import { scaled } from './timing.js'
-
-function uniq(label) {
-  // Hex (not base36) for the random suffix: a base36 name can contain a cloud-sync hint
-  // substring like "box"/"mega", which mount-validate rejects (MOUNT_FORBIDDEN_CLOUD_SYNC),
-  // flaking any flow test that mounts the dir. Hex (0-9a-f) can't form any of those hints.
-  return path.join(os.tmpdir(), `mirall-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-}
+import { tmpPath } from './tmp.js'
 
 // Recursive on-disk byte total of a directory (shared by the store-growth/disk
 // assertions across flow tests).
@@ -27,14 +20,14 @@ export function dirSize(dir) {
 }
 
 export function writeTmpFile(bytes, t) {
-  const p = uniq('src') + '.bin'
+  const p = tmpPath('mirall-src') + '.bin'
   fs.writeFileSync(p, bytes)
   if (t) t.teardown(() => { try { fs.rmSync(p) } catch {} })
   return p
 }
 
 export function mkTmpDir(t) {
-  const d = uniq('dir')
+  const d = tmpPath('mirall-dir')
   fs.mkdirSync(d, { recursive: true })
   if (t) t.teardown(() => { try { fs.rmSync(d, { recursive: true, force: true }) } catch {} })
   return d

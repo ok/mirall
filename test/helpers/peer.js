@@ -1,9 +1,9 @@
 import Sidecar from 'bare-sidecar'
 import crypto from 'crypto'
-import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import { scaled, summarize, tail, TIMING } from './timing.js'
+import { tmpDir } from './tmp.js'
 
 // A full client = the REAL worker (src/worker/main.js) run as a bare subprocess
 // via bare-sidecar, driven over its NDJSON IPC (the same protocol Electron main
@@ -23,12 +23,7 @@ function kekFor(storage) {
   return kek
 }
 
-function tmp(label) {
-  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
-  const dir = path.join(os.tmpdir(), `mirall-peer-${label}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+const tmp = (label) => tmpDir(`mirall-peer-${label}`)
 
 // Poll until OS process `pid` is gone (signal 0 = existence probe; ESRCH ⇒ dead).
 // Used to assert a worker subprocess actually exits — a worker that survives is

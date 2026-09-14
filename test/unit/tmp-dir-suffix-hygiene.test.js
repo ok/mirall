@@ -14,14 +14,14 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const testRoot = path.join(here, '..')
 
 // Every dir whose names reach the app as a mount root or a download destination.
-const SCANNED = ['flow', 'helpers', 'integration', 'raw']
+const SCANNED = ['flow', 'helpers', 'integration', 'raw', 'unit']
 const HEX = /^[0-9a-f]*$/
 
 function scannedFiles() {
   const out = []
   for (const dir of SCANNED) {
     for (const name of readdirSync(path.join(testRoot, dir))) {
-      if (name.endsWith('.js')) out.push(path.join(dir, name))
+      if (/\.(js|mjs)$/.test(name)) out.push(path.join(dir, name))
     }
   }
   return out
@@ -51,7 +51,29 @@ test('the generated suffix is hex, long enough to isolate concurrent runs, and h
 test('REGRESSION: no base36 temp-dir suffix in any dir whose names reach the app', (t) => {
   // Nothing in these dirs has a legitimate use for base36, so the whole call is the tell —
   // the suffix and the tmpdir() join are not always on the same line.
-  const offenders = scannedFiles().filter((rel) =>
-    readFileSync(path.join(testRoot, rel), 'utf8').includes('toString(36)'))
+  const offenders = scannedFiles()
+    // This file names the banned call in its own assertion.
+    .filter((rel) => rel !== path.join('unit', 'tmp-dir-suffix-hygiene.test.js'))
+    .filter((rel) => readFileSync(path.join(testRoot, rel), 'utf8').includes('toString(36)'))
   t.alike(offenders, [], 'temp-dir suffixes are hex')
+})
+
+// The pair with the test above: base36 is banned outright, and the hex that replaces it comes from
+// the helper rather than being spelled out again. mkdtempSync is deliberately NOT flagged — it is
+// the platform's own primitive, not a second spelling of ours. `unit` is scanned as defence in
+// depth: its scratch dirs are fixtures, never handed to the app as a mount root.
+test('the hex suffix comes from the helper, not from a second spelling', (t) => {
+  const owners = [
+    path.join('helpers', 'tmp.js'),
+    path.join('helpers', 'bare-tmp.js'),
+    // This file generates suffixes itself, to prove the alphabet claim above.
+    path.join('unit', 'tmp-dir-suffix-hygiene.test.js'),
+  ]
+  const offenders = scannedFiles().filter((rel) => {
+    if (owners.includes(rel)) return false
+    // The vendored overlay suite keeps its own by deliberate exception — see its header.
+    if (rel.endsWith('overlay-vendor-helpers.js')) return false
+    return readFileSync(path.join(testRoot, rel), 'utf8').includes("Math.random().toString(16)")
+  })
+  t.alike(offenders.sort(), [], 'hex suffixes come from test/helpers/{tmp,bare-tmp}.js')
 })

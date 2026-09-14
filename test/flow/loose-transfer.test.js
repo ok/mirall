@@ -1,5 +1,4 @@
 import test from 'brittle'
-import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
@@ -7,6 +6,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval, waitForCatalogEntry } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { tmpPath } from '../helpers/tmp.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -15,7 +15,7 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
 
 function writeTmpFile(bytes) {
-  const p = path.join(os.tmpdir(), `mirall-src-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.bin`)
+  const p = tmpPath('mirall-src') + '.bin'
   fs.writeFileSync(p, bytes)
   return p
 }

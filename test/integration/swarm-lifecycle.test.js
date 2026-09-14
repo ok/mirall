@@ -5,18 +5,11 @@ import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import {
   Swarm, registerPendingLeave, hasPendingLeave,
   markSpaceLeaving, isSpaceLeaving, getSwarmDht,
-} from '../../src/shared/transfer/swarm.js'
-import { ContentSwarm, getContentSwarm } from '../../src/shared/transfer/content-swarm.js'
+} from '../../src/shared/network/swarm.js'
+import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { _compactStoreForTests } from '../../src/shared/storage/compaction.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
-
-const stubOverlayBackend = {
-  attach() {},
-  detach: async () => {},
-  resumeForOwner() {},
-  resumeForOwnerAllSpaces() {},
-  revokeServesForSpace() {},
-}
+import { stubOverlayBackend } from '../helpers/overlay-stub.js'
 
 async function swarmDeps(t) {
   const bootstrap = await localTestnet(t)
