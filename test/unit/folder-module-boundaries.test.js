@@ -11,7 +11,11 @@ import { pureFolderPolicyModules } from '../../eslint.config.mjs'
 // were re-pointed the shims went, and this keeps them gone: a re-export is the cheap way to undo a
 // decomposition one import at a time, and nothing else fails when one grows back.
 test('the folder engines no longer re-export what moved out of them', (t) => {
-  const foreign = read('shared/folders/foreign-folders.js')
+  // Every module the mirror is now split across, not just the residue: a re-export can grow back
+  // in whichever half happens to import the symbol, and scanning only the shrunken file would pass
+  // while the decomposition came undone in its neighbour.
+  const foreign = ['foreign-folders', 'mirror-pass', 'mirror-fetch', 'foreign-pause']
+    .map((m) => read(`shared/folders/${m}.js`)).join('\n')
   t.absent(/export \{[^}]*\blocalRelOf\b/.test(foreign), 'localRelOf comes from mirror-state.js')
   t.absent(/export \{ previewMaterializeScan \}/.test(foreign), 'the preview comes from foreign-preview.js')
   t.absent(/export \{[^}]*\bshouldHonorDeletions\b/.test(foreign), 'the deletion gate comes from path-keys.js')

@@ -24,6 +24,8 @@ const STATUS_SHAPED = /'(idle|active|scanning|paused|paused-[a-z]+|mount-point-g
 
 const WRITERS = [
   'shared/folders/foreign-folders.js',
+  // The mirror's pause ladder: it writes a status on every fault, auto-pause and resume.
+  'shared/folders/foreign-pause.js',
   'worker/mounts-runtime.js',
   // The handlers that write an owned status directly (mount, relocate) and the one that emits a
   // mirror status on attach. Leaving them out makes the promise above narrower than it reads.
@@ -57,8 +59,13 @@ for (const file of WRITERS) {
 // spelling the pattern anticipates. Importing the vocabulary is what makes a new status reach the
 // contract first.
 test('every mount-status writer imports the vocabulary', (t) => {
+  // Either spelling counts: MOUNT_STATUS itself, or the fault vocabulary derived from it
+  // (STATUS_MOUNT_GONE / statusForFaultCode), which is how a writer that only ever sets a FAULT
+  // status names one. What must not appear is a writer holding neither.
   for (const file of WRITERS) {
-    t.ok(/MOUNT_STATUS/.test(read(file)), `${file} names statuses through MOUNT_STATUS`)
+    const src = read(file)
+    t.ok(/MOUNT_STATUS|STATUS_MOUNT_GONE|statusForFaultCode/.test(src),
+      `${file} names statuses through the contract, not a literal`)
   }
 })
 
