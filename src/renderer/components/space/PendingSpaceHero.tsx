@@ -3,7 +3,7 @@ import AvatarStack from '../primitives/AvatarStack.js'
 import DocsCard from '../widgets/DocsCard.js'
 import type { SpaceMember } from '../../types.js'
 
-interface SpacePendingPanelProps {
+interface PendingSpaceHeroProps {
   spaceName: string
   /** The roster minus ourselves: the people who can approve the request. */
   inviters: SpaceMember[]
@@ -13,7 +13,7 @@ interface SpacePendingPanelProps {
  * What a space looks like before the request to join it is answered. No content, because we have
  * no read key yet — only who is on the other side and what happens next.
  */
-export default function SpacePendingPanel({ spaceName, inviters }: SpacePendingPanelProps) {
+export default function PendingSpaceHero({ spaceName, inviters }: PendingSpaceHeroProps) {
   const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center pb-8">

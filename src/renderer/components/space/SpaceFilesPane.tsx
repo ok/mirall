@@ -10,7 +10,7 @@ import type { FileEntry } from '../../types.js'
 // untouched, so re-declaring them here would be a second copy to keep in step.
 type CardProps = ComponentProps<typeof FileCard>
 
-type SpaceFilesSectionProps = Pick<CardProps,
+type SpaceFilesPaneProps = Pick<CardProps,
   'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare' | 'onDiscardPartial'
   | 'onCancelPublish' | 'members'
 > & {
@@ -30,7 +30,7 @@ type SpaceFilesSectionProps = Pick<CardProps,
  * anything about — an empty list is not an error and renders nothing, since the screen's own
  * empty state already covers "nothing here at all".
  */
-export default function SpaceFilesSection(props: SpaceFilesSectionProps) {
+export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
   const { t } = useTranslation()
   const { files, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, ...card } = props
 

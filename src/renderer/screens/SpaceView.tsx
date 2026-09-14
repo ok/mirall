@@ -22,9 +22,9 @@ import JoinRequestBanner from '../components/widgets/JoinRequestBanner.js'
 import HiddenFileInput from '../components/primitives/HiddenFileInput.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import SpaceHeaderBar from '../components/layout/SpaceHeaderBar.js'
-import SpaceAlertBanner from '../components/space/SpaceAlertBanner.js'
+import SpaceAlert from '../components/space/SpaceAlert.js'
 import SpaceContentPane from '../components/space/SpaceContentPane.js'
-import SpacePendingPanel from '../components/space/SpacePendingPanel.js'
+import PendingSpaceHero from '../components/space/PendingSpaceHero.js'
 import type { PendingSpaceAction } from '../space-actions.js'
 import { useRunAction } from '../hooks/useRunAction.js'
 import { useMembershipRequests } from '../hooks/useMembershipRequests.js'
@@ -134,8 +134,8 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
         onLeave={() => setDialog({ kind: 'leave' })}
       />
 
-      {isLegacy && <SpaceAlertBanner text={t('space.legacyWarning')} />}
-      {space?.creatorDivergence && <SpaceAlertBanner text={t('space.creatorDivergenceWarning')} />}
+      {isLegacy && <SpaceAlert text={t('space.legacyWarning')} />}
+      {space?.creatorDivergence && <SpaceAlert text={t('space.creatorDivergenceWarning')} />}
 
       {space?.status !== 'pending' && requests.length > 0 && (
         <div className="shrink-0 pb-4">
@@ -150,7 +150,7 @@ export default function SpaceView({ spaceId, pendingAction, onActionConsumed, on
       )}
 
       {space?.status === 'pending' ? (
-        <SpacePendingPanel
+        <PendingSpaceHero
           spaceName={space?.name || t('space.fallbackName')}
           inviters={members.filter((m) => m.publicKey !== profile?.publicKey)}
         />

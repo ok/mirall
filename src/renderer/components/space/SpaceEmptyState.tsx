@@ -7,7 +7,7 @@ import DocsCard from '../widgets/DocsCard.js'
  * three docs pages that say how. Shown only once BOTH lists have loaded empty — see
  * spaceContentState.js for why emptiness needs both.
  */
-export default function SpaceEmptyHero() {
+export default function SpaceEmptyState() {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col min-h-[24rem] mt-12">
