@@ -7,8 +7,8 @@
 // than stacks) is what keeps one missing folder from reading as N failed downloads.
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useToast } from '../toast/ToastProvider.js'
-import { useDownloadRootStatus } from '../../hooks/useDownloadRootStatus.js'
+import { useToast } from '../ToastProvider.js'
+import { useDownloadRootStatus } from '../../../hooks/useDownloadRootStatus.js'
 
 const TOAST_ID = 'download-folder'
 
