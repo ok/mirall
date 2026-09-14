@@ -2,7 +2,7 @@
 // files or a folder; fades out while a drag is active so DropOverlay can take over.
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import ActionMenu, { type ActionMenuItemConfig } from './ActionMenu.js'
+import ActionMenu, { type ActionMenuItemConfig } from '../widgets/ActionMenu.js'
 
 interface DropZoneProps {
   onFilesSelected: (files: File[]) => void
