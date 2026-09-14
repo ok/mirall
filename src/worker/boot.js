@@ -17,7 +17,7 @@ import { registerFolderIntents } from '../shared/folders/folder-intents.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity.js'
 import { osKeychainProvider } from '../shared/core/identity.js'
-import { runMigrations, stageCompacted } from '../shared/storage/migrations.js'
+import { runMigrations, stageCompacted } from '../shared/storage/migrations/index.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import {

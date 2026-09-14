@@ -1385,11 +1385,11 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/sweep/sweep-rules.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |
-| `src/shared/storage/migration-result.js` | `STAGES`, `MIGRATION_STATUS` and `migrationResult` — the answer shape every migration returns, in a leaf that imports nothing so a migration need not depend on the list that runs it |
-| `src/shared/storage/migrations.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (`durable` / `content`, §2) |
-| `src/shared/storage/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee (§16) |
+| `src/shared/storage/migrations/migration-result.js` | `STAGES`, `MIGRATION_STATUS` and `migrationResult` — the answer shape every migration returns, in a leaf that imports nothing so a migration need not depend on the list that runs it |
+| `src/shared/storage/migrations/index.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (`durable` / `content`, §2) |
+| `src/shared/storage/migrations/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee (§16) |
 | `src/shared/storage/space-storage.js` | The per-space `{ totalBytes, onDeviceBytes }` summary behind the space storage widget |
-| `src/shared/storage/legacy-peer-cache.js` | One-shot `clearAll` of pre-overlay peer drive caches (bee-flag marker) |
+| `src/shared/storage/migrations/legacy-peer-cache.js` | One-shot `clearAll` of pre-overlay peer drive caches (bee-flag marker) |
 | `src/shared/storage/legacy-orphan-drives.js` | The one-shot orphan-drive reclaim flag pair in `app-migrations` |
 
 ### `src/shared/audit/`

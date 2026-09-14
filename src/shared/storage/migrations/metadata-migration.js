@@ -1,9 +1,9 @@
 import { migrationResult, MIGRATION_STATUS } from './migration-result.js'
 import b4a from 'b4a'
-import { getStore, getStoragePath, createBee, createLocalBee, LOCAL_BEE_NAMES, hasMasterSecret } from '../core/store.js'
-import { writeFileAtomic } from '../core/atomic-file.js'
-import { purgeCoreDk } from '../spaces/space.js'
-import { createLogger } from '../core/logger.js'
+import { getStore, getStoragePath, createBee, createLocalBee, LOCAL_BEE_NAMES, hasMasterSecret } from '../../core/store.js'
+import { writeFileAtomic } from '../../core/atomic-file.js'
+import { purgeCoreDk } from '../../spaces/space.js'
+import { createLogger } from '../../core/logger.js'
 
 const log = createLogger('metadata-migration')
 // Frozen on-disk marker: existing installs already carry this file, so the string
