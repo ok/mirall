@@ -1,20 +1,11 @@
 import fs from 'bare-fs'
-import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
 import { setProfile } from '../../src/shared/spaces/profile.js'
 import { boot, bootDurable } from '../../src/worker/boot.js'
 import { createFakeIpc } from './fake-ipc.js'
-
-let seq = 0
-function tmpDir(label) {
-  // Hex, not base36 — a base36 suffix can spell a cloud-sync hint (see test/helpers/fixtures.js).
-  const rand = Math.random().toString(16).slice(2, 8)
-  const dir = path.join(os.tmpdir(), `mirall-test-${label}-${Date.now()}-${rand}-${seq++}`)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+import { tmpDir } from './bare-tmp.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -36,10 +27,10 @@ export const offlineMemberRegistry = {
 // which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
 // tmpdir shared with every other peer of every other test.
 function peerDirs(t) {
-  const home = tmpDir('peer')
+  const home = tmpDir('mirall-test-peer')
   const storage = path.join(home, 'app-storage')
   fs.mkdirSync(storage, { recursive: true })
-  const downloads = tmpDir('dl')
+  const downloads = tmpDir('mirall-test-dl')
   const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
   setRuntimeConfig(config)
   setDownloadFolder(downloads)
@@ -84,7 +75,7 @@ export async function freshDurable(t, { displayName = 'Tester', masterSecret = n
   let config
   let dirs
   if (storage) {
-    const downloads = tmpDir('dl')
+    const downloads = tmpDir('mirall-test-dl')
     t.teardown(() => { try { fs.rmSync(downloads, { recursive: true, force: true }) } catch {} }, { order: 2 })
     config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
     setRuntimeConfig(config)
