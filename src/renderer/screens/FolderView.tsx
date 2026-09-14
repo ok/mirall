@@ -2,11 +2,10 @@
 // band that exists only while the folder is doing something, a controls row pinned on the listing,
 // and two read-only tiles. Tiles state, the header acts, the strip acts for now.
 //
-// The role picks the hooks, and each is called unconditionally with an empty id when it does not
-// apply — hooks cannot be called in a branch: `mine` reads useOwnedMount plus useIndexProgress,
-// `mirrored` reads useForeignMount, and `browse` reads neither, because a browsed folder has no
-// local mount at all.
-import { useState, useMemo } from 'react'
+// What the folder IS lives in useFolderViewModel, what it acts on in useShareActions, and the file
+// half in FolderListPane. What is left here is the screen: which of those to show, and the two
+// dialogs whose open state is the screen's own.
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
 import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
@@ -15,6 +14,7 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
 import { useFilteredTree } from '../hooks/useFilteredTree.js'
 import { useShareActions } from '../hooks/useShareActions.js'
+import { useFolderViewModel } from '../hooks/useFolderViewModel.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
@@ -24,15 +24,7 @@ import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.
 import EditFolderModal from '../components/modals/EditFolderModal.js'
 import FolderPeopleCard from '../components/cards/FolderPeopleCard.js'
 import FolderStatsCard from '../components/cards/FolderStatsCard.js'
-import { deriveStrips } from '../folderStrips.js'
-import { mountFault } from '../../shared/contract/mount-fault.js'
-import { deriveFolderStatus } from '../folderStatus.js'
-import { deriveMirrorSync } from '../mirrorSync.js'
-import { rowBytesOnDevice } from '../rowView.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
-import { useOwnedMount } from '../hooks/useFolderMount.js'
-import { useIndexProgress } from '../hooks/useIndexProgress.js'
-import { deriveIndexSummary } from '../indexSummary.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
@@ -125,111 +117,13 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
     isExpanded, toggle, toggleAll,
   } = useFilteredTree(share.id, files)
 
-  const foreignEnabled = share.role === 'mirrored' && (foreignMount?.enabled ?? true) && foreignStatus !== 'paused'
-  const manualControls = share.role === 'browse'
-  // Live while mounted: owned-folder:list-all (a live mountRootAvailable check) re-derives on every
-  // mount-status event; the useShares projection covers SpaceView only.
-  const { status: ownedStatus, lastError: ownedError, loaded: ownedLoaded, paused: ownedPaused, scanning, mountPath: ownedPath } = useOwnedMount(spaceId, isYou ? share.id : '')
-  // The scan's queue depth, which the file rows cannot show: a queued file has no catalog entry
-  // yet, so it has no row. Ours reports locally; a peer's is re-announced by its owner, so it is
-  // only meaningful while they are reachable — an owner that drops mid-scan sends no final frame.
-  const indexProgress = useIndexProgress(spaceId, share.id, {
-    own: isYou,
-    ownerKey: share.owner,
-    live: isYou || (owner != null && owner.online !== false),
+  const {
+    foreignEnabled, manualControls, ownedPaused, ownedPath, sourceMissing, ownerName,
+    strips, overLimit, workAnnouncement, onDeviceCount, folderStatus, busy, filterableTotal,
+  } = useFolderViewModel({
+    spaceId, share, isYou, owner, profile, files, info, loading, error, getDecoration,
+    listingTruncated, foreignMount, foreignStatus,
   })
-  // Memoised on its inputs: deriveIndexSummary returns a fresh object every call, and an unstable
-  // `indexing` would make every downstream useMemo that depends on it miss on every render.
-  const indexing = useMemo(
-    () => deriveIndexSummary(indexProgress, { paused: ownedPaused, scanning }),
-    [indexProgress, ownedPaused, scanning],
-  )
-  // Live read wins once loaded, including "healthy": the hook returns null for a healthy mount, so
-  // `??` would resurrect the snapshot.
-  const ownedMountStatus = ownedLoaded ? ownedStatus : (share.mountStatus ?? null)
-  const sourceMissing = isYou && ownedMountStatus === 'mount-point-gone'
-  // The durable local fault, from whichever role owns this folder.
-  const fault = useMemo(
-    () => (isYou
-      ? mountFault(ownedMountStatus, ownedError)
-      : mountFault(foreignStatus ?? foreignMount?.status, foreignMount?.lastError)),
-    [isYou, ownedMountStatus, ownedError, foreignStatus, foreignMount],
-  )
-  const mirrorSync = useMemo(
-    () => (share.role === 'mirrored'
-      ? deriveMirrorSync(files, {
-        truncated: listingTruncated,
-        enabled: foreignEnabled,
-        bytesOf: (f) => rowBytesOnDevice(f, getDecoration(f.relPath)),
-      })
-      : null),
-    [share.role, files, listingTruncated, foreignEnabled, getDecoration],
-  )
-  const ownerName = isYou
-    ? (profile?.displayName || t('avatar.unknown'))
-    : (owner?.displayName || t('avatar.unknown'))
-
-  const strips = useMemo(() => deriveStrips({
-    role: share.role,
-    isYou,
-    loading,
-    error: !!error,
-    sourceMissing,
-    fault,
-    indexing,
-    foreignEnabled,
-    mirrorSync,
-    ownerOnline: owner?.online !== false,
-    listing: listingTruncated && info
-      ? { truncated: true, shown: files.length, total: info.fileCount, limit: info.fileLimit ?? files.length }
-      : null,
-  }), [share.role, isYou, loading, error, sourceMissing, fault, indexing, foreignEnabled, mirrorSync, owner, listingTruncated, info, files.length])
-
-  const overLimit = strips.find((strip) => strip.id === 'over-limit') ?? null
-  const working = strips.find((strip) => strip.id === 'working') ?? null
-  const peerWorking = strips.find((strip) => strip.id === 'peer-indexing') ?? null
-  // One count-free sentence for "work started / work ended", so it is announced twice rather than
-  // twice a second. It is the ONLY announcement of a working folder: the strip carrying the numbers
-  // is deliberately not a live region, and the tile does not repeat what the strip says. Derived
-  // from the strips themselves so the two can never disagree — a paused mirror whose rows have not
-  // settled yet must not announce that it is syncing.
-  const workAnnouncement = working?.data?.kind === 'indexing'
-    ? t('folder.indexingAnnounce')
-    : working?.data?.kind === 'mirroring'
-      ? t('folder.syncingAnnounce', { owner: ownerName })
-      : peerWorking
-        ? t('folder.indexingAnnouncePeer', { owner: ownerName })
-        : ''
-
-  // A count only a mirror can report honestly: an owner holds every file by definition, and a
-  // browser holds none, so the qualifier would be noise in both.
-  const onDeviceCount = share.role === 'mirrored' && !listingTruncated ? (mirrorSync?.onDevice ?? null) : null
-  // Only a gap we can prove. Truncated means onDeviceCount is null (a capped sample), and info may
-  // not have loaded; either way we do not know, so the pill does not claim.
-  const mirrorIncomplete = onDeviceCount !== null
-    && typeof info?.fileCount === 'number'
-    && onDeviceCount < info.fileCount
-
-  const folderStatus = deriveFolderStatus({
-    role: share.role,
-    sourceMissing,
-    fault: !!fault,
-    paused: ownedPaused,
-    mirrorEnabled: foreignEnabled,
-    indexing: indexing.active,
-    // Same rule the strip applies: with the owner away nothing is being fetched, so the tile must
-    // not read "Syncing" beside a strip that says they are offline.
-    mirrorSyncing: !!mirrorSync?.active && owner?.online !== false,
-    ownerOnline: owner?.online !== false,
-    incomplete: mirrorIncomplete,
-  })
-  // Only OUR OWN running work gates the destructive entry, and only while it is not paused. A
-  // mirror's sync is the owner's doing and can last as long as they keep adding files — disabling
-  // Unmount for its duration would leave the user with a dead control while the same action still
-  // works from the folder card on the space screen.
-  const busy = isYou && indexing.active && !indexing.paused
-  const filterableTotal = listingTruncated ? files.length : (info?.fileCount ?? files.length)
-
   const {
     revealFolder, deleteShare, setPaused, unmount, rename, relocateTo, onStripAction,
   } = useShareActions({ spaceId, share, isYou, onBack, locate, relocate, setForeignMountEnabled, unmountForeignMount })
