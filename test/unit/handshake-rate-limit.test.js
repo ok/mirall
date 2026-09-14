@@ -1,5 +1,8 @@
 import test from 'brittle'
 import { createRateLimiter, createDualRateLimiter } from '../../src/shared/transfer/handshake-guard.js'
+import {
+  getHandshakeRateLimit, getOverlayServeLimit, getRuntimeConfig, setRuntimeConfig,
+} from '../../src/shared/core/runtime-config.js'
 
 // A manual clock so refill is deterministic — drive the bucket, never sleep.
 function clock(start = 1_000_000) {
@@ -228,4 +231,36 @@ test('a cap getter applies to existing buckets: growth admits at once, shrink ti
   t.absent(rl.take(K).ok, 'one token refilled but the debt (4) still exceeds the smaller cap')
   c.advance(4000)
   t.ok(rl.take(K).ok, 'debt decayed to zero: one token under cap 1')
+})
+
+// A refill interval is a DIVISOR: take() decays the bucket by (elapsed / refillMs), so a 0 makes the
+// first take compute 0/0, and NaN never exceeds the cap. The lane then admits every frame forever —
+// a limiter that fails OPEN, which is the one direction a limiter must never fail.
+test('REGRESSION (FIX-REFILL-NAN): a 0 refill interval must not leave the lane wide open', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  setRuntimeConfig({ ...saved, handshakeRefillMs: 0 })
+
+  const c = clock()
+  const rl = createRateLimiter({
+    burst: 2, refillMs: getHandshakeRateLimit().matched.refillMs, abuseThreshold: 24, now: c.now,
+  })
+  t.ok(rl.take(K).ok, 'burst frame 1')
+  t.ok(rl.take(K).ok, 'burst frame 2')
+  t.absent(rl.take(K).ok, 'the lane still throttles rather than admitting every frame')
+})
+
+test('REGRESSION (FIX-REFILL-NAN): every lane whose refill divides falls back on a 0 override', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  setRuntimeConfig({
+    ...saved, handshakeRefillMs: 0, handshakeUnmatchedRefillMs: 0, overlayServeRefillMs: 0,
+  })
+  t.is(getHandshakeRateLimit().matched.refillMs, 1000, 'matched handshake lane')
+  t.is(getHandshakeRateLimit().unmatched.refillMs, 250, 'unmatched handshake lane')
+  t.is(getOverlayServeLimit().refillMs, 250, 'overlay serve lane')
+
+  setRuntimeConfig({ ...saved, handshakeRefillMs: 50 })
+  t.is(getHandshakeRateLimit().matched.refillMs, 50, 'a real override is still honoured')
 })

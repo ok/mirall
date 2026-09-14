@@ -1,27 +1,27 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { PUBLISH_ORDERS } from '../contract/paths.js'
 
-const DEFAULT_PEER_READ_TIMEOUT_MS = 8000
-// Upper bound on how long an approver waits to durably capture a joiner's own membership
-// record at approval time (the joiner is connected then; see captureJoinerMembership).
-// 0 disables the capture. Tests shrink it to exercise the timeout / disabled paths.
-const DEFAULT_CAPTURE_MEMBER_RECORD_MS = 5000
-const DEFAULT_LIST_FILES_CAP = 5000
-const DEFAULT_MAX_FILES_PER_SHARE = 5000
 export { PUBLISH_ORDERS }
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
+// The admission gate and the display ceiling are ONE number, not two that happen to match: a folder
+// the gate ADMITS must always render in full. See listFilesCap / maxFilesPerShare below.
+const DEFAULT_SHARE_FILE_LIMIT = 5000
+
 // Single source of truth for every runtime-config field. Both the live default state and each
-// setRuntimeConfig(next) call derive from these tables, so every tabled default is declared once
-// (with-timeout.js repeats two as last-resort fallbacks).
-// The coercion groups are kept distinct because their falsy-handling differs and must not drift:
+// setRuntimeConfig(next) call derive from these tables. The four coercion groups are kept distinct
+// because their falsy-handling differs and must not drift:
 //  NULLABLE — `next || null`: any falsy override (including '') collapses to null.
 //  BOOLEAN — `!!next`: a strict boolean, default false.
 //  DEFAULTED — `next ?? default`: nullish-only fallback, so a 0 / Infinity override is honored
 //  (the "disable this cap" escape hatch).
-//  DEFAULT-ON — `next?.x !== false`: only an explicit false disables. Coded inline in buildConfig()
-//  (overlayEnabled, inPlaceFilesEnabled, separateContentPlane, sharePrepareProgressEnabled), as
-//  are the three enum/slot coercers (relayMode, relay, publishOrder).
+//  DEFAULT_ON — `next?.x !== false`: only an explicit false disables.
+//
+// Validation is a SEPARATE table (RULES) applied when a getter READS, never when the config is
+// built: setRuntimeConfig({ ...getRuntimeConfig(), x }) is the shape the live setters use, so
+// buildConfig has to stay a no-op on its own output. The consequence is deliberate: getRuntimeConfig()
+// hands back the raw override, while getListFilesCap() and its peers hand back the validated read.
+// Reach for the getter unless you specifically want what the host sent.
 
 // Paths / opaque strings; a falsy override means "unset".
 const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
@@ -30,6 +30,16 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'up
 const BOOLEAN = [
   'dev', 'verbose',
   'handshakeIdentityBindingEnabled',
+]
+
+// Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
+// app — only an explicit `false` disables one. Overlay is the only content backend, so off degrades
+// every share to UNSUPPORTED. separateContentPlane off reverts to control + content on one stream.
+// sharePrepareProgress off removes both the "preparing NN%" decoration and the liveness signal that
+// keeps a download parked on a re-publish alive: a source that hashes for hours re-arms the
+// receiver's wait with every frame, so the wait bounds SILENCE rather than the hash.
+const DEFAULT_ON = [
+  'overlayEnabled', 'inPlaceFilesEnabled', 'separateContentPlane', 'sharePrepareProgressEnabled',
 ]
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,
@@ -42,7 +52,7 @@ const BOOLEAN = [
 // listing), netImpair (shaped connections), peerPresenceDwellMs (absence dwell). Every other key
 // is merely shrunk by tests and has a production default.
 const DEFAULTED = {
-  peerReadTimeoutMs: DEFAULT_PEER_READ_TIMEOUT_MS,
+  peerReadTimeoutMs: 8000,
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
   // locally-available rows now and self-heals: event:shares-updated / event:files-updated re-run
@@ -58,14 +68,17 @@ const DEFAULTED = {
   // RAISING THIS REQUIRES VIRTUALISING THE FILE LIST FIRST. The number is not a policy
   // choice — it is the bound that keeps an un-windowed list renderable. maxFilesPerShare
   // is held equal to it so a folder we ADMIT always renders in full.
-  listFilesCap: DEFAULT_LIST_FILES_CAP,
+  listFilesCap: DEFAULT_SHARE_FILE_LIMIT,
   // Max files in a folder a user may SHARE — an admission gate enforced at add-folder time
   // (and in the worker), NOT a runtime ceiling: an already-shared folder that GROWS past this
   // keeps publishing, because silently refusing to publish would leave the folder incomplete on
   // every peer — a far worse failure than a truncated list. Growth surfaces a warning instead,
   // and the gate never fires on remount/relocate/reconcile. 0 / Infinity disables it.
-  maxFilesPerShare: DEFAULT_MAX_FILES_PER_SHARE,
-  captureMemberRecordMs: DEFAULT_CAPTURE_MEMBER_RECORD_MS,
+  maxFilesPerShare: DEFAULT_SHARE_FILE_LIMIT,
+  // Upper bound on how long an approver waits to durably capture a joiner's own membership
+  // record at approval time (the joiner is connected then; see captureJoinerMembership).
+  // 0 disables the capture. Tests shrink it to exercise the timeout / disabled paths.
+  captureMemberRecordMs: 5000,
   deepReconcileEvery: 4,
   // Owner-side publish slots across all spaces. Hashing is synchronous CPU on the worker thread;
   // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. The scheduler
@@ -213,8 +226,136 @@ const DEFAULTED = {
   peerPresenceDwellMs: 0,
 }
 
-function coercePublishOrder(next) {
-  return PUBLISH_ORDERS.includes(next?.publishOrder) ? next.publishOrder : DEFAULT_PUBLISH_ORDER
+// --- Validation rules -------------------------------------------------------------------------
+// Six rules, applied by read() when a getter asks for a key. Each takes the raw override, the key's
+// tabled default and an optional bound, and returns a value the caller may act on. A rule never
+// throws and never returns undefined: the alternative is a worker that dies on a malformed
+// bootstrap frame.
+
+function isFiniteAtLeast(value, min) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min
+}
+
+function isPositiveFinite(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+// A budget that is multiplied by a live count, or divided into an elapsed time, must be finite and
+// within its bound: Infinity yields NaN against a zero count (which reads as "lane disabled" and
+// fails OPEN), a negative yields a cap no frame can meet (fails closed on honest peers).
+function finiteAtLeast(value, fallback, min) {
+  return isFiniteAtLeast(value, min) ? value : fallback
+}
+
+// A slot count: the same admission, floored, because a fractional slot is not one.
+function intAtLeast(value, fallback, min) {
+  return isFiniteAtLeast(value, min) ? Math.floor(value) : fallback
+}
+
+// intAtLeast with an explicit Infinity honoured as "unbounded". The asymmetry with intAtLeast is the
+// whole reason these are two rules rather than one with two minima: on the publish lane Infinity
+// means "run every item at once", while on the download gate 0 already means that — so an Infinity
+// there is a malformed value, and admitting it would quietly unbound the gate.
+function intAtLeastOrInfinity(value, fallback, min) {
+  return value === Infinity ? Infinity : intAtLeast(value, fallback, min)
+}
+
+// A protective bound that fails SAFE: an explicit 0 or Infinity disables the cap (returned as
+// Infinity so callers can compare freely), a positive finite number is honoured, and anything else
+// falls back to the default rather than silently disabling the cap.
+function capOrInfinity(value, fallback) {
+  if (value === 0 || value === Infinity) return Infinity
+  return isPositiveFinite(value) ? value : fallback
+}
+
+// capOrInfinity with the two sentinels kept DISTINCT: this bounds worker memory, so 0 means "no
+// cache" and never "no bound", and Infinity means unbounded. A corrupt value falls back to the
+// default rather than to either extreme.
+function boundedOrSentinel(value, fallback) {
+  if (value === 0 || value === Infinity) return value
+  return isPositiveFinite(value) ? value : fallback
+}
+
+// The inverted polarity: a user convenience rather than a protective bound, so a corrupt value
+// returns to UNLIMITED (0) instead of throttling every transfer to a crawl. The tabled default is
+// deliberately not consulted.
+function failOpen(value) {
+  return isPositiveFinite(value) ? value : 0
+}
+
+// Which rule validates which key. A key ABSENT here is read raw — that is 43 of the 63 DEFAULTED
+// keys, including every getResourceCaps cell and the burst and threshold of every rate-limited lane.
+// Absence is not an oversight to tidy up: giving one of those keys a rule CHANGES A DOS BOUND or a
+// user-facing cap, so it is a deliberate change that needs the behaviour test to prove it.
+const RULES = {
+  // Deadlines, where both DEFAULTED sentinels invert: 0 makes stallVerdict condemn every pass the
+  // instant it starts, so the supervisor evicts every healthy publish and abandons every healthy
+  // scan; Infinity reaches setTimeout, which clamps it to about a millisecond, so "no timeout"
+  // becomes "instant timeout".
+  supervisionRecoverBudgetMs: { rule: finiteAtLeast, min: 1 },
+  reconcileStallWindowMs: { rule: finiteAtLeast, min: 1 },
+  publishStallWindowMs: { rule: finiteAtLeast, min: 1 },
+  convergenceStallWindowMs: { rule: finiteAtLeast, min: 1 },
+
+  // Every refill interval is a DIVISOR — take() decays a bucket by (elapsed / refillMs) — so a 0
+  // makes the first take compute 0/0, and NaN never exceeds the cap: the lane then admits every
+  // frame forever. A limiter that fails OPEN is the one direction a limiter must never fail, which
+  // is why all four lanes carry this rule while their bursts and thresholds (which fail closed,
+  // loudly) do not.
+  peerFrameRefillMs: { rule: finiteAtLeast, min: 1 },
+  handshakeRefillMs: { rule: finiteAtLeast, min: 1 },
+  handshakeUnmatchedRefillMs: { rule: finiteAtLeast, min: 1 },
+  overlayServeRefillMs: { rule: finiteAtLeast, min: 1 },
+
+  // A 0 threshold bans on the first drop.
+  peerFrameAbuseThreshold: { rule: finiteAtLeast, min: 1 },
+
+  // Lane budgets whose 0 is the documented "switch it off" override.
+  peerFrameBurst: { rule: finiteAtLeast, min: 0 },
+  peerFrameMaxBytes: { rule: finiteAtLeast, min: 0 },
+  peerCatalogCacheLimit: { rule: finiteAtLeast, min: 0 },
+  handshakeBurstPerTopic: { rule: finiteAtLeast, min: 0 },
+
+  publishConcurrency: { rule: intAtLeastOrInfinity, min: 1 },
+  downloadConcurrency: { rule: intAtLeast, min: 0 },
+
+  listFilesCap: { rule: capOrInfinity },
+  maxFilesPerShare: { rule: capOrInfinity },
+
+  serveChunkMapCacheBytes: { rule: boundedOrSentinel },
+
+  downloadKBps: { rule: failOpen },
+  uploadKBps: { rule: failOpen },
+}
+
+// The one read path. A key with no rule resolves to its raw override, so routing every getter
+// through here means attaching a rule later is one table row rather than an edit inside a getter.
+function read(key) {
+  const spec = RULES[key]
+  return spec ? spec.rule(config[key], DEFAULTED[key], spec.min) : config[key]
+}
+
+// test seam — the rule table is the thing a reader is most likely to "complete" by filling in a
+// blank, and every blank is a DoS bound or a user cap. runtime-config-rules.test.js pins the set.
+export function _rulesForTests() {
+  return {
+    ruled: Object.fromEntries(Object.entries(RULES).map(([k, v]) => [k, { rule: v.rule.name, min: v.min }])),
+    defaultedKeys: Object.keys(DEFAULTED).length,
+  }
+}
+
+// --- Coercers ---------------------------------------------------------------------------------
+
+function coercePublishOrder(order) {
+  return PUBLISH_ORDERS.includes(order) ? order : DEFAULT_PUBLISH_ORDER
+}
+
+// 'off' is the default and the kill switch: relayFunctionFor returns null for it, so
+// swarm.relayThrough is never installed and the transport is byte-identical to a build with no
+// relay support. Both the bootstrap frame and the live setter coerce through here, because a mode
+// one admits and the other rejects would not survive a restart.
+function coerceRelayMode(mode) {
+  return mode === 'auto' || mode === 'always' ? mode : 'off'
 }
 
 // The public half of the relay slot only. The member seed is deliberately absent from
@@ -230,25 +371,10 @@ function buildConfig(next) {
   for (const k of NULLABLE) out[k] = next?.[k] || null
   for (const k of BOOLEAN) out[k] = !!next?.[k]
   for (const k of Object.keys(DEFAULTED)) out[k] = next?.[k] ?? DEFAULTED[k]
-  // Overlay is the only content backend and ships on; default ON, only an explicit
-  // `false` override degrades shares to UNSUPPORTED.
-  out.overlayEnabled = next?.overlayEnabled !== false
-  out.inPlaceFilesEnabled = next?.inPlaceFilesEnabled !== false
-  // Bulk content rides its own transport by default; only an explicit `false` reverts to the
-  // single-plane overlay (control + content on one stream).
-  out.separateContentPlane = next?.separateContentPlane !== false
-  // An owner broadcasts hashing progress for a file it is (re-)publishing, so members see
-  // "preparing 34%" instead of a frozen placeholder. It is also the liveness signal that keeps a
-  // download parked on a re-publish alive: a source that hashes for hours (multi-TB) re-arms the
-  // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash. Default on;
-  // only an explicit `false` reverts.
-  out.sharePrepareProgressEnabled = next?.sharePrepareProgressEnabled !== false
-  // 'off' is the default and the kill switch: relayFunctionFor returns null for it, so
-  // swarm.relayThrough is never installed and the transport is byte-identical to a build
-  // with no relay support.
-  out.relayMode = next?.relayMode === 'auto' || next?.relayMode === 'always' ? next.relayMode : 'off'
+  for (const k of DEFAULT_ON) out[k] = next?.[k] !== false
+  out.relayMode = coerceRelayMode(next?.relayMode)
   out.relay = coerceRelaySlot(next?.relay)
-  out.publishOrder = coercePublishOrder(next)
+  out.publishOrder = coercePublishOrder(next?.publishOrder)
   return out
 }
 
@@ -270,17 +396,21 @@ export function setBandwidthLimits({ downloadKBps, uploadKBps } = {}) {
   }
 }
 
+// A partial update, so its fallback is the LIVE value rather than the tabled default: omitting a
+// direction, or sending a corrupt one, leaves that direction's cap where the user last set it.
 function coerceKBps(next, fallback) {
   if (next === undefined || next === null) return fallback
   return typeof next === 'number' && Number.isFinite(next) && next >= 0 ? next : fallback
 }
 
+// The raw overrides, uncoerced. See the header: the getters below are what a caller acting on a
+// value should use.
 export function getRuntimeConfig() {
   return config
 }
 
 export function getPeerPresenceDwellMs() {
-  return config.peerPresenceDwellMs
+  return read('peerPresenceDwellMs')
 }
 
 export function isHandshakeIdentityBindingEnabled() {
@@ -312,60 +442,51 @@ export function getRelayConfig() {
 }
 
 export function setRelayConfig(mode, relay) {
-  const relayMode = mode === 'auto' || mode === 'always' ? mode : 'off'
-  config = { ...config, relayMode, relay: coerceRelaySlot(relay) }
+  config = { ...config, relayMode: coerceRelayMode(mode), relay: coerceRelaySlot(relay) }
 }
 
 export function getOverlayServeLimit() {
-  const c = config
-  return { burst: c.overlayServeBurst, refillMs: c.overlayServeRefillMs, abuseThreshold: c.overlayServeAbuseThreshold }
+  return {
+    burst: read('overlayServeBurst'),
+    refillMs: read('overlayServeRefillMs'),
+    abuseThreshold: read('overlayServeAbuseThreshold'),
+  }
 }
 
 export function getDeepReconcileEvery() {
-  return config.deepReconcileEvery
+  return read('deepReconcileEvery')
 }
 
 export function getSupervisionProbeIntervalMs() {
-  return config.supervisionProbeIntervalMs ?? DEFAULTED.supervisionProbeIntervalMs
+  return read('supervisionProbeIntervalMs')
 }
 
-// Validated rather than `??`-defaulted, unlike most of the DEFAULTED group: for a deadline both
-// sentinels invert. 0 makes stallVerdict condemn every pass the instant it starts, so the
-// supervisor would evict every healthy publish and abandon every healthy scan; Infinity reaches
-// setTimeout, which clamps it to about a millisecond, so "no timeout" becomes "instant timeout".
-// Anything that is not a positive finite number falls back to the default.
 export function getSupervisionRecoverBudgetMs() {
-  return finiteAtLeast(config.supervisionRecoverBudgetMs, 1, DEFAULTED.supervisionRecoverBudgetMs)
+  return read('supervisionRecoverBudgetMs')
 }
 
 export function getReconcileStallWindowMs() {
-  return finiteAtLeast(config.reconcileStallWindowMs, 1, DEFAULTED.reconcileStallWindowMs)
+  return read('reconcileStallWindowMs')
 }
 
 export function getPublishStallWindowMs() {
-  return finiteAtLeast(config.publishStallWindowMs, 1, DEFAULTED.publishStallWindowMs)
+  return read('publishStallWindowMs')
 }
 
 export function getConvergenceStallWindowMs() {
-  return finiteAtLeast(config.convergenceStallWindowMs, 1, DEFAULTED.convergenceStallWindowMs)
-}
-
-// A budget that is multiplied by a live count must be finite and non-negative: Infinity yields
-// NaN against a zero count (which reads as "lane disabled" and fails OPEN), a negative yields a
-// cap no frame can meet (fails closed on honest peers). Anything else falls back to the default.
-function finiteAtLeast(value, min, fallback) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback
+  return read('convergenceStallWindowMs')
 }
 
 export function getPublishConcurrency() {
-  const n = config.publishConcurrency
-  if (n === Infinity) return Infinity
-  if (typeof n === 'number' && Number.isFinite(n) && n >= 1) return Math.floor(n)
-  return DEFAULTED.publishConcurrency
+  return read('publishConcurrency')
+}
+
+export function getDownloadConcurrency() {
+  return read('downloadConcurrency')
 }
 
 export function getPeerFrameMaxBytes() {
-  return finiteAtLeast(config.peerFrameMaxBytes, 0, DEFAULTED.peerFrameMaxBytes)
+  return read('peerFrameMaxBytes')
 }
 
 // The avatar budget for an avatar that travels INLINE in a peer frame, which is a different
@@ -381,130 +502,97 @@ export function joinRequestAvatarMaxBytes() {
 }
 
 export function getPeerFrameLimits() {
-  const c = config
   return {
-    burst: finiteAtLeast(c.peerFrameBurst, 0, DEFAULTED.peerFrameBurst),
-    refillMs: finiteAtLeast(c.peerFrameRefillMs, 1, DEFAULTED.peerFrameRefillMs),
-    abuseThreshold: finiteAtLeast(c.peerFrameAbuseThreshold, 1, DEFAULTED.peerFrameAbuseThreshold),
+    burst: read('peerFrameBurst'),
+    refillMs: read('peerFrameRefillMs'),
+    abuseThreshold: read('peerFrameAbuseThreshold'),
   }
 }
 
 export function getPeerCatalogCacheLimit() {
-  return finiteAtLeast(config.peerCatalogCacheLimit, 0, DEFAULTED.peerCatalogCacheLimit)
-}
-
-export function getDownloadConcurrency() {
-  const n = config.downloadConcurrency
-  if (typeof n === 'number' && Number.isFinite(n) && n >= 0) return Math.floor(n)
-  return DEFAULTED.downloadConcurrency
+  return read('peerCatalogCacheLimit')
 }
 
 export function getPublishOrder() {
-  return config.publishOrder
+  return read('publishOrder')
 }
 
-// A protective bound must fail SAFE: an explicit 0/Infinity disables the cap (returns Infinity
-// so callers can compare freely), a valid positive finite number is honoured, and anything else
-// (negative, NaN, a non-numeric value that slipped through config) falls back to the default
-// rather than silently disabling the cap and reopening the OOM.
 export function getListFilesCap() {
-  const n = config.listFilesCap
-  if (n === 0 || n === Infinity) return Infinity
-  if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
-  return DEFAULT_LIST_FILES_CAP
+  return read('listFilesCap')
 }
 
-// Same fail-safe contract as getListFilesCap: an explicit 0/Infinity disables the gate, a valid
-// positive finite number is honoured, and anything else falls back to the default rather than
-// silently letting an unbounded folder through.
 export function getMaxFilesPerShare() {
-  const n = config.maxFilesPerShare
-  if (n === 0 || n === Infinity) return Infinity
-  if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
-  return DEFAULT_MAX_FILES_PER_SHARE
+  return read('maxFilesPerShare')
 }
 
-// Bytes per second, 0 = unlimited. The fail-safe polarity is INVERTED relative to
-// getListFilesCap: those guard against resource exhaustion, so a bad value must keep the
-// cap; this is a user convenience, so a bad value must return to unlimited rather than
-// throttle every transfer to a crawl.
+// KB/s on the wire, bytes/s to callers: the rule validates, the getter converts.
 export function getBandwidthLimits() {
-  const c = config
-  return { download: toBytesPerSecond(c.downloadKBps), upload: toBytesPerSecond(c.uploadKBps) }
+  return { download: read('downloadKBps') * 1024, upload: read('uploadKBps') * 1024 }
 }
 
-// The fail-safe contract of getListFilesCap with 0 read the other way round: this bounds
-// worker memory, so 0 means "no cache" (never "no bound"), Infinity means unbounded, and a
-// corrupt value falls back to the default rather than to either extreme.
 export function getServeChunkMapCacheBytes() {
-  const n = config.serveChunkMapCacheBytes
-  if (n === 0 || n === Infinity) return n
-  if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
-  return DEFAULTED.serveChunkMapCacheBytes
-}
-
-function toBytesPerSecond(kbps) {
-  if (typeof kbps !== 'number' || !Number.isFinite(kbps) || kbps <= 0) return 0
-  return kbps * 1024
+  return read('serveChunkMapCacheBytes')
 }
 
 export function getCaptureMemberRecordMs() {
-  return config.captureMemberRecordMs
+  return read('captureMemberRecordMs')
 }
 
 export function getHandshakeRateLimit() {
-  const c = config
   return {
-    // burstPerTopic multiplies a per-socket count, so it is clamped to a finite non-negative
-    // number: Infinity would make the product NaN for a peer with no matched topic yet and
-    // silently switch the lane OFF, and a negative would drop every honest frame.
-    matched: { burst: c.handshakeBurst, burstPerTopic: finiteAtLeast(c.handshakeBurstPerTopic, 0, DEFAULTED.handshakeBurstPerTopic), refillMs: c.handshakeRefillMs, abuseThreshold: c.handshakeAbuseThreshold },
-    unmatched: { burst: c.handshakeUnmatchedBurst, refillMs: c.handshakeUnmatchedRefillMs, abuseThreshold: c.handshakeUnmatchedAbuseThreshold },
+    matched: {
+      burst: read('handshakeBurst'),
+      burstPerTopic: read('handshakeBurstPerTopic'),
+      refillMs: read('handshakeRefillMs'),
+      abuseThreshold: read('handshakeAbuseThreshold'),
+    },
+    unmatched: {
+      burst: read('handshakeUnmatchedBurst'),
+      refillMs: read('handshakeUnmatchedRefillMs'),
+      abuseThreshold: read('handshakeUnmatchedAbuseThreshold'),
+    },
   }
 }
 
 export function getConvergenceConfig() {
-  const c = config
   return {
-    convergenceTickMs: c.convergenceTickMs,
-    announceBaseMs: c.announceBaseMs,
-    announceCapMs: c.announceCapMs,
-    announceMaxAttempts: c.announceMaxAttempts,
-    dupReciprocalFloorMs: c.dupReciprocalFloorMs,
-    convergenceEscalateTicks: c.convergenceEscalateTicks,
-    convergenceRefreshMinMs: c.convergenceRefreshMinMs,
-    convergenceMaxEscalations: c.convergenceMaxEscalations,
+    convergenceTickMs: read('convergenceTickMs'),
+    announceBaseMs: read('announceBaseMs'),
+    announceCapMs: read('announceCapMs'),
+    announceMaxAttempts: read('announceMaxAttempts'),
+    dupReciprocalFloorMs: read('dupReciprocalFloorMs'),
+    convergenceEscalateTicks: read('convergenceEscalateTicks'),
+    convergenceRefreshMinMs: read('convergenceRefreshMinMs'),
+    convergenceMaxEscalations: read('convergenceMaxEscalations'),
   }
 }
 
 export function getIdentityFrameDropWindow() {
-  const c = config
-  return { after: c.testDropIdentityFramesAfter, count: c.testDropIdentityFramesCount }
+  return { after: read('testDropIdentityFramesAfter'), count: read('testDropIdentityFramesCount') }
 }
 
 export function getNetImpair() {
-  return config.netImpair
+  return read('netImpair')
 }
 
 export function getResourceCaps() {
-  const c = config
   return {
-    serverConnections: c.maxServerConnections,
-    clientConnections: c.maxClientConnections,
-    pendingRequesters: c.maxPendingRequesters,
-    membersPerSpace: c.maxMembersPerSpace,
-    approvalsPerMember: c.maxApprovalsPerMember,
-    requestsPerMember: c.maxRequestsPerMember,
-    invitesPerMember: c.maxInvitesPerMember,
-    peerBeeCaptureMaxBlocks: c.peerBeeCaptureMaxBlocks,
-    avatarMaxBytes: c.maxAvatarBytes,
-    deriveDebounceMs: c.deriveDebounceMs,
-    foreignPollIntervalMs: c.foreignPollIntervalMs,
-    minMirrorDeletions: c.minMirrorDeletions,
-    maxMirrorDeletionRatio: c.maxMirrorDeletionRatio,
-    minSweepPurgeCores: c.minSweepPurgeCores,
-    maxSweepPurgeCores: c.maxSweepPurgeCores,
-    maxSweepPurgeRatio: c.maxSweepPurgeRatio,
-    foreignFullWalkEvery: c.foreignFullWalkEvery,
+    serverConnections: read('maxServerConnections'),
+    clientConnections: read('maxClientConnections'),
+    pendingRequesters: read('maxPendingRequesters'),
+    membersPerSpace: read('maxMembersPerSpace'),
+    approvalsPerMember: read('maxApprovalsPerMember'),
+    requestsPerMember: read('maxRequestsPerMember'),
+    invitesPerMember: read('maxInvitesPerMember'),
+    peerBeeCaptureMaxBlocks: read('peerBeeCaptureMaxBlocks'),
+    avatarMaxBytes: read('maxAvatarBytes'),
+    deriveDebounceMs: read('deriveDebounceMs'),
+    foreignPollIntervalMs: read('foreignPollIntervalMs'),
+    minMirrorDeletions: read('minMirrorDeletions'),
+    maxMirrorDeletionRatio: read('maxMirrorDeletionRatio'),
+    minSweepPurgeCores: read('minSweepPurgeCores'),
+    maxSweepPurgeCores: read('maxSweepPurgeCores'),
+    maxSweepPurgeRatio: read('maxSweepPurgeRatio'),
+    foreignFullWalkEvery: read('foreignFullWalkEvery'),
   }
 }
