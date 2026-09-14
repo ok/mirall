@@ -5,7 +5,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { request } from '../ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { foldListing, emptyFold, resetFold, resolveListing, type Fold } from '../shareFilesFold.js'
+import { foldListing, emptyFold, resolveListing, type Fold } from '../shareFilesFold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
 import type { ShareFileEntry, ShareFileStatus } from '../types.js'
@@ -81,19 +81,12 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   // list, which the store does not hold. State updated conditionally in render is React's documented
   // carry; an effect would be derived-state-in-effect, and a memo has no memory of its own output.
   const [fold, setFold] = useState<Fold>(emptyFold)
-  const [foldedShare, setFoldedShare] = useState(shareId)
   // Paths whose download was just requested. An override rather than a write into the list: seeded
   // into the rows it would be dropped by the next refetch, and the seed exists only to cover the
   // gap before the first decoration frame arrives.
   const [seeded, setSeeded] = useState<ReadonlySet<string>>(new Set())
 
-  if (foldedShare !== shareId) {
-    // FolderView is reused, not keyed per share, so the previous share's rows must not merge in.
-    setFoldedShare(shareId)
-    setFold(resetFold())
-  } else if (data && data !== fold.res) {
-    setFold(foldListing(fold, data, toEntry))
-  }
+  if (data && data !== fold.res) setFold(foldListing(fold, data, toEntry))
 
   const { rows: files, info, error } = resolveListing(fold, queryError as (Error & { code?: string }) | null)
   // Cold only (README.md).

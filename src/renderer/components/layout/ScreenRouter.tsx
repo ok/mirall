@@ -66,7 +66,12 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       ) : null
     case 'folder-view':
       return selectedSpaceId && selectedShare ? (
+        // Keyed, so a folder is a fresh mount rather than a reused instance carrying the previous
+        // one's fold, expansion snapshot and filter. Load-bearing: useShareFiles, useTreeExpansion
+        // and FolderView's preFilterRef all assume a mount per share, and a re-target without this
+        // key unions one folder's rows into another's first incomplete listing, silently.
         <FolderView
+          key={selectedShare.id}
           spaceId={selectedSpaceId}
           share={selectedShare}
           onBack={() => {

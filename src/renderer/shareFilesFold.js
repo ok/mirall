@@ -20,12 +20,6 @@ export function foldListing(prev, res, toEntry) {
   return { res, rows, info: deriveFolderInfo(res, rows) }
 }
 
-// FolderView is reused rather than keyed per share, so a share change must clear the fold or the
-// previous share's rows merge into the next one.
-export function resetFold() {
-  return emptyFold
-}
-
 // A gone or access-revoked share is terminal: the rows must be cleared, or a deleted share lingers
 // as a phantom listing. Every other failure — a timeout, a peer that went quiet mid-read — keeps
 // what is on screen, because blanking a folder on a blip is the worse outcome. The error is

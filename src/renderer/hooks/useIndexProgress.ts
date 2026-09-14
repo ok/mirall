@@ -38,11 +38,11 @@ interface IndexProgressSource {
 export function useIndexProgress(spaceId: string, shareId: string, source: IndexProgressSource): IndexStatus | null {
   const { own, ownerKey, live } = source
   const [status, setStatus] = useState<IndexStatus | null>(null)
-  // Cleared DURING RENDER, not in the effect: FolderView is reused rather than keyed per share, so
-  // an effect-time reset runs after the render that already carries the new share — one frame of
-  // the previous folder's count under this folder's header. The same reason useShareFiles resets
-  // its fold here. Every input is in the key, so a change of share, of side, of owner, or of
-  // liveness drops what the old one said instead of latching it.
+  // Cleared DURING RENDER, not in the effect: an effect-time reset runs after the render that
+  // already carries the new inputs — one frame of the previous count under this header. The screen
+  // is keyed per share, so a SHARE change remounts and cannot reach here; `live` and `ownerKey`
+  // cannot. They flip in place while the folder stays open, which is what this still covers: a
+  // departed peer's scan count must drop, not latch.
   const key = [spaceId, shareId, own, ownerKey, live].join('|')
   const [watched, setWatched] = useState(key)
   if (watched !== key) {

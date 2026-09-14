@@ -25,7 +25,6 @@ export interface Fold {
 
 export declare const emptyFold: Fold
 export declare function foldListing (prev: Fold, res: ListResult | null, toEntry: (entry: never) => ShareFileEntry): Fold
-export declare function resetFold (): Fold
 
 export interface ResolvedListing {
   rows: ShareFileEntry[]
