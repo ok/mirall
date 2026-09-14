@@ -14,7 +14,7 @@ import { useUpdates } from '../hooks/useUpdates.js'
 import { useKeyboard } from '../keyboard/KeyboardProvider.js'
 import { loadAllEntries } from '../changelog.js'
 import * as whatsNew from '../whats-new.js'
-import NetworkStatusIndicator from '../components/widgets/NetworkStatusIndicator.js'
+import StatusDot from '../components/primitives/StatusDot.js'
 import Icon, { type IconName } from '../components/primitives/Icon.js'
 import Avatar from '../components/primitives/Avatar.js'
 import CopyButton from '../components/primitives/CopyButton.js'
@@ -203,7 +203,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           desc={connectionDesc(t, connectivityState, networkStatus?.peerCount)}
           leading={(
             <span className="w-10 h-10 flex items-center justify-center shrink-0">
-              <NetworkStatusIndicator state={connectivityState} />
+              <StatusDot state={connectivityState} />
             </span>
           )}
           onClick={onOpenNetworkStatus}

@@ -2,7 +2,7 @@ interface LoadingFilesProps {
   label: string
 }
 
-export default function LoadingFiles({ label }: LoadingFilesProps) {
+export default function LoadingHeadline({ label }: LoadingFilesProps) {
   return (
     <div role="status" className="flex flex-col items-center justify-center min-h-full text-center">
       <p className="text-2xl font-headline font-bold text-accent">

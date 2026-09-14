@@ -4,7 +4,7 @@ interface CrystalBackdropProps {
   onClick?: () => void
 }
 
-export default function CrystalBackdrop({ onClick }: CrystalBackdropProps) {
+export default function ModalBackdrop({ onClick }: CrystalBackdropProps) {
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true" onClick={onClick}>
       <div className="absolute inset-0 bg-primary/10 backdrop-blur-sm dark:bg-surface/60" />
