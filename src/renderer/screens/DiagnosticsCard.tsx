@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../../diagnosticsBundle.js'
-import { request } from '../../ipc.js'
-import DiagnosticsPreviewModal from '../modals/DiagnosticsPreviewModal.js'
-import Toggle from '../primitives/Toggle.js'
-import Button from '../primitives/Button.js'
-import { useErrorText } from '../../hooks/useErrorText.js'
+import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../diagnosticsBundle.js'
+import { request } from '../ipc.js'
+import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModal.js'
+import Toggle from '../components/primitives/Toggle.js'
+import Button from '../components/primitives/Button.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 
 export default function DiagnosticsCard() {
   const { t } = useTranslation()

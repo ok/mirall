@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { reachableState, formatDuration } from '../connectivity.js'
-import DiagnosticsCard from '../components/settings/DiagnosticsCard.js'
+import DiagnosticsCard from './DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import Button from '../components/primitives/Button.js'

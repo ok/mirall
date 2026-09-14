@@ -1,21 +1,24 @@
+// Settings sections live inline in the screen that shows them. A section only becomes its own file
+// when it would dominate that screen: this one is 367 lines against settings screens of 56-233. Two
+// sections are out here; every other one is inline, and that is the rule, not an accident.
 // Relays section of Settings ▸ Network. One slot, taking either a bare relay key (open
 // relay) or an invite ticket (private relay).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ConfirmDestructiveModal from '../modals/ConfirmDestructiveModal.js'
+import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc.js'
 import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../config-client.js'
 import { truncateRelayKey } from '../../relay-key.js'
 import { isReconnectPending, setReconnectPending } from '../../relay-session.js'
-import Badge from '../primitives/Badge.js'
-import Button from '../primitives/Button.js'
-import CopyButton from '../primitives/CopyButton.js'
-import Icon from '../primitives/Icon.js'
-import Toggle from '../primitives/Toggle.js'
-import SectionHeading from '../layout/SectionHeading.js'
-import ActionMenu from '../primitives/ActionMenu.js'
-import DocsLink from '../primitives/DocsLink.js'
-import AddRelayModal from '../modals/AddRelayModal.js'
+import Badge from '../../components/primitives/Badge.js'
+import Button from '../../components/primitives/Button.js'
+import CopyButton from '../../components/primitives/CopyButton.js'
+import Icon from '../../components/primitives/Icon.js'
+import Toggle from '../../components/primitives/Toggle.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
+import ActionMenu from '../../components/primitives/ActionMenu.js'
+import DocsLink from '../../components/primitives/DocsLink.js'
+import AddRelayModal from '../../components/modals/AddRelayModal.js'
 
 interface RelayTestResult {
   ok: boolean
