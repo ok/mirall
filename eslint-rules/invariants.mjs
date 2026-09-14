@@ -97,6 +97,7 @@ export const outOfOrderAsyncEffects = Object.freeze({})
 // test/invariants/folder-module-boundaries.test.js can check that each one really has a unit test.
 // The same rule for transfer/: these import no bare-*, so a unit test can drive them under Node.
 export const pureTransferModules = [
+  'temp-paths',
   'bandwidth-limiter',
   'chunk-map-cache',
   'content-backends',
@@ -139,5 +140,5 @@ export const pureNetworkModules = [
 export const pureFolderPolicyModules = [
   'echo-guard', 'mirror-budgets', 'mirror-loop', 'mirror-policy',
   'mount-fault', 'path-keys', 'preview-tally',
-  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'temp-paths', 'work-item',
+  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'work-item',
 ]
