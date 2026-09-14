@@ -298,7 +298,10 @@ export class MountsRuntime extends Subsystem {
     const cancelled = cancelIndex(spaceId, shareId)
     this.cancelPeriodicReconcile(spaceId, shareId)
     const gone = !mountRootAvailable(mount.mountPath)
-    if (gone) await this.recordFault(spaceId, shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
+    // Through the single gone entry, not a bare recordFault: a durable fault with no matching
+    // baseline beside it is a state nothing can leave — the probe reads the return as
+    // present→present, and boot's paused branch re-derives the fault from the record forever.
+    if (gone) await this.handleOwnedMountGone(spaceId, shareId)
     return { cancelled, paused: true, mountPointGone: gone }
   }
 

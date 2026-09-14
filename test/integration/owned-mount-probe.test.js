@@ -66,3 +66,27 @@ test('REGRESSION (A.4): a paused mount returns to paused when its source comes b
   t.absent(ctx.root.mounts.periodicTimers.has(mount.spaceId + ':' + mount.shareId),
     'a returning folder is not a resume, so no cadence is armed')
 })
+
+// REGRESSION (FIX-287-2: pauseIndex recorded a durable mount-point-gone with a bare recordFault,
+// leaving the probe baseline saying "present". The folder's return was then present→present, the
+// probe emitted nothing, and the fault survived every restart after it — boot's paused branch
+// re-derives the status from the record, so only an explicit Resume could clear it.)
+test('REGRESSION (FIX-287-2): pausing over a missing root records the absence the probe reads', async (t) => {
+  const { ctx, mount } = await plantedMount(t, {
+    makePath: (p) => fs.mkdirSync(p, { recursive: true }),
+  })
+  fs.rmSync(mount.mountPath, { recursive: true, force: true })
+
+  const res = await ctx.root.mounts.pauseIndex(mount.spaceId, mount.shareId)
+
+  t.ok(res.mountPointGone, 'the caller is told')
+  t.is((await getOwnedMount(mount.spaceId, mount.shareId)).status, 'mount-point-gone', 'and it is durable')
+  t.is(ctx.root.mounts.lastMountPointStatus.get('owned-folder:' + mount.shareId), false,
+    'recorded where the probe reads it')
+
+  fs.mkdirSync(mount.mountPath, { recursive: true })
+  await ctx.root.mounts.probeMountPoints()
+  const back = await getOwnedMount(mount.spaceId, mount.shareId)
+  t.is(back.status, 'paused', 'so the return clears the fault and restores the pause')
+  t.ok(back.indexPaused)
+})
