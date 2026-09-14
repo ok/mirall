@@ -62,7 +62,6 @@ export function useFilteredTree(shareId: string, files: readonly ShareFileEntry[
     // The deferred value, not `filter`: the empty-result copy must name the term the tree was
     // actually filtered by, or it reads one keystroke ahead of what is on screen.
     deferredFilter,
-    tree,
     visibleTree,
     matched,
     allFolderPaths,

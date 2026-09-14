@@ -15,15 +15,15 @@ import { useProfile } from '../hooks/useProfile.js'
 import { useFilteredTree } from '../hooks/useFilteredTree.js'
 import { useShareActions } from '../hooks/useShareActions.js'
 import { useFolderViewModel } from '../hooks/useFolderViewModel.js'
+import { useFolderMenu } from '../hooks/useFolderMenu.js'
 import Button from '../components/primitives/Button.js'
 import EntityHeader from '../components/layout/EntityHeader.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../components/widgets/ActionMenu.js'
 import FolderListPane from '../components/widgets/FolderListPane.js'
-import FolderWorkStrip from '../components/widgets/FolderWorkStrip.js'
+import FolderStripBand from '../components/widgets/FolderStripBand.js'
 import DeleteFolderShareModal from '../components/modals/DeleteFolderShareModal.js'
 import EditFolderModal from '../components/modals/EditFolderModal.js'
-import FolderPeopleCard from '../components/cards/FolderPeopleCard.js'
-import FolderStatsCard from '../components/cards/FolderStatsCard.js'
+import FolderSidebar from '../components/widgets/FolderSidebar.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
@@ -111,11 +111,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
   const { mount: foreignMount, status: foreignStatus } = useForeignMount(spaceId, share.role === 'mirrored' ? share.id : '')
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const {
-    filter, setFilter, deferredFilter,
-    visibleTree, matched, allFolderPaths, anyExpanded,
-    isExpanded, toggle, toggleAll,
-  } = useFilteredTree(share.id, files)
+  const tree = useFilteredTree(share.id, files)
 
   const {
     foreignEnabled, manualControls, ownedPaused, ownedPath, sourceMissing, ownerName,
@@ -144,34 +140,15 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
     onMirror: () => onMirror?.(share),
     onEdit: () => setShowEdit(true),
   })
-  // Destructive entries are disabled while the folder is working — not the trigger, because Pause
-  // lives in this menu and is the one control you reach for while it runs.
-  const destructive: ActionMenuItemConfig = isYou
-    ? {
-      id: 'delete',
-      label: t('share.deleteFolder'),
-      icon: 'delete',
-      variant: 'danger',
-      disabled: busy,
-      hint: busy ? t('share.notWhileSyncing') : undefined,
-      onAction: () => setShowDelete(true),
-    }
-    : {
-      id: 'unmount',
-      label: t('share.unmountMirror'),
-      icon: 'close',
-      variant: 'danger',
-      disabled: busy,
-      hint: busy ? t('share.notWhileSyncing') : undefined,
-      onAction: unmount,
-    }
-  const menuItems: ActionMenuItemConfig[] = [
-    paused
-      ? { id: 'resume', label: t('share.resumeSyncing'), icon: 'play_arrow', onAction: () => setPaused(false) }
-      : { id: 'pause', label: t('share.pauseSyncing'), icon: 'pause', onAction: () => setPaused(true) },
-    { id: 'edit', label: t('share.editFolder'), icon: 'edit', onAction: () => setShowEdit(true) },
-    destructive,
-  ]
+  const menuItems = useFolderMenu({
+    isYou,
+    paused,
+    busy,
+    setPaused,
+    unmount,
+    onDelete: () => setShowDelete(true),
+    onEdit: () => setShowEdit(true),
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
@@ -199,30 +176,13 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
         }
       />
 
-      {/* The strips are a band, not a reserved slot: no strip, no height. Outside the scroll pane,
-          so folder state can never scroll away from the folder it describes.
-          The container itself is ALWAYS mounted because the over-limit notice below needs a live
-          region that pre-exists: a role=status added to the DOM already-populated is not reliably
-          announced. It is `absolute` while empty, so it still costs no height. */}
-      <div className={`shrink-0 space-y-2${strips.length > 0 ? ' pb-4' : ''}`}>
-        {strips.filter((strip) => strip.id !== 'over-limit').map((strip) => (
-          <FolderWorkStrip key={strip.id} strip={strip} ownerName={ownerName} onAction={onStripAction} />
-        ))}
-        <div
-          role="status"
-          aria-live="polite"
-          className={overLimit ? '' : 'sr-only'}
-        >
-          {overLimit ? <FolderWorkStrip strip={overLimit} ownerName={ownerName} onAction={onStripAction} /> : null}
-        </div>
-      </div>
-
-      {/* The counts in the working strip change about twice a second, so it is deliberately NOT a
-          live region — ProgressBar makes the same call for the same reason. This carries a
-          count-free sentence instead, announced once when the scan starts and once when it ends. */}
-      <div role="status" aria-live="polite" className="sr-only">
-        {workAnnouncement}
-      </div>
+      <FolderStripBand
+        strips={strips}
+        overLimit={overLimit}
+        ownerName={ownerName}
+        onAction={onStripAction}
+        workAnnouncement={workAnnouncement}
+      />
 
       {/* No `overflow-hidden` on either box: a `focus-visible:ring-2` paints OUTSIDE the border box,
           so any clipper flush against a focusable control shaves the ring off. `min-h-0` constrains
@@ -230,17 +190,8 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           a long file name cannot stretch the 1fr track. Rings paint into the gutter and column gap. */}
       <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
         <FolderListPane
-          filter={filter}
-          setFilter={setFilter}
-          deferredFilter={deferredFilter}
-          matched={matched}
+          {...tree}
           filterableTotal={filterableTotal}
-          anyExpanded={anyExpanded}
-          allFolderPaths={allFolderPaths}
-          toggleAll={toggleAll}
-          visibleTree={visibleTree}
-          isExpanded={isExpanded}
-          toggle={toggle}
           loading={loading}
           error={error}
           files={files}
@@ -260,28 +211,17 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           onDiscardPartial={discardPartial}
         />
 
-        {/* `pr-4`: the same scrollbar gutter the list uses. Without it the tiles butt straight
-            against their own scrollbar while the list sits 16px off its own. */}
-        <div className="space-y-6 min-h-0 overflow-y-auto scrollbar-thin pr-4 pb-1">
-          <FolderPeopleCard
-            spaceId={spaceId}
-            shareId={share.id}
-            members={members}
-            owner={owner}
-            isYou={isYou}
-            selfProfile={profile}
-            selfPublicKey={profile?.publicKey ?? ''}
-          />
-          {info && (
-            <FolderStatsCard
-              folderName={share.name}
-              totalBytes={info.totalBytes}
-              fileCount={info.fileCount}
-              onDevice={onDeviceCount}
-              status={folderStatus}
-            />
-          )}
-        </div>
+        <FolderSidebar
+          spaceId={spaceId}
+          share={share}
+          members={members}
+          owner={owner}
+          isYou={isYou}
+          profile={profile}
+          info={info}
+          onDeviceCount={onDeviceCount}
+          folderStatus={folderStatus}
+        />
       </div>
 
       <DeleteFolderShareModal
@@ -307,6 +247,7 @@ export default function FolderView({ spaceId, share, onBack, onMirror }: FolderV
           onClose={() => setShowEdit(false)}
         />
       )}
+
     </div>
   )
 }
