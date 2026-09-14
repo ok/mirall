@@ -218,9 +218,9 @@ export default function ActionMenu({ label, icon, items, triggerVariant, ariaLab
   }
 
   const isSubtle = triggerVariant === 'subtle'
-  const labelledBase = 'flex items-center gap-2 rounded-xl px-5 py-2.5 font-headline font-bold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30'
+  const labelledBase = 'flex items-center gap-2 rounded-xl px-5 py-2.5 font-headline font-bold text-sm transition-all focus-ring'
   const triggerClass = isSubtle
-    ? `w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${isPressed ? 'scale-95' : ''}`
+    ? `w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all focus-ring ${isPressed ? 'scale-95' : ''}`
     : triggerVariant === 'neutral'
       ? `${labelledBase} bg-surface-control text-on-surface-variant hover:bg-surface-control-hover ${isPressed ? 'scale-95' : ''}`
       : `${labelledBase} bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover ${isPressed ? 'scale-95' : ''}`

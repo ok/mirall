@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember, PeerDownloadSummary } from '../../types.js'
 import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../utils.js'
-import Avatar from '../primitives/Avatar.js'
+import AvatarStack from '../primitives/AvatarStack.js'
 import Icon from '../primitives/Icon.js'
 
 interface Downloader {
@@ -73,7 +73,7 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
       aria-expanded={open}
       aria-controls={open ? controlsId : undefined}
       aria-label={open ? t('file.hideDownloaders') : t('file.showDownloaders')}
-      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus-ring"
     >
       {/* aria-valuetext on the bar carries every token regardless of what the line shows. */}
       <span className="@container/lane flex-grow min-w-0 flex flex-col gap-1.5">
@@ -83,21 +83,21 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
           ))}
         </span>
         <span className="flex items-center gap-3">
-          <span className="flex items-center shrink-0" aria-hidden="true">
-            {stack.map((d, i) => (
-              <span key={d.key} className={`${i === 0 ? '' : '-ml-3'} ${d.paused ? 'opacity-50' : ''}`} title={d.member?.displayName || undefined}>
-                <Avatar src={d.member?.avatar} displayName={d.member?.displayName} size="sm" ring="surface-container-lowest" decorative />
-              </span>
-            ))}
-            {overflow > 0 && (
-              <span
-                style={{ boxShadow: '0 0 0 2px var(--color-surface-container-lowest)' }}
-                className="-ml-3 w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-bold text-xs"
-              >
-                +{overflow}
-              </span>
-            )}
-          </span>
+          {/* Hidden: the button around the lane already carries the whole sentence. */}
+          <AvatarStack
+            className="shrink-0"
+            size="sm"
+            surface="surface-container-lowest"
+            announce="hidden"
+            overflow={overflow}
+            avatars={stack.map((d) => ({
+              key: d.key,
+              src: d.member?.avatar,
+              displayName: d.member?.displayName,
+              title: d.member?.displayName || undefined,
+              className: d.paused ? 'opacity-50' : undefined,
+            }))}
+          />
           <span
             role="progressbar"
             aria-valuenow={pct}

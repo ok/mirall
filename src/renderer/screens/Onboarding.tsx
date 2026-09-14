@@ -1,4 +1,5 @@
 // First-run screen: create the local profile (display name + optional avatar).
+import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../utils.js'
@@ -73,7 +74,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 type="button"
                 onClick={handleAvatarClick}
                 aria-label={t('settings.changeAvatar')}
-                className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center shadow-xl cursor-pointer overflow-hidden p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center shadow-xl cursor-pointer overflow-hidden p-0 border-0 focus-ring"
               >
                 <Avatar src={avatar} size="xl" fallback="silhouette" decorative />
                 <div className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity ${avatar ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
@@ -89,7 +90,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               />
             </div>
             {avatarError && (
-              <p role="alert" className="text-xs text-error px-1 -mt-4">{avatarError}</p>
+              <InlineError size="xs" className="px-1 -mt-4">{avatarError}</InlineError>
             )}
 
             <div className="space-y-2">
@@ -101,7 +102,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 type="text"
                 maxLength={NAME_MAX}
                 aria-describedby="display-name-count"
-                className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface placeholder:text-outline-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 transition-all text-lg"
+                className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface placeholder:text-outline-variant focus-ring transition-all text-lg"
                 placeholder={t('onboarding.displayNamePlaceholder')}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}

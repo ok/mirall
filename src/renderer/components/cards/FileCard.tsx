@@ -139,7 +139,7 @@ function ActionSlot({
       onClick={action.onClick}
       title={action.title}
       aria-label={action.title}
-      className={`w-10 h-10 flex items-center justify-center rounded-full ${hoverBg} active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${visibility}`}
+      className={`w-10 h-10 flex items-center justify-center rounded-full ${hoverBg} active:scale-95 transition-all focus-ring ${visibility}`}
     >
       <Icon name={action.icon} size={22} className={iconColor} />
     </button>

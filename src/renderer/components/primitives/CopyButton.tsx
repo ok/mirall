@@ -27,7 +27,7 @@ export default function CopyButton({ value, className = '' }: CopyButtonProps) {
         onClick={handleClick}
         aria-label={label}
         title={label}
-        className={`shrink-0 inline-flex items-center justify-center rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${className}`}
+        className={`shrink-0 inline-flex items-center justify-center rounded-sm focus-ring ${className}`}
       >
         <Icon name={copied ? 'check' : 'content_copy'} size={16} className="text-outline" />
       </button>

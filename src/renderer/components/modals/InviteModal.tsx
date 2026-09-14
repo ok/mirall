@@ -2,6 +2,7 @@
 // resulting mirall://join link for copying.
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import FieldLabel from '../primitives/FieldLabel.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'
@@ -98,7 +99,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
               </div>
 
               <div className="space-y-3">
-                <p id="invite-expiry-label" className="font-headline text-sm font-bold text-accent px-1">{t('invite.expiresAfter')}</p>
+                <FieldLabel id="invite-expiry-label">{t('invite.expiresAfter')}</FieldLabel>
                 <div role="group" aria-labelledby="invite-expiry-label" className="flex gap-1 bg-surface-container-low rounded-xl p-1">
                   {EXPIRY.map((e) => {
                     const selected = e.id === expiry
@@ -109,7 +110,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                         aria-pressed={selected}
                         onClick={() => setExpiry(e.id)}
                         className={
-                          'flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ' +
+                          'flex-1 px-4 py-2 rounded-lg font-headline text-sm font-bold transition-all focus-ring ' +
                           (selected ? 'bg-surface-container-lowest text-accent shadow-sm' : 'text-on-surface-variant hover:text-accent')
                         }
                       >
@@ -143,7 +144,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                 <span className="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">{`mirall://join/${code}`}</span>
                 <button
                   onClick={handleCopy}
-                  className="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                  className="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 focus-ring"
                 >
                   <Icon name={copied ? 'check' : 'content_copy'} size={14} />
                   {copied ? t('actions.copied') : t('actions.copy')}

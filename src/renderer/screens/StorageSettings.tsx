@@ -1,4 +1,5 @@
 // Storage settings: download-folder picker and the app-storage usage breakdown.
+import InlineError from '../components/primitives/InlineError.js'
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc.js'
@@ -163,10 +164,10 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                   new one was refused. Order matters for a screen reader: the rejection is what
                   just happened and what the user can act on, so it is announced first. */}
                 {shownError && (
-                  <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderError', { error: shownError })}</p>
+                  <InlineError className="mt-3">{t('storageSettings.folderError', { error: shownError })}</InlineError>
                 )}
                 {folderUnavailable && (
-                  <p className="mt-3 text-sm text-error" role="alert">{t('storageSettings.folderUnavailable')}</p>
+                  <InlineError className="mt-3">{t('storageSettings.folderUnavailable')}</InlineError>
                 )}
               </div>
             </section>
@@ -185,7 +186,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
                       onClick={toggleDetails}
                       aria-expanded={detailsOpen}
                       aria-controls="appstorage-breakdown"
-                      className="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                      className="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus-ring"
                     >
                       <span className="text-sm font-semibold text-on-surface-variant">{detailsOpen ? t('storageSettings.hideDetails') : t('storageSettings.showDetails')}</span>
                       <Icon name={detailsOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />

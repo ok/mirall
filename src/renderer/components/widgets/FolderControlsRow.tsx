@@ -47,7 +47,7 @@ export default function FolderControlsRow({
           placeholder={t('folder.filterPlaceholder')}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full bg-surface-container-lowest dark:bg-surface-container-low border-none rounded-xl pl-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${filtering ? 'pr-28' : 'pr-4'}`}
+          className={`w-full bg-surface-container-lowest dark:bg-surface-container-low border-none rounded-xl pl-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus-ring ${filtering ? 'pr-28' : 'pr-4'}`}
         />
         {/* The count rides inside the field so the row keeps exactly two controls at every width.
             Announced from its own polite region rather than the rows, which would re-read the
@@ -65,7 +65,7 @@ export default function FolderControlsRow({
             onClick={clear}
             aria-label={t('folder.filterClear')}
             title={t('folder.filterClear')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant focus-ring"
           >
             <Icon name="close" size={14} />
           </button>

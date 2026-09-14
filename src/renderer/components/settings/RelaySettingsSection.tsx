@@ -2,6 +2,7 @@
 // relay) or an invite ticket (private relay).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ConfirmDestructiveModal from '../modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc.js'
 import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../config-client.js'
 import { truncateRelayKey } from '../../relay-key.js'
@@ -10,10 +11,8 @@ import Badge from '../primitives/Badge.js'
 import Button from '../primitives/Button.js'
 import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
-import Modal from '../primitives/Modal.js'
 import Toggle from '../primitives/Toggle.js'
 import SectionHeading from '../layout/SectionHeading.js'
-import ModalHeader from '../layout/ModalHeader.js'
 import ActionMenu from '../widgets/ActionMenu.js'
 import DocsLink from '../widgets/DocsLink.js'
 import AddRelayModal from '../modals/AddRelayModal.js'
@@ -325,34 +324,18 @@ function ConfirmRelayLossModal({ intent, name, onClose, onConfirm }: ConfirmRela
   if (!intent) return null
   const title = t(`networkSettings.relays.${intent}ConfirmTitle`, { name })
   return (
-    <Modal
+    <ConfirmDestructiveModal
       isOpen
+      title={title}
+      body={t(`networkSettings.relays.${intent}ConfirmBody`)}
+      confirmLabel={t(`networkSettings.relays.${intent}`)}
       onClose={onClose}
-      role="alertdialog"
-      ariaDescribedBy="relay-loss-body"
-      ariaLabel={title}
-      panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
+      onConfirm={onConfirm}
     >
-      <>
-        <ModalHeader title={title} onClose={onClose} />
-        <div className="px-10 pb-10 space-y-6">
-          <p id="relay-loss-body" className="text-on-surface-variant font-medium">
-            {t(`networkSettings.relays.${intent}ConfirmBody`)}
-          </p>
-          <div role="status" className="rounded-xl bg-warning-container px-5 py-3">
-            <p className="text-sm text-on-warning-container">{t('networkSettings.relays.restartWarningRemove')}</p>
-          </div>
-          <div className="pt-2 flex gap-4">
-            <Button variant="secondary" autoFocus onClick={onClose} className="flex-1 h-14">
-              {t('actions.cancel')}
-            </Button>
-            <Button variant="danger" onClick={onConfirm} className="flex-1 h-14">
-              {t(`networkSettings.relays.${intent}`)}
-            </Button>
-          </div>
-        </div>
-      </>
-    </Modal>
+      <div role="status" className="rounded-xl bg-warning-container px-5 py-3">
+        <p className="text-sm text-on-warning-container">{t('networkSettings.relays.restartWarningRemove')}</p>
+      </div>
+    </ConfirmDestructiveModal>
   )
 }
 

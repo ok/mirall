@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { JoinRequest } from '../../types.js'
 import Avatar from '../primitives/Avatar.js'
+import AvatarStack from '../primitives/AvatarStack.js'
 import Button from '../primitives/Button.js'
 
 interface JoinRequestBannerProps {
@@ -34,20 +35,18 @@ export default function JoinRequestBanner({ requests, busyKeys, onApprove, onDen
 
   return (
     <div role="status" aria-live="polite" className="rounded-2xl p-4 flex items-center gap-3 bg-surface-container-low">
-      <div className="flex items-center -space-x-3 shrink-0">
-        {requests.slice(0, 3).map((r) => (
-          <Avatar key={r.publicKey} src={r.avatar} displayName={r.displayName} size="md" ring="surface-container-low" />
-        ))}
-        {requests.length > 3 && (
-          <div
-            aria-hidden="true"
-            style={{ boxShadow: '0 0 0 2px var(--color-surface-container-low)' }}
-            className="w-9 h-9 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-on-surface-variant"
-          >
-            +{requests.length - 3}
-          </div>
-        )}
-      </div>
+      <AvatarStack
+        className="shrink-0"
+        size="md"
+        surface="surface-container-low"
+        announce="each"
+        overflow={Math.max(0, requests.length - 3)}
+        avatars={requests.slice(0, 3).map((r) => ({
+          key: r.publicKey,
+          src: r.avatar,
+          displayName: r.displayName,
+        }))}
+      />
       <p className="flex-1 font-bold text-accent">{t('space.nWantToJoin', { count: requests.length })}</p>
       <Button variant="primary" onClick={onReview}>{t('space.reviewN', { count: requests.length })}</Button>
     </div>

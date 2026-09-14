@@ -1,3 +1,4 @@
+import InlineError from '../components/primitives/InlineError.js'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
@@ -104,7 +105,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
         type="button"
         onClick={onRemove}
         aria-label={t('activityLog.removeFilter', { filter: label })}
-        className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-surface-container-highest dark:hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+        className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-surface-container-highest dark:hover:bg-surface-container-high focus-ring"
       >
         <Icon name="close" size={12} />
       </button>
@@ -188,7 +189,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                   placeholder={t('activityLog.searchPlaceholder')}
                   value={filters.search}
                   onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  className="w-full bg-surface-container-lowest border-none rounded-xl pl-11 pr-4 py-4 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                  className="w-full bg-surface-container-lowest border-none rounded-xl pl-11 pr-4 py-4 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus-ring"
                 />
               </div>
 
@@ -254,7 +255,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
                   <button
                     type="button"
                     onClick={clearAll}
-                    className="text-sm font-semibold text-secondary hover:underline px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-lg"
+                    className="text-sm font-semibold text-secondary hover:underline px-2 py-1.5 focus-ring rounded-lg"
                   >
                     {t('activityLog.clearAll')}
                   </button>
@@ -273,7 +274,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
               </p>
             </div>
 
-            {error && <p role="alert" className="text-sm text-error mb-4">{error}</p>}
+            {error && <InlineError className="mb-4">{error}</InlineError>}
 
             {!loading && entries.length === 0 ? (
               <div className="bg-surface-container-low rounded-xl p-10 text-center">
@@ -329,7 +330,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
               type="button"
               onClick={onOpenSettings}
               aria-label={t('activityLog.logSettings')}
-              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer"
+              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
             >
               <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
                 <Icon name="tune" />

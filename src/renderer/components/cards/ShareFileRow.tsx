@@ -1,6 +1,7 @@
 // One file row in a folder share: transfer status/progress, per-file actions, and the
 // owner-side who-is-downloading indicator. Extracted from FolderView so the collapsible
 // tree and the flat list can share it.
+import InlineError from '../primitives/InlineError.js'
 import { memo, useState, useId, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
@@ -130,7 +131,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
             <FileName name={file.relPath} displayName={displayName} className="font-bold text-accent" />
             <p className="text-xs text-on-surface-variant mt-0.5 truncate">{formatSize(file.size)}</p>
             {file.status === 'error' && (
-              <p role="alert" className="text-xs text-error mt-1">{tErr(errorCodeToI18nKey(file.errorCode))}</p>
+              <InlineError size="xs" className="mt-1">{tErr(errorCodeToI18nKey(file.errorCode))}</InlineError>
             )}
           </div>
         </div>

@@ -49,19 +49,25 @@ test('only ModalHeader declares the dialog header block', (t) => {
 // its purge confirm inline, which is how it stayed out of sight long enough to diverge twice — so it
 // is named here rather than found by a folder walk.
 //
-// The two mount wizards reach the header through MountWizardStep, which is a dialog SHELL rather
-// than a dialog; the assertion below it closes that indirection so the hop cannot become a hole.
-const SHELL = 'components/modals/MountWizardStep.tsx'
+// Some dialogs reach the header through a SHELL rather than rendering one: the two mount wizards
+// through MountWizardStep, the destructive confirms through ConfirmDestructiveModal. The assertion
+// below closes that indirection so the hop cannot become a hole.
+const SHELLS = [
+  'components/modals/MountWizardStep.tsx',
+  'components/modals/ConfirmDestructiveModal.tsx',
+]
 
 test('every dialog gets its header from the owner', (t) => {
   const dialogs = files.filter((f) => f.rel.startsWith('components/modals/')).map((f) => f.rel)
   t.ok(dialogs.length >= 16, `found ${dialogs.length} dialogs under components/modals`)
   for (const rel of [...dialogs, 'screens/ActivityLogSettings.tsx']) {
     const src = read(rel)
-    t.ok(src.includes('<ModalHeader') || src.includes('<MountWizardStep'),
+    t.ok(src.includes('<ModalHeader') || src.includes('<MountWizardStep') || src.includes('<ConfirmDestructiveModal'),
       `${rel} takes its header from ModalHeader`)
   }
-  t.ok(read(SHELL).includes('<ModalHeader'), 'and the wizard shell takes its own from there too')
+  for (const shell of SHELLS) {
+    t.ok(read(shell).includes('<ModalHeader'), `and ${shell} takes its own from there too`)
+  }
 })
 
 // The title comes from ModalHeader or from FilenameTitle, which renders its own. A dialog that

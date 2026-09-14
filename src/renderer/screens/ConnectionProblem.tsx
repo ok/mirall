@@ -148,7 +148,7 @@ export default function ConnectionProblem({ onBack, onContinue, onShowDetails, o
                 <button
                   type="button"
                   onClick={onContinue}
-                  className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+                  className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus-ring"
                 >
                   {t('connectionProblem.continueToSpaces')}
                 </button>

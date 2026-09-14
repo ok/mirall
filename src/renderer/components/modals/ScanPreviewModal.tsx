@@ -2,6 +2,7 @@
 // upload/download/conflict summary cards before committing.
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import ModalFooter from '../layout/ModalFooter.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../layout/ModalHeader.js'
@@ -72,14 +73,14 @@ export default function ScanPreviewModal({
           readOnlyWarning={readOnlyWarning}
         />
 
-        <div className="flex justify-end gap-3 pt-2">
+        <ModalFooter layout="end">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
             {t('actions.cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={busy || overLimit}>
             {primaryLabel}
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   )
@@ -205,7 +206,7 @@ function OverFileLimitCard({ totalFiles, fileLimit }: { totalFiles: number; file
       ref={ref}
       role="alert"
       tabIndex={-1}
-      className="flex items-start gap-4 p-4 bg-surface-container rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+      className="flex items-start gap-4 p-4 bg-surface-container rounded-xl focus-ring"
     >
       <div className="w-10 h-10 rounded-full bg-warning flex items-center justify-center shrink-0">
         <Icon name="warning" size={20} className="text-on-warning" />

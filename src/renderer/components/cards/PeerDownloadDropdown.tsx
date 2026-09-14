@@ -34,7 +34,7 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members }: Pee
       role="region"
       aria-label={t('file.downloadersList')}
       tabIndex={0}
-      className="mt-1 ml-16 mr-3 mb-1 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+      className="mt-1 ml-16 mr-3 mb-1 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus-ring"
     >
       <ul className="flex flex-col divide-y divide-progress-track">
         {rows.map((r) => (

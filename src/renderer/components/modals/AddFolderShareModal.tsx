@@ -1,5 +1,6 @@
 // Two-step wizard for sharing a local folder into a space: pick and validate the
 // path and share name, then confirm via the scan preview.
+import TextField from '../primitives/TextField.js'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import MountPathField from '../widgets/MountPathField.js'
@@ -28,22 +29,14 @@ interface ShareNameFieldProps {
 function ShareNameField({ value, error, onChange }: ShareNameFieldProps) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-3">
-      <label htmlFor="add-share-name" className="font-headline text-sm font-bold text-accent px-1">{t('addFolder.nameLabel')}</label>
-      <input
-        id="add-share-name"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? 'add-share-name-error' : undefined}
-        className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50"
-      />
-      {error ? (
-        <p id="add-share-name-error" role="alert" className="text-xs text-error px-1">{error}</p>
-      ) : (
-        <p className="text-xs text-on-surface-variant px-1">{t('addFolder.nameHelp')}</p>
-      )}
-    </div>
+    <TextField
+      id="add-share-name"
+      label={t('addFolder.nameLabel')}
+      value={value}
+      onChange={onChange}
+      error={error}
+      help={t('addFolder.nameHelp')}
+    />
   )
 }
 

@@ -50,7 +50,7 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
         aria-controls={groupId}
         aria-label={node.name}
         onClick={() => rest.onToggle(node.path)}
-        className="w-full text-left group bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors flex items-center gap-4 p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+        className="w-full text-left group bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors flex items-center gap-4 p-5 focus-ring"
       >
         <Icon
           name="chevron_right"

@@ -38,7 +38,7 @@ export default function IconButton({
       disabled={disabled}
       aria-label={ariaLabel}
       title={title}
-      className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 disabled:opacity-40 disabled:cursor-not-allowed${className ? ` ${className}` : ''}`}
+      className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring disabled:opacity-40 disabled:cursor-not-allowed${className ? ` ${className}` : ''}`}
     >
       <Icon name={icon} size={iconSize} filled={iconFilled} className={iconClassName} />
     </button>

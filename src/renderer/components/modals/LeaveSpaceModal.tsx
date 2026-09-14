@@ -2,6 +2,7 @@
 // leave-progress events while local data is cleaned up and compacted.
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import ModalFooter from '../layout/ModalFooter.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { subscribe } from '../../ipc.js'
 import { formatSize } from '../../utils.js'
@@ -156,24 +157,14 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
                 {t('leaveSpace.body')}
               </p>
 
-              <div className="pt-4 flex gap-4">
-                <Button
-                  variant="secondary"
-                  autoFocus
-                  onClick={onClose}
-                  className="flex-1 h-14"
-                >
+              <ModalFooter layout="split">
+                <Button variant="secondary" autoFocus onClick={onClose} className="h-14">
                   {t('actions.cancel')}
                 </Button>
-                <Button
-                  variant="danger"
-                  onClick={handleLeave}
-                  disabled={leaving}
-                  className="flex-1 h-14"
-                >
+                <Button variant="danger" onClick={handleLeave} disabled={leaving} className="h-14">
                   {t('leaveSpace.leaveAction')}
                 </Button>
-              </div>
+              </ModalFooter>
             </>
           )}
         </div>

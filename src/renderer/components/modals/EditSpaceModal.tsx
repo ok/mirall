@@ -1,3 +1,6 @@
+import TextField from '../primitives/TextField.js'
+import FieldLabel from '../primitives/FieldLabel.js'
+import InlineError from '../primitives/InlineError.js'
 import { useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types.js'
@@ -101,29 +104,24 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
 
         <div className="px-10 pb-10 space-y-8 overflow-y-auto">
           <div className="space-y-3">
-            <label htmlFor="edit-space-name" className="font-headline text-sm font-bold text-accent px-1">{t('createSpace.nameLabel')}</label>
-            <input
+            <TextField
               id="edit-space-name"
+              label={t('createSpace.nameLabel')}
               autoFocus
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameError ? 'edit-space-name-error' : undefined}
-              className="w-full bg-surface-container-low border-none focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-xl px-6 py-4 text-accent font-medium placeholder:text-outline/50 transition-all"
+              error={nameError}
               placeholder={t('createSpace.namePlaceholder')}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={setName}
             />
-            {nameError && <p id="edit-space-name-error" className="text-sm text-error px-1" role="alert">{nameError}</p>}
           </div>
 
           <div className="space-y-3">
-            <label className="font-headline text-sm font-bold text-accent px-1">{t('createSpace.iconLabel')}</label>
+            <FieldLabel>{t('createSpace.iconLabel')}</FieldLabel>
             <IconPicker selected={icon} onSelect={setIcon} />
           </div>
 
           <div className="space-y-3">
-            <span id="edit-space-folder-label" className="block font-headline text-sm font-bold text-accent px-1">
-              {t('editSpace.downloadFolder')}
-            </span>
+            <FieldLabel id="edit-space-folder-label">{t('editSpace.downloadFolder')}</FieldLabel>
             <p id="edit-space-folder-desc" className="text-sm text-on-surface-variant px-1">
               {t('editSpace.downloadFolderDesc')}
             </p>
@@ -137,14 +135,14 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
               actionRef={browseRef}
             />
             {shownFolderError && (
-              <p id="edit-space-folder-error" className="text-sm text-error px-1" role="alert">{shownFolderError}</p>
+              <InlineError id="edit-space-folder-error" className="px-1">{shownFolderError}</InlineError>
             )}
             <div className="flex items-center min-h-5">
               {isOverridden && (
                 <button
                   type="button"
                   onClick={handleUseDefault}
-                  className="text-xs text-secondary underline px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded"
+                  className="text-xs text-secondary underline px-1 focus-ring rounded"
                 >
                   {t('editSpace.useDefault')}
                 </button>

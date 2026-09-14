@@ -45,7 +45,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
                   type="button"
                   onClick={() => onNavigate(item.screen)}
                   aria-label={item.label}
-                  className="w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 cursor-pointer"
+                  className="w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-full ${item.bg} flex items-center justify-center ${item.fg}`}>

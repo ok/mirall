@@ -36,7 +36,7 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
               aria-label={t('shortcuts.home')}
               title={t('shortcuts.home')}
               style={{ WebkitAppRegion: 'no-drag' }}
-              className="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+              className="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring"
             >
               <Logo />
             </button>
@@ -57,7 +57,7 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
               onClick={onAccountClick}
               aria-label={hasIssue ? t('topnav.accountWithIssue') : t('topnav.account')}
               title={hasIssue ? t('topnav.accountWithIssue') : t('topnav.account')}
-              className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring"
             >
               <Avatar src={profile?.avatar} displayName={profile?.displayName} size="md" ring="status" statusVariant={statusVariant} decorative />
             </button>

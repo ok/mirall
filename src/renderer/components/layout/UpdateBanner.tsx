@@ -58,7 +58,7 @@ export default function UpdateBanner({ update, onDismiss }: UpdateBannerProps) {
       </div>
       <button
         onClick={onDismiss}
-        className="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg hover:opacity-90 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+        className="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg hover:opacity-90 active:scale-95 transition-all focus-ring"
       >
         {t('updateBanner.dismiss')}
       </button>

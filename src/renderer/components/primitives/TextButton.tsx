@@ -19,7 +19,7 @@ export default function TextButton({ children, onClick, ariaExpanded, ariaLabel,
       onClick={onClick}
       aria-expanded={ariaExpanded}
       aria-label={ariaLabel}
-      className={`-m-1 p-1 shrink-0 rounded-lg text-sm font-bold text-secondary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30${className ? ` ${className}` : ''}`}
+      className={`-m-1 p-1 shrink-0 rounded-lg text-sm font-bold text-secondary hover:underline focus-ring${className ? ` ${className}` : ''}`}
     >
       {children}
     </button>

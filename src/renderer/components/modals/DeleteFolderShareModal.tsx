@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Modal from '../primitives/Modal.js'
-import ModalHeader from '../layout/ModalHeader.js'
-import Button from '../primitives/Button.js'
+import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
 import FilenameTitle from '../widgets/FilenameTitle.js'
 
 interface DeleteFolderShareModalProps {
@@ -31,48 +29,15 @@ export default function DeleteFolderShareModal({
   }
 
   return (
-    <Modal
+    <ConfirmDestructiveModal
       isOpen={isOpen}
+      title={t('deleteFolder.title', { name: folderName })}
+      titleNode={<FilenameTitle i18nKey="deleteFolder.title" name={folderName} />}
+      body={t('deleteFolder.body', { space: spaceName })}
+      confirmLabel={busy ? t('deleteFolder.deleting') : t('deleteFolder.action')}
+      busy={busy}
       onClose={onClose}
-      isDismissable={!busy}
-      role="alertdialog"
-      ariaDescribedBy="delete-folder-body"
-      ariaLabel={t('deleteFolder.title', { name: folderName })}
-      panelClassName="glass-modal w-full max-w-md rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative"
-    >
-      <ModalHeader
-        titleNode={<FilenameTitle i18nKey="deleteFolder.title" name={folderName} />}
-        onClose={onClose}
-        closeDisabled={busy}
-      />
-
-      <div className="px-10 pb-10 space-y-6">
-        <p id="delete-folder-body" className="text-on-surface-variant font-medium">
-          {t('deleteFolder.body', { space: spaceName })}
-        </p>
-
-        <div className="pt-2 flex gap-4">
-          <Button
-            type="button"
-            variant="secondary"
-            autoFocus
-            onClick={onClose}
-            disabled={busy}
-            className="flex-1 h-14"
-          >
-            {t('actions.cancel')}
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            onClick={handleDelete}
-            disabled={busy}
-            className="flex-1 h-14"
-          >
-            {busy ? t('deleteFolder.deleting') : t('deleteFolder.action')}
-          </Button>
-        </div>
-      </div>
-    </Modal>
+      onConfirm={() => void handleDelete()}
+    />
   )
 }

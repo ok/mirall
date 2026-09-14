@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import ModalFooter from '../layout/ModalFooter.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
@@ -51,7 +52,7 @@ export default function MountWizardStep({
       <div className="px-10 pb-10 space-y-6">
         {children}
 
-        <div className="pt-2 flex justify-end gap-3">
+        <ModalFooter layout="end">
           <Button variant="secondary" onClick={onClose}>
             {t('actions.cancel')}
           </Button>
@@ -59,7 +60,7 @@ export default function MountWizardStep({
             {busy ? t('scanPreview.computing') : nextLabel}
             <Icon name="arrow_forward" size={16} />
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   )

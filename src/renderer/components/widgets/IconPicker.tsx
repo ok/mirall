@@ -36,7 +36,7 @@ export default function IconPicker({ selected, onSelect }: IconPickerProps) {
           onClick={() => onSelect(opt.id)}
           aria-label={t(`iconPicker.${opt.id}`)}
           aria-pressed={selected === opt.id}
-          className={`w-12 h-12 flex items-center justify-center rounded-full border-2 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 ${
+          className={`w-12 h-12 flex items-center justify-center rounded-full border-2 transition-all active:scale-95 focus-ring ${
             selected === opt.id
               ? 'bg-primary text-on-primary border-primary'
               : 'bg-surface-container-low text-on-surface-variant border-transparent hover:bg-surface-container-high hover:border-outline-variant'

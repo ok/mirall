@@ -53,7 +53,7 @@ export default function PathRow({ path, loading = false, onAction, ariaDescribed
           type="button"
           onClick={onAction}
           aria-describedby={ariaDescribedBy}
-          className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring"
         >
           {path || loading ? t('actions.change') : t('pathField.browse')}
         </button>

@@ -118,7 +118,7 @@ function MaskedField({ label, value, visibleSuffix = 0 }: MaskedFieldProps) {
           onClick={() => setRevealed((v) => !v)}
           aria-label={toggleLabel}
           title={toggleLabel}
-          className="shrink-0 inline-flex items-center justify-center rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+          className="shrink-0 inline-flex items-center justify-center rounded-sm focus-ring"
         >
           <Icon name={revealed ? 'visibility_off' : 'visibility'} size={18} className="text-outline" />
         </button>
@@ -144,7 +144,7 @@ function BootstrapList({ items, emptyLabel, countLabel }: BootstrapListProps) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="text-sm font-medium text-accent flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30 rounded-sm"
+        className="text-sm font-medium text-accent flex items-center gap-2 focus-ring rounded-sm"
       >
         <Icon name={open ? 'expand_more' : 'chevron_right'} size={18} className="text-outline" />
         {countLabel(items.length)}
@@ -204,7 +204,7 @@ function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled,
             onClick={onReconnect}
             disabled={reconnecting || reconnectThrottled}
             aria-label={t('networkStatus.reconnect')}
-            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 focus-ring"
           >
             {reconnecting ? t('networkStatus.reconnecting') : t('networkStatus.reconnect')}
           </button>
@@ -415,7 +415,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
               type="button"
               onClick={() => setAdvancedOpen((v) => !v)}
               aria-expanded={advancedOpen}
-              className="w-full bg-surface-container-low rounded-xl p-4 flex items-center gap-3 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30"
+              className="w-full bg-surface-container-low rounded-xl p-4 flex items-center gap-3 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring"
             >
               <Icon name={advancedOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />
               <span className="font-medium text-accent">{t('networkStatus.advancedToggle')}</span>
