@@ -11,7 +11,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import PathRow from '../../src/renderer/components/path/PathRow.js'
-import FileName from './../../src/renderer/components/widgets/FileName.js'
+import FileName from '../../src/renderer/components/primitives/FileName.js'
 
 const LONG_PATH = '/Users/oliver/Music/Sets/Boiler Room Carl Cox in Ibiza, Aug 15, 2013 (DJ Mix)'
 const LONG_FILE = 'Boiler.Room.Carl.Cox.in.Ibiza.August.15.2013.DJ.Mix.2160p.HDR.remux.mkv'

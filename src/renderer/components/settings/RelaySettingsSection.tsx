@@ -13,8 +13,8 @@ import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
 import Toggle from '../primitives/Toggle.js'
 import SectionHeading from '../layout/SectionHeading.js'
-import ActionMenu from '../widgets/ActionMenu.js'
-import DocsLink from '../widgets/DocsLink.js'
+import ActionMenu from '../primitives/ActionMenu.js'
+import DocsLink from '../primitives/DocsLink.js'
 import AddRelayModal from '../modals/AddRelayModal.js'
 
 interface RelayTestResult {

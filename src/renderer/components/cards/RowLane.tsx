@@ -8,7 +8,7 @@ import type { RowKind, RowView } from '../../rowView.js'
 import type { SpaceMember, PeerDownloadSummary } from '../../types.js'
 import Badge from '../primitives/Badge.js'
 import VerifiedCheck from '../primitives/VerifiedCheck.js'
-import DownloadProgressLane from '../widgets/DownloadProgressLane.js'
+import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 import PeerDownloadIndicator from './PeerDownloadIndicator.js'
 
 interface RowLaneProps {

@@ -8,7 +8,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import './../../src/renderer/i18n.js'
 import i18n from './../../src/renderer/i18n.js'
-import DownloadProgressLane from './../../src/renderer/components/widgets/DownloadProgressLane.js'
+import DownloadProgressLane from '../../src/renderer/components/primitives/DownloadProgressLane.js'
 import { resolveEta, etaFromRate } from './../../src/renderer/utils.js'
 
 interface HarnessResults {

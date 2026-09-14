@@ -10,7 +10,7 @@ import { useToast } from '../toast/ToastProvider.js'
 import Modal from '../primitives/Modal.js'
 import ModalHeader from '../layout/ModalHeader.js'
 import Button from '../primitives/Button.js'
-import FilenameTitle from '../widgets/FilenameTitle.js'
+import FilenameTitle from '../primitives/FilenameTitle.js'
 
 interface LeaveSpaceModalProps {
   isOpen: boolean

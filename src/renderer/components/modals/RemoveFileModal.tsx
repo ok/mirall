@@ -4,7 +4,7 @@ import { useErrorText } from '../../hooks/useErrorText.js'
 import { fileName as getFileName } from '../../utils.js'
 import { useToast } from '../toast/ToastProvider.js'
 import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
-import FilenameTitle from '../widgets/FilenameTitle.js'
+import FilenameTitle from '../primitives/FilenameTitle.js'
 
 interface RemoveFileModalProps {
   isOpen: boolean
