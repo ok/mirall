@@ -9,7 +9,7 @@ import Button from '../primitives/Button.js'
 import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
 import Modal from '../primitives/Modal.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 
 interface AddRelayModalProps {
   isOpen: boolean

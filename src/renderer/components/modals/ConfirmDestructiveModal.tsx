@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 import ModalFooter from '../layout/ModalFooter.js'
 import Button from '../primitives/Button.js'
 

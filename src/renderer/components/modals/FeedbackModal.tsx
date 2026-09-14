@@ -9,7 +9,7 @@ import { request } from '../../ipc.js'
 import { getFeedbackEmail, setFeedbackEmail } from '../../config-client.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
-import ModalHeader from '../layout/ModalHeader.js'
+import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
