@@ -1113,6 +1113,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`, capped unknown-command warnings |
 | `src/main/menu.js` | The application-menu template — a pure function of platform + UI context |
 | `src/main/net-online.js` | `registerNetOnline` / `startNetOnlineWatch` — Chromium's `net.online`, polled and pushed to the renderer on change. Asymmetric by design: false declares offline, true is inconclusive and never declares healthy (§5) |
+| `src/main/menus.js` | `registerMenus()` plus the tray and app-menu builders — both are rebuilt rather than mutated, because Electron's Menu is immutable once set, so a label change, a locale change or a space appearing means a new menu. Takes `revealWindow`/`targetWindow`/`zoomByDirection` as deps: a menu item acts on the window, and the window knows nothing about menus (§5) |
 | `src/main/notifications.js` | Native `Notification` IPC (`notify:*`) + the `shell:showInFolder` reveal allowlist |
 | `src/main/owned-folder-watchers.js` | Per-share recursive roots over the watch host, plus the watcher-side ignore matcher (§2 step 12, §7) |
 | `src/main/prefs.js` | The general-preferences record behind accessors — four places act on a change (tray, app menu, the window's close handler, `window-all-closed`), so none of them holds a copy that can go stale. `setPrefs` takes the whole next record because `prefs:set` compares three previous values before deciding what to re-apply (§5) |

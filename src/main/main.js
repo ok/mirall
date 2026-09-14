@@ -5,7 +5,7 @@
 // watchers on the worker's behalf (Bare has no recursive watch). Main holds no
 // durable application state — that lives in the worker's store (preferences aside,
 // which are main's config.json); what main keeps in memory is session-only.
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, protocol: electronProtocol, screen, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol: electronProtocol, screen, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -14,6 +14,15 @@ const { logRing } = require('./log-ring')
 const { sendToAll, loadRedactLine, installMainLogForwarding, MAIN_LOG_PREFIX } = require('./logging.js')
 const { initPrefs, getPrefs, setPrefs } = require('./prefs.js')
 const { isQuitting, markQuitting } = require('./quit-state.js')
+const {
+  initMenus,
+  registerMenus,
+  createTray,
+  destroyTray,
+  refreshAppMenu,
+  applyAppMenuVisibility,
+  sendKeyboardCommand,
+} = require('./menus.js')
 const {
   initSettings,
   registerSettingsIpc,
@@ -55,7 +64,6 @@ const Hyperswarm = require('hyperswarm')
 const Corestore = require('corestore')
 const debounceify = require('debounceify')
 const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
-const { buildAppMenuTemplate } = require('./menu.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { ConfigStore } = require('./config-store.js')
 const { readFeatureFlags } = require('./feature-flags.js')
@@ -126,11 +134,7 @@ const { entrypointFor } = require('./worker-entrypoints.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } = require('../shared/contract/limits.js')
 
-let tray = null
 let firstHideNoticeShown = false
-const trayLabels = { show: 'Show Mirall', settings: 'Settings…', quit: 'Quit Mirall', tooltip: 'Mirall' }
-
-let menuCtx = { inSpace: false, spaces: [] }
 
 process.on('unhandledRejection', (reason) => {
   console.error('unhandledRejection:', reason && (reason.stack || reason.message || reason))
@@ -384,57 +388,7 @@ async function revealWindow() {
   win.focus()
 }
 
-function trayIconPath() {
-  if (isMac) return path.join(__dirname, '..', '..', 'resources', 'tray', 'mirallTrayTemplate.png')
-  if (isWindows) return path.join(__dirname, '..', '..', 'resources', 'tray', 'tray.ico')
-  return path.join(__dirname, '..', '..', 'resources', 'tray', 'tray.png')
-}
-
-function buildTrayMenu() {
-  return Menu.buildFromTemplate([
-    { label: trayLabels.show, click: () => { revealWindow().catch((err) => console.error('revealWindow failed:', err)) } },
-    {
-      label: trayLabels.settings,
-      accelerator: 'CmdOrCtrl+,',
-      registerAccelerator: false,
-      click: () => {
-        revealWindow()
-          .then(() => sendKeyboardCommand('settings.open'))
-          .catch((err) => console.error('settings reveal failed:', err))
-      },
-    },
-    { type: 'separator' },
-    { label: trayLabels.quit, click: () => { markQuitting(); app.quit() } },
-  ])
-}
-
-function createTray() {
-  if (tray) return tray
-  const img = nativeImage.createFromPath(trayIconPath())
-  if (img.isEmpty()) {
-    console.error('tray icon not found:', trayIconPath())
-    return null
-  }
-  if (isMac) img.setTemplateImage(true)
-  tray = new Tray(img)
-  tray.setToolTip(trayLabels.tooltip)
-  tray.setContextMenu(buildTrayMenu())
-  if (!isMac) tray.on('click', () => { revealWindow().catch((err) => console.error('revealWindow failed:', err)) })
-  if (isWindows) tray.on('double-click', () => { revealWindow().catch((err) => console.error('revealWindow failed:', err)) })
-  return tray
-}
-
-function refreshTrayMenu() {
-  if (!tray) return
-  tray.setToolTip(trayLabels.tooltip)
-  tray.setContextMenu(buildTrayMenu())
-}
-
-function destroyTray() {
-  if (!tray) return
-  tray.destroy()
-  tray = null
-}
+initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })
 
 function maybeShowFirstHideNotice() {
   if (firstHideNoticeShown || getPrefs().firstHideNoticeShown) return
@@ -675,15 +629,7 @@ function getWorker(specifier) {
 ipcMain.on('pkg', (evt) => { evt.returnValue = pkg })
 ipcMain.on('app:isDev', (evt) => { evt.returnValue = isDev })
 
-ipcMain.handle('menu:context-changed', (_evt, ctx) => {
-  const inSpace = !!(ctx && ctx.inSpace)
-  const spaces = Array.isArray(ctx && ctx.spaces) ? ctx.spaces : []
-  const sameSpaces = spaces.length === menuCtx.spaces.length &&
-    spaces.every((s, i) => s.id === menuCtx.spaces[i].id && s.name === menuCtx.spaces[i].name)
-  if (inSpace === menuCtx.inSpace && sameSpaces) return
-  menuCtx = { inSpace, spaces }
-  refreshAppMenu()
-})
+registerMenus()
 ipcMain.on('app:getLocale', (evt) => { evt.returnValue = app.getLocale() })
 
 // Renderer config lives in the same unified config.json (main is the only
@@ -804,15 +750,6 @@ ipcMain.handle('window:setBounds', (evt, bounds) => {
 
 registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, targetWindow })
 
-ipcMain.handle('tray:setLabels', (_evt, labels) => {
-  if (!labels || typeof labels !== 'object') return
-  if (typeof labels.show === 'string' && labels.show.length > 0) trayLabels.show = labels.show
-  if (typeof labels.settings === 'string' && labels.settings.length > 0) trayLabels.settings = labels.settings
-  if (typeof labels.quit === 'string' && labels.quit.length > 0) trayLabels.quit = labels.quit
-  if (typeof labels.tooltip === 'string' && labels.tooltip.length > 0) trayLabels.tooltip = labels.tooltip
-  refreshTrayMenu()
-})
-
 // The one quit teardown. Electron re-emits before-quit to every listener on every
 // app.quit(), so the update-apply step's deferral (preventDefault → apply → quit
 // again) would run every sibling twice if they were separate listeners; the
@@ -862,56 +799,6 @@ nativeTheme.on('updated', () => {
   if (readStoredTheme() !== 'system') return
   applyBackgroundColor('system')
 })
-
-function sendKeyboardCommand(id, win = targetWindow()) {
-  if (!win || win.isDestroyed()) return
-  win.webContents.send('keyboard:command', id)
-}
-
-function buildAppMenu() {
-  const send = (id) => () => sendKeyboardCommand(id)
-  const template = buildAppMenuTemplate({
-    platform: process.platform,
-    isDev,
-    inSpace: menuCtx.inSpace,
-    spaces: menuCtx.spaces,
-    appName,
-    handlers: {
-      openAbout: send('profile.open'),
-      openProfile: send('profile.open'),
-      openActivityLog: send('activity.open'),
-      openSpace: (spaceId) => sendKeyboardCommand(`space.open.${spaceId}`),
-      openSettings: send('settings.open'),
-      newSpace: send('space.new'),
-      joinSpace: send('space.join'),
-      addFiles: send('space.addFiles'),
-      addFolder: send('space.addFolder'),
-      invite: send('space.invite'),
-      navBack: send('nav.back'),
-      navHome: send('nav.home'),
-      openPalette: send('palette.open'),
-      showShortcuts: send('shortcuts.show'),
-      whatsNew: send('help.whatsNew'),
-      sendFeedback: send('help.feedback'),
-      openDocs: send('help.docs'),
-      zoomIn: () => zoomByDirection('in'),
-      zoomOut: () => zoomByDirection('out'),
-      zoomReset: () => zoomByDirection('reset'),
-    },
-  })
-  return Menu.buildFromTemplate(template)
-}
-
-function refreshAppMenu() {
-  Menu.setApplicationMenu(buildAppMenu())
-}
-
-function applyAppMenuVisibility(win) {
-  if (isMac || !win || win.isDestroyed()) return
-  const autoHide = !!getPrefs().appMenuAutoHide
-  win.setAutoHideMenuBar(autoHide)
-  win.setMenuBarVisibility(!autoHide)
-}
 
 async function createWindow() {
   refreshAppMenu()
