@@ -3,7 +3,7 @@ import { freshPeer, freshDurable } from '../helpers/store.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { onServeStart, onChunkServed } from '../../src/shared/transfer/serve-ledger.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { queryAudit } from '../../src/shared/audit/audit-log.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { recordTransferOutcome } from '../../src/shared/audit/transfer-audit.js'
 
 const HASH = 'h'.repeat(64)

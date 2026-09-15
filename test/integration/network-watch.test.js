@@ -2,7 +2,10 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret } from '../../src/shared/core/store.js'
-import { initAuditLog, flushAudit, queryAudit, purgeAudit, setAuditConfig, getNetworkState } from '../../src/shared/audit/audit-log.js'
+import { initAuditLog, flushAudit, setAuditConfig } from '../../src/shared/audit/audit-log.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
+import { purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
+import { getNetworkState } from '../../src/shared/audit/audit-watch-state.js'
 import {
   initNetworkWatch, resetNetworkWatch, observeReachability, peerLost, peerLostMeta, peerSeen, peerLeft,
 } from '../../src/shared/audit/network-watch.js'

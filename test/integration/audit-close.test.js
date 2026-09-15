@@ -1,7 +1,8 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { initAuditLog, closeAuditLog, isAuditReady, record, queryAudit } from '../../src/shared/audit/audit-log.js'
+import { initAuditLog, closeAuditLog, isAuditReady, record } from '../../src/shared/audit/audit-log.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
 
 // REGRESSION (LIFECYCLE-1e: closeAuditLog had zero callers and did not close the bee — it nulled
 // the handle and awaited the write chain. A Hyperbee close releases its Corestore session; the

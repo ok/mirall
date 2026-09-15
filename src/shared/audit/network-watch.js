@@ -8,7 +8,8 @@
 // stops emitting status altogether (the liveness probe only emits when its failure COUNT changes),
 // so "re-check on the next emit" would leave a held-down row unwritten forever.
 import { createLogger } from '../core/logger.js'
-import { record, getNetworkState, setNetworkState } from './audit-log.js'
+import { record } from './audit-log.js'
+import { getNetworkState, setNetworkState } from './audit-watch-state.js'
 import { createEpisodeTracker, evidenceFor } from './connectivity-episodes.js'
 import { createPeerPresenceTracker } from './presence-episodes.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'

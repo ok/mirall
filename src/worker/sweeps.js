@@ -9,7 +9,7 @@ import { sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
-import { pruneAudit } from '../shared/audit/audit-log.js'
+import { pruneAudit } from '../shared/audit/audit-reclaim.js'
 
 const PRESENCE_SWEEP_INTERVAL_MS = 60_000
 const INVITE_SWEEP_INTERVAL_MS = 60 * 60 * 1000

@@ -1,10 +1,9 @@
 // The audit log as a lifecycle resource: the bee and the connectivity watch that writes into it
 // open together and close together.
 //
-// It lives in its own module rather than in audit-log.js because that module documents — and
-// depends on — importing nothing but core/: network-watch.js imports audit-log.js, so wiring the
-// two together from inside audit-log.js would close a cycle through the module every
-// instrumentation call site already imports.
+// It lives in its own module rather than in audit-log.js because network-watch.js imports
+// audit-log.js: wiring the two together from inside audit-log.js would close a cycle through the
+// module every instrumentation call site already imports.
 import { Subsystem } from '../core/subsystem.js'
 import { initAuditLog, closeAuditLog } from './audit-log.js'
 import { initNetworkWatch, resetNetworkWatch } from './network-watch.js'
