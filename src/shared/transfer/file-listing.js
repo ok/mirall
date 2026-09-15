@@ -19,7 +19,8 @@ import { getSpace } from '../spaces/space.js'
 import { getDrive } from '../spaces/space-drives.js'
 import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
-import { looseHasOwn, looseListOwn, looseListPeer, looseShareFile, looseTransferActive, looseUnshareFile } from './loose-overlay.js'
+import { looseHasOwn, looseListOwn, looseShareFile, looseUnshareFile } from './backends/overlay/loose-publish.js'
+import { looseListPeer, looseTransferActive } from './backends/overlay/loose-downloads.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
@@ -105,7 +106,7 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
   const space = await getSpace(spaceId)
   const peerEntries = await Promise.all(peerMembers.map(async (member) => {
     try {
-      return await looseListPeer(spaceId, member, budget, space)
+      return await looseListPeer(spaceId, member, { timeoutMs: budget, space })
     } catch (err) {
       // Flag the space the way a stalled read does: without this the convergence tick has no
       // reason to re-poke, so a member whose read threw would stay missing from the listing

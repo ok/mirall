@@ -9,10 +9,10 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import {
-  initLooseOverlay, looseShareFile, sweepLoosePresence,
-  LOOSE_SHARE_ID, looseSources,
-} from '../../src/shared/transfer/loose-overlay.js'
+import { looseShareFile, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 async function setup(t) {
   const ctx = await freshPeer(t)
@@ -23,7 +23,7 @@ async function setup(t) {
   serveIndex.reset()
   looseSources.clear()
   await initOverlay()
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()

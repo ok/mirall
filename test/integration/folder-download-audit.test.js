@@ -6,7 +6,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { folderChannel } from '../../src/shared/transfer/backends/overlay/folder-downloads.js'
-import { looseChannel } from '../../src/shared/transfer/loose-overlay.js'
+import { looseChannel } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { drainTransferAudit } from '../../src/shared/audit/transfer-audit.js'
@@ -162,7 +162,7 @@ test('a paused download records nothing — a pause is not an outcome', async (t
   t.is((await rows('security.integrity_failure')).length, 0)
 })
 
-// C1 moved the recorder OUT of loose-overlay.js. A forgotten deletion shows up here as two rows.
+// The recorder lives in the engine, not the loose channel. A second copy shows up here as two rows.
 test('a loose download still records exactly one row after the move', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Design Team')

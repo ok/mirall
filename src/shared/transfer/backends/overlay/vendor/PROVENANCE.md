@@ -126,7 +126,7 @@ re-diffable against upstream. Categories:
     multi-GB publish hash can be stopped promptly (the streaming read is torn down on abort —
     §4.10 later replaced the read stream with `readFileBlocks`, whose `finally` closes the fd).
     `HyperOverlayV2.prepareForServe` threads `signal` through. The consumer — the `loose`
-    publish channel in `loose-overlay.js` (`registerPublishChannel('loose', …)`) — runs each
+    publish channel in `loose-publish.js` (`registerPublishChannel('loose', …)`) — runs each
     publish under its work item's signal so `looseCancelPublish` can abort the index, then
     tombstones/reverts the half-advertised catalog entry.
 
@@ -203,7 +203,7 @@ re-diffable against upstream. Categories:
     `test/integration/overlay-vendor-transfer.test.js`, `overlay-vendor-serve-chunkmap.test.js`,
     and `overlay-backend.test.js` (makeServable guard). (The folder publish path —
     `folders/publish-runner.js` driving `overlay-backend.js#publishContent` per file — and the
-    loose boot-rehydrate loop `loose-overlay.js#rehydrateLooseFiles` are both Mirall code, not
+    loose boot-rehydrate loop `loose-maintenance.js#rehydrateLooseFiles` are both Mirall code, not
     vendored, and handle the null return themselves.)
 
 15. **§4.14 — async + journaled resume (`transfer.js` + `chunk-scheduler.js` + `chunker.js`,

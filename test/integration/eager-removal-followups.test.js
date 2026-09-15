@@ -22,7 +22,8 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { initLooseOverlay, looseHasOwn, looseSources } from '../../src/shared/transfer/loose-overlay.js'
+import { looseHasOwn, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 // C2 — runPublishPass dropped its { deep } arg, so the scheduled deep pass ran shallow and
 // re-hashed + re-advertised identical content whose mtime merely drifted (churn → mirror
@@ -103,7 +104,7 @@ test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFil
   serveIndex.reset()
   looseSources.clear()
   await initOverlay()
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   t.teardown(async () => { serveIndex.reset(); await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })

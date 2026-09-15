@@ -7,9 +7,9 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initOverlayIpc } from '../helpers/overlay-ipc.js'
+import { initOverlayIpc, initLooseIpc } from '../helpers/overlay-ipc.js'
 import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
-import { initLooseOverlay, LOOSE_SHARE_ID } from '../../src/shared/transfer/loose-overlay.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { addFile } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -25,7 +25,7 @@ test('Free up space keeps a still-shared loose file’s chunk map', async (t) =>
   serveIndex.reset()
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   t.teardown(async () => { serveIndex.reset(); await teardownOverlay()
     setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })

@@ -14,11 +14,11 @@ import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/over
 import { initDownloads, markDownloaded, markVerified, isVerifiedDownload, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
-import {
-  initLooseOverlay, looseShareFile, looseUnshareFile, looseListOwn, looseCancel, looseCancelPublish,
-  handleLooseFsEvent, rehydrateLooseFiles, sweepLoosePresence,
-  LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE, looseSources,
-} from '../../src/shared/transfer/loose-overlay.js'
+import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { looseCancelByKey } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
+import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 // Drive the in-place loose-file adapter against one fresh data layer. The defining
 // property: sharing a loose file copies NO bytes into a core — the overlay serves
@@ -32,7 +32,7 @@ async function setup(t) {
   serveIndex.reset()
   looseSources.clear()
   await initOverlay()
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
@@ -211,7 +211,7 @@ test('R6: sweep tombstones a loose entry whose source vanished', async (t) => {
   t.absent(serveIndex.has(hash), 'serve-index claim dropped')
 })
 
-test('looseCancel discards a paused/queued partial: removes the partial file and the pending row', async (t) => {
+test('looseCancelByKey discards a paused/queued partial: removes the partial file and the pending row', async (t) => {
   const ctx = await setup(t)
   // A paused/queued loose download = a pending row + a visible partial on disk, no
   // live transfer. Discard must clear both and emit the decoration done frame.
@@ -222,7 +222,7 @@ test('looseCancel discards a paused/queued partial: removes the partial file and
   t.ok(await getPendingFor(ctx.spaceId, '/big.bin'), 'precondition: pending row exists')
   t.ok(fs.existsSync(partialPath), 'precondition: partial on disk')
 
-  await looseCancel(ctx.spaceId, '/big.bin')
+  await looseCancelByKey(ctx.spaceId, '/big.bin')
 
   t.absent(await getPendingFor(ctx.spaceId, '/big.bin'), 'pending row cleared')
   t.absent(fs.existsSync(partialPath), 'visible partial removed')
@@ -369,14 +369,12 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
   t.ok(row.inPlace, 'flagged in-place')
 })
 
-// The cycle this pinned is gone: the owned-source records loose-overlay needed stayed with the
-// claim bee, and the listing that needed loose-overlay moved out. The absence is now asserted for
-// the whole data layer in import-time.test.js; what is left worth checking here is that each side
-// still loads on its own, which is what a half-initialised module would fail.
+// Import cycles are asserted for the whole data layer in import-time.test.js; what is checked
+// here is that each side still loads on its own, which is what a half-initialised module would fail.
 test('REGRESSION (FIX-cycle): the loose modules each import standalone', async (t) => {
   const fmod = await import('../../src/shared/transfer/files.js')
   const listing = await import('../../src/shared/transfer/file-listing.js')
-  const lmod = await import('../../src/shared/transfer/loose-overlay.js')
+  const lmod = await import('../../src/shared/transfer/backends/overlay/loose-publish.js')
   t.is(typeof fmod.markOwnedSource, 'function')
   t.is(typeof listing.addFile, 'function')
   t.is(typeof lmod.looseShareFile, 'function')

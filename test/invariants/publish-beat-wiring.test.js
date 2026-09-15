@@ -41,7 +41,7 @@ test('REGRESSION (FIX-DEEP-VERDICT-BEAT): the deep re-hash beats per chunk, not 
 })
 
 test('the loose channel forwards the beat rather than dropping it', (t) => {
-  const loose = read('src', 'shared', 'transfer', 'loose-overlay.js')
+  const loose = read('src', 'shared', 'transfer', 'backends', 'overlay', 'loose-publish.js')
   t.ok(/async publish\(item, \{ absPath \}, \{ signal, beat \}\)/.test(loose),
     'the channel destructures it — a channel that rebuilt its opts would silently lose it')
   t.ok(/onProgress: \(len\) => \{ progress\.onProgress\(len\); beat\?\.\(\) \}/.test(loose), 'and beats per chunk')

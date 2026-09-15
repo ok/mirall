@@ -12,9 +12,10 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import {
-  initLooseOverlay, sweepLoosePresence, LOOSE_SHARE_ID, MAX_LOOSE_FILES_PER_SPACE,
-} from '../../src/shared/transfer/loose-overlay.js'
+import { MAX_LOOSE_FILES_PER_SPACE } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 // Exercise the files.js integration (addFile/listFiles/removeFile) with the
 // in-place flag ON — the production entry points the renderer drives. These are
@@ -26,7 +27,7 @@ async function setup(t) {
   await initPendingTransfers()
   serveIndex.reset()
   await initOverlay()
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   const space = await createSpace('Aurora')
   t.teardown(async () => {
     serveIndex.reset()

@@ -9,7 +9,7 @@ import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
 import { fileKey } from '../../src/shared/shares/catalog-keys.js'
 import { ownCatalogKeyHex, collectOwnShare, plaintextCatalogName } from '../../src/shared/shares/own-catalog.js'
-import { LOOSE_SHARE_ID } from '../../src/shared/transfer/loose-overlay.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { migrateCatalogsToEncrypted } from '../../src/shared/shares/migrate-catalog-encrypt.js'
 
 const SHARE = 'share-1'

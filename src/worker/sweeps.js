@@ -5,7 +5,7 @@
 import { Subsystem } from '../shared/core/subsystem.js'
 import { isInPlaceFilesEnabled } from '../shared/core/runtime-config.js'
 import { sweepBackends } from '../shared/transfer/content-backends.js'
-import { sweepLoosePresence } from '../shared/transfer/loose-overlay.js'
+import { sweepLoosePresence } from '../shared/transfer/backends/overlay/loose-maintenance.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
