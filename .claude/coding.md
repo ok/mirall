@@ -110,12 +110,12 @@ is a decision that takes a row rather than a default for whatever had nowhere el
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
 in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
-(`network/swarm.js` 858, `folders/owned-folders.js` 678,
-`overlay/overlay-download.js` 664, `network/connectivity.js` 631, `overlay/overlay-backend.js` 601,
-`core/runtime-config.js` 598, `renderer/app.tsx` 596, `transfer/loose-overlay.js` 552,
-`audit/audit-log.js` 543, `shares/share-catalog.js` 528) are known debt — do not add
-responsibilities to them. Splitting them is its own tier of work, tracked separately from the
-folder reorganisation, because a merge can legitimately grow a file while removing duplication.
+(`network/swarm.js` 858, `overlay/overlay-download.js` 664, `network/connectivity.js` 631,
+`overlay/overlay-backend.js` 601, `core/runtime-config.js` 598, `renderer/app.tsx` 596,
+`transfer/loose-overlay.js` 552, `audit/audit-log.js` 543, `shares/share-catalog.js` 528) are known
+debt — do not add responsibilities to them. Splitting them is its own tier of work, tracked
+separately from the folder reorganisation, because a merge can legitimately grow a file while
+removing duplication.
 
 **When *not* to split:** a one-line re-export "for the import path". Those shims are all deleted;
 importers name the real module. Adding a file that only re-exports another is a regression.

@@ -10,7 +10,8 @@ import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-reques
 import { TARGET_KIND } from '../shared/contract/audit-kinds.js'
 import { getSpace } from '../shared/spaces/space.js'
 import { DEFAULT_IGNORE } from '../shared/folders/path-keys.js'
-import { countFolderFiles, initialPublishScan } from '../shared/folders/owned-folders.js'
+import { countFolderFiles } from '../shared/folders/owned-folders.js'
+import { runPublishPass } from '../shared/folders/owned-pass.js'
 import { exceedsShareFileLimit, shareFileLimitMessage } from '../shared/folders/share-limits.js'
 import { mountRootAvailable } from '../shared/folders/publish-service.js'
 import { createOwnedMount } from '../shared/folders/mount-store.js'
@@ -51,7 +52,7 @@ export function createOwnedMounter({ ipc, mounts }) {
       args: { shareId, mountPath, ignore },
     })
 
-    mounts.settleScanStatus(initialPublishScan(spaceId, shareId, mountPath, ignore), spaceId, shareId)
+    mounts.settleScanStatus(runPublishPass(spaceId, shareId, mountPath, ignore), spaceId, shareId)
       .then(async (result) => {
         // Cancelled mid-index: whoever cancelled (delete, relocate, leave, pause) owns the
         // follow-up; re-arming the reconcile here would resurrect it for a share that is gone.

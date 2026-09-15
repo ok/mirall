@@ -4,9 +4,9 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'owned-folders.js'), 'utf8')
+const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'owned-pass.js'), 'utf8')
 
-// owned-folders.js loads only under Bare and the heartbeat it keeps is module-private, so the wiring
+// owned-pass.js loads only under Bare and the heartbeat it keeps is module-private, so the wiring
 // is pinned by source the way the other *-wiring tests in this directory are. The RULE it pins is
 // behavioural: the supervisor reports a pass that has not advanced inside the stall window as
 // wedged, so every phase of a pass has to say it is still working — not just the one that happens

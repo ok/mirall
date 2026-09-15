@@ -23,8 +23,14 @@ test('the folder engines no longer re-export what moved out of them', (t) => {
   t.absent(/export \{ previewMaterializeScan \}/.test(foreign), 'the preview comes from foreign-preview.js')
   t.absent(/export \{[^}]*\bshouldHonorDeletions\b/.test(foreign), 'the deletion gate comes from path-keys.js')
 
-  const owned = read('shared/folders/owned-folders.js')
+  // Every module the owner engine is now split across, for the same reason as the mirror set above.
+  const owned = ['owned-folders', 'owned-pass', 'owned-watcher', 'owned-channel']
+    .map((m) => read(`shared/folders/${m}.js`)).join('\n')
   t.absent(/export \{ previewInitialPublishScan \}/.test(owned), 'the preview comes from owned-preview.js')
+  t.absent(/export \{[^}]*\brunPublishPass\b/.test(owned), 'the pass comes from owned-pass.js')
+  t.absent(/export \{[^}]*\bonFsEvent\b/.test(owned), 'the watcher ingest comes from owned-watcher.js')
+  t.absent(/export \{[^}]*\bpublishVerdict\b/.test(owned), 'the diff verdict comes from owned-policy.js')
+  t.absent(/export \{[^}]*\bloadShareForMount\b/.test(owned), 'the share read comes from owned-shares.js')
 })
 
 // The four re-exports that predated the decomposition went the same way once their consumers

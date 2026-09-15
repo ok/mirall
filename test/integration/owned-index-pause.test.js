@@ -3,7 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { getOwnedMount, patchOwnedMount } from '../../src/shared/folders/mount-store.js'
-import { periodicReconcile, onFsEvent, getIndexStatus, cancelIndex } from '../../src/shared/folders/owned-folders.js'
+import { getIndexStatus, cancelIndex } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { until } from '../helpers/bare-poll.js'
 
 // Pause vs. Stop for an owned folder's index. Both drop the queue; only Pause disarms the
@@ -40,7 +42,7 @@ test('a paused index declines the scan before it walks', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(20) })
   await ctx.root.mounts.pauseIndex(ctx.spaceId, ctx.share.id)
 
-  const r = await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const r = await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.is(r.skipped, 'index-paused', 'the pass bails')
   t.alike(await listRelPaths(ctx.share, ctx.spaceId), [], 'and published nothing')
 })
@@ -51,7 +53,7 @@ test('a paused index declines the scan before it walks', async (t) => {
 // past every check the pause installed.
 test('REGRESSION (FIX-PAUSE-1): a watcher event during a pause publishes nothing', async (t) => {
   const ctx = await setupOwnedShare(t, { files: { 'kept.txt': 'a' } })
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   await ctx.root.mounts.pauseIndex(ctx.spaceId, ctx.share.id)
 
   const abs = path.join(ctx.mountPath, 'while-paused.txt')
@@ -75,7 +77,7 @@ test('REGRESSION (FIX-PAUSE-2): resume actually re-enqueues', async (t) => {
   t.absent((await getOwnedMount(ctx.spaceId, ctx.share.id)).indexPaused, 'flag cleared')
   t.ok(armed(ctx), 'the cadence is armed again')
   // The pass resume arms is fire-and-forget; drive one synchronously to assert the effect.
-  const scan = await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const scan = await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.absent(scan.skipped, 'the pass runs')
   t.is((await listRelPaths(ctx.share, ctx.spaceId)).length, 20, 'and publishes the folder')
 })
@@ -83,12 +85,12 @@ test('REGRESSION (FIX-PAUSE-2): resume actually re-enqueues', async (t) => {
 test('a file added during a pause is published on resume — a pause loses no changes', async (t) => {
   const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'x' } })
   const mounts = ctx.root.mounts
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
 
   fs.writeFileSync(path.join(ctx.mountPath, 'added-while-paused.txt'), 'y')
   await mounts.resumeIndex(ctx.spaceId, ctx.share.id)
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   t.ok((await listRelPaths(ctx.share, ctx.spaceId)).includes('added-while-paused.txt'))
 })
@@ -96,12 +98,12 @@ test('a file added during a pause is published on resume — a pause loses no ch
 test('a file deleted during a pause is retired on resume', async (t) => {
   const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'x', 'gone.txt': 'y' } })
   const mounts = ctx.root.mounts
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
 
   fs.unlinkSync(path.join(ctx.mountPath, 'gone.txt'))
   await mounts.resumeIndex(ctx.spaceId, ctx.share.id)
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   t.alike(await listRelPaths(ctx.share, ctx.spaceId), ['a.txt'], 'the resume diff re-derives the retire')
 })
@@ -115,7 +117,7 @@ test('REGRESSION (FIX-PAUSE-3): a declined scan settles as paused, never as an e
   await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
 
   await mounts.settleScanStatus(
-    periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, []), ctx.spaceId, ctx.share.id)
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []), ctx.spaceId, ctx.share.id)
 
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'paused')
@@ -134,7 +136,7 @@ test('REGRESSION (FIX-PAUSE-3): a declined scan settles as paused, never as an e
 // handful of bee ops. If it ever flakes, raise the file count rather than softening the assertion.
 test('REGRESSION (FIX-PAUSE-4): a pause mid-walk stops the pass, not just the queue', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(4000) })
-  const scan = periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const scan = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   await ctx.root.mounts.pauseIndex(ctx.spaceId, ctx.share.id)
   const r = await scan
 
@@ -149,11 +151,11 @@ test('resume does not re-publish what was already published', async (t) => {
   // The property that makes pause worth having: a converged share costs one walk, not a re-index.
   const ctx = await setupOwnedShare(t, { files: manyFiles(20) })
   const mounts = ctx.root.mounts
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   await mounts.pauseIndex(ctx.spaceId, ctx.share.id)
   await mounts.resumeIndex(ctx.spaceId, ctx.share.id)
-  const r = await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const r = await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   t.is(r.uploaded, 0, 'a converged share re-publishes nothing across a pause/resume')
   t.is((await listRelPaths(ctx.share, ctx.spaceId)).length, 20, 'and keeps everything it had')
@@ -220,7 +222,7 @@ test('REGRESSION (FIX-PAUSE-8): a deep pass owed from a paused relocate is honou
 test('REGRESSION (FIX-PAUSE-9): a cancel mid-read stops the pass too', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(12000) })
   let settled = false
-  const scan = periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, []).finally(() => { settled = true })
+  const scan = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []).finally(() => { settled = true })
   // A cancel carries no durable flag, so unlike a pause it bites only once the pass has registered
   // its abort signal — a couple of bee reads in. The real one arrives an IPC round-trip late;
   // retrying stands in for that without guessing a delay that a loaded machine would invalidate.
@@ -242,11 +244,11 @@ test('REGRESSION (FIX-PAUSE-9): a cancel mid-read stops the pass too', async (t)
 // puts the whole abort window in that second half, where the per-file check cannot reach.
 test('REGRESSION (FIX-PAUSE-10): a cancel during the catalog read stops the pass too', async (t) => {
   const ctx = await setupOwnedShare(t, { files: manyFiles(3000) })
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   for (const name of fileNames(3000).slice(10)) fs.unlinkSync(path.join(ctx.mountPath, name))
 
   let settled = false
-  const scan = periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, []).finally(() => { settled = true })
+  const scan = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []).finally(() => { settled = true })
   while (!settled) {
     cancelIndex(ctx.spaceId, ctx.share.id)
     await new Promise((resolve) => setTimeout(resolve, 2))

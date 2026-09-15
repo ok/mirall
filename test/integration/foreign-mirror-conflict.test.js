@@ -108,8 +108,8 @@ test('D2: an owner edit still overwrites an untouched mirror copy in place', asy
 
   // The owner republishes new bytes; the local copy is untouched.
   fs.writeFileSync(path.join(ctx.mountPath, 'a.txt'), 'v2-from-owner')
-  const { initialPublishScan } = await import('../../src/shared/folders/owned-folders.js')
-  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const { runPublishPass } = await import('../../src/shared/folders/owned-pass.js')
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
   await materializeCatalogFile(cur, ctx.share, await entryFor(ctx))
@@ -179,8 +179,8 @@ test('REGRESSION (FIX-D2-4): a record that vouches for another path does not aut
   })
 
   fs.writeFileSync(path.join(ctx.mountPath, 'a.txt'), 'v2-from-owner')
-  const { initialPublishScan } = await import('../../src/shared/folders/owned-folders.js')
-  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const { runPublishPass } = await import('../../src/shared/folders/owned-pass.js')
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   const cur = await getForeignMount(ctx.spaceId, ctx.share.id)
   await materializeCatalogFile(cur, ctx.share, await entryFor(ctx))

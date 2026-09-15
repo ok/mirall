@@ -80,7 +80,7 @@ Before merging:
 
 ## hyperdrive — pinned
 
-`hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.3"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-folders.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.
+`hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.3"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-pass.js` and `owned-channel.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.
 
 There is **no** automated pin-guard test — nothing fails CI when the version changes. Any manual hyperdrive bump is therefore a `needs-smoke-test` candidate: re-read the release notes for replication/wire-format changes, run the two-window smoke test, and confirm end-to-end replication before merging.
 

@@ -25,7 +25,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### A. Owned folders — publish & reconcile (owner side)
 | File | Covers |
 |------|--------|
-| `owned-folder-publish.test.js` | `initialPublishScan` (uploads, idempotent re-scan); **REGRESSION** mount-root-gone never deletes drive entries; unlink-while-root-gone drops the event; a genuine single-file delete propagates. |
+| `owned-folder-publish.test.js` | `runPublishPass` (uploads, idempotent re-scan); **REGRESSION** mount-root-gone never deletes drive entries; unlink-while-root-gone drops the event; a genuine single-file delete propagates. |
 | `owned-folder-edge.test.js` | **FIX-4** an unreadable file isn't deleted by reconcile; **FIX-5** an unlink for a path still present on disk (atomic save) doesn't delete. |
 | `owned-concurrent-add.test.js` | A burst of concurrent `add`s in a new subfolder all publish; **FIX-WATCHER-MISS** a dropped watcher add is recovered by the catch-up reconcile. |
 | `owned-fs-event.test.js` | `onFsEvent` add/change branch — republish-on-edit; hash short-circuit (unchanged = no-op); echo-guard skip (our own write doesn't loop); non-file / missing path and unreadable file are not published. |

@@ -140,7 +140,7 @@ test('relocate records the debt on both paths, before either pass is armed', (t)
   t.ok(from > 0 && handler.length > 0, 'found the relocate handler')
 
   const debtAt = handler.indexOf('deepScanOwed: true')
-  const scanAt = handler.indexOf('initialPublishScan(')
+  const scanAt = handler.indexOf('runPublishPass(')
   t.ok(debtAt > 0, 'it records the debt')
   t.ok(scanAt > debtAt, 'before it arms the pass — the flag is the durable fact, the running pass is not')
   const pauseGate = handler.search(/if \(!?\w+\??\.?indexPaused\)/)

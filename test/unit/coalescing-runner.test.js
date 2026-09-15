@@ -150,7 +150,7 @@ test('a cancelled key runs again from scratch', async (t) => {
 // REGRESSION (FIX-CANCEL-ORPHANS: cancel() reached only the callers still queued behind the run.
 // The caller that STARTED it was held in a local closure, and callers already promoted into a rerun
 // were held in another — so abandoning a wedged pass left exactly the callers who were waiting on
-// it parked forever. On the owner side that is initialPublishScan: its entry in catchupInFlight
+// it parked forever. On the owner side that is runPublishPass: its entry in catchupInFlight
 // never cleared, so every later close burned its whole bounded wait on a promise that could not
 // settle.)
 test('REGRESSION (FIX-CANCEL-ORPHANS): abandoning a run settles the caller that started it', async (t) => {

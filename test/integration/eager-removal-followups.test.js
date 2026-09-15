@@ -11,7 +11,8 @@ import { getStore } from '../../src/shared/core/store.js'
 import { reclaimLegacyPeerCaches } from '../../src/shared/storage/migrations/legacy-peer-cache.js'
 import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { onFsEvent, periodicReconcile } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { getOverlay, initOverlay, teardownOverlay, getJournalDir } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { journalNameFor } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
 import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'
@@ -23,10 +24,10 @@ import { initPendingTransfers } from '../../src/shared/transfer/pending-transfer
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initLooseOverlay, looseHasOwn, looseSources } from '../../src/shared/transfer/loose-overlay.js'
 
-// C2 — periodicReconcile dropped its { deep } arg, so the scheduled deep pass ran shallow and
+// C2 — runPublishPass dropped its { deep } arg, so the scheduled deep pass ran shallow and
 // re-hashed + re-advertised identical content whose mtime merely drifted (churn → mirror
 // peers refetch). The deep path re-points via registerFile instead (no prepareForServe).
-test('REGRESSION (C2): periodicReconcile forwards { deep } — mtime-drifted identical content is re-pointed, not re-hashed', async (t) => {
+test('REGRESSION (C2): runPublishPass forwards { deep } — mtime-drifted identical content is re-pointed, not re-hashed', async (t) => {
   const ctx = await setupOwnedShare(t)
   const abs = path.join(ctx.mountPath, 'doc.txt')
   fs.writeFileSync(abs, 'stable-content')
@@ -45,7 +46,7 @@ test('REGRESSION (C2): periodicReconcile forwards { deep } — mtime-drifted ide
   const future = new Date(Date.now() + 60_000)
   fs.utimesSync(abs, future, future)
 
-  await periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [], { deep: true })
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [], { deep: true })
 
   const entryB = await getOwnEntry(ctx.spaceId, ctx.share.id, 'doc.txt')
   t.is(prepareCalls, 0, 'deep reconcile re-pointed identical content without re-hashing (no churn)')

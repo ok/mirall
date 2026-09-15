@@ -13,7 +13,9 @@ import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedActivity, setOwnedFault, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
-import { periodicReconcile, reconcileOwnedShare, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
+import { reconcileOwnedShare, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
+import { ownedKey } from '../shared/folders/owned-policy.js'
+import { runPublishPass } from '../shared/folders/owned-pass.js'
 import { mountRootAvailable } from '../shared/folders/publish-service.js'
 import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
@@ -261,7 +263,7 @@ export class MountsRuntime extends Subsystem {
   }
 
   schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore) {
-    const key = spaceId + ':' + shareId
+    const key = ownedKey(spaceId, shareId)
     const existing = this.periodicTimers.get(key)
     if (existing) this.timers.clear(existing)
     // Through this.timers like every other timer the class arms: _close clears the map itself,
@@ -273,13 +275,13 @@ export class MountsRuntime extends Subsystem {
       this.reconcileCounters.set(key, n)
       const every = getDeepReconcileEvery()
       const deep = every > 0 && n % every === 0
-      this.settleScanStatus(periodicReconcile(spaceId, shareId, mountPath, ignore, { deep }), spaceId, shareId)
+      this.settleScanStatus(runPublishPass(spaceId, shareId, mountPath, ignore, { deep }), spaceId, shareId)
     }, RECONCILE_INTERVAL_MS)
     this.periodicTimers.set(key, timer)
   }
 
   cancelPeriodicReconcile(spaceId, shareId) {
-    const key = spaceId + ':' + shareId
+    const key = ownedKey(spaceId, shareId)
     const timer = this.periodicTimers.get(key)
     if (timer) {
       this.timers.clear(timer)

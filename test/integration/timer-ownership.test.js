@@ -13,7 +13,7 @@ const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount } = await import('../../src/shared/folders/mount-store.js')
-const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
+const { onFsEvent } = await import('../../src/shared/folders/owned-watcher.js')
 
 async function ownedShare(ctx) {
   const space = await createSpace('Aurora')

@@ -2,7 +2,9 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
-import { onFsEvent, initialPublishScan, periodicReconcile, stopOwnedFolder, cancelIndex, getIndexStatus } from '../../src/shared/folders/owned-folders.js'
+import { stopOwnedFolder, cancelIndex, getIndexStatus } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlaySweepPresence, overlayPublishAdd, overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
@@ -69,7 +71,7 @@ test('REGRESSION (FIX-SCAN-1): a file added mid-index is never tombstoned while 
   fill(mountPath, ['seed-1.bin', 'seed-2.bin', 'seed-3.bin', 'seed-4.bin'])
   slowHash(t, 700)
 
-  const first = initialPublishScan(spaceId, share.id, mountPath, [])
+  const first = runPublishPass(spaceId, share.id, mountPath, [])
   await sleep(300)
   const abs = path.join(mountPath, 'late.bin')
   fs.writeFileSync(abs, 'y'.repeat(4096))
@@ -93,7 +95,7 @@ test('REGRESSION (FIX-SCAN-2): additions during an index do not multiply the wor
   fill(mountPath, seeds)
   const probe = slowHash(t, 700)
 
-  const first = initialPublishScan(spaceId, share.id, mountPath, [])
+  const first = runPublishPass(spaceId, share.id, mountPath, [])
   const drops = [1000, 3500, 6000, 8500].map((at, i) => (async () => {
     await sleep(at)
     const n = 'drop-' + i + '.bin'
@@ -167,7 +169,7 @@ test('REGRESSION (ROOT-GONE): retires queued for a vanished root do not tombston
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['a.bin', 'b.bin', 'c.bin'])
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 3))
 
   fs.renameSync(mountPath, mountPath + '-unplugged')
@@ -184,7 +186,7 @@ test('REGRESSION (RELOCATE-STALE-PATH): a stale retire re-resolves the mount at 
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['keep.bin'])
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
 
   // A slow publish holds the single slot so the retire that follows is still queued when the
@@ -216,12 +218,12 @@ test('REGRESSION (CATCHUP-DEFER): the catch-up diff leaves a still-settling file
   await sleep(2500)
   fs.writeFileSync(path.join(mountPath, 'copying.bin'), 'b'.repeat(4096))
   const probe = slowHash(t, 10)
-  await periodicReconcile(spaceId, share.id, mountPath, [], { deferFresh: true })
+  await runPublishPass(spaceId, share.id, mountPath, [], { deferFresh: true })
   t.alike(await listRelPaths(share, spaceId), ['settled.bin'], 'the fresh file is deferred')
   t.absent(probe.calls.includes('copying.bin'), 'and was never read')
 
   fs.writeFileSync(path.join(mountPath, 'brand-new.bin'), 'c'.repeat(4096))
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok((await listRelPaths(share, spaceId)).includes('brand-new.bin'), 'an authoritative pass publishes a fresh file at once')
   t.ok((await listRelPaths(share, spaceId)).includes('copying.bin'), 'and picks up the deferred one')
 })
@@ -234,7 +236,7 @@ test('REGRESSION (CATCHUP-DEFER): a future mtime is not treated as still-settlin
   const ahead = (Date.now() + 600000) / 1000
   fs.utimesSync(abs, ahead, ahead)
   slowHash(t, 10)
-  await periodicReconcile(spaceId, share.id, mountPath, [], { deferFresh: true })
+  await runPublishPass(spaceId, share.id, mountPath, [], { deferFresh: true })
   t.ok((await listRelPaths(share, spaceId)).includes('future.bin'), 'published, not deferred')
 })
 
@@ -251,7 +253,7 @@ test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a
   const abs = path.join(mountPath, 'x.txt')
   fs.writeFileSync(abs, 'v1')
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
 
   // A large changed file holds the single lane; the re-publish of x.txt (changed too) queues behind it.
@@ -259,7 +261,7 @@ test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a
   await sleep(20)
   fs.writeFileSync(abs, 'v2-longer')
   slowHash(t, 1500)
-  const scan = initialPublishScan(spaceId, share.id, mountPath, [])
+  const scan = runPublishPass(spaceId, share.id, mountPath, [])
   await until(() => getIndexStatus(spaceId, share.id).running === 1, 5000)
   t.is(getIndexStatus(spaceId, share.id).queued, 1, 'x.txt is queued behind the running hash')
   fs.unlinkSync(abs)
@@ -315,7 +317,7 @@ test('ordering is honored end to end', { timeout: scaled(90000) }, async (t) => 
   fs.writeFileSync(path.join(mountPath, 'mid.bin'), 'x'.repeat(40_000))
   fs.writeFileSync(path.join(mountPath, 'small.bin'), 'x'.repeat(400))
   const probe = slowHash(t, 50)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 3))
   t.alike(probe.calls, ['small.bin', 'mid.bin', 'big.bin'])
 })
@@ -325,11 +327,11 @@ test('a deep pass re-points identical content at a new mtime without re-advertis
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['keep.bin'])
   const probe = slowHash(t, 20)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
   const later = (Date.now() + 5000) / 1000
   fs.utimesSync(path.join(mountPath, 'keep.bin'), later, later)
-  const r = await initialPublishScan(spaceId, share.id, mountPath, [], { deep: true })
+  const r = await runPublishPass(spaceId, share.id, mountPath, [], { deep: true })
   t.is(r.uploaded, 0, 'identical content, no re-advertise')
   t.is(probe.calls.length, 1, 'the deep pass compared by hash without a serve-prep read')
   t.alike(await listRelPaths(share, spaceId), ['keep.bin'])
@@ -347,7 +349,7 @@ test('REGRESSION (FIX-RETIRE-EXACT): a file replaced by a symlink is retired', {
   fs.writeFileSync(abs, 'doc')
   fs.writeFileSync(other, 'other')
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 2))
   fs.unlinkSync(abs)
   fs.symlinkSync(other, abs)
@@ -361,7 +363,7 @@ test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { 
   if (!caseFolds(mountPath)) { t.comment('case-sensitive volume — the symlink case above covers the executor'); return }
   fs.writeFileSync(path.join(mountPath, 'Report.txt'), 'r')
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
   fs.renameSync(path.join(mountPath, 'Report.txt'), path.join(mountPath, 'report.txt'))
 
@@ -370,7 +372,7 @@ test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { 
   await overlaySweepPresence()
   t.alike(await listRelPaths(share, spaceId), [], 'the sweep reclaimed the folded key')
 
-  await periodicReconcile(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1, 10000))
   t.alike(await listRelPaths(share, spaceId), ['report.txt'], 'only the name on disk is advertised')
 })
@@ -385,7 +387,7 @@ test('REGRESSION (FIX-DIFF-POISON): a catalog key that escapes the mount is recl
   await advertise(spaceId, share.id, 'sub\\back.txt', { size: 1, mtime: 1, contentHash: null })
   fs.writeFileSync(path.join(mountPath, 'ok.txt'), 'ok')
   slowHash(t, 10)
-  const r = await initialPublishScan(spaceId, share.id, mountPath, [])
+  const r = await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(r.uploaded, 1, 'the diff ran')
   t.is(r.deleted, 2, 'both poison keys were reclaimed')
   t.alike(await listRelPaths(share, spaceId), ['ok.txt'])
@@ -415,13 +417,13 @@ test('REGRESSION (FIX-RESERVE-HEAL): the fast reconcile re-registers an unchange
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fs.writeFileSync(path.join(mountPath, 'a.txt'), 'a')
   const probe = slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
   const { contentHash } = await entryFor(share, spaceId, 'a.txt')
   const served = () => serveIndex.refsFor(contentHash).some((r) => r.spaceId === spaceId && r.shareId === share.id && r.relPath === 'a.txt')
   t.ok(served(), 'served after publish')
   serveIndex.remove(contentHash, spaceId, share.id, 'a.txt')
-  const r = await periodicReconcile(spaceId, share.id, mountPath, [])
+  const r = await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(r.uploaded, 0, 'nothing re-published')
   t.is(probe.calls.length, 1, 'and nothing re-read')
   t.ok(served(), 'but it is servable again')
@@ -436,7 +438,7 @@ test('REGRESSION (FIX-RETIRE-BATCH): bulk retires land as one head, not one per 
   const names = Array.from({ length: 6 }, (_, i) => 'f' + i + '.txt')
   for (const n of names) fs.writeFileSync(path.join(mountPath, n), n)
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 6))
   const bee = await ownCatalog(spaceId)
   let appends = 0
@@ -444,7 +446,7 @@ test('REGRESSION (FIX-RETIRE-BATCH): bulk retires land as one head, not one per 
   bee.core.on('append', onAppend)
   t.teardown(() => bee.core.off('append', onAppend))
   for (const n of names) fs.unlinkSync(path.join(mountPath, n))
-  const r = await periodicReconcile(spaceId, share.id, mountPath, [])
+  const r = await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(r.deleted, 6)
   t.alike(await listRelPaths(share, spaceId), [])
   t.ok(appends <= 2, 'six tombstones in one flush — ' + appends + ' head(s)')
@@ -470,7 +472,7 @@ test('REGRESSION (FIX-INTERACTIVE-SETTLE): a watcher item lands the space batch 
   fs.writeFileSync(path.join(otherPath, 'first.txt'), 'first')
   fs.writeFileSync(path.join(otherPath, 'slow.bin'), 's'.repeat(8192))
   slowHash(t, 2500, { only: ['slow.bin'] })
-  const scan = initialPublishScan(spaceId, other.id, otherPath, [])
+  const scan = runPublishPass(spaceId, other.id, otherPath, [])
   await until(async () => getIndexStatus(spaceId, other.id).done === 1, 5000)
   t.is(getIndexStatus(spaceId, other.id).running, 1, 'slow.bin holds a slot; first.txt is staged, unflushed')
   const bee = await ownCatalog(spaceId)
@@ -499,7 +501,7 @@ test('REGRESSION (FIX-DRAIN-EMIT): share-files-updated after a pass fires only o
   const emit = fake.ipc.emit
   fake.ipc.emit = (type, payload) => { if (type === 'event:share-files-updated') lengthsAtEmit.push(bee.core.length); emit(type, payload) }
   t.teardown(() => { fake.ipc.emit = emit })
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 3))
   const final = bee.core.length
   t.ok(lengthsAtEmit.length > 0, 'the pass announced itself')
@@ -518,7 +520,7 @@ test('REGRESSION (FIX-DEEP-FORCE): the deep pass republishes a same-size rewrite
   fs.writeFileSync(abs, 'a'.repeat(4096))
   fs.utimesSync(abs, pinned, pinned)
   slowHash(t, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.ok(await settled(share, spaceId, 1))
   const before = await entryFor(share, spaceId, 'vault.bin')
   fs.writeFileSync(abs, 'b'.repeat(4096))
@@ -526,8 +528,8 @@ test('REGRESSION (FIX-DEEP-FORCE): the deep pass republishes a same-size rewrite
   const st = fs.statSync(abs)
   t.is(st.size, before.size)
   t.is(st.mtimeMs, before.mtime, 'precondition: the rewrite is invisible to size+mtime')
-  t.is((await periodicReconcile(spaceId, share.id, mountPath, [])).uploaded, 0, 'the fast pass cannot see it')
-  const r = await periodicReconcile(spaceId, share.id, mountPath, [], { deep: true })
+  t.is((await runPublishPass(spaceId, share.id, mountPath, [])).uploaded, 0, 'the fast pass cannot see it')
+  const r = await runPublishPass(spaceId, share.id, mountPath, [], { deep: true })
   t.is(r.uploaded, 1, 'the deep pass republished it')
   const after = await entryFor(share, spaceId, 'vault.bin')
   t.not(after.contentHash, before.contentHash, 'peers verify against the new bytes')
@@ -541,7 +543,7 @@ test('REGRESSION (FIX-SCAN-CANCELLED): a cancelled index resolves as cancelled',
   t.teardown(() => stopOwnedFolder(spaceId, share.id))
   fill(mountPath, ['a.bin', 'b.bin', 'c.bin'])
   slowHash(t, 700)
-  const scan = initialPublishScan(spaceId, share.id, mountPath, [])
+  const scan = runPublishPass(spaceId, share.id, mountPath, [])
   await until(() => getIndexStatus(spaceId, share.id).running > 0, 5000)
   t.ok(cancelIndex(spaceId, share.id) > 0)
   const r = await scan
