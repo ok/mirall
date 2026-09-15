@@ -1,9 +1,10 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import {
-  createSpace, joinSpace, getSpace, getDrive, purgeSpaceDrive, purgeSpace, materializeOwnDrive,
-} from '../../src/shared/spaces/space.js'
+import { getSpace } from '../../src/shared/spaces/space.js'
+import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
+import { createSpace, joinSpace, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
+import { getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space-drives.js'
 
 // Leaving a space purges its drive (cores + alias). A later re-join of the same topic must NOT
 // reopen the purged alias — that's the zombie-alias `STORAGE_EMPTY` crash. The record is cleared

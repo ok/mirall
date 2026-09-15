@@ -114,10 +114,8 @@ test('no module in the data layer sits in an import cycle', (t) => {
     }
   }
 
-  // Known, tracked in #234. Each entry is a cycle box 3.5 or 3.7 is meant to remove; the list only
-  // ever shrinks, and a cycle that is NOT on it fails here.
-  const KNOWN = [
-    ['shares/share-catalog.js', 'spaces/space.js'],
-  ].map((g) => g.join(' ↔ '))
+  // The data layer carries no import cycle. Nothing belongs on this list: the way to keep it
+  // empty is to point an upward edge at a leaf, never to record the loop here.
+  const KNOWN = []
   t.alike(sccs.map((g) => g.join(' ↔ ')).sort(), [...KNOWN].sort(), 'no import cycle beyond the tracked ones')
 })

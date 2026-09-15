@@ -147,7 +147,10 @@ import of it to `shared/spaces/space.js` dragged `bare-os` into four `test/unit`
 Node-runnable precisely because that chain is bare-free (`require.addon is not a function` at
 import time, before any test runs). The bare-free rule `path-keys.js` documents in its header is a
 real, load-bearing layering constraint — pure string math goes in `path-keys.js`, and lifecycle
-hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway.
+hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway. The `spaces/`
+split has since moved every `test/unit` importer off `space.js` and onto a pure leaf, so that
+particular file is no longer the one holding the chain open — but the constraint is unchanged, and
+the pure modules that now carry it are listed as `pureSpacesModules` in `eslint-rules/invariants.mjs`.
 
 **Never `core.clear()` a block range of a Hyperbee to reclaim deleted rows — it corrupts the live
 tree.** Every append writes one block holding `{key, value, index}`, so blocks are simultaneously

@@ -3,7 +3,8 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { getStore, getStoragePath } from '../../src/shared/core/store.js'
-import { createSpace, getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space-drives.js'
 
 function dirSize(dir) {
   let n = 0

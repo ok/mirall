@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { freshPeer, freshDurable } from '../helpers/store.js'
-import { createSpace, getSpace, mutateSpace, listSpaces, isLegacySpace } from '../../src/shared/spaces/space.js'
+import { getSpace, mutateSpace, listSpaces, isLegacySpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { ownCatalog, catalogNameFor, purgeOwnCatalog, legacyPlaintextCatalogName, dropCatalog } from '../../src/shared/shares/share-catalog.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
 import b4a from 'b4a'

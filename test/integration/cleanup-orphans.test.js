@@ -9,7 +9,8 @@ import { boot } from '../../src/worker/boot.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 import { getStore } from '../../src/shared/core/store.js'
-import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
+import { mutateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
 
 async function coreInStore(discoveryKey) {

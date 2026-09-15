@@ -10,7 +10,7 @@ import { until } from '../helpers/bare-poll.js'
 // a dynamic import (static ones are hoisted above it).
 const timers = trackTimers()
 const { offlineMemberRegistry } = await import('../helpers/store.js')
-const { createSpace } = await import('../../src/shared/spaces/space.js')
+const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex, setProfile } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount, getOwnedMount, patchOwnedMount } = await import('../../src/shared/folders/mount-store.js')

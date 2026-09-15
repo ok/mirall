@@ -7,9 +7,8 @@ import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
 import { Subsystem } from '../core/subsystem.js'
 
-// bare-fs/bare-path are loaded lazily: space.js (which imports this) is also pulled
-// into Node unit tests, where the Bare runtime globals don't exist. The fs paths only
-// run in the worker (Bare), so deferring the import keeps the module Node-loadable.
+// bare-fs/bare-path are loaded lazily so importing this module never needs the Bare runtime
+// globals; only the vault's fs paths do, and those run in the worker.
 let map = new Map()
 
 async function keysFile() {

@@ -3,7 +3,7 @@
 // them itself, which is what makes the ordering exact. Shared by the mirror-restart suite (the
 // loop's own behaviour) and the supervision suite (the mechanism that drives the restart).
 import { freshPeer } from './store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount } from '../../src/shared/folders/mount-store.js'

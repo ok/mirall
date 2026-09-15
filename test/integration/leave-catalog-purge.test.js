@@ -4,7 +4,8 @@ import { freshPeer } from '../helpers/store.js'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { ownCatalog, purgeOwnCatalog, catalogNameFor } from '../../src/shared/shares/share-catalog.js'
-import { getSpace, purgeSpace } from '../../src/shared/spaces/space.js'
+import { getSpace } from '../../src/shared/spaces/space.js'
+import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
 
 async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {

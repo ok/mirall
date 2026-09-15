@@ -6,8 +6,9 @@
 // (swarm-registries.js), `log` the swarm's named logger, and `getIpc` reaches the pipe lazily —
 // the IPC handle is null until the worker wires it, so it is read at emit time, not captured.
 import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite } from '../spaces/profile.js'
-import { getSpace, pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/space.js'
+import { getSpace } from '../spaces/space.js'
 import { recordJoinRequest } from '../spaces/join-requests.js'
+import { pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/creator-pin.js'
 import { isHandshakeIdentityBindingEnabled } from '../core/runtime-config.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
 import { snapshotCandidates } from '../spaces/invites.js'

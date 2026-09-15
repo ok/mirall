@@ -5,7 +5,7 @@ import { createIntentLog } from '../../src/shared/core/intents.js'
 import { registerFolderIntents } from '../../src/shared/folders/folder-intents.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 
 // The reconciler under test is the one the composition root registers — imported, not re-declared
 // here — because the branch that matters most is the one that must do NOTHING.

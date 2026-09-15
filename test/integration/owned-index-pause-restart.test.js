@@ -10,7 +10,7 @@ import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main
 // a dynamic import (static ones are hoisted above it) — same reason as lifecycle-restart.test.js.
 const timers = trackTimers()
 const { offlineMemberRegistry } = await import('../helpers/store.js')
-const { createSpace } = await import('../../src/shared/spaces/space.js')
+const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
 const { setProfile } = await import('../../src/shared/spaces/profile.js')

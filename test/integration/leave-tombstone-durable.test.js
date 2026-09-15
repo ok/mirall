@@ -6,9 +6,8 @@ import Hyperbee from 'hyperbee'
 import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getLocalPublicKeyHex, markOwnMembership, markApproval, readMembershipRecord, markRequest, readPeerRequests } from '../../src/shared/spaces/profile.js'
-import {
-  persistLeftTombstone, loadLeftTombstones, clearLeftTombstone, forgetSpaceRecord, createSpace,
-} from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { persistLeftTombstone, loadLeftTombstones, clearLeftTombstone, forgetSpaceRecord } from '../../src/shared/spaces/leave-records.js'
 import { openMemberView, closeMemberView, isLeft, isMember } from '../../src/shared/spaces/member-registry.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 import { until } from '../helpers/bare-poll.js'

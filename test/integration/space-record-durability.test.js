@@ -2,11 +2,10 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
-import {
-  createSpace, getSpace, getDrive, loadDrives, listSpaces,
-  persistLeftTombstone, loadLeftTombstones, clearLeftTombstone,
-  persistPendingLeave, listPendingLeaves, clearPendingLeave, _spacesBeeForTests,
-} from '../../src/shared/spaces/space.js'
+import { getSpace, listSpaces, _spacesBeeForTests } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { getDrive, loadDrives } from '../../src/shared/spaces/space-drives.js'
+import { persistLeftTombstone, loadLeftTombstones, clearLeftTombstone, persistPendingLeave, listPendingLeaves, clearPendingLeave } from '../../src/shared/spaces/leave-records.js'
 
 // The space record is the user's only handle on a space. A transient fault opening its drive
 // must cost a retry, never the record; and the leave-marker cleanups self-heal but must say so.
@@ -52,7 +51,7 @@ function failSpacesDel(t, pred) {
 test('REGRESSION (FIX-PENDING-SWALLOW-7): a transient drive-load failure keeps the space and marks it for retry', async (t) => {
   await setup(t)
   const space = await createSpace('Durable Space')
-  const errors = captureLog(t, 'error', '[space]')
+  const errors = captureLog(t, 'error', '[space-drives]')
 
   const res = await loadDrives({ openDrive: async () => { throw new Error('ELOCKED: held by another instance') } })
 
@@ -76,7 +75,7 @@ test('REGRESSION (FIX-PENDING-SWALLOW-7): a transient drive-load failure keeps t
 test('a storage-inconsistent drive still drops its record', async (t) => {
   await setup(t)
   const space = await createSpace('Broken Space')
-  const errors = captureLog(t, 'error', '[space]')
+  const errors = captureLog(t, 'error', '[space-drives]')
 
   const res = await loadDrives({
     // The exact shape isStorageInconsistency classifies: the bitfield claims blocks the
@@ -97,7 +96,7 @@ test('a post-load backfill failure keeps the drive and the record', async (t) =>
   const space = await createSpace('Backfill Space')
   const before = (await listSpaces()).length
   const open = getDrive(space.spaceId)
-  captureLog(t, 'warn', '[space]')
+  captureLog(t, 'warn', '[space-drives]')
   // markSpaceDriveKey / publishLooseCatalogKey both write the profile bee; fail every write.
   const { getProfileBee } = await import('../../src/shared/spaces/profile.js')
   const bee = getProfileBee()
@@ -122,7 +121,7 @@ test('REGRESSION (FIX-PENDING-SWALLOW-6): a failed leave-marker cleanup is visib
   const S = 'spaceswal0000000'
   await persistLeftTombstone(S, K, 100)
   await persistPendingLeave(S, 'ab'.repeat(32), 1)
-  const warns = captureLog(t, 'warn', '[space]')
+  const warns = captureLog(t, 'warn', '[leave-records]')
   failSpacesDel(t, () => true)
 
   // Both are non-throwing by contract — callers ignore the result.
