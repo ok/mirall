@@ -53,7 +53,7 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 ## Scaffolding convention
 
 - Self-contained single HTML file at `.claude/mockups/<name>.html`. No build step.
-- **Copy the head verbatim from an existing mockup** (`membership-approval.html` or
+- **Copy the head verbatim from an existing mockup** (`invite-approval-ux-v2.html` or
   `space-folder-sync.html`): the CSS custom-property token block (light + `.dark`), the
   Tailwind CDN + `tailwind.config` color/font mapping, the Google-Fonts link (Manrope +
   Plus Jakarta Sans), the `.device-frame` window chrome (traffic lights + "Mirall"), and
@@ -101,5 +101,5 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 - `design.md` — the visual language (mandatory grounding truth).
 - `.claude/testing.md` §2 — the accessibility bar mockups must depict.
 - `src/renderer/**` + `src/renderer/locales/**` — the implemented baseline (always the truth).
-- Scaffolding templates: `.claude/mockups/membership-approval.html`,
+- Scaffolding templates: `.claude/mockups/invite-approval-ux-v2.html`,
   `.claude/mockups/space-folder-sync.html`.

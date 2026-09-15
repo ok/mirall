@@ -9,7 +9,7 @@ The store's `loading` is raised again on every refetch of a settled entry. A hoo
 only while its entry has never answered — `data === undefined && fetching`, or the same test over
 every entry it reads — so a hint-driven refetch keeps the rows, the scroll position and the
 empty-state choice on screen instead of blinking a spinner. A boot or route gate asks "has an answer
-landed?" (`data !== undefined || error != null`, see `../profileGate.js`), never the store flag:
+landed?" (`data !== undefined || error != null`, see `../model/profile-gate.js`), never the store flag:
 gating a subtree on it is a remount loop.
 
 ## How a hook re-derives
@@ -32,7 +32,7 @@ local state only.
 `SpaceView` and `FolderView` re-render once a second under the decoration heartbeat while any
 transfer is live, and every row and tile is `memo`'d against that. The contract both sides keep:
 every prop a row receives is a primitive, a row object reconciled for identity
-(`../shareFilesReconcile.js`), a per-key value from a Map (decoration, download summary), or a
+(`../model/share-files-reconcile.js`), a per-key value from a Map (decoration, download summary), or a
 handler whose identity is stable across renders. A hook that hands a callback to rows wraps it in
 `useCallback` over nothing but ids, or defines it at module level; a fresh closure per render makes
 every row's shallow compare fail and repaints the whole list on each heartbeat.

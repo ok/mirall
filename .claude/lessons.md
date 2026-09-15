@@ -68,7 +68,7 @@ Testing/a11y **discipline** — the layers, the change-type→coverage matrix, t
 
 **A screen prop can change without a remount, and a `useState` initializer never re-runs.** `ScreenRouter` renders each screen from a `switch` with no `key`, so switching between two spaces while staying on `space-view` (an OS-notification click does this) reuses the SAME `<SpaceView>` instance with a new `spaceId` — any per-entity state seeded in a `useState` initializer keeps the previous entity's value. Fix in the hook by adjusting state during render (`const [prev, setPrev] = useState(id); if (prev !== id) { setPrev(id); setValue(read(id)) }`), not in an effect, which paints one frame of the wrong entity first.
 
-**A boot-time config snapshot must be written THROUGH, never around.** `src/renderer/config-client.ts` caches main's `config.json` once at boot and never re-reads it, so a setter that persists over its own IPC channel without mutating the cache (the theme toggle did, via `theme:set`) looks right until the control remounts and then snaps back to the boot value. Tell: a setting that "reverts every visit" while the file on disk is correct. Fix: every `getXPref` has a `setXPref` that mutates the cache first (`setThemePref` in `theme.ts`), and no component writes a cached value through a dedicated channel.
+**A boot-time config snapshot must be written THROUGH, never around.** `src/renderer/platform/config-client.ts` caches main's `config.json` once at boot and never re-reads it, so a setter that persists over its own IPC channel without mutating the cache (the theme toggle did, via `theme:set`) looks right until the control remounts and then snaps back to the boot value. Tell: a setting that "reverts every visit" while the file on disk is correct. Fix: every `getXPref` has a `setXPref` that mutates the cache first (`setThemePref` in `theme.ts`), and no component writes a cached value through a dedicated channel.
 
 ## Membership / replication convergence
 
@@ -222,7 +222,7 @@ outlives a tick is a bug until proven otherwise.
 
 **A packaged GUI app's argv is written by the OS, so a strict CLI parse at module top is a crash waiting to happen.** Windows and Linux hand a clicked `mirall://join/<code>` deep link to the process as a bare positional (macOS uses the `open-url` event instead), and paparam is strict by default — the URL bailed `UNKNOWN_ARG` while `main.js` was still evaluating, which surfaces as Electron's "A JavaScript error occurred in the main process" dialog: no window, no deep-link dispatch, and no `second-instance` handoff either, because the second process dies before `requestSingleInstanceLock` ever runs. It reads to the user as "the invite link is broken" while the bare code pasted into the UI works fine. Split OS-supplied positionals out *before* parsing and downgrade any remaining bail to a warning — a surprising argv may cost a flag, never the app. Declaring one offender at a time (`--no-sandbox`, for Linux AppRun) only patches the case you already hit.
 
-**A deep link that round-trips through a browser or chat client can come back with a trailing slash.** `mirall://join/<code>/` failed while the bare `<code>` worked, because the extractor stripped only LEADING slashes and the survivor failed base64url validation. Neither hex nor base64url contains `/`, so strip both ends. The extractor exists in three hand-mirrored copies (`src/main/deeplink.js`, `src/shared/invite-envelope.js`, `src/renderer/invite-envelope.ts`) — a fix to one is a standing bug in the other two; only the first two have test coverage.
+**A deep link that round-trips through a browser or chat client can come back with a trailing slash.** `mirall://join/<code>/` failed while the bare `<code>` worked, because the extractor stripped only LEADING slashes and the survivor failed base64url validation. Neither hex nor base64url contains `/`, so strip both ends. The extractor exists in two hand-mirrored copies (`src/main/deeplink.js`, `src/shared/contract/invite-envelope.js`) — a fix to one is a standing bug in the other; both carry test coverage.
 
 **A `bare -e "require('x')"` that succeeds from the repo root proves nothing.** Bare resolves through `node_modules/`, so a module that is only a transitive **devDependency** answers the probe and is then absent from a production install and from the packaged app. `string_decoder` looks available to the worker for exactly this reason (it arrives under `@electron-forge/cli` → `@electron/rebuild` → `ora` → `bl` → `readable-stream`); the same script run from `/tmp` gives `MODULE_NOT_FOUND`. Confirm with `npm ls <pkg>` before depending on anything in `src/shared/`, and run the probe from outside the repo. Bare genuinely has no `TextDecoder` either — asserted by `test/unit/invite-envelope.test.js`.
 
@@ -333,7 +333,7 @@ of them.
 **The rule:** a boot or route gate asks "has an answer ever landed", not "is a read in
 flight" — `data !== undefined || error !== null`. Better, hand the decision to a pure
 projection that is never given `loading`, so the mistake cannot be expressed:
-`src/renderer/profileGate.js`, guarded by `test/unit/profile-gate.test.js`.
+`src/renderer/model/profile-gate.js`, guarded by `test/unit/profile-gate.test.js`.
 
 
 ## A hook that writes shared state amplifies by mount count
@@ -451,7 +451,7 @@ integration suite is built on, mounts with exactly that ownerKey.
 
 `share-listing.js` already carries the special case (`isOwn ? true : deps.isOwnerOnline(...)`) and
 so does `ownerLeftSpace`. Any third consumer needs it too — which is the argument for one pure
-predicate (`mirror-reach.js`) over a hand-rolled copy per call site.
+predicate (`mirror-policy.js`) over a hand-rolled copy per call site.
 
 **Related:** an integration test cannot fake an *offline remote* owner. A fabricated ownerKey makes
 `loadShareForForeignMount` → `readPeerShares` return null, so the pass exits at `if (!share)` before
@@ -474,7 +474,7 @@ actually observed (`unavailable,synced` — never `downloading`).
 **Generalisation:** when a red-first test goes green too easily, print what it observed rather than
 trusting the assertion. A guard that cannot fail is worse than no guard.
 
-**A green suite proves the mode it ran in, not the mode you ship.** Almost every integration and flow peer booted with no master secret, so `hasMasterSecret()` — the second half of the v1/v2 gate, behind the flag everyone was looking at — made every test space the retired unencrypted shape, and every destructive path (leave, purge, reclaim, shutdown) was exercised in the one mode production never uses. `test/helpers/modes.js` said in a comment that both modes *must* be covered, and was wired into three files. Flipping the harness to always mint an identity surfaced four defects at once: `SpaceDrives._close()` closing the ROOT corestore (so the serve ledger's audit row was lost on every quit, swallowed by a debug-level catch), a member view leaking a peer bee per roster key, the leftover scan reading every candidate with no encryption key (so every SCK-encrypted core classified as `'other'` and the "no leftovers remain" assertions passed vacuously), and flat peer storage dirs colliding on one `identity.enc`. Two tests were *passing while asserting nothing* — a reboot without its master secret opens a different, empty core set, and a structural test's `indexOf` on a renamed function returned -1 and sliced the whole file. When a subsystem has a mode fork, check which mode the tests actually run in before trusting any of them.
+**A green suite proves the mode it ran in, not the mode you ship.** Almost every integration and flow peer booted with no master secret, so `hasMasterSecret()` — the second half of the v1/v2 gate, behind the flag everyone was looking at — made every test space the retired unencrypted shape, and every destructive path (leave, purge, reclaim, shutdown) was exercised in the one mode production never uses. `test/helpers/modes.js` (retired with v1 spaces) said in a comment that both modes *must* be covered, and was wired into three files. Flipping the harness to always mint an identity surfaced four defects at once: `SpaceDrives._close()` closing the ROOT corestore (so the serve ledger's audit row was lost on every quit, swallowed by a debug-level catch), a member view leaking a peer bee per roster key, the leftover scan reading every candidate with no encryption key (so every SCK-encrypted core classified as `'other'` and the "no leftovers remain" assertions passed vacuously), and flat peer storage dirs colliding on one `identity.enc`. Two tests were *passing while asserting nothing* — a reboot without its master secret opens a different, empty core set, and a structural test's `indexOf` on a renamed function returned -1 and sliced the whole file. When a subsystem has a mode fork, check which mode the tests actually run in before trusting any of them.
 
 **After a rebase, the targeted test set is "what the incoming commits added", not "what my change touched".** Dropping the integration suite on the reasoning that the incoming PR's area did not intersect this branch missed the obvious: it did not have to touch this code to break — it only had to add a *test* that creates a space keyless, which the new identity guard now rejects. CI found it in the one suite that was skipped. Merge cleanly + typecheck green says nothing about tests the other side brought with it.
 
@@ -542,7 +542,7 @@ cycle per merge.
 
 ## A suite that dies mid-run still prints a near-perfect count
 
-`until()` (`test/flow/helpers/peer.js`) throws on timeout, the throw escapes uncaught, brittle
+`until()` (`test/helpers/peer.js`) throws on timeout, the throw escapes uncaught, brittle
 records no `not ok`, and the runner dies. One run printed `201/202` with **zero** failures
 listed while 172 tests never executed. The failing test's name is lost with it, so a red has to
 be characterised by isolation runs instead of read off the log.
@@ -744,7 +744,7 @@ them. Either run the codemod before the move, or follow it with a repair pass.
 **The dangerous one.** The repair pass located a broken specifier by basename: "this `./ipc.js`
 does not resolve, and exactly one `ipc.js` exists in the tree, so point at that." In the data layer
 that is sound — it is all `.js`. In the renderer it is not: `./ipc.js` resolves to
-`src/renderer/ipc.ts` under `moduleResolution: bundler`, so `existsSync('…/ipc.js')` returns false,
+`src/renderer/ipc/ipc.ts` under `moduleResolution: bundler`, so `existsSync('…/ipc.js')` returns false,
 the only on-disk `ipc.js` is the **worker's** `src/shared/core/ipc.js`, and 37 renderer files were
 rewritten to import the data layer's IPC router instead of their own. `tsc` still passed, because
 the target is a real module with a `request` export.

@@ -77,7 +77,7 @@ returns a decision is named for the decision (`supersedeDecision`, `stallVerdict
 **One word, one concept.** Word collisions across the data layer are the single biggest navigation
 tax here, because they make `grep` lie. Respect these splits:
 
-- *presence* = peer liveness (`state/presence.js`, `network/presence-broadcast.js`). File-on-disk
+- *presence* = peer liveness (`network/presence.js`, `network/presence-broadcast.js`). File-on-disk
 presence is *retire-confirm* / *disk-presence*.
 - *admission* = membership gating. The download engine's slot gating is a *fetch gate*.
 - *diagnostics*: `network/support-bundle.js` = support bundle; `swarm-diagnostics.js` = live status;

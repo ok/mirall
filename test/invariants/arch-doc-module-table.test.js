@@ -54,3 +54,20 @@ test('every data-layer, main and worker module has a §11 row', (t) => {
   const unlisted = actual.filter((p) => !listed.has(p))
   t.alike(unlisted, [], 'source files with no §11 row')
 })
+
+// The same rot outside §11: `.claude/` prose names full `src/…` paths too, and the Tier 4 buckets
+// moved 53 renderer modules out from under them. Only full paths are held — a bare filename in a
+// lesson is often a deliberate mention of something since deleted, a full path never is.
+const DOCS = readdirSync(path.join(root, '.claude')).filter((f) => f.endsWith('.md'))
+
+test('every src path the .claude docs name exists', (t) => {
+  const missing = []
+  for (const doc of DOCS) {
+    const text = readFileSync(path.join(root, '.claude', doc), 'utf8')
+    for (const m of text.matchAll(/`(src\/[^`\s]+\.(?:js|ts|tsx|cjs|mjs|json|css))`/g)) {
+      if (/[*?[\]{}]/.test(m[1])) continue
+      if (!existsSync(path.join(root, m[1]))) missing.push(`${doc}: ${m[1]}`)
+    }
+  }
+  t.alike(missing.sort(), [], 'docs name source files that do not exist')
+})
