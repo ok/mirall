@@ -1,13 +1,13 @@
 import test from 'brittle'
+import { PUBLISH_ORDERS } from '../../src/shared/contract/paths.js'
 import {
-  PUBLISH_ORDERS as CONFIG_ORDERS, setRuntimeConfig, getRuntimeConfig, getPublishConcurrency, getPublishOrder,
+  setRuntimeConfig, getRuntimeConfig, getPublishConcurrency, getPublishOrder,
   getPublishStallWindowMs, getReconcileStallWindowMs, getSupervisionRecoverBudgetMs, getConvergenceStallWindowMs,
 } from '../../src/shared/core/runtime-config.js'
-import { PUBLISH_ORDERS as ITEM_ORDERS, comparatorFor } from '../../src/shared/folders/work-item.js'
+import { comparatorFor } from '../../src/shared/folders/work-item.js'
 
-test('runtime-config and work-item agree on the valid publish orders', (t) => {
-  t.alike(CONFIG_ORDERS, ITEM_ORDERS)
-  for (const name of CONFIG_ORDERS) t.is(typeof comparatorFor(name), 'function', name + ' has a comparator')
+test('every declared publish order has a comparator', (t) => {
+  for (const name of PUBLISH_ORDERS) t.is(typeof comparatorFor(name), 'function', name + ' has a comparator')
 })
 
 test('publishOrder defaults to smallest-first and rejects unknown names', (t) => {

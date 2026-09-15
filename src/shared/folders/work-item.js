@@ -6,8 +6,6 @@ export const STATE = { QUEUED: 'queued', RUNNING: 'running', DONE: 'done', FAILE
 // INTERACTIVE = the user just did this (a watcher event); BULK = a reconcile backfill.
 export const PRIORITY = { BULK: 0, INTERACTIVE: 1 }
 
-export { PUBLISH_ORDERS } from '../contract/paths.js'
-
 export function itemKey(shareId, relPath) {
   return shareId + '\0' + relPath
 }
