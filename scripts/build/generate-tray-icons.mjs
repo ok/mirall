@@ -31,13 +31,13 @@ import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import { execFileSync } from 'node:child_process'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const OUT = path.join(ROOT, 'resources', 'tray')
 fs.mkdirSync(OUT, { recursive: true })
 
 const BRAND_SVG = path.join(ROOT, 'resources', 'brand', 'mirall-icon.svg')
 const ELECTRON = path.join(ROOT, 'node_modules', '.bin', 'electron')
-const RASTERIZE = path.join(ROOT, 'scripts', 'rasterize-svg.cjs')
+const RASTERIZE = path.join(ROOT, 'scripts', 'build', 'rasterize-svg.cjs')
 
 // Menu-bar geometry, in 1x points. 14 of 16 matches the optical size of the
 // template this replaces; the glyph is near-square, so the canvas is only a
