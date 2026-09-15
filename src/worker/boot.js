@@ -34,19 +34,21 @@ import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
+import { Swarm } from '../shared/network/swarm.js'
+import { joinSpaceTopic } from '../shared/network/space-topics.js'
 import {
-  Swarm,
-  joinSpaceTopic,
   broadcastDeparture,
   broadcastSharePrepareProgress,
   broadcastShareIndexProgress,
+} from '../shared/network/presence-broadcast.js'
+import {
   configurePendingLeaves,
   registerPendingLeave,
   joinPendingLeaveTopic,
   leavePendingLeaveTopic,
   configurePendingCancels,
   leavePendingCancelTopic,
-} from '../shared/network/swarm.js'
+} from '../shared/network/leave-protocol.js'
 import { setRelayThrough } from '../shared/network/relay-install.js'
 import { compactStore } from '../shared/storage/compaction.js'
 import { ContentSwarm } from '../shared/network/content-swarm.js'

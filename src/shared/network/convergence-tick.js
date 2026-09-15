@@ -15,19 +15,19 @@ import { takeIncompleteListSpaces } from '../transfer/list-deficits.js'
 import { rosterDeficits, recomputeMemberView, scheduleCapture, captureDeficits } from '../spaces/member-registry.js'
 import { isSpaceLeaving } from './leave-protocol.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, announceLedger } from './swarm-registries.js'
+import { sendSingleHandshake } from './identity-frames.js'
+import { createLogger } from '../core/logger.js'
 
-let log = null
-let sendSingleHandshake = null
-// The stalled-owner probe is a swarm.js slot filled from the Swarm subsystem's constructor deps,
-// read at call time — a nullable slot with a setter would be a silent no-op when nobody sets it.
+let log = createLogger('convergence-tick')
+// The stalled-owner probe is filled from the Swarm subsystem's constructor deps, read at call
+// time — a nullable slot with a setter would be a silent no-op when nobody sets it.
 let getStalledOwners = () => null
-// Read at call time, not captured: initSwarm and destroySwarm reassign both handles.
+// Read at call time, not captured: the Swarm subsystem reassigns both handles.
 let getSwarm = () => null
 let getIpc = () => null
 
 export function initConvergenceTick(deps) {
-  log = deps.log
-  sendSingleHandshake = deps.sendSingleHandshake
+  if (deps.log) log = deps.log
   getStalledOwners = deps.getStalledOwners
   getSwarm = deps.getSwarm
   getIpc = deps.getIpc

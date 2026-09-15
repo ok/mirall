@@ -4,7 +4,8 @@ import idEncoding from 'hypercore-id-encoding'
 import { localTestnet } from '../helpers/testnet.js'
 import { setRuntimeConfig, setRelayConfig } from '../../src/shared/core/runtime-config.js'
 import crypto from 'hypercore-crypto'
-import { Swarm, getSwarmDht, getSwarmStatus } from '../../src/shared/network/swarm.js'
+import { Swarm } from '../../src/shared/network/swarm.js'
+import { getSwarmStatus } from '../../src/shared/network/connectivity.js'
 import { setRelayThrough, testRelayReachable } from '../../src/shared/network/relay-install.js'
 import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
@@ -186,23 +187,23 @@ test('relay counters are surfaced and dedup-visible', async (t) => {
 // the key is the one the operator's roster holds.
 test('a private relay pins the DHT node identity to the ticket seed', async (t) => {
   const seedHex = '9d73b3a76df0938ff055a76e4c096c54cc245b35d4db31b582faba9dde94ae4e'
-  await bootSwarms(t, {
+  const { swarm } = await bootSwarms(t, {
     relaySeedHex: seedHex,
     relayMode: 'auto',
     relay: { publicKey: KEY_A, kind: 'private', enabled: true },
   })
   const expected = crypto.keyPair(b4a.from(seedHex, 'hex')).publicKey
-  t.alike(getSwarmDht().defaultKeyPair.publicKey, expected, 'the key the relay firewall matches')
+  t.alike(swarm.dht.defaultKeyPair.publicKey, expected, 'the key the relay firewall matches')
 })
 
 test('with no seed the node identity stays ephemeral', async (t) => {
   const first = await bootSwarms(t)
-  const firstKey = b4a.from(getSwarmDht().defaultKeyPair.publicKey)
+  const firstKey = b4a.from(first.swarm.dht.defaultKeyPair.publicKey)
   await first.content.close()
   await first.swarm.close()
 
-  await bootSwarms(t)
-  t.absent(b4a.equals(firstKey, getSwarmDht().defaultKeyPair.publicKey),
+  const second = await bootSwarms(t)
+  t.absent(b4a.equals(firstKey, second.swarm.dht.defaultKeyPair.publicKey),
     'a relay that admits everyone gets no durable name for us')
 })
 
@@ -212,7 +213,7 @@ test('a pinned relay identity does not touch either peer-facing key', async (t) 
     relayMode: 'auto',
     relay: { publicKey: KEY_A, kind: 'private', enabled: true },
   })
-  const dht = getSwarmDht()
+  const dht = swarm.dht
   t.absent(b4a.equals(swarm.dht.defaultKeyPair.publicKey, getContentSwarm().keyPair.publicKey), 'content plane')
   // Both planes share one DHT node, so one enrolment covers both roles — which is what the
   // relay's per-key session cap assumes.
@@ -236,7 +237,7 @@ test('a private relay is never offered on the announce path', async (t) => {
 // constructing it ourselves must not leak a live node.
 test('the shared DHT node still dies with the swarm', async (t) => {
   const { swarm, content } = await bootSwarms(t)
-  const dht = getSwarmDht()
+  const dht = swarm.dht
   await content.close()
   await swarm.close()
   t.is(dht.destroyed, true)

@@ -27,19 +27,17 @@ import { markLeft } from '../spaces/member-registry.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
+import { getLocalBinding } from './identity-frames.js'
+import { presence } from './presence-leases.js'
 
-let presence = null
 let log = null
-let getLocalBinding = () => null
 let getRevokeServesHook = () => null
-// Read at call time, not captured: initSwarm and destroySwarm reassign both handles.
+// Read at call time, not captured: the Swarm subsystem reassigns both handles.
 let getSwarm = () => null
 let getIpc = () => null
 
 export function initLeaveProtocol(deps) {
-  presence = deps.presence
   log = deps.log
-  getLocalBinding = deps.getLocalBinding
   getRevokeServesHook = deps.getRevokeServesHook
   getSwarm = deps.getSwarm
   getIpc = deps.getIpc

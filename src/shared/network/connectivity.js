@@ -4,6 +4,7 @@
 // the renderer renders from. It reads the swarm handle and reports; it never joins, dials or admits.
 import b4a from 'b4a'
 import os from 'bare-os'
+import fs from 'bare-fs'
 import crypto from 'hypercore-crypto'
 import idEncoding from 'hypercore-id-encoding'
 import { getUpgradeKey } from '../core/runtime-config.js'
@@ -15,14 +16,39 @@ import {
   LIVENESS_FAILURES_FOR_OFFLINE,
 } from '../core/reachability.js'
 import { spaceTopics, spaceDiscoveries } from './swarm-registries.js'
+import { createSwarmDiagnostics } from './swarm-diagnostics.js'
+import { relaySelectionCount } from './relay-install.js'
+import { createLogger } from '../core/logger.js'
 
-let log = null
-let diag = null
-let dhtVersion = 'unknown'
-let getDroppedFrameCounters = () => ({})
-// Read at call time, not captured: initSwarm and destroySwarm reassign both handles.
+const DHT_VERSION = (() => {
+  try {
+    // Three levels up: this file is src/shared/network/, so ../../ would land on src/, where there
+    // is no node_modules.
+    const url = new URL('../../../node_modules/hyperdht/package.json', import.meta.url)
+    const pkg = JSON.parse(fs.readFileSync(url, 'utf8'))
+    return typeof pkg.version === 'string' ? pkg.version : 'unknown'
+  } catch {
+    return 'unknown'
+  }
+})()
+
+// Read at call time, not captured: the Swarm subsystem reassigns both handles across a restart.
 let getSwarm = () => null
 let getIpc = () => null
+// The frame counters belong to the intake, which reaches back here for the status emit — so they
+// arrive by injection rather than by an import that would close that loop. Unwired reads empty,
+// which is the true answer when no swarm ever started.
+let getDroppedFrameCounters = () => ({})
+
+// Defaults, not placeholders: status is answerable whether or not a Swarm subsystem was ever
+// opened — a boot with the swarm off still serves network:status and the diagnostics bundle.
+let log = createLogger('connectivity')
+let dhtVersion = DHT_VERSION
+let diag = createSwarmDiagnostics({
+  getSwarm: () => getSwarm(),
+  getRelaySelections: relaySelectionCount,
+  getDhtVersion: () => dhtVersion,
+})
 
 // One owned set for all six timers below. They interlock — the dwell recheck schedules the status
 // emit, the liveness retry re-arms the liveness loop — so a bulk stop that reaches every one of
@@ -31,13 +57,15 @@ let getIpc = () => null
 // createTimers() is usable standalone; a lifecycle class for six timers would be apparatus.
 let timers = createTimers()
 
+// Only the two swarm-scoped handles are required; the rest override the defaults above and are
+// supplied by tests that drive this module standalone.
 export function initConnectivity(deps) {
-  log = deps.log
-  diag = deps.diag
-  dhtVersion = deps.dhtVersion
-  getDroppedFrameCounters = deps.getDroppedFrameCounters
-  getSwarm = deps.getSwarm
-  getIpc = deps.getIpc
+  if (deps.log) log = deps.log
+  if (deps.diag) diag = deps.diag
+  if (deps.dhtVersion) dhtVersion = deps.dhtVersion
+  if (deps.getDroppedFrameCounters) getDroppedFrameCounters = deps.getDroppedFrameCounters
+  getSwarm = deps.getSwarm || (() => null)
+  getIpc = deps.getIpc || (() => null)
 }
 
 let dhtReady = false
@@ -600,8 +628,10 @@ export async function reconnectAll() {
 
 // What destroySwarm calls. The SET is closed, not the six handles, so a timer added later is
 // stopped too; the handles are still nulled because the arm sites guard on them. A fresh set
-// replaces the closed one — destroySwarm and initSwarm cycle within one process.
+// replaces the closed one — the Swarm subsystem opens and closes repeatedly within one process.
 export function resetConnectivity() {
+  getSwarm = () => null
+  getIpc = () => null
   timers.close()
   timers = createTimers()
   dwellTimer = null

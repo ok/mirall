@@ -128,24 +128,26 @@ test('a maximal join request is admitted by the intake that judges it', (t) => {
 test('an oversize frame is reported by its sender, at error level', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
   const transfer = path.join(here, '..', '..', 'src', 'shared', 'network')
-  const src = fs.readFileSync(path.join(transfer, 'swarm.js'), 'utf8')
-  const senderAt = src.indexOf('function sendFrame(')
+  const src = fs.readFileSync(path.join(transfer, 'identity-frames.js'), 'utf8')
+  const senderAt = src.indexOf('export function sendFrame(')
   t.ok(senderAt >= 0, 'found sendFrame — a marker that stops matching makes the rest vacuous')
-  const sender = src.slice(senderAt, src.indexOf('async function sendSingleHandshake(', senderAt))
+  const senderEnd = src.indexOf('async function sendIdentityFrame(', senderAt)
+  t.ok(senderEnd >= 0, 'found the end marker')
+  const sender = src.slice(senderAt, senderEnd)
 
   t.ok(/getPeerFrameMaxBytes\(\)/.test(sender), 'the send path measures against the same cap the intake enforces')
   t.ok(/log\.error\(/.test(sender), 'and says so at error level, not warn')
   t.ok(/frame\.type/.test(sender), 'naming the frame type that overflowed')
 
   // Each frame is checked in whichever module builds it: the membership frames are addressed, so
-  // they live apart from the swarm that carries them, and the property is per-builder.
+  // they live apart from the identity frames that announce us, and the property is per-builder.
   const builders = {
-    'type: PEER_FRAME.MEMBERSHIP_REQUEST': 'swarm.js',
-    'type: PEER_FRAME.HANDSHAKE': 'swarm.js',
+    'type: PEER_FRAME.MEMBERSHIP_REQUEST': 'identity-frames.js',
+    'type: PEER_FRAME.HANDSHAKE': 'identity-frames.js',
     'type: PEER_FRAME.MEMBERSHIP_GRANT': 'membership-frames.js',
   }
   for (const [frameType, file] of Object.entries(builders)) {
-    const text = file === 'swarm.js' ? src : fs.readFileSync(path.join(transfer, file), 'utf8')
+    const text = file === 'identity-frames.js' ? src : fs.readFileSync(path.join(transfer, file), 'utf8')
     const at = text.indexOf(frameType)
     t.ok(at >= 0, frameType + ' is built in ' + file)
     t.ok(text.lastIndexOf('sendFrame(', at) > text.lastIndexOf('.send(JSON.stringify(', at),

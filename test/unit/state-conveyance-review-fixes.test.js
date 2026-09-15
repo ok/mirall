@@ -12,7 +12,7 @@ const membership = src('worker/ipc/membership.js')
 // the swarm, and the worker's handler modules under ipc/.
 const boot = src('worker/boot.js')
 const mountsRuntime = src('worker/mounts-runtime.js')
-const swarm = src('shared/network/swarm.js')
+const swarm = src('shared/network/handshake-apply.js')
 const spaceLeave = src('worker/ipc/space-leave.js')
 
 // These pin worker-orchestration fixes from the state-conveyance code review that can't be driven

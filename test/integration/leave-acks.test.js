@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { leaveAcksSatisfied, awaitLeaveAcks } from '../../src/shared/network/swarm.js'
+import { leaveAcksSatisfied, awaitLeaveAcks } from '../../src/shared/network/leave-protocol.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // Phase 3: the leaver waits (bounded) for connected members to confirm they applied the leave — an

@@ -16,14 +16,14 @@ import {
 } from '../../shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../shared/spaces/space-lifecycle.js'
 import { clearPendingLeave } from '../../shared/spaces/leave-records.js'
+import { getConnectedPeers } from '../../shared/network/presence-leases.js'
+import { joinSpaceTopic } from '../../shared/network/space-topics.js'
 import {
-  getConnectedPeers,
   isSpaceLeaving,
-  joinSpaceTopic,
   hasPendingLeave,
   unregisterPendingLeave,
   leavePendingLeaveTopic,
-} from '../../shared/network/swarm.js'
+} from '../../shared/network/leave-protocol.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../../shared/folders/mirror-registry.js'
 import { setSpaceDownloadRoot } from '../../shared/core/paths.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'

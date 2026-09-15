@@ -8,7 +8,7 @@
 import { serveIndex } from './backends/overlay/overlay-serve-index.js'
 import { record } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from './serve-sessions.js'
-import { getConnectedMemberMeta } from '../network/swarm.js'
+import { getConnectedMemberMeta } from '../network/swarm-registries.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'

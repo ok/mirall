@@ -1,5 +1,6 @@
 import test from 'brittle'
-import { cleanupSpaceDrives, getBoundSignerKey } from '../../src/shared/network/swarm.js'
+import { cleanupSpaceDrives } from '../../src/shared/network/space-topics.js'
+import { getBoundSignerKey } from '../../src/shared/network/swarm-registries.js'
 import { connectedPeers, boundSignerKeys, pendingRequesters, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 
 // boundSignerKeys is the ONLY source a membership:grant seals an SCK against (worker/ipc/membership.js

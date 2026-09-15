@@ -8,7 +8,7 @@ import {
   probeCanary,
   setBrowserOnlineHint,
   checkLivenessNow,
-} from '../../shared/network/swarm.js'
+} from '../../shared/network/connectivity.js'
 import { testRelayReachable } from '../../shared/network/relay-install.js'
 
 export function registerNetwork(ipc, { applyRelayConfig }) {

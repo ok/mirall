@@ -8,21 +8,22 @@ import { PEER_FRAME } from '../contract/peer-frames.js'
 import { getSpace, listSpaces } from '../spaces/space.js'
 import { listJoinRequests, getConvergingMember } from '../spaces/join-requests.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
+import { createLogger } from '../core/logger.js'
 
 // 'spaceId:joinerKey' currently being admitted via reconcile, so a concurrent trigger cannot start
 // a second identical pass.
 const pendingAdmitInflight = new Set()
 
 let getGates = () => null
-let log = null
+let log = createLogger('deferred-admission')
 let handleHandshake = null
 let sendSingleHandshake = null
-// Read at call time: initSwarm and destroySwarm reassign the handle.
+// Read at call time: the Swarm subsystem reassigns the handle.
 let getIpc = () => null
 
 export function initDeferredAdmission(deps) {
   getGates = deps.getGates
-  log = deps.log
+  if (deps.log) log = deps.log
   handleHandshake = deps.handleHandshake
   sendSingleHandshake = deps.sendSingleHandshake
   getIpc = deps.getIpc

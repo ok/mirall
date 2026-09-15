@@ -8,7 +8,7 @@
 import { MOUNT_STATUS, MIRROR_STATE } from '../contract/statuses.js'
 import fs from 'bare-fs'
 
-import { onPeerOnline } from '../network/swarm.js'
+import { onPeerOnline } from '../network/handshake-apply.js'
 
 import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'

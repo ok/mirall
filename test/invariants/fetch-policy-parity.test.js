@@ -76,7 +76,7 @@ test('both producers preflight free space through one rule', (t) => {
 // One edge, one dispatcher. The offline fix left two hooks fired back to back for the same event
 // because there was no shared one to join; that is the shape this forbids.
 test('the peer-online edge has one dispatcher, not one hook per producer', (t) => {
-  const src = read('shared/network/swarm.js')
+  const src = read('shared/network/handshake-apply.js')
   t.absent(/peerOnlineHook\?\.\(/.test(src), 'no per-producer hook call')
   t.ok(/for \(const fn of peerOnlineHooks\)/.test(src), 'a single subscriber loop')
 })
