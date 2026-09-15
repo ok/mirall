@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import {
-  createSpace, joinSpace, getSpace, getDrive, purgeSpaceDrive, removeSpace, materializeOwnDrive,
+  createSpace, joinSpace, getSpace, getDrive, purgeSpaceDrive, purgeSpace, materializeOwnDrive,
 } from '../../src/shared/spaces/space.js'
 
 // Leaving a space purges its drive (cores + alias). A later re-join of the same topic must NOT
@@ -40,7 +40,7 @@ test('re-joining after a purge gets a fresh, empty, writable drive (no zombie-al
 
   // Simulate leave: purge the drive (frees the alias) + drop the space record.
   await purgeSpaceDrive(space.spaceId)
-  await removeSpace(space.spaceId)
+  await purgeSpace(space.spaceId)
 
   // Re-join the same topic. A join is always pending and mints a fresh driveSuffix — never the
   // purged alias — and the writable drive is built from it when the grant lands.

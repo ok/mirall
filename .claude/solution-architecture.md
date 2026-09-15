@@ -555,11 +555,10 @@ When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` op
 
 ## 5. Invitation Mechanism
 
-1. Creator generates a space → 32-byte random topic → formatted invite code.
-2. Code displays as dashed 8-char segments (`formatInviteCode`).
-3. Joiner pastes the code or clicks a deep link; `decodeInvite` recovers the topic and any metadata.
-4. Joiner's app creates a local drive (same namespace scheme), stores metadata, joins the topic.
-5. On first connection the protomux handshake exchanges drive keys; reciprocal handshake + Corestore replication do the rest.
+1. Creator generates a space → 32-byte random topic → invite code (`encodeInvite`, §5.1).
+2. Joiner pastes the code or clicks a deep link; `decodeInvite` recovers the topic and any metadata.
+3. Joiner's app creates a local drive (same namespace scheme), stores metadata, joins the topic.
+4. On first connection the protomux handshake exchanges drive keys; reciprocal handshake + Corestore replication do the rest.
 
 ### 5.1 Invite envelope formats
 

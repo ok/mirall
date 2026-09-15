@@ -142,16 +142,6 @@ function makeDriveSuffix() {
   return b4a.toString(crypto.randomBytes(8), 'hex')
 }
 
-// test seam
-export function formatInviteCode(topicHex) {
-  return topicHex.match(/.{1,8}/g).join('-')
-}
-
-// test seam
-export function parseInviteCode(code) {
-  return code.replace(/-/g, '')
-}
-
 let spacesBee
 let spacesStore = -1
 const drives = new Map()
@@ -392,13 +382,6 @@ export function removeMember(spaceId, publicKey) {
     const next = members.filter((m) => m.publicKey !== publicKey)
     return next.length === members.length ? null : next
   })
-}
-
-// test seam
-export async function removeSpace(spaceId) {
-  await clearAllLeftTombstones(spaceId)
-  await spacesBee.del('space/' + spaceId)
-  drives.delete(spaceId)
 }
 
 // Delete only the catalog record, keeping the drive in the in-memory map so a
