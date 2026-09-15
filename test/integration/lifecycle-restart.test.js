@@ -18,7 +18,7 @@ const { publishShare, generateShareId } = await import('../../src/shared/shares/
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount, createForeignMount } = await import('../../src/shared/folders/mount-store.js')
 const { onFsEvent } = await import('../../src/shared/folders/owned-watcher.js')
-const { startForeignLoop } = await import('../../src/shared/folders/foreign-folders.js')
+const { startForeignLoop } = await import('../../src/shared/folders/foreign-verbs.js')
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 

@@ -5,9 +5,9 @@ import { createLifecycle } from '../../src/shared/core/subsystem.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
 import { DEFAULT_POLICY } from '../../src/shared/core/supervision.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import {
-  ForeignMirrors, runMaterializeTick, mirrorHealth, unmountForeignFolder,
-} from '../../src/shared/folders/foreign-folders.js'
+import { ForeignMirrors, mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
+import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
+import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { wedgedMirror, waitUntil, delay } from '../helpers/wedged-mirror.js'
 

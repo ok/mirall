@@ -8,7 +8,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-folders.js'
+import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { waitFor } from './bare-poll.js'

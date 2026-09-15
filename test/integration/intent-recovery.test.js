@@ -53,7 +53,7 @@ test('a half-finished foreign unmount is completed at the next boot', async (t) 
   t.ok(await getForeignMount(space.spaceId, 'sh-2'), 'the mount record is still there — the half state')
 
   const recovering = createIntentLog({ bee: getIntentsBee })
-  const { unmountForeignFolder } = await import('../../src/shared/folders/foreign-folders.js')
+  const { unmountForeignFolder } = await import('../../src/shared/folders/foreign-verbs.js')
   recovering.register('foreign-unmount', async ({ spaceId, shareId }) => {
     await unmountForeignFolder(spaceId, shareId)
   })

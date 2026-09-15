@@ -14,6 +14,7 @@ import { createPreviewTally } from './preview-tally.js'
 import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError, countDiskFiles } from './walk-disk.js'
+import { loadShareForForeignMount } from './foreign-shares.js'
 
 const log = createLogger('foreign-preview')
 
@@ -23,13 +24,8 @@ const PREVIEW_PROGRESS_EVERY = 16
 // Resolve the peer share and enumerate its files from the overlay catalog.
 // Returns null when the share isn't visible / has no usable content backend.
 async function loadForeignListing(spaceId, ownerKey, shareId) {
-  const { readPeerShares } = await import('../shares/shares.js')
-  const shares = await readPeerShares(ownerKey, spaceId)
-  if (!shares) return null
-  const found = shares.find((s) => s.id === shareId)
-  if (!found) return null
-  const share = { ...found, spaceId, owner: ownerKey }
-  if (!hasContentBackend(share)) return null
+  const share = await loadShareForForeignMount({ spaceId, ownerKey, shareId })
+  if (!share || !hasContentBackend(share)) return null
   const backend = getContentBackend(share)
   const { entries } = await backend.listPeerWithMeta(spaceId, share)
   return dropUnsafeEntries(

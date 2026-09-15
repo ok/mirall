@@ -4,7 +4,8 @@ import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { getForeignMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { createLocalBee } from '../../src/shared/core/store.js'
-import { initialMaterializeScan, runMaterializeTick, unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
+import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
+import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 
 // Count Array.prototype.includes calls for the duration of a pass. A subclassed array cannot be
 // used here: the record round-trips through the bee's JSON encoding, which hands the loop a plain

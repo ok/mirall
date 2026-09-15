@@ -5,6 +5,7 @@
 // everything here is derived fresh from the catalog each tick, while mirror-fetch.js holds the
 // in-flight download, the attempt budget and the integrity ledger across passes.
 
+import fs from 'bare-fs'
 import { createLogger } from '../core/logger.js'
 
 import { MOUNT_STATUS } from '../contract/statuses.js'
@@ -13,36 +14,27 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { createMountProbe, materializeOverlayFile } from './mirror-fetch.js'
-import { mirrorMayFetch } from './mirror-policy.js'
+import { mirrorMayFetch, mirrorKey } from './mirror-policy.js'
 import { localRelOf } from './mirror-state.js'
 import { shouldWalk } from './mirror-policy.js'
 import { getForeignMount, patchForeignMount } from './mount-store.js'
 import { dropUnsafeEntries, relKeyEscapes, shouldHonorDeletions } from './path-keys.js'
+import { emitMirrorEvent, emitStatus, settleMirrorSyncState } from './mirror-signals.js'
+import { pathFromMount } from './path-guard.js'
+import { loadShareForForeignMount } from './foreign-shares.js'
 
 const log = createLogger('mirror-pass')
 
-// Injected by foreign-folders.js — the loop generation, the per-mount sync state, the IPC handle,
-// the pause ladder and the mount verbs the pass can trigger.
+// Injected by foreign-folders.js — the loop generation, the per-mount sync state and the orphan
+// check, which reaches the unmount verb and so cannot be imported here without closing a cycle.
 let state = null
 let loops = null
-let applyChange = async () => {}
-let emitStatus = () => {}
-let loadShareForForeignMount = async () => null
-let settleMirrorSyncState = async () => {}
 let maybeUnmountIfOwnerGone = async () => false
 
 export function initMirrorPass(d) {
   state = d.state
   loops = d.loops
-  applyChange = d.applyChange
-  emitStatus = d.emitStatus
-  loadShareForForeignMount = d.loadShareForForeignMount
-  settleMirrorSyncState = d.settleMirrorSyncState
   maybeUnmountIfOwnerGone = d.maybeUnmountIfOwnerGone
-}
-
-function loopKey(spaceId, shareId) {
-  return spaceId + ':' + shareId
 }
 
 const mirrorGen = (key) => loops.generationOf(key)
@@ -72,7 +64,7 @@ function mayFetch(mount) {
 }
 
 export async function runMaterializeTick(spaceId, shareId) {
-  return await loops.tick(loopKey(spaceId, shareId), { spaceId, shareId })
+  return await loops.tick(mirrorKey(spaceId, shareId), { spaceId, shareId })
 }
 
 export async function materializeOnce(spaceId, shareId) {
@@ -138,8 +130,44 @@ async function materializeEntries(mount, share, entries, { key, gen, synced, fre
   return { allPresent, noPeers: false, stopped: false }
 }
 
-export async function initialMaterializeScanCatalog(mount, share) {
-  const key = loopKey(mount.spaceId, mount.shareId)
+// The initial scan is launched unawaited at boot and on a fresh mount, and it walks the whole
+// catalog — so it is exactly the kind of in-flight pass stopAllForeignLoops has to wait for. It
+// honours the generation internally (bails between files, re-checks before the trailing persist),
+// but the bulk stop can only WAIT for what it sees, hence the same in-flight map the poll tick uses.
+export async function initialMaterializeScan(mount) {
+  const key = mirrorKey(mount.spaceId, mount.shareId)
+  state.forgetConverged(key)
+  return await loops.adopt(key, runInitialMaterializeScan(mount), { spaceId: mount.spaceId, shareId: mount.shareId })
+}
+
+async function runInitialMaterializeScan(mount) {
+  const share = await loadShareForForeignMount(mount)
+  if (share && hasContentBackend(share)) return await initialMaterializeScanCatalog(mount, share)
+  // No usable content backend (unsupported / unreadable share) — skip the mirror
+  // rather than materialize from a path this build can't serve. Still settle the record
+  // so it doesn't advertise 'syncing' forever for a mount that can never fetch.
+  log.warn('skipping mirror — no usable content backend:', share?.contentMode, mount.shareId)
+  await settleMirrorSyncState(mount, true)
+  return { skipped: 'no-content-backend' }
+}
+
+// The containment-guarded delete primitive, used by the catalog deletion reconcile. pathFromMount
+// rejects any owner-controlled relPath that escapes the mount BEFORE the unlink — the
+// path-traversal guard the security suite exercises (foreign-path-containment). Puts never come
+// here: they are fetched by materializeOverlayFile.
+// test seam
+export async function applyChange(mount, change) {
+  const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
+  if (change.action === 'del') {
+    try { await fs.promises.unlink(abs) } catch (err) {
+      if (err && err.code !== 'ENOENT') throw err
+    }
+    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+  }
+}
+
+async function initialMaterializeScanCatalog(mount, share) {
+  const key = mirrorKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
   // Resolved before the first await: a pass cancelled by an unmount must never recreate a
   // re-mounted key's Set from its stale mount object.
@@ -195,7 +223,7 @@ function logWithheldDeletions(key, pending, syncedSize, minDeletions) {
 }
 
 async function materializeOnceCatalog(mount, share) {
-  const key = loopKey(mount.spaceId, mount.shareId)
+  const key = mirrorKey(mount.spaceId, mount.shareId)
   const gen = mirrorGen(key)
 
   // Nothing this pass is allowed to do: an offline owner cannot append, so the catalog cannot have

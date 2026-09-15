@@ -46,6 +46,7 @@ const SCC = [
   'transfer/backends/overlay/stall-retry.js',
   'folders/publish-service.js',
   'folders/owned-folders.js',
+  'folders/foreign-folders.js',
 ]
 
 test('each import-cycle member can be imported first without a TDZ ReferenceError', async (t) => {

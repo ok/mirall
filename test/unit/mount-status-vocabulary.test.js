@@ -23,7 +23,8 @@ const read = (p) => fs.readFileSync(path.resolve(here, '../../src', p), 'utf8')
 const STATUS_SHAPED = /'(idle|active|scanning|paused|paused-[a-z]+|mount-point-gone)'/g
 
 const WRITERS = [
-  'shared/folders/foreign-folders.js',
+  // The mirror's mount verbs: enable and relocate each write the status they leave the mount in.
+  'shared/folders/foreign-verbs.js',
   // The mirror's pause ladder: it writes a status on every fault, auto-pause and resume.
   'shared/folders/foreign-pause.js',
   'worker/mounts-runtime.js',

@@ -17,7 +17,7 @@ test('the folder engines no longer re-export what moved out of them', (t) => {
   // Every module the mirror is now split across, not just the residue: a re-export can grow back
   // in whichever half happens to import the symbol, and scanning only the shrunken file would pass
   // while the decomposition came undone in its neighbour.
-  const foreign = ['foreign-folders', 'mirror-pass', 'mirror-fetch', 'foreign-pause']
+  const foreign = ['foreign-folders', 'mirror-pass', 'mirror-fetch', 'foreign-pause', 'foreign-verbs', 'foreign-orphan', 'mirror-signals', 'foreign-shares']
     .map((m) => read(`shared/folders/${m}.js`)).join('\n')
   t.absent(/export \{[^}]*\blocalRelOf\b/.test(foreign), 'localRelOf comes from mirror-state.js')
   t.absent(/export \{ previewMaterializeScan \}/.test(foreign), 'the preview comes from foreign-preview.js')
@@ -41,6 +41,14 @@ test('owned-folders.js re-exports nothing it does not own', (t) => {
   for (const name of ['shouldIgnore', 'DEFAULT_IGNORE', 'mountRootAvailable', 'walkDisk']) {
     t.absent(new RegExp(`export \\{[^}]*\\b${name}\\b[^}]*\\}`).test(owned), `${name} is imported from its owner, not re-exported`)
   }
+})
+
+// The mirror root once re-exported nine leaf names so the worker could reach the mirror through
+// one module; every consumer now names the leaf, and a bare `export {` here is the only way a
+// re-export can grow back.
+test('foreign-folders.js re-exports nothing at all', (t) => {
+  const root = read('shared/folders/foreign-folders.js')
+  t.absent(/^export \{/m.test(root), 'the root declares its own exports and forwards none')
 })
 
 // eslint.config.mjs is the one statement that these modules are pure; the half the linter cannot see

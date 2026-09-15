@@ -5,7 +5,7 @@
 // Every one is idempotent, because recover() may run a reconciler that already half-succeeded.
 import { deleteOwnedMount, getOwnedMount } from './mount-store.js'
 import { tombstoneShare } from '../shares/shares.js'
-import { unmountForeignFolder } from './foreign-folders.js'
+import { unmountForeignFolder } from './foreign-verbs.js'
 
 export function registerFolderIntents(intents) {
   intents.register('owned-delete', async ({ spaceId, shareId }) => {

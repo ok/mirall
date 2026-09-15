@@ -34,33 +34,28 @@ import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { pathFromMount } from './path-guard.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
-import { classifyLocalCopy, mayOverwriteInPlace } from './mirror-policy.js'
+import { emitMirrorEvent } from './mirror-signals.js'
+import { classifyLocalCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
 import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName, driveKeyToSegments } from './path-keys.js'
 import { mountRootAvailable } from './publish-service.js'
 
 const log = createLogger('mirror-fetch')
 
-// Injected by foreign-folders.js: the loop generation, the per-mount sync state, the IPC handle
-// and the pause ladder all belong to the module that owns the mount's life.
+// Injected by foreign-folders.js: the loop generation and the per-mount sync state belong to the
+// module that owns the mount's life.
 let state = null
 let loops = null
-let getIpc = () => null
 
 export function initMirrorFetch(d) {
   state = d.state
   loops = d.loops
-  getIpc = d.getIpc
-}
-
-function loopKey(spaceId, shareId) {
-  return spaceId + ':' + shareId
 }
 
 const mirrorGen = (key) => loops.generationOf(key)
 const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 
-// The file the mirror is fetching right now (one per loopKey — the catalog materialize is
+// The file the mirror is fetching right now (one per mirrorKey — the catalog materialize is
 // strictly sequential): contentHash so stopForeignLoop can abort the in-flight overlay
 // download, relPath so foreignFetchActive can identify the row.
 const activeOverlayFetches = new Map()
@@ -70,7 +65,7 @@ const pausedHolders = createPausedHolders({ notifyStopped: (hash) => getOverlay(
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
 // derivation so a materializing mirror row reports 'downloading'.
 export function foreignFetchActive(spaceId, shareId, relPath) {
-  return activeOverlayFetches.get(loopKey(spaceId, shareId))?.relPath === relPath
+  return activeOverlayFetches.get(mirrorKey(spaceId, shareId))?.relPath === relPath
 }
 
 const integritySeen = createIntegritySeen({
@@ -87,7 +82,7 @@ const attempts = createAttemptBudget()
 // The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
 // sync, and this is not sync bookkeeping: it is a claim about what a member of this space served.
 export function recordMirrorIntegrityFailure(mount, share, entry) {
-  if (!integritySeen.admit(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
+  if (!integritySeen.admit(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
   getSpace(mount.spaceId).then((space) => {
     record('security.integrity_failure', {
       actor: selfActor(),
@@ -162,7 +157,7 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
   // preflights instead. Charged to a budget rather than blocked outright, so another holder can
   // still serve the same content.
   if (!isTerminalFault(code)) return
-  const key = loopKey(mount.spaceId, mount.shareId)
+  const key = mirrorKey(mount.spaceId, mount.shareId)
   const spent = attempts.fail(key, entry.relPath, entry.contentHash)
   if (attempts.exhausted(key, entry.relPath, entry.contentHash)) {
     log.warn('mirror stopped asking for a file whose holders keep failing its hash:', entry.relPath, 'after', spent, 'attempts')
@@ -177,7 +172,7 @@ export function fetchSkipReason(mount, entry, opts) {
   if (opts.noFetch) return 'missing'
   // 'blocked', deliberately not 'no-peers': that means "nobody is out there", which ends the whole
   // pass — a corrupt file must not stop the mirror fetching the rest of the folder.
-  if (attempts.exhausted(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return 'blocked'
+  if (attempts.exhausted(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return 'blocked'
   return null
 }
 
@@ -275,7 +270,7 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // Below the claim check on purpose: charging a file the download engine already owns against our
   // own free space would refuse it over bytes that engine has already reserved.
   if (!(await mountCanTake(mount, entry, abs, opts.probe || createMountProbe(mount)))) return 'blocked'
-  const streamKey = loopKey(mount.spaceId, mount.shareId)
+  const streamKey = mirrorKey(mount.spaceId, mount.shareId)
   const releaseSlot = await acquireMirrorSlot(streamKey)
   try {
     // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
@@ -342,17 +337,17 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath, transferId })
     pausedHolders.supersede(streamKey)
     // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
-    getIpc()?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
     // The overlay scheduler reports CUMULATIVE bytes; the ticker diffs them into speed/ETA.
     ;({ res, attempted, diag } = await runOverlayFetch(overlay, entry.contentHash, {
       label: 'overlay mirror',
       relPath: entry.relPath,
       size: total,
       destPath: abs,
-      onProgress: ({ bytes, speed, eta }) => getIpc()?.emit('event:decoration', {
+      onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
       }),
-      onVerify: (fraction) => getIpc()?.emit('event:decoration', {
+      onVerify: (fraction) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: 0, total,
       }),
       onTick: () => loops.noteProgress(streamKey),
@@ -373,8 +368,8 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     // Every settle (done/miss/error/pause) re-derives the row off the now-cleared fetch slot and
     // terminally clears the row's decoration. No probe: the claim above means no other producer
     // could have taken the key while we held it, so the decoration is ours to clear.
-    getIpc()?.emit('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
-    getIpc()?.emit('event:decoration', { channel: 'transfer', spaceId: mount.spaceId, key: decoKey, done: true })
+    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+    emitMirrorEvent('event:decoration', { channel: 'transfer', spaceId: mount.spaceId, key: decoKey, done: true })
   }
   // null = nothing fetched: a stall after a holder was asked is a give-up (WARN);
   // never reaching a holder is a benign retry-next-tick (debug).
@@ -403,7 +398,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     log.debug('could not fingerprint a landed mirror file:', entry.relPath, '-', err.message)
   }
   await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: landed })
-  attempts.succeed(loopKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
+  attempts.succeed(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'present'
 }
 

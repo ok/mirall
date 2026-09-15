@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { unmountForeignFolder } from '../../src/shared/folders/foreign-folders.js'
+import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 
 // REGRESSION (FIX-UNMOUNT-REFRESH): unmounting reclaims the materialized blobs,

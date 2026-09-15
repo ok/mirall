@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { shouldWalk, DEFAULT_FULL_WALK_EVERY } from '../../src/shared/folders/mirror-policy.js'
+import { shouldWalk, DEFAULT_FULL_WALK_EVERY, mirrorKey } from '../../src/shared/folders/mirror-policy.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
@@ -66,4 +66,9 @@ test('DEFAULT_FULL_WALK_EVERY matches the runtime-config default', (t) => {
   const m = src.match(/^\s*foreignFullWalkEvery:\s*(\d+),/m)
   t.ok(m, 'runtime-config declares foreignFullWalkEvery')
   t.is(Number(m[1]), DEFAULT_FULL_WALK_EVERY, 'the two declarations agree')
+})
+
+test('every mirror-side map keys a mount by one spelling', (t) => {
+  t.is(mirrorKey('space-a', 'share-1'), 'space-a:share-1')
+  t.not(mirrorKey('space-a', 'share-1'), mirrorKey('space-a', 'share-2'))
 })

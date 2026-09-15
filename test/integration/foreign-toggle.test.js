@@ -2,7 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { setForeignEnabled, runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
+import { setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
+import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 
 // Pause/resume of a mirror (foreign-folder:set-enabled). Disabling must flip the

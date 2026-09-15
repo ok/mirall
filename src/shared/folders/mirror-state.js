@@ -15,6 +15,7 @@ import { pathFromMount } from './path-guard.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { driveKeyToSegments, nextFreeName } from './path-keys.js'
 import { patchForeignMount } from './mount-store.js'
+import { mirrorKey } from './mirror-policy.js'
 
 // The on-disk relPath an owner key was materialized as (its natural name unless a conflict forced
 // a collision-free sibling). Exported free-standing because share-listing must ask the same
@@ -24,19 +25,19 @@ export function localRelOf(mount, ownerKey) {
   return mount.renamedPaths?.[ownerKey] || ownerKey
 }
 
-export function createMirrorState({ keyOf, isStopped }) {
-  // loopKey -> Set<ownerKey>. Membership is asked once per catalog entry per tick, so it must be
+export function createMirrorState({ isStopped }) {
+  // mirrorKey -> Set<ownerKey>. Membership is asked once per catalog entry per tick, so it must be
   // O(1): the array scan it replaces made a fully-synced tick quadratic. The set outlives
   // pause/resume (a stopped pass has already written files it must keep owning) and is dropped
   // only on unmount, with the record.
   const syncedSets = new Map()
-  // loopKeys whose set / renamedPaths differ from the persisted record.
+  // mirrorKeys whose set / renamedPaths differ from the persisted record.
   const dirty = new Set()
   const convergedHeads = new Map()
   const skippedTicks = new Map()
 
   function syncedSetFor(mount) {
-    const key = keyOf(mount.spaceId, mount.shareId)
+    const key = mirrorKey(mount.spaceId, mount.shareId)
     let set = syncedSets.get(key)
     if (!set) {
       set = new Set(mount.syncedPaths || [])
@@ -86,7 +87,7 @@ export function createMirrorState({ keyOf, isStopped }) {
     }
     const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
     ;(mount.renamedPaths ||= {})[ownerKey] = localRel
-    dirty.add(keyOf(mount.spaceId, mount.shareId))
+    dirty.add(mirrorKey(mount.spaceId, mount.shareId))
     return localRel
   }
 
@@ -97,7 +98,7 @@ export function createMirrorState({ keyOf, isStopped }) {
     for (const ownerKey of Object.keys(mount.renamedPaths)) {
       if (onDrive.has(ownerKey)) continue
       delete mount.renamedPaths[ownerKey]
-      dirty.add(keyOf(mount.spaceId, mount.shareId))
+      dirty.add(mirrorKey(mount.spaceId, mount.shareId))
     }
   }
 

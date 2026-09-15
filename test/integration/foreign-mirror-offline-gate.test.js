@@ -2,7 +2,7 @@ import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { initialMaterializeScan, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/foreign-folders.js'
+import { initialMaterializeScan, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
 
 // The offline half needs the reachability seam: presence is a module-private lease map, so a test
 // cannot make a peer online. A FABRICATED remote ownerKey does not work either — readPeerShares

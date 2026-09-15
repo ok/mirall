@@ -1,10 +1,9 @@
 import test from 'brittle'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { getResourceCaps } from '../../src/shared/core/runtime-config.js'
-import {
-  runMaterializeTick, startForeignLoop, stopForeignLoop, restartForeignLoop, mirrorHealth,
-  unmountForeignFolder,
-} from '../../src/shared/folders/foreign-folders.js'
+import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
+import { startForeignLoop, stopForeignLoop, restartForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
+import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { STALL_FACTOR } from '../../src/shared/folders/mirror-policy.js'
 import { wedgedMirror, waitUntil, delay } from '../helpers/wedged-mirror.js'
 

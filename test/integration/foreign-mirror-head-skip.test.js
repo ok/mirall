@@ -4,10 +4,9 @@ import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import {
-  initialMaterializeScan, runMaterializeTick, restartForeignLoop, mirrorHealth,
-  startForeignLoop, stopForeignLoop,
-} from '../../src/shared/folders/foreign-folders.js'
+import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
+import { restartForeignLoop, startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 
 // A converged mirror re-listed the owner's whole catalog and re-stat'd every file every 30s forever.
 // The listing COUNT is the assertion: a wall-time or CPU measure could not go red, and the property

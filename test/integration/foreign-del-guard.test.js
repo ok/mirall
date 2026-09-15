@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { shouldHonorDeletions } from '../../src/shared/folders/path-keys.js'
-import { initialMaterializeScan } from '../../src/shared/folders/foreign-folders.js'
+import { initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setupSelfMirror } from '../helpers/owned.js'
 

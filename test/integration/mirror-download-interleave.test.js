@@ -4,9 +4,9 @@ import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
-import {
-  materializeCatalogFile, runMaterializeTick, startForeignLoop, stopForeignLoop, restartForeignLoop, mirrorHealth,
-} from '../../src/shared/folders/foreign-folders.js'
+import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
+import { startForeignLoop, stopForeignLoop, restartForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { materializeCatalogFile, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import {
   claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
 } from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
