@@ -525,6 +525,15 @@ Recovery is **level-triggered** — reconnects and catalog changes re-drive the 
 | Any other engine error | `DOWNLOAD_FAILED` on the row → `error` status until the user retries |
 | Worker shutdown | Nothing is marked; durable rows (§3.4) reconstruct resume state next boot/reconnect |
 
+**The engine's durable-write policy is deliberately not uniform.** Each case is a decision:
+
+| Write | On failure | Why |
+|---|---|---|
+| `recordPending` at start | throws; the slot is released and `start()` fails | without the row a crash loses the transfer entirely |
+| `clearPending` on completion | tolerated, with a warn | the downloaded claim already decides the status; a surviving row costs one extra read at the next reconcile |
+| `clearPending` on discard | fatal, rethrown before anything destructive | everything after it is in-memory only: a live row whose partial and pause marker are gone auto-resumes from zero a transfer the user discarded |
+| `recordPendingError` | never throws; the verdict is kept in memory instead | suppresses auto-resume only until the next restart, and the failure is logged as not durable |
+
 ### 4.6 Startup reconnection
 
 Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record (before this narrowing, *any* transient open failure — a lock held by a dying instance, disk pressure, a half-written core — deleted the space record outright, with a log line as the only trace) → join all topics. The orphan-core sweep is **not** conditional on a load failure; it runs every boot, after every subsystem is up (§2 boot step 10, §14). Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
@@ -1390,7 +1399,12 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/backends/overlay/active-transfers.js` | The two operations both channels run against their own engine: cancel a space's transfers on leave; reconcile active slots after an owner append through `activeSlotAction` (pure) |
 | `src/shared/transfer/backends/overlay/overlay-maintenance.js` | The work that keeps the index and the serve maps honest rather than publishing or consuming: the single-flight index reclaim (two racing reclaims can strand a blob), the boot rehydrate (the serve maps are not persisted, so owned files stop being servable after a restart) and the folder presence sweep (§7.7) |
 | `src/shared/transfer/backends/overlay/overlay-instance.js` | The process-global `HyperOverlayV2`: constructed with the injected limiters, chunk-map cache, serve authorizer and ledger callbacks; mux attach, serve revocation, epoch bump, teardown, the security-denial audit row |
-| `src/shared/transfer/backends/overlay/overlay-download.js` | The consumer download engine factory (one instance per channel): in-flight slots, pause / cancel / supersede / republish-park, the stall auto-retry (§4.5), preflights, the settle ladder, two level-triggered reconcile scans |
+| `src/shared/transfer/backends/overlay/overlay-download.js` | The consumer download engine root (one instance per channel): the slot registry, the three memories that outlive a slot (pause marker, in-memory terminal verdict, stall retry), the user verbs (pause / cancel / supersede / republish-park) and the wiring of the four siblings below (§4.5) |
+| `src/shared/transfer/backends/overlay/download-start.js` | `createStart(deps)` — how a download begins: reserve the slot synchronously, record the durable row, re-check the intents that landed during the write (`abandonReason`), refuse what the destination cannot take (`preflightFault`), hand the slot to the fetch task; the supersede restart and its outcome resolution |
+| `src/shared/transfer/backends/overlay/fetch-settle.js` | `createFetchSettle(deps)` — the gated half of a download: acquire the fetch gate, the post-gate abandon check, the instrumented vendor call, then one function per `settleVerdict` (done / stalled / failed / cancelled / paused / park); the durable order of the completion writes lives here |
+| `src/shared/transfer/backends/overlay/reconcile-scan.js` | `createReconcile(deps)` — the two level-triggered scans over inactive pending rows (shallow on reconnect, deep on append), the `republishDecision` ladder, the republish restart, `dropRemoved` |
+| `src/shared/transfer/backends/overlay/settle-verdict.js` | `settleVerdict(slot, result)` — the precedence a finished fetch is judged by (supersede > user pause/cancel > republish park > result) — and `abandonReason(slot, probes)`, why a reserved slot must not fetch. Pure |
+| `src/shared/transfer/backends/overlay/download-faults.js` | `preflightFault(size, dest)` / `terminalFault(result, dest)` — which ErrorCode a refused or failed download gets, read through a per-job destination probe the root builds. Pure |
 | `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` — the instance, the serve index and both download engines as one lifetime, built per lifetime here so nothing in this package constructs an engine at import time; claim-probe registration, detach / close ordering, the per-owner resume fan-out |
 | `src/shared/transfer/backends/overlay/overlay-authorize.js` | The serve gate as a pure truth table: `DENY` reasons + `makeServeAuthorizer` (§16) |
 | `src/shared/transfer/backends/overlay/overlay-channel.js` | The consumer-side channel object the engine drives — event names, decoration keys, row ownership — built by one factory for the loose pseudo-share and folder shares from the few facts that differ, so a policy that holds for one holds for the other by construction. Imports no `bare-*` |

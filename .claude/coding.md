@@ -109,10 +109,9 @@ is a decision that takes a row rather than a default for whatever had nowhere el
 `model/folder-status.js`, `model/mirror-state-label.js` are the pattern) and stays a renderer of that result.
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
-in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
-(`overlay/overlay-download.js` 664,
-`transfer/loose-overlay.js` 552) are known
-debt — do not add responsibilities to them. Splitting them is its own tier of work, tracked
+in one sentence. Files over ~600 lines are a standing smell; the one that still nears it today
+(`transfer/loose-overlay.js` 552) is known
+debt — do not add responsibilities to it. Splitting them is its own tier of work, tracked
 separately from the folder reorganisation, because a merge can legitimately grow a file while
 removing duplication.
 
