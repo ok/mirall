@@ -33,7 +33,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 // macOS: the Apple squircle. Also the source for the menu-bar template glyph
 // (generate-tray-icons.mjs), where the square is stripped and only M + dot
 // remain, so the radius is irrelevant there.
@@ -105,7 +105,7 @@ function identify(file, format) {
 }
 
 const ELECTRON = path.join(ROOT, 'node_modules', '.bin', 'electron')
-const RASTERIZE = path.join(ROOT, 'scripts', 'rasterize-svg.cjs')
+const RASTERIZE = path.join(ROOT, 'scripts', 'build', 'rasterize-svg.cjs')
 
 /** Rasterize a brand SVG to a `size`x`size` PNG via Chromium. */
 function rasterize(src, dest, size) {
