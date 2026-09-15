@@ -9,11 +9,10 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import { initOverlayIpc } from '../helpers/overlay-ipc.js'
-import {
-  initLooseOverlay, looseShareFile, looseCancelPublish,
-  rehydrateLooseFiles, sweepLoosePresence, LOOSE_SHARE_ID,
-} from '../../src/shared/transfer/loose-overlay.js'
+import { looseShareFile, looseCancelPublish } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { initLooseIpc, initOverlayIpc } from '../helpers/overlay-ipc.js'
 
 // Big enough that the content hash takes visibly longer than a bee read, so the
 // advertise-time window is observable without racing the whole publish.
@@ -30,7 +29,7 @@ async function setup(t, onEmit) {
     ...ctx.fake.ipc,
     emit: (type, payload) => { ctx.fake.ipc.emit(type, payload); onEmit?.(type, payload) },
   }
-  initLooseOverlay(ipc)
+  initLooseIpc(ipc)
   initOverlayIpc(ipc)
   const space = await createSpace('Aurora')
   t.teardown(async () => {
@@ -218,6 +217,7 @@ test('REGRESSION (FIX-F4: boot resume of a null-hash entry emits a live progress
 
   await rehydrateLooseFiles()
 
+  console.error('DBG decos', JSON.stringify(decos.map((d) => [d.key, d.phase, d.done])), 'fake', JSON.stringify(ctx.fake.emitted('event:decoration').map((e) => [e.payload.key, e.payload.phase, e.payload.done])))
   t.ok(decos.some((d) => d.phase === 'publishing'), 'resume advertised a visible publishing bar, not a silent hash')
   t.ok((await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'resume.bin'))?.contentHash, 'resume completed')
 })

@@ -7,10 +7,10 @@ import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads, getOwnedSourcePath, markOwnedSource, clearOwnedSource } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import {
-  initLooseOverlay, looseShareFile, looseCancelPublish, looseSourceFor, looseSources,
-  sweepLoosePresence, handleLooseFsEvent, looseUnshareFile, rehydrateLooseFiles, LOOSE_SHARE_ID,
-} from '../../src/shared/transfer/loose-overlay.js'
+import { looseShareFile, looseCancelPublish, looseSourceFor, looseSources, handleLooseFsEvent, looseUnshareFile } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
+import { sweepLoosePresence, rehydrateLooseFiles } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { initLooseIpc } from '../helpers/overlay-ipc.js'
 import { getOwnEntry, advertise } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
@@ -46,7 +46,7 @@ async function setup(t, { concurrency = 2 } = {}) {
   await initDownloads()
   await initPendingTransfers()
   looseSources.clear()
-  initLooseOverlay(ctx.fake.ipc)
+  initLooseIpc(ctx.fake.ipc)
   t.teardown(() => { stopOwnedFolder(ctx.spaceId, ctx.share.id); setRuntimeConfig(cfg) })
   return ctx
 }

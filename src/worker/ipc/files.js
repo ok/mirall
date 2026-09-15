@@ -10,11 +10,10 @@ import { revealFile } from '../../shared/transfer/reveal.js'
 import {
   looseDownload,
   loosePause,
-  looseCancel,
+  looseCancelByKey,
   looseCancelTransfer,
-  looseCancelPublish,
-  handleLooseFsEvent,
-} from '../../shared/transfer/loose-overlay.js'
+} from '../../shared/transfer/backends/overlay/loose-downloads.js'
+import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/backends/overlay/loose-publish.js'
 import { folderPause, folderCancel } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
@@ -59,7 +58,7 @@ export function registerFiles(ipc, { log }) {
   ipc.handle('files:discard-partial', async (msg) => {
     // Loose downloads run on the overlay engine; it clears the partial + pending row
     // and emits files-updated + the decoration done frame itself.
-    await looseCancel(msg.spaceId, msg.path)
+    await looseCancelByKey(msg.spaceId, msg.path)
     return { ok: true }
   })
   ipc.handle('files:reveal', async (msg) => {

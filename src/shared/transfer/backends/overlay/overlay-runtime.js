@@ -18,10 +18,11 @@ import { initFolderPublish, resetFolderPublish } from './folder-publish.js'
 import {
   initFolderDownloads, resetFolderDownloads, folderChannel, setFolderEngine, resumeFolderForOwner,
 } from './folder-downloads.js'
+import { initLoosePublish, resetLoosePublish } from './loose-publish.js'
 import {
-  initLooseOverlay, resetLooseState, looseChannel, setLooseEngine,
-  rehydrateLooseFiles, resumeLooseForOwner,
-} from '../../loose-overlay.js'
+  initLooseDownloads, resetLooseDownloads, looseChannel, setLooseEngine, resumeLooseForOwner,
+} from './loose-downloads.js'
+import { rehydrateLooseFiles, resetLooseMaintenance } from './loose-maintenance.js'
 import { listSpaces } from '../../../spaces/space.js'
 
 const CONTENT_RESUME_COALESCE_MS = 250
@@ -50,7 +51,8 @@ export class OverlayBackend extends Subsystem {
     // The engines are built whatever the overlay flag says. They are inert without an instance
     // (every entry point checks getOverlay()), and on the kill-switch build the alternative is an
     // engine() that throws out of files:list, space:leave and the transfer handlers.
-    initLooseOverlay(ipc)
+    initLoosePublish({ ipc })
+    initLooseDownloads({ ipc })
     // The gate is a module singleton, so unlike the engines it does not die with the previous
     // lifetime: a slot whose release was lost would shrink the cap for every later open.
     resetFetchSlots()
@@ -106,7 +108,9 @@ export class OverlayBackend extends Subsystem {
     resetOverlayPublish()
     resetOverlayMaintenance()
     resetPublishProgress()
-    resetLooseState()
+    resetLoosePublish()
+    resetLooseDownloads()
+    resetLooseMaintenance()
   }
 
   attach(mux, socket) {
