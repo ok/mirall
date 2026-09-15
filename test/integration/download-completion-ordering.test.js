@@ -11,7 +11,7 @@ import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 
 const here = path.dirname(url.fileURLToPath(import.meta.url))
 const engineSrc = fs.readFileSync(
-  path.join(here, '..', '..', 'src', 'shared', 'transfer', 'backends', 'overlay', 'overlay-download.js'),
+  path.join(here, '..', '..', 'src', 'shared', 'transfer', 'backends', 'overlay', 'fetch-settle.js'),
   'utf8',
 )
 

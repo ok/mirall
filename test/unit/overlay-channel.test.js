@@ -131,7 +131,9 @@ test('neither module hand-writes a channel bag any more', (t) => {
 
 test('event:transfer-paused has exactly one emitter in src/', (t) => {
   const files = ['shared/transfer/loose-overlay.js', 'shared/transfer/backends/overlay/folder-downloads.js',
-    'shared/transfer/backends/overlay/overlay-channel.js', 'shared/transfer/backends/overlay/overlay-download.js']
+    'shared/transfer/backends/overlay/overlay-channel.js', 'shared/transfer/backends/overlay/overlay-download.js',
+    'shared/transfer/backends/overlay/download-start.js', 'shared/transfer/backends/overlay/fetch-settle.js',
+    'shared/transfer/backends/overlay/reconcile-scan.js']
   const emitters = files.filter((f) => /emit\(\s*'event:transfer-paused'/.test(readSrc(f)))
   t.alike(emitters, ['shared/transfer/backends/overlay/overlay-channel.js'],
     'the notification is raised in one place, so no channel can forget it')
