@@ -5,6 +5,8 @@
 // watchers on the worker's behalf (Bare has no recursive watch). Main holds no
 // durable application state — that lives in the worker's store (preferences aside,
 // which are main's config.json); what main keeps in memory is session-only.
+// First, before any sibling module can load bare-sidecar: see asar-spawn.js.
+require('./asar-spawn.js').installAsarSpawnFix()
 const { app, BrowserWindow, dialog, ipcMain, protocol: electronProtocol } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -59,23 +61,6 @@ electronProtocol.registerSchemesAsPrivileged([{
   scheme: 'app',
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
 }])
-
-// Asar redirects fs reads transparently but not child_process.spawn — paths
-// that resolve into app.asar/ via require.resolve will ENOTDIR when handed
-// to spawn. bare-sidecar (Sidecar constructor) spawns the bare binary and
-// passes the worker entrypoint as argv, both resolved through require.asset
-// which returns asar paths. Translate them back to app.asar.unpacked here so
-// the OS sees real files. No-op when not packaged or when paths aren't asar.
-const childProcess = require('child_process')
-const _spawn = childProcess.spawn
-const fixAsarPath = (p) => typeof p === 'string'
-  ? p.replace(/([\\/])app\.asar([\\/])/g, '$1app.asar.unpacked$2')
-  : p
-childProcess.spawn = function (file, args, options) {
-  file = fixAsarPath(file)
-  if (Array.isArray(args)) args = args.map(fixAsarPath)
-  return _spawn.call(this, file, args, options)
-}
 
 const { isMac, isLinux, isWindows } = require('which-runtime')
 const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
