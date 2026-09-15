@@ -1,6 +1,6 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import { getSwarmStatus } from '../../src/shared/network/swarm.js'
+import { getSwarmStatus } from '../../src/shared/network/connectivity.js'
 
 // REGRESSION (FIX-DHT-VERSION): the version lookup resolved '../../node_modules/hyperdht' from
 // src/shared/transfer/, i.e. src/node_modules — which does not exist. Every read threw ENOENT and

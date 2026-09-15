@@ -1,13 +1,13 @@
 // The swarm's read-only reporting surface: the snapshot builders that describe the live Hyperswarm
-// without changing it. swarm.js constructs it; connectivity.js reads the snapshots into the status
+// without changing it. connectivity.js constructs it and reads the snapshots into the status
 // object the worker ships over IPC.
 //
-// A factory over accessors rather than plain functions: `swarm` is reassigned by initSwarm and
-// destroySwarm, so a value captured at import time goes stale, and threading the handle through
+// A factory over accessors rather than plain functions: `swarm` is reassigned every time the
+// subsystem opens, so a value captured at import time goes stale, and threading the handle through
 // thirteen call sites would put it back in every caller's face.
 //
 // Imports nothing from bare-*, deliberately: that is what lets this load under node and be unit
-// tested. The one impure value it reports — the hyperdht version — is read by swarm.js and passed in.
+// tested. The one impure value it reports — the hyperdht version — is read by its caller and passed in.
 import b4a from 'b4a'
 import { CANARY } from '../core/reachability.js'
 

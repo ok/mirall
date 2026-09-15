@@ -18,7 +18,7 @@ import {
 import { overlayPause, overlayCancel } from '../../shared/transfer/backends/overlay/overlay-backend.js'
 import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
-import { rescueStalledTransfers } from '../../shared/network/swarm.js'
+import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'

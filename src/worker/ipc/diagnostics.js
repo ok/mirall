@@ -14,7 +14,7 @@ import {
   getVerdictHistory,
   getDiagnosticCounters,
   getPeerSamples,
-} from '../../shared/network/swarm.js'
+} from '../../shared/network/connectivity.js'
 
 const DIAGNOSTIC_HISTORY_LIMIT = 50
 

@@ -2,10 +2,10 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { localTestnet } from '../helpers/testnet.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { Swarm } from '../../src/shared/network/swarm.js'
 import {
-  Swarm, registerPendingLeave, hasPendingLeave,
-  markSpaceLeaving, isSpaceLeaving, getSwarmDht,
-} from '../../src/shared/network/swarm.js'
+  registerPendingLeave, hasPendingLeave, markSpaceLeaving, isSpaceLeaving,
+} from '../../src/shared/network/leave-protocol.js'
 import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { _compactStoreForTests } from '../../src/shared/storage/compaction.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
@@ -54,11 +54,11 @@ test('REGRESSION (LIFECYCLE-3b): starting a running swarm is refused, not silent
   const swarm = new Swarm('swarm', deps)
   await swarm.ready()
   t.teardown(() => swarm.close())
-  const dht = getSwarmDht()
+  const dht = swarm.dht
 
   const second = new Swarm('swarm-2', deps)
   await t.exception(second.ready(), /already running/)
-  t.is(getSwarmDht(), dht, 'the running swarm is untouched')
+  t.is(swarm.dht, dht, 'the running swarm is untouched')
 })
 
 // REGRESSION (LIFECYCLE-3c: the overlay's protocol must be torn down while the sockets its
@@ -69,7 +69,7 @@ test('REGRESSION (LIFECYCLE-3c): the overlay detaches before the swarm drops its
   deps.overlayBackend = { ...stubOverlayBackend, detach: async () => { order.push('overlay-detach') } }
   const swarm = new Swarm('swarm', deps)
   await swarm.ready()
-  const dht = getSwarmDht()
+  const dht = swarm.dht
   const realDestroy = dht.destroy.bind(dht)
   dht.destroy = async (...args) => { order.push('dht-destroy'); return realDestroy(...args) }
 
@@ -86,7 +86,7 @@ test('closing the content swarm leaves the shared DHT node to the control swarm'
   t.teardown(() => swarm.close())
   const content = new ContentSwarm('content-swarm', { swarm, overlayBackend: stubOverlayBackend })
   await content.ready()
-  const dht = getSwarmDht()
+  const dht = swarm.dht
 
   await content.close()
   t.absent(getContentSwarm(), 'the content swarm is gone')

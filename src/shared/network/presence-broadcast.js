@@ -13,10 +13,12 @@ import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
 import { presenceFrameKind } from './presence.js'
 import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace } from './swarm-registries.js'
+import { presence as defaultPresence } from './presence-leases.js'
+import { createLogger } from '../core/logger.js'
 
-let presence = null
+let presence = defaultPresence
 let membersPoke = null
-let log = null
+let log = createLogger('presence-broadcast')
 // The owning subsystem's timer set, handed in when the heartbeat starts. The handle is a periodic
 // interval that outlives every call, so nothing scoped to a call can clear it; owning it means the
 // Swarm subsystem's close reaches it on every path, including a failed _open.
@@ -25,19 +27,19 @@ let presenceTimer = null
 let getSwarm = () => null
 let getIpc = () => null
 
-// getSwarm and getIpc are read at call time, not captured: initSwarm and destroySwarm reassign both,
+// getSwarm and getIpc are read at call time, not captured: the Swarm subsystem reassigns both,
 // so a value taken at init would go stale on the first reconnect.
 export function initPresenceBroadcast(deps) {
-  presence = deps.presence
+  if (deps.presence) presence = deps.presence
   membersPoke = deps.membersPoke
-  log = deps.log
+  if (deps.log) log = deps.log
   getSwarm = deps.getSwarm
   getIpc = deps.getIpc
 }
 
 const PRESENCE_HEARTBEAT_MS = 5000
 
-// The interval lives with the timer variable, not with initSwarm: broadcastDeparture has to stop
+// The interval lives with the timer variable, not with the subsystem: broadcastDeparture has to stop
 // the heartbeat before it sends (a beat landing after the departure re-marks us online on the
 // receiver and undoes it), and it can only stop a timer this module actually holds.
 export function startPresenceHeartbeat(owner = null) {

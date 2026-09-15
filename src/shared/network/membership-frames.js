@@ -6,19 +6,8 @@ import b4a from 'b4a'
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import { sealSck } from '../spaces/sck-seal.js'
 import { getProfileKey } from '../spaces/profile.js'
-import { socketMsgHandlers } from './swarm-registries.js'
-
-// Injected: routing a peer to its channel and the local identity binding both belong to the
-// connection registry these frames are addressed through.
-let handlerForPeer = () => null
-let sendFrame = () => false
-let getLocalBinding = () => null
-
-export function initMembershipFrames(deps) {
-  handlerForPeer = deps.handlerForPeer
-  sendFrame = deps.sendFrame
-  getLocalBinding = deps.getLocalBinding
-}
+import { socketMsgHandlers, handlerForPeer } from './swarm-registries.js'
+import { sendFrame, getLocalBinding } from './identity-frames.js'
 
 // Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
 // joiner pins creatorKey only from this authenticated assertion — never from the bearer

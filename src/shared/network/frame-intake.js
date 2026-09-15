@@ -14,25 +14,23 @@ import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFram
 import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame, resolveSpaceIdForTopic } from './presence-broadcast.js'
 import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck } from './leave-protocol.js'
 import { spaceTopics, pendingRequesters, boundSignerKeys } from './swarm-registries.js'
+import { handleHandshake } from './handshake-apply.js'
 
 const log = createLogger('frame-intake')
 
 const bannedNoiseKeys = new Set()       // Noise keys evicted for identity-frame flooding; the firewall rejects their reconnects
-let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, created in initSwarm
+let rateLimiter = null                  // dual-lane per-socket identity-frame token bucket, built when the swarm opens
 let frameLimiter = null                 // general per-socket budget charged for EVERY frame type
 const droppedFrames = { oversize: 0, rate: 0, parse: 0, shape: 0, unknown: 0 }
 function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
 function getDroppedFrameCounters() { return { ...droppedFrames } }
 let testDrop = null                     // test-only inbound identity-frame drop window
 
-// handleHandshake and the membership-control handler are injected rather than imported: the first
-// lives with the peer registry it writes, the second is set by the composition root at open. Both
-// would otherwise close a cycle back through this module.
-let handleHandshake = async () => {}
+// The membership-control handler is injected rather than imported: the composition root sets it at
+// open, and importing the worker's handler here would close a cycle.
 let getMembershipControlHandler = () => null
 
 export function initFrameIntake(deps) {
-  handleHandshake = deps.handleHandshake
   getMembershipControlHandler = deps.getMembershipControlHandler
 }
 

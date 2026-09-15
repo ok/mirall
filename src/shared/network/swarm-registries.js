@@ -49,6 +49,34 @@ export function authorizedOn(socket, profileKeyHex) {
   return !!socketToPeers.get(socket)?.has(profileKeyHex)
 }
 
+// The channel a frame addressed to one peer goes out on. A pending joiner has no handshake yet, so
+// it isn't in connectedPeers — fall back to the socket recorded when its membership:request arrived.
+export function handlerForPeer(profileKeyHex) {
+  const peer = connectedPeers.get(profileKeyHex)
+  if (peer) {
+    const h = socketMsgHandlers.get(peer.socket)
+    if (h) return h
+  }
+  const sock = pendingRequesters.get(profileKeyHex)
+  return sock ? socketMsgHandlers.get(sock) || null : null
+}
+
+// A connected peer's live metadata for a space (driveKey announced in its handshake, plus
+// displayName/avatar), or null if it isn't currently handshaked here. The member registry uses this
+// to enrich a newly-derived member entry; absent ⇒ the member is offline and its driveKey fills in
+// on its next handshake.
+export function getConnectedMemberMeta(spaceId, profileKeyHex) {
+  const peer = connectedPeers.get(profileKeyHex)
+  if (!peer || !peer.spaces.has(spaceId)) return null
+  const loose = peer.looseCatalogKeys?.get(spaceId)
+  return { driveKey: peer.spaces.get(spaceId) || null, looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, displayName: peer.displayName, avatar: peer.avatar }
+}
+
+// The bound signer key a connected peer last asserted, for sealing a membership:grant to it.
+export function getBoundSignerKey(profileKeyHex) {
+  return boundSignerKeys.get(profileKeyHex) || null
+}
+
 // The peers sharing this space with us, as [profileKey, entry].
 export function* peersInSpace(spaceId) {
   for (const [profileKey, peer] of connectedPeers) {

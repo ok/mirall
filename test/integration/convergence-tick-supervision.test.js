@@ -84,7 +84,7 @@ test('a tick with no timer armed is never reported unhealthy', (t) => {
 })
 
 // REGRESSION (FIX-TICK-RESET-GEN: the generation was bumped only by restartConvergenceTick, but
-// destroySwarm → initSwarm reaches the same state by a different path — reset, then start. A tick
+// A subsystem close → open reaches the same state by a different path — reset, then start. A tick
 // still in flight from the previous swarm passed the identity check as if it belonged to the new
 // one, cleared its re-entrancy flag and zeroed its heartbeat, so two ticks ran at once and the
 // convergence unit reported healthy for the rest of the new tick's life.)
@@ -92,7 +92,7 @@ test('REGRESSION (FIX-TICK-RESET-GEN): a tick in flight across a swarm restart c
   const f = parkedTick(t)
   await waitUntil(() => f.probes.started === 1)
 
-  // Exactly what destroySwarm and initSwarm do, which is NOT the restartConvergenceTick path.
+  // Exactly what the Swarm subsystem's close and open do, NOT the restartConvergenceTick path.
   resetConvergenceTick()
   startConvergenceTick(f.timers)
   await waitUntil(() => f.probes.started === 2, 3000)

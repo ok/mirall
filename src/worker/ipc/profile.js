@@ -2,7 +2,7 @@
 // audit identity every later row is stamped with, and the peers holding an open member view.
 
 import { getProfile, setProfile } from '../../shared/spaces/profile.js'
-import { broadcastProfileUpdate } from '../../shared/network/swarm.js'
+import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
 import { refreshAuditSelfName } from '../audit-refs.js'
 
 export function registerProfile(ipc, { log }) {
