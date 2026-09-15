@@ -72,7 +72,7 @@ Three processes. **Main** owns lifecycle, the BrowserWindow, and all access to `
 │  └─ external Corestore + swarm │                  │  ├─ Settings family / Storage  │
 │  IPC handlers (pear:*, …)      │                  │  └─ About / Feedback           │
 │  notifications.js              │                  │                                │
-│  owned-folder-watchers.js      │                  │  src/renderer/ipc.ts           │
+│  owned-folder-watchers.js      │                  │  src/renderer/ipc/ipc.ts       │
 │  loose-file-watchers.js        │                  │  └─ window.bridge.*            │
 │   └─ chokidar → fs-event       │                  │                                │
 └────────────────────────────────┘                  └────────────────────────────────┘
@@ -123,7 +123,7 @@ Main holds **almost no** application state — no profile, no spaces, no transfe
 
 React 19, typechecked by `tsc --noEmit`, bundled by esbuild. Loaded via `assets/index.html`.
 
-`src/renderer/ipc.ts` wraps the worker bridge into a request/response API:
+`src/renderer/ipc/ipc.ts` wraps the worker bridge into a request/response API:
 
 ```ts
 await request('files:list', { spaceId })   // Promise<FileEntry[]>
@@ -132,11 +132,11 @@ const off = subscribe('event:files-updated', ({ spaceId }) => …)
 
 It calls `window.bridge.startWorker('/src/worker/main.js')` once on mount; outgoing requests serialize to NDJSON with an `id`; incoming frames dispatch to pending resolvers (matched by `id`) or to event subscribers.
 
-`src/renderer/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
+`src/renderer/shell/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
 
 `components/primitives/modalPresence.ts` counts the dialogs on screen, from inside `Modal` itself. Back navigation (`hooks/useCanGoBack.ts`) asks it rather than reading a list of per-screen dialog flags.
 
-`src/renderer/updates.ts` (singleton) subscribes to `bridge.onPearEvent('updated')` and exposes staged-update state to React (`UpdateBanner` + `useUpdates`). On `updated` it reads the staged version via `bridge.appVersion()`; dev builds simply reload the window. The banner is passive — the update applies in the background or at quit (§9). Dismiss only hides the banner; the About screen keeps showing the notice.
+`src/renderer/platform/updates.ts` (singleton) subscribes to `bridge.onPearEvent('updated')` and exposes staged-update state to React (`UpdateBanner` + `useUpdates`). On `updated` it reads the staged version via `bridge.appVersion()`; dev builds simply reload the window. The banner is passive — the update applies in the background or at quit (§9). Dismiss only hides the banner; the About screen keeps showing the notice.
 
 ### Worker (`src/worker/main.js` entry + `src/worker/boot.js` root)
 
@@ -162,7 +162,7 @@ Bootstrap:
    8. `Swarm`, then `ContentSwarm` (which needs the control swarm's DHT node), then `applyRelayConfig()` — a relay installed on the control swarm alone leaves every file byte unrelayed. Every hook the swarm fires is a **constructor dep** (`membershipControl`, `overlayBackend`, `stalledOwners`) declared with `require()`, so a missing one fails at boot with the subsystem's name instead of being a `hook?.()` that never fires. Then the crash-leftover sweeps, the topic joins and the pending-leave replay.
    9. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune).
    10. `cleanupOrphanedData()` — the leftover-metadata sweep, run **after every subsystem is constructed**, not interleaved with their startup: it opens the own catalog and each drive's blobs to build its wanted set, and doing that mid-startup leaves an owner that boots, answers IPC and then never serves. It must also land after the content migrations (which need the plaintext catalog they copy from) and after the overlay start (`getOverlayLocalDiscoveryKeys` returns `[]` while it is down). A failure is logged, never fatal. **This sweep hard-deletes cores** — see §14.
-   11. `Supervisor` **last**, so the lifecycle's reverse close order stops it **first**. It polls every started subsystem's supervisable units and recovers the ones the policy condemns — a *unit* inside a subsystem, never a subsystem: closing one and constructing another hands every holder that captured it a dead instance. Recoveries are narrow and abandon rather than drain, because a recovery broader than the fault is itself the outage (a peer's socket is the single mux carrying every core and transfer for that peer, and a `close()` awaiting a stalled pass never settles). The condemnation rule is **progress, not elapsed time** (`core/pass-liveness.js`): supervised work is a keyed pass with at most one in flight, so a genuinely slow pass over thousands of files would fail any elapsed-time rule — only a pass that is in flight *and* not advancing its heartbeat is stalled. The durable tier is deliberately **unsupervised**: nothing there has a recoverable unit, and closing a store-backed handle would close every session with it. The escalation ladder, each rung handing off to the next: a unit is condemned after `consecutiveBad: 2` probes and recovered at most `maxRecoveries: 3` times (`core/supervision.js`) → a worker producing 10 uncaught errors in 60 s stops trying and **exits for respawn** instead (`core/crash-backstop.js`, latched so escalation fires exactly once) → the renderer's respawn policy (`renderer/workerRespawn.js`) spawns a new worker with backoff, up to 5 retries, giving up after 3 *unstable* lifetimes in 10 min → `permanentlyDown`, where requests fail fast rather than hanging.
+   11. `Supervisor` **last**, so the lifecycle's reverse close order stops it **first**. It polls every started subsystem's supervisable units and recovers the ones the policy condemns — a *unit* inside a subsystem, never a subsystem: closing one and constructing another hands every holder that captured it a dead instance. Recoveries are narrow and abandon rather than drain, because a recovery broader than the fault is itself the outage (a peer's socket is the single mux carrying every core and transfer for that peer, and a `close()` awaiting a stalled pass never settles). The condemnation rule is **progress, not elapsed time** (`core/pass-liveness.js`): supervised work is a keyed pass with at most one in flight, so a genuinely slow pass over thousands of files would fail any elapsed-time rule — only a pass that is in flight *and* not advancing its heartbeat is stalled. The durable tier is deliberately **unsupervised**: nothing there has a recoverable unit, and closing a store-backed handle would close every session with it. The escalation ladder, each rung handing off to the next: a unit is condemned after `consecutiveBad: 2` probes and recovered at most `maxRecoveries: 3` times (`core/supervision.js`) → a worker producing 10 uncaught errors in 60 s stops trying and **exits for respawn** instead (`core/crash-backstop.js`, latched so escalation fires exactly once) → the renderer's respawn policy (`renderer/ipc/worker-respawn.js`) spawns a new worker with backoff, up to 5 retries, giving up after 3 *unstable* lifetimes in 10 min → `permanentlyDown`, where requests fail fast rather than hanging.
 
 5. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
 6. Emit `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened — then `event:worker-ready`.
@@ -193,8 +193,8 @@ request names and their argument shapes (`requests.js`), error codes (`errors.js
 limits, status tuples, the reconcile `Scope`, and the audit kinds. **Plain ESM with zero imports** —
 that constraint is what lets esbuild bundle it into the renderer, Bare load it in the worker and
 main reach it through `import()`, and it is test-enforced. The renderer's hand-maintained twins
-(`scope-match.js`, and the kind list inside `auditKinds.ts`) are gone; `scope.ts` and `auditKinds.ts`
-remain as import paths that re-export. `.js` + `.d.ts` rather than `.ts` because the unit suite runs
+(`scope-match.js`, and the kind list inside `auditKinds.ts`) are gone; the renderer imports
+`scope.js` and `audit-kinds.js` from the contract directly. `.js` + `.d.ts` rather than `.ts` because the unit suite runs
 under brittle-node with no build step — and because TypeScript never compares the two,
 `contract-declarations.test.js` does, including the status tuples the renderer derives its unions
 from.
@@ -531,9 +531,9 @@ Open Corestore → load profile → load spaces → init downloads bee → init 
 
 ### 4.7 Presence & liveness
 
-Liveness is tracked separately from connection state. Peers hold short-lived **presence leases** — heartbeat-refreshed, TTL-expired, cleared on disconnect (`state/presence.js`). `connectedPeers` stays the routing registry ("where to send frames"); the lease answers "who is online".
+Liveness is tracked separately from connection state. Peers hold short-lived **presence leases** — heartbeat-refreshed, TTL-expired, cleared on disconnect (`network/presence.js`). `connectedPeers` stays the routing registry ("where to send frames"); the lease answers "who is online".
 
-Durable state changes reach the renderer as **level-triggered hints**: the worker coalesces them into `event:reconcile { scope }` (`state/hints.js`) and the UI refetches that scope, so a missed event can never leave the UI stale. Every list view rides this channel — `files`, `shares`, `share-files`, `members`, `join-requests` — fanned from the named `*-updated` pokes via `POKE_SCOPE` (`core/ipc.js`). The named events stay on the wire as the emit-site API and as test/debug observables.
+Durable state changes reach the renderer as **level-triggered hints**: the worker coalesces them into `event:reconcile { scope }` (`core/hints.js`) and the UI refetches that scope, so a missed event can never leave the UI stale. Every list view rides this channel — `files`, `shares`, `share-files`, `members`, `join-requests` — fanned from the named `*-updated` pokes via `POKE_SCOPE` (`core/ipc.js`). The named events stay on the wire as the emit-site API and as test/debug observables.
 
 ### 4.8 Blind relay
 
@@ -545,7 +545,7 @@ When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` op
 - **The seed at rest** — `relay-ticket.enc` beside `kek.enc`, under Electron `safeStorage`, `0600` (`main/relay-secret.js`). It is a bearer credential, so it does not go in `config.json`; the renderer never receives it back, and it reaches the worker only on the `bootstrap` frame, exactly as `identityKEK` does. The vault and the config slot cannot be written atomically, so the order is chosen to leave the **visible** failure on a crash: config first when adding, vault first when removing, each followed by an explicit `flush()`. A delete that fails is reported rather than swallowed — a seed still on disk that the config no longer names is a pinned identity nothing in the app can find.
 - **A config naming a private relay is not proof the identity is live.** A machine move that copied `config.json` but not `relay-ticket.enc`, or a vault unreadable under a new keyring, leaves the node presenting a different key. `setRelayThrough` refuses to install the relay in that case (`{ applied: 0, reason: 'identity-missing' }`) and stays direct, because routing every dial into a firewall refusal is worse than not relaying.
 - **Validation** stays in main, the trust boundary: `relay:parse` returns one of three error codes (`invalid-format` / `unsupported-version` / `checksum-failed`, never a generic "invalid"), and `relay:set` is the single writer for the slot and the vault. The renderer's `relay-key.ts` is a shape-only pre-check for typing feedback.
-- **Delivery**: the `bootstrap` frame carries `relayMode` / `relay` / `relaySeed`; live changes ride `network:set-relay` over the existing NDJSON channel. A change of **pinned identity** cannot be applied live — `defaultKeyPair` is fixed at DHT construction — so `relay:set` reports `identityChanged`, the renderer records a session-scoped pending flag (`renderer/relay-session.ts`) and the section offers **Reconnect now**. Only that button sends `shutdown`, which the existing respawn policy turns into a fresh boot frame and a window reload. Doing it automatically is what the reload cost makes wrong: it returns the user to the home screen with nothing to explain why. Until they press it the config is stored and the probe honestly reports the relay unreachable, because the worker really is still presenting its old identity.
+- **Delivery**: the `bootstrap` frame carries `relayMode` / `relay` / `relaySeed`; live changes ride `network:set-relay` over the existing NDJSON channel. A change of **pinned identity** cannot be applied live — `defaultKeyPair` is fixed at DHT construction — so `relay:set` reports `identityChanged`, the renderer records a session-scoped pending flag (`renderer/platform/relay-session.ts`) and the section offers **Reconnect now**. Only that button sends `shutdown`, which the existing respawn policy turns into a fresh boot frame and a window reload. Doing it automatically is what the reload cost makes wrong: it returns the user to the home screen with nothing to explain why. Until they press it the config is stored and the probe honestly reports the relay unreachable, because the worker really is still presenting its old identity.
 - **Application** — `setRelayThrough` (`network/swarm.js`) installs the relay function on **both** the control and content swarms. Configuring only the control swarm yields a build whose handshakes connect and whose transfers stall, so it must run **after** `initContentSwarm` — the two swarms are constructed on consecutive lines and `getContentSwarm()` is null in between.
 - **Mode** maps onto hyperswarm's own semantics: `off` installs no function at all (byte-identical to a build without relay support, and the only kill switch since the `relay` feature flag was retired), `auto` engages after a failed punch or on a randomized NAT, `always` relays every connection (the only way to *test* a relay end-to-end). Under `auto` we also **offer** our relay on the announce path, so a peer with no relay of its own can adopt ours — but never for a **private** relay: a stranger who adopted that key is not on the roster, and the refusal it gets is indistinguishable from the relay being offline.
 - **Probe** — `network:test-relay` dials the key and waits for the `blind-relay` Protomux channel to open, so a mistyped key fails at configuration time rather than weeks later as a space that silently never syncs. It runs on its own when a relay is added.
@@ -633,14 +633,14 @@ The member view now surfaces `inactive` from `deriveMemberSet` — peers whose r
 
 **The revoke comes first and gates the tombstone.** A failed revoke leaves the key unhandled (no `markLeft`), and since the surviving vouch keeps it seeded in `prior` at the next view open, the retry is self-sustaining across sessions.
 
-Prior-member belief (`entry.prior`, a `Map<key, lastKnownTs>` that also stamps the tombstone's single-clock `leaveTs`) is seeded at view open from the durable roster (`space.members`) **and our own authored approvals** — the roster alone can lose a vouchee that reconcile dropped on a transient null read — and grows with each fold, so the observation also fires when the `del` lands before the session's first fold (approver restarted). `isLeft` guards against double-acting after a received frame. The pure decision is `observedLeavers` in `member-set.js`.
+Prior-member belief (`entry.prior`, a `Map<key, lastKnownTs>` that also stamps the tombstone's single-clock `leaveTs`) is seeded at view open from the durable roster (`space.members`) **and our own authored approvals** — the roster alone can lose a vouchee that reconcile dropped on a transient null read — and grows with each fold, so the observation also fires when the `del` lands before the session's first fold (approver restarted). `isLeft` guards against double-acting after a received frame. The pure decision is `observedLeavers` in `membership/fold.js`.
 
 ### Membership reconciliation
 
 **This replaces an earlier design** in which each peer published witness observations
 (`observed/<leaverPk>/<spaceId>`) and a `reconcileMember` pass evaluated them as second-hand evidence
 that a third party had left. None of that ships: third-party removal is deliberately **not modelled**
-(`member-set.js`), because a claim about someone *else's* membership would need an ordered log to
+(`membership/fold.js`), because a claim about someone *else's* membership would need an ordered log to
 decide which of two concurrent claims came first. Membership is instead a **derived** fact —
 recomputed from replicated records — rather than a handshake-time cache anyone patches.
 
@@ -736,12 +736,12 @@ Module map: §11.
    - **the listing is non-empty** (`driveCount > 0`) — an all-empty listing is a transient replication gap, never "the owner deleted everything";
    - **the listing was read to completion** — a catalog drain that timed out mid-tree returns a *partial, non-empty* list, indistinguishable from a real deletion unless completeness is checked. The likelihood of such a drain grows with the file count, so the bigger the folder the likelier the wrong delete.
 
-   Those three are boolean gates on *whether* to act. Past them a **magnitude guard** applies (`minMirrorDeletions` / `maxMirrorDeletionRatio`, `runtime-config.js`): up to 8 deletions are always honoured; above that a pass may never remove more than half of what the mirror owns — a listing that shrank 1,000 → 3 is treated as a replication gap, not as a deletion. Mirrors are otherwise read-only and idempotent. A failed file retries on the next tick under a per-(path, hash) **attempt budget** (`folders/fetch-attempts.js`, 3 attempts, eviction-bounded): a bounded budget rather than a permanent block, so a second healthy holder still gets its turn.
+   Those three are boolean gates on *whether* to act. Past them a **magnitude guard** applies (`minMirrorDeletions` / `maxMirrorDeletionRatio`, `runtime-config.js`): up to 8 deletions are always honoured; above that a pass may never remove more than half of what the mirror owns — a listing that shrank 1,000 → 3 is treated as a replication gap, not as a deletion. Mirrors are otherwise read-only and idempotent. A failed file retries on the next tick under a per-(path, hash) **attempt budget** (`folders/mirror-budgets.js`, 3 attempts, eviction-bounded): a bounded budget rather than a permanent block, so a second healthy holder still gets its turn.
 5. **Pause / unmount.** `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record and tombstones the mirror row — the materialized files stay on disk (the overlay keeps no per-share cache to reclaim, matching owner-delete behaviour). Status flows through `event:foreign-folder-mount-status`. The tuple is `contract/statuses.js#FOREIGN_MOUNT_STATUS`: `idle` / `scanning` / `active` / `paused` / `paused-enospc` / `paused-error` / `mount-point-gone` (the owned side is the same minus `idle`).
 
 ### 7.4 Mount validation (`folders/mount-validate.js`)
 
-`validateMountPath(absPath, role, ctx)` **rejects** (codes surfaced via `errorMessages.js`): system folders (`MOUNT_FORBIDDEN_SYSTEM`), the app's storage dir (`MOUNT_FORBIDDEN_APP_DATA`), cloud-sync roots — Dropbox/OneDrive/iCloud (`MOUNT_FORBIDDEN_CLOUD_SYNC`), Windows reserved names / illegal chars (`MOUNT_FORBIDDEN_WIN_RESERVED`), overlap with an existing mount of the same role (`MOUNT_OVERLAPS`), a foreign mount inside `~/Downloads` (`MOUNT_INSIDE_DOWNLOADS`), non-writable paths (`MOUNT_NOT_WRITABLE`).
+`validateMountPath(absPath, role, ctx)` **rejects** (codes surfaced via `errors/error-messages.js`): system folders (`MOUNT_FORBIDDEN_SYSTEM`), the app's storage dir (`MOUNT_FORBIDDEN_APP_DATA`), cloud-sync roots — Dropbox/OneDrive/iCloud (`MOUNT_FORBIDDEN_CLOUD_SYNC`), Windows reserved names / illegal chars (`MOUNT_FORBIDDEN_WIN_RESERVED`), overlap with an existing mount of the same role (`MOUNT_OVERLAPS`), a foreign mount inside `~/Downloads` (`MOUNT_INSIDE_DOWNLOADS`), non-writable paths (`MOUNT_NOT_WRITABLE`).
 
 It also returns non-blocking **advisories**: macOS TCC-gated folders (Desktop/Documents), non-`C:` Windows drives that may be removable or network.
 
@@ -927,7 +927,6 @@ copy in component state that could disagree with it.
 |---|---|---|---|
 | `store/query-store.js` | worker NDJSON (`ipc.ts`) | fetching, dedup, caching, **scope invalidation**, `AbortController` → `FRAME.CANCEL` | `useQuery(type, params, scopes, opts)` |
 | `store/main-store.js` | `window.bridge` (Electron main) | one shared copy per main-process fact | `useMainQuery` |
-| `store/prefs-store.js` | `window.bridge` | the `AppPrefs` slice of `config.json` | `usePrefs` |
 
 - **One entry per `[type, params]`.** `keyOf` sorts the param keys, so `{a,b}` and `{b,a}` are one
   entry rather than two. An entry holds a *list* of scopes, because a view may re-derive on several
@@ -968,7 +967,7 @@ copy in component state that could disagree with it.
 
 ### Developer console (`window.mirall`)
 
-`src/renderer/dev-console.ts` (imported unconditionally by `main.tsx`) exposes a debugging surface on `window.mirall` — **present in every build, including production**, reachable through DevTools (§2 step 6). Read-only diagnostics go through the worker RPC (`request`); logging/version/update/identity go through `window.bridge`. Every command logs its result *and* returns it, so both `mirall.spaces()` and `const s = await mirall.spaces()` work. Typed as `MirallDevConsole` in `global.d.ts`.
+`src/renderer/platform/dev-console.ts` (imported unconditionally by `main.tsx`) exposes a debugging surface on `window.mirall` — **present in every build, including production**, reachable through DevTools (§2 step 6). Read-only diagnostics go through the worker RPC (`request`); logging/version/update/identity go through `window.bridge`. Every command logs its result *and* returns it, so both `mirall.spaces()` and `const s = await mirall.spaces()` work. Typed as `MirallDevConsole` in `global.d.ts`.
 
 `help()` · `verbose(on = true)` — flips verbose logging across **worker and main at runtime**, no relaunch, no env var · `status()` (`network:status:get`) · `spaces()` · `members(spaceId)` (`members:online`) · `storage()` · `mounts()` (`mounts:list-all`) · `profile()` · `features()` (`features:get`) · `version()` (`bridge.appVersion()`) · `update()` (`bridge.checkForUpdate()`) · `identity()` (`bridge.getIdentityProtection()`).
 
@@ -982,7 +981,7 @@ Driven by `pear-runtime-updater` (a dependency of `pear-runtime`), which watches
 2. **Version check.** `_update` reads `/package.json` from the latest checkout and parses `version` as semver. Strictly greater than the running version ⇒ proceed. **Equal** ⇒ prefetch the binary so apply is instant when triggered. Otherwise return silently.
 3. **Mirror.** Iterate `co.list('/by-arch/<host>/app/<name>')` — `host = process.platform + '-' + process.arch`, `name = Mirall.app | Mirall.AppImage | Mirall.msix` — into `<userData>/pear-runtime/next/<length>.<fork>/by-arch/<host>/app/<name>`.
 4. **Events.** `pear.updater.emit('updating')` on mirror start, `'updated'` on completion; both forwarded to the renderer as `pear:event:updating` / `pear:event:updated`.
-5. **Banner.** `renderer/updates.ts` listens for `updated`. Dev builds reload the window. Packaged builds read the staged version via `bridge.appVersion()` — **from main**, because the worker's bootstrap fork/length snapshot can be a stale `0/0` before replication completes — and store it through the `updateState` reducer. `UpdateBanner` (inside `TopNav`) is passive: *"Update to vX available — applied on next start"* plus **Dismiss**. Dismissing hides the banner; the About screen keeps showing the notice.
+5. **Banner.** `renderer/platform/updates.ts` listens for `updated`. Dev builds reload the window. Packaged builds read the staged version via `bridge.appVersion()` — **from main**, because the worker's bootstrap fork/length snapshot can be a stale `0/0` before replication completes — and store it through the `updateState` reducer. `UpdateBanner` (inside `TopNav`) is passive: *"Update to vX available — applied on next start"* plus **Dismiss**. Dismissing hides the banner; the About screen keeps showing the notice.
 6. **Apply — no user action.** `pear.updater.applyUpdate()` runs automatically:
    - **Windows / Linux** — main pre-stages the apply the moment `updated` fires. On Windows because `msix-manager.addPackage` takes seconds and would race a quit→relaunch inside `before-quit`, silently failing if the `.msix` is still locked. On Linux so the staged AppImage doesn't sit unused until a clean quit.
    - **macOS** — applies only at quit: a mid-session `fsx.swap` would let a later disk re-read mix new-version files with old in-memory code.
@@ -1003,11 +1002,11 @@ Diagnostic IPC (`bridge.checkForUpdate()`, `bridge.appVersion()`) is catalogued 
 
 **Visual language — colour tokens, typography, spacing, radii, elevation/glass, motion, platform chrome, and the styling of every component — lives in `design.md` and is authoritative there.** This section covers only structure and behaviour.
 
-The design system is named **"Editorial Etherealism"**. `src/renderer/platform.ts` stamps `data-platform="darwin|win32|linux|other"` on `<html>` at load, which drives platform-specific chrome. Window bounds persist across launches via `renderer/window-bounds.ts` + `bridge.getWindowBounds`/`setWindowBounds`.
+The design system is named **"Editorial Etherealism"**. `src/renderer/platform/platform.ts` stamps `data-platform="darwin|win32|linux|other"` on `<html>` at load, which drives platform-specific chrome. Window bounds persist across launches via `renderer/platform/window-bounds.ts` + `bridge.getWindowBounds`/`setWindowBounds`.
 
 ### Internationalization
 
-`renderer/i18n.ts` initialises `i18next` + `react-i18next` with five locales (`en`, `de`, `fr`, `es`, `it`). Catalogs live at `renderer/locales/<code>/{common,errors}.json` and are **statically imported** so esbuild bundles them — no runtime fetch.
+`renderer/platform/i18n.ts` initialises `i18next` + `react-i18next` with five locales (`en`, `de`, `fr`, `es`, `it`). Catalogs live at `renderer/locales/<code>/{common,errors}.json` and are **statically imported** so esbuild bundles them — no runtime fetch.
 
 Initial language: persisted choice from the unified config (`config-client.ts`, hydrated synchronously from `bridge.getConfig()`) → else `bridge.getLocale()` (Electron's `app.getLocale()`) reduced to its primary subtag → else `en`. `setLocale(code)` persists via `config-client` (→ `config:set`) and calls `i18n.changeLanguage()`; `document.documentElement.lang` stays in sync. Components use `useTranslation()`. `SUPPORTED_LANGUAGES` is exported for the language picker.
 
@@ -1072,7 +1071,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `DeleteFolderShareModal` | Owner-side confirm for `owned-folder:delete` (warns it removes the share for everyone and stops mirrors) |
 | `PageHeader` | Back button + title + optional subtitle (Folder View, settings sub-screens) |
 | `ProgressBar` | Non-cancellable (the caller owns controls) — used for mirror file rows |
-| `FilePath` | Monospace path, middle-truncated (directory ellipsizes, filename stays) via `splitPathForDisplay()` in `renderer/sharePaths.js`. Renders FS paths consistently everywhere |
+| `FilePath` | Monospace path, middle-truncated (directory ellipsizes, filename stays) via `splitPathForDisplay()` in `renderer/model/share-paths.js`. Renders FS paths consistently everywhere |
 | `IconButton` | Circular icon-only button with a **mandatory** `ariaLabel` |
 
 ---
@@ -1417,32 +1416,37 @@ Behaviour worth knowing (styling → `design.md`):
 
 ### `src/renderer/`
 
+The root holds only `main.tsx`, `app.tsx`, `ScreenRouter.tsx` and `package.json`; every other
+module sits in a named bucket, kebab-cased (`renderer-root-is-empty.test.js`).
+
 | File / dir | Purpose |
 |---|---|
-| `main.tsx` | `createRoot(…)`; imports `platform.ts`, `theme.ts`, `dev-console.ts` for side effects |
-| `app.tsx` | Root — providers, screen routing (`ScreenRouter`), the deep-link queue (`DeepLinkRouter`), the command registrations (`AppCommands` / `SpaceCommands`), the join-request toast bridge, outermost `ToastProvider`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
-| `ipc.ts` | Worker IPC wrapper — `request()`, `subscribe()`, `addFileToSpace()`, first-boot spawn and crash-respawn orchestration |
-| `updates.ts` | Singleton update state → `UpdateBanner` |
-| `config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
-| `types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) — the status unions are derived from `contract/statuses.js` |
-| `sharePaths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
-| `errorMessages.js` | The one backend-code → i18n-key map |
-| `errorText.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |
-| `hooks/useErrorText.ts` | The React binding for `errorTextFor` |
-| `keyboard/` | `KeyboardProvider` + `registry`, `accelerator` (chord parsing) + `AcceleratorLabel`, `CommandPalette` (`⌘K`), `ShortcutsHint`, `known-commands.ts`. Screens register via `useRegisterCommand` (SpaceView: `⌘U` add files, `⌘⇧U` add folder, `⌘J` join, `⌘⇧L` leave) |
-| `utils.ts` | `formatSize` (over `bytes.js`), `formatSpeed`, `resolveEta` / `etaFromRate` / `progressValueText`, `resizeAvatar`, `fileName`, `gradientForSpaceId`; re-exports `getFileIcon` from `fileIcon.js` — the two pure modules unit-test under brittle-node |
-| `platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; theme apply; window-bounds **tracking** (debounced `setWindowBounds` on resize / blur / hide / unload — main restores bounds itself at launch, §2 step 5) |
-| `dev-console.ts` | `window.mirall` debugging surface (§8) |
-| `global.d.ts` | Type declarations for `window.bridge` |
-| `store/` | The two renderer stores and their React bindings — `query-store.js` + `useQuery.ts` (worker requests) and `main-store.js` + `main-queries.js` + `useMainQuery.ts` (main-process reads, `patchMain` for a local write-through), plus `reconcile.ts` (the reconcile bridges) and `scopes.ts` (the per-hook scope lists). Plain JS + `.d.ts` so they unit-test under brittle-node. §8 |
-| `hooks/` | The hooks. Fetching ones read through `useQuery` / `useMainQuery`; the ones that stay off the store on purpose — `usePeerDownloads`, `usePeerDownloadDetail`, `useIndexProgress`, `useDecorations`, `useConnectionStatus`, the validate probe in `useMountWizard` — say why in their headers (§8). Non-fetching: `useUpdates`, `useErrorText`, `useTreeExpansion`, `useTransferControls`, `useAppNavigation`, `useAppShellEffects`, `useHasVerticalOverflow`, … |
-| `workerRespawn.js` | `makeRespawnPolicy()` — the crash-respawn ladder `ipc.ts` drives (5 retries, backoff, give up after 3 unstable lifetimes in 10 min). §2 boot step 11 |
-| `screens/` | `Onboarding`, `SharedSpaces`, `SpaceView`, `FolderView`, `ConnectionProblem`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |
-| `components/` | `primitives/`, `cards/`, `modals/`, `layout/`, `folder/`, `space/`, `path/`, `activity/`, `share-drop/`, `toast/` (§10) |
-| `styles/tailwind.css` | Font faces, custom utilities, glass classes → `design.md` |
-| `i18n.ts` | `i18next` setup, initial-locale resolver, `setLocale`, `SUPPORTED_LANGUAGES` |
-| `locales/<code>/{common,errors}.json` | Catalogues, statically imported so esbuild bundles them |
-| `notifications/` | `dispatcher.ts` (suppress-when-focused gate + `bridge.notify`), `click-router.ts` (`bridge.onNotificationClick` → focus + routing), `prefs.ts` (the notification preference slice), `pausedToast.js` (the paused-transfer toast wording). OS-level — distinct from in-app toasts |
+| `src/renderer/main.tsx` | `createRoot(…)`; imports `platform.ts`, `theme.ts`, `dev-console.ts` for side effects |
+| `src/renderer/app.tsx` | Root — providers, screen routing (`ScreenRouter`), the deep-link queue (`DeepLinkRouter`), the command registrations (`AppCommands` / `SpaceCommands`), the join-request toast bridge, outermost `ToastProvider`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
+| `src/renderer/ipc/ipc.ts` | Worker IPC wrapper — `request()`, `subscribe()`, `addFileToSpace()`, first-boot spawn and crash-respawn orchestration |
+| `src/renderer/platform/updates.ts` | Singleton update state → `UpdateBanner` |
+| `src/renderer/platform/config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
+| `src/renderer/types/types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) — the status unions are derived from `contract/statuses.js` |
+| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`. Plain JS + `.d.ts`, so they unit-test under brittle-node |
+| `src/renderer/shell/` | Cross-screen shell logic — `navigation.ts` (the screen graph, §10), `space-actions.ts`, `tab-intent.js`, `docs-links.js` |
+| `src/renderer/model/share-paths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
+| `src/renderer/errors/error-messages.js` | The one backend-code → i18n-key map |
+| `src/renderer/errors/error-text.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |
+| `src/renderer/hooks/useErrorText.ts` | The React binding for `errorTextFor` |
+| `src/renderer/keyboard/` | `KeyboardProvider` + `registry`, `accelerator` (chord parsing) + `AcceleratorLabel`, `CommandPalette` (`⌘K`), `ShortcutsHint`, `known-commands.ts`. Screens register via `useRegisterCommand` (SpaceView: `⌘U` add files, `⌘⇧U` add folder, `⌘J` join, `⌘⇧L` leave) |
+| `src/renderer/format/utils.ts` | `formatSize` (over `format/bytes.js`), `formatSpeed`, `resolveEta` / `etaFromRate` / `progressValueText`, `resizeAvatar`, `fileName`, `gradientForSpaceId`; re-exports `getFileIcon` from `model/file-icon.js` — the two pure modules unit-test under brittle-node |
+| `src/renderer/platform/platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; theme apply; window-bounds **tracking** (debounced `setWindowBounds` on resize / blur / hide / unload — main restores bounds itself at launch, §2 step 5) |
+| `src/renderer/platform/dev-console.ts` | `window.mirall` debugging surface (§8) |
+| `src/renderer/platform/global.d.ts` | Type declarations for `window.bridge` |
+| `src/renderer/store/` | The two renderer stores and their React bindings — `query-store.js` + `useQuery.ts` (worker requests) and `main-store.js` + `main-queries.js` + `useMainQuery.ts` (main-process reads, `patchMain` for a local write-through), plus `reconcile.ts` (the reconcile bridges) and `scopes.ts` (the per-hook scope lists). Plain JS + `.d.ts` so they unit-test under brittle-node. §8 |
+| `src/renderer/hooks/` | The hooks. Fetching ones read through `useQuery` / `useMainQuery`; the ones that stay off the store on purpose — `usePeerDownloads`, `usePeerDownloadDetail`, `useIndexProgress`, `useDecorations`, `useConnectionStatus`, the validate probe in `useMountWizard` — say why in their headers (§8). Non-fetching: `useUpdates`, `useErrorText`, `useTreeExpansion`, `useTransferControls`, `useAppNavigation`, `useAppShellEffects`, `useHasVerticalOverflow`, … |
+| `src/renderer/ipc/worker-respawn.js` | `makeRespawnPolicy()` — the crash-respawn ladder `ipc.ts` drives (5 retries, backoff, give up after 3 unstable lifetimes in 10 min). §2 boot step 11 |
+| `src/renderer/screens/` | `Onboarding`, `SharedSpaces`, `SpaceScreen`, `FolderScreen`, `ConnectionProblem`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |
+| `src/renderer/components/` | `primitives/`, `cards/`, `modals/`, `layout/`, `folder/`, `space/`, `path/`, `activity/`, `share-drop/`, `toast/` (§10) |
+| `src/renderer/styles/tailwind.css` | Font faces, custom utilities, glass classes → `design.md` |
+| `src/renderer/platform/i18n.ts` | `i18next` setup, initial-locale resolver, `setLocale`, `SUPPORTED_LANGUAGES` |
+| `src/renderer/locales/` | One `<code>/common.json` + `<code>/errors.json` pair per locale. Catalogues, statically imported so esbuild bundles them |
+| `src/renderer/notifications/` | `dispatcher.ts` (suppress-when-focused gate + `bridge.notify`), `click-router.ts` (`bridge.onNotificationClick` → focus + routing), `prefs.ts` (the notification preference slice), `pausedToast.js` (the paused-transfer toast wording). OS-level — distinct from in-app toasts |
 
 ---
 
@@ -1515,12 +1519,12 @@ OTA is unaffected: the channel drive ships the whole `.app` / `.AppImage` / `.ms
 - **Very large listings are capped, not paged.** Listings return at most `runtime-config.js#getListFilesCap()` entries; a share with more files doesn't render fully. Paging/virtualization is future work. Very large folders (hundreds of thousands of entries) also remain a memory-scaling risk for the single Bare worker.
 - **Departed members can linger under some offline patterns.** Leave convergence (§6) is driven by the leaver's own `member/<S>` record. A live leave frame propagates within ~1 RTT to connected peers, but a peer offline at leave-time keeps the departed member in its roster until that record replicates — from the leaver, or from any peer already carrying it. There is no third-party witness path; that design was retired (§6).
 - **The boot leftover sweep hard-deletes cores.** `cleanupOrphanedData` (§2 boot step 10) purges cores by raw RocksDB range delete — no backup, no undo, no audit row. The wanted set it purges *against* is assembled best-effort by `storage/leftover.js#buildWantedKeys`, so the decision fails closed (`sweep/sweep-rules.js`): any gap in that scan refuses the **whole** sweep — deliberately not per category, since "this gap can only reach that category" is an inference that rots silently — and a target set above `minSweepPurgeCores` (8) is refused past `maxSweepPurgeCores` (64) or `maxSweepPurgeRatio` (half the store). A refused sweep is journaled (`storage/sweep-journal.js`, read by `diagnostics:export`) and retried next boot. What remains open is the irreversibility: a sweep that passes every guard still has no undo and writes no audit row.
-- **A local edit to a mirrored file is preserved, not audited.** Before the fetch renames over a local file, `folders/foreign-folders.js#preserveLocalEdit` classifies it against the owner's current hash **and** the ancestor the mirror itself delivered (`transfer/files.js#markVerified`, read back through `getVerifiedHash`; `folders/mirror-ownership.js`): only a copy that is provably ours is overwritten in place, and a diverged, unknown or unreadable one is moved aside under a conflict name first. Still open: mirrored files are not `chmod`ed read-only, and neither the conflict copy nor the overwrite writes an audit row.
+- **A local edit to a mirrored file is preserved, not audited.** Before the fetch renames over a local file, `folders/foreign-folders.js#preserveLocalEdit` classifies it against the owner's current hash **and** the ancestor the mirror itself delivered (`transfer/files.js#markVerified`, read back through `getVerifiedHash`; `folders/mirror-policy.js`): only a copy that is provably ours is overwritten in place, and a diverged, unknown or unreadable one is moved aside under a conflict name first. Still open: mirrored files are not `chmod`ed read-only, and neither the conflict copy nor the overwrite writes an audit row.
 - **Mirror deletions are capped, not trashed or audited.** Past the three boolean gates, `shouldHonorDeletions` (§7.3) refuses a pass that would remove more than `maxMirrorDeletionRatio` of what the mirror owns (above the `minMirrorDeletions` floor). The unlinks that do run go through bare `fs.promises.unlink` — no trash — and `contract/audit-kinds.js` excludes per-file folder sync, so they leave no record.
 - **The preview can skip a file the mount will download.** The wizard previews a mount that does not exist yet, so the engine rule it must match is `folders/mirror-state.js#resolveLocalRelPath` — adopt a local file whose bytes already equal the owner's, otherwise mint a numbered sibling and never overwrite — and on that decision the two agree, including on an unreadable local file (conflict both sides). `preserveLocalEdit`'s ancestor branch governs a different question, the synced paths of an *established* mount, which no preview observes. What does diverge is the preview's cache shortcut: `isVerifiedUnchanged` reads a `verified:` row keyed by the owner's relPath, which `markVerified` writes even when the bytes landed at a renamed sibling, so a same-size local file at the natural path can be reported as needing no download and then be sibling-copied at mount time (issue #243).
 - **A deleted folder share leaves its file metadata behind.** `owned-folder:delete` tombstones the share record but not the per-file catalog entries under its prefix (§7.2), and those entries are excluded from the sweep that could collect them — so path, size, mtime and hash per file stay live in the owner's catalog for the lifetime of the space.
 - **Cancellation is a discard, not an abort.** The `FRAME.CANCEL` path is complete on the wire and the query store drives it, but only `share:list-files` reads `ctx.signal` in its handler. For every other request a cancel discards the response while the worker runs the read to completion — a bounded resource cost, not a correctness bug.
-- **`src/main` and `src/preload` share no contract.** `shared/contract/` covers the renderer and the worker; neither Electron process imports it. The renderer↔main surface is ~52 hand-mirrored `preload.js` methods against `renderer/global.d.ts`, and since preload sits outside `tsconfig`, `tsc` never compares the two and no parity test does either. They agree today.
+- **`src/main` and `src/preload` share no contract.** `shared/contract/` covers the renderer and the worker; neither Electron process imports it. The renderer↔main surface is ~52 hand-mirrored `preload.js` methods against `renderer/platform/global.d.ts`, and since preload sits outside `tsconfig`, `tsc` never compares the two and no parity test does either. They agree today.
 - **The vendored overlay has no static analysis.** `eslint.config.mjs` and `tsconfig.json` both exclude `vendor/**` as third-party code kept re-diffable against upstream, but it has taken behavioural commits here (bandwidth limits, relay support, transport liveness, handshake encoding, chunk-map caching) and has diverged substantially from the upstream `lib/`. Test coverage of it is strong and is what carries it. → `PROVENANCE.md`.
 - **Frontend tests are local-only.** `test/frontend/` drives the real Electron app through the macOS accessibility tree, which headless CI can't do. §15.
 - **Only production is actively seeded.** `mirall-seed.service` (prod) is the one active unit on the seed VM. `mirall-seed-staging.service` ships as a **disabled template** — there is no staging install base today. The dev channel has no seeder by design: dev builds are validated by direct download/install. → `seed-host/setup-guide.md`.
@@ -1556,7 +1560,7 @@ CI composition and the a11y bar → `testing.md`.
 
 ### Master secret (M) & key derivation
 
-A 32-byte **master secret (M)** roots all local key material: every writable core's keypair and every local encryption key derives from it (`core/store.js`, `identity-keys.js`). M is stored only in `identity.enc` beside the store, wrapped by a **KEK** from a pluggable unlock provider — by default the OS keychain via Electron's `safeStorage` (`main/identity-kek.js`, `core/identity.js`, `identity-envelope.js`, `identity-resolve.js`).
+A 32-byte **master secret (M)** roots all local key material: every writable core's keypair and every local encryption key derives from it (`core/store.js`, `identity-keys.js`). M is stored only in `identity.enc` beside the store, wrapped by a **KEK** from a pluggable unlock provider — by default the OS keychain via Electron's `safeStorage` (`main/identity-kek.js`, `core/identity.js`, `identity-envelope.js`).
 
 The wrap flow guarantees **the RocksDB seed never doubles as the identity**: a fresh install generates an independent random M, while a store predating the envelope preserves its seed as M, then replaces the persisted seed and best-effort-drops the superseded seed blocks.
 

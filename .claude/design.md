@@ -17,8 +17,8 @@ model: CSS custom properties define the palette, Tailwind maps them to
 |---|---|
 | Color tokens (light + dark), fonts, base CSS | `src/renderer/styles/tailwind.css` |
 | Token → Tailwind mapping, font families, radius scale | `tailwind.config.js` |
-| Theme switch (light/dark/system), `color-scheme` | `src/renderer/theme.ts`, `assets/theme-bootstrap.js` |
-| Theme persistence (`appearance.theme`) | `src/renderer/config-client.ts` (`config.json`) |
+| Theme switch (light/dark/system), `color-scheme` | `src/renderer/platform/theme.ts`, `assets/theme-bootstrap.js` |
+| Theme persistence (`appearance.theme`) | `src/renderer/platform/config-client.ts` (`config.json`) |
 | Fonts (self-hosted woff2) | `assets/fonts/manrope.woff2`, `assets/fonts/plusjakarta.woff2` |
 | Primitives | `src/renderer/components/primitives/` |
 | Cards, layout, modals, toasts, widgets | `src/renderer/components/{activity,cards,folder,layout,modals,path,primitives,settings,share-drop,space,toast}/` |
@@ -30,7 +30,7 @@ model: CSS custom properties define the palette, Tailwind maps them to
 - **Tokens, never raw hex in components.** Use the semantic Tailwind colors
   (`bg-surface-container-low`, `text-on-surface-variant`, …). Raw `bg-[#…]`
   appears in exactly one curated place — the per-space icon palette
-  (`gradientForSpaceId`, `src/renderer/utils.ts`).
+  (`gradientForSpaceId`, `src/renderer/format/utils.ts`).
 - **Depth through surface tiers, not lines.** Sectioning is done by stepping
   the `surface-container-*` ramp, not by 1px borders. Borders are the rare
   exception (see §10), used deliberately, not for layout containment.
@@ -137,7 +137,7 @@ Theme is chosen via `theme.ts` (`light` | `dark` | `system`); `theme.ts` only
 **applies** the theme — toggling the `.dark` class and setting
 `document.documentElement.style.colorScheme` so native UI (scrollbars, form
 controls) matches. Persistence lives in `config.json` (`appearance.theme`) via
-`src/renderer/config-client.ts`; the legacy `mirall:theme` localStorage key is
+`src/renderer/platform/config-client.ts`; the legacy `mirall:theme` localStorage key is
 read once for migration then deleted. `assets/theme-bootstrap.js` applies the
 stored theme before React mounts to avoid a flash.
 
@@ -293,7 +293,7 @@ card uses `rounded-2xl` (1.5rem), and modal panels sit one step above at
     `background: var(--color-surface-container-lowest)`. The blur belongs to the
     backdrop, never the panel. (The name is legacy; a comment in
     `tailwind.css` flags this.)
-- **No CSS gradients ship.** `gradientForSpaceId` (`src/renderer/utils.ts`)
+- **No CSS gradients ship.** `gradientForSpaceId` (`src/renderer/format/utils.ts`)
   returns a single flat `bg-[#hex] dark:bg-[#hex]` from a curated 7-color
   palette hashed by space ID — the "gradient" name is historical.
 
@@ -310,7 +310,7 @@ The ring is painted **outside** the border box, so it needs 2px of clearance ins
 ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against a control shaves it
 off, and an `overflow-y-auto` pane clips *both* axes. Where a list or a column has to clip, give it
 that room as padding and cancel it with an equal negative margin, so nothing moves:
-`-mx-1 -mt-1 pl-1 pt-1` on the pane (see `FolderView.tsx`, `SpaceView.tsx`).
+`-mx-1 -mt-1 pl-1 pt-1` on the pane (see `screens/FolderScreen.tsx`, `screens/SpaceScreen.tsx`).
 `npm run test:layout:focusring` measures the invariant against the real screen.
 
 ### Buttons — `primitives/Button.tsx`
@@ -678,11 +678,11 @@ strip sits on — one token drives both the avatars' rings and the chip's, so th
 there, `group` where the strip is one named thing, `each` where every face reads its own name and
 the chip carries the remainder.
 
-### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/statusBadge.js`
+### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/model/status-badge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and
 **always `border border-outline`** (a deliberate border). A file row's pill also carries
 `srLabel` — `"<filename>: <status>"` — because it sits apart from the name it describes and
-announces a bare state without it; `cards/RowLane.tsx` renders every one of them. `statusBadge.js` maps
+announces a bare state without it; `cards/RowLane.tsx` renders every one of them. `model/status-badge.js` maps
 file/share state onto a **fixed 5-token palette**, each token one fixed meaning:
 🟢 `bg-success` (on your device — `mine` + `downloaded`/`synced`),
 🔵 `bg-info` (busy — `downloading` / `verifying` (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) /
@@ -707,7 +707,7 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   never scrolling with it: the filter field (count and clear *inside* the field) plus Expand all.
 - **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
   `cards/FolderStatsCard.tsx` (size, file count, and a status pill top-right drawn from the same
-  five-token `statusBadge.js` palette the file rows use). Neither carries an action — the only
+  five-token `model/status-badge.js` palette the file rows use). Neither carries an action — the only
   control in either is People's *Show all*, which reveals more of the same status.
 
 ### Progress bar — `primitives/ProgressBar.tsx`
@@ -780,7 +780,7 @@ use the "Share…" menu). Crossfade respects `prefers-reduced-motion`.
 Inline **Material Symbols** SVG paths (`viewBox="0 -960 960 960"`,
 `fill="currentColor"`), outlined default with a filled subset; the `IconName` union in `Icon.tsx` is the inventory.
 Default size 24. `aria-hidden` unless `ariaLabel` is provided. No icon font, no
-sprite sheet. File-type icon mapping lives in `src/renderer/fileIcon.js`.
+sprite sheet. File-type icon mapping lives in `src/renderer/model/file-icon.js`.
 
 ### Logo — `primitives/Logo.tsx`
 The Mirall wordmark, inline SVG (`viewBox="0 0 2835 844"`, so height drives

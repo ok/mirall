@@ -3,7 +3,7 @@
 // decode as a valid envelope, so arbitrary OS-delivered URLs can't inject
 // anything beyond a well-formed join request.
 
-// src/shared/invite-envelope.js is ESM; src/main is CJS. Load it once via
+// src/shared/contract/invite-envelope.js is ESM; src/main is CJS. Load it once via
 // dynamic import at module evaluation time. parseDeepLink awaits readiness,
 // so callers never see the partially-initialised state.
 const ready = import('../shared/contract/invite-envelope.js')
