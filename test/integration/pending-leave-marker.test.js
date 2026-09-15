@@ -1,9 +1,8 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import {
-  createSpace, forgetSpaceRecord, getSpace,
-  persistPendingLeave, clearPendingLeave, listPendingLeaves,
-} from '../../src/shared/spaces/space.js'
+import { getSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { forgetSpaceRecord, persistPendingLeave, clearPendingLeave, listPendingLeaves } from '../../src/shared/spaces/leave-records.js'
 
 // The pending-leave marker is the durable half of the leave-while-alone recovery: it must
 // carry the topic + original leave ts, and — critically — survive the space-record purge

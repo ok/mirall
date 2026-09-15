@@ -9,7 +9,7 @@ import { trackTimers } from '../helpers/timers.js'
 // every assertion after that reads a map nothing writes to any more.
 const timers = trackTimers()
 const { freshPeer } = await import('../helpers/store.js')
-const { createSpace } = await import('../../src/shared/spaces/space.js')
+const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount } = await import('../../src/shared/folders/mount-store.js')

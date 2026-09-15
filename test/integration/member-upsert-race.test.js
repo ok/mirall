@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace, getSpace, upsertMember, removeMember } from '../../src/shared/spaces/space.js'
+import { getSpace, upsertMember, removeMember } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 
 // REGRESSION: concurrent member writes used to be a read-modify-write race —
 // each handshake did getSpace()→push→updateMembers(whole list), so two landing

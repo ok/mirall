@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { overlayListOwn } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 

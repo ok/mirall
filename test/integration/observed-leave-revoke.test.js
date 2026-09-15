@@ -3,7 +3,8 @@ import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { markOwnMembership, markApproval, hasOwnApproval } from '../../src/shared/spaces/profile.js'
-import { createSpace, upsertMember } from '../../src/shared/spaces/space.js'
+import { upsertMember } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { openMemberView, closeMemberView, isMember, isLeft } from '../../src/shared/spaces/member-registry.js'
 
 // G6: an approver that never receives the leave FRAME must still revoke its grow-only vouch when

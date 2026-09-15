@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, readOwnShares, generateShareId, isValidShareName } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 

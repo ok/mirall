@@ -9,7 +9,8 @@ import {
   initProfile, setProfile,
   markOwnMembership, markApproval, readProfileRecord,
 } from '../../src/shared/spaces/profile.js'
-import { initSpaces, createSpace, getSpace } from '../../src/shared/spaces/space.js'
+import { initSpaces, getSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { configureMemberRegistry, openMemberView, closeAllMemberViews } from '../../src/shared/spaces/member-registry.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { tmpDir } from '../helpers/bare-tmp.js'

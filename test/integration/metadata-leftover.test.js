@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createLocalBee } from '../../src/shared/core/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { buildWantedKeys, classifyLeftovers } from '../../src/shared/storage/leftover.js'
 
 async function localDk(name) {

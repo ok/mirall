@@ -142,3 +142,10 @@ export const pureFolderPolicyModules = [
   'mount-fault', 'path-keys', 'preview-tally',
   'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'work-item',
 ]
+
+// The pure half of spaces/ — the decision tables and the in-memory caches the record modules
+// call. Each is loaded by test/unit under plain Node, which is what keeps the chain bare-free.
+export const pureSpacesModules = [
+  'creator-root', 'invites', 'join-requests', 'knock-policy', 'sck-seal',
+  'membership/fold', 'membership/leave-state',
+]

@@ -4,7 +4,7 @@ import { getIntentsBee } from '../../src/shared/core/intents.js'
 import { createIntentLog, INTENT_PREFIX } from '../../src/shared/core/intents.js'
 import { createOwnedMount, getOwnedMount, createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 const settle = () => new Promise((r) => setTimeout(r, scaled(30)))

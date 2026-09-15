@@ -555,11 +555,10 @@ When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` op
 
 ## 5. Invitation Mechanism
 
-1. Creator generates a space → 32-byte random topic → formatted invite code.
-2. Code displays as dashed 8-char segments (`formatInviteCode`).
-3. Joiner pastes the code or clicks a deep link; `decodeInvite` recovers the topic and any metadata.
-4. Joiner's app creates a local drive (same namespace scheme), stores metadata, joins the topic.
-5. On first connection the protomux handshake exchanges drive keys; reciprocal handshake + Corestore replication do the rest.
+1. Creator generates a space → 32-byte random topic → invite code (`encodeInvite`, §5.1).
+2. Joiner pastes the code or clicks a deep link; `decodeInvite` recovers the topic and any metadata.
+3. Joiner's app creates a local drive (same namespace scheme), stores metadata, joins the topic.
+4. On first connection the protomux handshake exchanges drive keys; reciprocal handshake + Corestore replication do the rest.
 
 ### 5.1 Invite envelope formats
 
@@ -1235,7 +1234,11 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/spaces/space.js` | Spaces-meta CRUD; serialized roster mutation (`mutateSpace` / `mutateMembers`, + the arrival audit row); durable leave state (the `leaving` marker, `left/` tombstones, `pendingleave/`, `resumeInterruptedLeave`, §6); drive naming / open / load / purge; the RocksDB core-purge primitives (`purgeCoreDk`, `clearAndPurgeCore`, `purgeAlias`); the join-request caches; creator-root pin / divergence / backfill; `SpacesBee` + `SpaceDrives` |
+| `src/shared/spaces/space.js` | The `spaces-meta` bee and the space record: reads (`getSpace` / `listSpaces`), the whole-record writes create and join mint, and the one per-space write chain every later change is serialized through (`mutateSpace` / `mutateMembers`, + the arrival audit row). Also the record predicates — the SCK resolve, the legacy-space refusal — and `SpacesBee`. `spacesMeta()` is how the two sibling modules that own the bee's other key namespaces reach it |
+| `src/shared/spaces/space-lifecycle.js` | How a space comes to exist for this peer: `createSpace`, `joinSpace`, `materializeOwnDrive` (the grant landing, which is what flips a pending space to approved) and `recordApproval` (§4.2). The only paths that write a whole record |
+| `src/shared/spaces/space-drives.js` | This peer's own writable Hyperdrive per space: the live drive map, the rejoin-safe drive name, open / announce (`markSpaceDriveKey` + the loose-catalog key) / boot load with its two drive-load fault policies / purge; `SpaceDrives` (§6) |
+| `src/shared/spaces/leave-records.js` | The durable leave state in `spaces-meta` — the `leaving` marker, the `left/` tombstones, the `pendingleave/` markers — plus the record deletions (`forgetSpaceRecord`, `purgeSpace`) and `resumeInterruptedLeave`, the boot pass that finishes a leave a crash interrupted (§6). `membership/leave-state.js` owns the step ORDER; this owns what survives between the steps |
+| `src/shared/spaces/creator-pin.js` | The durable creator-root pin: `pinCreatorKey`, the divergence latch, and the two one-shot boot passes that bring older records to the current shape. `creator-root.js` decides whether to adopt; this persists it (§16) |
 | `src/shared/spaces/peer-profile-watch.js` | `fetchPeerAvatar` and the ONE held profile-bee session per peer — a live Hyperbee with an append listener, which is what turns a co-member's later profile edit into a local update with no poll. The session is why this is a module: it has to be closed, and closed once (§6) |
 | `src/shared/spaces/join-requests.js` | Who is asking to join, in memory and per space. Two maps on purpose: `pendingRequests` is what this peer heard directly, `derivedRequests` is what the member registry's fold over the replicated records converged on and is authoritative for the UI. Neither survives a restart — a request is a live claim (§6) |
 | `src/shared/spaces/peer-bee.js` | Reading another peer's profile bee: open by key, pull the head, run the read, close — all under ONE budget covering both phases, because a peer that is merely slow and a peer that is gone look identical until it expires. Every reader goes through `withPeerBee` and none adds a second budget (§3.1) |
@@ -1379,6 +1382,7 @@ Behaviour worth knowing (styling → `design.md`):
 |---|---|
 | `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
 | `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
+| `src/shared/storage/core-purge.js` | `purgeCoreDk` / `clearAndPurgeCore` / `purgeAlias` — the RocksDB core-purge primitives every drive, catalog and leftover reclaim goes through. Written as direct tombstones because hypercore-storage's own `deleteCore` short-circuits without auth and strands the alias |
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/sweep/sweep-rules.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |

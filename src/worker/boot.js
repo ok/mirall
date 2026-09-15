@@ -20,11 +20,12 @@ import { osKeychainProvider } from '../shared/core/identity.js'
 import { runMigrations, stageCompacted } from '../shared/storage/migrations/index.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
+import { SpacesBee, listSpaces, getSpace, isLegacySpace } from '../shared/spaces/space.js'
+import { SpaceDrives } from '../shared/spaces/space-drives.js'
+import { backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators } from '../shared/spaces/creator-pin.js'
 import {
-  SpacesBee, SpaceDrives, listSpaces, getSpace,
-  resumeInterruptedLeave, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators, isLegacySpace,
-  persistPendingLeave, clearPendingLeave, listPendingLeaves,
-} from '../shared/spaces/space.js'
+  resumeInterruptedLeave, persistPendingLeave, clearPendingLeave, listPendingLeaves,
+} from '../shared/spaces/leave-records.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
 import { PendingTransfersBee, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'

@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, collectOwnShare, listPeerShareMeta } from '../../src/shared/shares/share-catalog.js'
 import { markVerified, markDownloaded, listVerifiedForShare, listDownloadClaimsForShare } from '../../src/shared/transfer/files.js'
 

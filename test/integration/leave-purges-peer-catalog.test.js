@@ -2,7 +2,9 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
-import { createSpace, getSpace, upsertMember, purgeSpace } from '../../src/shared/spaces/space.js'
+import { getSpace, upsertMember } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
 import { forgetUnreferencedPeerCores } from '../../src/shared/storage/leftover.js'
 
 async function coreInStore(dkHex) {

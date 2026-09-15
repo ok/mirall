@@ -5,7 +5,8 @@
 // Kept out of swarm.js because it is a retry loop over the registries, not connection handling, and
 // because its two in-flight sets are its own: nothing else reads them.
 import { PEER_FRAME } from '../contract/peer-frames.js'
-import { getSpace, listSpaces, listJoinRequests, getConvergingMember } from '../spaces/space.js'
+import { getSpace, listSpaces } from '../spaces/space.js'
+import { listJoinRequests, getConvergingMember } from '../spaces/join-requests.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
 
 // 'spaceId:joinerKey' currently being admitted via reconcile, so a concurrent trigger cannot start

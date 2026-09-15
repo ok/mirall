@@ -3,7 +3,8 @@ import b4a from 'b4a'
 import Hyperdrive from 'hyperdrive'
 import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { createSpace, mutateMembers } from '../../src/shared/spaces/space.js'
+import { mutateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
 
 async function coreInStore(dkHex) {

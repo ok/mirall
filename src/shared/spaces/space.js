@@ -1,10 +1,6 @@
-// Space lifecycle: create/join/leave of spaces and their local spaces-meta records,
-// per-space drive management (create, load, purge of on-disk cores — purgeCoreDk is the
-// shared core-purge primitive), the invite-code format, serialized member-roster mutation,
-// durable leave tombstones, pending join requests, and pinning of the creator root the
-// membership fold trusts.
-//
-// The `spaces-meta` bee's key layout, all three namespaces:
+// The `spaces-meta` bee: this peer's record of every space it belongs to, and the serialized
+// writers that mutate one. Three key namespaces live in the bee, the latter two written by
+// leave-records.js:
 //   space/<spaceId>            the space record (below)
 //   left/<spaceId>/<memberKey> a leave tombstone: { leaveTs }
 //   pendingleave/<spaceId>     an interrupted leave boot must finish: { topic, ts }
@@ -17,17 +13,10 @@
 // through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps, `favorite` and
 // `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`, `legacyWarning`
 // and `driveLoadError` as diagnoses a later pass records.
-import { createLocalBee, createDrive, getStore, storeEpoch, hasMasterSecret, deriveSpaceContentKey, isStorageInconsistency } from '../core/store.js'
-import { getContentKey, putContentKey } from './space-keys.js'
-import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
-import { markApproval, clearRequest, markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc, getLocalPublicKeyHex, clearOwnMembership, hasOwnApproval } from './profile.js'
-import { ownCatalogPublish } from '../shares/share-catalog.js'
-import { listOwnedMounts, deleteOwnedMount, listForeignMounts, deleteForeignMount } from '../folders/mount-store.js'
-import { readOwnShares, tombstoneShare } from '../shares/shares.js'
-import crypto from 'hypercore-crypto'
-import b4a from 'b4a'
-import keysMod from 'hypercore-storage/lib/keys.js'
-import { runLeaveTeardown } from './membership/leave-state.js'
+import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store.js'
+import { getContentKey } from './space-keys.js'
+import { hasOwnApproval } from './profile.js'
+import { resetJoinRequests } from './join-requests.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from '../audit/audit-log.js'
@@ -35,126 +24,10 @@ import { prefixRange } from '../core/bee-keys.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
-import { resetJoinRequests, clearJoinRequest } from './join-requests.js'
-
-// The join-request surface keeps its address here: the swarm, the membership handlers and the
-// renderer projection all reach a space's pending set through this module.
-export {
-  recordJoinRequest,
-  listJoinRequests,
-  listPendingRequests,
-  getConvergingMember,
-  clearJoinRequest,
-  setDerivedRequests,
-} from './join-requests.js'
-
-export async function recordApproval(spaceId, joinerKey) {
-  await markApproval(spaceId, joinerKey)
-  await upsertMember(spaceId, { publicKey: joinerKey, status: 'approved' })
-  await clearRequest(spaceId, joinerKey)
-  clearJoinRequest(spaceId, joinerKey)
-}
-
 const log = createLogger('space')
-const { store: keysStore, core: keysCore } = keysMod
-
-// Publish our per-space loose-catalog key alongside the drive key so co-members fold
-// it from records (the same path driveKey uses). Requires the space RECORD to exist
-// (the key derives from it via share-catalog's catalogNameForSpace); callers pass the record they already
-// hold, so this adds no extra read and never publishes before the record is saved.
-async function publishLooseCatalogKey(spaceId, space) {
-  if (!space) { log.warn('skipping loose-catalog key publish — no space record:', spaceId); return }
-  const pub = await ownLooseCatalogPublish(spaceId)
-  if (!pub) return
-  try {
-    if (pub.encrypted) await markSpaceLooseCatalogKeyEnc(spaceId, pub.keyHex)
-    else await markSpaceLooseCatalogKey(spaceId, pub.keyHex)
-  } catch (err) { log.debug('loose-catalog key publish failed:', err.message) }
-}
-
-// Carried in the handshake so a co-member can open our loose catalog before the member-view fold
-// hydrates it from records. Returns { keyHex, encrypted } — the same value publishLooseCatalogKey
-// writes to the profile bee.
-export async function ownLooseCatalogPublish(spaceId) {
-  if (!isInPlaceFilesEnabled()) return null
-  try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
-}
-
-// Deletes the core's alias (TL_CORE_BY_DKEY), TL_CORE range, and TL_DATA
-// range. hypercore-storage's built-in deleteCore short-circuits when auth
-// is missing, which leaves zombie aliases behind and crashes later opens
-// with unslab / STORAGE_EMPTY. Writing the deletions directly avoids that.
-export async function purgeCoreDk(cs, dkHex) {
-  const dkBuf = b4a.from(dkHex, 'hex')
-  const storage = await cs.storage.resumeCore(dkBuf)
-  if (!storage) return
-  const { corePointer, dataPointer } = storage.core
-  try {
-    const tx = cs.storage.db.write({ autoDestroy: true })
-    tx.tryDelete(keysStore.core(dkBuf))
-    tx.tryDeleteRange(keysCore.core(corePointer), keysCore.core(corePointer + 1))
-    tx.tryDeleteRange(keysCore.data(dataPointer), keysCore.data(dataPointer + 1))
-    await tx.flush()
-  } finally {
-    try { await storage.close() } catch {}
-  }
-  log.info('deleted core, dk:', dkHex.slice(0, 12))
-}
-
-// Reclaim a writable core's on-disk bytes: clear its blocks (which registers
-// RocksDB blob-file garbage) then delete the header/alias. A bare purgeCoreDk
-// range-delete leaves blob-separated values stranded — no compaction frees them
-// (garbage stays 0); the clear is what makes them reclaimable. Caller compacts.
-export async function clearAndPurgeCore(cs, core) {
-  await core.ready()
-  try { await core.clear(0, core.length) } catch (err) { log.warn('core.clear before purge failed:', err.message) }
-  const dkHex = b4a.toString(core.discoveryKey, 'hex')
-  try { await core.close() } catch {}
-  await purgeCoreDk(cs, dkHex)
-}
-
-// Removes the TL_CORE_BY_ALIAS entry that maps a (namespace, name) pair to
-// a discovery key. Required when purging a drive: corestore.get({ name })
-// resolves the alias first; without this, a same-name reopen after purge
-// returns the old discovery key and throws STORAGE_EMPTY because the core
-// itself was deleted.
-export async function purgeAlias(cs, namespace, name) {
-  if (!namespace || !name) return
-  const aliasKey = keysStore.coreByAlias({ namespace, name })
-  const tx = cs.storage.db.write({ autoDestroy: true })
-  tx.tryDelete(aliasKey)
-  await tx.flush()
-  log.info('deleted alias:', name)
-}
-
-// Drive namespace per (peer, space). The optional suffix decouples drive
-// identity across rejoins: a peer who leaves and rejoins gets a fresh
-// suffix, so others see the new participation as a new drive (empty)
-// rather than the deterministic-key resurrection of the old one. Records
-// without a suffix resolve to the plain unsuffixed name.
-function makeDriveName(spaceId, driveSuffix) {
-  return driveSuffix
-    ? 'space-drive-' + spaceId + '-' + driveSuffix
-    : 'space-drive-' + spaceId
-}
-
-function makeDriveSuffix() {
-  return b4a.toString(crypto.randomBytes(8), 'hex')
-}
-
-// test seam
-export function formatInviteCode(topicHex) {
-  return topicHex.match(/.{1,8}/g).join('-')
-}
-
-// test seam
-export function parseInviteCode(code) {
-  return code.replace(/-/g, '')
-}
 
 let spacesBee
 let spacesStore = -1
-const drives = new Map()
 
 // test seam — production opens the spaces bee through this file's own _open()
 export async function initSpaces() {
@@ -162,6 +35,13 @@ export async function initSpaces() {
   spacesStore = storeEpoch()
   spacesBee = createLocalBee('spaces-meta')
   await spacesBee.ready()
+}
+
+// The open bee, for the modules that own the other two key namespaces. Throws rather than
+// handing back a closed handle, so a caller racing the subsystem's stop fails where it happened.
+export function spacesMeta() {
+  if (!spacesBee) throw new Error('the spaces bee is not open')
+  return spacesBee
 }
 
 // Per-space content key (SCK). A space I created re-derives from M if the vault entry is ever
@@ -184,97 +64,6 @@ export function isLegacySpace(space) {
 // reads this text; it is here so the three worker-side gates cannot word it three ways.
 export const LEGACY_SPACE_MESSAGE = 'This space was created by an older version of Mirall and can no longer be used'
 
-export async function createSpace(name, icon = 'folder') {
-  const topic = crypto.randomBytes(32)
-  const topicHex = b4a.toString(topic, 'hex')
-  const spaceId = topicHex.slice(0, 16)
-  const driveSuffix = makeDriveSuffix()
-
-  // Every space is SCK-encrypted, so one cannot exist without the master secret its key derives
-  // from. Production always holds one — main.js refuses to start when secure storage is
-  // unavailable — so this is an invariant, not a user-facing outcome.
-  if (!hasMasterSecret()) throw new Error('createSpace: an identity is required to create a space')
-  const sck = deriveSpaceContentKey(spaceId)
-  await putContentKey(spaceId, sck)
-
-  const drive = createDrive(makeDriveName(spaceId, driveSuffix), { encryptionKey: sck })
-  await drive.ready()
-  drives.set(spaceId, drive)
-  // Publish our drive key so co-members (incl. ones who only derive us from records) can open it.
-  await markSpaceDriveKey(spaceId, b4a.toString(drive.key, 'hex'))
-
-  const space = {
-    name,
-    icon,
-    topic: topicHex,
-    created: new Date().toISOString(),
-    members: [],
-    driveSuffix,
-    schemaVersion: 2,
-    sckDerivable: true,
-    // creatorKey is the root of the membership OR-Set (conflict-free add/remove set)
-    // fold. I created this space, so I am its root — stamp myself.
-    creatorKey: getLocalPublicKeyHex(),
-  }
-  await spacesBee.put('space/' + spaceId, space)
-  // AFTER the record exists, so ownCatalog resolves the canonical (suffixed) core —
-  // getSpace() returns null before this put.
-  await publishLooseCatalogKey(spaceId, space)
-
-  return { spaceId, ...space, driveKey: b4a.toString(drive.key, 'hex') }
-}
-
-export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator } = {}) {
-  const spaceId = topicHex.slice(0, 16)
-
-  const existing = await spacesBee.get('space/' + spaceId)
-  if (existing) {
-    // A surviving durable `leaving` marker (an interrupted leave whose boot completion failed)
-    // must not outlive a rejoin — boot would otherwise resume the leave and silently delete the
-    // space the user just rejoined. Rejoining is the user's decision that the leave is off.
-    if (existing.value.leaving) {
-      await mutateSpace(spaceId, (space) => {
-        const next = { ...space }
-        delete next.leaving
-        return next
-      })
-      delete existing.value.leaving
-    }
-    const sck = getSpaceContentKey(spaceId, { spaceId, ...existing.value })
-    if (existing.value.status !== 'pending' && !drives.has(spaceId)) {
-      const drive = createDrive(makeDriveName(spaceId, existing.value.driveSuffix), { encryptionKey: sck })
-      await drive.ready()
-      drives.set(spaceId, drive)
-    }
-    return { spaceId, ...existing.value }
-  }
-
-  if (!hasMasterSecret()) throw new Error('joinSpace: an identity is required to join a space')
-
-  // Stay pending and DON'T create the writable drive yet — it must be encrypted from block 0
-  // once the granted SCK arrives (hypercore can't retro-encrypt). materializeOwnDrive creates
-  // it on grant.
-  const space = {
-    name,
-    icon,
-    topic: topicHex,
-    created: new Date().toISOString(),
-    members: [],
-    driveSuffix: makeDriveSuffix(),
-    schemaVersion: 2,
-    status: 'pending',
-    ...(inviteId ? { inviteId } : {}),
-    // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
-    // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
-    // authoritatively pins/corrects it from the authenticated SCK-grant before this space
-    // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
-    // must seed from the creator, not whichever member's invite we joined through.
-    ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
-  }
-  await spacesBee.put('space/' + spaceId, space)
-  return { spaceId, ...space, driveKey: null, pending: true }
-}
-
 export async function listSpaces() {
   const spaces = []
   for await (const entry of spacesBee.createReadStream(prefixRange('space/'))) {
@@ -289,21 +78,39 @@ export async function getSpace(spaceId) {
   return entry ? { spaceId, ...entry.value } : null
 }
 
-// Per-space serialization of every read-modify-write of the member list. A peer
+// Writes a whole record. Only the two paths that mint one — create and join — write this way;
+// every later change goes through mutateSpace so it serializes.
+export function putSpaceRecord(spaceId, space) {
+  return spacesBee.put('space/' + spaceId, space)
+}
+
+export function deleteSpaceRecord(spaceId) {
+  return spacesBee.del('space/' + spaceId)
+}
+
+// Per-space serialization of every read-modify-write of a space record. A peer
 // joining a space that already has 2+ members fires several handshakes at once,
 // and leave-frames / reconcile-prunes can land concurrently with them. Writing
 // the whole roster from a stale read would silently drop concurrent updates —
 // the last writer clobbers the others, and a joiner could permanently miss a
-// co-member (typically the owner) until a reconnect. So: funnel all member
-// mutations through a per-space promise chain and re-read inside it, so each
+// co-member (typically the owner) until a reconnect. So: funnel all record
+// mutations through one per-space promise chain and re-read inside it, so each
 // write sees the previous one.
-const memberWriteChains = new Map()
+const writeChains = new Map()
+
+function enqueue(spaceId, run) {
+  const prev = writeChains.get(spaceId) ?? Promise.resolve()
+  const next = prev.then(run, run)
+  // Swallow rejections on the tail so one failed write can't poison the chain.
+  writeChains.set(spaceId, next.then(() => {}, () => {}))
+  return next
+}
 
 // `mutate(members)` gets a fresh deep-ish copy of the current member list and
 // returns the next array to persist, or null/undefined to skip the write.
 // Resolves to true iff a write happened.
 export function mutateMembers(spaceId, mutate) {
-  const run = async () => {
+  return enqueue(spaceId, async () => {
     const entry = await spacesBee.get('space/' + spaceId)
     if (!entry) return false
     // Snapshot the keys BEFORE mutate runs: callers mutate `current` in place and return the same
@@ -315,12 +122,22 @@ export function mutateMembers(spaceId, mutate) {
     await spacesBee.put('space/' + spaceId, { ...entry.value, members: next })
     auditArrivals(spaceId, entry.value, next.filter((m) => !before.has(m.publicKey)))
     return true
-  }
-  const prev = memberWriteChains.get(spaceId) ?? Promise.resolve()
-  const next = prev.then(run, run)
-  // Swallow rejections on the tail so one failed write can't poison the chain.
-  memberWriteChains.set(spaceId, next.then(() => {}, () => {}))
-  return next
+  })
+}
+
+// Serialized read-modify-write of a space's non-member fields (e.g. status),
+// sharing the per-space chain so it can't lose-update against member writes.
+// Resolves to the written record, or null when nothing was written.
+// test seam
+export function mutateSpace(spaceId, mutate) {
+  return enqueue(spaceId, async () => {
+    const entry = await spacesBee.get('space/' + spaceId)
+    if (!entry) return null
+    const next = mutate({ ...entry.value })
+    if (!next) return null
+    await spacesBee.put('space/' + spaceId, next)
+    return { spaceId, ...next }
+  })
 }
 
 // The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection state
@@ -344,24 +161,6 @@ function auditArrivals(spaceId, space, added) {
       target: targetRef(TARGET_KIND.MEMBER, m.publicKey, m.displayName || null),
     })
   })).catch((err) => log.debug('arrival audit failed:', err.message))
-}
-
-// Serialized read-modify-write of a space's non-member fields (e.g. status),
-// sharing the per-space chain so it can't lose-update against member writes.
-// test seam
-export function mutateSpace(spaceId, mutate) {
-  const run = async () => {
-    const entry = await spacesBee.get('space/' + spaceId)
-    if (!entry) return false
-    const next = mutate({ ...entry.value })
-    if (!next) return false
-    await spacesBee.put('space/' + spaceId, next)
-    return true
-  }
-  const prev = memberWriteChains.get(spaceId) ?? Promise.resolve()
-  const next = prev.then(run, run)
-  memberWriteChains.set(spaceId, next.then(() => {}, () => {}))
-  return next
 }
 
 // Add a member, or merge fields into an existing one (matched by publicKey).
@@ -394,397 +193,34 @@ export function removeMember(spaceId, publicKey) {
   })
 }
 
-// test seam
-export async function removeSpace(spaceId) {
-  await clearAllLeftTombstones(spaceId)
-  await spacesBee.del('space/' + spaceId)
-  drives.delete(spaceId)
-}
-
-// Delete only the catalog record, keeping the drive in the in-memory map so a
-// subsequent purgeSpaceDrive can still free its on-disk cores. Used early in leave
-// so the space disappears durably even if a later purge step fails — a partial
-// teardown then leaves reclaimable orphan cores, not a space stuck in the list.
-export async function forgetSpaceRecord(spaceId) {
-  await clearAllLeftTombstones(spaceId)
-  await spacesBee.del('space/' + spaceId)
-}
-
-// Durable "leave in progress" marker, set as the FIRST durable step of space:leave — before
-// clearOwnMembership. A quit anywhere in the teardown then leaves a record boot can finish,
-// instead of markOwnMembership re-asserting active:true and resurrecting the space. A clean
-// leave deletes the whole record (forgetSpaceRecord), so the marker only ever outlives a crash.
-// A separate boolean, not a `status` value, so no existing status branch changes.
-export function markSpaceLeavingDurable(spaceId) {
-  return mutateSpace(spaceId, (space) => (space.leaving ? null : { ...space, leaving: true }))
-}
-
-// Idempotently finish a leave a prior process interrupted: re-assert the durable departure
-// (covers a crash BEFORE the member del), drop the space's mount records + own share ads (the
-// boot restart loops iterate the MOUNT stores, so a surviving record would re-arm a watcher or
-// mirror against the space this pass is about to forget), then delete the local record. Reclaim
-// of leftover cores/partials is left to the orphan/leftover sweeps, matching the teardown's own
-// "record dropped up front, leftovers reclaimable" contract. Only the member del is a hard gate
-// (a throw keeps the marker so the next boot retries it — co-member convergence depends on it);
-// the mount/share steps are best-effort so one bad record can't strand the others or the forget.
-export async function resumeInterruptedLeave(spaceId) {
-  await runLeaveTeardown(spaceId, {
-    clearMembership: () => clearOwnMembership(spaceId),
-    ownedMounts: async () => {
-      for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === spaceId)) {
-        await deleteOwnedMount(spaceId, m.shareId)
-      }
-    },
-    shares: async () => {
-      for (const s of await readOwnShares(spaceId)) await tombstoneShare(spaceId, s.id)
-    },
-    foreignMounts: async () => {
-      for (const m of (await listForeignMounts()).filter((x) => x.spaceId === spaceId)) {
-        await deleteForeignMount(spaceId, m.shareId)
-      }
-    },
-    forget: () => forgetSpaceRecord(spaceId),
-  }, { log })
-}
-
-// Durable, LOCAL-only leave tombstones: we observed a peer leave, so the member-view fold keeps
-// subtracting it after a restart (including the creator/root, where revokeApproval cannot help).
-// Never replicated, so it only ever suppresses the leaver in OUR OWN fold — no cross-peer eviction.
-// Stamped with the leaver's clock so a genuine rejoin (a strictly-later member/<S> ts) self-clears
-// it via tombstoneActive.
-const LEFT_TOMBSTONE_PREFIX = 'left/'
-const leftRange = (spaceId) => prefixRange(LEFT_TOMBSTONE_PREFIX + spaceId + '/')
-// Coerced to a positive finite number: a negative reaching the tombstoneActive comparison would
-// flip it false and re-admit the leaver, so on-disk garbage collapses to an inert 0.
-const sanitizeLeaveTs = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
-
-// One ~1-record tombstone per lifetime departure, cleared on the leaver's rejoin (dropTombstone) and
-// on space deletion (clearAllLeftTombstones). Not count-pruned: a tombstone is load-bearing exactly
-// when its del has not replicated, and a long-gone unreachable leaver is the likeliest to be
-// un-replicated, so "evict the oldest" is the unsafe choice.
-export async function persistLeftTombstone(spaceId, key, leaveTs) {
-  await spacesBee.put(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key, { leaveTs: sanitizeLeaveTs(leaveTs) })
-}
-
-// Non-throwing by contract (the caller ignores the result). A del that fails leaves the durable
-// tombstone to re-seed the fold at the next boot, so it must not be silent.
-export async function clearLeftTombstone(spaceId, key) {
-  try { await spacesBee.del(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key) } catch (err) {
-    log.warn('could not clear a leave tombstone — the member stays suppressed after the next restart:', spaceId, key.slice(0, 12) + '...', '-', err.message)
-  }
-}
-
-export async function loadLeftTombstones(spaceId) {
-  const out = new Map()
-  for await (const entry of spacesBee.createReadStream(leftRange(spaceId))) {
-    out.set(entry.key.slice((LEFT_TOMBSTONE_PREFIX + spaceId + '/').length), sanitizeLeaveTs(entry.value?.leaveTs))
-  }
-  return out
-}
-
-// ── pending outbound leaves ─────────────────────────────────────────────────────
-// A leave broadcast that provably reached no member (nobody connected, or no ack)
-// leaves the departure known only to the leaver's now-offline bee — co-members keep a
-// ghost member forever. The marker survives the space-record purge (own key prefix in
-// spaces-meta); the swarm re-announces the leave on new connections and boot re-joins
-// the topic, until one co-member acks the durable apply and the marker clears.
-const PENDING_LEAVE_PREFIX = 'pendingleave/'
-
-export async function persistPendingLeave(spaceId, topic, ts) {
-  await spacesBee.put(PENDING_LEAVE_PREFIX + spaceId, { topic, ts })
-}
-
-// Non-throwing by contract. A del that fails means the leave is re-announced at the next boot,
-// which is harmless but must not be invisible.
-export async function clearPendingLeave(spaceId) {
-  try { await spacesBee.del(PENDING_LEAVE_PREFIX + spaceId) } catch (err) {
-    log.warn('could not clear the pending-leave marker — the leave is re-announced at the next boot:', spaceId, '-', err.message)
-  }
-}
-
-export async function listPendingLeaves() {
-  const out = []
-  for await (const entry of spacesBee.createReadStream(prefixRange(PENDING_LEAVE_PREFIX))) {
-    out.push({
-      spaceId: entry.key.slice(PENDING_LEAVE_PREFIX.length),
-      topic: entry.value?.topic || null,
-      ts: entry.value?.ts || 0,
-    })
-  }
-  return out
-}
-
-async function clearAllLeftTombstones(spaceId) {
-  const keys = []
-  for await (const entry of spacesBee.createReadStream(leftRange(spaceId))) keys.push(entry.key)
-  for (const k of keys) {
-    try { await spacesBee.del(k) } catch (err) {
-      log.warn('could not clear a leave tombstone during rejoin:', k, '-', err.message)
-    }
-  }
-}
-
-// Release a SPACE drive's own core sessions. A space cannot exist without the master secret
-// (createSpace/joinSpace refuse without one), so a space drive is always the explicit-keypair
-// shape: built over the ROOT corestore via the `_db` Hyperdrive ctor path. drive.close() would
-// therefore close that root and kill every other session — the "RocksDB session is closed" /
-// "closing core" cascade. Close just this drive's own cores instead; the root stays open and
-// whatever runs next still has a store. (createDrive's namespaced branch is still reachable for
-// drives that are not a space's — nothing here opens one.)
-async function releaseDriveCores(drive, blobs) {
-  try {
-    if (blobs) await blobs.core.close()
-    if (drive.db) await drive.db.close()
-  } catch (err) {
-    log.warn('drive core release failed:', err.message)
-  }
-}
-
-export async function purgeSpaceDrive(spaceId, onProgress, { compact = true } = {}) {
-  const drive = drives.get(spaceId)
-  if (!drive) {
-    log.warn('no drive found for space', spaceId)
-    return
-  }
-
-  const cs = getStore()
-  const db = cs.storage.db
-  const emit = (phase) => { if (onProgress) onProgress(phase) }
-  drives.delete(spaceId)
-
-  try {
-    await drive.ready()
-    const metaDk = b4a.toString(drive.core.discoveryKey, 'hex')
-    const blobs = await drive.getBlobs()
-    const blobsDk = blobs ? b4a.toString(blobs.core.discoveryKey, 'hex') : null
-
-    // Clear the drive's blocks before the header delete so RocksDB accounts blob
-    // garbage; purgeCoreDk alone strands blob-separated values (garbage stays 0).
-    try { await drive.clearAll() } catch (err) { log.warn('drive clearAll before purge failed:', err.message) }
-
-    await releaseDriveCores(drive, blobs)
-
-    emit('purgingLocalMeta')
-    // A space drive opens by keyPair, not name (see releaseDriveCores), so there is no
-    // (namespace, 'db') alias to purge — drive.corestore.ns is the root namespace, which
-    // purgeAlias must not touch.
-    await purgeCoreDk(cs, metaDk)
-    emit('purgingLocalBlobs')
-    if (blobsDk) await purgeCoreDk(cs, blobsDk)
-
-    emit('compactingLocalCache')
-    // The cores are already tombstoned (purgeCoreDk above); the compaction only reclaims the
-    // bytes. It is a full-range pass (scales with the WHOLE store, not this space), so callers that
-    // leave can defer it to a single background pass instead of blocking on it per-drive.
-    if (compact) {
-      await db.compactRange(null, null, {
-        blobGarbageCollectionPolicy: 1,
-        blobGarbageCollectionAgeCutoff: 1.0,
-        bottommostLevelCompaction: 2,
-      })
-    }
-    log.info('purged local drive for space', spaceId)
-  } catch (err) {
-    log.warn('failed to purge drive for space', spaceId, err.message)
-    // Best-effort release of the meta core's exclusive lock — never drive.close()
-    // here, which would close the root corestore in identity mode.
-    try { if (drive.db) await drive.db.close() } catch {}
-  } finally {
-    emit('finalizing')
-    try { await db.flush() } catch (err) {
-      log.warn('flush after purgeSpaceDrive failed:', err.message)
-    }
-  }
-}
-
-export async function purgeSpace(spaceId) {
-  await clearAllLeftTombstones(spaceId)
-  await spacesBee.del('space/' + spaceId)
-  drives.delete(spaceId)
-  try { await getStore().storage.db.flush() } catch (err) {
-    log.warn('flush after purgeSpace failed:', err.message)
-  }
-}
-
 // `downloadFolder` is tri-state: undefined leaves the override untouched, null clears it
 // (the space falls back to the global download root), a string sets it. Routed through
 // mutateSpace so it serializes against concurrent member writes.
-export async function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
-  let updated = null
-  await mutateSpace(spaceId, (space) => {
+export function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
+  return mutateSpace(spaceId, (space) => {
     space.name = name
     space.icon = icon
     if (downloadFolder !== undefined) {
       if (downloadFolder === null) delete space.downloadFolder
       else space.downloadFolder = downloadFolder
     }
-    updated = space
     return space
   })
-  return updated ? { spaceId, ...updated } : null
 }
 
 // Serialized with updateSpace via mutateSpace: a raw get/put would write back a record read BEFORE a
 // concurrent space:update landed, silently dropping the download folder the user just chose.
-export async function toggleFavorite(spaceId) {
-  let updated = null
-  await mutateSpace(spaceId, (space) => {
+export function toggleFavorite(spaceId) {
+  return mutateSpace(spaceId, (space) => {
     space.favorite = !space.favorite
-    updated = space
     return space
   })
-  return updated ? { spaceId, ...updated } : null
-}
-
-export function getDrive(spaceId) {
-  return drives.get(spaceId)
-}
-
-// Open one space's drive. Split out so boot can inject a failing opener in tests.
-async function openSpaceDrive(space) {
-  const sck = getSpaceContentKey(space.spaceId, space)
-  const drive = createDrive(makeDriveName(space.spaceId, space.driveSuffix), { encryptionKey: sck })
-  await drive.ready()
-  return drive
-}
-
-// test seam
-export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
-  const spaces = await listSpaces()
-  let hadFailure = false
-  for (const space of spaces) {
-    // A leaving space's drive must not come back up either: loadDrives runs before the boot
-    // completion pass, so the marker is the only thing keeping it down.
-    if (space.status === 'pending' || space.leaving) continue
-    let drive
-    try {
-      drive = await openDrive(space)
-    } catch (err) {
-      hadFailure = true
-      if (isStorageInconsistency(err)) {
-        // The core's own tree cannot back its length: no retry will open this drive. Drop the
-        // record; the leftover sweep can reclaim its cores.
-        log.error('drive storage inconsistent for', space.spaceId, '-', err.message, '- dropping space record')
-        try { await spacesBee.del('space/' + space.spaceId) } catch (delErr) {
-          log.warn('could not drop the space record:', space.spaceId, '-', delErr.message)
-        }
-      } else {
-        // Anything else may be transient (a lock still held by a dying instance, disk pressure,
-        // a half-written core). Keep the space, mark it, and let the next boot retry: deleting
-        // the record costs the user the space outright, which a transient fault must not do.
-        log.error('drive load failed for', space.spaceId, '-', err.message, '- keeping the space record for retry')
-        await mutateSpace(space.spaceId, (s) => ({ ...s, driveLoadError: { message: err.message, at: Date.now() } }))
-          .catch((mErr) => log.warn('could not mark the drive-load failure:', space.spaceId, '-', mErr.message))
-      }
-      continue
-    }
-    drives.set(space.spaceId, drive)
-    if (space.driveLoadError) {
-      await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.driveLoadError; return next })
-        .catch((mErr) => log.warn('could not clear the drive-load marker:', space.spaceId, '-', mErr.message))
-    }
-    // Idempotent backfills, re-run every boot. Not part of loading the drive: a profile or
-    // catalog write that fails must not cost the space its record.
-    try {
-      await markSpaceDriveKey(space.spaceId, b4a.toString(drive.key, 'hex'))
-      await publishLooseCatalogKey(space.spaceId, space)
-    } catch (err) {
-      log.warn('post-load backfill failed for', space.spaceId, '-', err.message)
-    }
-  }
-  return { hadFailure }
 }
 
 // The live bee, for tests that need a write to fail. Not for production callers.
 // test seam
 export function _spacesBeeForTests() {
   return spacesBee
-}
-
-// Create our own writable space drive, encrypted from block 0 with the granted SCK,
-// and flip the space out of the pending state.
-export async function materializeOwnDrive(spaceId, sck) {
-  await putContentKey(spaceId, sck)
-  const space = await getSpace(spaceId)
-  if (!space) return null
-  if (!drives.has(spaceId)) {
-    const drive = createDrive(makeDriveName(spaceId, space.driveSuffix), { encryptionKey: sck })
-    await drive.ready()
-    drives.set(spaceId, drive)
-  }
-  await markSpaceDriveKey(spaceId, b4a.toString(drives.get(spaceId).key, 'hex'))
-  await publishLooseCatalogKey(spaceId, space)
-  await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
-  return drives.get(spaceId)
-}
-
-// Backfill the OR-Set root for v2 spaces whose stored record predates `creatorKey`.
-// A space I created is identifiable by `sckDerivable` (set only by createSpace, never
-// by a join), so I am its root — stamp myself. Joined spaces whose creatorKey is
-// unknown (their invite carried no `c` hint) are deliberately left untouched: the
-// membership fold falls back to seeding from the known member set for them until a
-// fresh invite or an authenticated handshake assertion supplies the real creator.
-// Idempotent; returns the count stamped.
-export async function backfillSelfCreatedCreatorKey() {
-  const me = getLocalPublicKeyHex()
-  if (!me) return 0
-  let stamped = 0
-  for (const space of await listSpaces()) {
-    if (space.creatorKey || !space.sckDerivable) continue
-    const ok = await mutateSpace(space.spaceId, (s) => ({ ...s, creatorKey: me }))
-    if (ok) stamped += 1
-  }
-  if (stamped) log.info('backfilled creatorKey on', stamped, 'self-created space(s)')
-  return stamped
-}
-
-// Authoritatively pin the now-authenticated OR-Set root and clear the provisional
-// flag. The caller (onGrant / the handshake cross-check) has already verified the asserting
-// peer's identity binding, so this root is no longer a bearer hint. creatorMigrated stamps the
-// space past the one-shot migration so no later boot can downgrade this pin to provisional.
-export function pinCreatorKey(spaceId, root) {
-  return mutateSpace(spaceId, (s) => ({ ...s, creatorKey: root, creatorUnverified: false, creatorDivergence: false, creatorMigrated: true }))
-}
-
-// A confirmed creator-root conflict: an authenticated peer asserted a different root than our
-// authenticated pin (potential roster split-brain / impersonation). Persist it durably so the UI
-// surfaces a level-triggered warning that survives a missed event; the pin is left untouched (we
-// refuse the assertion). Sticky while the conflict is live (the divergent peer's next assertion
-// re-refuses); cleared by clearCreatorDivergence when an authenticated peer re-asserts the pin,
-// or by pinCreatorKey when the root is re-authenticated.
-export function markCreatorDivergence(spaceId) {
-  return mutateSpace(spaceId, (s) => ({ ...s, creatorDivergence: true }))
-}
-
-// An authenticated peer re-asserted the pinned root (a `noop` reconcile decision) — the
-// conflict is no longer live, so the divergence warning clears. Level-triggered lifecycle:
-// re-derived per assertion, never latched.
-export function clearCreatorDivergence(spaceId) {
-  return mutateSpace(spaceId, (s) => (s.creatorDivergence ? { ...s, creatorDivergence: false } : s))
-}
-
-// A space we JOINED whose creatorKey is only TOFU-pinned (trust-on-first-use — it came
-// from a bearer invite, not an authenticated assertion) is marked unverified, arming the
-// handshake divergence cross-check and letting the UI flag an unverified owner. It does NOT
-// self-heal through onGrant — an approved space never re-enters the grant flow — so the
-// authenticated re-confirmation comes from the handshake `creator` assertion. Self-created
-// (sckDerivable) spaces are untouched. One-shot per space (creatorMigrated stamp):
-// re-flagging on every boot would downgrade an authenticated pin back to provisional,
-// re-opening the adopt path to a divergent root after any restart. Returns the count flagged.
-export async function flagUnverifiedJoinedCreators() {
-  let flagged = 0
-  for (const space of await listSpaces()) {
-    if (space.sckDerivable) continue
-    if (space.creatorMigrated) continue
-    if (!space.creatorKey || space.creatorUnverified) {
-      // Nothing to flag, but stamp it so a later authenticated pin is never re-armed either.
-      await mutateSpace(space.spaceId, (s) => ({ ...s, creatorMigrated: true }))
-      continue
-    }
-    if (await mutateSpace(space.spaceId, (s) => ({ ...s, creatorUnverified: true, creatorMigrated: true }))) flagged += 1
-  }
-  if (flagged) log.info('flagged', flagged, 'joined space(s) creatorKey unverified')
-  return flagged
 }
 
 export class SpacesBee extends Subsystem {
@@ -796,26 +232,7 @@ export class SpacesBee extends Subsystem {
     // This-session state: a live join request is a peer that handshook during THIS run. Left
     // behind it re-surfaces as a pending approval after an in-process restart.
     resetJoinRequests()
-    memberWriteChains.clear()
+    writeChains.clear()
     await bee?.close()
-  }
-}
-
-// Split from SpacesBee because the audit log, the serve ledger and the catalog cache all start
-// between the space record opening and the drives loading.
-export class SpaceDrives extends Subsystem {
-  async _open() { this.load = await loadDrives() }
-
-  // Releases each drive's own cores rather than closing the drive: the root corestore must
-  // survive, because the tiers that close after this one still read and write through it — the
-  // serve ledger's flush resolves each space to record its audit row, and the store's own close
-  // is what finally releases the lock.
-  async _close() {
-    const open = [...drives.values()]
-    drives.clear()
-    await Promise.allSettled(open.map(async (drive) => {
-      const blobs = await drive.getBlobs().catch(() => null)
-      await releaseDriveCores(drive, blobs)
-    }))
   }
 }

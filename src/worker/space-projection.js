@@ -2,7 +2,8 @@
 // base64 data-URLs up to the sanitizeAvatar cap, far too heavy for an every-refetch payload — so
 // the full roster is a separate per-space read.
 
-import { listSpaces, listPendingRequests } from '../shared/spaces/space.js'
+import { listSpaces } from '../shared/spaces/space.js'
+import { listPendingRequests } from '../shared/spaces/join-requests.js'
 
 // The self-first roster (avatars included) for ONE space. Rosters ship slim in spaces:list —
 // avatars are base64 data-URLs up to the sanitizeAvatar cap, far too heavy for an

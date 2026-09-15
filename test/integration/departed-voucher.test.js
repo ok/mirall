@@ -3,7 +3,8 @@ import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { markOwnMembership, getLocalPublicKeyHex, markApproval, hasOwnApproval } from '../../src/shared/spaces/profile.js'
-import { createSpace, pinCreatorKey } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { pinCreatorKey } from '../../src/shared/spaces/creator-pin.js'
 import { openMemberView, closeMemberView, isMember } from '../../src/shared/spaces/member-registry.js'
 
 // The unit tests fold synthetic seqs; these drive real hyperbee records end to end, so they also

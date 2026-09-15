@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace, updateSpace, toggleFavorite, getSpace } from '../../src/shared/spaces/space.js'
+import { updateSpace, toggleFavorite, getSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 
 // Every read-modify-write of a space record has to run on the one per-space chain. Two that
 // do not serialize will lose-update: both read the same record, and whichever puts last wins

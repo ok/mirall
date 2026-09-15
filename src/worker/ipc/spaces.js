@@ -8,15 +8,14 @@ import { encodeInvite, decodeInvite } from '../../shared/contract/invite-envelop
 import { getProfile, getLocalPublicKeyHex, markInvite, markOwnMembership } from '../../shared/spaces/profile.js'
 import {
   getSpace,
-  createSpace,
-  joinSpace,
   updateSpace,
   toggleFavorite,
   isLegacySpace,
   LEGACY_SPACE_MESSAGE,
   upsertMember,
-  clearPendingLeave,
 } from '../../shared/spaces/space.js'
+import { createSpace, joinSpace } from '../../shared/spaces/space-lifecycle.js'
+import { clearPendingLeave } from '../../shared/spaces/leave-records.js'
 import {
   getConnectedPeers,
   isSpaceLeaving,

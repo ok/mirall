@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { createSpace } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { createBee } from '../../src/shared/core/store.js'
 import {
   publishMirror, ensureMirror, setMirrorState, tombstoneMirror, readOwnMirrors, readOwnMirror, readPeerMirrors, readPeerMirror,

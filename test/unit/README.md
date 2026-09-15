@@ -15,7 +15,6 @@ Pure-logic tests of `src/shared/*` and `src/renderer/*` helpers — **no I/O, no
 |------|-----------|
 | `invite-envelope.test.js` | `encodeInvite`/`decodeInvite`: legacy bare/dashed/uppercase/whitespace hex → v0; base64url shape (no `=`/`+`/`/`); topic+name round-trip; name omitted / empty / truncated at `NAME_MAX` (both on encode and from the wire); UTF-8 names; uppercase-topic normalisation; rejects non-hex / wrong-length topic; `decode` → `null` for non-string, empty, malformed base64, valid-base64-invalid-JSON, missing topic, non-hex topic, unknown version, JSON array, JSON `null`, numeric name. |
 | `deeplink.test.js` | `parseDeepLink`: dashed / bare / uppercase hex in path; envelope in path and in `?code=`; name omitted when envelope has none; percent-encoded path code; `null` for wrong scheme, wrong verb, missing code, malformed code, non-string input, unparseable URL. |
-| `invite-code.test.js` | `formatInviteCode` groups 64-hex into 8 octets; `parseInviteCode` strips dashes; `parse(format(x))` round-trip identity; non-multiple-of-8 length keeps a short trailing group and still round-trips. |
 
 ### B. Share names & path display
 | File | Scenarios |

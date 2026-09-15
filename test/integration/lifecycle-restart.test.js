@@ -12,7 +12,8 @@ import { trackTimers } from '../helpers/timers.js'
 // assertion after that point reads a map nothing writes to any more — passing whatever leaked.
 const timers = trackTimers()
 const { freshPeer, offlineMemberRegistry } = await import('../helpers/store.js')
-const { createSpace, listSpaces } = await import('../../src/shared/spaces/space.js')
+const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js')
+const { listSpaces } = await import('../../src/shared/spaces/space.js')
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount, createForeignMount } = await import('../../src/shared/folders/mount-store.js')

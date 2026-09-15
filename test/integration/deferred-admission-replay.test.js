@@ -7,7 +7,9 @@ import { openStore, getStore, setMasterSecret } from '../../src/shared/core/stor
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
 import { initProfile, setProfile } from '../../src/shared/spaces/profile.js'
-import { initSpaces, createSpace, recordJoinRequest, upsertMember } from '../../src/shared/spaces/space.js'
+import { initSpaces, upsertMember } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { recordJoinRequest } from '../../src/shared/spaces/join-requests.js'
 import {
   connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters, resetRegistries,
 } from '../../src/shared/network/swarm-registries.js'

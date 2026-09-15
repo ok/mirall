@@ -1,9 +1,10 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import {
-  createSpace, joinSpace, getSpace, getDrive, purgeSpaceDrive, removeSpace, materializeOwnDrive,
-} from '../../src/shared/spaces/space.js'
+import { getSpace } from '../../src/shared/spaces/space.js'
+import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
+import { createSpace, joinSpace, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
+import { getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space-drives.js'
 
 // Leaving a space purges its drive (cores + alias). A later re-join of the same topic must NOT
 // reopen the purged alias — that's the zombie-alias `STORAGE_EMPTY` crash. The record is cleared
@@ -40,7 +41,7 @@ test('re-joining after a purge gets a fresh, empty, writable drive (no zombie-al
 
   // Simulate leave: purge the drive (frees the alias) + drop the space record.
   await purgeSpaceDrive(space.spaceId)
-  await removeSpace(space.spaceId)
+  await purgeSpace(space.spaceId)
 
   // Re-join the same topic. A join is always pending and mints a fresh driveSuffix — never the
   // purged alias — and the writable drive is built from it when the grant lands.

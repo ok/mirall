@@ -7,10 +7,10 @@ import { openStore, getStore, setMasterSecret } from '../../src/shared/core/stor
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
 import { initProfile, setProfile, getProfileBee } from '../../src/shared/spaces/profile.js'
-import {
-  initSpaces, createSpace, joinSpace, getSpace, getDrive,
-  recordApproval, recordJoinRequest, listJoinRequests, listPendingRequests,
-} from '../../src/shared/spaces/space.js'
+import { initSpaces, getSpace } from '../../src/shared/spaces/space.js'
+import { createSpace, joinSpace, recordApproval } from '../../src/shared/spaces/space-lifecycle.js'
+import { getDrive } from '../../src/shared/spaces/space-drives.js'
+import { recordJoinRequest, listJoinRequests, listPendingRequests } from '../../src/shared/spaces/join-requests.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function boot(t, label) {

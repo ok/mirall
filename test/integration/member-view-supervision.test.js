@@ -4,7 +4,8 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer, offlineMemberRegistry } from '../helpers/store.js'
-import { createSpace, pinCreatorKey } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { pinCreatorKey } from '../../src/shared/spaces/creator-pin.js'
 import { markOwnMembership } from '../../src/shared/spaces/profile.js'
 import {
   MemberViews, openMemberView, closeMemberView, markLeft, isLeft,

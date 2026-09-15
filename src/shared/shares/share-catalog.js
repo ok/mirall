@@ -7,11 +7,12 @@
 import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
-import { getSpace, getSpaceContentKey, purgeCoreDk, purgeAlias, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
+import { purgeCoreDk, purgeAlias } from '../storage/core-purge.js'
+import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
-import { getRuntimeConfig, getPeerCatalogCacheLimit } from '../core/runtime-config.js'
+import { getRuntimeConfig, getPeerCatalogCacheLimit, isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { relKeyEscapes } from '../folders/path-keys.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -70,7 +71,7 @@ function catalogNameForSpace(space, spaceId) {
 // Tolerant of a missing record by design: purgeOwnCatalog() resolves this name during
 // space-leave AFTER the space record is deleted — which is why the leave path passes the
 // record it already read rather than letting this re-read it. Publish/advertise callers must
-// ensure the record exists first (see space.js publishLooseCatalogKey) — never call this to
+// ensure the record exists first (see space-drives.js publishLooseCatalogKey) — never call this to
 // derive a name to WRITE into before the record is saved, or you fork a divergent core.
 // test seam
 export async function catalogNameFor(spaceId) {
@@ -118,6 +119,15 @@ export async function ownCatalogKeyHex(spaceId) {
 // the SCK; the bare field is still read only for a peer whose record predates its own migration.
 export async function ownCatalogPublish(spaceId) {
   return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true }
+}
+
+// The same key as a value the announce paths can publish unconditionally: null when loose files
+// are off or the catalog cannot be resolved, so neither the handshake nor a boot backfill has to
+// decide whether this space has one. Carried in the handshake so a co-member can open our loose
+// catalog before the member-view fold hydrates it from records.
+export async function ownLooseCatalogPublish(spaceId) {
+  if (!isInPlaceFilesEnabled()) return null
+  try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
 }
 
 export async function advertise(spaceId, shareId, relPath, { size, mtime, contentHash = null }) {
