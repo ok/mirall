@@ -2,7 +2,7 @@ import test from 'brittle'
 import { makeProgressTicker } from '../../src/shared/transfer/progress-ticker.js'
 
 // The ticker is the shared engine behind both the single-file download bar
-// (transfers.js) and the folder-mirror per-file bar (foreign-folders.js). Drive
+// (transfers.js) and the folder-mirror per-file bar (mirror-fetch.js). Drive
 // an injected clock so emit cadence and byte accounting are deterministic.
 
 test('first push always emits; subsequent pushes are throttled to the interval', (t) => {

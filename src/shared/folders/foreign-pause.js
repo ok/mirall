@@ -12,22 +12,19 @@ import { classifyLocalIoFault } from '../core/errors.js'
 import { faultFromError, STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from './mount-fault.js'
 import { getForeignMount, patchForeignMount, mutateForeignMount } from './mount-store.js'
 import { setMirrorState } from './mirror-records.js'
+import { emitStatus, syncMirrorRecord } from './mirror-signals.js'
 import { mountRootAvailable } from './publish-service.js'
 
-// Injected by foreign-folders.js: the mirror's own state, its loop control and its two record
-// writers all belong to the module that owns the loop, and a pause is one of the things that
-// stops it.
+// Injected by foreign-folders.js: the mirror's own state and the two loop verbs a pause and a
+// resume drive. Importing the verbs would close a cycle through mirror-fetch, which imports this
+// module for the I/O pause.
 let state = null
 let stopForeignLoop = () => {}
-let syncMirrorRecord = async () => {}
-let emitStatus = () => {}
 let setForeignEnabled = async () => {}
 
 export function initForeignPause(d) {
   state = d.state
   stopForeignLoop = d.stopForeignLoop
-  syncMirrorRecord = d.syncMirrorRecord
-  emitStatus = d.emitStatus
   setForeignEnabled = d.setForeignEnabled
 }
 

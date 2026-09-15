@@ -5,7 +5,7 @@ import { mutateMembers } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { generateShareId } from '../../src/shared/shares/shares.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { runMaterializeTick } from '../../src/shared/folders/foreign-folders.js'
+import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // REGRESSION (FIX-4): a foreign mirror whose owner LEFT the space (no longer in space.members) must

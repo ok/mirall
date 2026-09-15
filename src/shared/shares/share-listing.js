@@ -13,7 +13,7 @@ import { getOwnedMount, getForeignMount } from '../folders/mount-store.js'
 import { listPendingForSpace } from '../transfer/pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { foreignFetchActive } from '../folders/foreign-folders.js'
+import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { localRelOf } from '../folders/mirror-state.js'
 import { overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
 import {

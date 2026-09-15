@@ -1,4 +1,10 @@
 import { stallVerdict } from '../core/pass-liveness.js'
+
+// Every mirror-side map is keyed by this pair — the loop registry, the synced sets, the fetch
+// ledgers. One spelling, so a grep for a key finds every holder of one.
+export function mirrorKey(spaceId, shareId) {
+  return spaceId + ':' + shareId
+}
 // Whose bytes are on disk? Comparing the local file against the owner's CURRENT hash answers "is
 // it up to date?" and nothing else: a mismatch is either the owner moving on or the user editing
 // our copy, and those need opposite handling. The ANCESTOR separates them — the hash the mirror

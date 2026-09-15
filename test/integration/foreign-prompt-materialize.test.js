@@ -3,12 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
-import {
-  initialMaterializeScan,
-  startForeignLoop,
-  stopForeignLoop,
-  onPeerDriveChanged,
-} from '../../src/shared/folders/foreign-folders.js'
+import { onPeerDriveChanged } from '../../src/shared/folders/foreign-folders.js'
+import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
 import { until } from '../helpers/bare-poll.js'
 
 async function waitForFile(p, present, ms = 5000) {

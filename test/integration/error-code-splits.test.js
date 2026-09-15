@@ -2,7 +2,7 @@ import test from 'brittle'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { CODES } from '../../src/shared/contract/errors.js'
-import { relocateForeignFolder, setForeignEnabled } from '../../src/shared/folders/foreign-folders.js'
+import { relocateForeignFolder, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { addFile } from '../../src/shared/transfer/file-listing.js'
 import { revealLocalPath } from '../../src/shared/transfer/reveal.js'
 

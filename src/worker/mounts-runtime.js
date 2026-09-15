@@ -17,7 +17,9 @@ import { reconcileOwnedShare, stopOwnedFolder, cancelIndex } from '../shared/fol
 import { ownedKey } from '../shared/folders/owned-policy.js'
 import { runPublishPass } from '../shared/folders/owned-pass.js'
 import { mountRootAvailable } from '../shared/folders/publish-service.js'
-import { startForeignLoop, initialMaterializeScan, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-folders.js'
+import { resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-pause.js'
+import { startForeignLoop } from '../shared/folders/foreign-verbs.js'
+import { initialMaterializeScan } from '../shared/folders/mirror-pass.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
 
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000

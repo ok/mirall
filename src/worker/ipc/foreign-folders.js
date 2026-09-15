@@ -7,14 +7,9 @@ import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { publishMirror } from '../../shared/folders/mirror-records.js'
-import {
-  initialMaterializeScan,
-  recordMirrorScanFault,
-  startForeignLoop,
-  setForeignEnabled,
-  relocateForeignFolder,
-  unmountForeignFolder,
-} from '../../shared/folders/foreign-folders.js'
+import { recordMirrorScanFault } from '../../shared/folders/foreign-pause.js'
+import { startForeignLoop, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
+import { initialMaterializeScan } from '../../shared/folders/mirror-pass.js'
 import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
