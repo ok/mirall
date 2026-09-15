@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { getResourceCaps } from '../../src/shared/core/runtime-config.js'
+import { getForeignPollIntervalMs } from '../../src/shared/core/runtime-config.js'
 import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
 import { startForeignLoop, stopForeignLoop, restartForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
@@ -29,7 +29,7 @@ test('a wedged mirror is reported unhealthy, and a working one is not', async (t
   runMaterializeTick(spaceId, shareId)
   await waitUntil(() => spy.fetches === 1)
 
-  const pollMs = getResourceCaps().foreignPollIntervalMs
+  const pollMs = getForeignPollIntervalMs()
   t.is(mirrorHealth()[0].ok, true, 'a pass that just started is not wedged')
 
   const later = Date.now() + pollMs * STALL_FACTOR + 60_000
@@ -67,7 +67,7 @@ test('bytes arriving keep a slow download healthy', async (t) => {
   runMaterializeTick(spaceId, shareId)
   await waitUntil(() => spy.fetches === 1)
   const startedAt = Date.now()
-  const window = getResourceCaps().foreignPollIntervalMs * STALL_FACTOR
+  const window = getForeignPollIntervalMs() * STALL_FACTOR
 
   await delay(60)
   t.is(mirrorHealth({ now: startedAt + window + 1 })[0].ok, false, 'no bytes yet — a stalled fetch is wedged')

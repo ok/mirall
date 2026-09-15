@@ -7,7 +7,7 @@
 // straddle the persist rather than preceding it.
 import { getSpace, upsertMember } from '../spaces/space.js'
 import { clearJoinRequest } from '../spaces/join-requests.js'
-import { getResourceCaps, getConvergenceConfig } from '../core/runtime-config.js'
+import { getMembershipCaps, getConvergenceConfig } from '../core/runtime-config.js'
 import { HEX64 } from '../contract/invite-envelope.js'
 import { peerLost, peerLostMeta, peerSeen } from '../audit/network-watch.js'
 import { fetchPeerAvatar } from '../spaces/peer-profile-watch.js'
@@ -145,7 +145,7 @@ function normalizeLooseCatalogKey(value) {
 // existingMember only picks the log line — correctness comes from upsertMember's merge.
 async function persistHandshakeMember(spaceId, space, msg, existingMember) {
   if (!space) return
-  const memberCap = getResourceCaps().membersPerSpace
+  const memberCap = getMembershipCaps().maxMembersPerSpace
   if (!existingMember && memberCap && (space.members?.length || 0) >= memberCap) {
     log.warn('members-per-space cap reached for', spaceId, '- not persisting', msg.displayName)
     return

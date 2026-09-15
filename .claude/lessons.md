@@ -784,3 +784,21 @@ match its source tree, and both make a local run lie in the direction of *false 
 false green, which is the less dangerous direction but still costs a diagnosis.
 
 **A shared-module split has a same-named twin under `worker/ipc/`, and no gate sees a broken ESM import.** `shared/folders/foreign-folders.js` and `worker/ipc/foreign-folders.js` (likewise `owned-folders.js`) share a basename, so a repoint pass that excludes "the root" by basename silently skips the IPC module that imports the most from it. `eslint` does not resolve imports and `tsc` is scoped to the renderer, so a name that no longer exists at the import site passes both and fails only when the worker evaluates that module at boot. After any move that changes a module's exports: (1) exclude by full path, never basename; (2) diff the names every importer asks for against the root's actual `export` list; (3) spawn a fresh Bare process that imports each repointed `src/` module first — `import-time.test.js` shows the recipe, and `Bare.argv[0]` / `node_modules/.bin/bare` is the binary.
+
+## A test that greps a source file for a value breaks on the next split, not on the next bug
+
+Splitting `core/runtime-config.js` broke two unit tests that had nothing to do with its behaviour:
+`mirror-walk-decision.test.js` and `invariants/download-concurrency-wiring.test.js` each read the
+file with `readFileSync` and matched `foreignFullWalkEvery: \d+` / `downloadConcurrency: \d+`
+against its text. The rows moved to `runtime-config-schema.js` and changed shape
+(`ruled(6, intAtLeast, 0)`), so both regexes returned null and one test threw on `m[1]`.
+
+Both were pinning a real invariant — a default that exists in two places agrees, a frame key is
+carried into the config — and both had a behavioural form the whole time: set the config, read the
+getter. The regex form is the only version that fails on a refactor and passes on a regression
+(a wrong default still matches `\d+`).
+
+**The rule: pin a value through the production read path, never through the file's text.** A
+`readFileSync` + regex over `src/` is acceptable only for a structural fact no runtime call can
+observe (an import edge, a re-export, an ordering of two statements), and even then it should match
+the smallest stable token, not a literal with a number in it.

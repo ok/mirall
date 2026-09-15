@@ -12,7 +12,7 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { getResourceCaps, getHandshakeRateLimit, isOverlayEnabled, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
+import { getConnectionCaps, getHandshakeRateLimit, isOverlayEnabled, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
 import { getIdentitySigner, getProfileKey } from '../spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding, createRateLimiter } from './handshake-guard.js'
 import { applyNetImpairment } from './net-impair.js'
@@ -115,15 +115,15 @@ function onContentConnection(socket, peerInfo) {
 function initContentSwarm(sharedDht) {
   if (contentSwarm) return contentSwarm
   if (!sharedDht) { log.warn('no shared DHT — content plane not started'); return null }
-  const caps = getResourceCaps()
+  const caps = getConnectionCaps()
   helloLimiter = createRateLimiter(getHandshakeRateLimit().matched)
   // Distinct identity (fresh keyPair, ephemeral per process like the control swarm) so the remote
   // sees a different key and hyperswarm's per-(swarm, remoteKey) dedup keeps this connection
   // separate from the control one. Share the control swarm's DHT node.
   contentSwarm = new Hyperswarm({
     dht: sharedDht,
-    maxServerConnections: caps.serverConnections || Infinity,
-    maxClientConnections: caps.clientConnections || Infinity,
+    maxServerConnections: caps.maxServerConnections || Infinity,
+    maxClientConnections: caps.maxClientConnections || Infinity,
     firewall: (remoteKey) => bannedContentKeys.has(b4a.toString(remoteKey, 'hex')),
   })
   contentBinding = null

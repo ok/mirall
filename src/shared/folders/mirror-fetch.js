@@ -21,7 +21,7 @@ import { shareDecoKey } from '../contract/decoration-key.js'
 import { entryRef } from '../contract/entry-ref.js'
 import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/backends/overlay/fetch-gate.js'
 import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetch-policy.js'
 import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
@@ -290,7 +290,7 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
 // cancel a fetch that never started, and tell the holder we paused a transfer we never began.
 async function acquireMirrorSlot(streamKey) {
   loops.noteProgress(streamKey)
-  const beat = setInterval(() => loops.noteProgress(streamKey), getResourceCaps().foreignPollIntervalMs)
+  const beat = setInterval(() => loops.noteProgress(streamKey), getForeignPollIntervalMs())
   beat.unref?.()
   try {
     return await acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR })

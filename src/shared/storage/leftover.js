@@ -20,7 +20,7 @@ import { mapLimit } from '../core/concurrency.js'
 import { classifyBeeKind } from '../sweep/sweep-rules.js'
 import { decideSweep } from '../sweep/sweep-rules.js'
 import { recordSweep } from './sweep-journal.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getSweepPurgeGuard } from '../core/runtime-config.js'
 import { listContentKeys } from '../spaces/space-keys.js'
 import { prefixRange } from '../core/bee-keys.js'
 
@@ -357,7 +357,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
     gaps: scan.gaps,
     targetCount: dks.length,
     totalCores: scan.totalCores,
-    caps: getResourceCaps(),
+    caps: getSweepPurgeGuard(),
   })
   if (!decision.allow) {
     // error, not warn: this is the sweep declining to delete user data on incomplete or

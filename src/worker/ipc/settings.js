@@ -2,8 +2,7 @@
 // the global root is the effective root of every space that never overrode it.
 
 import {
-  getRuntimeConfig,
-  setRuntimeConfig,
+  setVerbose,
   setDownloadFolder,
   setBandwidthLimits,
   isOverlayEnabled,
@@ -41,11 +40,9 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
   ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
 
   // Live verbose-logging toggle, driven from the renderer dev console (window.mirall.verbose).
-  // The logger reads getRuntimeConfig().verbose on every call, so flipping it here takes effect
-  // immediately with no relaunch. The spread preserves every other runtime-config field
-  // (buildConfig round-trips them losslessly).
+  // The logger reads the config on every call, so flipping it here takes effect with no relaunch.
   ipc.handle('setVerbose', async (msg) => {
-    setRuntimeConfig({ ...getRuntimeConfig(), verbose: !!msg.verbose })
+    setVerbose(!!msg.verbose)
     return { verbose: !!msg.verbose }
   })
 }

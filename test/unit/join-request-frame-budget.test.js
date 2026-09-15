@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import { sanitizeAvatar } from '../../src/shared/contract/identity-limits.js'
 import { NAME_MAX, JOIN_REQUEST_FRAME_OVERHEAD } from '../../src/shared/contract/limits.js'
 import {
-  getRuntimeConfig, setRuntimeConfig, getPeerFrameMaxBytes, getResourceCaps, joinRequestAvatarMaxBytes,
+  getRuntimeConfig, setRuntimeConfig, getPeerFrameMaxBytes, getMembershipCaps, joinRequestAvatarMaxBytes,
 } from '../../src/shared/core/runtime-config.js'
 
 function withConfig(t, patch) {
@@ -44,7 +44,7 @@ test('the reserved frame overhead really covers the non-avatar fields', (t) => {
 // the RECEIVER's log.)
 test('REGRESSION (FIX-AVFRAME-1): an over-budget avatar is dropped, and the frame fits', (t) => {
   const oversize = avatarOf(200 * 1024)
-  t.is(sanitizeAvatar(oversize, getResourceCaps().avatarMaxBytes), oversize,
+  t.is(sanitizeAvatar(oversize, getMembershipCaps().maxAvatarBytes), oversize,
     'the storage cap would have accepted it — this is the gap the bug lived in')
 
   const clamped = sanitizeAvatar(oversize, joinRequestAvatarMaxBytes())
@@ -66,7 +66,7 @@ test('the budget is the frame cap minus the reserved overhead', (t) => {
     'default: 64512 bytes against a 262144 storage cap')
 
   withConfig(t, { peerFrameMaxBytes: 0 })
-  t.is(joinRequestAvatarMaxBytes(), getResourceCaps().avatarMaxBytes,
+  t.is(joinRequestAvatarMaxBytes(), getMembershipCaps().maxAvatarBytes,
     'frame cap disabled → nothing to budget against, fall back to the storage cap')
 
   setRuntimeConfig({ ...getRuntimeConfig(), peerFrameMaxBytes: 512 })

@@ -2,6 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import { getDownloadConcurrency, getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (rel) => readFileSync(path.join(here, '..', '..', 'src', rel), 'utf8')
@@ -20,8 +21,10 @@ test('the worker reads the frame into the runtime config', (t) => {
   const worker = read('worker/main.js')
   t.ok(/const bootstrap = await ipc\.bootstrapPromise\s*\n\s*setRuntimeConfig\(bootstrap\)/.test(worker),
     'the frame is handed to setRuntimeConfig verbatim')
-  // buildConfig copies every key of DEFAULTED off the frame, so the value needs a default entry
-  // to be carried at all — without it the frame key is silently dropped.
-  t.ok(/\bdownloadConcurrency: \d+/.test(read('shared/core/runtime-config.js')),
-    'runtime-config declares the key in DEFAULTED')
+  // buildConfig copies every tabled key off the frame, so the value needs a schema row to be
+  // carried at all — without it the frame key is silently dropped.
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  setRuntimeConfig({ downloadConcurrency: 3 })
+  t.is(getDownloadConcurrency(), 3, 'the frame value reaches the getter')
 })

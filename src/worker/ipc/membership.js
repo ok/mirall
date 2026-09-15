@@ -14,7 +14,7 @@ import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
 import { AppError } from '../../shared/core/errors.js'
-import { getResourceCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
+import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
@@ -159,7 +159,7 @@ async function onJoinRequest(msg) {
   // bee, so a peer-supplied `javascript:` or `data:text/html` value would replicate to co-members
   // and reach the renderer. Bounded by the storage cap, not the frame budget: an arrived frame is
   // by definition already under the frame cap.
-  const avatar = sanitizeAvatar(msg.avatar, getResourceCaps().avatarMaxBytes)
+  const avatar = sanitizeAvatar(msg.avatar, getMembershipCaps().maxAvatarBytes)
   const changed = recordJoinRequest(spaceId, msg.profileKey, displayName, avatar)
   // The durable receipt runs on EVERY knock — markRequest short-circuits on an existing one,
   // so a re-announced (heartbeat) request is nearly free while a first write that failed

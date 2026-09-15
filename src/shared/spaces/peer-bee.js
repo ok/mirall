@@ -8,7 +8,7 @@
 import { createLogger } from '../core/logger.js'
 
 import { mapLimit } from '../core/concurrency.js'
-import { getCaptureMemberRecordMs, getResourceCaps } from '../core/runtime-config.js'
+import { getCaptureMemberRecordMs, getMembershipCaps } from '../core/runtime-config.js'
 import { getStore } from '../core/store.js'
 import { peerReadTimeoutMs, withReadTimeout } from '../core/with-timeout.js'
 import b4a from 'b4a'
@@ -81,7 +81,7 @@ export async function withPeerBee(profileKeyHex, fn, {
 // than retry forever (records past the cap are not snapshot-readable — surfaced as a warn).
 export async function capturePeerBee(profileKeyHex, {
   deadline = Date.now() + getCaptureMemberRecordMs(),
-  maxBlocks = getResourceCaps().peerBeeCaptureMaxBlocks,
+  maxBlocks = getMembershipCaps().peerBeeCaptureMaxBlocks,
   parallel = 8,
 } = {}) {
   const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))

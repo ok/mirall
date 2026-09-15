@@ -1,7 +1,7 @@
 // Clamp/sanitize rules for peer-supplied identity fields (display name, avatar),
 // shared by every worker ingest path.
 
-// 256 KB data-URI string length. Tunable per-ingest via runtime-config getResourceCaps().avatarMaxBytes;
+// 256 KB data-URI string length. Tunable per-ingest via runtime-config getMembershipCaps().maxAvatarBytes;
 // this is the production default. The renderer reads the same constant from contract/limits.js.
 import { AVATAR_MAX_BYTES, NAME_MAX } from './limits.js'
 export { AVATAR_MAX_BYTES }

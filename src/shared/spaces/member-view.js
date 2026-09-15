@@ -3,7 +3,7 @@ import crypto from 'hypercore-crypto'
 import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex, CAP_MEMBERSHIP_MANIFEST } from './profile.js'
 import { foldMembership } from './membership/fold.js'
 import { createDerivedView } from '../core/derived-view.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getDeriveDebounceMs } from '../core/runtime-config.js'
 import { peerReadTimeoutMs } from '../core/with-timeout.js'
 import { SHARE_PREFIX } from '../shares/shares.js'
 import { prefixRange } from '../core/bee-keys.js'
@@ -207,7 +207,7 @@ export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onEr
     onChange: emit,   // receives { members, considered, approved, requests, denied }
     onError,
     ranges: foldRanges,
-    debounceMs: getResourceCaps().deriveDebounceMs,
+    debounceMs: getDeriveDebounceMs(),
   })
 
   // Fold in a key learned out-of-band that discovery wouldn't reach on its own.

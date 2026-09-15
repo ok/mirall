@@ -9,7 +9,7 @@ import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { PEER_FRAME, IDENTITY_ASSERTING } from '../contract/peer-frames.js'
 import { HEX64 } from '../contract/invite-envelope.js'
-import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getResourceCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow } from '../core/runtime-config.js'
+import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow } from '../core/runtime-config.js'
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
 import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame, resolveSpaceIdForTopic } from './presence-broadcast.js'
 import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck } from './leave-protocol.js'
@@ -158,7 +158,7 @@ function admitIdentityFrame(conn, msg) {
 // Bounded by the pendingRequesters cap; an already-tracked requester re-registering is allowed.
 function registerPendingRequester(conn, msg) {
   const { socket, remoteKey } = conn
-  const cap = getResourceCaps().pendingRequesters
+  const cap = getConnectionCaps().maxPendingRequesters
   if (!cap || pendingRequesters.size < cap || pendingRequesters.has(msg.profileKey)) {
     pendingRequesters.set(msg.profileKey, socket)
   } else {

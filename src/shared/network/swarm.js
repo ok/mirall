@@ -11,7 +11,7 @@
 import DHT from 'hyperdht'
 import Hyperswarm from 'hyperswarm'
 import b4a from 'b4a'
-import { getRuntimeConfig, getResourceCaps, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
+import { getRuntimeConfig, getConnectionCaps, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { clearListDeficits } from '../transfer/list-deficits.js'
@@ -83,7 +83,7 @@ function buildSwarm(relaySeedHex) {
   // Tests inject a local hyperdht/testnet bootstrap via runtime-config so the
   // swarm stays off the public DHT; unset in production → default bootstrap.
   const dhtBootstrap = getRuntimeConfig().dhtBootstrap
-  const caps = getResourceCaps()
+  const caps = getConnectionCaps()
   // The DHT node is built here rather than left to hyperswarm because dht.defaultKeyPair is the
   // relay-facing identity and hyperswarm gives no way to set it: its seed/keyPair options set
   // swarm.keyPair only, and the HyperDHT it constructs gets no keyPair, so defaultKeyPair stays
@@ -99,8 +99,8 @@ function buildSwarm(relaySeedHex) {
   pinRelayIdentity(relaySeedHex)
   return new Hyperswarm({
     dht,
-    maxServerConnections: caps.serverConnections || Infinity,
-    maxClientConnections: caps.clientConnections || Infinity,
+    maxServerConnections: caps.maxServerConnections || Infinity,
+    maxClientConnections: caps.maxClientConnections || Infinity,
     // firewall returns true to REJECT — drop reconnects from a Noise key we evicted for flooding.
     firewall: (remoteKey) => isBannedNoiseKey(b4a.toString(remoteKey, 'hex')),
   })
