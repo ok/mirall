@@ -11,7 +11,7 @@ const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 // Every module that settles a fetch diag. Source-scanned rather than imported: they pull in bare-*,
 // which a Node runner cannot load — the same technique and rationale as fetch-policy-parity.test.js.
 const EMITTERS = [
-  'shared/transfer/backends/overlay/overlay-download.js',
+  'shared/transfer/backends/overlay/fetch-settle.js',
   'shared/transfer/backends/overlay/fetch-run.js',
   'shared/folders/mirror-fetch.js',
 ]

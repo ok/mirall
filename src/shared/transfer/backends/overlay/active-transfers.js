@@ -1,5 +1,6 @@
 // The two operations both download channels run against their own engine instance. Imports
-// nothing that only loads under Bare, so test/unit drives it with a fake engine.
+// nothing that only loads under Bare, so test/unit drives it with a fake engine — which is why
+// it stays a sibling of the engine root rather than a method on it.
 import { activeSlotAction } from '../../supersede-decision.js'
 
 // Cancel + discard every in-flight download for a space (leave teardown): the engine keeps fetching

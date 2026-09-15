@@ -9,8 +9,15 @@ const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 const ENGINE = 'shared/transfer/backends/overlay/overlay-download.js'
 // A rule the engine must not re-implement must not be re-implemented in the modules it was split
 // across either: scanning only the residue would pass while a private copy grew next door.
-const ENGINE_ALL = [ENGINE, 'shared/transfer/backends/overlay/stall-retry.js']
-  .map((f) => read(f)).join('\n')
+const ENGINE_ALL = [
+  ENGINE,
+  'shared/transfer/backends/overlay/stall-retry.js',
+  'shared/transfer/backends/overlay/download-start.js',
+  'shared/transfer/backends/overlay/fetch-settle.js',
+  'shared/transfer/backends/overlay/reconcile-scan.js',
+  'shared/transfer/backends/overlay/download-faults.js',
+  'shared/transfer/backends/overlay/settle-verdict.js',
+].map((f) => read(f)).join('\n')
 // The mirror is two files: the pass decides WHETHER to fetch, the fetch decides HOW and judges
 // what came back. A parity rule belongs to whichever half actually applies it.
 const MIRROR_PASS = 'shared/folders/mirror-pass.js'
@@ -59,18 +66,21 @@ test('both producers reach the vendor through the shared instrumentation', (t) =
 })
 
 test('both producers refuse a fetch whose destination is gone', (t) => {
-  t.ok(/dirExists\(path\.dirname\(job\.finalPath\)\)/.test(read(ENGINE)), 'the engine preflights')
+  // Anchored on the call, not the declaration: the folder is asked through the per-job probe the
+  // engine root builds, and the pure rule in download-faults.js is what asks it first.
+  t.ok(/dirExists: \(\) => dirExists\(dir\)/.test(read(ENGINE)), 'the engine probes the download folder')
+  t.ok(/if \(!dest\.dirExists\(\)\) return CODES\.TRANSFER_DEST_UNAVAILABLE/.test(ENGINE_ALL), 'and refuses on a gone folder')
   // Not /mountRootAvailable\(/: that matches two pre-existing calls in the auto-pause probes, so
   // the preflight could be deleted without failing. The preflight lives in mountCanTake.
   t.ok(/probe\.rootAvailable\(\)/.test(read(MIRROR)), 'the mirror preflights its mount root')
 })
 
 test('both producers preflight free space through one rule', (t) => {
-  for (const f of [ENGINE, MIRROR]) {
-    t.ok(/shortfall\(\{/.test(read(f)), `${f} asks the shared capacity rule`)
-    t.ok(/allocatedBytes/.test(read(f)), `${f} credits what a resumed partial already took`)
+  for (const [label, src] of [['the engine', ENGINE_ALL], [MIRROR, read(MIRROR)]]) {
+    t.ok(/shortfall\(\{/.test(src), `${label} asks the shared capacity rule`)
+    t.ok(/allocatedBytes/.test(src), `${label} credits what a resumed partial already took`)
   }
-  t.absent(/FREE_SPACE_HEADROOM\s*=/.test(read(ENGINE)), 'the headroom is declared once, not here')
+  t.absent(/FREE_SPACE_HEADROOM\s*=/.test(ENGINE_ALL), 'the headroom is declared once, not here')
 })
 
 // One edge, one dispatcher. The offline fix left two hooks fired back to back for the same event
