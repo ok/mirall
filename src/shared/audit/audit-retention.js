@@ -46,3 +46,25 @@ export function normalizeConfig(patch, current) {
   }
   return next
 }
+
+// The highest seq whose ts is older than `cutoff`, or null when no row is. `records` is walked
+// oldest-first and the walk stops after AGE_HYSTERESIS consecutive younger rows. Deletion is
+// inclusive of the result, and a clock step-back can put a stale ts AFTER fresh rows, so the
+// result is capped below the first young row rather than dragged past it.
+export async function ageWatermark(records, cutoff) {
+  let watermark = null
+  let firstYoungSeq = null
+  let young = 0
+  for await (const rec of records) {
+    if (rec.ts < cutoff) {
+      watermark = rec.seq
+      young = 0
+      continue
+    }
+    if (firstYoungSeq === null) firstYoungSeq = rec.seq
+    young += 1
+    if (young >= AGE_HYSTERESIS) break
+  }
+  if (firstYoungSeq !== null && watermark !== null && watermark >= firstYoungSeq) watermark = firstYoungSeq - 1
+  return watermark !== null && watermark >= 0 ? watermark : null
+}

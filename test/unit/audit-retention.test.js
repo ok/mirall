@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   AGE_HYSTERESIS, DEFAULT_MAX_ENTRIES, DEFAULT_RETENTION_DAYS,
-  ageCutoff, countCutoffSeq, pruneUpTo, normalizeConfig,
+  ageCutoff, ageWatermark, countCutoffSeq, pruneUpTo, normalizeConfig,
 } from '../../src/shared/audit/audit-retention.js'
 
 const DAY = 86400000
@@ -51,4 +51,26 @@ test('config normalisation rejects nonsense and keeps the rest', (t) => {
   t.alike(normalizeConfig({ enabled: false }, current), { ...current, enabled: false })
   t.alike(normalizeConfig({ enabled: 'yes' }, current), current, 'a non-boolean enabled is ignored')
   t.alike(normalizeConfig({ retentionDays: 30.7 }, current), { ...current, retentionDays: 30 }, 'floored')
+})
+
+const rows = (...stamps) => stamps.map((ts, seq) => ({ seq, ts }))
+
+test('the age watermark is the last row older than the cutoff', async (t) => {
+  t.is(await ageWatermark(rows(1, 2, 3, 10, 11), 5), 2)
+  t.is(await ageWatermark(rows(10, 11), 5), null, 'no old row, nothing to prune')
+  t.is(await ageWatermark(rows(), 5), null)
+})
+
+test('the walk stops after AGE_HYSTERESIS young rows, not at the first one', async (t) => {
+  const seen = []
+  async function* records() {
+    for (let seq = 0; seq < 100; seq++) { seen.push(seq); yield { seq, ts: seq < 3 ? 1 : 10 } }
+  }
+  t.is(await ageWatermark(records(), 5), 2)
+  t.is(seen.length, 3 + AGE_HYSTERESIS)
+})
+
+test('REGRESSION: a stale ts after fresh rows cannot drag the watermark over them', async (t) => {
+  t.is(await ageWatermark(rows(1, 2, 10, 11, 3, 12), 5), 1, 'capped below the first young row (seq 2)')
+  t.is(await ageWatermark(rows(10, 1), 5), null, 'a cap below seq 0 means nothing')
 })
