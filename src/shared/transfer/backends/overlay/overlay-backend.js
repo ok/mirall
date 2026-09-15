@@ -15,8 +15,9 @@ import { createStreamingHasher } from './vendor/chunker.js'
 import { getOverlay } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeSharesRefresh } from './overlay-refresh.js'
-import { advertise as catalogAdvertise, tombstone as catalogTombstone, setMaterializedHash, getOwnEntry, collectOwnShare, collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, setOwnCatalogAppendHook, resolvePeerCatalog, peerCatalogVersion, catalogKeyField } from '../../../shares/share-catalog.js'
-
+import { catalogKeyField } from '../../../shares/catalog-keys.js'
+import { ownCatalogWriter, collectOwnShare, setOwnCatalogAppendHook } from '../../../shares/own-catalog.js'
+import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog, peerCatalogVersion } from '../../../shares/peer-catalog.js'
 import { readPeerShareEntry } from '../../../shares/shares.js'
 
 import { shareDecoKey } from '../../../contract/decoration-key.js'
@@ -197,9 +198,8 @@ export async function ensureServable(spaceId, shareId, relPath, absPath, content
 // after the advertise, before the slow hash, so a caller can refresh its UI at
 // advertise-time; onProgress(len) gets the incremental hashed-byte count. Returns
 // { changed, contentHash } — contentHash null only when the source is gone / not a file.
-const directCatalog = { advertise: catalogAdvertise, setMaterializedHash, tombstone: catalogTombstone, get: getOwnEntry }
 
-export async function publishContent(spaceId, shareId, relPath, absPath, { onAdvertised, onProgress, signal, catalog = directCatalog, force = false } = {}) {
+export async function publishContent(spaceId, shareId, relPath, absPath, { onAdvertised, onProgress, signal, catalog = ownCatalogWriter, force = false } = {}) {
   let st
   try { st = fs.statSync(absPath) } catch { return { changed: false, contentHash: null } }
   if (!st.isFile()) return { changed: false, contentHash: null }
@@ -255,7 +255,7 @@ export async function publishContent(spaceId, shareId, relPath, absPath, { onAdv
 // Non-throwing on purpose: the caller is about to rethrow the publish error, which this must not
 // replace. A revert that fails leaves the entry visible to members as 'preparing' until the next
 // scan or boot rehydrate re-hashes it, so the operator has to be told.
-async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = directCatalog) {
+async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = ownCatalogWriter) {
   try {
     if (prev?.contentHash) {
       await catalog.advertise(spaceId, shareId, relPath, { size: prev.size, mtime: prev.mtime, contentHash: prev.contentHash })
@@ -269,7 +269,7 @@ async function revertHalfAdvertised(spaceId, shareId, relPath, prev, catalog = d
 
 // Folder publish for one file (no view-refresh emit — callers batch that; the terminal decoration
 // `done` fires here in a finally, on success AND throw, so a failed hash can't strand a preparing bar).
-async function publishOne(spaceId, share, relPath, absPath, { catalog = directCatalog, signal, deep = false, beat } = {}) {
+async function publishOne(spaceId, share, relPath, absPath, { catalog = ownCatalogWriter, signal, deep = false, beat } = {}) {
   let ticker = null
   try {
     let force = false
@@ -356,13 +356,13 @@ export async function evictIfUnreferenced(contentHash, spaceId, shareId, relPath
 // has LANDED — a peer must never see a file still advertised but no longer servable — and for a
 // batched write that wait is off the executor's critical path: the item settles at once, the
 // eviction follows the flush.
-export async function overlayPublishDelete(spaceId, share, relPath, { catalog = directCatalog } = {}) {
+export async function overlayPublishDelete(spaceId, share, relPath, { catalog = ownCatalogWriter } = {}) {
   const prev = await catalog.get(spaceId, share.id, relPath)
   const staged = await catalog.tombstone(spaceId, share.id, relPath)
   const evict = () => evictIfUnreferenced(prev?.contentHash, spaceId, share.id, relPath)
   if (staged?.landed) void staged.landed.then(evict)
   else await evict()
-  if (catalog === directCatalog) sharesRefresh.flush(spaceId, share.id)
+  if (catalog === ownCatalogWriter) sharesRefresh.flush(spaceId, share.id)
   else sharesRefresh.touch(spaceId, share.id)
 }
 

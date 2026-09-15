@@ -8,11 +8,9 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
 import { publishShare } from '../../src/shared/shares/shares.js'
 import { buildWantedKeys } from '../../src/shared/storage/leftover.js'
-import {
-  ownCatalogKeyHex, ownCatalogPublish, catalogNameFor, catalogKeyField,
-  advertise, collectOwnShare, collectPeerShare, resolvePeerCatalog,
-} from '../../src/shared/shares/share-catalog.js'
-
+import { catalogKeyField } from '../../src/shared/shares/catalog-keys.js'
+import { ownCatalogKeyHex, ownCatalogPublish, catalogNameForSpace, advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
+import { collectPeerShare, resolvePeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 // A v2 (membership-gated) peer: identity keypair + the flags createSpace reads to pick schema v2.
 async function v2Peer(t) {
   const ctx = await freshPeer(t)
@@ -27,7 +25,7 @@ test('v2 space: catalog is SCK-encrypted, key published in the …Enc field', as
   const space = await createSpace('Aurora')
   t.is(space.schemaVersion, 2, 'space is schema v2')
 
-  const name = await catalogNameFor(space.spaceId)
+  const name = catalogNameForSpace(space.spaceId, await getSpace(space.spaceId))
   t.ok(name.endsWith('-e1'), 'v2 catalog uses the encrypted core name')
 
   const pub = await ownCatalogPublish(space.spaceId)

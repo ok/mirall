@@ -10,7 +10,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { overlaySweepPresence, overlayPublishAdd, overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
-import { advertise, listOwnShare, ownCatalog, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
+import { advertise, listOwnShare, ownCatalog, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'

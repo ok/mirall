@@ -13,7 +13,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
-import { ownCatalog, advertise, collectOwnShare } from '../../src/shared/shares/share-catalog.js'
+import { ownCatalog, advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
 import { openMemberView } from '../../src/shared/spaces/member-registry.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
@@ -53,7 +53,7 @@ test('REGRESSION (LIFECYCLE-2a): the store closes with zero sessions still open'
   t.absent(getStore(), 'getStore() is undefined after close')
 })
 
-// REGRESSION (LIFECYCLE-2b: share-catalog.js cached the own-catalog bee across a restart. The
+// REGRESSION (LIFECYCLE-2b: the catalog module cached the own-catalog bee across a restart. The
 // store had closed its session, the wrapper still reported closed === false, and the first write
 // to any space that existed before the restart threw SESSION_CLOSED.)
 test('REGRESSION (LIFECYCLE-2b): a catalog write on a pre-restart space works after the restart', async (t) => {

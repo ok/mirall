@@ -61,7 +61,8 @@ import { ForeignMirrors } from '../shared/folders/foreign-folders.js'
 import { EchoGuardPurge } from '../shared/folders/echo-guard.js'
 import { cleanupOrphanedData } from '../shared/storage/storage.js'
 import { AuditLog } from '../shared/audit/audit-runtime.js'
-import { Catalogs } from '../shared/shares/share-catalog.js'
+import { OwnCatalogs } from '../shared/shares/own-catalog.js'
+import { PeerCatalogs } from '../shared/shares/peer-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-records-watch.js'
 import { OverlayBackend } from '../shared/transfer/backends/overlay/overlay-runtime.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
@@ -114,7 +115,8 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   // After the audit log, so on the way out it flushes before that bee closes; before the drives,
   // so the spaces bee its flush reads is still open too.
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
-  await durable.start(new Catalogs('catalogs'))
+  await durable.start(new OwnCatalogs('own-catalogs'))
+  await durable.start(new PeerCatalogs('peer-catalogs'))
   const drives = await durable.start(new SpaceDrives('drives'))
   return { durable, store, auditLog, drives, durableMigrations, close: (opts) => durable.close(opts) }
 }

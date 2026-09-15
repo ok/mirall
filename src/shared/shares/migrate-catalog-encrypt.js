@@ -2,10 +2,8 @@ import { migrationResult, MIGRATION_STATUS } from '../storage/migrations/migrati
 import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.js'
 import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'
-import {
-  ownCatalog, ownCatalogKeyHex, catalogKeyField,
-  openLegacyPlaintextCatalog, purgeLegacyPlaintextCatalog,
-} from './share-catalog.js'
+import { catalogKeyField } from './catalog-keys.js'
+import { ownCatalog, ownCatalogKeyHex, openLegacyPlaintextCatalog, purgeLegacyPlaintextCatalog } from './own-catalog.js'
 import { markSpaceLooseCatalogKeyEnc } from '../spaces/profile.js'
 import { createLogger } from '../core/logger.js'
 
@@ -67,7 +65,7 @@ async function run(flagBee) {
 
 async function migrateOneCatalog(space, spaceId) {
   const enc = await ownCatalog(spaceId)
-  const legacy = openLegacyPlaintextCatalog(space, spaceId)
+  const legacy = openLegacyPlaintextCatalog(spaceId, space)
   try {
     await legacy.core.ready()
     if (legacy.core.length > 0) {
@@ -88,5 +86,5 @@ async function migrateOneCatalog(space, spaceId) {
     const { catalogKey, ...rest } = share
     await publishShare(spaceId, { ...rest, contentMode: 'overlay', ...catalogKeyField(encKey, true) })
   }
-  await purgeLegacyPlaintextCatalog(space, spaceId)
+  await purgeLegacyPlaintextCatalog(spaceId, space)
 }

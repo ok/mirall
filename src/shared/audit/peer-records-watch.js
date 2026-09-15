@@ -43,7 +43,7 @@ async function closePeerWatch({ settleMs = 3000 } = {}) {
   ])
 }
 
-// The watch itself is a set of free functions called from swarm.js and share-catalog.js; this
+// The watch itself is a set of free functions called from the profile watch, the loose channel and boot; this
 // owns only the accept/drain gate, so shutdown has one thing to await.
 export class PeerWatch extends Subsystem {
   // Clears the refuse-new-sweeps latch a previous close set.

@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeer, freshDurable } from '../helpers/store.js'
 import { getSpace, mutateSpace, listSpaces, isLegacySpace } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { ownCatalog, catalogNameFor, purgeOwnCatalog, legacyPlaintextCatalogName, dropCatalog } from '../../src/shared/shares/share-catalog.js'
+import { ownCatalog, catalogNameForSpace, purgeOwnCatalog, plaintextCatalogName, dropOwnCatalog } from '../../src/shared/shares/own-catalog.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
 import b4a from 'b4a'
 
@@ -43,7 +43,7 @@ async function legacySpace(name) {
   await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.schemaVersion; return next })
   // createSpace opened (and cached) the catalog while the record was still v2. A real legacy
   // space is reached from a cold boot, where nothing has cached one — drop it to match.
-  dropCatalog(space.spaceId)
+  dropOwnCatalog(space.spaceId)
   return space.spaceId
 }
 
@@ -62,9 +62,9 @@ test('leaving a legacy space purges its plaintext catalog core', async (t) => {
   const spaceId = await legacySpace('Ancient')
   const rec = await getSpace(spaceId)
 
-  const plainName = await legacyPlaintextCatalogName(spaceId)
+  const plainName = plaintextCatalogName(spaceId, rec)
   t.absent(plainName.endsWith('-e1'), 'precondition: the legacy core carries no suffix')
-  t.ok((await catalogNameFor(spaceId)).endsWith('-e1'), 'precondition: the resolver still returns -e1')
+  t.ok(catalogNameForSpace(spaceId, rec).endsWith('-e1'), 'precondition: the resolver still returns -e1')
 
   const plain = createBee(plainName)
   await plain.put('file/__loose__/secret.txt', { size: 1, mtime: 1, contentHash: null })

@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { ownCatalog, advertise, listOwnShare, listOwnShareForDisplay } from '../../src/shared/shares/share-catalog.js'
+import { ownCatalog, advertise, listOwnShare, listOwnShareForDisplay } from '../../src/shared/shares/own-catalog.js'
 import { collectStoreCoreInfo, isStorageInconsistency, createDrive } from '../../src/shared/core/store.js'
 
 // Patch a catalog bee so its read stream yields one entry then throws — simulating a

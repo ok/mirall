@@ -9,7 +9,7 @@ import { getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spa
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { reclaimLegacyPeerCaches } from '../../src/shared/storage/migrations/legacy-peer-cache.js'
-import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'

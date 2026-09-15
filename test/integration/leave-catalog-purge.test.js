@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { ownCatalog, purgeOwnCatalog, catalogNameFor } from '../../src/shared/shares/share-catalog.js'
+import { ownCatalog, purgeOwnCatalog, catalogNameForSpace } from '../../src/shared/shares/own-catalog.js'
 import { getSpace } from '../../src/shared/spaces/space.js'
 import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
 
@@ -14,7 +14,7 @@ async function coreInStore(dkHex) {
   return false
 }
 
-// The own catalog core used to leak on every leave (dropCatalog was never
+// The own catalog core used to leak on every leave (the cached bee was never
 // called). purgeOwnCatalog must actually delete it from the store.
 test('purgeOwnCatalog deletes the space catalog core', async (t) => {
   await freshPeer(t)
@@ -37,7 +37,7 @@ test('purgeOwnCatalog resolves the encrypted core from the record it is handed',
   const { spaceId } = await setupOwnedShare(t)
 
   const rec = await getSpace(spaceId)
-  const name = await catalogNameFor(spaceId)
+  const name = catalogNameForSpace(spaceId, rec)
   t.ok(name.endsWith('-e1'), 'precondition: the catalog is the encrypted core')
 
   const bee = await ownCatalog(spaceId)

@@ -2,12 +2,13 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshDurableWithIdentity } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { mutateSpace, listSpaces } from '../../src/shared/spaces/space.js'
+import { mutateSpace, listSpaces, getSpace } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
 import { publishShare, readOwnShares } from '../../src/shared/shares/shares.js'
 import { createBee, getStore } from '../../src/shared/core/store.js'
-import { fileKey, ownCatalogKeyHex, collectOwnShare, legacyPlaintextCatalogName } from '../../src/shared/shares/share-catalog.js'
+import { fileKey } from '../../src/shared/shares/catalog-keys.js'
+import { ownCatalogKeyHex, collectOwnShare, plaintextCatalogName } from '../../src/shared/shares/own-catalog.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/loose-overlay.js'
 import { migrateCatalogsToEncrypted } from '../../src/shared/shares/migrate-catalog-encrypt.js'
 
@@ -37,7 +38,7 @@ test('migration copies folder AND loose entries into the encrypted core, then pu
 
   // Simulate a pre-#326 build's on-disk plaintext catalog: a folder entry + a loose entry, plus a
   // share record carrying the plaintext key. (createSpace already made the "-e1" encrypted core.)
-  const legacyBee = createBee(await legacyPlaintextCatalogName(spaceId))
+  const legacyBee = createBee(plaintextCatalogName(spaceId, await getSpace(spaceId)))
   await legacyBee.ready()
   const legacyKey = b4a.toString(legacyBee.core.key, 'hex')
   const legacyDk = b4a.toString(legacyBee.core.discoveryKey, 'hex')
@@ -111,7 +112,7 @@ test('REGRESSION (FIX-MIGRATE-CONTINUE): a failing space is counted and the rest
   // migrates nothing at all.
   const poisoned = spaces[0].spaceId
   for (const space of spaces) {
-    const legacy = createBee(await legacyPlaintextCatalogName(space.spaceId))
+    const legacy = createBee(plaintextCatalogName(space.spaceId, space))
     await legacy.ready()
     await legacy.put(fileKey(SHARE, 'a.txt'), { size: 3, mtime: 1, contentHash: 'hf' })
     // An unreadable legacy catalog: the copy throws where a corrupt core would.

@@ -1,5 +1,5 @@
 // Share records — the `share/<spaceId>/<shareId>` rows in profile bees. A record points
-// at a catalog (key + content mode); the file listings themselves live in share-catalog.js.
+// at a catalog (key + content mode); the file listings themselves live in own-catalog.js.
 //
 // The five words this domain is built from, in dependency order: a SHARE RECORD says a share exists,
 // who owns it and which catalog carries it; a CATALOG is the per-(owner, space) bee of

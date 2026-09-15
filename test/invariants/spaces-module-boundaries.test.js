@@ -30,11 +30,11 @@ test('no module in spaces/ re-exports a sibling it does not own', (t) => {
 
 // The record store is a leaf: it reads and writes the spaces-meta bee and nothing else. The moment
 // it reaches back up into a module that reads it, the folder has an import cycle again — which is
-// the shape that kept share-catalog and space.js tangled.
+// the shape that kept the catalog and space.js tangled.
 test('the space record store imports no module that reads it', (t) => {
   const src = readFileSync(path.join(spacesDir, 'space.js'), 'utf8')
   const imported = [...src.matchAll(/^import[^']*'([^']+)'/gm)].map((m) => m[1])
-  for (const bad of ['../shares/share-catalog.js', './space-drives.js', './space-lifecycle.js', './leave-records.js', './creator-pin.js']) {
+  for (const bad of ['../shares/own-catalog.js', '../shares/peer-catalog.js', './space-drives.js', './space-lifecycle.js', './leave-records.js', './creator-pin.js']) {
     t.absent(imported.includes(bad), `space.js does not import ${bad}`)
   }
 })

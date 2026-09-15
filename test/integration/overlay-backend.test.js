@@ -7,7 +7,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createOwnedMount, setOwnedIndexPaused } from '../../src/shared/folders/mount-store.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
-import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry, ownCatalog } from '../../src/shared/shares/own-catalog.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
