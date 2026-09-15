@@ -4,11 +4,14 @@ import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import {
-  initAuditLog, record, flushAudit, queryAudit, auditSpaces, auditActors,
-  auditStats, getAuditConfig, setAuditConfig, pruneAudit, purgeAudit, exportAudit,
+  initAuditLog, record, flushAudit, getAuditConfig, setAuditConfig, setAuditIdentity,
+} from '../../src/shared/audit/audit-log.js'
+import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../src/shared/audit/audit-query.js'
+import { pruneAudit, purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
+import {
   getPeerSubjectState, setPeerSubjectState, getSeenVersion, setSeenVersion,
   getNetworkState, setNetworkState,
-} from '../../src/shared/audit/audit-log.js'
+} from '../../src/shared/audit/audit-watch-state.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function boot(t, { identity = true } = {}) {
@@ -564,4 +567,13 @@ test('pruning removes the device index with the row', async (t) => {
   const { entries } = await queryAudit({ spaceId: 'sp1' })
   t.ok(entries.every((e) => e && e.kind), 'no hole where a pruned device row used to be')
   t.is(entries.filter((e) => e.kind === 'network.blocked').length, 2, 'only the surviving rows remain')
+})
+
+test("a 'self' actor is filled from the identity set after boot", async (t) => {
+  await boot(t)
+  setAuditIdentity({ key: 'me-key', name: 'Me' })
+  record('space.created', { actor: { type: 'self' }, space: { id: 'sp1', name: 'Design Team' } })
+  await flushAudit()
+  const { entries } = await queryAudit({})
+  t.alike(entries[0].actor, { type: 'self', key: 'me-key', name: 'Me' })
 })

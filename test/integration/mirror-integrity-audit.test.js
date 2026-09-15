@@ -7,7 +7,8 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { materializeCatalogFile } from '../../src/shared/folders/mirror-pass.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
+import { flushAudit } from '../../src/shared/audit/audit-log.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { createIntegritySeen } from '../../src/shared/folders/mirror-budgets.js'
 import { scaled } from '../helpers/bare-timing.js'
 

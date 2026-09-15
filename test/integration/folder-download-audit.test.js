@@ -7,7 +7,8 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { folderChannel } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 import { looseChannel } from '../../src/shared/transfer/loose-overlay.js'
-import { queryAudit, flushAudit } from '../../src/shared/audit/audit-log.js'
+import { flushAudit } from '../../src/shared/audit/audit-log.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { drainTransferAudit } from '../../src/shared/audit/transfer-audit.js'
 import { scaled } from '../helpers/bare-timing.js'
 

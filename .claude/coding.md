@@ -112,7 +112,7 @@ is a decision that takes a row rather than a default for whatever had nowhere el
 in one sentence. Files over ~600 lines are a standing smell; the ones that exceed it today
 (`overlay/overlay-download.js` 664,
 `overlay/overlay-backend.js` 601, `core/runtime-config.js` 598,
-`transfer/loose-overlay.js` 552, `audit/audit-log.js` 543) are known
+`transfer/loose-overlay.js` 552) are known
 debt — do not add responsibilities to them. Splitting them is its own tier of work, tracked
 separately from the folder reorganisation, because a merge can legitimately grow a file while
 removing duplication.
