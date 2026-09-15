@@ -34,10 +34,10 @@ export function remainingMs(deadlineAt, now = Date.now()) {
 
 // Budget for reading another peer's profile bee; sized in runtime-config.js.
 export function peerReadTimeoutMs() {
-  return getRuntimeConfig().peerReadTimeoutMs ?? 8000
+  return getRuntimeConfig().peerReadTimeoutMs
 }
 
 // Read budget for the INTERACTIVE list fan-outs (files:list / share:list); sized in runtime-config.js.
 export function interactiveReadTimeoutMs() {
-  return getRuntimeConfig().interactiveReadTimeoutMs ?? 1500
+  return getRuntimeConfig().interactiveReadTimeoutMs
 }

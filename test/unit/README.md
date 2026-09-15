@@ -43,7 +43,7 @@ Pure-logic tests of `src/shared/*` and `src/renderer/*` helpers — **no I/O, no
 ### F. Runtime config
 | File | Scenarios |
 |------|-----------|
-| `runtime-config.test.js` | `downloadFolder` defaults to `null` when absent; read from the bootstrap payload; empty string normalised to `null`; `setDownloadFolder` updates the value without touching `storage`/`appVersion`/`dev`/`verbose`. |
+| `runtime-config.test.js` | The coercion groups: a falsy `downloadFolder` reads `null`, a DEFAULTED `0` is honoured, a DEFAULT_ON flag stays on unless explicitly `false`; the live setters patch one field and leave the rest; the connection, membership and derive caps and the rate-limit lanes default to the documented values; bandwidth fails open and converts to bytes/s. |
 
 ### G. Pure path / key / prefix logic — the file & folder operation backbone (`path-keys`)
 The platform-divergent string math behind every share / subfolder / move / copy / delete. Extracted into `src/shared/folders/path-keys.js` (no `bare-*` imports) so it loads under plain Node and is the single source of truth the heavy data-layer modules import (see "How these became unit tests" below).

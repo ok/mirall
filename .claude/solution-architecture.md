@@ -1166,7 +1166,9 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/core/runtime-config.js` | The bootstrap config bag: getters over the bootstrap frame, the `RULES` validation table (§16), the DoS/resource budgets (§16), `getListFilesCap()`, the sweep and mirror-deletion caps (§7.3, §14) |
+| `src/shared/core/runtime-config.js` | The live runtime config: the one built object, `setRuntimeConfig(bootstrap)`, the live setters that patch it through `buildConfig`, and every getter — a getter validates on read through the schema's rule (§16); `getRuntimeConfig()` is the raw override |
+| `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
+| `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7). Wraps `Bare.IPC` |
 | `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` / `createLocalBee()` factories, the M-derived key policy, the `Store` resource that owns the store's lifetime + `openSessionNames()` |
@@ -1624,7 +1626,7 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 
 ### Resource bounds
 
-`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. Validation is a table (`RULES`) naming which of six rules guards each key, applied where a getter READS rather than where the config is built — the live setters re-ingest their own output, so `buildConfig` has to stay a no-op on it. A budget that is multiplied by a live count, or divided into an elapsed time, is clamped finite and within its bound, so a hand-edited `Infinity` or `0` cannot silently disable the lane it is meant to bound. Most tabled keys carry no rule and are read raw; `getRuntimeConfig()` returns the raw overrides, the getters the validated reads.
+`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. Each key is one row in `runtime-config-schema.js` holding its default and, where it carries one, which of the six rules in `runtime-config-rules.js` guards it; the rule is applied where a getter READS rather than where the config is built — the live setters re-ingest their own output, so `buildConfig` has to stay a no-op on it. A budget that is multiplied by a live count, or divided into an elapsed time, is clamped finite and within its bound, so a hand-edited `Infinity` or `0` cannot silently disable the lane it is meant to bound. Most tabled keys carry no rule and are read raw; `getRuntimeConfig()` returns the raw overrides, the getters the validated reads.
 
 ---
 

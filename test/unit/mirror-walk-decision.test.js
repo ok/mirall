@@ -1,8 +1,6 @@
 import test from 'brittle'
 import { shouldWalk, DEFAULT_FULL_WALK_EVERY, mirrorKey } from '../../src/shared/folders/mirror-policy.js'
-import { readFileSync } from 'fs'
-import { fileURLToPath } from 'url'
-import path from 'path'
+import { getForeignFullWalkEvery, getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 test('a mirror with no watermark always walks', (t) => {
   t.is(shouldWalk({ watermark: null, version: 7 }).walk, true)
@@ -56,16 +54,14 @@ test('the default is the 10-tick backstop', (t) => {
   t.is(shouldWalk({ watermark: 7, version: 7, skipped: 9 }).walk, true)
 })
 
-// The default is declared twice across a layer boundary — core/ must not import from folders/, the
-// same constraint that makes PUBLISH_ORDERS a hand-kept twin with its own parity assertion. Without
+// The default is declared twice across a layer boundary — core/ must not import from folders/. Without
 // this, changing one leaves the other stale and nothing fails: production always reads the
 // runtime-config value, so the module default is only ever exercised here.
 test('DEFAULT_FULL_WALK_EVERY matches the runtime-config default', (t) => {
-  const here = path.dirname(fileURLToPath(import.meta.url))
-  const src = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'core', 'runtime-config.js'), 'utf8')
-  const m = src.match(/^\s*foreignFullWalkEvery:\s*(\d+),/m)
-  t.ok(m, 'runtime-config declares foreignFullWalkEvery')
-  t.is(Number(m[1]), DEFAULT_FULL_WALK_EVERY, 'the two declarations agree')
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  setRuntimeConfig({})
+  t.is(getForeignFullWalkEvery(), DEFAULT_FULL_WALK_EVERY, 'the two declarations agree')
 })
 
 test('every mirror-side map keys a mount by one spelling', (t) => {

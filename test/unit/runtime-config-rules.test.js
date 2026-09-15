@@ -158,10 +158,10 @@ test('both relay-mode paths coerce identically', (t) => {
   }
 })
 
-// The 20 keys that carry a validation rule, and the 43 that do not. A key absent from this map is
-// read RAW — including every getResourceCaps cell and the burst and threshold of every rate-limited
-// lane. Adding a row changes a DoS bound or a user-facing cap: do it deliberately, with the
-// behaviour test that proves the new rule, and update this expectation in the same change.
+// The keys that carry a validation rule. A key absent from this map is read RAW — including every
+// connection, membership and sweep cap and the burst and threshold of every rate-limited lane. Adding
+// a row changes a DoS bound or a user-facing cap: do it deliberately, with the behaviour test that
+// proves the new rule, and update this expectation in the same change.
 const EXPECTED_RULES = {
   supervisionRecoverBudgetMs: { rule: 'finiteAtLeast', min: 1 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
