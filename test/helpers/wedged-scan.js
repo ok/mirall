@@ -8,7 +8,7 @@
 import fs from 'bare-fs'
 import { setupOwnedShare } from './owned.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
-import { periodicReconcile } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { waitFor } from './bare-poll.js'
 
@@ -60,7 +60,7 @@ export async function wedgedScan(t, { stallWindowMs = 150, files = { 'a.txt': 'o
     // Never awaited by the caller: it is the pass that does not settle. The catch keeps an
     // abandoned one from surfacing as an unhandled rejection when the process tears down.
     startScan: () => {
-      const pass = periodicReconcile(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+      const pass = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
       pass.catch(() => {})
       return pass
     },

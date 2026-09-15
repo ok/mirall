@@ -2,7 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { initialPublishScan, initOwnedFolders, stopIndexAnnounce } from '../../src/shared/folders/owned-folders.js'
+import { initOwnedFolders, stopIndexAnnounce } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -31,7 +32,7 @@ test('an active scan re-announces itself while its queue is unchanged', async (t
   slowHash(t, 900)
   for (const name of ['a.bin', 'b.bin', 'c.bin']) fs.writeFileSync(path.join(mountPath, name), name.repeat(64))
 
-  const scan = initialPublishScan(spaceId, share.id, mountPath, [])
+  const scan = runPublishPass(spaceId, share.id, mountPath, [])
   // Long enough for many announce ticks, comfortably inside the 900ms every publish is held for,
   // so nothing settles in this window and no shape change can account for the frames.
   await sleep(60)

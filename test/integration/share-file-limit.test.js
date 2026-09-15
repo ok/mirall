@@ -2,9 +2,9 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
-import {
-  initialPublishScan, periodicReconcile, onFsEvent, countFolderFiles,
-} from '../../src/shared/folders/owned-folders.js'
+import { countFolderFiles } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -86,7 +86,7 @@ test('REGRESSION (FIX-360): growth past the limit keeps publishing — the scan 
   withLimit(t, 10)
 
   writeFiles(mountPath, 10)
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(await catalogTotal(spaceId, share.id), 10, 'admitted at exactly the limit')
 
   // The folder grows past the limit — via the watcher, and via the periodic reconcile.
@@ -94,7 +94,7 @@ test('REGRESSION (FIX-360): growth past the limit keeps publishing — the scan 
   await onFsEvent(spaceId, share.id, 'add', 'f010.txt', path.join(mountPath, 'f010.txt'))
   t.is(await catalogTotal(spaceId, share.id), 11, 'the 11th file publishes — the watcher is not gated')
 
-  await periodicReconcile(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(await catalogTotal(spaceId, share.id), 12, 'the 12th publishes too — the reconcile is not gated')
 })
 
@@ -105,10 +105,10 @@ test('REGRESSION (FIX-360): re-scanning an over-limit folder publishes it whole,
   withLimit(t, 5)
   writeFiles(mountPath, 12)
 
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(await catalogTotal(spaceId, share.id), 12, 'every file is published, limit notwithstanding')
 
-  const r = await periodicReconcile(spaceId, share.id, mountPath, [])
+  const r = await runPublishPass(spaceId, share.id, mountPath, [])
   t.is(r.deleted, 0, 'the reconcile tombstones nothing')
   t.is(await catalogTotal(spaceId, share.id), 12, 'still whole after a re-scan')
 })

@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, setupSelfMirror } from '../helpers/owned.js'
-import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
@@ -15,7 +15,7 @@ test('owned preview: counts new uploads and flags content conflicts', async (t) 
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   // Publish one file, then change it on disk and add a new one.
   fs.writeFileSync(path.join(mountPath, 'tracked.txt'), 'v1')
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
 
   fs.writeFileSync(path.join(mountPath, 'tracked.txt'), 'v2-changed')  // conflict vs drive
   fs.writeFileSync(path.join(mountPath, 'fresh.txt'), 'brand new')      // pure upload
@@ -31,7 +31,7 @@ test('owned preview: counts new uploads and flags content conflicts', async (t) 
 test('owned preview: an unchanged file is neither an upload nor a conflict', async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   fs.writeFileSync(path.join(mountPath, 'same.txt'), 'identical')
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
 
   const preview = await previewInitialPublishScan(spaceId, share.id, mountPath, [])
   t.is(preview.toUpload, 0, 'nothing to upload')

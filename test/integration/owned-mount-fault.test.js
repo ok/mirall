@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { getOwnedMount, setOwnedActivity, setOwnedIndexPaused } from '../../src/shared/folders/mount-store.js'
-import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
@@ -29,7 +29,7 @@ test('REGRESSION (FIX-PI12-1: a pass whose publishes all failed on a full disk r
   failPublishWith(t, errno('ENOSPC', "ENOSPC: no space left on device, write '/tmp/x'"))
 
   const result = await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.ok(result.failed > 0, 'precondition: the pass really did fail its items')
@@ -44,7 +44,7 @@ test('REGRESSION (FIX-PI12-1: a permission fault on the publish path is classifi
   failPublishWith(t, errno('EACCES', "EACCES: permission denied, open '/tmp/a.txt'"))
 
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
@@ -57,7 +57,7 @@ test('an unclassified publish failure is not a mount fault', async (t) => {
   failPublishWith(t, new Error('something transient'))
 
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
@@ -75,7 +75,7 @@ test('a genuinely unreadable file faults the mount through the real publish path
   t.teardown(() => { try { fs.chmodSync(sealed, 0o644) } catch {} })
 
   const result = await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is(result.uploaded, 1, 'the readable file still published — one bad file is not a bad folder')
@@ -172,7 +172,7 @@ test('a faulted owned folder returns to active on the next clean pass, with its 
     'a fault does not disarm the cadence — that is what retries it')
 
   await mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   const mount = await getOwnedMount(ctx.spaceId, ctx.share.id)
@@ -184,7 +184,7 @@ test('REGRESSION (FIX-PI12-3: a pass that declined to run does not consume the p
   const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
   failPublishWith(t, errno('ENOSPC', 'full'))
   fs.writeFileSync(path.join(ctx.mountPath, 'c.txt'), 'cc')
-  const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
+  const { onFsEvent } = await import('../../src/shared/folders/owned-watcher.js')
   await onFsEvent(ctx.spaceId, ctx.share.id, 'add', 'c.txt', path.join(ctx.mountPath, 'c.txt'))
 
   // A pause declines the next pass before it walks. The fault it would have reported was observed
@@ -192,14 +192,14 @@ test('REGRESSION (FIX-PI12-3: a pass that declined to run does not consume the p
   // pass that never ran.
   await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, true)
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused', 'precondition: the pass declined')
 
   await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, false)
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused-enospc',
@@ -209,7 +209,7 @@ test('REGRESSION (FIX-PI12-3: a pass that declined to run does not consume the p
 test('a fault recorded by a watcher item between passes is not lost', async (t) => {
   const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'active', 'precondition: healthy')
@@ -218,11 +218,11 @@ test('a fault recorded by a watcher item between passes is not lost', async (t) 
   // catch-up pass that follows it is the one that settles the status.
   failPublishWith(t, errno('ENOSPC', 'full'))
   fs.writeFileSync(path.join(ctx.mountPath, 'c.txt'), 'cc')
-  const { onFsEvent } = await import('../../src/shared/folders/owned-folders.js')
+  const { onFsEvent } = await import('../../src/shared/folders/owned-watcher.js')
   await onFsEvent(ctx.spaceId, ctx.share.id, 'add', 'c.txt', path.join(ctx.mountPath, 'c.txt'))
 
   await ctx.root.mounts.settleScanStatus(
-    initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
     ctx.spaceId, ctx.share.id,
   )
   t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'paused-enospc',

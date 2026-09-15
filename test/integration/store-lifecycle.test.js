@@ -12,7 +12,7 @@ import { listJoinRequests, recordJoinRequest } from '../../src/shared/spaces/joi
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
-import { onFsEvent } from '../../src/shared/folders/owned-folders.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { ownCatalog, advertise, collectOwnShare } from '../../src/shared/shares/share-catalog.js'
 import { openMemberView } from '../../src/shared/spaces/member-registry.js'
 

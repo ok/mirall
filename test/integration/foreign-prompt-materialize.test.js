@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import {
   initialMaterializeScan,
   startForeignLoop,
@@ -34,7 +34,7 @@ test('a peer-drive change triggers a prompt materialize tick on active mirrors',
   // The owner publishes a new file; without the append-driven trigger this would
   // sit until the next 30s poll.
   fs.writeFileSync(path.join(ctx.mountPath, 'b.txt'), 'two')
-  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   onPeerDriveChanged(ctx.spaceId)
 
@@ -54,7 +54,7 @@ test('an owner edit shortly after materialize still propagates to the mirror', a
 
   // Edit immediately — well inside the old 30s guard window.
   fs.writeFileSync(path.join(ctx.mountPath, 'f.txt'), 'v2-edited')
-  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   onPeerDriveChanged(ctx.spaceId)
 

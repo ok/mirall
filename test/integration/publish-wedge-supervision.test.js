@@ -2,7 +2,8 @@ import test from 'brittle'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
-import { initialPublishScan, getIndexStatus } from '../../src/shared/folders/owned-folders.js'
+import { getIndexStatus } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { waitFor } from '../helpers/bare-poll.js'
@@ -47,7 +48,7 @@ async function wedgedPublish(t) {
   t.teardown(() => supervisor.close())
 
   // Never awaited: its items are the ones that do not settle.
-  initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, []).catch(() => {})
+  runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []).catch(() => {})
   await waitUntil(() => reads.length === 1)
   return { ...ctx, shareId: ctx.share.id, publishService, supervisor, reads }
 }
@@ -104,7 +105,7 @@ test('an evicted path is never handed a second executor', async (t) => {
 
   // The same file the recovery evicted, requested again: the queue still owns its path, so this
   // supersedes into one rerun rather than starting a second read of a file already being read.
-  initialPublishScan(w.spaceId, w.shareId, w.mountPath, []).catch(() => {})
+  runPublishPass(w.spaceId, w.shareId, w.mountPath, []).catch(() => {})
   await delay(200)
   t.is(w.reads.filter((name) => name === w.reads[0]).length, 1, 'the path was read exactly once')
 })

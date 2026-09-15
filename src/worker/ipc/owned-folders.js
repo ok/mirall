@@ -10,12 +10,9 @@ import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { readOwnShares, tombstoneShare } from '../../shared/shares/shares.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
-import {
-  handleFsEventFromMain,
-  getIndexStatus,
-  initialPublishScan,
-  stopOwnedFolder,
-} from '../../shared/folders/owned-folders.js'
+import { getIndexStatus, stopOwnedFolder } from '../../shared/folders/owned-folders.js'
+import { runPublishPass } from '../../shared/folders/owned-pass.js'
+import { handleFsEventFromMain } from '../../shared/folders/owned-watcher.js'
 import { mountRootAvailable } from '../../shared/folders/publish-service.js'
 import {
   getOwnedMount,
@@ -117,7 +114,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     // be missed and this would arm a pass the user had stopped.
     const current = await getOwnedMount(msg.spaceId, msg.shareId)
     if (!current?.indexPaused) {
-      mounts.settleScanStatus(initialPublishScan(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
+      mounts.settleScanStatus(runPublishPass(msg.spaceId, msg.shareId, mountPath, mount.ignore, { deep: true }), msg.spaceId, msg.shareId)
         .then(async (result) => {
           if (result?.cancelled) return
           // Cleared only by a pass that actually ran to completion. A cancelled, failed or skipped

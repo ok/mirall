@@ -2,7 +2,9 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
-import { onFsEvent, initialPublishScan, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
+import { stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { until } from '../helpers/bare-poll.js'
 
 const waitUntil = (pred, ms = 6000) => until(pred, ms, { interval: 100 })
@@ -14,7 +16,7 @@ test('copying existing files into a subfolder publishes them all', async (t) => 
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   const names = ['garden-1.jpg', 'garden-2.jpg', 'lake-day.jpg']
   names.forEach((n, i) => fs.writeFileSync(path.join(mountPath, n), 'distinct-content-' + i))
-  await initialPublishScan(spaceId, share.id, mountPath, [])
+  await runPublishPass(spaceId, share.id, mountPath, [])
 
   const sub = path.join(mountPath, 'subfolder')
   fs.mkdirSync(sub, { recursive: true })

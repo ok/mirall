@@ -2,7 +2,8 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { initialPublishScan, stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
+import { stopOwnedFolder } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads, getOwnedSourcePath, markOwnedSource, clearOwnedSource } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -66,7 +67,7 @@ test('a loose drop starts at once while a folder backfill holds every bulk slot'
   fill(ctx.mountPath, seeds)
   const probe = slowHash(t, 600, { only: seeds })
 
-  const backfill = initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const backfill = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   await sleep(150)
   const abs = writeSource(ctx, 'drop.txt', 'dropped in')
   const t0 = Date.now()
@@ -98,7 +99,7 @@ test('cancelling a queued loose publish leaves no entry, no link and no tracking
   const ctx = await setup(t, { concurrency: 1 })
   fill(ctx.mountPath, ['bulk.bin'])
   const probe = slowHash(t, 800, { only: ['bulk.bin', 'hold.txt'] })
-  const backfill = initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])   // the bulk slot
+  const backfill = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])   // the bulk slot
   t.ok(await until(() => probe.calls.includes('bulk.bin')), 'precondition: the bulk slot is held')
   const hold = writeSource(ctx, 'hold.txt', 'h'.repeat(4096))
   const holding = looseShareFile(ctx.spaceId, hold, 'hold.txt')                       // the express lane
@@ -128,7 +129,7 @@ test('the sweep leaves a path with a queued retire alone; the retire runs once t
 
   fill(ctx.mountPath, ['bulk.bin'])
   const probe = slowHash(t, 900, { only: ['bulk.bin', 'hold.txt'] })
-  const backfill = initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const backfill = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.ok(await until(() => probe.calls.includes('bulk.bin')), 'precondition: the bulk slot is held')
   const hold = writeSource(ctx, 'hold.txt', 'h'.repeat(4096))
   const holding = looseShareFile(ctx.spaceId, hold, 'hold.txt')
@@ -167,7 +168,7 @@ test('REGRESSION (FIX-LOOSE-QUEUED-CANCEL): cancelling a queued boot resume reve
 
   fill(ctx.mountPath, ['bulk.bin'])
   const probe = slowHash(t, 900, { only: ['bulk.bin', 'hold.txt'] })
-  const backfill = initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  const backfill = runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
   t.ok(await until(() => probe.calls.includes('bulk.bin')), 'precondition: the bulk slot is held')
   const hold = writeSource(ctx, 'hold.txt', 'h'.repeat(4096))
   const holding = looseShareFile(ctx.spaceId, hold, 'hold.txt')

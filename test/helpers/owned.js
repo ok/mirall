@@ -5,7 +5,7 @@ import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { createOwnedMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
-import { initialPublishScan } from '../../src/shared/folders/owned-folders.js'
+import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/share-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -50,7 +50,7 @@ function writeFiles(root, files) {
 // (initialMaterializeScan / runMaterializeTick) still runs in-process on the overlay path.
 export async function setupSelfMirror(t, { name = 'Media', files = { 'note.txt': 'hello mirror' } } = {}) {
   const ctx = await setupOwnedShare(t, { name, files })
-  await initialPublishScan(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
+  await runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, [])
 
   // The mirror lists from the owner's catalog and fetches by content hash; stub both
   // so the materialize path runs without a second peer. `listing` lets a test shape the read the
