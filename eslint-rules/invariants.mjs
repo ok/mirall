@@ -149,3 +149,7 @@ export const pureSpacesModules = [
   'creator-root', 'invites', 'join-requests', 'knock-policy', 'sck-seal',
   'membership/fold', 'membership/leave-state',
 ]
+
+// The pure half of shares/ — the catalog key grammar and the listing fold, loaded by test/unit
+// under plain Node.
+export const pureSharesModules = ['catalog-keys', 'catalog-tally']

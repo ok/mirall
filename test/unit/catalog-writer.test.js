@@ -1,7 +1,6 @@
 import test from 'brittle'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
-import { fileKey } from '../../src/shared/shares/share-catalog.js'
-
+import { fileKey } from '../../src/shared/shares/catalog-keys.js'
 function fakeBee(initial = {}) {
   const store = new Map(Object.entries(initial))
   const calls = { batches: 0, puts: 0, flushes: 0 }
