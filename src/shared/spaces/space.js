@@ -37,17 +37,6 @@ import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
 import { resetJoinRequests, clearJoinRequest } from './join-requests.js'
 
-// The join-request surface keeps its address here: the swarm, the membership handlers and the
-// renderer projection all reach a space's pending set through this module.
-export {
-  recordJoinRequest,
-  listJoinRequests,
-  listPendingRequests,
-  getConvergingMember,
-  clearJoinRequest,
-  setDerivedRequests,
-} from './join-requests.js'
-
 export async function recordApproval(spaceId, joinerKey) {
   await markApproval(spaceId, joinerKey)
   await upsertMember(spaceId, { publicKey: joinerKey, status: 'approved' })

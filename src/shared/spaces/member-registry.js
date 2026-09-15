@@ -1,4 +1,5 @@
-import { getSpace, listSpaces, mutateMembers, setDerivedRequests, clearJoinRequest, loadLeftTombstones, clearLeftTombstone, persistLeftTombstone } from './space.js'
+import { getSpace, listSpaces, mutateMembers, loadLeftTombstones, clearLeftTombstone, persistLeftTombstone } from './space.js'
+import { setDerivedRequests, clearJoinRequest } from './join-requests.js'
 import { getLocalPublicKeyHex, revokeApproval, adoptVouchees, readMembershipRecord, capturePeerBee, peerBeeLength } from './profile.js'
 import { createMemberView } from './member-view.js'
 import { makeCaptureScheduler } from './peer-bee.js'

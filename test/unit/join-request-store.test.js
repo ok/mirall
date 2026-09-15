@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   recordJoinRequest, getConvergingMember, listJoinRequests, clearJoinRequest,
-} from '../../src/shared/spaces/space.js'
+} from '../../src/shared/spaces/join-requests.js'
 
 // A driveKey-bearing record is a materialized member converging (captured from a handshake), not
 // an approvable join request: its driveKey is retained so a co-member can admit it once the
