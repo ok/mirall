@@ -1,11 +1,7 @@
 // Routes OS-notification clicks to app actions (reveal file, focus window, navigate to space) by payload kind.
 import { useEffect } from 'react'
 
-export interface ClickRouterDeps {
-  navigateToSpace(spaceId: string): void
-}
-
-export function useNotificationClickRouter(deps: ClickRouterDeps): void {
+export function useNotificationClickRouter(navigateToSpace: (spaceId: string) => void): void {
   useEffect(() => {
     const unsub = window.bridge.onNotificationClick(({ payload }) => {
       if (!payload) return
@@ -26,10 +22,10 @@ export function useNotificationClickRouter(deps: ClickRouterDeps): void {
         case 'transfer-error':
         case 'transfer-paused':
           void window.bridge.focusWindow()
-          deps.navigateToSpace(payload.spaceId)
+          navigateToSpace(payload.spaceId)
           return
       }
     })
     return unsub
-  }, [deps])
+  }, [navigateToSpace])
 }

@@ -382,14 +382,14 @@ test('REGRESSION (FIX-PI2-1): the renderer decoder returns every v2 field', (t) 
   const id = 'ab'.repeat(16)
   const code = encodeInvite({ topic: HEX, name: 'Acme', creator: CREATOR, schemaVersion: 2, autoAdmit: true, inviteId: id })
 
-  // The renderer is TypeScript, so the runner cannot import it; the two screens that decode an invite are pinned to the contract import instead.
+  // The renderer is TypeScript, so the runner cannot import it; the two renderer modules that decode an invite are pinned to the contract import instead.
   const decoded = contract.decodeInvite(code)
   t.is(decoded.creator, CREATOR)
   t.is(decoded.schemaVersion, 2)
   t.is(decoded.autoAdmit, true)
   t.is(decoded.inviteId, id)
 
-  for (const file of ['renderer/app.tsx', 'renderer/components/modals/JoinSpaceModal.tsx']) {
+  for (const file of ['renderer/model/deep-link-route.js', 'renderer/components/modals/JoinSpaceModal.tsx']) {
     const src = readSrc(file)
     t.ok(/import \{[^}]*decodeInvite[^}]*\} from '(\.\.\/)+shared\/contract\/invite-envelope\.js'/.test(src),
       `${file}: decodeInvite is the contract decodeInvite`)

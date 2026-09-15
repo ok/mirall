@@ -585,7 +585,7 @@ The codec is one declaration, `shared/contract/invite-envelope.js` — plain ESM
 
 **Cold-start queue.** Links can arrive before the renderer mounts, so main buffers them in `pendingDeepLinks[]` until the renderer's `bridge.deepLink.subscribe(fn)` triggers `deeplink:flush`. Later links forward live. `revealWindow()` runs on every dispatch.
 
-**Renderer routing.** `app.tsx` subscribes once at mount, accumulates a `linkQueue`, routes each link to `JoinSpaceModal` with code (and name) prefilled. Subscribing returns the unsubscribe fn so React's effect cleanup tears the listener down.
+**Renderer routing.** `hooks/useDeepLinks.ts` subscribes once above the boot gate and queues links; the shell drains the queue through `model/deep-link-route.js` (invalid → expired → already a member → join) and opens the join dialog with code (and name) prefilled. Subscribing returns the unsubscribe fn so React's effect cleanup tears the listener down.
 
 **Security.** The topic is a shared secret; anyone holding a code can *knock*. The deep-link layer adds no new authority — `mirall://join/<code>` is exactly equivalent to pasting `<code>`. The `name` field is a UI hint the joiner can override. Read access still requires approval (§16, §14).
 
@@ -1043,7 +1043,7 @@ Current consumer: `DropZone` (folder-drop rejection, via `webkitGetAsEntry().isD
 
 ### Component library
 
-Tailwind + React Aria, grouped under `renderer/components/`: `primitives/` (Avatar, Badge, Button, CollapsibleCard, CopyButton, Icon, IconButton, Logo, Modal + `modalKeys.ts`, ProgressBar, SegmentedControl, TextButton, Toggle, VerifiedCheck, ActionMenu, DocsLink, DownloadProgressLane, FileName, FilenameTitle, IconPicker, ModalBackdrop, StatusDot, LoadingHeadline), `cards/` (FileCard, ShareFileRow, RowLane, MemberCard, ShareCard, SpaceCard, FolderPeopleCard, FolderStatsCard, PeerDownloadIndicator, PeerDownloadDropdown, PeerDownloadRow, DocsCard, JoinRequestCard, SpaceMembersCard, SpaceStorageCard), `modals/` (17 dialogs incl. the shared `MountWizardStep` and `ScanPreviewModal`), `layout/` (TopNav, UpdateBanner, PageHeader, EntityHeader, SectionHeading, ScreenRouter), `folder/` (FolderTree, FolderWorkStrip, FolderControlsRow, FolderListPane, FolderSidebar, FolderStripBand), `space/` (SpaceContentPane, SpaceSharesSection, SpaceFilesPane, SpaceSection, SpaceAlert, SpaceEmptyState, PendingSpaceHero), `path/` (PathRow, MountPathField, FilePath), `activity/` (ActivityFeed, ActivityFilterBar), `share-drop/` (DropZone, DropOverlay), `toast/` + `toast/bridges/` (Connectivity / DownloadFolder / Worker).
+Tailwind + React Aria, grouped under `renderer/components/`: `primitives/` (Avatar, Badge, Button, CollapsibleCard, CopyButton, Icon, IconButton, Logo, Modal + `modalKeys.ts`, ProgressBar, SegmentedControl, TextButton, Toggle, VerifiedCheck, ActionMenu, DocsLink, DownloadProgressLane, FileName, FilenameTitle, IconPicker, ModalBackdrop, StatusDot, LoadingHeadline), `cards/` (FileCard, ShareFileRow, RowLane, MemberCard, ShareCard, SpaceCard, FolderPeopleCard, FolderStatsCard, PeerDownloadIndicator, PeerDownloadDropdown, PeerDownloadRow, DocsCard, JoinRequestCard, SpaceMembersCard, SpaceStorageCard), `modals/` (17 dialogs incl. the shared `MountWizardStep` and `ScanPreviewModal`), `layout/` (TopNav, UpdateBanner, PageHeader, EntityHeader, SectionHeading, ScreenRouter), `folder/` (FolderTree, FolderWorkStrip, FolderControlsRow, FolderListPane, FolderSidebar, FolderStripBand), `space/` (SpaceContentPane, SpaceSharesSection, SpaceFilesPane, SpaceSection, SpaceAlert, SpaceEmptyState, PendingSpaceHero), `path/` (PathRow, MountPathField, FilePath), `activity/` (ActivityFeed, ActivityFilterBar), `share-drop/` (DropZone, DropOverlay), `toast/` + `toast/bridges/` (Connectivity / DownloadFolder / Worker / JoinRequest).
 
 Behaviour worth knowing (styling → `design.md`):
 
@@ -1442,13 +1442,13 @@ module sits in a named bucket, kebab-cased (`renderer-root-is-empty.test.js`).
 | File / dir | Purpose |
 |---|---|
 | `src/renderer/main.tsx` | `createRoot(…)`; imports `platform.ts`, `theme.ts`, `dev-console.ts` for side effects |
-| `src/renderer/app.tsx` | Root — providers, screen routing (`ScreenRouter`), the deep-link queue (`DeepLinkRouter`), the command registrations (`AppCommands` / `SpaceCommands`), the join-request toast bridge, outermost `ToastProvider`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
+| `src/renderer/app.tsx` | Root — `App` is the boot gate (loading → onboarding → shell) and owns the deep-link queue; `AppShell` composes the providers (outermost `ToastProvider`), the toast bridges, the `AppDialogs` host, the command hooks (`useAppCommands` / `useSpaceCommands`), the route announcer and `ScreenRouter`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
 | `src/renderer/ipc/ipc.ts` | Worker IPC wrapper — `request()`, `subscribe()`, `addFileToSpace()`, first-boot spawn and crash-respawn orchestration |
 | `src/renderer/platform/updates.ts` | Singleton update state → `UpdateBanner` |
 | `src/renderer/platform/config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
 | `src/renderer/types/types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) — the status unions are derived from `contract/statuses.js` |
-| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`. Plain JS + `.d.ts`, so they unit-test under brittle-node |
-| `src/renderer/shell/` | Cross-screen shell logic — `navigation.ts` (the screen graph, §10), `space-actions.ts`, `tab-intent.js`, `docs-links.js` |
+| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`, `deep-link-route.js`. Plain JS + `.d.ts`, so they unit-test under brittle-node |
+| `src/renderer/shell/` | Cross-screen shell logic — `navigation.ts` (the screen graph, §10), `screen-titles.ts` (the announced name per screen), `space-actions.ts`, `tab-intent.js`, `docs-links.js` |
 | `src/renderer/model/share-paths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
 | `src/renderer/errors/error-messages.js` | The one backend-code → i18n-key map |
 | `src/renderer/errors/error-text.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |

@@ -1,4 +1,5 @@
 import type { AppNavigation } from './hooks/useAppNavigation.js'
+import type { AppDialog } from './components/modals/AppDialogs.js'
 import type { Profile } from './types/types.js'
 import SpacesScreen from './screens/SpacesScreen.js'
 import SpaceScreen from './screens/SpaceScreen.js'
@@ -22,9 +23,7 @@ interface ScreenRouterProps {
   nav: AppNavigation
   profile: Profile | null
   onSaveProfile: (data: { displayName: string; avatar: string | null }) => Promise<Profile>
-  onOpenFeedback: () => void
-  onShowCreate: () => void
-  onShowJoin: () => void
+  openDialog: (dialog: AppDialog) => void
 }
 
 // The folder screen reads its folder from the live listing rather than from the row that was
@@ -60,7 +59,7 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
   )
 }
 
-export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedback, onShowCreate, onShowJoin }: ScreenRouterProps) {
+export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }: ScreenRouterProps) {
   const { currentScreen, selectedSpaceId, selectedShareId } = nav
   const gate = useConnectionGate()
   switch (currentScreen) {
@@ -74,8 +73,8 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
       ) : (
         <SpacesScreen
           onSelectSpace={nav.navigateToSpace}
-          onShowCreate={onShowCreate}
-          onShowJoin={onShowJoin}
+          onShowCreate={() => openDialog({ kind: 'create' })}
+          onShowJoin={() => openDialog({ kind: 'join' })}
         />
       )
     case 'connection-problem':
@@ -128,7 +127,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, onOpenFeedba
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
           onOpenActivityLog={() => nav.openActivityLog()}
-          onFeedback={onOpenFeedback}
+          onFeedback={() => openDialog({ kind: 'feedback' })}
         />
       )
     case 'storage-settings':

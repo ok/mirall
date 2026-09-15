@@ -159,22 +159,30 @@ export function useKeyboard(): KeyboardApi {
 // `deps` governs RE-REGISTRATION, not freshness: `run` and `when` are read through a ref, so they
 // are always current whatever deps say. Only the fields copied into `stable` below — labelKey,
 // labelParams, group, accelerator, hiddenInPalette — need a change here, which is why most callers
-// pass [] and only one passes the values its label interpolates.
-export function useRegisterCommand(cmd: Command, deps: DependencyList): void {
+// pass [] and only the ones whose labels interpolate a value pass it.
+export function useRegisterCommands(commands: Command[], deps: DependencyList): void {
   const { registerCommand } = useKeyboard()
-  const cmdRef = useRef(cmd)
-  cmdRef.current = cmd
+  const commandsRef = useRef(commands)
+  commandsRef.current = commands
   useEffect(() => {
-    const stable: Command = {
-      id: cmd.id,
-      labelKey: cmd.labelKey,
-      labelParams: cmd.labelParams,
-      group: cmd.group,
-      accelerator: cmd.accelerator ?? acceleratorFor(cmd.id),
-      hiddenInPalette: cmd.hiddenInPalette,
-      when: cmd.when ? (ctx) => (cmdRef.current.when ? cmdRef.current.when(ctx) : true) : undefined,
-      run: (ctx) => cmdRef.current.run(ctx),
-    }
-    return registerCommand(stable)
+    const live = (id: string) => commandsRef.current.find((c) => c.id === id)
+    const unregs = commands.map((cmd) => {
+      const stable: Command = {
+        id: cmd.id,
+        labelKey: cmd.labelKey,
+        labelParams: cmd.labelParams,
+        group: cmd.group,
+        accelerator: cmd.accelerator ?? acceleratorFor(cmd.id),
+        hiddenInPalette: cmd.hiddenInPalette,
+        when: cmd.when ? (ctx) => live(cmd.id)?.when?.(ctx) ?? true : undefined,
+        run: (ctx) => live(cmd.id)?.run(ctx),
+      }
+      return registerCommand(stable)
+    })
+    return () => { unregs.forEach((fn) => fn()) }
   }, deps)
+}
+
+export function useRegisterCommand(cmd: Command, deps: DependencyList): void {
+  useRegisterCommands([cmd], deps)
 }
