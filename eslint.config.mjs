@@ -44,6 +44,7 @@ import {
   pureTransferModules,
   pureNetworkModules,
   pureFolderPolicyModules,
+  pureSpacesModules,
 } from './eslint-rules/invariants.mjs'
 
 export default [
@@ -105,6 +106,16 @@ export default [
   // The pure half of folders/ — see pureFolderPolicyModules.
   {
     files: pureFolderPolicyModules.map((name) => `src/shared/folders/${name}.js`),
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
+      }],
+    },
+  },
+
+  // The pure half of spaces/ — see pureSpacesModules.
+  {
+    files: pureSpacesModules.map((name) => `src/shared/spaces/${name}.js`),
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
