@@ -14,7 +14,7 @@ import {
   getVerdictHistory,
   getDiagnosticCounters,
   getPeerSamples,
-} from '../../shared/network/connectivity.js'
+} from '../../shared/network/network-status.js'
 
 const DIAGNOSTIC_HISTORY_LIMIT = 50
 

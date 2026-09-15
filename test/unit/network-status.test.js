@@ -1,30 +1,16 @@
 import test from 'brittle'
-import { statusEqual } from '../../src/shared/network/connectivity.js'
+import {
+  initNetworkStatus, resetNetworkStatus, getSwarmStatus, getVerdictHistory, scheduleStatusEmit,
+  statusEqual, STATUS_PATHS,
+} from '../../src/shared/network/network-status.js'
+import { createSwarmDiagnostics } from '../../src/shared/network/swarm-diagnostics.js'
+
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
+const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // statusEqual dedups network-status events: a fresh status equal to the last is not re-emitted.
-// It is a flat list of scalar field comparisons; the real refactor risk is dropping or duplicating
-// a field, so this builds a representative status and asserts that changing ANY single field — at
-// every nesting level — breaks equality. Lives in integration (bare runner) since swarm.js imports
-// bare-* modules and won't load under node.
-
-// Every leaf field statusEqual compares; mirrors STATUS_FIELDS in swarm.js.
-const FIELD_PATHS = [
-  'state', 'dhtReady', 'announced', 'peerCount', 'connecting', 'suspended',
-  'lastConnectionAt', 'bootedAt',
-  'identity.publicKey', 'identity.nodeId',
-  'address.publicHost', 'address.publicPort', 'address.localPort',
-  'nat.firewalled', 'nat.randomized', 'nat.ephemeral',
-  'routing.tableSize', 'topics', 'stats.updates',
-  'stats.connects.client.opened', 'stats.connects.client.closed',
-  'stats.connects.server.opened', 'stats.connects.server.closed',
-  'stats.bannedPeers',
-  'stats.relaying.selected', 'stats.relaying.attempts', 'stats.relaying.successes', 'stats.relaying.aborts',
-  'peerReach.discovered', 'peerReach.connected', 'peerReach.exhausted',
-  'dhtHealth.online', 'dhtHealth.degraded', 'dhtHealth.timeoutsRate',
-  'canary.state', 'canary.at', 'liveness.failures', 'liveness.interfaceKind',
-  'reachability.verdict', 'reachability.cause', 'reachability.confidence',
-]
-
+// The refactor risk is a dropped or duplicated leaf, so this builds a representative frame and
+// asserts that changing any listed leaf breaks equality, and that every listed leaf exists.
 function makeStatus() {
   return {
     state: 'connected', dhtReady: true, announced: true, peerCount: 3, connecting: false,
@@ -54,6 +40,7 @@ function setPath(obj, path, val) {
   for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]]
   o[keys.at(-1)] = val
 }
+const getPath = (obj, path) => path.split('.').reduce((o, k) => o[k], obj)
 
 test('statusEqual: reference / deep-equal / nullish', (t) => {
   const base = makeStatus()
@@ -64,11 +51,58 @@ test('statusEqual: reference / deep-equal / nullish', (t) => {
   t.ok(statusEqual(null, null), 'both null are reference-equal (a === b guard) → equal')
 })
 
-test('statusEqual: any single field difference breaks equality (all 28 compared)', (t) => {
+test('statusEqual: every compared path is a real leaf, and any single difference breaks equality', (t) => {
   const base = makeStatus()
-  for (const path of FIELD_PATHS) {
+  t.is(new Set(STATUS_PATHS).size, STATUS_PATHS.length, 'no path is listed twice')
+  for (const path of STATUS_PATHS) {
+    t.not(getPath(base, path), undefined, `${path} is a leaf of the frame`)
     const mutated = clone(base)
     setPath(mutated, path, `changed-${path}`)
     t.absent(statusEqual(base, mutated), `differs on ${path}`)
   }
+})
+
+function fakeSwarm() {
+  return {
+    dht: { host: '5.6.7.8', port: 4000, firewalled: false, randomized: false, ephemeral: false, id: null },
+    connections: new Set(),
+    connecting: 0,
+    suspended: false,
+    destroyed: false,
+    keyPair: null,
+  }
+}
+
+function status(t, { swarm = fakeSwarm(), ipc = null } = {}) {
+  const ledger = { dhtReady: true, readyAt: 1, bootedAt: 1, announced: false, lastConnectionAt: null, browserOnline: true }
+  const diag = createSwarmDiagnostics({ getSwarm: () => swarm, getRelaySelections: () => 0, getDhtVersion: () => '0' })
+  initNetworkStatus({ log: silentLog, diag, getSwarm: () => swarm, getIpc: () => ipc, dhtVersion: '0', readiness: () => ledger })
+  t.teardown(() => resetNetworkStatus())
+  return ledger
+}
+
+test('the frame carries every compared leaf and a folded verdict', (t) => {
+  status(t)
+  const frame = getSwarmStatus()
+  for (const path of STATUS_PATHS) t.not(getPath(frame, path), undefined, path)
+  t.is(frame.versions.dht, '0')
+  t.ok(['healthy', 'at-risk', 'blocked', 'unknown'].includes(frame.reachability.verdict))
+})
+
+test('a read records no history; an emit does, and dedups the next identical frame', async (t) => {
+  const emitted = []
+  status(t, { ipc: { emit: (name, frame) => emitted.push([name, frame]) } })
+  getSwarmStatus()
+  t.alike(getVerdictHistory(), [], 'asking for the status is not a transition')
+
+  scheduleStatusEmit()
+  scheduleStatusEmit()
+  await delay(350)
+  t.is(emitted.length, 1, 'two schedules inside the debounce emit once')
+  t.is(emitted[0][0], 'event:network-status')
+  t.is(getVerdictHistory().length, 1, 'the emitted verdict is the first history entry')
+
+  scheduleStatusEmit()
+  await delay(350)
+  t.is(emitted.length, 1, 'an unchanged frame is not re-emitted')
 })

@@ -18,7 +18,7 @@ import { createAdmissionGates } from './admission-gates.js'
 import { presence, setPresenceExpireHandler } from './presence-leases.js'
 import { sendSingleHandshake } from './identity-frames.js'
 import { resolveSpaceIdForTopic } from './presence-broadcast.js'
-import { scheduleStatusEmit } from './connectivity.js'
+import { scheduleStatusEmit } from './network-status.js'
 import {
   connectedPeers, socketToPeers, socketMsgHandlers, pendingRequesters, announceLedger,
   forgetBoundSignerKey,
