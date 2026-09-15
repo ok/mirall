@@ -9,7 +9,7 @@ import { upsertMember } from './space.js'
 import { observePeerProfile } from '../audit/peer-records-watch.js'
 import { reconcilePendingRequestersForApprover, emitPeerSharesUpdated } from '../network/deferred-admission.js'
 import { sanitizeAvatar } from '../contract/identity-limits.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getMembershipCaps } from '../core/runtime-config.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 
@@ -97,7 +97,7 @@ export async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
         new Promise((_, reject) => setTimeout(() => reject(new Error('avatar sync timeout')), 10000)),
       ])
       const avatarEntry = await peerProfileBee.get('avatar')
-      const peerAvatar = sanitizeAvatar(avatarEntry?.value || null, getResourceCaps().avatarMaxBytes)
+      const peerAvatar = sanitizeAvatar(avatarEntry?.value || null, getMembershipCaps().maxAvatarBytes)
       if (!peerAvatar) return
 
       const peerEntry = connectedPeers.get(peerKey)

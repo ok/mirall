@@ -6,7 +6,7 @@
 import { createBee, storeEpoch } from '../core/store.js'
 import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '../core/with-timeout.js'
 
-import { getResourceCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
+import { getMembershipCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
 import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
@@ -50,7 +50,7 @@ export async function getProfile() {
 export async function setProfile({ displayName, avatar }) {
   await profileBee.put('displayName', clampDisplayName(displayName))
   if (avatar !== undefined) {
-    await profileBee.put('avatar', sanitizeAvatar(avatar, getResourceCaps().avatarMaxBytes))
+    await profileBee.put('avatar', sanitizeAvatar(avatar, getMembershipCaps().maxAvatarBytes))
   }
   await profileBee.put('publicKey', b4a.toString(profileBee.core.key, 'hex'))
 }
@@ -260,7 +260,7 @@ export async function readPeerInviteSnapshot(profileKeyHex, spaceId, inviteId) {
 export async function listOwnInvites(spaceId) {
   if (!profileBee) return []
   const prefix = 'invite/' + spaceId + '/'
-  const limit = getResourceCaps().invitesPerMember
+  const limit = getMembershipCaps().maxInvitesPerMember
   const out = []
   for await (const entry of profileBee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
     out.push({ inviteId: entry.key.slice(prefix.length), ...entry.value })
@@ -332,7 +332,7 @@ function loadPeerEntries(profileKeyHex, prefix) {
 
     const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
     if (!cap?.value) return []
-    const limit = getResourceCaps().requestsPerMember
+    const limit = getMembershipCaps().maxRequestsPerMember
     const out = []
     for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
       const joiner = entry.key.slice(prefix.length)
@@ -340,7 +340,7 @@ function loadPeerEntries(profileKeyHex, prefix) {
       out.push({
         joiner,
         displayName: clampDisplayName(v.displayName || 'Unknown'),
-        avatar: sanitizeAvatar(v.avatar || null, getResourceCaps().avatarMaxBytes),
+        avatar: sanitizeAvatar(v.avatar || null, getMembershipCaps().maxAvatarBytes),
         ts: v.ts || 0,
       })
     }
@@ -375,7 +375,7 @@ function loadMembershipRecord(profileKeyHex, spaceId) {
     const memberTs = memberEntry ? (memberEntry.value?.ts || 0) : 0
     const memberSeq = typeof memberEntry?.seq === 'number' ? memberEntry.seq : null
     const prefix = 'approved/' + spaceId + '/'
-    const limit = getResourceCaps().approvalsPerMember
+    const limit = getMembershipCaps().maxApprovalsPerMember
     const approvals = []
     const approvalSeqs = new Map()
     for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
@@ -464,7 +464,7 @@ function loadProfileRecord(profileKeyHex, spaceId) {
     if (!displayName && !avatar && !driveKey && !looseCatalogKey && !looseCatalogKeyEnc) return null
     return {
       displayName: displayName?.value ? clampDisplayName(displayName.value) : null,
-      avatar: sanitizeAvatar(avatar?.value || null, getResourceCaps().avatarMaxBytes),
+      avatar: sanitizeAvatar(avatar?.value || null, getMembershipCaps().maxAvatarBytes),
       driveKey: driveKey?.value || null,
       looseCatalogKey: looseCatalogKey?.value || null,
       looseCatalogKeyEnc: looseCatalogKeyEnc?.value || null,

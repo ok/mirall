@@ -1,6 +1,6 @@
 import {
   setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
-  getResourceCaps, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes } from '../../src/shared/core/runtime-config.js'
+  getConnectionCaps, getMembershipCaps, getDeriveDebounceMs, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
 import { AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
@@ -80,15 +80,12 @@ test('spread round-trip flips verbose while preserving every other field (setVer
 
 test('DoS resource caps + rate limit default to the documented values', (t) => {
   setRuntimeConfig({})
-  const caps = getResourceCaps()
-  t.is(caps.serverConnections, 32, 'server connections')
-  t.is(caps.clientConnections, 32, 'client connections')
-  t.is(caps.pendingRequesters, 64, 'pending requesters')
-  t.is(caps.membersPerSpace, 256, 'members per space')
-  t.is(caps.approvalsPerMember, 128, 'approvals per member')
-  t.is(caps.requestsPerMember, 64, 'requests per member')
-  t.is(caps.avatarMaxBytes, 256 * 1024, 'avatar byte cap')
-  t.is(caps.deriveDebounceMs, 150, 'derive debounce')
+  t.alike(getConnectionCaps(), { maxServerConnections: 32, maxClientConnections: 32, maxPendingRequesters: 64 }, 'connection caps')
+  t.alike(getMembershipCaps(), {
+    maxMembersPerSpace: 256, maxApprovalsPerMember: 128, maxRequestsPerMember: 64, maxInvitesPerMember: 64,
+    peerBeeCaptureMaxBlocks: 4096, maxAvatarBytes: 256 * 1024,
+  }, 'membership caps')
+  t.is(getDeriveDebounceMs(), 150, 'derive debounce')
 
   const rl = getHandshakeRateLimit()
   t.is(rl.matched.burst, 8, 'matched-lane burst')
@@ -116,11 +113,11 @@ test('DoS resource caps + rate limit default to the documented values', (t) => {
 
 test('resource caps coerce overrides, including the 0 / Infinity escape hatches', (t) => {
   setRuntimeConfig({ maxApprovalsPerMember: 0, handshakeBurst: 2 })
-  t.is(getResourceCaps().approvalsPerMember, 0, '0 disables the cap')
+  t.is(getMembershipCaps().maxApprovalsPerMember, 0, '0 disables the cap')
   t.is(getHandshakeRateLimit().matched.burst, 2, 'rate-limit override applied')
 
   setRuntimeConfig({ maxServerConnections: Infinity })
-  t.is(getResourceCaps().serverConnections, Infinity, 'Infinity disables the connection cap')
+  t.is(getConnectionCaps().maxServerConnections, Infinity, 'Infinity disables the connection cap')
 
   setRuntimeConfig({ convergenceTickMs: 0, testDropIdentityFramesCount: 3 })
   t.is(getConvergenceConfig().convergenceTickMs, 0, '0 disables the convergence tick')
@@ -153,11 +150,11 @@ test('overlay, in-place files, the content plane and prepare-progress default ON
 
 test('REGRESSION (FIX-MIR-12): avatar cap default matches AVATAR_MAX_BYTES', (t) => {
   setRuntimeConfig({})
-  t.is(getResourceCaps().avatarMaxBytes, AVATAR_MAX_BYTES, 'runtime-config default tracks the shared constant')
+  t.is(getMembershipCaps().maxAvatarBytes, AVATAR_MAX_BYTES, 'runtime-config default tracks the shared constant')
   setRuntimeConfig({ maxAvatarBytes: 1024 })
-  t.is(getResourceCaps().avatarMaxBytes, 1024, 'override applied')
+  t.is(getMembershipCaps().maxAvatarBytes, 1024, 'override applied')
   setRuntimeConfig({ maxAvatarBytes: 0 })
-  t.is(getResourceCaps().avatarMaxBytes, 0, '0 disables the bound')
+  t.is(getMembershipCaps().maxAvatarBytes, 0, '0 disables the bound')
   setRuntimeConfig({})
 })
 

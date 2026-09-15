@@ -105,6 +105,18 @@ export function getDeepReconcileEvery() {
   return read('deepReconcileEvery')
 }
 
+export function getDeriveDebounceMs() {
+  return read('deriveDebounceMs')
+}
+
+export function getForeignPollIntervalMs() {
+  return read('foreignPollIntervalMs')
+}
+
+export function getForeignFullWalkEvery() {
+  return read('foreignFullWalkEvery')
+}
+
 export function getCaptureMemberRecordMs() {
   return read('captureMemberRecordMs')
 }
@@ -182,25 +194,37 @@ export function getIdentityFrameDropWindow() {
   return { after: read('testDropIdentityFramesAfter'), count: read('testDropIdentityFramesCount') }
 }
 
-export function getResourceCaps() {
+export function getConnectionCaps() {
   return {
-    serverConnections: read('maxServerConnections'),
-    clientConnections: read('maxClientConnections'),
-    pendingRequesters: read('maxPendingRequesters'),
-    membersPerSpace: read('maxMembersPerSpace'),
-    approvalsPerMember: read('maxApprovalsPerMember'),
-    requestsPerMember: read('maxRequestsPerMember'),
-    invitesPerMember: read('maxInvitesPerMember'),
+    maxServerConnections: read('maxServerConnections'),
+    maxClientConnections: read('maxClientConnections'),
+    maxPendingRequesters: read('maxPendingRequesters'),
+  }
+}
+
+export function getMembershipCaps() {
+  return {
+    maxMembersPerSpace: read('maxMembersPerSpace'),
+    maxApprovalsPerMember: read('maxApprovalsPerMember'),
+    maxRequestsPerMember: read('maxRequestsPerMember'),
+    maxInvitesPerMember: read('maxInvitesPerMember'),
     peerBeeCaptureMaxBlocks: read('peerBeeCaptureMaxBlocks'),
-    avatarMaxBytes: read('maxAvatarBytes'),
-    deriveDebounceMs: read('deriveDebounceMs'),
-    foreignPollIntervalMs: read('foreignPollIntervalMs'),
+    maxAvatarBytes: read('maxAvatarBytes'),
+  }
+}
+
+export function getMirrorDeletionGuard() {
+  return {
     minMirrorDeletions: read('minMirrorDeletions'),
     maxMirrorDeletionRatio: read('maxMirrorDeletionRatio'),
+  }
+}
+
+export function getSweepPurgeGuard() {
+  return {
     minSweepPurgeCores: read('minSweepPurgeCores'),
     maxSweepPurgeCores: read('maxSweepPurgeCores'),
     maxSweepPurgeRatio: read('maxSweepPurgeRatio'),
-    foreignFullWalkEvery: read('foreignFullWalkEvery'),
   }
 }
 

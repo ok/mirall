@@ -9,7 +9,7 @@ import fs from 'bare-fs'
 import { createLogger } from '../core/logger.js'
 
 import { MOUNT_STATUS } from '../contract/statuses.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getForeignFullWalkEvery, getMirrorDeletionGuard } from '../core/runtime-config.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
@@ -246,7 +246,7 @@ async function materializeOnceCatalog(mount, share) {
     watermark: state.watermark(key),
     version,
     skipped,
-    fullWalkEvery: getResourceCaps().foreignFullWalkEvery,
+    fullWalkEvery: getForeignFullWalkEvery(),
   })
   if (!decision.walk) {
     state.noteSkipped(key, skipped + 1)
@@ -279,7 +279,7 @@ async function materializeOnceCatalog(mount, share) {
   // Resolved BEFORE the gate rather than inside the loop: the gate now weighs how MANY files a
   // pass would remove, which cannot be known one key at a time.
   const pendingDeletions = [...synced].filter((ownerKey) => !onDrive.has(ownerKey))
-  const caps = getResourceCaps()
+  const guard = getMirrorDeletionGuard()
   const honorDeletions = shouldHonorDeletions({
     // mayFetch, not raw isOwnerOnline: presence never leases our own key, so a self-mirror read as
     // offline here would refuse the owner's deletions forever. Same rule as the fetch gate.
@@ -288,10 +288,10 @@ async function materializeOnceCatalog(mount, share) {
     listingComplete,
     syncedCount: synced.size,
     deletionCount: pendingDeletions.length,
-    minDeletions: caps.minMirrorDeletions,
-    maxDeletionRatio: caps.maxMirrorDeletionRatio,
+    minDeletions: guard.minMirrorDeletions,
+    maxDeletionRatio: guard.maxMirrorDeletionRatio,
   })
-  if (!honorDeletions) logWithheldDeletions(key, pendingDeletions.length, synced.size, caps.minMirrorDeletions)
+  if (!honorDeletions) logWithheldDeletions(key, pendingDeletions.length, synced.size, guard.minMirrorDeletions)
   if (honorDeletions) {
     for (const ownerKey of pendingDeletions) {
       if (relKeyEscapes(ownerKey)) {

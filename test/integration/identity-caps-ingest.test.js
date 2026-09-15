@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import url from 'bare-url'
 import { freshPeer } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig, getResourceCaps } from '../../src/shared/core/runtime-config.js'
+import { getRuntimeConfig, setRuntimeConfig, getMembershipCaps } from '../../src/shared/core/runtime-config.js'
 import { sanitizeAvatar } from '../../src/shared/contract/identity-limits.js'
 import {
   getLocalPublicKeyHex, getProfileBee, setProfile, getProfile,
@@ -85,7 +85,7 @@ test('REGRESSION (FIX-AVFRAME-3): a hostile join-request avatar is stored as nul
   const S = 'space-avframe'
 
   // Exactly the expression the worker's join-request ingest applies to msg.avatar.
-  const avatar = sanitizeAvatar('data:text/html;base64,PHN2Zz4=', getResourceCaps().avatarMaxBytes)
+  const avatar = sanitizeAvatar('data:text/html;base64,PHN2Zz4=', getMembershipCaps().maxAvatarBytes)
   t.is(avatar, null, 'a non-image data URI is not an avatar')
 
   await markRequest(S, 'joiner-hostile', { displayName: 'Mallory', avatar })
@@ -106,7 +106,7 @@ test('REGRESSION (FIX-AVFRAME-3): the ingest sanitizes before all three consumer
 
   const sanitizeAt = ingest.indexOf('const avatar = sanitizeAvatar(msg.avatar,')
   t.ok(sanitizeAt >= 0, 'the frame avatar is sanitized on arrival')
-  t.ok(/getResourceCaps\(\)\.avatarMaxBytes/.test(ingest.slice(sanitizeAt, ingest.indexOf('\n', sanitizeAt))),
+  t.ok(/getMembershipCaps\(\)\.maxAvatarBytes/.test(ingest.slice(sanitizeAt, ingest.indexOf('\n', sanitizeAt))),
     'against the STORAGE cap — an arrived frame is already under the frame cap; the shape is what is missing')
 
   const consumers = ingest.slice(ingest.indexOf('\n', sanitizeAt))

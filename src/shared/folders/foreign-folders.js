@@ -6,7 +6,7 @@
 // hands them to the leaves below, subscribes the two level triggers and owns the subsystem's
 // lifetime. The leaves never import it back.
 import { onPeerOnline } from '../network/handshake-apply.js'
-import { getResourceCaps } from '../core/runtime-config.js'
+import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { setOverlayCatalogChangeHook } from '../transfer/backends/overlay/overlay-backend.js'
@@ -26,7 +26,7 @@ const log = createLogger('foreign-folders')
 // The loop engine. Everything mount-specific stays here; the interval, the one-pass-at-a-time
 // serialisation, the cancellation generation and the liveness heartbeat live in mirror-loop.js.
 const loops = createMirrorLoops({
-  intervalMs: () => getResourceCaps().foreignPollIntervalMs,
+  intervalMs: () => getForeignPollIntervalMs(),
   runPass: ({ spaceId, shareId }) => materializeOnce(spaceId, shareId),
   onStop: (key, { discardPartial = false } = {}) => {
     cancelInflightFetch(key, discardPartial)
@@ -84,7 +84,7 @@ function onOwnerOnline(_ownerKey, spaceId) {
 // One verdict per mount with a live loop (loops.entries() says why the others are not reported).
 // test seam
 export function mirrorHealth({ now = Date.now() } = {}) {
-  const pollIntervalMs = getResourceCaps().foreignPollIntervalMs
+  const pollIntervalMs = getForeignPollIntervalMs()
   return loops.entries().map((loop) => ({
     ...loop,
     ...mirrorVerdict(loops.liveness(loop.key), { now, pollIntervalMs }),
