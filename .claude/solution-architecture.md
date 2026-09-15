@@ -392,7 +392,7 @@ unsafe here, because every Hyperbee block carries B-tree index data alongside it
 clearing old blocks strands index nodes the live tree still points at (measured: after clearing a
 pruned prefix, a fresh open reads back **0** surviving rows and stalls on a missing block).
 Residue after RocksDB compaction is on the order of ~1&nbsp;KB per pruned row, retained
-indefinitely — see the NOTE above `pruneAudit()` in `audit-log.js`.
+indefinitely — see the header of `audit-reclaim.js`.
 
 **`audit:purge` is the one path that does reclaim.** A purge discards the whole event set, so it
 can reset the core outright where a partial prune cannot: `truncate(0)` empties the tree in place
@@ -1422,7 +1422,12 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-record.js` | `buildRecord()` — schema v1, name snapshots, search blob. Pure |
 | `src/shared/audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
 | `src/shared/transfer/serve-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
-| `src/shared/audit/audit-log.js` | The `audit-log` bee: `record`, `queryAudit`, prune / purge / export, config, the peer-bee watermarks and subject state. Imports `core/` and its pure audit siblings only, so the instrumentation call sites can't form a cycle |
+| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
+| `src/shared/audit/audit-keys.js` | The bee's key layout: prefixes, seq padding, the index key of a record, range builders. Pure |
+| `src/shared/audit/audit-rate-guard.js` | The per-kind token bucket that collapses a burst into one suppressed count. Pure, clock-injected |
+| `src/shared/audit/audit-query.js` | The reads: `queryAudit` (index-merged, cursor-paginated), the filter vocabularies, stats, export |
+| `src/shared/audit/audit-reclaim.js` | `pruneAudit` (rows, daily) and `purgeAudit` (bytes, on request) |
+| `src/shared/audit/audit-watch-state.js` | The watches' durable memory in the bee: peer-bee watermarks, recorded peer-subject and device-connectivity states |
 | `src/shared/audit/peer-records-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
 | `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
 | `src/shared/audit/peer-records-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
