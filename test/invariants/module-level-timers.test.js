@@ -19,7 +19,7 @@ function walk(dir, out = []) {
 function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
-    languageOptions: { ecmaVersion: 2023, sourceType: 'module' },
+    languageOptions: { ecmaVersion: 2025, sourceType: 'module' },
     rules: { 'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions] },
   }, filename)
 }
@@ -27,7 +27,7 @@ function verify(linter, source, filename) {
 function verifyHandles(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
-    languageOptions: { ecmaVersion: 2023, sourceType: 'module' },
+    languageOptions: { ecmaVersion: 2025, sourceType: 'module' },
     rules: { 'no-restricted-syntax': ['error', ...moduleScopeTimerHandleRestrictions] },
   }, filename)
 }

@@ -84,7 +84,7 @@ export default [
   {
     files: ['src/shared/**/*.js', 'src/worker/**/*.js'],
     languageOptions: {
-      ecmaVersion: 2023,
+      ecmaVersion: 2025,
       sourceType: 'module',
       // `crypto` is turned OFF deliberately. In this codebase the name means hypercore-crypto, an
       // explicit import, but Node and Bare both expose a WebCrypto global under it — so a module
@@ -200,7 +200,7 @@ export default [
   {
     files: ['test/**/*.{js,mjs}', 'scripts/**/*.{js,mjs,cjs}'],
     languageOptions: {
-      ecmaVersion: 2023,
+      ecmaVersion: 2025,
       sourceType: 'module',
       globals: { ...globals.node, Bare: 'readonly', Pear: 'readonly' },
     },
