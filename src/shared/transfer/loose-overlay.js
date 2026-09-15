@@ -2,13 +2,15 @@
 // instance instead of copied into the per-space drive. A reserved share id groups
 // loose entries in the per-(owner,space) catalog; the bytes stay at the user's
 // original file on disk, resolved per file via the source map (not a mount root).
-// The publish/fetch cores live in overlay-backend.js and are shared with folder
-// shares — this module is the loose-specific glue (source map, watch, cap, naming).
+// The publish core (overlay-publish.js) and serve registration are shared with folder shares —
+// this module is the loose-specific glue (source map, watch, cap, naming).
 import { entryRef } from '../contract/entry-ref.js'
 import path from 'bare-path'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../contract/main-requests.js'
 import { getOverlay } from './backends/overlay/overlay-instance.js'
-import { publishContent, broadcastSharePrepare, evictIfUnreferenced, makeServable } from './backends/overlay/overlay-backend.js'
+import { publishContent } from './backends/overlay/overlay-publish.js'
+import { evictIfUnreferenced, makeServable } from './backends/overlay/serve-registration.js'
+import { makePublishProgress } from './backends/overlay/publish-progress.js'
 import { tombstone as catalogTombstone, getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../shares/own-catalog.js'
 import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog } from '../shares/peer-catalog.js'
 import { markListIncomplete } from './list-deficits.js'
@@ -18,7 +20,6 @@ import { reuseDest } from './download-dest.js'
 import { observePeerCatalog } from '../audit/peer-records-watch.js'
 import { getDownloadDir } from '../core/paths.js'
 import { listSpaces, getSpace } from '../spaces/space.js'
-import { makeProgressTicker } from './progress-ticker.js'
 import { nextFreeName } from '../folders/path-keys.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
@@ -29,7 +30,7 @@ import { fileStatPresent, statFacts } from '../folders/disk-presence.js'
 import { createLogger } from '../core/logger.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { createOverlayChannel } from './backends/overlay/overlay-channel.js'
-import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/overlay-backend.js'
+import { cancelSpaceOn, reconcileActiveSlots } from './backends/overlay/active-transfers.js'
 import { createPresenceSweeper } from '../folders/retire-confirm.js'
 
 const log = createLogger('loose-overlay')
@@ -191,26 +192,22 @@ registerPublishChannel('loose', {
   },
   async publish(item, { absPath }, { signal, beat }) {
     const { spaceId, relPath } = item
-    let ticker = null
+    // Decoration frames carry spaceId: the bare drive path is unique per space only — without the
+    // field two spaces publishing the same-named loose file would mix bytes in the renderer's
+    // per-key decoration map.
+    const progress = makePublishProgress({ spaceId, shareId: LOOSE_SHARE_ID, relPath, decoKey: drivePathOf(relPath) })
     try {
       const { changed, contentHash } = await publishContent(spaceId, LOOSE_SHARE_ID, relPath, absPath, {
         signal,
-        onAdvertised: async (size) => {
-          ticker = makeProgressTicker(size, ({ bytes, total, speed, eta }) => {
-            deco(spaceId, drivePathOf(relPath), { phase: 'publishing', bytes, total, speed, eta })
-            broadcastSharePrepare(spaceId, { shareId: LOOSE_SHARE_ID, relPath, bytes, total, eta })
-          })
+        onAdvertised: (size) => {
+          progress.onAdvertised(size)
           ipcRef?.emit('event:files-updated', { spaceId })
         },
-        onProgress: (len) => { ticker?.push(len); beat?.() },
+        onProgress: (len) => { progress.onProgress(len); beat?.() },
       })
       return { changed, contentHash }
     } finally {
-      // Only clear a bar we actually raised: a fast-pathed healthy entry never created a ticker.
-      if (ticker) {
-        deco(spaceId, drivePathOf(relPath), { done: true })
-        broadcastSharePrepare(spaceId, { shareId: LOOSE_SHARE_ID, relPath, done: true })
-      }
+      progress.done()
     }
   },
   async afterPublish(item, { absPath }, { changed, contentHash }) {
@@ -262,7 +259,7 @@ async function clearOwnedSourceIfUnshared(spaceId, relPath, absPath = null, { un
 
 async function unshareEntry(spaceId, relPath, contentHash, src) {
   await catalogTombstone(spaceId, LOOSE_SHARE_ID, relPath)
-  await evictIfUnreferenced(contentHash, spaceId, LOOSE_SHARE_ID, relPath)
+  await evictIfUnreferenced({ contentHash, spaceId, shareId: LOOSE_SHARE_ID, relPath })
   await clearOwnedSource(spaceId, drivePathOf(relPath))
   if (src) { untrackSource(src, spaceId); disarmWatch(spaceId, src) }
 }
@@ -388,11 +385,6 @@ async function buildLooseJob(spaceId, member, drivePath, prevPending, entry) {
   }
 }
 
-// Decoration frames carry spaceId: job.path is the bare drive path ('/'+relPath), unique per
-// space only — without the field two spaces downloading the same-named loose file would mix
-// bytes in the renderer's per-key decoration map.
-const deco = (spaceId, key, p) => ipcRef?.emit('event:decoration', { channel: 'transfer', spaceId, key, ...p })
-
 let looseEngine = null
 
 export function setLooseEngine(next) { looseEngine = next }
@@ -496,7 +488,7 @@ async function rehydrateLooseEntry(spaceId, e) {
     if (e.contentHash && !fileStatPresent(src)) return
     const { size, mtime } = statFacts(src)
     if (e.contentHash && e.size === size && e.mtime === mtime) {
-      await makeServable(spaceId, LOOSE_SHARE_ID, e.relPath, src, e.contentHash, size)
+      await makeServable({ spaceId, shareId: LOOSE_SHARE_ID, relPath: e.relPath, absPath: src, contentHash: e.contentHash, size })
       trackSource(src, spaceId, e.relPath)
       armWatch(spaceId, src)
       return

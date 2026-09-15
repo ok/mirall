@@ -11,7 +11,7 @@
 // the live references (what the membership check iterates).
 //
 // In-memory only (like the facade's serve maps); rebuilt on boot from the
-// owned catalogs by the backend's rehydrate pass (overlay-backend.js).
+// owned catalogs by the boot rehydrate (overlay-maintenance.js).
 
 const EMPTY = new Set()
 const SEP = String.fromCharCode(0) // NUL — cannot occur in a spaceId, shareId or a relPath

@@ -10,13 +10,13 @@ import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { ownCatalog, listOwnShare } from '../../src/shared/shares/own-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 async function bootOverlay(t) {
   const ctx = await freshPeer(t)
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   serveIndex.reset()
   await initOverlay()
   t.teardown(async () => {

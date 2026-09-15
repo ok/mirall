@@ -6,7 +6,6 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { getOverlay, getJournalDir } from './overlay-instance.js'
-import { fetchContentToFile } from './overlay-backend.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../../network/presence-leases.js'
@@ -33,6 +32,28 @@ import { shortfall } from '../../free-space.js'
 import { freeBytesFor } from '../../free-space-probe.js'
 
 const log = createLogger('overlay-download')
+
+// The engine's default fetch: pull by content hash to finalPath, no second copy, integrity-verified
+// during the transfer. A local hit returns the source path → copy it to finalPath so the download
+// is real. Returns { ok:true } | { ok:false, code, cause? } (EHASHMISMATCH or an error message,
+// cause = the underlying Error for classification) | { ok:false } (no holder).
+export async function fetchContentToFile(contentHash, { finalPath, onProgress, onVerify, onEnd }) {
+  const overlay = getOverlay()
+  if (!overlay) return { ok: false }
+  let res
+  try {
+    res = await overlay.fetchFile(contentHash, { destPath: finalPath, onProgress, onVerify, onEnd, reSeed: false })
+  } catch (err) {
+    if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
+    if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }
+    return { ok: false, code: err?.message || 'fetch-failed', cause: err }
+  }
+  if (!res) return { ok: false }
+  if (res.local && res.destPath !== finalPath) {
+    try { fs.copyFileSync(res.destPath, finalPath) } catch (err) { return { ok: false, code: err?.message || 'copy-failed', cause: err } }
+  }
+  return { ok: true }
+}
 
 // Is `dir` a usable destination folder right now? Anything other than a live directory —
 // missing, or a plain file sitting where the folder belongs — reads as unavailable.

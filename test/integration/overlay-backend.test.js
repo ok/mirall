@@ -13,9 +13,9 @@ import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtim
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import {
-  initContentBackendOverlay, overlaySweepPresence, makeServable,
-} from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
+import { overlaySweepPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { makeServable } from '../../src/shared/transfer/backends/overlay/serve-registration.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
 // Drive the overlay adapter's OWNER side against one fresh data layer. The
@@ -45,7 +45,7 @@ async function setup(t, { files = {} } = {}) {
     fs.mkdirSync(path.dirname(abs), { recursive: true })
     fs.writeFileSync(abs, contents)
   }
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   serveIndex.reset()
   await initOverlay()
   t.teardown(async () => {
@@ -262,7 +262,7 @@ test('REGRESSION (FIX-3b): makeServable does not add a serve-index claim when re
   overlay.registerFile = async () => null // source vanished between hash and register
   t.teardown(() => { overlay.registerFile = realRF })
 
-  await makeServable(ctx.spaceId, ctx.share.id, 'a.txt', path.join(ctx.mountPath, 'a.txt'), 'deadbeefhash', 2)
+  await makeServable({ spaceId: ctx.spaceId, shareId: ctx.share.id, relPath: 'a.txt', absPath: path.join(ctx.mountPath, 'a.txt'), contentHash: 'deadbeefhash', size: 2 })
   t.absent(serveIndex.has('deadbeefhash'), 'no serve-gate claim for a hash the overlay never registered')
 })
 

@@ -18,7 +18,7 @@ import { purgeSpaceDrive } from '../../shared/spaces/space-drives.js'
 import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { getSpaceCacheBytes } from '../../shared/storage/storage.js'
-import { overlayCancelSpace } from '../../shared/transfer/backends/overlay/overlay-backend.js'
+import { folderCancelSpace } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { bumpServeEpoch, revokeServesForSpace } from '../../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { looseCancelSpace } from '../../shared/transfer/loose-overlay.js'
@@ -221,7 +221,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         // Cancel + discard any in-flight downloads for this space before the purges, so the
         // overlay/loose engine stops fetching (no orphaned partial) and can't re-write the
         // download-history rows cleanupDownloadHistory/clearPendingForSpace purge below.
-        await overlayCancelSpace(msg.spaceId)
+        await folderCancelSpace(msg.spaceId)
         await looseCancelSpace(msg.spaceId)
         // ...and stop SERVING this space to everyone else. The cancels above only walk OUR OWN
         // fetch slots — as the owner we have none, so without this a leave stops nothing on the

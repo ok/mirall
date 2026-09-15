@@ -7,7 +7,9 @@ import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlaySweepPresence, overlayPublishAdd, overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlaySweepPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { folderPublishAdd } from '../../src/shared/transfer/backends/overlay/folder-publish.js'
+import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
 import { advertise, listOwnShare, ownCatalog, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
@@ -300,8 +302,8 @@ test('REGRESSION (READ-YOUR-WRITES): a publish sees its own unflushed catalog wr
   fs.writeFileSync(abs, 'o'.repeat(4096))
   const probe = slowHash(t, 10)
   const batch = createCatalogBatch(spaceId)
-  await overlayPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
-  await overlayPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
+  await folderPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
+  await folderPublishAdd(spaceId, share, 'once.bin', abs, { catalog: batch })
   t.is(probe.counts()['once.bin'], 1, 'the second publish fast-paths on the staged hash')
   await batch.close()
   t.ok((await listRelPaths(share, spaceId)).includes('once.bin'))

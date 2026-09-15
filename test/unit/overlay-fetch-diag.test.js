@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/fetch-run.js'
 import { DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { around as capture } from '../helpers/capture-console.js'

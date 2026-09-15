@@ -6,7 +6,7 @@ import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
 import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
 import { initDownloads, markVerified } from '../../src/shared/transfer/files.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
 
 // The mount preview's verified-record fast path answers "is the file already here?". A record is
 // evidence only when the bytes it vouches for landed at the very path the preview is asking about:

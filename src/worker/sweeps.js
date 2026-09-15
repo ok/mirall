@@ -31,7 +31,7 @@ export async function compactIndexIfDue() {
     await bee.ready()
     const last = (await bee.get(LAST_COMPACT_KEY))?.value?.at ?? 0
     if (Date.now() - last < INDEX_COMPACT_INTERVAL_MS) return false
-    const { compactOverlayIndex } = await import('../shared/transfer/backends/overlay/overlay-backend.js')
+    const { compactOverlayIndex } = await import('../shared/transfer/backends/overlay/overlay-maintenance.js')
     await compactOverlayIndex()
     await bee.put(LAST_COMPACT_KEY, { at: Date.now() })
     return true

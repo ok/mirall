@@ -6,7 +6,7 @@ import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/fil
 import { freshPeer } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 
 function tmpStore(label) {
   const dir = mkdtempSync(path.join(os.tmpdir(), label + '-'))
@@ -59,7 +59,7 @@ test('initOverlay encrypts the local index cores when M is present', async (t) =
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })
 
   const dir = ctx.tmpDir('src')

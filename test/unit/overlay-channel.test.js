@@ -121,7 +121,7 @@ test('the superseded and removed events name the file, not the path', (t) => {
 })
 
 test('neither module hand-writes a channel bag any more', (t) => {
-  for (const file of ['shared/transfer/loose-overlay.js', 'shared/transfer/backends/overlay/overlay-backend.js']) {
+  for (const file of ['shared/transfer/loose-overlay.js', 'shared/transfer/backends/overlay/folder-downloads.js']) {
     const src = readSrc(file)
     t.absent(/^\s*emitProgress\s*:/m.test(src), `${file} declares no emit* members of its own`)
     t.absent(/^\s*emitPaused\s*:/m.test(src), `${file} declares no paused emitter of its own`)
@@ -130,7 +130,7 @@ test('neither module hand-writes a channel bag any more', (t) => {
 })
 
 test('event:transfer-paused has exactly one emitter in src/', (t) => {
-  const files = ['shared/transfer/loose-overlay.js', 'shared/transfer/backends/overlay/overlay-backend.js',
+  const files = ['shared/transfer/loose-overlay.js', 'shared/transfer/backends/overlay/folder-downloads.js',
     'shared/transfer/backends/overlay/overlay-channel.js', 'shared/transfer/backends/overlay/overlay-download.js']
   const emitters = files.filter((f) => /emit\(\s*'event:transfer-paused'/.test(readSrc(f)))
   t.alike(emitters, ['shared/transfer/backends/overlay/overlay-channel.js'],

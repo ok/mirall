@@ -6,7 +6,7 @@ import { getStore } from '../../src/shared/core/store.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { getOverlay, getOverlayLocalByteLength } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 
 // REGRESSION (FIX-147: the append-only file-index never shrank — each edit left a
 // superseded content-addressed chunk map on disk that nothing ever reclaimed).

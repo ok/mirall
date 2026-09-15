@@ -5,7 +5,7 @@ import { setupOwnedShare, setupSelfMirror } from '../helpers/owned.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
 import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The scan-preview dialogs are the user's last confirmation before bytes move.

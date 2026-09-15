@@ -10,7 +10,7 @@ import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtim
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
 import { initDownloads, markDownloaded, markVerified, isVerifiedDownload, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'

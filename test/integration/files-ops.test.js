@@ -11,13 +11,13 @@ import { initPendingTransfers } from '../../src/shared/transfer/pending-transfer
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 
 async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })
   await initDownloads()
   await initPendingTransfers()

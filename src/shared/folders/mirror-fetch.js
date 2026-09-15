@@ -26,7 +26,7 @@ import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/backends
 import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetch-policy.js'
 import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
 import { FETCH_OWNER_MIRROR, acquireFetchSlot } from '../transfer/backends/overlay/fetch-gate.js'
-import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'
+import { overlayHashFile } from '../transfer/backends/overlay/overlay-hash.js'
 import { getVerifiedHash, isVerifiedUnchanged, markVerified } from '../transfer/files.js'
 import { freeBytesFor } from '../transfer/free-space-probe.js'
 import { shortfall } from '../transfer/free-space.js'

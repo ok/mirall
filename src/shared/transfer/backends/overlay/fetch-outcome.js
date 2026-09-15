@@ -2,7 +2,7 @@
 //
 // It lives in its own module, and imports nothing, for two reasons: `fetch-policy.js` produces
 // outcomes and must stay free of `bare-*` so test/unit can load it under Node, and `makeFetchDiag`
-// (overlay-backend.js) consumes them, so a shared home is the only one that is not a cycle.
+// (fetch-run.js) consumes them, so a shared home is the only one that is not a cycle.
 //
 // Before this existed the producers spelled their outcomes as literals and the diag kept a
 // hand-written set of the ones it recognised. The two drifted: 'awaiting-republish' — a normal,

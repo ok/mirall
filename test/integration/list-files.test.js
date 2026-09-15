@@ -13,7 +13,7 @@ import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore, createBee } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { initContentBackendOverlay } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
 import { scaled } from '../helpers/bare-timing.js'
@@ -29,7 +29,7 @@ async function setup(t) {
   const ctx = await freshPeer(t)
   setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })
   await initDownloads()
   await initPendingTransfers()
