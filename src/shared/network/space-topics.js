@@ -3,8 +3,9 @@ import b4a from 'b4a'
 import { getSpace } from '../spaces/space.js'
 import { compactStore } from '../storage/compaction.js'
 import { createLogger } from '../core/logger.js'
-import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets } from './content-swarm.js'
-import { noteAnnounced, scheduleStatusEmit } from './connectivity.js'
+import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, refreshContentDiscoveries } from './content-swarm.js'
+import { noteAnnounced } from './connectivity.js'
+import { scheduleStatusEmit } from './network-status.js'
 import { forgetSpaceConvergence } from './convergence-tick.js'
 import { sendSingleHandshake } from './identity-frames.js'
 import { forgetPeer } from './handshake-apply.js'
@@ -12,7 +13,10 @@ import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, detac
 
 const log = createLogger('space-topics')
 
+const RECONNECT_THROTTLE_MS = 5000
+
 let getSwarm = () => null
+let lastReconnectAt = 0
 
 export function initSpaceTopics(deps) {
   getSwarm = deps.getSwarm
@@ -62,6 +66,24 @@ export async function leaveSpaceTopic(spaceId) {
   forgetSpaceConvergence(spaceId)
   log.info('left topic for space', spaceId)
   scheduleStatusEmit()
+}
+
+export async function reconnectAll() {
+  const now = Date.now()
+  if (now - lastReconnectAt < RECONNECT_THROTTLE_MS) return { ok: false, throttled: true }
+  lastReconnectAt = now
+  log.info('reconnect requested for', spaceDiscoveries.size, 'topics')
+  for (const [spaceId, discovery] of spaceDiscoveries) {
+    try {
+      await discovery.refresh({ client: true, server: true })
+      log.debug('refreshed discovery for', spaceId)
+    } catch (err) {
+      log.warn('refresh failed for', spaceId, err.message)
+    }
+  }
+  try { await refreshContentDiscoveries() } catch {} // no-op unless the content plane is active
+  scheduleStatusEmit()
+  return { ok: true }
 }
 
 // Detach every connected peer from this space; a peer left in no spaces has its socket dropped.
