@@ -810,3 +810,18 @@ observing the frames — they now leave through the reporter's emitter, still po
 original ipc. The touched-file list from `grep` on the moved names misses these tests: grep for
 the `init*(` seam of every module that lost an emit, and re-wire the reporter in the same test
 (`test/helpers/overlay-ipc.js`).
+
+## A monkeypatch is order-sensitive against modules that destructure at load
+
+`bare-sidecar` does `const { spawn } = require('child_process')` at module top and keeps that
+reference. The `spawn` patch that maps `app.asar` → `app.asar.unpacked` only reaches it if the
+patch is installed before the sidecar loads. The main.js split (#310) moved `require('pear-runtime')`
+into `updater.js`, and that require landed in main's import block above the patch — so every
+packaged staging build spawned the bare binary at its asar path and died with `spawn ENOTDIR`,
+which the renderer surfaced as onboarding over an intact profile. Dev runs and the whole suite are
+unpackaged, so nothing red appeared.
+
+**The rule: a patch of a shared module's export lives in its own module and is main's first
+statement, with a structural pin on that order** (`test/unit/asar-spawn.test.js`). Any refactor that
+moves a require is a candidate for this class; the question to ask is "who captures this export at
+load?" — and a first packaged install is the only test that exercises asar paths.
