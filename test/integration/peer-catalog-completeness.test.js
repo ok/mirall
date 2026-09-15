@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { listPeerShareMeta } from '../../src/shared/shares/share-catalog.js'
+import { collectPeerShare } from '../../src/shared/shares/peer-catalog.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 const shareId = 's1'
@@ -17,7 +17,7 @@ async function seed(peer, n) {
 }
 
 // REGRESSION (FIX-132: the display read returned [] on a head-update timeout and a truncated list
-// on a drain timeout, both indistinguishable from a real empty share. listPeerShareMeta now reports
+// on a drain timeout, both indistinguishable from a real empty share. collectPeerShare now reports
 // `complete` so the renderer keeps its last good list on a partial/un-replicated read.)
 test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an un-replicated head reads complete:false (not a silent empty)', { timeout: scaled(20000) }, async (t) => {
   await freshPeer(t)
@@ -25,15 +25,15 @@ test('REGRESSION (FIX-132): a fully-replicated peer catalog reads complete; an u
   const B = await makePeer(t)
   await seed(B, 25)
   replicate(getStore(), B.store, t)
-  t.ok(await waitFor(async () => (await listPeerShareMeta(B.key, shareId)).entries.length === 25), 'replicates fully')
-  const full = await listPeerShareMeta(B.key, shareId)
+  t.ok(await waitFor(async () => (await collectPeerShare(B.key, shareId)).entries.length === 25), 'replicates fully')
+  const full = await collectPeerShare(B.key, shareId)
   t.is(full.complete, true, 'fully-replicated read is complete')
   t.is(full.entries.length, 25, 'all rows present')
 
   setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: 200 })
   const ghostKey = b4a.toString(crypto.randomBytes(32), 'hex')
   const t0 = Date.now()
-  const res = await listPeerShareMeta(ghostKey, shareId)
+  const res = await collectPeerShare(ghostKey, shareId)
   t.ok(Date.now() - t0 < scaled(4000), 'bounded by the read budget (' + (Date.now() - t0) + 'ms), not the 30s IPC ceiling')
   t.is(res.complete, false, 'un-replicated head → incomplete (renderer keeps last good)')
   t.alike(res.entries, [], 'no rows from an unreachable catalog')
@@ -52,10 +52,10 @@ test('REGRESSION (FIX-359): a truncated drain reports complete:false WITH its pa
   const B = await makePeer(t)
   await seed(B, 25)
   replicate(getStore(), B.store, t)
-  t.ok(await waitFor(async () => (await listPeerShareMeta(B.key, shareId)).entries.length === 25), 'replicates fully')
+  t.ok(await waitFor(async () => (await collectPeerShare(B.key, shareId)).entries.length === 25), 'replicates fully')
 
   setRuntimeConfig({ ...getRuntimeConfig(), testTruncatePeerDrainAfter: 10 })
-  const res = await listPeerShareMeta(B.key, shareId)
+  const res = await collectPeerShare(B.key, shareId)
   t.is(res.complete, false, 'a cut-short drain is NOT complete — this is the flag the mirror acts on')
   t.is(res.entries.length, 10, 'and it is partial but non-empty: the exact shape that used to authorize deletions')
 })

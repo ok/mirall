@@ -153,7 +153,7 @@ Bootstrap:
    1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
    3. `ServeLedger`, immediately after `AuditLog` so that on the way out it flushes **before** that bee closes and while the spaces bee it reads is still open.
-   4. `Catalogs` (the own/peer catalog bee caches) → `SpaceDrives` (`loadDrives`). That is the whole durable tier. The orphan sweep is **not** hung off a `loadDrives` failure — it runs unconditionally at the end of the runtime tier (step 10).
+   4. `OwnCatalogs` → `PeerCatalogs` (the catalog bee caches) → `SpaceDrives` (`loadDrives`). That is the whole durable tier. The orphan sweep is **not** hung off a `loadDrives` failure — it runs unconditionally at the end of the runtime tier (step 10).
 
    The **runtime** tier is closed first, in reverse of this order:
    5. First the three manifest caps (`ensureMembershipManifestCap`, `ensureSharesCap`, `ensureFolderMirrorsCap`) and the one-time content migrations (`runMigrations('content')`) — before any publish scan and before the overlay opens its index. Then `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OverlayBackend` (the overlay instance, the serve index and both download engines, built per lifetime here so nothing in the overlay package constructs an engine at import time), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
@@ -217,7 +217,7 @@ sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary 
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `Catalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
+All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `OwnCatalogs`, `PeerCatalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
 
 Every bee below uses **utf-8 keys, JSON values**.
 
@@ -301,7 +301,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 
 **The drive carries no file bytes.** Its `driveKey` is the member's per-space identity: the handshake binding signs `noise||driveKey` (§16) and members are matched by it. `listFiles` reads the local drive solely for that key; `files:add` only checks it exists.
 
-**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `share-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
+**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `shares/peer-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash.
 
 #### Canonical file-state model
 
@@ -441,7 +441,7 @@ Owned by `src/shared/folders/mount-store.js`. Records which local paths back a s
 
 ### 3.7 Share catalogs & encryption at rest
 
-Each folder/loose share has a replicated **catalog** (`shares/share-catalog.js`) that the overlay backend advertises into and consumers list from: per-file path, size, mtime, content hash — keyed by the share's `catalogKey` and encrypted with the space's SCK, so only members can read it.
+Each folder/loose share has a replicated **catalog** — written by its owner through `shares/own-catalog.js`, read by everyone else through `shares/peer-catalog.js` — that the overlay backend advertises into and consumers list from: per-file path, size, mtime, content hash — keyed by the share's `catalogKey` and encrypted with the space's SCK, so only members can read it.
 
 #### Write discipline for status-bearing rows
 
@@ -1256,8 +1256,10 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/shares/catalog-keys.js` | The catalog's key grammar: `FILE_PREFIX` (PERSISTED — it addresses every replicated entry), `fileKey`, the `catalogKey`/`…Enc` field convention read and written in one place, and `classifyEntryNode`. Pure, so the modules that need only the grammar stop importing the catalog itself (§3.7) |
-| `src/shared/shares/share-catalog.js` | The per-(owner, space) catalog bee (§3.7): own writes + purge; peer reads behind a refcounted LRU with append watchers and bounded drains (§4.3); the catalog-key field convention; `Catalogs` |
+| `src/shared/shares/catalog-keys.js` | The catalog's key grammar: `FILE_PREFIX` (PERSISTED — it addresses every replicated entry), `sharePrefixKey` / `fileKey`, `isValidCatalogKey`, the `catalogKey`/`…Enc` field convention read and written in one place, `classifyEntryNode` and the `catalogEntry` row shape. Pure, so the modules that need only the grammar stop importing the catalog itself (§3.7) |
+| `src/shared/shares/own-catalog.js` | The owner's per-space catalog bee (§3.7): open, key publish, `ownCatalogWriter` (advertise / tombstone / materialized hash), `listOwnShare` / `collectOwnShare`, purge on leave and the legacy plaintext core; `OwnCatalogs` |
+| `src/shared/shares/peer-catalog.js` | Other peers' catalogs opened read-only by key behind a refcounted LRU with append watchers (§4.3): `resolvePeerCatalog`, `collectPeerShare` (one budget for head sync + bounded drain), `getPeerEntry` / `getPeerEntryState`, `peerCatalogVersion`; `PeerCatalogs` |
+| `src/shared/shares/catalog-tally.js` | The single-pass count / byte-sum / cap fold both catalog listings run, skipping mount-escaping paths. Pure |
 | `src/shared/shares/share-listing.js` | The display listing for one folder share: catalog entries in, status-bearing rows keyed by drive path out (`/<name>/<relPath>`); prefetch, prune |
 | `src/shared/shares/catalog-writer.js` | The batched catalog writer a bulk publish pass writes through, with read-your-writes generations (§7.2) |
 | `src/shared/shares/shares.js` | Share records — the `share/<spaceId>/<shareId>` rows on profile bees: `publishShare`, `tombstoneShare`, `readOwnShares`, `readPeerShares`, `readPeerShareEntry` (raw — sees tombstones), `isValidShareName`, `generateShareId`, `ensureSharesCap` |
@@ -1642,7 +1644,7 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 - **Foreign folder / mirror** — another member's share materialized read-only to a local folder.
 - **Mount** — the association between a share and a local disk path, on either side.
 - **Share record** — the `share/<spaceId>/<shareId>` row in the owner's profile bee: that a share exists, who owns it and which catalog holds it (`shares/shares.js`). Tombstoned, never deleted.
-- **Catalog** — the owner's replicated, SCK-encrypted per-space bee of `file/<shareId>/<relPath>` rows (path, size, mtime, content hash) — what is in every share the owner has in that space, loose files included under `LOOSE_SHARE_ID` (`shares/share-catalog.js`).
+- **Catalog** — the owner's replicated, SCK-encrypted per-space bee of `file/<shareId>/<relPath>` rows (path, size, mtime, content hash) — what is in every share the owner has in that space, loose files included under `LOOSE_SHARE_ID` (`shares/own-catalog.js`; read by peers through `shares/peer-catalog.js`).
 - **Registry** — the merged list of share records for a space: our own plus every current member's, tagged `owner` / `source` (`shares/share-registry.js`).
 - **Listing** — the display rows of one share: catalog entries in, status-bearing rows keyed by drive path out (`shares/share-listing.js`).
 - **Catalog batch** — the buffered catalog writer a bulk publish pass writes through, landed once per pass (`shares/catalog-writer.js`, §7.2).

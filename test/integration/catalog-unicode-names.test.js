@@ -3,7 +3,8 @@ import { freshPeer } from '../helpers/store.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { advertise, collectOwnShare, listPeerShareMeta } from '../../src/shared/shares/share-catalog.js'
+import { advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
+import { collectPeerShare } from '../../src/shared/shares/peer-catalog.js'
 import { markVerified, markDownloaded, listVerifiedForShare, listDownloadClaimsForShare } from '../../src/shared/transfer/files.js'
 
 const shareId = 's1'
@@ -31,9 +32,9 @@ test('REGRESSION (FIX-BEEKEY-1): a share lists top-level names above U+00FF, own
   const B = await makePeer(t)
   for (const name of NAMES) await B.bee.put('file/' + shareId + '/' + name, { size: 1, mtime: 1, contentHash: 'h' })
   replicate(getStore(), B.store, t)
-  t.ok(await waitFor(async () => (await listPeerShareMeta(B.key, shareId)).entries.length === NAMES.length), 'peer catalog replicates every name')
+  t.ok(await waitFor(async () => (await collectPeerShare(B.key, shareId)).entries.length === NAMES.length), 'peer catalog replicates every name')
 
-  const peer = await listPeerShareMeta(B.key, shareId)
+  const peer = await collectPeerShare(B.key, shareId)
   t.alike(peer.entries.map((e) => e.relPath).sort(), [...NAMES].sort(), 'peer listing yields every name')
 })
 

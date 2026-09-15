@@ -9,9 +9,8 @@ import path from 'bare-path'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../contract/main-requests.js'
 import { getOverlay } from './backends/overlay/overlay-instance.js'
 import { publishContent, broadcastSharePrepare, evictIfUnreferenced, makeServable } from './backends/overlay/overlay-backend.js'
-import {
-  tombstone as catalogTombstone, getOwnEntry, listOwnShare, listOwnShareForDisplay, collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog,
-} from '../shares/share-catalog.js'
+import { tombstone as catalogTombstone, getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../shares/own-catalog.js'
+import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog } from '../shares/peer-catalog.js'
 import { markListIncomplete } from './list-deficits.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from './files.js'
 import { getPendingFor, recordPending } from './pending-transfers.js'

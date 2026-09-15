@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { ignorePathsFor } from '../../src/shared/folders/echo-guard.js'
-import { getOwnEntry, ownCatalog } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry, ownCatalog } from '../../src/shared/shares/own-catalog.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
 // onFsEvent is the owner-side publish path for a single watcher event. The

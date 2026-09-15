@@ -2,8 +2,7 @@ import test from 'brittle'
 import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { getPeerEntry, getPeerEntryState, watchPeerCatalog, dropCatalog, peerCatalogCacheStats } from '../../src/shared/shares/share-catalog.js'
-
+import { getPeerEntry, getPeerEntryState, watchPeerCatalog, dropPeerCatalog, peerCatalogCacheStats } from '../../src/shared/shares/peer-catalog.js'
 const keyFor = (n) => crypto.keyPair(Buffer.alloc(32, n)).publicKey.toString('hex')
 
 async function withLimit(t, limit, fn) {
@@ -45,7 +44,7 @@ test('REGRESSION (FIX-CATALOG-LRU): a watched catalog is pinned against eviction
     t.ok(stats.keys.includes(watched), 'the watched catalog survived every eviction pass')
 
     // Dropping the watch releases the pin, and the entry becomes ordinary cache.
-    dropCatalog(null, watched)
+    dropPeerCatalog(watched)
     t.absent(peerCatalogCacheStats().keys.includes(watched), 'and the drop removed it')
   })
 })

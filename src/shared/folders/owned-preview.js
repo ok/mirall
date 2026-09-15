@@ -2,7 +2,7 @@
 // those files the catalog already carries under different bytes. Reads nothing the publish engine
 // owns — no queue, no scheduler — so it lives outside it.
 import path from 'bare-path'
-import { listOwnShare } from '../shares/share-catalog.js'
+import { listOwnShare } from '../shares/own-catalog.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-backend.js'
 import { getMaxFilesPerShare } from '../core/runtime-config.js'
 import { driveKeyToSegments } from './path-keys.js'

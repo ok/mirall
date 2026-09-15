@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare, listRelPaths } from '../helpers/owned.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
-import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
 
 test('initial scan publishes disk files to the catalog; re-scan is a no-op', async (t) => {

@@ -14,7 +14,7 @@ const { createSpace } = await import('../../src/shared/spaces/space-lifecycle.js
 const { publishShare, generateShareId } = await import('../../src/shared/shares/shares.js')
 const { getLocalPublicKeyHex, setProfile } = await import('../../src/shared/spaces/profile.js')
 const { createOwnedMount, getOwnedMount, patchOwnedMount } = await import('../../src/shared/folders/mount-store.js')
-const { ownCatalogKeyHex } = await import('../../src/shared/shares/share-catalog.js')
+const { ownCatalogKeyHex } = await import('../../src/shared/shares/own-catalog.js')
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 

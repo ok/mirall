@@ -9,8 +9,25 @@
 // every row a peer has already replicated.
 export const FILE_PREFIX = 'file/'
 
+export function sharePrefixKey(shareId) {
+  return FILE_PREFIX + shareId + '/'
+}
+
 export function fileKey(shareId, relPath) {
-  return FILE_PREFIX + shareId + '/' + relPath
+  return sharePrefixKey(shareId) + relPath
+}
+
+// A canonical 32-byte core key in lowercase hex. A peer's catalog key is self-asserted (its
+// handshake or profile bee), and a wrong-length or non-string value throws out of store.get.
+const CATALOG_KEY_HEX = /^[0-9a-f]{64}$/
+
+export function isValidCatalogKey(catalogKeyHex) {
+  return typeof catalogKeyHex === 'string' && CATALOG_KEY_HEX.test(catalogKeyHex)
+}
+
+// The in-memory row every catalog read hands out for one live entry value.
+export function catalogEntry(relPath, value) {
+  return { relPath, size: value.size, mtime: value.mtime, contentHash: value.contentHash ?? null }
 }
 
 // The catalog-key field convention has ONE owner (read + write) so a future variant can't drift

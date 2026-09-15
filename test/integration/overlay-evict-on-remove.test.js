@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { getOwnEntry } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 

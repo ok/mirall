@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getDrive } from '../../src/shared/spaces/space-drives.js'
-import { advertise, getOwnEntry, ownCatalogKeyHex, dropCatalog } from '../../src/shared/shares/share-catalog.js'
+import { advertise, getOwnEntry, ownCatalogKeyHex, dropOwnCatalog } from '../../src/shared/shares/own-catalog.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -126,7 +126,7 @@ test('createSpace publishes the canonical (suffixed) loose-catalog key', async (
   t.ok(published, 'a loose-catalog key was published at createSpace')
   t.absent((await getProfileBee().get('loosecat/' + ctx.spaceId))?.value, 'and not into the plaintext field')
 
-  dropCatalog(ctx.spaceId) // clear the ownCatalogs cache → re-derive from the saved record (simulates a restart)
+  dropOwnCatalog(ctx.spaceId) // clear the ownCatalogs cache → re-derive from the saved record (simulates a restart)
   const canonical = await ownCatalogKeyHex(ctx.spaceId)
   t.is(published, canonical, 'published key matches the canonical (suffixed) catalog core')
 })

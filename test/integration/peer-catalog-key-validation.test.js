@@ -1,7 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { collectPeerShare, getPeerEntry, watchPeerCatalog } from '../../src/shared/shares/share-catalog.js'
-
+import { collectPeerShare, getPeerEntry, watchPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 // REGRESSION (FIX-327): a peer catalog key is self-asserted by a peer (its handshake or its
 // profile bee), so it can be malformed or a non-hex type. A wrong-length/typed key threw
 // synchronously out of store.get (b4a.from → non-32-byte buffer → "ID must be 32-bytes long"),

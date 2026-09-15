@@ -11,7 +11,7 @@ import {
   initLooseOverlay, looseShareFile, looseCancelPublish, looseSourceFor, looseSources,
   sweepLoosePresence, handleLooseFsEvent, looseUnshareFile, rehydrateLooseFiles, LOOSE_SHARE_ID,
 } from '../../src/shared/transfer/loose-overlay.js'
-import { getOwnEntry, advertise } from '../../src/shared/shares/share-catalog.js'
+import { getOwnEntry, advertise } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'

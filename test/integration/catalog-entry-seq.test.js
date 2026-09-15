@@ -2,7 +2,8 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createBee } from '../../src/shared/core/store.js'
-import { fileKey, getPeerEntryState, getPeerEntry } from '../../src/shared/shares/share-catalog.js'
+import { fileKey } from '../../src/shared/shares/catalog-keys.js'
+import { getPeerEntryState, getPeerEntry } from '../../src/shared/shares/peer-catalog.js'
 import { isRepublished } from '../../src/shared/transfer/supersede-decision.js'
 
 // The seq the remove+re-add teardown (FIX-REMOVE-1) keys on: a Hyperbee re-write of a key lands

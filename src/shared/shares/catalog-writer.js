@@ -1,4 +1,5 @@
-import { ownCatalog, fileKey, classifyEntryNode } from './share-catalog.js'
+import { fileKey, catalogEntry, classifyEntryNode } from './catalog-keys.js'
+import { ownCatalog } from './own-catalog.js'
 import { getRuntimeConfig } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 
@@ -8,9 +9,9 @@ const log = createLogger('catalog-writer')
 // batch per flush, so the catalog core advances in fewer, atomic heads (a peer
 // never reads a half-written group). Flushes on whichever comes first: flushMs
 // elapsed or maxOps buffered. Ops on the same key coalesce (advertise+setHash →
-// one write). Method signatures mirror share-catalog so it drops into publishContent
+// one write). Method signatures mirror ownCatalogWriter so it drops into publishContent
 // via the `catalog` option; the per-op value shape and merge guards mirror
-// share-catalog.advertise/setMaterializedHash/tombstone. Each write resolves to
+// own-catalog's advertise/setMaterializedHash/tombstone. Each write resolves to
 // `{ landed }` — a promise for the flush that carries it — so a caller that must act only
 // once the write is durable (drop a serve reference after its tombstone) can wait for
 // exactly that, without awaiting the flush inline.
@@ -89,8 +90,6 @@ export function createCatalogBatch(spaceId, {
     return flushing
   }
 
-  const fromValue = (relPath, v) => ({ relPath, size: v.size, mtime: v.mtime, contentHash: v.contentHash ?? null })
-
   return {
     async advertise(_spaceId, shareId, relPath, { size, mtime, contentHash = null }) {
       return { landed: stage(fileKey(shareId, relPath), { kind: 'put', value: { size, mtime, contentHash } }) }
@@ -113,10 +112,10 @@ export function createCatalogBatch(spaceId, {
       if (!ops.length || ops[0].kind === 'setHash') {
         const bee = await resolveBee()
         const state = classifyEntryNode(await bee.get(key))
-        entry = state && !state.removed ? fromValue(relPath, state) : null
+        entry = state && !state.removed ? catalogEntry(relPath, state) : null
       }
       for (const op of ops) {
-        if (op.kind === 'put') entry = fromValue(relPath, op.value)
+        if (op.kind === 'put') entry = catalogEntry(relPath, op.value)
         else if (op.kind === 'tombstone') entry = null
         else if (entry) entry = { ...entry, contentHash: op.contentHash }
       }

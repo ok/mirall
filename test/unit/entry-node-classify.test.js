@@ -1,6 +1,5 @@
 import test from 'brittle'
-import { classifyEntryNode } from '../../src/shared/shares/share-catalog.js'
-
+import { classifyEntryNode } from '../../src/shared/shares/catalog-keys.js'
 // REGRESSION (FIX-REMOVE-1): only an explicit deletedAt tombstone counts as a removal; an
 // absent/unreadable entry is UNKNOWN and must never be mistaken for one (else replication lag
 // or an offline owner would nuke a live download).

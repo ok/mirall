@@ -6,7 +6,7 @@ import { countFolderFiles } from '../../src/shared/folders/owned-folders.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { previewInitialPublishScan } from '../../src/shared/folders/owned-preview.js'
-import { collectOwnShare } from '../../src/shared/shares/share-catalog.js'
+import { collectOwnShare } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { exceedsShareFileLimit } from '../../src/shared/folders/share-limits.js'
 
