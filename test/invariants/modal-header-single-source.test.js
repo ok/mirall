@@ -60,7 +60,7 @@ const SHELLS = [
 // A GROUP is not a dialog: it renders other dialogs, each of which owns its own header, and
 // declares no <Modal> of its own. The assertion below is that second half — a group that ever
 // grows a dialog body is a dialog, and falls back under the rule.
-const GROUPS = ['components/modals/SpaceDialogs.tsx']
+const GROUPS = ['components/modals/SpaceDialogs.tsx', 'components/modals/AppDialogs.tsx']
 
 test('every dialog gets its header from the owner', (t) => {
   const dialogs = files.filter((f) => f.rel.startsWith('components/modals/')).map((f) => f.rel)
