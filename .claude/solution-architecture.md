@@ -1378,6 +1378,7 @@ Behaviour worth knowing (styling → `design.md`):
 |---|---|
 | `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
 | `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
+| `src/shared/storage/core-purge.js` | `purgeCoreDk` / `clearAndPurgeCore` / `purgeAlias` — the RocksDB core-purge primitives every drive, catalog and leftover reclaim goes through. Written as direct tombstones because hypercore-storage's own `deleteCore` short-circuits without auth and strands the alias |
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/sweep/sweep-rules.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |

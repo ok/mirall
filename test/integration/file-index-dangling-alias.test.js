@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { getStore, openStore } from '../../src/shared/core/store.js'
-import { purgeCoreDk } from '../../src/shared/spaces/space.js'
+import { purgeCoreDk } from '../../src/shared/storage/core-purge.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 
 // REGRESSION (FIX-150: the old leftover "Clean up" purged the file-index core via

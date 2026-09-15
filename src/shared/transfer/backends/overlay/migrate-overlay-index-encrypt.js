@@ -8,7 +8,7 @@
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
 import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/migration-result.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
-import { clearAndPurgeCore, purgeAlias } from '../../../spaces/space.js'
+import { clearAndPurgeCore, purgeAlias } from '../../../storage/core-purge.js'
 import { FileIndex, indexCoreName } from './vendor/file-index.js'
 import { createLogger } from '../../../core/logger.js'
 

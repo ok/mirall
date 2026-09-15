@@ -26,7 +26,7 @@ import { listOwnedMounts, deleteOwnedMount, listForeignMounts, deleteForeignMoun
 import { readOwnShares, tombstoneShare } from '../shares/shares.js'
 import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
-import keysMod from 'hypercore-storage/lib/keys.js'
+import { purgeCoreDk } from '../storage/core-purge.js'
 import { runLeaveTeardown } from './membership/leave-state.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -45,7 +45,6 @@ export async function recordApproval(spaceId, joinerKey) {
 }
 
 const log = createLogger('space')
-const { store: keysStore, core: keysCore } = keysMod
 
 // Publish our per-space loose-catalog key alongside the drive key so co-members fold
 // it from records (the same path driveKey uses). Requires the space RECORD to exist
@@ -67,53 +66,6 @@ async function publishLooseCatalogKey(spaceId, space) {
 export async function ownLooseCatalogPublish(spaceId) {
   if (!isInPlaceFilesEnabled()) return null
   try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
-}
-
-// Deletes the core's alias (TL_CORE_BY_DKEY), TL_CORE range, and TL_DATA
-// range. hypercore-storage's built-in deleteCore short-circuits when auth
-// is missing, which leaves zombie aliases behind and crashes later opens
-// with unslab / STORAGE_EMPTY. Writing the deletions directly avoids that.
-export async function purgeCoreDk(cs, dkHex) {
-  const dkBuf = b4a.from(dkHex, 'hex')
-  const storage = await cs.storage.resumeCore(dkBuf)
-  if (!storage) return
-  const { corePointer, dataPointer } = storage.core
-  try {
-    const tx = cs.storage.db.write({ autoDestroy: true })
-    tx.tryDelete(keysStore.core(dkBuf))
-    tx.tryDeleteRange(keysCore.core(corePointer), keysCore.core(corePointer + 1))
-    tx.tryDeleteRange(keysCore.data(dataPointer), keysCore.data(dataPointer + 1))
-    await tx.flush()
-  } finally {
-    try { await storage.close() } catch {}
-  }
-  log.info('deleted core, dk:', dkHex.slice(0, 12))
-}
-
-// Reclaim a writable core's on-disk bytes: clear its blocks (which registers
-// RocksDB blob-file garbage) then delete the header/alias. A bare purgeCoreDk
-// range-delete leaves blob-separated values stranded — no compaction frees them
-// (garbage stays 0); the clear is what makes them reclaimable. Caller compacts.
-export async function clearAndPurgeCore(cs, core) {
-  await core.ready()
-  try { await core.clear(0, core.length) } catch (err) { log.warn('core.clear before purge failed:', err.message) }
-  const dkHex = b4a.toString(core.discoveryKey, 'hex')
-  try { await core.close() } catch {}
-  await purgeCoreDk(cs, dkHex)
-}
-
-// Removes the TL_CORE_BY_ALIAS entry that maps a (namespace, name) pair to
-// a discovery key. Required when purging a drive: corestore.get({ name })
-// resolves the alias first; without this, a same-name reopen after purge
-// returns the old discovery key and throws STORAGE_EMPTY because the core
-// itself was deleted.
-export async function purgeAlias(cs, namespace, name) {
-  if (!namespace || !name) return
-  const aliasKey = keysStore.coreByAlias({ namespace, name })
-  const tx = cs.storage.db.write({ autoDestroy: true })
-  tx.tryDelete(aliasKey)
-  await tx.flush()
-  log.info('deleted alias:', name)
 }
 
 // Drive namespace per (peer, space). The optional suffix decouples drive
