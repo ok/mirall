@@ -19,24 +19,21 @@ import { compactStore } from '../../../storage/compaction.js'
 import { pathFromMount } from '../../../folders/path-guard.js'
 import { createPresenceSweeper } from '../../../folders/retire-confirm.js'
 import { LOOSE_SHARE_ID } from '../../transfer-id.js'
+import { makeServable } from './serve-registration.js'
 import { getOverlay } from './overlay-instance.js'
 import fs from 'bare-fs'
 
 const log = createLogger('overlay-maintenance')
 
-// makeServable and the publish lane belong to the publish side; maintenance re-registers what
-// publish advertised and settles the lane it owns, so both are injected rather than imported —
-// the edge runs publish → maintenance, never back.
-let makeServable = async () => {}
+// The owner's publish lane, installed by owned-folders — which owns the scheduler and imports this
+// module, so the edge cannot run the other way. `isPending` keeps the presence sweep off a path
+// whose publish has not started; `enqueueRetire` is how the sweep proposes a reclaim.
 let publishLane = null
 
 // Teardown: the sweeper's per-share consideration state dies with the process that formed it.
 export function resetOverlayMaintenance() { folderSweeper.reset() }
 
-export function initOverlayMaintenance(d) {
-  makeServable = d.makeServable
-  publishLane = d.publishLane
-}
+export function setFolderPublishLane(lane) { publishLane = lane }
 
 // Reclaim the overlay index: rebuild it without chunk maps for content no longer
 // shared or held, then return the freed disk to the OS. Non-destructive — a dropped
@@ -86,7 +83,7 @@ async function rehydrateShare(spaceId, shareId, mountPath) {
     try {
       const abs = pathFromMount(mountPath, entry.relPath)
       if (!fs.statSync(abs).isFile()) continue
-      await makeServable(spaceId, shareId, entry.relPath, abs, entry.contentHash, entry.size)
+      await makeServable({ spaceId, shareId, relPath: entry.relPath, absPath: abs, contentHash: entry.contentHash, size: entry.size })
     } catch (err) {
       log.debug('rehydrate skipped:', entry.relPath, '-', err.message)
     }

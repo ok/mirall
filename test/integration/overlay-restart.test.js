@@ -10,9 +10,8 @@ import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import {
-  initContentBackendOverlay, rehydrateOwnedFiles,
-} from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
+import { rehydrateOwnedFiles } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 
 // init() backgrounds rehydrate (non-blocking boot, C9); drive it deterministically.
 const initAndRehydrate = async () => { await initOverlay(); await rehydrateOwnedFiles() }
@@ -37,7 +36,7 @@ test('rehydrate restores servability after a restart', async (t) => {
   const abs = path.join(mountPath, 'persist.txt')
   fs.writeFileSync(abs, 'persist me across a restart')
 
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   serveIndex.reset()
   await initAndRehydrate()
   t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })
@@ -78,7 +77,7 @@ test('rehydrate skips entries whose source file is gone', async (t) => {
   const abs = path.join(mountPath, 'gone.txt')
   fs.writeFileSync(abs, 'temporary')
 
-  initContentBackendOverlay(ctx.fake.ipc)
+  initOverlayIpc(ctx.fake.ipc)
   serveIndex.reset()
   await initAndRehydrate()
   t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })

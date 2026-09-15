@@ -9,6 +9,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
+import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 import {
   initLooseOverlay, looseShareFile, looseCancelPublish,
   rehydrateLooseFiles, sweepLoosePresence, LOOSE_SHARE_ID,
@@ -25,10 +26,12 @@ async function setup(t, onEmit) {
   await initPendingTransfers()
   serveIndex.reset()
   await initOverlay()
-  initLooseOverlay({
+  const ipc = {
     ...ctx.fake.ipc,
     emit: (type, payload) => { ctx.fake.ipc.emit(type, payload); onEmit?.(type, payload) },
-  })
+  }
+  initLooseOverlay(ipc)
+  initOverlayIpc(ipc)
   const space = await createSpace('Aurora')
   t.teardown(async () => {
     serveIndex.reset()

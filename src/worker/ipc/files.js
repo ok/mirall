@@ -15,7 +15,7 @@ import {
   looseCancelPublish,
   handleLooseFsEvent,
 } from '../../shared/transfer/loose-overlay.js'
-import { overlayPause, overlayCancel } from '../../shared/transfer/backends/overlay/overlay-backend.js'
+import { folderPause, folderCancel } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
@@ -93,7 +93,7 @@ export function registerFiles(ipc, { log }) {
     // and here a has() gate would leave the partial and the pending row behind a discard that
     // reported ok.
     if (isLooseTransferId(id)) await looseCancelTransfer(id)
-    else await overlayCancel(id)
+    else await folderCancel(id)
     return { ok: true }
   })
   ipc.handle('files:pause-download', async (msg) => {
@@ -102,7 +102,7 @@ export function registerFiles(ipc, { log }) {
     // moment before the click lands, and gating on has() would silently pause nothing — leaving the
     // row to auto-resume on the next reconnect against the user's intent.
     if (isLooseTransferId(id)) loosePause(id)
-    else overlayPause(id)
+    else folderPause(id)
     return { ok: true }
   })
   ipc.handle('files:cancel-publish', async (msg) => {

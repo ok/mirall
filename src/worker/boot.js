@@ -29,7 +29,7 @@ import {
 import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
 import { PendingTransfersBee, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
-import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-backend.js'
+import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'

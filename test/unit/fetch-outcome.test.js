@@ -39,7 +39,7 @@ test('REGRESSION: every outcome a producer emits is a member of FETCH_OUTCOME', 
 // rather than at build time — so the reference itself has to be checked.
 test('every FETCH_OUTCOME reference names a real member', (t) => {
   let refs = 0
-  for (const f of [...EMITTERS, 'shared/transfer/backends/overlay/overlay-backend.js', 'shared/transfer/backends/overlay/fetch-policy.js']) {
+  for (const f of [...EMITTERS, 'shared/transfer/backends/overlay/fetch-run.js', 'shared/transfer/backends/overlay/fetch-policy.js']) {
     for (const m of read(f).matchAll(/FETCH_OUTCOME\.([A-Z_]+)/g)) {
       refs++
       t.ok(m[1] in FETCH_OUTCOME, `${f} references FETCH_OUTCOME.${m[1]}`)

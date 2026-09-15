@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
-import { overlayListOwn } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
 // REGRESSION (FIX-141): a very large folder (the field repro was 150k files) made
 // share:list-files / share:folder-info materialise the ENTIRE catalog as a row array
@@ -50,7 +50,7 @@ test('REGRESSION (FIX-141): one bounded pass yields capped rows AND the true tot
   t.is(countOnly.totalBytes, totalBytes, 'limit=0 still sums everything')
 
   // The overlay backend threads the cap through to the same fold.
-  const viaBackend = await overlayListOwn(spaceId, shareId, 10)
-  t.is(viaBackend.entries.length, 10, 'overlayListOwn caps rows')
-  t.is(viaBackend.total, N, 'overlayListOwn carries the true total')
+  const viaBackend = await overlayBackend.listOwn(spaceId, shareId, 10)
+  t.is(viaBackend.entries.length, 10, 'listOwn caps rows')
+  t.is(viaBackend.total, N, 'listOwn carries the true total')
 })

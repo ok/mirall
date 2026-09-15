@@ -11,7 +11,7 @@ import { createPassLiveness } from '../core/pass-liveness.js'
 import { getOwnedMount, touchOwnedMountScan } from './mount-store.js'
 import { isUnsupportedShare } from '../transfer/content-backends.js'
 import { listOwnShare } from '../shares/own-catalog.js'
-import { ensureServable } from '../transfer/backends/overlay/overlay-backend.js'
+import { ensureServable } from '../transfer/backends/overlay/serve-registration.js'
 import { pathFromMount } from './path-guard.js'
 import { walkDisk } from './walk-disk.js'
 import { relKeyEscapes } from './path-keys.js'
@@ -203,7 +203,7 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
     // the cost; next to an await on real I/O a Map lookup is free, and throttling here could skip
     // the entire window on a share with fewer files than the interval.
     passLiveness.progress(key, pass)
-    try { await ensureServable(spaceId, shareId, relPath, pathFromMount(mountPath, relPath), prev.contentHash, info.size) } catch (err) {
+    try { await ensureServable({ spaceId, shareId, relPath, absPath: pathFromMount(mountPath, relPath), contentHash: prev.contentHash, size: info.size }) } catch (err) {
       log.debug('ensure servable failed:', relPath, '-', err.message)
     }
   }

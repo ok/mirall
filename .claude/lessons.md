@@ -802,3 +802,11 @@ getter. The regex form is the only version that fails on a refactor and passes o
 `readFileSync` + regex over `src/` is acceptable only for a structural fact no runtime call can
 observe (an import edge, a re-export, an ordering of two statements), and even then it should match
 the smallest stable token, not a literal with a number in it.
+
+**Moving an emitter behind a shared module moves a test seam.** When a decoration or event emit
+leaves a module for a shared reporter (`publish-progress.js`), every test that re-wires that
+module's ipc after boot (`initLooseOverlay(wrappedIpc)` to capture frames) silently stops
+observing the frames — they now leave through the reporter's emitter, still pointed at the
+original ipc. The touched-file list from `grep` on the moved names misses these tests: grep for
+the `init*(` seam of every module that lost an emit, and re-wire the reporter in the same test
+(`test/helpers/overlay-ipc.js`).

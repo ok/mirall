@@ -15,7 +15,7 @@ import { isOwnerOnline } from '../network/presence-leases.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { localRelOf } from '../folders/mirror-state.js'
-import { overlayHasTransfer } from '../transfer/backends/overlay/overlay-backend.js'
+import { folderHasTransfer } from '../transfer/backends/overlay/folder-downloads.js'
 import {
   claimedPathFor,
   verdictForClaim,
@@ -35,7 +35,7 @@ const productionDeps = {
   isOwnerOnline,
   getLocalPublicKeyHex,
   foreignFetchActive,
-  overlayHasTransfer,
+  overlayHasTransfer: folderHasTransfer,
   claimedPathFor,
   verdictForClaim,
   listVerifiedForShare,

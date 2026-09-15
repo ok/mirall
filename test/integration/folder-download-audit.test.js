@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
-import { folderChannel } from '../../src/shared/transfer/backends/overlay/overlay-backend.js'
+import { folderChannel } from '../../src/shared/transfer/backends/overlay/folder-downloads.js'
 import { looseChannel } from '../../src/shared/transfer/loose-overlay.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
@@ -72,7 +72,7 @@ function throwsWith(code, message) {
 }
 
 // REGRESSION (FIX-D11-1: a folder-share download produced no audit row at all. `record(` appeared
-// zero times in overlay-backend.js while the loose channel recorded from its own emitComplete, so
+// zero times in folder-downloads.js while the loose channel recorded from its own emitComplete, so
 // "You downloaded X" existed for a space-root file and for nothing inside a folder.)
 test('REGRESSION (FIX-D11-1): a completed folder-share download records transfer.completed', async (t) => {
   const { engine, job } = await setup(t)
