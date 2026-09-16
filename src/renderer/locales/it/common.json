@@ -853,7 +853,7 @@
       "osOffline": "Il sistema operativo segnala l'assenza di connessione a Internet. Controlla Wi-Fi o Ethernet.",
       "symmetricNat": "La tua connessione usa porte variabili. Le connessioni verso molte persone falliranno: router mobili e tethering sono la causa più comune.",
       "noPublicAddr": "Impossibile determinare l'IP pubblico. Controlla la connessione a Internet.",
-      "symmetricNatFix": "Su una rete mobile non esiste un’impostazione del router che risolva il problema. Una connessione via cavo o DSL funzionerà.",
+      "symmetricNatFix": "Su una rete mobile nessuna impostazione del router risolve il problema. Una connessione via cavo o DSL funzionerà e un relay può trasportare le connessioni che non si riescono a stabilire direttamente.",
       "udpDegraded": "La tua rete perde di continuo traffico verso la rete Mirall. I trasferimenti possono bloccarsi.",
       "stillSettling": "Stiamo ancora capendo come si comporta questa rete: attendi un momento."
     },

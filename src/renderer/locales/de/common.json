@@ -853,7 +853,7 @@
       "osOffline": "Dein Betriebssystem meldet keine Internetverbindung. WLAN oder Ethernet prüfen.",
       "symmetricNat": "Deine Verbindung nutzt wechselnde Ports. Verbindungen zu vielen Teilnehmern werden fehlschlagen — Mobilfunk-Router und Tethering sind die übliche Ursache.",
       "noPublicAddr": "Öffentliche IP konnte nicht ermittelt werden. Prüfe deine Internetverbindung.",
-      "symmetricNatFix": "Im Mobilfunknetz lässt sich das nicht am Router einstellen. Ein DSL- oder Kabelanschluss funktioniert.",
+      "symmetricNatFix": "In einem Mobilfunknetz gibt es keine Router-Einstellung, die das behebt. Eine Kabel- oder DSL-Verbindung funktioniert, und ein Relay kann die Verbindungen übernehmen, die nicht direkt zustande kommen.",
       "udpDegraded": "Dein Netzwerk verwirft laufend Datenverkehr zum Mirall-Netzwerk. Übertragungen können stocken.",
       "stillSettling": "Wir ermitteln noch, wie sich dieses Netzwerk verhält — einen Moment bitte."
     },
