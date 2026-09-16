@@ -382,15 +382,19 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     return miss === 'no-holder' ? 'no-peers' : 'missing'
   }
   diag.finish('done')
+  return finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath })
+}
+
+// The transfer verified the content hash on landing — record it so the row can surface a
+// "verified" indicator without re-hashing. Stat the file we just landed, so the record
+// fingerprints the bytes the transfer proved; a stat we cannot take costs the record its
+// fingerprint, never its hash.
+async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath }) {
   // a local hit returns the source path without writing abs — copy the bytes by
   // path (never buffering a possibly multi-GB file in memory).
   if (res.local && res.destPath !== abs) {
     try { fs.copyFileSync(res.destPath, abs) } catch (err) { log.debug('overlay mirror local-copy failed:', entry.relPath, '-', err.message); return 'missing' }
   }
-  // The transfer verified the content hash on landing — record it so the row can
-  // surface a "verified" indicator without re-hashing. Stat the file we just landed, so the record
-  // fingerprints the bytes the transfer proved; a stat we cannot take costs the record its
-  // fingerprint, never its hash.
   let landed = null
   try {
     landed = await fs.promises.stat(abs)
