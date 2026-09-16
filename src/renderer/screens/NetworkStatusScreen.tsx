@@ -269,8 +269,8 @@ function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
         label={t('networkStatus.summary.runningFor')}
         value={status.bootedAt > 0 ? formatDuration(now - status.bootedAt) : DASH}
       />
-      <div className="pt-3">
-        <Button variant="secondary" onClick={onShowHistory}>{t('networkStatus.connectionHistory')}</Button>
+      <div className="px-6 py-4 flex justify-center">
+        <Button variant="secondary" onClick={onShowHistory} className="shrink-0">{t('networkStatus.connectionHistory')}</Button>
       </div>
     </Section>
   )
