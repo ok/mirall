@@ -9,7 +9,7 @@
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { Supervisor } from '../shared/core/supervisor.js'
-import { getPeerPresenceDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
+import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intents.js'
 import { createIntentLog } from '../shared/core/intents.js'
@@ -108,7 +108,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
     log.warn('install id unavailable:', err.message)
     return null
   })
-  const auditLog = new AuditLog('audit', { ipc, installId, peerDwellMs: getPeerPresenceDwellMs() })
+  const auditLog = new AuditLog('audit', { ipc, installId, peerDwellMs: getPeerPresenceDwellMs(), relayDwellMs: getRelayAuditDwellMs() })
   try { await durable.start(auditLog) } catch (err) {
     log.warn('audit log unavailable — events will not be recorded:', err.message)
   }

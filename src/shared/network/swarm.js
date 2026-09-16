@@ -32,6 +32,7 @@ import { initDeferredAdmission, resetDeferredAdmission } from './deferred-admiss
 import { initLeaveProtocol, resetLeaveProtocol } from './leave-protocol.js'
 import { initConvergenceTick, resetConvergenceTick, startConvergenceTick, convergenceHealth, restartConvergenceTick } from './convergence-tick.js'
 import { initConnectivity, resetConnectivity, attachSwarmWatchers, noteBooted } from './connectivity.js'
+import { scheduleStatusEmit } from './network-status.js'
 
 const log = createLogger('swarm')
 
@@ -46,7 +47,7 @@ let stalledOwnersHook = null
 let revokeServesForSpaceHook = null
 
 function wireCollaborators() {
-  initRelayInstall({ getSwarm: () => swarm })
+  initRelayInstall({ getSwarm: () => swarm, onStatusChange: scheduleStatusEmit })
   initPeerProfileWatch({ getIpc: () => ipcRef, connectedPeers })
   initFrameIntake({ getMembershipControlHandler: () => membershipControlHandler })
   initIdentityFrames({ getSwarm: () => swarm })

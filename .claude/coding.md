@@ -41,6 +41,12 @@ I/O in the engine that calls the policy.
 - Vendored code (`src/shared/transfer/backends/overlay/vendor/`) stays re-diffable against upstream.
 Do not restyle it, do not apply our lint rules to it, and record every local divergence in its
 `PROVENANCE.md`.
+- **Dependencies are not patched.** No `patch-package`, no edits under `node_modules`, no fork for a
+local change. When a fact a dependency computes is needed and not exposed, the order is: an upstream
+issue or pull request first; then, only if the fact crosses one of the dependency's *exported*
+surfaces, a runtime interposition kept in one module with an install/reset pair, a shape test that
+pins the surface it couples to, and the upstream reference in the module header.
+`network/relay-observe.js` + `test/unit/relay-observe-shape.test.js` are the one such pair today.
 
 ---
 
@@ -171,6 +177,13 @@ owned by `this.timers` or a module's own `createTimers()` that its `reset` close
 live on a subsystem that the stop reaches.
 - Order two non-atomic writes so that a crash leaves the *visible* failure, not the silent one. Never
 swallow the second half with an empty `catch {}`.
+- **Collaborators are read through accessors, installed by `initX(deps)` and cleared by `resetX()`.**
+A module that outlives a subsystem restart (`network/*`) never captures the swarm, the ipc or a hook
+as a value; it holds `() => current`, is wired in one place (`swarm.js` `wireCollaborators()`) and
+reset in one list (`destroySwarm()`). A value captured at import goes stale on the second open.
+- **A field added to the network status frame touches four places together**: `readSwarmFacts`, the
+offline snapshot in `swarm-diagnostics.js`, a scalar leaf in `STATUS_PATHS` (an array needs a digest
+string beside it — the dedup compares leaves only), and the renderer's `NetworkStatusScreen` type.
 
 ---
 
@@ -267,6 +280,9 @@ class. *Instead:* subsystem-owned state.
 - **Primitive obsession on the wire.** Passing a bare status string where a declared vocabulary
 exists in `contract/statuses.js`.
 - **Unused parameter kept for shape.** Every caller pays to pass it. Drop it.
+- **Locale keys added to one language.** `i18n-key-parity.test.js` refuses it: a key lands in all five
+locales in the same change, and an audit kind additionally needs `kind` and `kindLabel` copy in every
+locale (`audit-coverage.test.js`).
 - **Locale keys and colour tokens outliving their use.** Guarded now by
 `test/invariants/i18n-unreferenced-keys.test.js` and `test/invariants/unused-color-tokens.test.js` — do not
 add an allowlist entry to silence them unless the key really is reached dynamically, and name the
@@ -306,6 +322,19 @@ data, `useMainQuery` for main-process facts (`write` replaces, `patch` merges). 
 these; they do not hand-roll padding or a ⌘Enter handler.
 - **Errors.** Throw `AppError` with a `CODES.*` code from `contract/errors.js`; classify I/O faults
 through `classifyLocalIoFault` / `classifyTransferError` rather than matching `err.message`.
+- **Registries are exported `Map`s with one reset.** `network/swarm-registries.js` — bindings, not
+accessors; `resetRegistries()` clears them all. Two key spaces live there: a socket's Noise key and a
+member's profile key; `socketToPeers` is the only bridge between them. Do not add a second index.
+- **Audit hooks on a hot path are `guarded`.** Auditing never throws, slows or fails into the operation
+it describes (`audit/network-watch.js`); every hook the handshake or disconnect path calls goes
+through the wrapper, and its dwell timers belong to the `AuditLog` subsystem's `timers`.
+- **Data that leaves the device is built by an allow-list.** `network/support-bundle.js` names every
+section it emits and shortens keys under `redact`; an unnamed key is dropped. A new section is spelled
+out there, never spread in.
+- **Renderer config is read through `platform/config-client.ts` getters**, a boot snapshot every setter
+keeps current. A screen calls the getter; it does not subscribe to config.
+- **A frontend scenario registers itself by filename.** `test/frontend/scenarios/sNN-<slug>.mjs` is
+picked up by `scenarios/index.mjs`; there is no list to edit.
 - **Lint rules as executable invariants.** `eslint.config.mjs` exports its selector arrays
 (`rendererStatusRestrictions`, `moduleLevelTimerRestrictions`, `pureFolderPolicyModules`, …) and a
 unit test parses the same grammar. When you find a rule worth stating, encode it here instead of

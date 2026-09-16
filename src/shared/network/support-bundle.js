@@ -1,7 +1,8 @@
 import { shortId, makeAliaser } from '../core/diagnostics-redact.js'
+import { emptyRelaySnapshot } from './swarm-diagnostics.js'
 
 /** @internal */
-export const DIAGNOSTICS_SCHEMA = 1
+export const DIAGNOSTICS_SCHEMA = 2
 
 const VERDICT_OF = {
   'network.offline': 'blocked',
@@ -32,11 +33,30 @@ export function verdictHistoryFromAudit(entries = []) {
     .reverse()
 }
 
+function relaySection(relay, relayConfig, redact) {
+  const own = relayConfig.relay
+  return {
+    mode: relayConfig.mode,
+    own: own
+      ? { kind: own.kind, label: redact ? null : own.label, key: redact ? shortId(own.publicKey) : own.publicKey }
+      : null,
+    direct: relay.direct,
+    connections: relay.connections.map((c) => ({
+      peer: redact ? shortId(c.peerKey) : c.peerKey,
+      plane: c.plane,
+      via: c.via,
+      relay: redact ? shortId(c.relayKey) : c.relayKey,
+      sinceMs: c.since,
+      ...(redact ? {} : { displayName: c.displayName }),
+    })),
+  }
+}
+
 // Shapes, not identities. Everything a connectivity diagnosis needs — did host consensus
 // form, is the port 0, did it change, how many dials opened — is answerable without the
 // actual IP, the real keys, or space names.
 export function buildDiagnostics(ctx, redact = true) {
-  const { status, history, env, counters, peerSamples, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [] } = ctx
+  const { status, history, env, counters, peerSamples, relayConfig = { mode: 'off', relay: null }, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [] } = ctx
   const topicAlias = makeAliaser('t')
   const samples = peerSamples.map((peer) => ({
     peer: redact ? shortId(peer.publicKey) : peer.publicKey,
@@ -105,6 +125,7 @@ export function buildDiagnostics(ctx, redact = true) {
     canary: status.canary,
     liveness: status.liveness,
     relaying: status.stats.relaying,
+    relay: relaySection(status.relay ?? emptyRelaySnapshot(), relayConfig, redact),
 
     // Per-request call counts, failures, in-flight and timing, plus the failure tally keyed by
     // type:code. Neither identifies anyone — the keys are the closed request vocabulary — so

@@ -846,3 +846,15 @@ Before pushing, `grep -l` the flow tier for the request name, and for each hit c
 test also stages the state the new rule refuses (`foreign-folder:mount` here) and in what order.
 Re-sequence the test rather than loosen the rule: a session that downloads while browsing and
 then mirrors is the real user path anyway.
+
+**hyperdht discards relay attribution; blind-relay's client is where it can still be seen.** Which
+relay carries a stream and whether the key was ours or adopted from the peer's payload exist only as
+locals inside hyperdht's two pairing functions; nothing on the delivered NoiseSecretStream, hyperswarm's
+PeerInfo or `dht.stats.relaying` (accept side only) recovers them. Endpoint comparison identifies only a
+relay whose key you already know — useless for the adopted case. The one public surface the pairing
+crosses is `blind-relay`'s `Client.from(relaySocket)` + its `'pair'` event, and the ESM default import and
+hyperdht's CJS `require` resolve to the same class, so a wrapper installed from our side is the one
+hyperdht calls. Two things follow: relayed is TRANSIENT (hyperdht keeps punching and `changeRemote`s the
+same socket direct — observable only as udx `'remote-changed'`, so compare the endpoint, never cache a
+boolean), and a per-connection array in the status frame needs a scalar digest beside it because the
+dedup compares leaves only.

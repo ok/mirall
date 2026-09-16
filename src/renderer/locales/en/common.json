@@ -885,6 +885,24 @@
     "relayedActive": "Relayed connections",
     "relayedAttempts": "Relay attempts",
     "relayedAborts": "Relay failures",
+    "relaySelected": "Relays chosen by this device",
+    "relayed": {
+      "title": "Relayed connections",
+      "intro": "A relay carries a connection when a direct one isn't possible. It can't read what you share, but whoever runs it can see that you and these people are connected.",
+      "relay": "Relay",
+      "people": "People",
+      "since": "for {{duration}}",
+      "providedBy": "Provided by {{name}}",
+      "badgeOwn": "Relay: your relay, {{kind}}",
+      "badgeAdopted": "Relay: provided by {{name}}",
+      "unknownPeer": "a peer",
+      "moreNames": "{{shown}} and {{count}} more",
+      "plane": {
+        "control": "chat",
+        "content": "files",
+        "both": "chat and files"
+      }
+    },
     "summary": {
       "title": "Connection summary",
       "connection": "Connection",
@@ -911,7 +929,13 @@
       },
       "people": "People",
       "peopleValue": "{{found}} found · {{connected}} connected",
-      "runningFor": "Running for"
+      "runningFor": "Running for",
+      "relay": "Relay",
+      "relayValue": {
+        "off": "Off",
+        "none": "Not in use",
+        "used": "Used for {{relayed}} of {{total}} people"
+      }
     },
     "canary": "Connection test",
     "canaryState": "Result",
@@ -1003,6 +1027,7 @@
       "network.restored": "Connection restored",
       "network.peer_lost": "{{actor}} went offline",
       "network.peer_back": "{{actor}} is back online",
+      "network.peer_relayed": "{{actor}} is connected through a relay",
       "share.renamed": "You renamed the folder {{target}}",
       "mirror.relocated": "You moved the mirror of {{target}}"
     },
@@ -1046,6 +1071,7 @@
       "network.restored": "connection restored",
       "network.peer_lost": "member went offline",
       "network.peer_back": "member back online",
+      "network.peer_relayed": "relayed connection",
       "share.renamed": "folder renamed",
       "mirror.relocated": "mirror moved"
     },
@@ -1053,6 +1079,14 @@
     "metaFiles_other": "{{formatted}} files",
     "startedAt": "started {{time}}",
     "wasOfflineFor": "Offline for {{duration}}",
+    "relay": {
+      "own": "Your relay",
+      "ownLabelled": "Your relay {{label}}",
+      "providedBy": "Relay provided by {{name}}",
+      "plane": {
+        "content": "File transfers"
+      }
+    },
     "emptyNetworkTitle": "No connection problems recorded",
     "emptyNetworkDesc": "Mirall has been able to reach the network the whole time it has been running.",
     "cause": {

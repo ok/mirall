@@ -1,14 +1,18 @@
 // Network diagnostics screen: connectivity verdict plus DHT/swarm details with maskable, copyable fields.
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { reachableState, formatDuration } from '../model/connectivity.js'
+import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
+import { getRelayMode } from '../platform/config-client.js'
 import DiagnosticsCard from './DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import Button from '../components/primitives/Button.js'
-import CopyButton from '../components/primitives/CopyButton.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import RelayedConnectionsSection from '../components/network/RelayedConnectionsSection.js'
+import { Section, Field, MaskedField, DASH, formatRelativeTime, formatNumber } from '../components/network/StatusRows.js'
 import type { NetworkStatusScreen, Reachability } from '../types/types.js'
 
 interface Props {
@@ -16,115 +20,9 @@ interface Props {
   onShowHistory: () => void
 }
 
-const DASH = '—'
-// A revealed key re-masks itself: the value is shoulder-surfable and the screen is one a user
-// leaves open while working through a connectivity problem.
-const REVEAL_AUTO_HIDE_MS = 30000
-
-function formatRelativeTime(ms: number | null, now: number): string {
-  if (ms === null) return DASH
-  const delta = Math.max(0, now - ms)
-  const seconds = Math.floor(delta / 1000)
-  if (seconds < 60) return `${seconds}s ago`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 function formatBool(value: boolean | null, t: (key: string) => string): string {
   if (value === null) return DASH
   return value ? t('networkStatus.boolYes') : t('networkStatus.boolNo')
-}
-
-function formatNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined) return DASH
-  return value.toLocaleString()
-}
-
-function maskValue(value: string | null, visibleSuffix: number = 0): string {
-  if (!value) return DASH
-  const dots = '••••••••'
-  if (visibleSuffix > 0 && value.length > visibleSuffix) {
-    return `${dots} ${value.slice(-visibleSuffix)}`
-  }
-  return dots
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h2 className="text-xl font-headline font-bold text-accent mb-4">{title}</h2>
-      <div className="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
-        {children}
-      </div>
-    </section>
-  )
-}
-
-interface FieldProps {
-  label: string
-  value: ReactNode
-  mono?: boolean
-  copyValue?: string | null
-  positive?: boolean
-}
-
-function Field({ label, value, mono = false, copyValue = null, positive = false }: FieldProps) {
-  const display = value === '' || value === undefined || value === null ? DASH : value
-  return (
-    <div className="px-6 py-4 flex items-center gap-4">
-      <span className="text-sm text-on-surface-variant w-48 shrink-0">{label}</span>
-      <span className={`flex-1 min-w-0 break-all ${mono ? 'font-mono text-sm' : 'text-sm'} ${positive ? 'text-online' : 'text-accent'}`}>
-        {display}
-      </span>
-      {copyValue && copyValue.length > 0 && (
-        <CopyButton value={copyValue} />
-      )}
-    </div>
-  )
-}
-
-interface MaskedFieldProps {
-  label: string
-  value: string | null
-  visibleSuffix?: number
-}
-
-function MaskedField({ label, value, visibleSuffix = 0 }: MaskedFieldProps) {
-  const { t } = useTranslation()
-  const [revealed, setRevealed] = useState(false)
-  const hasValue = !!value && value.length > 0
-
-  useEffect(() => {
-    if (!revealed) return
-    const timer = setTimeout(() => setRevealed(false), REVEAL_AUTO_HIDE_MS)
-    return () => clearTimeout(timer)
-  }, [revealed])
-
-  const display = revealed && value ? value : maskValue(value, visibleSuffix)
-  const toggleLabel = revealed ? t('networkStatus.hide') : t('networkStatus.reveal')
-
-  return (
-    <div className="px-6 py-4 flex items-center gap-4">
-      <span className="text-sm text-on-surface-variant w-48 shrink-0">{label}</span>
-      <span className="flex-1 min-w-0 font-mono text-sm text-accent break-all">{display}</span>
-      {hasValue && <CopyButton value={value} />}
-      {hasValue && (
-        <button
-          type="button"
-          onClick={() => setRevealed((v) => !v)}
-          aria-label={toggleLabel}
-          title={toggleLabel}
-          className="shrink-0 inline-flex items-center justify-center rounded-sm focus-ring"
-        >
-          <Icon name={revealed ? 'visibility_off' : 'visibility'} size={18} className="text-outline" />
-        </button>
-      )}
-    </div>
-  )
 }
 
 interface BootstrapListProps {
@@ -265,6 +163,7 @@ function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
           connected: status.peerReach?.connected ?? 0,
         })}
       />
+      <Field label={t('networkStatus.summary.relay')} value={relaySummaryValue(status, t)} />
       <Field
         label={t('networkStatus.summary.runningFor')}
         value={status.bootedAt > 0 ? formatDuration(now - status.bootedAt) : DASH}
@@ -274,6 +173,13 @@ function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
       </div>
     </Section>
   )
+}
+
+function relaySummaryValue(status: NetworkStatusScreen, t: TFunction): string {
+  const state = relayState(getRelayMode(), status.relay)
+  if (state !== 'used') return t(`networkStatus.summary.relayValue.${state}`)
+  const relayed = relayedPeopleCount(status.relay)
+  return t('networkStatus.summary.relayValue.used', { relayed, total: Math.max(relayed, status.peerReach.connected) })
 }
 
 function SuggestionsList({ lines }: { lines: string[] }) {
@@ -335,6 +241,7 @@ function AdvancedDetails({ status, now }: AdvancedDetailsProps) {
       </Section>
 
       <Section title={t('networkStatus.relaying')}>
+        <Field label={t('networkStatus.relaySelected')}   value={formatNumber(status.stats.relaying.selected)} />
         <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
         <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
         <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
@@ -407,6 +314,8 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
           <SuggestionsList lines={suggestions} />
 
           <ConnectionSummary status={status} now={now} onShowHistory={onShowHistory} />
+
+          {status && <RelayedConnectionsSection status={status} now={now} />}
 
           <DiagnosticsCard />
 

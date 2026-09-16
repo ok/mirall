@@ -21,6 +21,10 @@ export function createContentPeerSockets() {
       socketToPeers.delete(socket)
     },
 
+    peersOn(socket) {
+      return socketToPeers.get(socket) ?? new Set()
+    },
+
     authorized(socket, profileKeyHex) {
       return !!socketToPeers.get(socket)?.has(profileKeyHex)
     },

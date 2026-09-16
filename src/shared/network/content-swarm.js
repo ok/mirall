@@ -17,6 +17,8 @@ import { getIdentitySigner, getProfileKey } from '../spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding, createRateLimiter } from './handshake-guard.js'
 import { applyNetImpairment } from './net-impair.js'
 import { createContentPeerSockets } from './content-peer-sockets.js'
+import { memberAmong } from './swarm-registries.js'
+import { trackConnection } from './relayed-connections.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 
@@ -68,11 +70,16 @@ function sendContentHello(helloMsg) {
   try { helloMsg.send(JSON.stringify({ type: 'content-hello', profileKey, ...binding })) } catch {}
 }
 
+function contentMemberOnSocket(socket) {
+  return memberAmong(contentPeerSockets.peersOn(socket))
+}
+
 function onContentConnection(socket, peerInfo) {
   const remoteKeyHex = peerInfo.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : ''
   const remoteKey = remoteKeyHex.slice(0, 16) || 'unknown'
   if (contentSpaceTopics.size === 0) { socket.destroy(); return }
   applyNetImpairment(socket) // TEST-ONLY: no-op unless runtime-config.netImpair is set
+  trackConnection(socket, { plane: 'content', memberOf: contentMemberOnSocket })
   log.debug('connection', remoteKey + '...', peerInfo.client ? '(we dialed)' : '(they dialed)')
   socket.on('close', () => log.debug('connection closed', remoteKey + '...'))
 

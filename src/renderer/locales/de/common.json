@@ -861,6 +861,24 @@
     "relayedActive": "Weitergeleitete Verbindungen",
     "relayedAttempts": "Weiterleitungsversuche",
     "relayedAborts": "Fehlgeschlagene Weiterleitungen",
+    "relaySelected": "Von diesem Gerät gewählte Relays",
+    "relayed": {
+      "title": "Weitergeleitete Verbindungen",
+      "intro": "Ein Relay trägt eine Verbindung, wenn keine direkte möglich ist. Es kann nicht lesen, was du teilst, aber sein Betreiber kann sehen, dass du mit diesen Teilnehmern verbunden bist.",
+      "relay": "Relay",
+      "people": "Teilnehmer",
+      "since": "seit {{duration}}",
+      "providedBy": "Bereitgestellt von {{name}}",
+      "badgeOwn": "Relay: dein Relay, {{kind}}",
+      "badgeAdopted": "Relay: bereitgestellt von {{name}}",
+      "unknownPeer": "einem Teilnehmer",
+      "moreNames": "{{shown}} und {{count}} weitere",
+      "plane": {
+        "control": "Chat",
+        "content": "Dateien",
+        "both": "Chat und Dateien"
+      }
+    },
     "summary": {
       "title": "Verbindungsübersicht",
       "connection": "Verbindung",
@@ -887,7 +905,13 @@
       },
       "people": "Teilnehmer",
       "peopleValue": "{{found}} gefunden · {{connected}} verbunden",
-      "runningFor": "Läuft seit"
+      "runningFor": "Läuft seit",
+      "relay": "Relay",
+      "relayValue": {
+        "off": "Aus",
+        "none": "Nicht in Verwendung",
+        "used": "Genutzt für {{relayed}} von {{total}} Teilnehmern"
+      }
     },
     "canary": "Verbindungstest",
     "canaryState": "Ergebnis",
@@ -1003,6 +1027,7 @@
       "network.restored": "Verbindung wiederhergestellt",
       "network.peer_lost": "{{actor}} ist offline gegangen",
       "network.peer_back": "{{actor}} ist wieder online",
+      "network.peer_relayed": "{{actor}} ist über ein Relay verbunden",
       "share.renamed": "Du hast den Ordner {{target}} umbenannt",
       "mirror.relocated": "Du hast die Spiegelung von {{target}} verschoben"
     },
@@ -1046,6 +1071,7 @@
       "network.restored": "Verbindung wiederhergestellt",
       "network.peer_lost": "Mitglied offline gegangen",
       "network.peer_back": "Mitglied wieder online",
+      "network.peer_relayed": "weitergeleitete Verbindung",
       "share.renamed": "Ordner umbenannt",
       "mirror.relocated": "Spiegelung verschoben"
     },
@@ -1053,6 +1079,14 @@
     "metaFiles_other": "{{formatted}} Dateien",
     "startedAt": "seit {{time}}",
     "wasOfflineFor": "Offline für {{duration}}",
+    "relay": {
+      "own": "Dein Relay",
+      "ownLabelled": "Dein Relay {{label}}",
+      "providedBy": "Relay bereitgestellt von {{name}}",
+      "plane": {
+        "content": "Dateiübertragungen"
+      }
+    },
     "emptyNetworkTitle": "Keine Verbindungsprobleme aufgezeichnet",
     "emptyNetworkDesc": "Mirall konnte das Netzwerk erreichen, solange die App lief.",
     "cause": {

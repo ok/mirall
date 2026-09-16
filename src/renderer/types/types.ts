@@ -274,10 +274,27 @@ export interface Reachability {
   since: number
 }
 
+export type RelayPlane = 'control' | 'content'
+
 interface PeerReach {
   discovered: number
   connected: number
   exhausted: number
+}
+
+export interface RelayedConnection {
+  peerKey: string
+  plane: RelayPlane
+  displayName: string | null
+  via: 'own' | 'adopted'
+  relayKey: string
+  since: number
+}
+
+export interface RelayStatus {
+  connections: RelayedConnection[]
+  direct: Record<RelayPlane, number>
+  digest: string
 }
 
 interface DhtHealth {
@@ -351,6 +368,7 @@ export interface NetworkStatusScreen {
   dhtHealth: DhtHealth
   canary: CanaryResult
   liveness: Liveness
+  relay: RelayStatus
   reachability: Reachability
   versions: {
     dht: string

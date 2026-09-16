@@ -26,6 +26,9 @@ let peers = null
 let timers = null
 let deviceTimer = null
 let peerTimer = null
+let relayDwellMs = 0
+const relayTimers = new Map()
+const relayedRows = new Set()
 
 // Arming through a closed set THROWS, by design — a late continuation that still wants a timer is
 // a bug worth seeing. Both re-arm tails run from a timer callback, where a throw would escape into
@@ -38,8 +41,9 @@ let degraded = false
 let running = false
 let pending = false
 
-export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, peerDwellMs = 0, timers: owner = null } = {}) {
+export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, peerDwellMs = 0, relayDwellMs: relayDwell = 0, timers: owner = null } = {}) {
   timers = owner
+  relayDwellMs = relayDwell
   device = createEpisodeTracker(dwellMs ? { dwellMs } : {})
   peers = createPeerPresenceTracker(peerDwellMs ? { dwellMs: peerDwellMs } : {})
   emitUpdated = emit
@@ -53,6 +57,9 @@ export function initNetworkWatch({ emit = null, sessionId = null, dwellMs = 0, p
 export function resetNetworkWatch() {
   if (deviceTimer) { timers?.clear(deviceTimer); deviceTimer = null }
   if (peerTimer) { timers?.clear(peerTimer); peerTimer = null }
+  for (const handle of relayTimers.values()) timers?.clear(handle)
+  relayTimers.clear()
+  relayedRows.clear()
   device?.reset()
   peers?.reset()
   last = null
@@ -160,6 +167,52 @@ const armPeerTimer = guarded(() => {
     peerTimer = timers.setTimeout(() => { peerTimer = null; armPeerTimer() }, waitMs + 50)
   }
 })
+
+// A relayed pairing that hyperdht upgrades to a direct path within the dwell is a bridge, not a
+// fact worth a row. A socket whose member is not bound yet when the dwell fires re-arms, and one
+// row per member-and-relay is written per session. The row names the relay's provenance, never
+// the relay's operator.
+export const peerRelayed = guarded((socket, describe) => {
+  peerUnrelayed(socket)
+  armRelayDwell(socket, describe)
+})
+
+export const peerUnrelayed = guarded((socket) => {
+  const handle = relayTimers.get(socket)
+  if (!handle) return
+  timers?.clear(handle)
+  relayTimers.delete(socket)
+})
+
+const armRelayDwell = guarded((socket, describe) => {
+  if (!canArm()) return
+  relayTimers.set(socket, timers.setTimeout(guarded(() => {
+    relayTimers.delete(socket)
+    const info = describe()
+    if (!info) return
+    if (!info.profileKey) { armRelayDwell(socket, describe); return }
+    writeRelayedRow(info)
+  }), relayDwellMs))
+})
+
+function writeRelayedRow(info) {
+  const key = `${info.profileKey}:${info.relayKey}:${info.plane}`
+  if (relayedRows.has(key)) return
+  const written = record('network.peer_relayed', {
+    actor: peerActor(info.profileKey, info.displayName),
+    target: targetRef(TARGET_KIND.MEMBER, info.profileKey, info.displayName),
+    subject: {
+      plane: info.plane,
+      via: info.via,
+      relay: info.relayKey,
+      provider: info.via === 'adopted' ? info.displayName : null,
+      label: info.via === 'own' ? info.relayLabel || null : null,
+    },
+  })
+  if (!written) return
+  relayedRows.add(key)
+  emitUpdated?.()
+}
 
 function writePeerRow(row) {
   const name = row.meta?.memberName ?? null

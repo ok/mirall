@@ -13,7 +13,11 @@ import { CANARY } from '../core/reachability.js'
 
 const DEFAULT_BOOTSTRAP = ['node1.hyperdht.org:49737', 'node2.hyperdht.org:49737', 'node3.hyperdht.org:49737']
 
-export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVersion }) {
+export function emptyRelaySnapshot() {
+  return { connections: [], direct: { control: 0, content: 0 }, digest: '' }
+}
+
+export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVersion, getRelayedConnections = emptyRelaySnapshot }) {
   function getBootstrapList() {
     try {
       const list = global.Pear?.config?.dht?.bootstrap
@@ -117,6 +121,10 @@ export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVer
     return { selected: getRelaySelections(), attempts: r.attempts || 0, successes: r.successes || 0, aborts: r.aborts || 0 }
   }
 
+  function snapshotRelay() {
+    return getRelayedConnections()
+  }
+
   function offlineStatusSnapshot() {
     return {
       state: 'offline',
@@ -145,6 +153,7 @@ export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVer
       dhtHealth: { online: false, degraded: false, cold: true, idle: true, timeoutsRate: 0 },
       canary: { state: CANARY.UNAVAILABLE, at: 0 },
       liveness: { failures: 0, checkedAt: 0, interfaceKind: 'physical' },
+      relay: emptyRelaySnapshot(),
       reachability: { verdict: 'unknown', cause: null, confidence: 'predicted', evidence: null, since: 0, pending: null },
       versions: { dht: getDhtVersion() },
     }
@@ -158,6 +167,7 @@ export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVer
     snapshotPeerSamples,
     snapshotDhtHealth,
     snapshotStats,
+    snapshotRelay,
     offlineStatusSnapshot,
   }
 }

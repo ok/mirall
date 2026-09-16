@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Relay transparency — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          accent: 'var(--color-accent)',
+          primary: 'var(--color-primary)',
+          'primary-container': 'var(--color-primary-container)',
+          'on-primary': 'var(--color-on-primary)',
+          'on-primary-container': 'var(--color-on-primary-container)',
+          secondary: 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          tertiary: 'var(--color-tertiary)',
+          'tertiary-container': 'var(--color-tertiary-container)',
+          'on-tertiary': 'var(--color-on-tertiary)',
+          'on-tertiary-container': 'var(--color-on-tertiary-container)',
+          surface: 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          background: 'var(--color-background)',
+          outline: 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          success: 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          info: 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          online: 'var(--color-online)',
+          error: 'var(--color-error)',
+          'on-error': 'var(--color-on-error)',
+          'error-container': 'var(--color-error-container)',
+          'on-error-container': 'var(--color-on-error-container)',
+          warning: 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-accent: #33253b;
+    --color-primary: #33253b;
+    --color-primary-container: #4a3b52;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #baa6c1;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-tertiary: #541116;
+    --color-tertiary-container: #72272a;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #f6908f;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-success: #ccebe6;
+    --color-on-success: #0d4d49;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+  }
+  .dark {
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-container: #4a3320;
+    --color-on-primary: #282c34;
+    --color-on-primary-container: #f6c094;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-tertiary: #c578dd;
+    --color-tertiary-container: #3e2848;
+    --color-on-tertiary: #282c34;
+    --color-on-tertiary-container: #d49ee6;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-success: #1f4544;
+    --color-on-success: #7dd3cf;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-error: #df6b75;
+    --color-on-error: #282c34;
+    --color-error-container: #6f3338;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: #d8d4cc;
+    color: var(--color-on-background);
+  }
+  .dark body, body.dark { background: #15171c; }
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+  /* Mirall "window" frame */
+  .device-frame {
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { display: inline-flex; gap: 8px; padding: 14px 16px; }
+  .traffic-lights span {
+    width: 12px; height: 12px; border-radius: 9999px; display: inline-block;
+  }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Section note plate — mockup chrome only, never shipped UI */
+  .note-plate { background: rgba(255,255,255,.72); }
+  .dark .note-plate { background: rgba(0,0,0,.30); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- =========== Page header / theme toggle ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-10 pb-2 flex items-center justify-between">
+  <div>
+    <h1 class="font-headline font-extrabold text-2xl tracking-tight" style="color:#33253b">
+      Relay transparency — mockup
+    </h1>
+    <p class="text-sm" style="color:#4a454b">
+      UI delta for <code class="bg-black/5 px-1 rounded text-xs">~/Projects/Mirall/plans/plan-relay-transparency.md</code>.
+      Click the toggle to flip light/dark.
+    </p>
+  </div>
+  <button id="theme-toggle"
+    class="rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">
+    Toggle dark
+  </button>
+</div>
+
+<!-- =========== Annotation banner ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#d6e6f5; border-color:#9bc6e8">
+    <div class="flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#1f4a78" class="shrink-0 mt-0.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">What's proposed vs. recreated</p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          <strong>Proposed (the delta):</strong> one new row in the <strong>Connection summary</strong> (§1, §2);
+          a new <strong>Relayed connections</strong> section grouped by relay, shown only while a relay is in use (§1);
+          one extra counter in the Advanced → Relaying block (§3); and one new Activity Log kind,
+          <code class="bg-white/60 px-1 rounded text-xs">network.peer_relayed</code> (§4). Everything hangs off a single new
+          fact the worker reads from the socket — <code class="bg-white/60 px-1 rounded text-xs">socket.relayed = { publicKey, adopted }</code> —
+          which hyperdht today computes and discards; the plan carries the six-line patch.
+          <br/>
+          <strong>Recreated from code (baseline truth):</strong> <code class="bg-white/60 px-1 rounded text-xs">screens/NetworkStatusScreen.tsx</code>
+          — <code class="bg-white/60 px-1 rounded text-xs">PageHeader</code>, <code class="bg-white/60 px-1 rounded text-xs">VerdictBanner</code>,
+          <code class="bg-white/60 px-1 rounded text-xs">Section</code> / <code class="bg-white/60 px-1 rounded text-xs">Field</code> /
+          <code class="bg-white/60 px-1 rounded text-xs">MaskedField</code> (label <code class="bg-white/60 px-1 rounded text-xs">w-48</code>, value
+          <code class="bg-white/60 px-1 rounded text-xs">text-accent</code>, reveal + copy controls), the Advanced toggle;
+          <code class="bg-white/60 px-1 rounded text-xs">screens/DiagnosticsCard.tsx</code>; the kind badge from
+          <code class="bg-white/60 px-1 rounded text-xs">settings/RelaySettingsSection.tsx</code>; the row from
+          <code class="bg-white/60 px-1 rounded text-xs">components/activity/ActivityFeed.tsx</code>.
+          Existing strings are the real <code class="bg-white/60 px-1 rounded text-xs">locales/en/common.json</code> values;
+          strings marked <span class="font-bold" style="color:#93000a">NEW</span> in the note plates are proposed copy.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== Decision note ============================ -->
+<div class="max-w-[1100px] mx-auto px-6 pt-4">
+  <div class="rounded-2xl p-5 border-2" style="background:#ffdad6; border-color:#93000a">
+    <div class="flex items-start gap-3">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#93000a" class="shrink-0 mt-0.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      <div>
+        <p class="font-headline font-extrabold text-base" style="color:#33253b">Rejected: live state in the Relay settings section, a relay glyph on member avatars, a "went direct" log row</p>
+        <p class="text-sm mt-1" style="color:#4a454b">
+          <strong>Relay settings</strong> describes the relay this device <em>offers</em>; listing live peers there would
+          imply the setting controls them, and an adopted relay has no setting at all. Live connection facts live on
+          Network Status, next to the other live facts.
+          <br/>
+          <strong>An avatar glyph</strong> would decorate every member row for a transient, benign state.
+          hyperdht keeps hole-punching after the relay pairing and silently swaps the same socket to a direct path
+          when the punch lands — a glyph would flicker. The per-peer state table in
+          <code class="bg-white/60 px-1 rounded text-xs">plan-pairwise-connectivity-diagnostics.md</code> is the place for that later.
+          <br/>
+          <strong>A <code class="bg-white/60 px-1 rounded text-xs">network.peer_direct</code> row</strong> was considered and dropped for this
+          cut: the upgrade is silent and frequent and reads as churn. The relayed row is written only after a 10 s dwell,
+          so a two-second bridge that went direct never appears.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- =========== SECTION 1: Network status while relays are in use =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-12">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">1 · Network status — one own relay and one adopted relay in use</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The macOS peer from the test setup: it offers an open relay in <code class="bg-black/5 px-1 rounded text-xs">auto</code> mode,
+    two peers were paired through it, and a third connection was paired through a relay another peer offered.
+    <strong>Two groups is the rare case, shown here only so both badge variants are visible in one frame.</strong>
+    A device configures at most one relay, but hyperdht chooses the relay <em>per connection</em>: when both sides offer one,
+    the accepting side's relay wins and the dialer adopts it (<code class="bg-black/5 px-1 rounded text-xs">hyperdht/lib/server.js:636-644</code>,
+    <code class="bg-black/5 px-1 rounded text-xs">lib/connect.js:782-790</code>). So your relay can carry a peer that has none while a
+    teammate's relay carries the connection to that teammate. Grouping by relay renders the normal case as a single group and the rare case
+    without a special layout.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-10" style="min-height:760px">
+      <div class="max-w-2xl mx-auto">
+        <div class="flex items-start gap-4 mb-8">
+          <button aria-label="Back" class="w-10 h-10 mt-1 shrink-0 rounded-full hover:bg-surface-container-high flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div>
+            <h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Network status</h1>
+            <p class="text-on-surface-variant mt-1">Connection details and diagnostics.</p>
+          </div>
+        </div>
+
+        <div class="space-y-8">
+          <!-- Verdict (recreated: VerdictBanner, healthy) -->
+          <section>
+            <div class="bg-surface-container-low rounded-xl p-6 flex items-center gap-5">
+              <span class="w-4 h-4 rounded-full shrink-0 bg-online" style="box-shadow:0 0 0 4px color-mix(in srgb, var(--color-online) 30%, transparent)" aria-hidden="true"></span>
+              <div role="status" aria-live="polite" class="flex-1 min-w-0">
+                <p class="text-2xl font-headline font-bold text-accent">Network is healthy</p>
+                <p class="text-sm text-on-surface-variant mt-1">3 peers connected across your spaces.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Connection summary (recreated) + NEW "Relay" row -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Connection summary</h2>
+            <div class="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Connection</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Working</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Reachable from outside</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Yes</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Connection test</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Passed · 2 min ago</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">People</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">3 found · 3 connected</span>
+              </div>
+              <!-- NEW row -->
+              <div class="px-6 py-4 flex items-center gap-4" style="outline:2px dashed #93000a; outline-offset:-2px">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Used for 3 of 3 connections</span>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Running for</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">12 minutes</span>
+              </div>
+              <div class="px-6 py-4 flex justify-center">
+                <button class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Connection history</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- NEW section: Relayed connections -->
+          <section style="outline:2px dashed #93000a; outline-offset:8px; border-radius:12px">
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Relayed connections</h2>
+            <p class="text-sm text-on-surface-variant leading-relaxed mb-4">
+              A relay carries a connection when a direct one isn't possible. It can't read what you share, but whoever runs it can see that you and these people are connected.
+            </p>
+            <div class="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
+              <!-- Group 1: our own open relay -->
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay</span>
+                <span class="flex-1 min-w-0 font-mono text-sm text-accent break-all">••••••••••••••••••••••••••••••••••••••••••••••••••xk7q</span>
+                <span class="sr-only">Relay: your relay, open relay</span>
+                <span aria-hidden="true" class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline shrink-0 bg-info text-on-info">Open relay</span>
+                <button aria-label="Copy relay key" class="shrink-0 w-7 h-7 rounded-lg hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                </button>
+                <button aria-label="Reveal" title="Reveal" class="shrink-0 inline-flex items-center justify-center rounded-sm">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">People</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Windows-Laptop · Jonas</span>
+              </div>
+              <!-- Group 2: a relay another peer offered -->
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay</span>
+                <span class="flex-1 min-w-0 font-mono text-sm text-accent break-all">••••••••••••••••••••••••••••••••••••••••••••••••••m3rp</span>
+                <span class="sr-only">Relay: provided by Lena</span>
+                <span aria-hidden="true" class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline shrink-0 bg-surface-container-highest text-on-surface-variant">Provided by Lena</span>
+                <button aria-label="Copy relay key" class="shrink-0 w-7 h-7 rounded-lg hover:bg-surface-container-high flex items-center justify-center">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                </button>
+                <button aria-label="Reveal" title="Reveal" class="shrink-0 inline-flex items-center justify-center rounded-sm">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="px-6 py-4 flex items-center gap-4">
+                <span class="text-sm text-on-surface-variant w-48 shrink-0">People</span>
+                <span class="flex-1 min-w-0 break-all text-sm text-accent">Lena · since 4 min</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Diagnostics (recreated: DiagnosticsCard, abbreviated to the header + buttons) -->
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-4">Diagnostics</h2>
+            <div class="bg-surface-container-low rounded-xl p-6 space-y-5">
+              <p class="text-sm text-on-surface-variant leading-relaxed">
+                If we ask you for details, save this file and send it to us. It describes how your network behaves — not what you share or who you share it with.
+              </p>
+              <div class="flex items-center gap-3 flex-wrap">
+                <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary px-5 py-2.5 text-sm" style="box-shadow:0 10px 15px -3px rgba(51,37,59,.1)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+                  Save diagnostics
+                </button>
+                <button class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">
+                  Preview what's included
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Advanced disclosure (recreated) -->
+          <section>
+            <button aria-expanded="false" class="w-full bg-surface-container-low rounded-xl p-4 flex items-center gap-3 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-outline" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="font-medium text-accent">Show advanced details</span>
+              <span class="ml-auto text-xs text-on-surface-variant">Address, NAT, DHT, counters</span>
+            </button>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Proposed copy (<span style="color:#93000a">NEW</span>):</strong>
+    <code class="text-xs bg-black/5 px-1 rounded">networkStatus.summary.relay</code> "Relay" ·
+    <code class="text-xs bg-black/5 px-1 rounded">summary.relayValue.off</code> "Off" ·
+    <code class="text-xs bg-black/5 px-1 rounded">summary.relayValue.none</code> "Not in use" ·
+    <code class="text-xs bg-black/5 px-1 rounded">summary.relayValue.used</code> "Used for {{relayed}} of {{total}} connections" ·
+    <code class="text-xs bg-black/5 px-1 rounded">networkStatus.relayed.title</code> "Relayed connections" ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.intro</code> (the paragraph above) ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.relay</code> "Relay" ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.people</code> "People" ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.since</code> "since {{when}}" ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.providedBy</code> "Provided by {{name}}" ·
+    <code class="text-xs bg-black/5 px-1 rounded">relayed.copyKey</code> "Copy relay key".
+    <br/>
+    <strong>Reused verbatim:</strong> "Open relay" / "Private relay" and their badge classes from
+    <code class="text-xs bg-black/5 px-1 rounded">networkSettings.relays.kind.*</code> + <code class="text-xs bg-black/5 px-1 rounded">RelaySettingsSection.tsx</code>;
+    "Reveal" / "Hide" and the 30 s auto re-mask from <code class="text-xs bg-black/5 px-1 rounded">MaskedField</code>.
+    <br/><br/>
+    <strong>Why the adopted badge is passive grey:</strong> the adopting side cannot know whether the relay is open or private —
+    the kind is not in the handshake payload — so the badge states the one fact we do have, who offered it. The
+    <code class="text-xs bg-black/5 px-1 rounded">bg-surface-container-highest text-on-surface-variant</code> pair is design.md's "passive / role" token,
+    which is exactly the register: a label, not a status. The own-relay badge keeps the kind because that side knows it.
+    <br/><br/>
+    <strong>a11y:</strong> the badge sits apart from the row it describes, so it carries an <code class="text-xs bg-black/5 px-1 rounded">srLabel</code>
+    ("Relay: your relay, open relay" / "Relay: provided by Lena") and the visible pill is <code class="text-xs bg-black/5 px-1 rounded">aria-hidden</code>,
+    the same pattern <code class="text-xs bg-black/5 px-1 rounded">RowLane.tsx</code> uses for file pills. Reveal and copy are named buttons.
+    Nothing in this section is announced live — it changes when connections upgrade to direct, and a live region here would talk over the verdict banner's.
+    <br/><br/>
+    <strong>Grouping rule:</strong> one group per distinct relay key. "since" is shown only when a group has one person; with several it is dropped so the row stays a name list.
+    A peer whose handshake has not landed yet shows its short key in place of a name, exactly as the Activity Log does.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 2: Nothing relayed =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">2 · Network status — no relay in use</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The common case. The summary row says so in two words and the Relayed connections section is not rendered at all —
+    an empty box would add a heading for nothing. With relay mode <code class="bg-black/5 px-1 rounded text-xs">off</code> the row reads "Off" instead.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-10">
+      <div class="max-w-2xl mx-auto">
+        <section>
+          <h2 class="text-xl font-headline font-bold text-accent mb-4">Connection summary</h2>
+          <div class="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Connection</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">Working</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Reachable from outside</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">Yes</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Connection test</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">Passed · 2 min ago</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">People</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">2 found · 2 connected</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4" style="outline:2px dashed #93000a; outline-offset:-2px">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">Not in use</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Running for</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">12 minutes</span>
+            </div>
+            <div class="px-6 py-4 flex justify-center">
+              <button class="shrink-0 flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">Connection history</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    The row is always present so the answer to "am I being relayed?" is always one glance away, in the same place.
+    The section below it appears only when there is something to group. "Not in use" is deliberately not "No" —
+    "No" would read as a capability, and the relay can be configured yet idle.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 3: Advanced → Relaying =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">3 · Advanced → Relaying — one added counter</h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    The three existing counters come from hyperdht and move only on the accepting side of a handshake, so on a
+    device that <em>dials</em> through a relay they read zero. The app already keeps its own dial-side count
+    (<code class="bg-black/5 px-1 rounded text-xs">stats.relaying.selected</code>) and ships it in the frame; it is simply never rendered.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-10">
+      <div class="max-w-2xl mx-auto">
+        <section>
+          <h2 class="text-xl font-headline font-bold text-accent mb-4">Relaying</h2>
+          <div class="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
+            <div class="px-6 py-4 flex items-center gap-4" style="outline:2px dashed #93000a; outline-offset:-2px">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Relays chosen by this device</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">2</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Relayed connections</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">2</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay attempts</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">2</span>
+            </div>
+            <div class="px-6 py-4 flex items-center gap-4">
+              <span class="text-sm text-on-surface-variant w-48 shrink-0">Relay failures</span>
+              <span class="flex-1 min-w-0 break-all text-sm text-accent">0</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Proposed copy (<span style="color:#93000a">NEW</span>):</strong>
+    <code class="text-xs bg-black/5 px-1 rounded">networkStatus.relaySelected</code> "Relays chosen by this device".
+    The three existing labels are untouched. All four stay cumulative-since-boot, which is what the Advanced block is for;
+    the live picture is §1.
+  </div>
+</section>
+
+
+<!-- =========== SECTION 4: Activity Log =========== -->
+<section class="max-w-[1100px] mx-auto px-6 pt-14">
+  <h2 class="font-headline font-extrabold text-lg mb-1" style="color:#33253b">4 · Activity Log — <code class="bg-black/5 px-1 rounded text-xs">network.peer_relayed</code></h2>
+  <p class="text-sm mb-4" style="color:#4a454b">
+    One new kind in the closed vocabulary, category <code class="bg-black/5 px-1 rounded text-xs">network</code>, tier B
+    (attributed through the Noise-authenticated socket, like <code class="bg-black/5 px-1 rounded text-xs">peer_back</code>).
+    Rows shown among real neighbours so the register matches.
+  </p>
+
+  <div class="device-frame">
+    <div class="flex items-center justify-between border-b border-outline-variant">
+      <div class="traffic-lights"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="px-4 text-xs font-bold tracking-wide uppercase text-on-surface-variant">Mirall</div>
+      <div class="w-20"></div>
+    </div>
+    <div class="px-8 pt-8 pb-10">
+      <div class="max-w-2xl mx-auto">
+        <ul class="bg-surface-container-low rounded-xl divide-y divide-surface-container-high/30">
+          <!-- existing kind: peer_back (recreated) -->
+          <li class="px-6 py-4 flex items-start gap-4 hover:bg-surface-container-high/50 transition-colors">
+            <span aria-hidden="true" class="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0">WL</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-on-surface-variant min-w-0"><span class="font-semibold text-accent">Windows-Laptop</span> is back online</p>
+              <p class="text-xs text-on-surface-variant mt-0.5 truncate">Team Ortmann</p>
+            </div>
+            <span class="text-xs text-on-surface-variant tabular-nums shrink-0 pt-0.5">14:02</span>
+          </li>
+          <!-- NEW kind: peer_relayed, own relay -->
+          <li class="px-6 py-4 flex items-start gap-4 hover:bg-surface-container-high/50 transition-colors" style="outline:2px dashed #93000a; outline-offset:-2px">
+            <span aria-hidden="true" class="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0">WL</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-on-surface-variant min-w-0"><span class="font-semibold text-accent">Windows-Laptop</span> is connected through a relay</p>
+              <p class="text-xs text-on-surface-variant mt-0.5 truncate">Team Ortmann · Your relay · Hetzner box</p>
+            </div>
+            <span class="text-xs text-on-surface-variant tabular-nums shrink-0 pt-0.5">14:02</span>
+          </li>
+          <!-- NEW kind: peer_relayed, adopted relay -->
+          <li class="px-6 py-4 flex items-start gap-4 hover:bg-surface-container-high/50 transition-colors" style="outline:2px dashed #93000a; outline-offset:-2px">
+            <span aria-hidden="true" class="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0">L</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-on-surface-variant min-w-0"><span class="font-semibold text-accent">Lena</span> is connected through a relay</p>
+              <p class="text-xs text-on-surface-variant mt-0.5 truncate">Team Ortmann · Relay provided by Lena</p>
+            </div>
+            <span class="text-xs text-on-surface-variant tabular-nums shrink-0 pt-0.5">14:05</span>
+          </li>
+          <!-- existing kind: restored (recreated, system actor) -->
+          <li class="px-6 py-4 flex items-start gap-4 hover:bg-surface-container-high/50 transition-colors">
+            <span aria-hidden="true" class="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+            </span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-on-surface-variant min-w-0">Connection restored</p>
+            </div>
+            <span class="text-xs text-on-surface-variant tabular-nums shrink-0 pt-0.5">13:58</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-plate rounded-xl p-4 mt-3 text-xs leading-relaxed" style="color:#4a454b">
+    <strong>Proposed copy (<span style="color:#93000a">NEW</span>):</strong>
+    <code class="text-xs bg-black/5 px-1 rounded">activityLog.kind.network.peer_relayed</code> "{{actor}} is connected through a relay" ·
+    <code class="text-xs bg-black/5 px-1 rounded">activityLog.kindLabel.network.peer_relayed</code> "Relayed connection" ·
+    meta parts <code class="text-xs bg-black/5 px-1 rounded">activityLog.relay.own</code> "Your relay" (+ the configured label when set) and
+    <code class="text-xs bg-black/5 px-1 rounded">activityLog.relay.providedBy</code> "Relay provided by {{name}}".
+    The sentence is one accessible node (sr-only whole sentence, aria-hidden visible spans) exactly as
+    <code class="text-xs bg-black/5 px-1 rounded">AuditRow</code> renders every other kind. No badge: this is information, not a verdict.
+    <br/><br/>
+    <strong>When it is written:</strong> after the connection has been relayed for 10 s. hyperdht keeps punching after the pairing and
+    upgrades the same socket to direct when it succeeds; a row for a two-second bridge would be noise. One row per peer-and-relay per socket;
+    the existing over-frequency collapse into <code class="text-xs bg-black/5 px-1 rounded">audit.suppressed</code> covers flapping.
+    The <code class="text-xs bg-black/5 px-1 rounded">degraded</code> guard on peer rows does not apply — a relayed connection is usually our own NAT's doing.
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('theme-toggle')
+  btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark')
+  })
+</script>
+
+</body>
+</html>
