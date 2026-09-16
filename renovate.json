@@ -22,6 +22,13 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "engines.npm is a policy floor, not a dependency: it says npm 11 so the lockfile keeps its libc metadata (#130), and .npmrc engine-strict makes an unmet range a hard install failure. rangeStrategy bump would rewrite it to the latest npm on every release, and Node bundles npm with a lag (Node 24.20/24.21 ship 11.19.0 while 11.19.1 was current), so PR #305 failed npm ci in every job before a single test ran. Raise the floor by hand, and only after the Node pins in both workflows bundle the target npm.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["npm"],
+      "enabled": false
+    },
+    {
       "description": "Pear runtime hosts the worker process; bump deliberately and smoke-test OTA, DMG, MSIX, AppImage, and native modules before merging",
       "matchPackageNames": ["pear-runtime"],
       "groupName": "pear-runtime",
