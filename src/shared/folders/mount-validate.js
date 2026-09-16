@@ -115,7 +115,9 @@ export async function validateDownloadFolderAgainstMounts(folder) {
 }
 
 // Everything about the path itself, with no side effect on disk — so the callers that also
-// have rejections to run can order the probe last.
+// have rejections to run can order the probe last. A hand-kept twin of the main-process
+// validateDownloadFolder (src/main/settings-ipc.js) that pre-screens the folder picker; no test
+// compares the two bodies — change both.
 function checkDownloadFolderShape(folder) {
   if (typeof folder !== 'string' || folder.length === 0) {
     throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is empty')
@@ -131,17 +133,6 @@ function checkDownloadFolderShape(folder) {
   }
   if (!stat.isDirectory()) {
     throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is not a directory')
-  }
-  return folder
-}
-
-// The shape+writability rules ALONE, a hand-kept twin of the main-process validateDownloadFolder
-// (src/main/main.js) that pre-screens the folder picker. Every worker entry point goes through
-// validateDownloadFolderAgainstMounts instead. No test compares the two bodies — change both.
-export function validateDownloadFolder(folder) {
-  checkDownloadFolderShape(folder)
-  if (!writeProbe(folder)) {
-    throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
   }
   return folder
 }

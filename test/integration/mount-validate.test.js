@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
-import { validateMountPathSync, validateMountPath, validateDownloadFolder, validateDownloadFolderAgainstMounts } from '../../src/shared/folders/mount-validate.js'
+import { validateMountPathSync, validateMountPath, validateDownloadFolderAgainstMounts } from '../../src/shared/folders/mount-validate.js'
 import { setDownloadFolder, setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot, hydrateDownloadRoots } from '../../src/shared/core/paths.js'
 import { createOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
@@ -139,63 +139,56 @@ test('rejects a path that is not writable', (t) => {
   t.is(codeOf(() => validateMountPathSync(dir, 'owned-folder', [])), CODES.MOUNT_NOT_WRITABLE)
 })
 
-test('REGRESSION (MIR-34: validateDownloadFolder accepts an existing writable dir)', (t) => {
-  const dir = tmpDir('mv', t)
-  t.is(validateDownloadFolder(dir), dir, 'returns the folder on success')
-})
+// The shape and writability rules, asserted on the validator the worker actually runs. One booted
+// peer: the overlap half of the validator needs the mount store open, and these nine share it.
+test('REGRESSION (MIR-34: download-folder shape and writability rules on the shipped validator)', async (t) => {
+  await freshPeer(t)
+  await initMounts()
+  const reject = (folder) => asyncCodeOf(validateDownloadFolderAgainstMounts(folder))
 
-test('REGRESSION (MIR-34: validateDownloadFolder rejects empty / non-string)', (t) => {
-  t.is(codeOf(() => validateDownloadFolder('')), CODES.DOWNLOAD_FOLDER_INVALID)
-  t.is(codeOf(() => validateDownloadFolder(null)), CODES.DOWNLOAD_FOLDER_INVALID)
-  t.is(codeOf(() => validateDownloadFolder(undefined)), CODES.DOWNLOAD_FOLDER_INVALID)
-  t.is(codeOf(() => validateDownloadFolder(42)), CODES.DOWNLOAD_FOLDER_INVALID)
-})
-
-test('REGRESSION (MIR-34: validateDownloadFolder rejects a relative path)', (t) => {
-  t.is(codeOf(() => validateDownloadFolder('relative/dir')), CODES.DOWNLOAD_FOLDER_INVALID)
-})
-
-test('REGRESSION (MIR-34: validateDownloadFolder rejects a non-existent path)', (t) => {
-  const dir = tmpDir('mv', t)
-  t.is(codeOf(() => validateDownloadFolder(path.join(dir, 'nope'))), CODES.DOWNLOAD_FOLDER_INVALID)
-})
-
-test('REGRESSION (MIR-34: validateDownloadFolder rejects a file, not a directory)', (t) => {
-  const dir = tmpDir('mv', t)
-  const file = path.join(dir, 'a-file')
-  fs.writeFileSync(file, 'x')
-  t.is(codeOf(() => validateDownloadFolder(file)), CODES.DOWNLOAD_FOLDER_INVALID)
-})
-
-test('REGRESSION (MIR-34: validateDownloadFolder rejects a non-writable dir)', (t) => {
-  const dir = tmpDir('mv', t)
-  const ro = path.join(dir, 'readonly')
-  fs.mkdirSync(ro)
-  fs.chmodSync(ro, 0o500)
-  t.teardown(() => { try { fs.chmodSync(ro, 0o700) } catch {} })
-  t.is(codeOf(() => validateDownloadFolder(ro)), CODES.DOWNLOAD_FOLDER_INVALID)
-})
-
-test('REGRESSION (MIR-34: validateDownloadFolder does not create a missing target)', (t) => {
-  const dir = tmpDir('mv', t)
-  const missing = path.join(dir, 'should-not-be-created')
-  try { validateDownloadFolder(missing) } catch {}
-  let created = false
-  try { fs.statSync(missing); created = true } catch {}
-  t.absent(created, 'rejecting a missing folder must not create it')
-})
-
-test('REGRESSION (MIR-34: invalid folder does not mutate the live downloadFolder)', (t) => {
-  setRuntimeConfig({ downloadFolder: '/tmp/known-good' })
-  t.exception(() => { const f = validateDownloadFolder('not/absolute'); setDownloadFolder(f) }, /absolute/i)
-  t.is(getRuntimeConfig().downloadFolder, '/tmp/known-good', 'rejected input leaves the live config untouched')
-})
-
-test('REGRESSION (MIR-34: valid folder updates the live downloadFolder)', (t) => {
-  setRuntimeConfig({ downloadFolder: '/tmp/known-good' })
-  const dir = tmpDir('mv', t)
-  setDownloadFolder(validateDownloadFolder(dir))
-  t.is(getRuntimeConfig().downloadFolder, dir, 'a valid folder is applied')
+  await t.test('accepts an existing writable dir', async (t) => {
+    const dir = tmpDir('mv', t)
+    t.is(await validateDownloadFolderAgainstMounts(dir), dir, 'returns the folder on success')
+  })
+  await t.test('rejects empty / non-string', async (t) => {
+    for (const bad of ['', null, undefined, 42]) t.is(await reject(bad), CODES.DOWNLOAD_FOLDER_INVALID, String(bad))
+  })
+  await t.test('rejects a relative path', async (t) => {
+    t.is(await reject('relative/dir'), CODES.DOWNLOAD_FOLDER_INVALID)
+  })
+  await t.test('rejects a non-existent path', async (t) => {
+    t.is(await reject(path.join(tmpDir('mv', t), 'nope')), CODES.DOWNLOAD_FOLDER_INVALID)
+  })
+  await t.test('rejects a file, not a directory', async (t) => {
+    const file = path.join(tmpDir('mv', t), 'a-file')
+    fs.writeFileSync(file, 'x')
+    t.is(await reject(file), CODES.DOWNLOAD_FOLDER_INVALID)
+  })
+  await t.test('rejects a non-writable dir', async (t) => {
+    const ro = path.join(tmpDir('mv', t), 'readonly')
+    fs.mkdirSync(ro)
+    fs.chmodSync(ro, 0o500)
+    t.teardown(() => { try { fs.chmodSync(ro, 0o700) } catch {} })
+    t.is(await reject(ro), CODES.DOWNLOAD_FOLDER_INVALID)
+  })
+  await t.test('does not create a missing target', async (t) => {
+    const missing = path.join(tmpDir('mv', t), 'should-not-be-created')
+    await reject(missing)
+    let created = false
+    try { fs.statSync(missing); created = true } catch {}
+    t.absent(created, 'rejecting a missing folder must not create it')
+  })
+  await t.test('an invalid folder does not mutate the live downloadFolder', async (t) => {
+    setRuntimeConfig({ downloadFolder: '/tmp/known-good' })
+    await t.exception(validateDownloadFolderAgainstMounts('not/absolute'), /absolute/i)
+    t.is(getRuntimeConfig().downloadFolder, '/tmp/known-good', 'rejected input leaves the live config untouched')
+  })
+  await t.test('a valid folder updates the live downloadFolder', async (t) => {
+    setRuntimeConfig({ downloadFolder: '/tmp/known-good' })
+    const dir = tmpDir('mv', t)
+    setDownloadFolder(await validateDownloadFolderAgainstMounts(dir))
+    t.is(getRuntimeConfig().downloadFolder, dir, 'a valid folder is applied')
+  })
 })
 
 // Per-space download folders mean the "no mirror inside downloads" rule can no longer
