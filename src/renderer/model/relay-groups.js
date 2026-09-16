@@ -1,12 +1,13 @@
 // Groups the frame's relayed connections for the Network Status section. The configured relay is
 // one group carrying everyone it relays; an adopted relay is one group per peer, because the peer
-// on that connection is the one who offered it.
+// on that connection is the one who offered it. A person is their member identity: the control and
+// content sockets carry different Noise keys, so folding by socket key would show one person twice.
 /** @import { RelayedConnection, RelayStatus, RelayPlane } from '../types/types.js' */
 /** @import { TFunction } from 'i18next' */
 import { shortKey } from './audit-row.js'
 
 /** @typedef {'own' | 'adopted'} RelayVia */
-/** @typedef {{ peerKey: string, displayName: string | null, since: number, planes: RelayPlane[] }} RelayPerson */
+/** @typedef {{ personKey: string, peerKey: string, displayName: string | null, since: number, planes: RelayPlane[] }} RelayPerson */
 /** @typedef {{ key: string, relayKey: string, via: RelayVia, providerName: string | null, people: RelayPerson[] }} RelayGroup */
 /** @typedef {'off' | 'none' | 'used'} RelayState */
 
@@ -17,18 +18,19 @@ export function relayGroups(connections) {
   /** @type {Map<string, RelayGroup>} */
   const byKey = new Map()
   for (const c of connections) {
-    const key = c.via === 'own' ? c.relayKey : `${c.relayKey}|${c.peerKey}`
+    const personKey = personKeyOf(c)
+    const key = c.via === 'own' ? c.relayKey : `${c.relayKey}|${personKey}`
     let group = byKey.get(key)
     if (!group) {
       group = { key, relayKey: c.relayKey, via: c.via, providerName: c.via === 'adopted' ? c.displayName : null, people: [] }
       byKey.set(key, group)
     }
-    const person = group.people.find((p) => p.peerKey === c.peerKey)
+    const person = group.people.find((p) => p.personKey === personKey)
     if (person) {
       person.planes.push(c.plane)
       person.since = Math.min(person.since, c.since)
     } else {
-      group.people.push({ peerKey: c.peerKey, displayName: c.displayName, since: c.since, planes: [c.plane] })
+      group.people.push({ personKey, peerKey: c.peerKey, displayName: c.displayName, since: c.since, planes: [c.plane] })
     }
   }
   return [...byKey.values()].sort((a, b) => (a.via === b.via ? 0 : a.via === 'own' ? -1 : 1))
@@ -40,9 +42,14 @@ export function relayState(relayMode, relay) {
   return relayMode === 'off' ? 'off' : 'none'
 }
 
+/** @param {RelayedConnection} c */
+function personKeyOf(c) {
+  return c.profileKey ?? c.peerKey
+}
+
 /** @param {RelayStatus} relay */
 export function relayedPeopleCount(relay) {
-  return new Set(relay.connections.map((c) => c.peerKey)).size
+  return new Set(relay.connections.map(personKeyOf)).size
 }
 
 const PLANE_LABEL = {

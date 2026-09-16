@@ -284,6 +284,7 @@ interface PeerReach {
 
 export interface RelayedConnection {
   peerKey: string
+  profileKey: string | null
   plane: RelayPlane
   displayName: string | null
   via: 'own' | 'adopted'
