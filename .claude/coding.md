@@ -144,9 +144,9 @@ assertions in `test/typecheck/` are what a contract union is pinned by.
 
 - **One responsibility per function.** If you need "and" to describe it, split it.
 - **Guardrails (enforced as warnings by `complexityBudget` in `eslint.config.mjs`):** cyclomatic
-complexity ≤ 20, nesting depth ≤ 4, ≤ 150 lines per function. These are a ceiling on *new* code,
-not a target — the warnings that exist today are pre-existing hotspots. Do not add a new warning;
-the CI ceiling (`lint:ci --max-warnings`) is a ratchet that only moves down.
+complexity ≤ 20, nesting depth ≤ 4, ≤ 150 lines per function. These are a ceiling, not a target.
+The tree is at zero warnings and the CI ceiling (`lint:ci --max-warnings 0`) holds it there: a new
+warning fails CI, so split the function instead.
 - **Prefer returning a decision to performing one.** A pure `xDecision(state) → verdict` that an
 impure caller acts on is testable at the unit layer; a function that decides *and* writes is not.
 - **Parameters:** past three, take an options object. Never take a parameter you do not read — an

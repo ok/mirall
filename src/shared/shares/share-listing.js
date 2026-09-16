@@ -113,6 +113,25 @@ async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, 
   return { verified, claims: await deps.listDownloadClaimsForShare(spaceId, share.name, { keep }) }
 }
 
+function ownerRow(entry, ownedMount) {
+  return {
+    status: entry.contentHash ? 'synced' : 'publishing',
+    localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null,
+  }
+}
+
+// An owner listing needs only its mount; a consumer listing needs the owner's presence, its own
+// mount and the pending claims, none of which the owner side reads.
+async function loadListingContext(spaceId, share, isOwn, deps) {
+  if (isOwn) return { ownerOnline: true, ownedMount: await deps.getOwnedMount(spaceId, share.id), foreignMount: null, pending: null }
+  return {
+    ownerOnline: deps.isOwnerOnline(share.owner),
+    ownedMount: null,
+    foreignMount: await deps.getForeignMount(spaceId, share.id),
+    pending: new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p])),
+  }
+}
+
 // `signal` is the router's cancellation token. The checkpoints sit at the await boundaries, not in
 // the row loop: that loop is synchronous, so `aborted` cannot change mid-pass. The one that pays is
 // the catalog read above it, network-bound for a peer share and carrying its own timeout.
@@ -128,11 +147,7 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
     ? await backend.listOwn(spaceId, share.id, cap)
     : await backend.listPeerWithMeta(spaceId, share, cap)
   throwIfAborted(signal)
-  const ownerOnline = isOwn ? true : deps.isOwnerOnline(share.owner)
-  const ownedMount = isOwn ? await deps.getOwnedMount(spaceId, share.id) : null
-  const foreignMount = isOwn ? null : await deps.getForeignMount(spaceId, share.id)
-  const pending = isOwn ? null : new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
-
+  const { ownerOnline, ownedMount, foreignMount, pending } = await loadListingContext(spaceId, share, isOwn, deps)
   const { verified, claims } = await prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, deps })
   // The last point an abort can land: everything below is synchronous until the prune.
   throwIfAborted(signal)
@@ -148,11 +163,9 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
       // pathFromMount throws on an unsafe peer-supplied relPath — skip that one
       // entry rather than aborting the whole listing (a malicious owner catalog
       // must not make the share un-browsable).
-      if (isOwn) {
-        row = { status: entry.contentHash ? 'synced' : 'publishing', localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null }
-      } else {
-        row = overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps })
-      }
+      row = isOwn
+        ? ownerRow(entry, ownedMount)
+        : overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps })
     } catch (err) {
       log.warn('skipping overlay file row with an unsafe path:', entry.relPath, '-', err.message)
       continue

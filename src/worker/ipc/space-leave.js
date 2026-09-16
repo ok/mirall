@@ -27,43 +27,87 @@ import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { compactStore } from '../../shared/storage/compaction.js'
 
+// Persist a pending-leave marker BEFORE the record purge erases the topic, so the swarm can
+// re-announce the leave to members who were offline at leave time (and boot re-joins the topic)
+// until they provably apply it — without this they keep us as a ghost member forever. Arm iff
+// some OTHER member did NOT ack: this excludes a solo space (no members → nobody to tell → no
+// immortal marker) and covers a member that dropped mid-leave (never acked → still owed the
+// replay), which the raw awaitLeaveAcks boolean conflated with "nobody was connected". ts is the
+// leave stamp: a genuine later rejoin writes a strictly newer member/<S> ts and outranks the replay.
+async function armPendingLeaveIfUnwitnessed(spaceId, space, log) {
+  if (!space?.topic) return false
+  const others = (space.members || []).map((m) => m.publicKey)
+  if (others.length === 0) return false
+  const acked = takeLeaveAckedKeys(spaceId)
+  if (others.every((k) => acked.has(k))) return false
+  try {
+    const leaveTs = Date.now()
+    await persistPendingLeave(spaceId, space.topic, leaveTs)
+    registerPendingLeave(spaceId, space.topic, leaveTs)
+    log.info('leave unwitnessed — pending-leave marker armed:', spaceId)
+    return true
+  } catch (err) {
+    log.warn('pending-leave persist failed:', err.message)
+    return false
+  }
+}
+
+// The teardown's leaveSpaceTopic dropped the topic — re-join it for the replay so a co-member
+// returning THIS session still receives the leave (boot covers restarts). Re-check the live
+// marker rather than a stale armed-flag: an ack that landed mid-teardown already cleared the
+// marker and left the topic, and re-joining here would strand a zombie topic nothing can leave.
+function rejoinPendingLeaveTopicAfterTeardown(spaceId, space, log) {
+  if (!hasPendingLeave(spaceId) || !space?.topic) return
+  try { joinPendingLeaveTopic(spaceId, space.topic) } catch (err) {
+    log.warn('pending-leave topic rejoin failed:', err.message)
+  }
+}
+
+// The live path's teardown steps. Unlike boot's pass they also stop the in-memory machinery —
+// watcher, mirror loop, periodic reconcile, publish lane — that would otherwise keep writing to the
+// drive the purge closes.
+function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
+  return {
+    clearMembership: async () => {
+      // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have
+      // to run, and the durable marker already survives for the next boot to finish.
+      try { await clearOwnMembership(spaceId) } catch (err) {
+        log.warn('clearOwnMembership failed:', err.message)
+      }
+      onPhase('leave-frame')
+      try { sendLeaveFrameToConnectedPeers(spaceId) } catch (err) {
+        log.warn('leave-frame broadcast failed:', err.message)
+      }
+    },
+    ownedMounts: async () => {
+      for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === spaceId)) {
+        mounts.cancelPeriodicReconcile(spaceId, m.shareId)
+        stopOwnedFolder(spaceId, m.shareId)
+        ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: m.shareId } })
+        await deleteOwnedMount(spaceId, m.shareId)
+      }
+      // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
+      // that write must land before the purge below closes the catalog core.
+      await stopPublishingForSpace(spaceId)
+    },
+    // Retire our share advertisements (deletedAt), like the unshare path. Without this our
+    // profile bee keeps advertising share/<S>/<id>, so on a rejoin a co-member reads it back
+    // and a folder they mirrored re-surfaces before any re-approval.
+    shares: async () => {
+      for (const s of await readOwnShares(spaceId)) await tombstoneShare(spaceId, s.id)
+    },
+    foreignMounts: async () => {
+      for (const m of (await listForeignMounts()).filter((x) => x.spaceId === spaceId)) {
+        await unmountForeignFolder(spaceId, m.shareId)
+      }
+    },
+    // The forget stays below with the rest of the teardown: it must land AFTER the bounded
+    // ack flush, which the boot pass has no equivalent of.
+    forget: async () => {},
+  }
+}
+
 export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
-  // Persist a pending-leave marker BEFORE the record purge erases the topic, so the swarm can
-  // re-announce the leave to members who were offline at leave time (and boot re-joins the topic)
-  // until they provably apply it — without this they keep us as a ghost member forever. Arm iff
-  // some OTHER member did NOT ack: this excludes a solo space (no members → nobody to tell → no
-  // immortal marker) and covers a member that dropped mid-leave (never acked → still owed the
-  // replay), which the raw awaitLeaveAcks boolean conflated with "nobody was connected". ts is the
-  // leave stamp: a genuine later rejoin writes a strictly newer member/<S> ts and outranks the replay.
-  async function armPendingLeaveIfUnwitnessed(spaceId, space) {
-    if (!space?.topic) return false
-    const others = (space.members || []).map((m) => m.publicKey)
-    if (others.length === 0) return false
-    const acked = takeLeaveAckedKeys(spaceId)
-    if (others.every((k) => acked.has(k))) return false
-    try {
-      const leaveTs = Date.now()
-      await persistPendingLeave(spaceId, space.topic, leaveTs)
-      registerPendingLeave(spaceId, space.topic, leaveTs)
-      log.info('leave unwitnessed — pending-leave marker armed:', spaceId)
-      return true
-    } catch (err) {
-      log.warn('pending-leave persist failed:', err.message)
-      return false
-    }
-  }
-
-  // The teardown's leaveSpaceTopic dropped the topic — re-join it for the replay so a co-member
-  // returning THIS session still receives the leave (boot covers restarts). Re-check the live
-  // marker rather than a stale armed-flag: an ack that landed mid-teardown already cleared the
-  // marker and left the topic, and re-joining here would strand a zombie topic nothing can leave.
-  function rejoinPendingLeaveTopicAfterTeardown(spaceId, space) {
-    if (!hasPendingLeave(spaceId) || !space?.topic) return
-    try { joinPendingLeaveTopic(spaceId, space.topic) } catch (err) {
-      log.warn('pending-leave topic rejoin failed:', err.message)
-    }
-  }
-
   ipc.handle('space:leave', async (msg) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
     // not a second run that clobbers the in-flight leave-ack tracking and re-purges half-torn state.
@@ -124,47 +168,9 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         }
         // The durable departure (member/<S> del) is authored BEFORE the frame is broadcast, so it is
         // written and announced when co-members apply the leave and their live-follow can re-host it
-        // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js);
-        // this path also stops the in-memory machinery — watcher, mirror loop, periodic reconcile,
-        // publish lane — that would otherwise keep writing to the drive the purge below closes.
-        await runLeaveTeardown(msg.spaceId, {
-          clearMembership: async () => {
-            // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have
-            // to run, and the durable marker already survives for the next boot to finish.
-            try { await clearOwnMembership(msg.spaceId) } catch (err) {
-              log.warn('clearOwnMembership failed:', err.message)
-            }
-            tracker.phase = 'leave-frame'
-            try { sendLeaveFrameToConnectedPeers(msg.spaceId) } catch (err) {
-              log.warn('leave-frame broadcast failed:', err.message)
-            }
-          },
-          ownedMounts: async () => {
-            for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === msg.spaceId)) {
-              mounts.cancelPeriodicReconcile(msg.spaceId, m.shareId)
-              stopOwnedFolder(msg.spaceId, m.shareId)
-              ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: m.shareId } })
-              await deleteOwnedMount(msg.spaceId, m.shareId)
-            }
-            // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
-            // that write must land before the purge below closes the catalog core.
-            await stopPublishingForSpace(msg.spaceId)
-          },
-          // Retire our share advertisements (deletedAt), like the unshare path. Without this our
-          // profile bee keeps advertising share/<S>/<id>, so on a rejoin a co-member reads it back
-          // and a folder they mirrored re-surfaces before any re-approval.
-          shares: async () => {
-            for (const s of await readOwnShares(msg.spaceId)) await tombstoneShare(msg.spaceId, s.id)
-          },
-          foreignMounts: async () => {
-            for (const m of (await listForeignMounts()).filter((x) => x.spaceId === msg.spaceId)) {
-              await unmountForeignFolder(msg.spaceId, m.shareId)
-            }
-          },
-          // The forget stays below with the rest of the teardown: it must land AFTER the bounded
-          // ack flush, which the boot pass has no equivalent of.
-          forget: async () => {},
-        }, { log, onPhase: (phase) => { tracker.phase = phase } })
+        // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js).
+        const onPhase = (phase) => { tracker.phase = phase }
+        await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { ipc, mounts, log, onPhase }), { log, onPhase })
         log.info('leave: own state cleared, waiting flush...')
 
         // Wait (bounded) for connected members to confirm they applied our leave — an observed signal
@@ -179,7 +185,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         const peerDrivenMembers = members.filter(m => !!m.driveKey)
         const peerDriveCount = peerDrivenMembers.length
 
-        await armPendingLeaveIfUnwitnessed(msg.spaceId, space)
+        await armPendingLeaveIfUnwitnessed(msg.spaceId, space, log)
 
         // Drop the catalog record up front so the leave is durable: if any purge step
         // below fails (or the worker dies mid-teardown), the space is already gone from
@@ -267,7 +273,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         log.info('leave: complete (reclaim compaction running in background):', msg.spaceId)
       } finally {
         unmarkSpaceLeaving(msg.spaceId)
-        rejoinPendingLeaveTopicAfterTeardown(msg.spaceId, space)
+        rejoinPendingLeaveTopicAfterTeardown(msg.spaceId, space, log)
       }
     })()
 

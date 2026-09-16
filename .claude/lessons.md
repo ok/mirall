@@ -598,7 +598,10 @@ refactor removed, so `t.absent(...)` passed for the wrong reason:
 `found.size > 0` self-guard that would have failed once its writers stopped holding literals at all.
 
 **The rule:** when a change renames or deletes what a ratchet matches, grep the test tree for the old
-spelling *before* running anything. A ratchet that fails is doing its job; one that quietly passes has
+spelling *before* running anything. A hoist or a new parameter counts: a regex that pins a function's
+exact signature line breaks on `(spaceId, space)` becoming `(spaceId, space, log)`. Before pushing a
+refactor, grep `test/` for every function name whose signature or nesting changed, and run every unit
+file that `readFileSync`s a touched source file. A ratchet that fails is doing its job; one that quietly passes has
 stopped being a test. Prefer pinning a positive property ("every writer imports the vocabulary") over
 an absence.
 

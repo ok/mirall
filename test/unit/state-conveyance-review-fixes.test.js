@@ -64,7 +64,7 @@ test('REGRESSION (FIX-18: a handshake for a space with no local record is reject
 })
 
 test('REGRESSION (FIX-19: the post-teardown topic rejoin re-checks the live marker)', (t) => {
-  t.ok(/function rejoinPendingLeaveTopicAfterTeardown\(spaceId, space\) \{\s*\n\s*if \(!hasPendingLeave\(spaceId\)/.test(spaceLeave),
+  t.ok(/function rejoinPendingLeaveTopicAfterTeardown\(spaceId, space, log\) \{\s*\n\s*if \(!hasPendingLeave\(spaceId\)/.test(spaceLeave),
     'rejoin gates on hasPendingLeave, not a stale armed flag')
 })
 
