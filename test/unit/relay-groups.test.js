@@ -3,14 +3,14 @@ import { relayGroups, relayState, peopleLabel, relayKindClasses, relayedPeopleCo
 
 const R1 = 'r1'.repeat(26)
 const R2 = 'r2'.repeat(26)
-const conn = (over = {}) => ({ peerKey: 'aa'.repeat(32), plane: 'control', displayName: 'Anna', via: 'own', relayKey: R1, since: 10, ...over })
+const conn = (over = {}) => ({ peerKey: 'aa'.repeat(32), profileKey: 'a1'.repeat(32), plane: 'control', displayName: 'Anna', via: 'own', relayKey: R1, since: 10, ...over })
 const t = (key, values = {}) => `${key}:${JSON.stringify(values)}`
 
 test('the configured relay is one group carrying everyone it relays, sorted first', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'bb'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
+    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
     conn({ peerKey: 'aa'.repeat(32), displayName: 'Anna' }),
-    conn({ peerKey: 'cc'.repeat(32), displayName: 'Carla' }),
+    conn({ peerKey: 'cc'.repeat(32), profileKey: 'c1'.repeat(32), displayName: 'Carla' }),
   ])
   t2.is(groups.length, 2)
   t2.is(groups[0].via, 'own')
@@ -22,8 +22,8 @@ test('the configured relay is one group carrying everyone it relays, sorted firs
 test('an adopted relay is one group per peer, credited to that peer', (t2) => {
   const groups = relayGroups([
     conn({ peerKey: 'aa'.repeat(32), displayName: 'Anna', via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'bb'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'cc'.repeat(32), displayName: null, via: 'adopted', relayKey: R2 }),
+    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
+    conn({ peerKey: 'cc'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
   ])
   t2.is(groups.length, 3)
   t2.alike(groups.map((g) => g.providerName), ['Anna', 'Bob', null])
@@ -56,11 +56,11 @@ test('relayKindClasses is the one source for the two kind tones', (t2) => {
   t2.is(relayKindClasses('private'), 'bg-secondary-container text-on-secondary-container')
 })
 
-test('both planes of one person fold into one entry with the earliest since', (t2) => {
+test('both planes of one person fold into one entry with the earliest since, across different socket keys', (t2) => {
   const groups = relayGroups([
-    conn({ plane: 'content', since: 20 }),
-    conn({ plane: 'control', since: 10 }),
-    conn({ peerKey: 'bb'.repeat(32), displayName: 'Bob', plane: 'content', via: 'adopted', relayKey: R2, since: 5 }),
+    conn({ peerKey: 'a2'.repeat(32), plane: 'content', since: 20 }),
+    conn({ peerKey: 'a3'.repeat(32), plane: 'control', since: 10 }),
+    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', plane: 'content', via: 'adopted', relayKey: R2, since: 5 }),
   ])
   t2.is(groups[0].people.length, 1)
   t2.alike(groups[0].people[0].planes, ['content', 'control'])
@@ -69,6 +69,24 @@ test('both planes of one person fold into one entry with the earliest since', (t
 })
 
 test('relayedPeopleCount counts people, not sockets', (t2) => {
-  const relay = { connections: [conn({ plane: 'control' }), conn({ plane: 'content' }), conn({ peerKey: 'bb'.repeat(32) })], direct: { control: 0, content: 0 }, digest: '' }
+  const relay = { connections: [conn({ peerKey: 'a2'.repeat(32), plane: 'control' }), conn({ peerKey: 'a3'.repeat(32), plane: 'content' }), conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32) })], direct: { control: 0, content: 0 }, digest: '' }
   t2.is(relayedPeopleCount(relay), 2)
+})
+
+test('an adopted relay from one person on two sockets is one group', (t2) => {
+  const groups = relayGroups([
+    conn({ peerKey: 'a2'.repeat(32), plane: 'content', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
+    conn({ peerKey: 'a3'.repeat(32), plane: 'control', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
+  ])
+  t2.is(groups.length, 1)
+  t2.is(groups[0].providerName, 'Oliver')
+  t2.alike(groups[0].people[0].planes, ['content', 'control'])
+})
+
+test('a socket with no bound member yet stays its own person', (t2) => {
+  const groups = relayGroups([
+    conn({ peerKey: 'a2'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
+    conn({ peerKey: 'a3'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
+  ])
+  t2.is(groups.length, 2)
 })

@@ -192,6 +192,7 @@ test('a content-plane socket is tracked under its own plane and name lookup', (t
   const snap = snapshotRelayedConnections()
   t.is(snap.connections[0].plane, 'content')
   t.is(snap.connections[0].displayName, 'Jonas')
+  t.is(snap.connections[0].profileKey, 'ef'.repeat(32))
   t.alike(snap.direct, { control: 0, content: 1 })
   t.is(describeConnection(relayed).plane, 'content')
   t.ok(snap.digest.includes(':content:'))

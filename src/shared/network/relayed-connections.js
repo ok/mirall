@@ -78,10 +78,10 @@ export function describeConnection(socket) {
 export function snapshotRelayedConnections() {
   const connections = []
   for (const socket of entries.keys()) {
-    const { peerKey, plane, displayName, via, relayKey, since } = describeConnection(socket)
-    connections.push({ peerKey, plane, displayName, via, relayKey, since })
+    const { peerKey, profileKey, plane, displayName, via, relayKey, since } = describeConnection(socket)
+    connections.push({ peerKey, profileKey, plane, displayName, via, relayKey, since })
   }
-  const digest = connections.map((c) => `${c.peerKey}:${c.plane}:${c.relayKey}:${c.via}:${c.displayName ?? ''}`).join('|')
+  const digest = connections.map((c) => `${c.peerKey}:${c.profileKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.displayName ?? ''}`).join('|')
   return { connections, direct: directCounts(), digest }
 }
 
