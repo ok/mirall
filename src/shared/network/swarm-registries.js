@@ -135,6 +135,18 @@ export function forgetBoundSignerKey(profileKey) {
 // Remove one identity from a socket's set, and the socket once no identity rides it. The
 // disconnect path does not use this: there the socket itself is gone, so its whole entry goes at
 // once.
+export function memberAmong(profileKeys) {
+  for (const profileKey of profileKeys) {
+    const peer = connectedPeers.get(profileKey)
+    if (peer) return { profileKey, displayName: peer.displayName ?? null }
+  }
+  return null
+}
+
+export function memberOnSocket(socket) {
+  return memberAmong(socketToPeers.get(socket) ?? [])
+}
+
 export function forgetPeerOnSocket(socket, profileKey) {
   const set = socketToPeers.get(socket)
   if (!set) return

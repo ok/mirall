@@ -5,6 +5,10 @@ const PUBLIC_HOST = '203.0.113.7'
 const PUBLIC_KEY = 'a'.repeat(64)
 const NODE_ID = 'b'.repeat(64)
 const PEER_KEY = 'c'.repeat(64)
+const PEER_NAME = 'Lena Beispiel'
+const RELAY_KEY = 'yry4bqaudkr5bn9wf7pjfka1rf6m6r7yb9c4e7t5j8njbke6xk7q'
+const OWN_RELAY_KEY = 'ic3dnb1x4n6eq5c1ymfju9sm3yny53to7dwzdg7ejt8mbrwc1jso'
+const OWN_RELAY_LABEL = 'Hetzner box'
 const TOPIC = 'd'.repeat(64)
 const BOOTSTRAP = ['node1.example.test:49737', 'node2.example.test:49737']
 const INSTALL_ID = '4f2a91c7-0000-4000-8000-000000000000'
@@ -24,6 +28,11 @@ function makeCtx(over = {}) {
       dhtHealth: { online: true, degraded: false, cold: false, idle: false, timeoutsRate: 0.04 },
       canary: { state: 'unreachable', at: 20 },
       liveness: { failures: 0, checkedAt: 18, interfaceKind: 'tunnel-only' },
+      relay: {
+        connections: [{ peerKey: PEER_KEY, plane: 'content', displayName: PEER_NAME, via: 'adopted', relayKey: RELAY_KEY, since: 30 }],
+        direct: { control: 1, content: 0 },
+        digest: `${PEER_KEY}:${RELAY_KEY}:adopted:${PEER_NAME}`,
+      },
       stats: {
         connects: {
           client: { opened: 0, closed: 17, attempted: 17 },
@@ -45,6 +54,7 @@ function makeCtx(over = {}) {
       arch: 'arm64',
     },
     counters: { readyAt: 4400, bootedAt: 1000, hostChangeCount: 0, localPortStable: true },
+    relayConfig: { mode: 'auto', relay: { publicKey: OWN_RELAY_KEY, kind: 'open', label: OWN_RELAY_LABEL, enabled: true, lastTest: null } },
     peerSamples: [
       { publicKey: PEER_KEY, topic: TOPIC, attempts: 5, proven: false },
       { publicKey: 'e'.repeat(64), topic: TOPIC, attempts: 4, proven: false },
@@ -230,4 +240,37 @@ test('PRIVACY: subsystem health rows carry no space or share identifiers', (t) =
   }
   const serialised = JSON.stringify(buildDiagnostics(makeCtx({ health }), true))
   t.absent(/"(spaceId|shareId)"/.test(serialised), 'no space or share id keys anywhere in the bundle')
+})
+
+test('the relay section redacts peer and relay keys and drops names', (t) => {
+  const bundle = buildDiagnostics(makeCtx(), true)
+  const serialised = JSON.stringify(bundle)
+  t.is(bundle.schema, 2)
+  t.is(bundle.relay.mode, 'auto')
+  t.is(bundle.relay.own.kind, 'open')
+  t.is(bundle.relay.own.label, null)
+  t.alike(bundle.relay.direct, { control: 1, content: 0 })
+  t.is(bundle.relay.connections[0].plane, 'content')
+  t.is(bundle.relay.connections.length, 1)
+  t.is(bundle.relay.connections[0].via, 'adopted')
+  t.is(bundle.relay.connections[0].sinceMs, 30)
+  t.absent(serialised.includes(PEER_NAME))
+  t.absent(serialised.includes(RELAY_KEY))
+  t.absent(serialised.includes(OWN_RELAY_KEY))
+  t.absent(serialised.includes(OWN_RELAY_LABEL))
+})
+
+test('the relay section carries full keys and names when unredacted', (t) => {
+  const bundle = buildDiagnostics(makeCtx(), false)
+  t.is(bundle.relay.own.key, OWN_RELAY_KEY)
+  t.is(bundle.relay.own.label, OWN_RELAY_LABEL)
+  t.is(bundle.relay.connections[0].peer, PEER_KEY)
+  t.is(bundle.relay.connections[0].relay, RELAY_KEY)
+  t.is(bundle.relay.connections[0].displayName, PEER_NAME)
+})
+
+test('no configured relay reads as own: null', (t) => {
+  const bundle = buildDiagnostics(makeCtx({ relayConfig: { mode: 'off', relay: null } }), true)
+  t.is(bundle.relay.mode, 'off')
+  t.is(bundle.relay.own, null)
 })

@@ -14,6 +14,7 @@ import { getContentPlaneStatus } from './content-swarm.js'
 import { spaceTopics } from './swarm-registries.js'
 import { createSwarmDiagnostics } from './swarm-diagnostics.js'
 import { relaySelectionCount } from './relay-install.js'
+import { snapshotRelayedConnections } from './relayed-connections.js'
 import { canarySnapshot } from './canary-probe.js'
 import { linkSnapshot } from './link-liveness.js'
 
@@ -33,6 +34,7 @@ let diag = createSwarmDiagnostics({
   getSwarm: () => getSwarm(),
   getRelaySelections: relaySelectionCount,
   getDhtVersion: () => dhtVersion,
+  getRelayedConnections: snapshotRelayedConnections,
 })
 let timers = createTimers()
 
@@ -101,6 +103,7 @@ function readSwarmFacts(swarm) {
     dhtHealth: diag.snapshotDhtHealth(),
     canary: canarySnapshot(),
     liveness: linkSnapshot(),
+    relay: diag.snapshotRelay(),
     versions: { dht: dhtVersion },
   }
 }
@@ -179,6 +182,7 @@ export const STATUS_PATHS = [
   'dhtHealth.online', 'dhtHealth.degraded', 'dhtHealth.timeoutsRate',
   'canary.state', 'canary.at',
   'liveness.failures', 'liveness.interfaceKind',
+  'relay.digest', 'relay.direct.control', 'relay.direct.content',
   'reachability.verdict', 'reachability.cause', 'reachability.confidence',
 ]
 

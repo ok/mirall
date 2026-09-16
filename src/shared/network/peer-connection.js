@@ -4,6 +4,7 @@
 import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
+import idEncoding from 'hypercore-id-encoding'
 import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { applyNetImpairment } from './net-impair.js'
@@ -12,7 +13,9 @@ import { receiveFrame, forgetPeerLimits } from './frame-intake.js'
 import { handleDisconnect } from './handshake-apply.js'
 import { sendHandshakeMessages } from './identity-frames.js'
 import { sendPendingLeaveFrames, sendPendingCancelFrames } from './leave-protocol.js'
-import { spaceTopics, socketMsgHandlers } from './swarm-registries.js'
+import { spaceTopics, socketMsgHandlers, memberOnSocket } from './swarm-registries.js'
+import { relayPairingFor } from './relay-observe.js'
+import { trackConnection } from './relayed-connections.js'
 
 const log = createLogger('peer-connection')
 
@@ -22,6 +25,12 @@ let getAttachHook = () => null
 
 export function initPeerConnection(deps) {
   getAttachHook = deps.getAttachHook
+}
+
+function relayNote(socket) {
+  const pairing = relayPairingFor(socket.rawStream)
+  if (!pairing) return ''
+  return `via relay ${idEncoding.encode(pairing.relayKey).slice(0, 8)}... (${pairing.adopted ? 'adopted' : 'own'})`
 }
 
 const BENIGN_SOCKET_ERRORS = ['timed out', 'reset by peer', 'Duplicate connection']
@@ -47,7 +56,7 @@ export function acceptConnection(socket, peerInfo) {
   applyNetImpairment(socket) // TEST-ONLY: no-op unless runtime-config.netImpair is set
   noteConnection()
   const remoteKey = peerInfo.publicKey ? b4a.toString(peerInfo.publicKey, 'hex').slice(0, 16) : 'unknown'
-  log.info('connection from', remoteKey + '...')
+  log.info('connection from', remoteKey + '...', relayNote(socket))
 
   if (spaceTopics.size === 0) {
     log.info('no active spaces, ignoring connection from', remoteKey + '...')
@@ -55,6 +64,7 @@ export function acceptConnection(socket, peerInfo) {
     return
   }
 
+  trackConnection(socket, { plane: 'control', memberOf: memberOnSocket })
   const store = getStore()
   store.replicate(socket)
   log.debug('replicating corestore with', remoteKey + '...')

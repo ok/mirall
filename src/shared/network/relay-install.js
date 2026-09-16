@@ -6,8 +6,12 @@
 
 import BlindRelay from 'blind-relay'
 import { createLogger } from '../core/logger.js'
+import { getRelayConfig } from '../core/runtime-config.js'
+import { peerRelayed, peerUnrelayed } from '../audit/network-watch.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import { getContentSwarm } from './content-swarm.js'
+import { installRelayObserver, resetRelayObserver } from './relay-observe.js'
+import { initRelayedConnections, resetRelayedConnections, describeConnection } from './relayed-connections.js'
 
 const log = createLogger('relay-install')
 
@@ -15,6 +19,18 @@ let getSwarm = () => null
 
 export function initRelayInstall(deps) {
   getSwarm = deps.getSwarm
+  installRelayObserver()
+  initRelayedConnections({
+    ownRelay,
+    onChange: deps.onStatusChange,
+    onRelayed: (socket) => peerRelayed(socket, () => describeConnection(socket)),
+    onUnrelayed: peerUnrelayed,
+  })
+}
+
+function ownRelay() {
+  const { relay } = getRelayConfig()
+  return { key: enabledRelayKeys(relay)[0] ?? null, label: relay?.label || null }
 }
 
 const RELAY_PROBE_TIMEOUT_MS = 10000
@@ -105,4 +121,6 @@ export function relaySelectionCount() {
 export function resetRelayInstall() {
   relaySelections = 0
   relayIdentityPinned = false
+  resetRelayedConnections()
+  resetRelayObserver()
 }

@@ -2,7 +2,7 @@
 // (the partial-root handoff), so this reads it through a getter rather than capturing it.
 
 import os from 'bare-os'
-import { getRuntimeConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
+import { getRuntimeConfig, getUpgradeKey, getRelayConfig } from '../../shared/core/runtime-config.js'
 import { getRequestFailureCounters, getRequestMetrics } from '../../shared/core/ipc.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/network/support-bundle.js'
 import { queryAudit } from '../../shared/audit/audit-query.js'
@@ -61,6 +61,7 @@ export function registerDiagnostics(ipc, { health, getRoot }) {
         inFlightRequests: ipc.inFlightCount(),
       }),
       peerSamples: getPeerSamples(),
+      relayConfig: getRelayConfig(),
     }, msg?.redact !== false)
   })
 }

@@ -61,3 +61,16 @@ test('REGRESSION (FIX-BOOTSTRAP-REF): the bootstrap fallback is copied, not shar
 test('the offline snapshot reports the injected dht version', (t) => {
   t.is(make(null, { dhtVersion: '9.9.9' }).offlineStatusSnapshot().versions.dht, '9.9.9')
 })
+
+test('the relay snapshot defaults to empty and reads through the accessor', (t) => {
+  const offline = make(null).offlineStatusSnapshot()
+  t.alike(offline.relay, { connections: [], direct: { control: 0, content: 0 }, digest: '' })
+  t.alike(make(null).snapshotRelay(), { connections: [], direct: { control: 0, content: 0 }, digest: '' })
+  const diag = createSwarmDiagnostics({
+    getSwarm: () => null,
+    getRelaySelections: () => 0,
+    getDhtVersion: () => 'x',
+    getRelayedConnections: () => ({ connections: [], direct: { control: 3, content: 0 }, digest: '' }),
+  })
+  t.is(diag.snapshotRelay().direct.control, 3)
+})
