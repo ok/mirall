@@ -1,4 +1,5 @@
 // The single code -> i18n key map: one map, one meaning per code.
+/** @type {Readonly<Record<string, string>>} */
 export const ERROR_I18N_KEY_BY_CODE = {
   TRANSFER_DISK_FULL: 'transferDiskFull',
   TRANSFER_PERMISSION: 'transferPermission',
@@ -50,6 +51,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   WORKER_UNAVAILABLE: 'workerUnavailable',
 }
 
+/** @param {string | null | undefined} code @param {string} fallbackKey */
 export function errorI18nKey(code, fallbackKey) {
   if (!code) return fallbackKey
   return ERROR_I18N_KEY_BY_CODE[code] ?? fallbackKey
@@ -57,12 +59,14 @@ export function errorI18nKey(code, fallbackKey) {
 
 // A file row's stored errorCode. Its fallback stays "Transfer failed": the row is about a transfer,
 // so the generic sentence would be less specific, not more.
+/** @param {string | null | undefined} code */
 export function errorCodeToI18nKey(code) {
   return errorI18nKey(code, 'transferFailed')
 }
 
 // A mount fault reads the same map with its own fallback: the reason lands mid-sentence in the
 // folder screen's fault strip, where "Transfer failed" would describe the wrong thing.
+/** @param {string | null | undefined} code */
 export function mountFaultReasonKey(code) {
   return errorI18nKey(code, 'mountFaultUnknown')
 }

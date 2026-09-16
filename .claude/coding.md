@@ -125,12 +125,18 @@ importers name the real module. Adding a file that only re-exports another is a 
 Merging a pure module into an impure sibling pushes its tests into the slower Bare suite. That is a
 real cost; do not do it casually.
 
-**Sidecars.** A `.js` module consumed by the renderer carries a hand-written `.d.ts` next to it.
-`tsconfig.json` sets `allowJs`, so the typechecker reaches those modules through the sidecar rather
-than by inferring from the JS — which is why the sidecar, not the implementation, is what the
-renderer is typed against. Keep the pair in step: a declared export with no runtime backing hands the renderer confident types
-over nothing (`test/unit/contract-declarations.test.js` pins this for `contract/`). Delete a `.d.ts`
-the moment its module stops being reachable from `src/renderer`.
+**Types live in the source.** `tsconfig.json` sets `allowJs` + `checkJs`, so every `.js` module the
+renderer reaches (`src/renderer/**` and `src/shared/contract/**`) is typed by its own JSDoc and
+checked by `tsc`: `@param`/`@returns` on every export, `@typedef` for a shape that crosses a module
+boundary, `@import { X } from '../types/types.js'` for a type declared elsewhere, `@template` for a
+generic. A vocabulary tuple needs no annotation — `Object.freeze(Object.values(OBJ))` already infers
+the literal union — and the type beside it is `@typedef {(typeof TUPLE)[number]} Name`. `any` and
+`unknown` are banned in JSDoc as they are in TypeScript; a JSDoc cast `/** @type {X} */ (expr)`
+narrows at the one boundary where the transport hands back an untyped value. No `.d.ts` sidecar may
+sit beside a `.js` (`renderer-contract-only-imports.test.js` asserts it): TypeScript reads a
+declaration INSTEAD of the implementation and never compares the two. The one ambient declaration
+file is `platform/global.d.ts`, which declares `window.bridge` and has no `.js`. The compile-time
+assertions in `test/typecheck/` are what a contract union is pinned by.
 
 ---
 
@@ -219,7 +225,7 @@ looseShareFile(...)
 // GOOD — or nothing at all
 ```
 
-**Test seams** are marked, so ~40 test-only exports stop reading as public API: a `// test seam`
+**Test seams** are marked, so test-only exports stop reading as public API: a `/** @internal */`
 line above the export, or a `_forTests` suffix on something that exists only for a test
 (`_pendingBeeForTests`, `_encodeTicketForTests`).
 
@@ -289,7 +295,8 @@ the subject is work `boot()` itself does.
 `shared/spaces/membership/leave-state.js` share `LEAVE_PHASES` + `runLeaveTeardown`, so the live path and
 boot's interrupted-leave pass cannot drift.
 - **Zero-import contract package.** `src/shared/contract/` — one declaration per vocabulary, frozen
-(`Object.freeze`), with a `.d.ts` twin pinned by `contract-declarations.test.js`.
+(`Object.freeze`), typed in place; `contract-package.test.js` pins the zero-import rule and
+`test/typecheck/contract.assert.ts` pins the derived unions.
 - **Query store with scope-predicate invalidation.** `src/renderer/store/` — `useQuery` for worker
 data, `useMainQuery` for main-process facts (`write` replaces, `patch` merges). `loading` means
 *cold*, and re-raises on refetch — never gate a subtree on it.
@@ -327,7 +334,7 @@ A change is not done until all of these hold.
 - [ ] **Comments reviewed against §5** — rules not history, no ids, no plan refs, no restating code.
 - [ ] **Names checked against §2** — no new word collisions.
 - [ ] **Placed per §3** — domain folder, correct runtime, purity respected.
-- [ ] **Dead code removed in the same change**, including its `.d.ts` declaration and any test that
+- [ ] **Dead code removed in the same change**, including its `@typedef` and any test that
 
   exists only to keep it alive.
 - [ ] **Docs updated in the same change** when a rule, module table, or convention moved

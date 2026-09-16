@@ -9,6 +9,9 @@
 //
 // Only `syncing` moves. A peer that holds every file still holds it while the owner is away, and
 // a paused mirror is the user's own intent — neither depends on reachability.
+/** @import { MirrorState } from '../../shared/contract/statuses.js' */
+
+/** @param {MirrorState} state @param {boolean} [ownerOnline] */
 export function mirrorStateLabelKey(state, ownerOnline) {
   if (state === 'paused') return 'folder.mirrorStatePaused'
   if (state === 'synced') return 'folder.mirrorStateSynced'

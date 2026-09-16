@@ -81,7 +81,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   // The fold across responses, advanced DURING RENDER: reconcileFiles needs the previous reconciled
   // list, which the store does not hold. State updated conditionally in render is React's documented
   // carry; an effect would be derived-state-in-effect, and a memo has no memory of its own output.
-  const [fold, setFold] = useState<Fold>(emptyFold)
+  const [fold, setFold] = useState<Fold<ServerEntry>>(emptyFold)
   // Paths whose download was just requested. An override rather than a write into the list: seeded
   // into the rows it would be dropped by the next refetch, and the seed exists only to cover the
   // gap before the first decoration frame arrives.

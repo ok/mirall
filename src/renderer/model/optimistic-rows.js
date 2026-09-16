@@ -2,6 +2,9 @@
 // advertises a file while it is still hashing, so files:list carries it before the publish
 // finishes. Keeping both would show the file twice, and the server row is the one that survives a
 // remount.
+/** @import { FileEntry } from '../types/types.js' */
+
+/** @param {FileEntry[]} serverRows @param {FileEntry[]} optimisticRows */
 export function mergeOptimistic(serverRows, optimisticRows) {
   if (optimisticRows.length === 0) return serverRows
   const known = new Set(serverRows.map((row) => row.path))

@@ -1,4 +1,17 @@
 import { MAIN_QUERIES } from './main-queries.js'
+/** @import { MainQueryName, MainQueryValue } from './main-queries.js' */
+/** @import { MirallBridge } from '../platform/global.js' */
+/** @import { Snapshot } from './query-store.js' */
+
+/**
+ * @typedef {object} Entry
+ * @property {unknown} data
+ * @property {Error | null} error
+ * @property {Promise<unknown> | null} promise
+ * @property {number} seq
+ * @property {Set<() => void>} subscribers
+ * @property {Snapshot<unknown>} snapshot
+ */
 
 // One shared copy per main-process fact, for the screens that read them.
 //
@@ -8,16 +21,21 @@ import { MAIN_QUERIES } from './main-queries.js'
 // (ipcRenderer.invoke has no cancellation channel, and these reads are local), but `seq` stays: a
 // write or a push can land while a read is outstanding.
 // Plain JS with an injected bridge so it unit-tests under brittle-node, like query-store.js.
+/** @type {Map<string, Entry>} */
 const entries = new Map()
 
+/** @type {MirallBridge | null} */
 let bridge = null
 
+/** @param {MirallBridge} b */
 export function configureMainStore(b) {
   bridge = b
 }
 
+/** @type {Snapshot<never>} */
 const EMPTY_SNAPSHOT = Object.freeze({ data: undefined, error: null, loading: true })
 
+/** @param {MainQueryName} name @returns {Entry} */
 function entryFor(name) {
   let entry = entries.get(name)
   if (!entry) {
@@ -30,6 +48,7 @@ function entryFor(name) {
 // An entry that has never settled reports LOADING even before its fetch starts: the first render
 // happens before the effect that fetches, and reporting false there would paint a default over a
 // value still on its way.
+/** @param {Entry} entry @returns {Snapshot<unknown>} */
 function snapshotOf(entry) {
   const settled = entry.data !== undefined || entry.error !== null
   return { data: entry.data, error: entry.error, loading: entry.promise !== null || !settled }
@@ -37,6 +56,7 @@ function snapshotOf(entry) {
 
 // Keeps the SAME object when nothing changed: useSyncExternalStore compares by identity, so a
 // structurally identical fresh snapshot would re-render every subscriber for nothing.
+/** @param {Entry} entry */
 function publish(entry) {
   const next = snapshotOf(entry)
   const prev = entry.snapshot
@@ -45,42 +65,46 @@ function publish(entry) {
   for (const notify of entry.subscribers) notify()
 }
 
+/** @template {MainQueryName} K @param {K} name @returns {{ spec: (typeof MAIN_QUERIES)[K], bridge: MirallBridge }} */
 function specFor(name) {
   const spec = MAIN_QUERIES[name]
   if (!spec) throw new Error(`main store: unknown fact "${name}"`)
   if (!bridge) throw new Error('main store: no bridge configured')
-  return spec
+  return { spec, bridge }
 }
 
 // The dedup and the cache: two screens mounting in one session each issued their own read and each
 // kept a private copy in component state, which could disagree with the other after a write. A
 // settled fact answers from the entry, so a remounting modal costs no round-trip at all.
+/** @template {MainQueryName} K @param {K} name @returns {Promise<MainQueryValue[K]>} */
 export function fetchMain(name) {
-  let spec
+  /** @type {ReturnType<typeof specFor<K>>} */
+  let resolved
   try {
-    spec = specFor(name)
+    resolved = specFor(name)
   } catch (err) {
     return Promise.reject(err)
   }
 
   const entry = entryFor(name)
-  if (entry.promise) return entry.promise
-  if (entry.data !== undefined) return Promise.resolve(entry.data)
+  if (entry.promise) return /** @type {Promise<MainQueryValue[K]>} */ (entry.promise)
+  if (entry.data !== undefined) return Promise.resolve(/** @type {MainQueryValue[K]} */ (entry.data))
 
   const seq = ++entry.seq
-  const inFlight = spec.read(bridge)
+  const inFlight = resolved.spec.read(resolved.bridge)
     .then(
       (data) => {
         // A write or a push that landed while this read was out has already published a FRESHER
         // value. Resolving with the entry's value rather than the stale one mirrors the query
         // store: a superseded read is not an error the caller asked about.
-        if (seq !== entry.seq) return entry.data
+        if (seq !== entry.seq) return /** @type {MainQueryValue[K]} */ (entry.data)
         entry.data = data
         entry.error = null
         entry.promise = null
         publish(entry)
         return data
       },
+      /** @param {Error} err */
       (err) => {
         // Cleared even on failure, so the entry is retryable rather than stuck on a dead promise.
         if (seq === entry.seq) {
@@ -103,8 +127,15 @@ export function fetchMain(name) {
 // `payload` is what main is SENT when that differs from what the app should show meanwhile: prefs
 // send a bare patch (main merges it into the only authoritative copy) while displaying the merge.
 // It defaults to `value`, which is the case for every fact whose write is a whole-value replace.
+/**
+ * @template {MainQueryName} K
+ * @param {K} name
+ * @param {MainQueryValue[K]} value
+ * @param {{ payload?: MainQueryValue[K] | Partial<MainQueryValue[K]> }} [opts]
+ * @returns {Promise<MainQueryValue[K]>}
+ */
 export async function writeMain(name, value, { payload = value } = {}) {
-  const spec = specFor(name)
+  const { spec, bridge } = specFor(name)
   const entry = entryFor(name)
   const previous = entry.data
 
@@ -115,7 +146,7 @@ export async function writeMain(name, value, { payload = value } = {}) {
   publish(entry)
 
   try {
-    const persisted = await spec.write(bridge, payload)
+    const persisted = await spec.write(bridge, /** @type {MainQueryValue[K]} */ (payload))
     entry.seq += 1
     entry.data = persisted
     publish(entry)
@@ -136,15 +167,17 @@ export async function writeMain(name, value, { payload = value } = {}) {
 // DISPLAY (a screen keeps the values it already showed while the write is in flight); the bare
 // patch is what main is SENT, so a key main owns and flips on its own — `firstHideNoticeShown` —
 // is never written back over from a stale cached copy.
+/** @template {MainQueryName} K @param {K} name @param {Partial<MainQueryValue[K]>} patch */
 export function patchMain(name, patch) {
-  const current = entryFor(name).data
-  return writeMain(name, current ? { ...current, ...patch } : { ...patch }, { payload: patch })
+  const current = /** @type {MainQueryValue[K] | undefined} */ (entryFor(name).data)
+  const merged = /** @type {MainQueryValue[K]} */ (Object.assign({}, current, patch))
+  return writeMain(name, merged, { payload: patch })
 }
 
 // An out-of-band value: main PUSHES the zoom factor rather than answering a read, and a pushed
 // value must land in the entry a read would fill or the two disagree. Bumps seq so an in-flight
 // read cannot overwrite fresher pushed data.
-// test seam
+/** @internal @template {MainQueryName} K @param {K} name @param {MainQueryValue[K] | undefined} data */
 export function setMainData(name, data) {
   const entry = entryFor(name)
   entry.seq += 1
@@ -154,6 +187,7 @@ export function setMainData(name, data) {
   publish(entry)
 }
 
+/** @param {MainQueryName} name @param {() => void} notify */
 export function subscribeMain(name, notify) {
   const entry = entryFor(name)
   entry.subscribers.add(notify)
@@ -161,24 +195,27 @@ export function subscribeMain(name, notify) {
 }
 
 // Read during render, so it must not touch the map: React requires getSnapshot to be pure.
+/** @template {MainQueryName} K @param {K} name @returns {Snapshot<MainQueryValue[K]>} */
 export function peekMain(name) {
-  return entries.get(name)?.snapshot ?? EMPTY_SNAPSHOT
+  return /** @type {Snapshot<MainQueryValue[K]>} */ (entries.get(name)?.snapshot ?? EMPTY_SNAPSHOT)
 }
 
 // ONE subscription per pushing fact for the whole app, installed at bootstrap — the main-store twin
 // of installReconcileBridge(). Per-hook subscription would add a listener per mounted consumer.
 export function installMainPushBridge() {
+  /** @type {Array<() => void>} */
   const offs = []
-  for (const [name, spec] of Object.entries(MAIN_QUERIES)) {
-    if (!spec.push) continue
-    const subscribe = bridge?.[spec.push]
+  for (const name of /** @type {MainQueryName[]} */ (Object.keys(MAIN_QUERIES))) {
+    const spec = MAIN_QUERIES[name]
+    if (!spec.push || !bridge) continue
+    const subscribe = bridge[spec.push]
     if (typeof subscribe !== 'function') continue
-    offs.push(subscribe.call(bridge, (value) => setMainData(name, value)))
+    offs.push(/** @type {(listener: (value: MainQueryValue[typeof name]) => void) => () => void} */ (subscribe.bind(bridge))((value) => setMainData(name, value)))
   }
   return () => { for (const off of offs) off() }
 }
 
-// test seam
+/** @internal */
 export function resetMainStore() {
   entries.clear()
 }

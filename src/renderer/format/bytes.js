@@ -11,6 +11,7 @@
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 const STEP = 1000
 
+/** @param {number | undefined} bytes @param {string} [locale] */
 export function formatSize(bytes, locale) {
   if (!bytes || bytes <= 0) return '0 B'
   // Clamp the unit index so files beyond the largest unit (>= 1000 TB) still

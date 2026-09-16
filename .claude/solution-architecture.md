@@ -194,10 +194,10 @@ limits, status tuples, the reconcile `Scope`, and the audit kinds. **Plain ESM w
 that constraint is what lets esbuild bundle it into the renderer, Bare load it in the worker and
 main reach it through `import()`, and it is test-enforced. The renderer's hand-maintained twins
 (`scope-match.js`, and the kind list inside `auditKinds.ts`) are gone; the renderer imports
-`scope.js` and `audit-kinds.js` from the contract directly. `.js` + `.d.ts` rather than `.ts` because the unit suite runs
-under brittle-node with no build step — and because TypeScript never compares the two,
-`contract-declarations.test.js` does, including the status tuples the renderer derives its unions
-from.
+`scope.js` and `audit-kinds.js` from the contract directly. Plain `.js` typed by JSDoc under `checkJs` rather than `.ts`:
+the worker (Bare) and main (CJS `require`) load these files as they are, and neither rewrites a
+`'./x.js'` specifier from a `.ts` module. `contract-package.test.js` pins the zero-import rule;
+`test/typecheck/contract.assert.ts` pins the unions the renderer derives from the tuples.
 
 **The handler table.** `core/handler-table.js` holds each request's function beside its contract
 spec. `ipc.handle(name, fn)` is now a shim onto `table.register`, so registering a name the contract
@@ -926,8 +926,8 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 ### React integration
 
 Three small stores sit between the hooks and the two transports. Each is **plain JS with an injected
-transport plus a `.d.ts`**, so it unit-tests under brittle-node like the other renderer modules that
-carry one, and each is bound to React through `useSyncExternalStore` — not a `useState` mirror, since
+transport, typed by JSDoc**, so it unit-tests under brittle-node like the other renderer `.js`
+modules, and each is bound to React through `useSyncExternalStore` — not a `useState` mirror, since
 the store already holds the value and the hand-rolled module caches this replaced each kept a second
 copy in component state that could disagree with it.
 
@@ -1213,7 +1213,7 @@ Behaviour worth knowing (styling → `design.md`):
 
 | File | Purpose |
 |---|---|
-| `src/shared/contract/requests.js` | One row per renderer/main → worker request: name + arg shape; the `RequestName` union in its `.d.ts` is generated from it |
+| `src/shared/contract/requests.js` | One row per renderer/main → worker request: name + arg shape; the `RequestName` union is `keyof` the table |
 | `src/shared/contract/invite-envelope.js` | The invite codec, v0 + v1 (§5.1), incl. hand-rolled UTF-8 + base64url — Bare has no `TextDecoder`, the renderer no `Buffer` |
 | `src/shared/contract/audit-kinds.js` | The closed audit vocabulary + category/tier tables; the renderer reads it too. Excludes per-file folder sync on purpose — the deliberate act is mounting (§14) |
 | `src/shared/contract/errors.js` | Every error code that can cross the IPC boundary (`CODES`) and the EXPECTED / INTERNAL / UNUSED lists |
@@ -1484,7 +1484,7 @@ module sits in a named bucket, kebab-cased (`renderer-root-is-empty.test.js`).
 | `src/renderer/platform/updates.ts` | Singleton update state → `UpdateBanner` |
 | `src/renderer/platform/config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
 | `src/renderer/types/types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) — the status unions are derived from `contract/statuses.js` |
-| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`, `deep-link-route.js`. Plain JS + `.d.ts`, so they unit-test under brittle-node |
+| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`, `deep-link-route.js`. Plain JS typed by JSDoc, so they unit-test under brittle-node |
 | `src/renderer/shell/` | Cross-screen shell logic — `navigation.ts` (the screen graph, §10), `screen-titles.ts` (the announced name per screen), `space-actions.ts`, `tab-intent.js`, `docs-links.js` |
 | `src/renderer/model/share-paths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
 | `src/renderer/errors/error-messages.js` | The one backend-code → i18n-key map |
@@ -1495,7 +1495,7 @@ module sits in a named bucket, kebab-cased (`renderer-root-is-empty.test.js`).
 | `src/renderer/platform/platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; theme apply; window-bounds **tracking** (debounced `setWindowBounds` on resize / blur / hide / unload — main restores bounds itself at launch, §2 step 5) |
 | `src/renderer/platform/dev-console.ts` | `window.mirall` debugging surface (§8) |
 | `src/renderer/platform/global.d.ts` | Type declarations for `window.bridge` |
-| `src/renderer/store/` | The two renderer stores and their React bindings — `query-store.js` + `useQuery.ts` (worker requests) and `main-store.js` + `main-queries.js` + `useMainQuery.ts` (main-process reads, `patchMain` for a local write-through), plus `reconcile.ts` (the reconcile bridges) and `scopes.ts` (the per-hook scope lists). Plain JS + `.d.ts` so they unit-test under brittle-node. §8 |
+| `src/renderer/store/` | The two renderer stores and their React bindings — `query-store.js` + `useQuery.ts` (worker requests) and `main-store.js` + `main-queries.js` + `useMainQuery.ts` (main-process reads, `patchMain` for a local write-through), plus `reconcile.ts` (the reconcile bridges) and `scopes.ts` (the per-hook scope lists). Plain JS typed by JSDoc so they unit-test under brittle-node. §8 |
 | `src/renderer/hooks/` | The hooks. Fetching ones read through `useQuery` / `useMainQuery`; the ones that stay off the store on purpose — `usePeerDownloads`, `usePeerDownloadDetail`, `useIndexProgress`, `useDecorations`, `useConnectionStatus`, the validate probe in `useMountWizard` — say why in their headers (§8). Non-fetching: `useUpdates`, `useErrorText`, `useTreeExpansion`, `useTransferControls`, `useAppNavigation`, `useAppShellEffects`, `useHasVerticalOverflow`, … |
 | `src/renderer/ipc/worker-respawn.js` | `makeRespawnPolicy()` — the crash-respawn ladder `ipc.ts` drives (5 retries, backoff, give up after 3 unstable lifetimes in 10 min). §2 boot step 11 |
 | `src/renderer/screens/` | `Onboarding`, `SharedSpaces`, `SpaceScreen`, `FolderScreen`, `ConnectionProblem`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |

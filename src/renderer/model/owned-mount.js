@@ -6,6 +6,19 @@ import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
 import { ownedMountStatus, isHealthyOwnedStatus } from '../../shared/contract/mount-precedence.js'
 
 // Which states deserve a badge: the resolved status, unless it is one nothing is wrong with.
+/** @import { OwnedFolderMount, OwnedMountStatus } from '../types/types.js' */
+
+/**
+ * @typedef {object} OwnedMountState
+ * @property {OwnedMountStatus | null} status
+ * @property {string | null} lastError
+ * @property {boolean} loaded
+ * @property {boolean} paused
+ * @property {boolean} scanning
+ * @property {string | null} mountPath
+ */
+
+/** @param {OwnedFolderMount | null | undefined} m */
 export function unhealthyOwnedStatus(m) {
   const status = ownedMountStatus(m)
   return status && !isHealthyOwnedStatus(status) ? status : null
@@ -14,6 +27,7 @@ export function unhealthyOwnedStatus(m) {
 // Settled means an answer LANDED — data or error — not `!loading`: the store settles an entry on an
 // error too, so a failed read is loading:false with no data, and FolderScreen takes this projection
 // outright once loaded. Undefined is unsettled whatever the reason; a never-mounted share is [].
+/** @param {boolean} enabled @param {OwnedFolderMount[] | undefined} rows */
 export function ownedMountSettled(enabled, rows) {
   return Boolean(enabled) && rows !== undefined
 }
@@ -27,6 +41,13 @@ export function ownedMountSettled(enabled, rows) {
 //
 // Nothing here latches. Every field is read from the row on each call, so a share change re-derives
 // rather than carrying the previous folder's state into this one's header.
+/**
+ * @param {OwnedFolderMount[] | undefined} rows
+ * @param {string} spaceId
+ * @param {string} shareId
+ * @param {boolean} settled
+ * @returns {OwnedMountState}
+ */
 export function projectOwnedMount(rows, spaceId, shareId, settled) {
   if (!settled || !spaceId || !shareId) return NO_OWNED_MOUNT
   const m = (rows || []).find((x) => x.spaceId === spaceId && x.shareId === shareId)
@@ -41,7 +62,7 @@ export function projectOwnedMount(rows, spaceId, shareId, settled) {
   }
 }
 
-// test seam
+/** @internal @type {OwnedMountState} */
 export const NO_OWNED_MOUNT = Object.freeze({
   status: null, lastError: null, loaded: false, paused: false, scanning: false, mountPath: null,
 })

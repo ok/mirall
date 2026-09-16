@@ -102,6 +102,7 @@ export function middleTruncateToWidth(name, maxWidth, measure) {
 
 // A legal share (folder) name: non-empty after trim, at most 255 chars, no path
 // separators or reserved characters, and not '.' or '..'.
+/** @param {string} name */
 export function isValidShareName(name) {
   const trimmed = name.trim()
   if (trimmed.length === 0 || trimmed.length > 255) return false

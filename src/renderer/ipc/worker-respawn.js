@@ -5,6 +5,9 @@
 // unstable worker HAS reached ready, every time); only quiet time clears it.
 import { WORKER_EXIT_UNSTABLE } from '../../shared/contract/exit-codes.js'
 
+/**
+ * @param {{ maxRetries?: number, baseDelayMs?: number, maxDelayMs?: number, maxUnstable?: number, unstableWindowMs?: number, now?: () => number }} [opts]
+ */
 export function makeRespawnPolicy({
   maxRetries = 5, baseDelayMs = 500, maxDelayMs = 5000,
   maxUnstable = 3, unstableWindowMs = 10 * 60 * 1000, now = Date.now,
@@ -15,6 +18,7 @@ export function makeRespawnPolicy({
   let lastUnstableAt = 0
   return {
     // Call on each worker exit, with the exit code. Returns { respawn, delayMs }.
+    /** @param {number | null} code @returns {{ respawn: boolean, delayMs: number }} */
     onExit(code) {
       if (code === WORKER_EXIT_UNSTABLE) {
         const t = now()

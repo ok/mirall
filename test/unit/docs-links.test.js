@@ -1,11 +1,5 @@
 import test from 'brittle'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { docsUrl } from '../../src/renderer/shell/docs-links.js'
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const DTS = path.resolve(here, '../../src/renderer/shell/docs-links.d.ts')
+import { docsUrl, DOCS_ANCHORS } from '../../src/renderer/shell/docs-links.js'
 
 // Every link the UI renders, pinned to the exact URL a user lands on.
 const SHIPPING_LINKS = [
@@ -42,21 +36,12 @@ test('docs-links: every URL is https, on mirall.app, under /docs, with one fragm
   }
 })
 
-// TypeScript never runs over the .js, so the sidecar's unions are only a compile-time
-// contract. Read the anchors back out of it and prove the declared set is exactly the set
-// the UI ships: a declared-but-unwired anchor and a wired-but-undeclared one both fail.
-test('docs-links: the .d.ts declares exactly the anchors the UI ships', (t) => {
-  const src = fs.readFileSync(DTS, 'utf8')
-  const pages = {
-    TutorialAnchor: 'tutorials',
-    GuideAnchor: 'guides',
-    ExplanationAnchor: 'explanation',
-  }
+// DocsTarget is derived from DOCS_ANCHORS, so the declared set is the data: prove it is exactly
+// the set the UI ships — a declared-but-unwired anchor and a wired-but-undeclared one both fail.
+test('docs-links: DOCS_ANCHORS lists exactly the anchors the UI ships', (t) => {
   const declared = []
-  for (const [typeName, page] of Object.entries(pages)) {
-    const block = src.split(`type ${typeName}`)[1]?.split('\n\n')[0] ?? ''
-    const anchors = [...block.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1])
-    t.ok(anchors.length > 0, `${typeName} declares at least one anchor`)
+  for (const [page, anchors] of Object.entries(DOCS_ANCHORS)) {
+    t.ok(anchors.length > 0, `${page} declares at least one anchor`)
     for (const anchor of anchors) {
       t.is(docsUrl({ page, anchor }), `https://mirall.app/docs/${page}#${anchor}`, `${page}#${anchor}`)
       declared.push(`${page}#${anchor}`)

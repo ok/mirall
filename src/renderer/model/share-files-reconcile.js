@@ -13,6 +13,9 @@
 // toEntry but not here paints stale until some listed field moves. Live transfer progress is
 // deliberately absent from the row entirely — it reaches the row per path from the decoration
 // channel, so a frame never touches the row object and this comparison never sees one.
+/** @import { ShareFileEntry } from '../types/types.js' */
+
+/** @param {ShareFileEntry} a @param {ShareFileEntry} b */
 function sameRow(a, b) {
   return a.size === b.size && a.hash === b.hash && a.mtime === b.mtime &&
     a.status === b.status && a.localPath === b.localPath &&
@@ -20,12 +23,14 @@ function sameRow(a, b) {
     a.errorCode === b.errorCode && a.transferId === b.transferId
 }
 
+/** @param {ShareFileEntry[]} prev @param {ShareFileEntry[]} next @param {{ complete: boolean }} opts */
 export function reconcileFiles(prev, next, { complete }) {
   // A complete read is authoritative for CONTENT — adds, updates and removals all apply. It is not
   // a reason to hand every unchanged row a new object identity: doing so defeats React.memo on the
   // row, which is the whole point of reconciling rather than replacing.
   if (complete) return adoptIdentity(prev, next)
   if (next.length === 0) return prev
+  /** @type {ShareFileEntry[]} */
   const out = []
   let i = 0
   let j = 0
@@ -61,8 +66,10 @@ export function reconcileFiles(prev, next, { complete }) {
 // Safe under a violated sort order: `out` is built entirely from `next`, one slot per entry, so
 // the RESULT ALWAYS HAS EXACTLY next's CONTENT. An unsorted input only costs identity adoption
 // (rows fall through to the fresh object), never correctness.
+/** @param {ShareFileEntry[]} prev @param {ShareFileEntry[]} next */
 function adoptIdentity(prev, next) {
   if (prev.length === 0) return next
+  /** @type {ShareFileEntry[]} */
   const out = new Array(next.length)
   let i = 0
   let changed = false

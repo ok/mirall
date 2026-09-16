@@ -12,17 +12,49 @@
 
 import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
 import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-badge.js'
+/** @import { Decoration } from '../types/ui.js' */
+/** @import { BadgeAppearance } from './status-badge.js' */
+/** @import { FileEntry, FileStatus, ShareFileEntry, ShareFileStatus, PeerDownloadSummary } from '../types/types.js' */
 
+/** @typedef {'publish' | 'verify' | 'download' | 'preparing' | 'indicator' | 'rest'} LaneName */
+/** @typedef {'loose' | 'share'} RowKind */
+/** @typedef {FileEntry | ShareFileEntry} Row */
+/** @typedef {FileStatus | ShareFileStatus} RowStatus */
+
+/**
+ * @typedef {object} RowView
+ * @property {LaneName} lane
+ * @property {boolean} indicatorActive
+ * @property {BadgeAppearance} badge
+ * @property {RowStatus} displayStatus
+ * @property {boolean} isDownloading
+ * @property {Decoration | null} downloadDecor
+ * @property {Decoration | null} publishDecor
+ * @property {Decoration | null} preparingDecor
+ * @property {number | undefined} progressBytes
+ * @property {number | undefined} progressTotal
+ * @property {number} verifyPct
+ * @property {number} publishPct
+ * @property {number} downloadPct
+ * @property {number} preparingPct
+ * @property {boolean} showVerified
+ */
+
+/** @typedef {{ kind?: RowKind, isOwn?: boolean, seeded?: boolean }} RowViewOptions */
+
+/** @param {number} bytes @param {number} total */
 const pct = (bytes, total) => (total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0)
 
 // One showVerified rule serves both vocabularies: gating on 'downloaded' alone would hide the check
 // on every mirrored row, whose terminal state is 'synced'.
+/** @type {Set<string>} */
 const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 // The stand-in frame for a row whose download was just requested and whose first real frame has not
 // arrived. Shaped exactly like a decoration — `eta: null` above all, which is what makes the bar
 // read "Estimating…" (resolveEta) instead of freezing at a static 0%. It can only ever be built
 // when `decoration` is null, so a real frame outranks it by construction rather than by a rule.
+/** @param {Row} row @param {boolean} seeded @returns {Decoration | null} */
 function seedFrame(row, seeded) {
   if (!seeded) return null
   if (row.status !== 'downloading' && row.status !== 'preparing') return null
@@ -39,6 +71,7 @@ function seedFrame(row, seeded) {
   }
 }
 
+/** @param {Decoration | null} decoration */
 function pickDecorations(decoration) {
   // The decoration channel is shared by key across phases; a lingering cross-phase frame paints
   // the CURRENT phase only. Downloads read only download/verify frames, never a stale publish/prepare one.
@@ -49,10 +82,12 @@ function pickDecorations(decoration) {
   return { downloadDecor, publishDecor, preparingDecor }
 }
 
+/** @param {Row} row @param {Decoration | null} downloadDecor */
 function deriveProgress(row, downloadDecor) {
   const isDownloading = row.status === 'downloading'
   const isVerifying = isDownloading && downloadDecor?.phase === 'verifying'
   const waiting = isDownloading && (downloadDecor?.bytes ?? 0) === 0
+  /** @type {RowStatus} */
   const displayStatus = isVerifying ? 'verifying' : waiting ? 'preparing' : row.status
 
   const isPaused = row.status === 'paused-offline' || row.status === 'paused-interrupted'
@@ -67,6 +102,12 @@ function deriveProgress(row, downloadDecor) {
   return { isDownloading, isVerifying, waiting, displayStatus, progressBytes, progressTotal, showDownloadProgress }
 }
 
+/**
+ * @param {Row} row
+ * @param {ReturnType<typeof deriveProgress>} progress
+ * @param {Decoration | null} preparingDecor
+ * @param {PeerDownloadSummary | null | undefined} downloadSummary
+ */
 function deriveLane(row, progress, preparingDecor, downloadSummary) {
   const hasDownloaders = (downloadSummary?.peerKeys.length ?? 0) > 0
   const peerPreparingActive = row.status === 'preparing' && preparingDecor != null && preparingDecor.total > 0
@@ -78,6 +119,7 @@ function deriveLane(row, progress, preparingDecor, downloadSummary) {
   // it is a sub-phase of one; a paused partial reaches the download lane through
   // showDownloadProgress rather than a lane of its own; the sender-side indicator is what a row
   // shows when it has no work of its own to report.
+  /** @type {LaneName} */
   const lane =
     row.status === 'publishing' ? 'publish'
       : progress.isVerifying ? 'verify'
@@ -93,12 +135,20 @@ function deriveLane(row, progress, preparingDecor, downloadSummary) {
 // row: the decoration key is shared across phases, so a publishing/preparing frame is the hash
 // walking the file (no bytes arrived here), and a frame left on a row that has moved on is stale.
 // Counting either would make a mirror's "still to fetch" read a whole un-fetched file as done.
+/** @param {Row} row @param {Decoration | null} decoration */
 export function rowBytesOnDevice(row, decoration) {
   const { downloadDecor } = pickDecorations(decoration)
   if (row.status === 'downloading' && downloadDecor) return downloadDecor.bytes
   return row.pendingBytes ?? 0
 }
 
+/**
+ * @param {Row} row
+ * @param {Decoration | null} decoration
+ * @param {PeerDownloadSummary | null | undefined} downloadSummary
+ * @param {RowViewOptions} [opts]
+ * @returns {RowView}
+ */
 export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   const { kind = 'loose', isOwn = false, seeded = false } = opts
   const frame = decoration ?? seedFrame(row, seeded)
@@ -112,8 +162,8 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   // lets one lane component render both kinds.
   const badge = badgeStyle(
     kind === 'share'
-      ? shareFileStatusToBadge(progress.displayStatus, isOwn)
-      : fileStatusToBadge(progress.displayStatus),
+      ? shareFileStatusToBadge(/** @type {ShareFileStatus} */ (progress.displayStatus), isOwn)
+      : fileStatusToBadge(/** @type {FileStatus} */ (progress.displayStatus)),
   )
 
   return {
@@ -130,7 +180,7 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
     verifyPct: downloadDecor?.verifyFraction != null ? Math.round(downloadDecor.verifyFraction * 100) : 0,
     publishPct: publishDecor ? pct(publishDecor.bytes, publishDecor.total) : 0,
     downloadPct: progress.progressBytes != null && progress.progressTotal ? pct(progress.progressBytes, progress.progressTotal) : 0,
-    preparingPct: peerPreparingActive ? pct(preparingDecor.bytes, preparingDecor.total) : 0,
+    preparingPct: peerPreparingActive && preparingDecor ? pct(preparingDecor.bytes, preparingDecor.total) : 0,
     showVerified: row.verified === true && ON_DEVICE.has(row.status),
   }
 }
