@@ -122,6 +122,26 @@ test('a root that vanished mid-pass settles as mount-point-gone, not as a fault'
     'the absence is recorded, so the probe reads the RETURN as an edge')
 })
 
+// REGRESSION (FIX-334-1: the pass announced a missing root itself and then returned
+// { skipped: 'mount-point-gone' }, which the settle announced again from the record. The event is a
+// poke, so every gone root cost the renderer two listing refetches instead of one.)
+test('REGRESSION (FIX-334-1): a pass over a missing root is announced once', async (t) => {
+  const ctx = await setupOwnedShare(t, { files: { 'a.txt': 'aa' } })
+  fs.rmSync(ctx.mountPath, { recursive: true, force: true })
+  const before = statuses(ctx).length
+
+  const result = await ctx.root.mounts.settleScanStatus(
+    runPublishPass(ctx.spaceId, ctx.share.id, ctx.mountPath, []),
+    ctx.spaceId, ctx.share.id,
+  )
+
+  t.is(result.skipped, 'mount-point-gone', 'precondition: the pass bailed on the root')
+  const emitted = statuses(ctx).slice(before)
+  t.is(emitted.length, 1, 'one status event for one gone root')
+  t.is(emitted[0].status, 'mount-point-gone')
+  t.is((await getOwnedMount(ctx.spaceId, ctx.share.id)).status, 'mount-point-gone', 'and it is durable')
+})
+
 // settleScanStatus documents four outcomes it must keep apart, and this change edits both its
 // catch and its success path. These are the guard on the distinctions, not on the new behaviour.
 test("a cancelled pass still records nothing", async (t) => {

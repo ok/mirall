@@ -23,7 +23,7 @@ test('initial scan publishes disk files to the catalog; re-scan is a no-op', asy
 })
 
 test('REGRESSION: a missing mount root never deletes catalog entries (no mirror cascade)', async (t) => {
-  const { spaceId, share, mountPath, fake } = await setupOwnedShare(t)
+  const { spaceId, share, mountPath, fake, root } = await setupOwnedShare(t)
   fs.writeFileSync(path.join(mountPath, 'keep.txt'), 'data')
   await runPublishPass(spaceId, share.id, mountPath, [])
   t.is((await listRelPaths(share, spaceId)).length, 1)
@@ -31,7 +31,7 @@ test('REGRESSION: a missing mount root never deletes catalog entries (no mirror 
   // user moves/deletes the source folder
   fs.rmSync(mountPath, { recursive: true, force: true })
 
-  const r = await runPublishPass(spaceId, share.id, mountPath, [])
+  const r = await root.mounts.settleScanStatus(runPublishPass(spaceId, share.id, mountPath, []), spaceId, share.id)
   t.is(r.skipped, 'mount-point-gone', 'reconcile bails out')
   t.is(r.deleted, 0, 'ZERO deletions issued')
   t.is((await listRelPaths(share, spaceId)).length, 1, 'published snapshot preserved')

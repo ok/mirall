@@ -37,12 +37,10 @@ const scanSignals = new Map()
 // Injected by owned-folders.js.
 let state = null
 let scheduler = () => { throw new Error('owned-folders: not started') }
-let emit = () => {}
 
 export function initOwnedPass(d) {
   state = d.state
   scheduler = d.scheduler
-  emit = d.emit
 }
 
 // Guards the diff, not the publish: the diff is stat-only but still O(files), so two must not
@@ -140,10 +138,10 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   //
   // A missing root is ambiguous (transient vs. permanent) and guessing "deleted" would enqueue a
   // retire for every file in the share. Bail without touching the catalog or the queue; the probe
-  // loop restarts us when the path returns.
+  // loop restarts us when the path returns. The skip is announced by whoever settles this pass,
+  // from the durable record — never from here, or the renderer is poked twice for one absence.
   if (!mountRootAvailable(mountPath)) {
     log.warn('mount path unavailable, skipping reconcile:', mountPath)
-    emit('event:owned-folder-mount-status', { spaceId, shareId, status: MOUNT_STATUS.MOUNT_POINT_GONE })
     return { skipped: MOUNT_STATUS.MOUNT_POINT_GONE, totalOnDisk: 0 }
   }
   // Before the walk rather than before the enqueue: the walk is the expensive half on a large tree.
