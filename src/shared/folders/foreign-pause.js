@@ -80,7 +80,7 @@ export async function recordMirrorScanFault(spaceId, shareId, err) {
   return status
 }
 
-// test seam
+/** @internal */
 export function isAutoPaused(mount) {
   return !!mount && mount.enabled === false && isAutoPauseStatus(mount.status)
 }

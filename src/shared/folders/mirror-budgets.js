@@ -8,9 +8,9 @@
 // Bounded by EVICTION, not by refusing to record. A memo that stops recording at its cap silently
 // stops blocking, which is exactly how the loop this exists to end would come back on a mount with
 // more corrupt files than the cap.
-// test seam
+/** @internal */
 export const DEFAULT_ATTEMPT_LIMIT = 3
-// test seam
+/** @internal */
 export const DEFAULT_MAX_KEYS = 512
 
 export function createAttemptBudget({ limit = DEFAULT_ATTEMPT_LIMIT, maxKeys = DEFAULT_MAX_KEYS } = {}) {
@@ -66,7 +66,7 @@ export function createAttemptBudget({ limit = DEFAULT_ATTEMPT_LIMIT, maxKeys = D
 // say "this holder is serving corrupt content", and an unbounded Set on a 150k-file mirror is a
 // leak. This is a bounded gap, not a silent one: every suppressed case still produced its console
 // warning, and the cap itself is logged.
-// test seam
+/** @internal */
 export const DEFAULT_INTEGRITY_ROW_CAP = 512
 
 export function createIntegritySeen({ limit = DEFAULT_INTEGRITY_ROW_CAP, onCap = () => {} } = {}) {

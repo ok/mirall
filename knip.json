@@ -4,17 +4,12 @@
     "src/preload/preload.js",
     "src/worker/main.js",
     "forge.config.js",
-    "scripts/**/*.{js,mjs}",
-    "test/**/*.test.js",
-    "test/**/run*.mjs",
-    "test/helpers/**/*.{js,mjs}",
-    "test/frontend-layout/**/*.{js,mjs,ts,tsx}"
+    "scripts/**/*.{js,mjs}"
   ],
   "project": [
     "src/**/*.{js,ts,tsx}"
   ],
   "ignore": [
-    "src/**/*.d.ts",
     "src/shared/transfer/backends/overlay/vendor/**"
   ],
   "rules": {
@@ -22,5 +17,8 @@
     "devDependencies": "off",
     "binaries": "off",
     "unlisted": "off"
-  }
+  },
+  "tags": [
+    "-internal"
+  ]
 }

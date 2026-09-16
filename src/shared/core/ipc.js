@@ -42,7 +42,7 @@ const POKE_SCOPE = {
   'event:audit-updated': () => Scope.audit(),
 }
 
-// test seam
+/** @internal */
 export function scopeForEvent(type, payload = {}) {
   const toScope = POKE_SCOPE[type]
   return toScope ? toScope(payload) : null
@@ -73,7 +73,7 @@ export function getRequestMetrics() {
   return requestMetrics.snapshot()
 }
 
-// test seam
+/** @internal */
 export function resetRequestMetrics() {
   requestMetrics.reset()
 }
@@ -93,7 +93,7 @@ export function getRequestFailureCounters() {
   return out
 }
 
-// test seam
+/** @internal */
 export function resetRequestFailureCounters() {
   requestFailures.clear()
 }

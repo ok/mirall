@@ -14,7 +14,7 @@
 import { isKnownKind, categoryOf, tierOf, ACTOR_TYPE, OUTCOME, OUTCOMES, TARGET_KINDS } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
 
-// test seam
+/** @internal */
 export const SCHEMA_VERSION = 1
 
 // The participant shapes every row is assembled from. A row's shape is not a per-site decision:

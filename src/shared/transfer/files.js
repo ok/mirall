@@ -31,7 +31,7 @@ const log = createLogger('files')
 let downloadsBee
 let downloadsStore = -1
 
-// test seam — production opens downloads through this file's own _open()
+/** @internal production opens downloads through this file's own _open() */
 export async function initDownloads() {
   if (downloadsBee && downloadsStore === storeEpoch() && !downloadsBee.core.closed) return
   downloadsStore = storeEpoch()
@@ -202,7 +202,6 @@ export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSiz
 // A downloaded overlay file is "verified" when the hash recorded on landing (the
 // overlay verifies it byte-for-byte during transfer) still equals the currently
 // advertised content hash. key = `<shareId>|<relPath>` (loose uses LOOSE_SHARE_ID).
-// test seam
 export async function isVerifiedDownload(spaceId, key, contentHash) {
   if (!contentHash) return false
   return (await getVerifiedHash(spaceId, key)) === contentHash

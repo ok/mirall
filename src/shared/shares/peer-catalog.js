@@ -203,14 +203,14 @@ export async function getPeerEntry(catalogKeyHex, shareId, relPath, opts = {}) {
   return state && !state.removed ? { ...catalogEntry(relPath, state), seq: state.seq } : null
 }
 
-// test seam
+/** @internal */
 export function peerCatalogCacheStats() {
   return { size: peerCatalogs.size(), keys: peerCatalogs.keys(), refsOf: (k) => peerCatalogs.refsOf(k) }
 }
 
 // Closed, not just forgotten: every open core replicates to every socket. Fire-and-forget
 // because every caller is synchronous; a close failure means the store is already going down.
-// test seam
+/** @internal */
 export function dropPeerCatalog(catalogKeyHex) {
   if (peerCatalogWatchers.delete(catalogKeyHex)) peerCatalogs.release(catalogKeyHex)
   peerCatalogs.delete(catalogKeyHex)?.close().catch(() => {})

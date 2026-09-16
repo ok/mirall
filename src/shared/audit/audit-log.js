@@ -56,7 +56,7 @@ export function setAuditIdentity({ key = null, name = null } = {}) {
   selfIdentity = { key: key ?? selfIdentity.key, name: name ?? selfIdentity.name }
 }
 
-// test seam
+/** @internal */
 export function isAuditReady() {
   return bee !== null
 }

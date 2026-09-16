@@ -29,13 +29,11 @@ export async function startForeignLoop(mount) {
 // Un-wedge one mirror: the stop generation-invalidates a hung pass so it bails at its next
 // checkpoint without writing, and the restart drops the dead in-flight promise the stop leaves
 // behind — without that the fresh interval coalesces straight back onto it.
-// test seam
 export async function restartForeignLoop(spaceId, shareId) {
   loops.restart(mirrorKey(spaceId, shareId), { spaceId, shareId })
     .catch((err) => log.debug('materialize tick after restart failed:', err.message))
 }
 
-// test seam
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   loops.stop(mirrorKey(spaceId, shareId), { discardPartial })
 }

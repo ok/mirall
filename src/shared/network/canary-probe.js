@@ -47,7 +47,7 @@ function parseUpgradeKey(raw) {
   } catch { return null }
 }
 
-// test seam
+/** @internal */
 export function dialOnce(dht, peer) {
   return new Promise((resolve) => {
     let socket = null

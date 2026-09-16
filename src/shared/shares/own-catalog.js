@@ -152,7 +152,7 @@ export async function listOwnShareForDisplay(spaceId, shareId) {
   return (await collectOwnShare(spaceId, shareId)).entries
 }
 
-// test seam
+/** @internal */
 export function dropOwnCatalog(spaceId) {
   ownCatalogs.delete(spaceId)
 }

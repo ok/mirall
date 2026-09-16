@@ -17,7 +17,7 @@ import { migrateCatalogsToEncrypted } from '../../shares/migrate-catalog-encrypt
 import { migrateOverlayIndexToEncrypted } from '../../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MIGRATION_STATUS, migrationResult } from './migration-result.js'
 
-// test seam
+/** @internal */
 export const MIGRATIONS = Object.freeze([
   { id: 'local-bees-encrypt', stage: 'durable', run: () => migrateLocalBeesToEncrypted() },
   { id: 'catalogs-encrypt', stage: 'content', run: () => migrateCatalogsToEncrypted() },

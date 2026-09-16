@@ -8,7 +8,7 @@ import { prefixRange } from './bee-keys.js'
 import { createBee } from './store.js'
 import { Subsystem } from './subsystem.js'
 
-// test seam
+/** @internal */
 export const INTENT_PREFIX = 'intent/'
 
 let seq = 0

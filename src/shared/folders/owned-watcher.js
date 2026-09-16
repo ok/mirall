@@ -87,7 +87,7 @@ export async function handleFsEventFromMain(event) {
 
 // Resolves once the event's work item has settled (or its rerun, when the item was already
 // running), so a caller that awaits it observes the effect.
-// test seam
+/** @internal */
 export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
   const mount = await getOwnedMount(spaceId, shareId)
   if (!mount) {

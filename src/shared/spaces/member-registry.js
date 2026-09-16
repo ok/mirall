@@ -92,7 +92,7 @@ const DEFAULT_DEPS = {
 
 let deps = { ...DEFAULT_DEPS }
 
-// test seam
+/** @internal */
 export function configureMemberRegistry(next) {
   deps = { ...deps, ...next }
 }
@@ -285,7 +285,7 @@ async function openMemberViewsForKnownSpaces() {
   }
 }
 
-// test seam
+/** @internal */
 export async function closeAllMemberViews() {
   await Promise.allSettled([...views.keys()].map((spaceId) => closeMemberView(spaceId)))
   captureRefs.clear()

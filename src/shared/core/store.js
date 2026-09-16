@@ -200,7 +200,7 @@ export function createDrive(name, { encryptionKey = null } = {}) {
 
 // Every session still open on the store, named where we opened it. What this returns as the store
 // closes is the list of handles nobody owned.
-// test seam
+/** @internal */
 export function openSessionNames() {
   if (!store) return []
   const out = []
@@ -261,7 +261,7 @@ export function isStorageInconsistency(err) {
 // objects, from which we read discoveryKey + state.length without opening sessions or
 // reading blocks. Best effort and side-effect free: never throws. Returns [] when the
 // store isn't initialised.
-// test seam
+/** @internal */
 export function collectStoreCoreInfo() {
   if (!store) return []
   const out = []

@@ -23,7 +23,7 @@ const log = createLogger('reveal')
 // do we guess <Downloads>/<name> — a last resort, since for an owned file that
 // guess points at a Downloads folder the file was never in (which is why
 // markOwnedSource records the real source at share time).
-// test seam
+/** @internal */
 export async function resolveRevealTarget(spaceId, filePath) {
   return (await getDownloadedPath(spaceId, filePath))
     || (await getOwnedSourcePath(spaceId, filePath))

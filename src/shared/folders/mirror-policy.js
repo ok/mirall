@@ -12,7 +12,7 @@ export function mirrorKey(spaceId, shareId) {
 // the life of the mount. Disk === ancestor means our copy is untouched, so a difference from the
 // owner is the owner's doing; disk !== ancestor means someone else wrote those bytes.
 
-// test seam
+/** @internal */
 export const LOCAL_COPY = {
   // The local file already IS the owner's current content — nothing to fetch.
   OWNER_CURRENT: 'owner-current',
@@ -48,7 +48,7 @@ export function mayOverwriteInPlace(verdict) {
 //
 // The order is the safety argument: every branch that cannot prove nothing changed costs a walk.
 // A skip is only ever authorised by a known version that matches a watermark a converged pass set.
-// test seam
+/** @internal */
 export const DEFAULT_FULL_WALK_EVERY = 10
 
 export function shouldWalk({ watermark = null, version = null, skipped = 0, fullWalkEvery = DEFAULT_FULL_WALK_EVERY } = {}) {
@@ -77,7 +77,7 @@ export function mirrorMayFetch({ ownerKey = null, localKey = null, ownerOnline =
 // handing every later tick the in-flight promise, so a pass that never settles wedges the mount
 // permanently while the interval keeps firing.
 
-// test seam
+/** @internal */
 export const STALL_FACTOR = 20
 
 export function mirrorVerdict(liveness, { now, pollIntervalMs, stallFactor = STALL_FACTOR }) {

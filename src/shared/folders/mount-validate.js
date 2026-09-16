@@ -230,7 +230,7 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
   return { mountPath: normalized, advisories: collectAdvisories(normalized) }
 }
 
-// test seam
+/** @internal */
 export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
     throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
