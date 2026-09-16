@@ -41,5 +41,6 @@ const EVENTS = Object.freeze({
   WORKER_READY: 'event:worker-ready',
 })
 
+/** @internal the declaration-parity guards' list; EventName below is the production reader */
 export const EVENT_NAMES = Object.freeze(Object.values(EVENTS))
 /** @typedef {(typeof EVENT_NAMES)[number]} EventName */

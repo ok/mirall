@@ -293,6 +293,8 @@ export async function closeAllMemberViews() {
 }
 
 // True iff `key` is in the current derived member set for the space (the last fold result).
+// Production reads the space.members projection instead; the fold tests probe the set directly.
+/** @internal */
 export function isMember(spaceId, key) {
   return views.get(spaceId)?.members.has(key) || false
 }
