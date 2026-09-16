@@ -125,3 +125,43 @@ test('REGRESSION (FIX-C2: a fresh review invite re-opens the door after a denial
 
     A.kill()
   })
+
+// REGRESSION (#364): the relaunched joiner knocks from inside its own boot and is denied before
+// launchPeer resolves, so a wait attached afterwards missed the one-shot event and ran to the
+// deadline. The harness keeps boot-window events for the caller's first wait. Holding the window
+// open makes the in-boot delivery certain rather than a race, so this case fails on a harness
+// without the backlog every time, not one time in six.
+test('REGRESSION (#364: a deny delivered during the joiner\'s boot is still observable afterwards)',
+  { timeout: scaled(240000) }, async (t) => {
+    const bootstrap = await localTestnet(t)
+    const bStorage = path.join(mkTmpDir(t), 'app-storage')
+    const bDownloads = mkTmpDir(t)
+    const bKek = kekHex()
+    const A = await launchPeer(t, {
+      bootstrap, displayName: 'Alice', storage: path.join(mkTmpDir(t), 'app-storage'), downloads: mkTmpDir(t),
+      flags: { identityKEK: kekHex() },
+    })
+    let B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: { identityKEK: bKek } })
+
+    const space = await A.request('space:create', { name: 'Gated' })
+    const sid = space.spaceId
+    const inviteCode = await A.request('space:invite', { spaceId: sid })
+    const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === sid)
+    await B.request('space:join', { inviteCode })
+    const req = await aGotRequest
+
+    const bPid = B.sidecar?._process?.pid
+    B.kill()
+    if (bPid) await waitForWorkerExit(bPid, 5000)
+    t.ok(await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey }), 'denied while offline')
+
+    B = await launchPeer(t, {
+      bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: { identityKEK: bKek }, bootSettleMs: 3000,
+    })
+    const denied = await B.waitFor('event:membership-denied', (m) => m.spaceId === sid, 20000)
+    t.is(denied.spaceId, sid, 'the boot-window deny is still observable after launchPeer resolved')
+    await B.until('spaces:list', {}, (l) => !l.some((x) => x.spaceId === sid), { ms: 60000 })
+    t.pass('the pending space is gone — the deny was delivered and applied')
+
+    A.kill()
+  })
