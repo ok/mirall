@@ -64,13 +64,13 @@ test('the offline snapshot reports the injected dht version', (t) => {
 
 test('the relay snapshot defaults to empty and reads through the accessor', (t) => {
   const offline = make(null).offlineStatusSnapshot()
-  t.alike(offline.relay, { connections: [], direct: { control: 0, content: 0 }, digest: '' })
-  t.alike(make(null).snapshotRelay(), { connections: [], direct: { control: 0, content: 0 }, digest: '' })
+  t.alike(offline.relay, { connections: [], direct: { control: 0, content: 0 }, seen: 0, digest: '' })
+  t.alike(make(null).snapshotRelay(), { connections: [], direct: { control: 0, content: 0 }, seen: 0, digest: '' })
   const diag = createSwarmDiagnostics({
     getSwarm: () => null,
     getRelaySelections: () => 0,
     getDhtVersion: () => 'x',
-    getRelayedConnections: () => ({ connections: [], direct: { control: 3, content: 0 }, digest: '' }),
+    getRelayedConnections: () => ({ connections: [], direct: { control: 3, content: 0 }, seen: 0, digest: '' }),
   })
   t.is(diag.snapshotRelay().direct.control, 3)
 })

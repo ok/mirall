@@ -14,7 +14,7 @@ import { CANARY } from '../core/reachability.js'
 const DEFAULT_BOOTSTRAP = ['node1.hyperdht.org:49737', 'node2.hyperdht.org:49737', 'node3.hyperdht.org:49737']
 
 export function emptyRelaySnapshot() {
-  return { connections: [], direct: { control: 0, content: 0 }, digest: '' }
+  return { connections: [], direct: { control: 0, content: 0 }, seen: 0, digest: '' }
 }
 
 export function createSwarmDiagnostics({ getSwarm, getRelaySelections, getDhtVersion, getRelayedConnections = emptyRelaySnapshot }) {

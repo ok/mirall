@@ -15,6 +15,7 @@ let onUnrelayed = () => {}
 
 const entries = new Map()
 const direct = new Map()
+let relayedSeen = 0
 
 export function initRelayedConnections(deps) {
   ownRelay = deps.ownRelay
@@ -40,6 +41,7 @@ export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
   const via = relayVia(pairing.relayKey, own.key)
   const entry = { plane, memberOf, relayKey: pairing.relayKey, via, relayLabel: via === 'own' ? own.label || null : null, since: now }
   entries.set(socket, entry)
+  relayedSeen++
   const unrelay = () => {
     if (!entries.delete(socket)) return
     onUnrelayed(socket)
@@ -82,7 +84,7 @@ export function snapshotRelayedConnections() {
     connections.push({ peerKey, profileKey, plane, displayName, via, relayKey, since })
   }
   const digest = connections.map((c) => `${c.peerKey}:${c.profileKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.displayName ?? ''}`).join('|')
-  return { connections, direct: directCounts(), digest }
+  return { connections, direct: directCounts(), seen: relayedSeen, digest }
 }
 
 function directCounts() {
@@ -94,6 +96,7 @@ function directCounts() {
 export function resetRelayedConnections() {
   entries.clear()
   direct.clear()
+  relayedSeen = 0
   ownRelay = () => ({ key: null, label: null })
   onChange = () => {}
   onRelayed = () => {}
