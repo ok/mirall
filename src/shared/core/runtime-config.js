@@ -101,6 +101,10 @@ export function getPeerPresenceDwellMs() {
   return read('peerPresenceDwellMs')
 }
 
+export function getRelayAuditDwellMs() {
+  return read('relayAuditDwellMs')
+}
+
 export function getDeepReconcileEvery() {
   return read('deepReconcileEvery')
 }

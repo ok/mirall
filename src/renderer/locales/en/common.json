@@ -1003,6 +1003,7 @@
       "network.restored": "Connection restored",
       "network.peer_lost": "{{actor}} went offline",
       "network.peer_back": "{{actor}} is back online",
+      "network.peer_relayed": "{{actor}} is connected through a relay",
       "share.renamed": "You renamed the folder {{target}}",
       "mirror.relocated": "You moved the mirror of {{target}}"
     },
@@ -1046,6 +1047,7 @@
       "network.restored": "connection restored",
       "network.peer_lost": "member went offline",
       "network.peer_back": "member back online",
+      "network.peer_relayed": "relayed connection",
       "share.renamed": "folder renamed",
       "mirror.relocated": "mirror moved"
     },
@@ -1053,6 +1055,14 @@
     "metaFiles_other": "{{formatted}} files",
     "startedAt": "started {{time}}",
     "wasOfflineFor": "Offline for {{duration}}",
+    "relay": {
+      "own": "Your relay",
+      "ownLabelled": "Your relay {{label}}",
+      "providedBy": "Relay provided by {{name}}",
+      "plane": {
+        "content": "File transfers"
+      }
+    },
     "emptyNetworkTitle": "No connection problems recorded",
     "emptyNetworkDesc": "Mirall has been able to reach the network the whole time it has been running.",
     "cause": {

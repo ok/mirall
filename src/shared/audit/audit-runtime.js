@@ -25,6 +25,7 @@ export class AuditLog extends Subsystem {
     initNetworkWatch({
       emit: () => this.deps.ipc.emit('event:audit-updated', {}),
       peerDwellMs: this.deps.peerDwellMs ?? 0,
+      relayDwellMs: this.deps.relayDwellMs ?? 0,
       // The watch's dwell timeouts re-arm themselves, so they belong to this subsystem's set
       // rather than to the call that happened to start them.
       timers: this.timers,

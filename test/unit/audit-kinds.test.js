@@ -50,6 +50,7 @@ test('the network category is exactly the connectivity vocabulary', (t) => {
     'network.offline',
     'network.peer_back',
     'network.peer_lost',
+    'network.peer_relayed',
     'network.restored',
   ])
 })

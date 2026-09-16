@@ -1003,6 +1003,7 @@
       "network.restored": "Connessione ripristinata",
       "network.peer_lost": "{{actor}} è andato offline",
       "network.peer_back": "{{actor}} è di nuovo online",
+      "network.peer_relayed": "{{actor}} è connesso tramite un relay",
       "share.renamed": "Hai rinominato la cartella {{target}}",
       "mirror.relocated": "Hai spostato la replica di {{target}}"
     },
@@ -1046,6 +1047,7 @@
       "network.restored": "connessione ripristinata",
       "network.peer_lost": "membro andato offline",
       "network.peer_back": "membro di nuovo online",
+      "network.peer_relayed": "connessione inoltrata",
       "share.renamed": "cartella rinominata",
       "mirror.relocated": "replica spostata"
     },
@@ -1053,6 +1055,14 @@
     "metaFiles_other": "{{formatted}} file",
     "startedAt": "dalle {{time}}",
     "wasOfflineFor": "Offline per {{duration}}",
+    "relay": {
+      "own": "Il tuo relay",
+      "ownLabelled": "Il tuo relay {{label}}",
+      "providedBy": "Relay fornito da {{name}}",
+      "plane": {
+        "content": "Trasferimenti di file"
+      }
+    },
     "emptyNetworkTitle": "Nessun problema di connessione registrato",
     "emptyNetworkDesc": "Mirall è riuscito a raggiungere la rete per tutto il tempo in cui è stato in esecuzione.",
     "cause": {

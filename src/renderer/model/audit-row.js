@@ -120,7 +120,7 @@ export function sentenceValues(entry) {
 }
 
 /** @param {string | null | undefined} key */
-function shortKey(key) {
+export function shortKey(key) {
   return typeof key === 'string' && key ? key.slice(0, 12) : null
 }
 
@@ -196,6 +196,18 @@ function formatClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/** @param {AuditEntry} entry @returns {MetaPart[]} */
+function relayedMeta(entry) {
+  if (entry.kind !== 'network.peer_relayed') return []
+  const subject = entry.subject ?? {}
+  const plane = subject.plane === 'content' ? [{ key: 'activityLog.relay.plane.content' }] : []
+  if (subject.via === 'own') {
+    const label = typeof subject.label === 'string' && subject.label ? subject.label : null
+    return [...plane, label ? { key: 'activityLog.relay.ownLabelled', values: { label } } : { key: 'activityLog.relay.own' }]
+  }
+  return [...plane, { key: 'activityLog.relay.providedBy', values: { name: typeof subject.provider === 'string' ? subject.provider : '' } }]
+}
+
 // The muted second line: space name first (the row's strongest context), then the kind's detail.
 // Returns STRUCTURED parts — `{ key, values }` for anything translatable, `{ text }` for a proper
 // noun or a formatted number — never a finished string: the component translates.
@@ -224,6 +236,7 @@ export function metaParts(entry, locale) {
   if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
   if (typeof subject.to === 'string' && subject.to) parts.push({ text: subject.to })
 
+  parts.push(...relayedMeta(entry))
   if (entry.category === 'network') {
     if (typeof entry.code === 'string' && NETWORK_CAUSES.has(entry.code)) {
       parts.push({ key: 'activityLog.cause.' + entry.code })

@@ -76,6 +76,8 @@ const TEST_LEVERS = {
 // Tests shrink most of them.
 const DEFAULTED = {
   peerReadTimeoutMs: 8000,
+  // How long a connection must stay relayed before the audit log records it.
+  relayAuditDwellMs: 10000,
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
   // locally-available rows now and self-heals: event:shares-updated / event:files-updated re-run
