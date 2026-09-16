@@ -36,6 +36,11 @@ function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null } 
   return { calls, state, track }
 }
 
+function snapshotWithoutSeen() {
+  const { seen, ...rest } = snapshotRelayedConnections()
+  return rest
+}
+
 function socketOf({ relayKey = null, adopted = false } = {}) {
   const rawStream = Object.assign(new EventEmitter(), { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port })
   const socket = Object.assign(new EventEmitter(), { remotePublicKey: PEER, rawStream })
@@ -49,7 +54,7 @@ function socketOf({ relayKey = null, adopted = false } = {}) {
 test('a direct socket counts as direct and returns null', (t) => {
   const { calls, track } = harness(t)
   t.is(track(socketOf()), null)
-  t.alike(snapshotRelayedConnections(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
+  t.alike(snapshotWithoutSeen(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
   t.is(calls.relayed.length, 0)
 })
 
@@ -110,7 +115,7 @@ test("'remote-changed' to a different endpoint drops the entry and counts the pe
   track(socket)
   socket.rawStream.remoteHost = '198.51.100.4'
   socket.rawStream.emit('remote-changed')
-  t.alike(snapshotRelayedConnections(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
+  t.alike(snapshotWithoutSeen(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
   t.is(calls.unrelayed.length, 1)
   t.is(calls.change, 2)
   socket.emit('close')
@@ -134,7 +139,7 @@ test('close removes a relayed entry, releases its dwell, and removes a direct so
   track(relayed)
   track(direct)
   relayed.emit('close')
-  t.alike(snapshotRelayedConnections(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
+  t.alike(snapshotWithoutSeen(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
   t.is(calls.unrelayed[0], relayed)
   direct.emit('close')
   t.alike(snapshotRelayedConnections().direct, { control: 0, content: 0 })
@@ -177,7 +182,7 @@ test('reset clears entries, counts and collaborators', (t) => {
   track(socketOf({ relayKey: OWN }))
   track(socketOf())
   resetRelayedConnections()
-  t.alike(snapshotRelayedConnections(), { connections: [], direct: { control: 0, content: 0 }, digest: '' })
+  t.alike(snapshotWithoutSeen(), { connections: [], direct: { control: 0, content: 0 }, digest: '' })
   const before = calls.change
   track(socketOf())
   t.is(calls.change, before, 'the injected callbacks are gone')
@@ -196,4 +201,20 @@ test('a content-plane socket is tracked under its own plane and name lookup', (t
   t.alike(snap.direct, { control: 0, content: 1 })
   t.is(describeConnection(relayed).plane, 'content')
   t.ok(snap.digest.includes(':content:'))
+})
+
+test('seen counts every connection observed relayed since start and survives close and direct upgrade', (t) => {
+  const { track } = harness(t)
+  const a = socketOf({ relayKey: OWN })
+  const b = socketOf({ relayKey: OTHER })
+  track(a)
+  track(b)
+  track(socketOf())
+  t.is(snapshotRelayedConnections().seen, 2)
+  a.emit('close')
+  b.rawStream.remoteHost = '198.51.100.4'
+  b.rawStream.emit('remote-changed')
+  t.is(snapshotRelayedConnections().seen, 2)
+  resetRelayedConnections()
+  t.is(snapshotRelayedConnections().seen, 0)
 })

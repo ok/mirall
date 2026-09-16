@@ -858,10 +858,12 @@
       "stillSettling": "Wir ermitteln noch, wie sich dieses Netzwerk verhält — einen Moment bitte."
     },
     "relaying": "Weiterleitung",
-    "relayedActive": "Weitergeleitete Verbindungen",
-    "relayedAttempts": "Weiterleitungsversuche",
-    "relayedAborts": "Fehlgeschlagene Weiterleitungen",
-    "relaySelected": "Von diesem Gerät gewählte Relays",
+    "relayedNow": "Aktuell weitergeleitet",
+    "relayedSeen": "Weitergeleitet seit Start",
+    "relayedActive": "Eingehend weitergeleitet seit Start",
+    "relayedAttempts": "Eingehende Weiterleitungsversuche",
+    "relayedAborts": "Eingehende Weiterleitungsfehler",
+    "relaySelected": "Eigenes Relay gewählt seit Start",
     "relayed": {
       "title": "Weitergeleitete Verbindungen",
       "intro": "Ein Relay trägt eine Verbindung, wenn keine direkte möglich ist. Es kann nicht lesen, was du teilst, aber sein Betreiber kann sehen, dass du mit diesen Teilnehmern verbunden bist.",

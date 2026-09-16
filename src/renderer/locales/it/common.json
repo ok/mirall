@@ -858,10 +858,12 @@
       "stillSettling": "Stiamo ancora capendo come si comporta questa rete: attendi un momento."
     },
     "relaying": "Inoltro",
-    "relayedActive": "Connessioni inoltrate",
-    "relayedAttempts": "Tentativi di inoltro",
-    "relayedAborts": "Inoltri non riusciti",
-    "relaySelected": "Relay scelti da questo dispositivo",
+    "relayedNow": "Inoltrate ora",
+    "relayedSeen": "Inoltrate dall'avvio",
+    "relayedActive": "In entrata inoltrate dall'avvio",
+    "relayedAttempts": "Tentativi di inoltro in entrata",
+    "relayedAborts": "Errori di inoltro in entrata",
+    "relaySelected": "Relay proprio scelto dall'avvio",
     "relayed": {
       "title": "Connessioni inoltrate",
       "intro": "Un relay trasporta una connessione quando non è possibile una diretta. Non può leggere ciò che condividi, ma chi lo gestisce può vedere che tu e queste persone siete connessi.",

@@ -41,6 +41,7 @@ function relaySection(relay, relayConfig, redact) {
       ? { kind: own.kind, label: redact ? null : own.label, key: redact ? shortId(own.publicKey) : own.publicKey }
       : null,
     direct: relay.direct,
+    seen: relay.seen,
     connections: relay.connections.map((c) => ({
       peer: redact ? shortId(c.peerKey) : c.peerKey,
       plane: c.plane,

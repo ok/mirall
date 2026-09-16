@@ -858,10 +858,12 @@
       "stillSettling": "Aún estamos determinando cómo se comporta esta red: dale un momento."
     },
     "relaying": "Retransmisión",
-    "relayedActive": "Conexiones retransmitidas",
-    "relayedAttempts": "Intentos de retransmisión",
-    "relayedAborts": "Fallos de retransmisión",
-    "relaySelected": "Relays elegidos por este dispositivo",
+    "relayedNow": "Retransmitidas ahora",
+    "relayedSeen": "Retransmitidas desde el inicio",
+    "relayedActive": "Entrantes retransmitidas desde el inicio",
+    "relayedAttempts": "Intentos de retransmisión entrantes",
+    "relayedAborts": "Fallos de retransmisión entrantes",
+    "relaySelected": "Relay propio elegido desde el inicio",
     "relayed": {
       "title": "Conexiones retransmitidas",
       "intro": "Un relay transporta una conexión cuando no es posible una directa. No puede leer lo que compartes, pero quien lo gestiona puede ver que tú y estas personas estáis conectados.",
