@@ -4,11 +4,13 @@ import fs from 'fs'
 import path from 'path'
 import { scaled, summarize, tail, TIMING } from './timing.js'
 import { tmpDir } from './tmp.js'
+import { createEventLog } from './event-log.js'
 
 // A full client = the REAL worker (src/worker/main.js) run as a bare subprocess
 // via bare-sidecar, driven over its NDJSON IPC (the same protocol Electron main
 // uses). The test orchestrator runs under Node (brittle-node); only the worker
-// runs under Bare. This is the most faithful two-client harness.
+// runs under Bare. This is the most faithful two-client harness. Events the worker
+// emits before launchPeer resolves are kept for the caller's first matching waitFor.
 
 const WORKER_ENTRY = path.resolve('src/worker/main.js')
 
@@ -49,7 +51,9 @@ function installExitBackstop() {
   })
 }
 
-export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {} } = {}) {
+// `bootSettleMs` holds the boot window open past profile:set, so a test can make an edge the
+// worker consumes right after boot land inside the window on any machine.
+export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0 } = {}) {
   // When storage/downloads are passed in, the caller owns their lifetime (used
   // to relaunch a peer with the same identity + drive after an offline window).
   const ownsDirs = !storage
@@ -85,7 +89,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   }
 
   const pending = new Map()
-  const listeners = new Map()
+  const events = createEventLog()
   let id = 0
   let buf = ''
   let alive = true
@@ -116,8 +120,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
         if (msg.error) reject(Object.assign(new Error(msg.error), { code: msg.code }))
         else resolve(msg.data)
       } else if (typeof msg.type === 'string' && msg.type.startsWith('event:')) {
-        for (const cb of listeners.get(msg.type) ?? []) cb(msg)
-        for (const cb of listeners.get('*') ?? []) cb(msg)
+        events.deliver(msg)
       }
     }
   })
@@ -134,21 +137,29 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
         sidecar.write(JSON.stringify({ id: mid, type, ...args }) + '\n')
       })
     },
-    on(type, cb) {
-      if (!listeners.has(type)) listeners.set(type, [])
-      listeners.get(type).push(cb)
-    },
+    on(type, cb) { return events.on(type, cb) },
+    // Resolves with the first `type` event matching `pred` that the worker emitted either during
+    // boot (before launchPeer resolved) or after this call. A relaunched worker can complete a
+    // whole round trip inside its own boot — a pending joiner knocks from the swarm start and can
+    // be denied or granted before worker-ready — and the caller cannot be listening yet. Boot
+    // events are handed out once each. Events emitted between launchPeer returning and this call
+    // are not seen: attach the wait before triggering the action.
     waitFor(type, pred = () => true, ms = 20000) {
       const deadline = scaled(ms)
+      const fromBoot = events.takeFromBacklog(type, pred)
+      if (fromBoot) return Promise.resolve(fromBoot)
       return new Promise((resolve, reject) => {
         let seen = 0
+        let off = () => {}
         const to = setTimeout(() => {
+          off()
           reject(new Error(
-            `timeout waiting for ${type} after ${deadline}ms (${displayName}: saw ${seen} ${type} event(s), none matched)\n` +
+            `timeout waiting for ${type} after ${deadline}ms (${displayName}: saw ${seen} ${type} event(s) after the wait was attached, none matched)\n` +
+            `  ${events.summary()}\n` +
             `--- ${displayName} worker stderr (tail) ---\n${tail(stderrChunks.join(''))}`
           ))
         }, deadline)
-        peer.on(type, (m) => { seen++; if (pred(m)) { clearTimeout(to); resolve(m) } })
+        off = events.on(type, (m) => { seen++; if (pred(m)) { clearTimeout(to); off(); resolve(m) } })
       })
     },
     // Everything the worker has written to stderr so far (logger warn/error).
@@ -199,6 +210,9 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   await ready
   // Fresh store has no profile → give the peer an identity.
   await peer.request('profile:set', { displayName, avatar: null })
+  events.takeFromBacklog('event:worker-ready', () => true)
+  if (bootSettleMs) await new Promise((r) => setTimeout(r, scaled(bootSettleMs)))
+  events.seal()
 
   t.teardown(async () => {
     const pid = sidecar?._process?.pid
