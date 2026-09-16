@@ -306,8 +306,20 @@ export async function markRequest(spaceId, joinerKeyHex, { displayName = 'Unknow
 // cleared across restart. Also drops our own receipt for tidiness.
 export async function markRequestDenied(spaceId, joinerKeyHex) {
   await ensureMembershipManifestCap()
-  await profileBee.put('denied/' + spaceId + '/' + joinerKeyHex, { ts: Date.now() })
+  const ts = Date.now()
+  await profileBee.put('denied/' + spaceId + '/' + joinerKeyHex, { ts })
   await profileBee.del('request/' + spaceId + '/' + joinerKeyHex)
+  return ts
+}
+
+// Whether our own durable dismissal of this joiner still stands: a tombstone with no newer
+// receipt behind it. The durable answer, for a knock that may outrun the fold's cache.
+export async function ownDenialStands(spaceId, joinerKeyHex) {
+  if (!profileBee) return false
+  const denial = await profileBee.get('denied/' + spaceId + '/' + joinerKeyHex)
+  if (!denial) return false
+  const receipt = await profileBee.get('request/' + spaceId + '/' + joinerKeyHex)
+  return !receipt || (denial.value?.ts || 0) >= (receipt.value?.ts || 0)
 }
 
 // Drop our own receipt without a tombstone — used once a request is APPROVED (the approval

@@ -18,9 +18,9 @@ import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shar
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
-import { closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
+import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
-import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
 import { clearJoinRequest, listJoinRequests, listPendingRequests, recordJoinRequest } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
@@ -142,7 +142,7 @@ async function onJoinRequest(msg) {
     inviteVerdict,
     hasInviteRecord: !!inviteRec,
     hadLeft,
-    isDenied: isDeniedJoiner(spaceId, msg.profileKey),
+    isDenied: isDeniedJoiner(spaceId, msg.profileKey) || await ownDenialStands(spaceId, msg.profileKey),
   })
   if (verdict === 'deny-expired' || verdict === 'deny-replay') {
     if (space.topic) sendMembershipDeny(msg.profileKey, space.topic)
@@ -332,6 +332,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
     const sck = getSpaceContentKey(spaceId, space)
     if (!sck) return false
     await recordApproval(spaceId, joinerKey)
+    applyLocalApproval(spaceId, joinerKey)
     // The read-model is already correct here (member approved, request cleared), so clear the
     // approver's banner now instead of gating it on the grant/capture below — matches the deny path.
     ipc.emit('event:join-requests-updated', { spaceId })
@@ -358,7 +359,8 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
     return { granted: true, delivered }
   }
   clearJoinRequest(spaceId, joinerKey)
-  await markRequestDenied(spaceId, joinerKey)   // durable, replicated dismissal (+ drops our receipt)
+  const deniedTs = await markRequestDenied(spaceId, joinerKey)   // durable, replicated dismissal (+ drops our receipt)
+  applyLocalDenial(spaceId, joinerKey, deniedTs)
   if (space.topic) {
     sendMembershipDeny(joinerKey, space.topic)
     broadcastMembershipCancel(spaceId, space.topic, joinerKey)   // co-members drop the banner
