@@ -27,6 +27,7 @@ interface DownloadFileResult {
   transferId?: string
   queued?: boolean
   alreadyOwned?: boolean
+  mirrored?: boolean
 }
 
 interface ListResult {
