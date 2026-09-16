@@ -19,6 +19,7 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import ActionMenu from '../../components/primitives/ActionMenu.js'
 import DocsLink from '../../components/primitives/DocsLink.js'
 import AddRelayModal from '../../components/modals/AddRelayModal.js'
+import { relayKindClasses } from '../../model/relay-groups.js'
 
 interface RelayTestResult {
   ok: boolean
@@ -270,7 +271,7 @@ function RelayRow({ relay, testing, active, canTest, onTest, onReplace, onRemove
       <Badge
         label={t(`networkSettings.relays.kind.${relay.kind}`)}
         srLabel={t('networkSettings.relays.statusFor', { name, status: t(`networkSettings.relays.kind.${relay.kind}`) })}
-        classes={relay.kind === 'private' ? 'bg-secondary-container text-on-secondary-container' : 'bg-info text-on-info'}
+        classes={relayKindClasses(relay.kind)}
         className={dim}
       />
       <Badge

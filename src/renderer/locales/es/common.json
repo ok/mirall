@@ -861,6 +861,24 @@
     "relayedActive": "Conexiones retransmitidas",
     "relayedAttempts": "Intentos de retransmisión",
     "relayedAborts": "Fallos de retransmisión",
+    "relaySelected": "Relays elegidos por este dispositivo",
+    "relayed": {
+      "title": "Conexiones retransmitidas",
+      "intro": "Un relay transporta una conexión cuando no es posible una directa. No puede leer lo que compartes, pero quien lo gestiona puede ver que tú y estas personas estáis conectados.",
+      "relay": "Relay",
+      "people": "Personas",
+      "since": "desde hace {{duration}}",
+      "providedBy": "Proporcionado por {{name}}",
+      "badgeOwn": "Relay: tu relay, {{kind}}",
+      "badgeAdopted": "Relay: proporcionado por {{name}}",
+      "unknownPeer": "un miembro",
+      "moreNames": "{{shown}} y {{count}} más",
+      "plane": {
+        "control": "chat",
+        "content": "archivos",
+        "both": "chat y archivos"
+      }
+    },
     "summary": {
       "title": "Resumen de la conexión",
       "connection": "Conexión",
@@ -887,7 +905,13 @@
       },
       "people": "Personas",
       "peopleValue": "{{found}} encontradas · {{connected}} conectadas",
-      "runningFor": "En marcha desde hace"
+      "runningFor": "En marcha desde hace",
+      "relay": "Relay",
+      "relayValue": {
+        "off": "Desactivado",
+        "none": "Sin usar",
+        "used": "En uso para {{relayed}} de {{total}} personas"
+      }
     },
     "canary": "Prueba de conexión",
     "canaryState": "Resultado",
