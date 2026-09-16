@@ -29,7 +29,3 @@ export function unwrap({ nonce, ciphertext }, kek) {
   if (!sodium.crypto_secretbox_open_easy(out, ciphertext, nonce, kek)) return null
   return out
 }
-
-export function zero(buf) {
-  if (buf) sodium.sodium_memzero(buf)
-}

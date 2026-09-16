@@ -5,6 +5,7 @@
 //   durable     after the master secret is resolved and BEFORE any local bee is opened.
 //   content     after the durable tier, before the initial publish scans and the overlay index.
 //   background  after the swarm is up, and never awaited — nothing here may block boot.
+/** @internal the registry guard's list; the root names each stage by literal at its own point of boot */
 export const STAGES = Object.freeze(['durable', 'content', 'background'])
 
 // What a migration did. `failed` is the runner's own answer for a throw; a migration reports the

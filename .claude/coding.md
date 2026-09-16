@@ -272,10 +272,12 @@ exists in `contract/statuses.js`.
 add an allowlist entry to silence them unless the key really is reached dynamically, and name the
 site when you do.
 
-Known open issues, recorded rather than fixed here: `knip` still reports ~15 unused exports, of
-which the `src/main` rows are false positives from dependency injection and inline `require()` (see
-`.claude/dependency-updates.md`); `EVENTS` and `broadcastPresence` are exported but used only
-in-file and could be un-exported when their modules are next touched.
+Known open issues, recorded rather than fixed here: `knip` runs with `ignoreExportsUsedInFile`,
+so it reports only exports with no reader anywhere in production. Two things that setting hides:
+the `src/main` rows are unmeasurable because knip does not trace member access on a namespace
+`require()` (main's style), and `@internal` is not honoured on a CommonJS export — the
+`// test seam:` comments there stay; and an `export` keyword on a symbol its own file already
+uses is a needless keyword, to be dropped when the module is next touched.
 
 ---
 

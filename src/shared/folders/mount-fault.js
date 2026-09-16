@@ -4,10 +4,7 @@
 import { classifyLocalIoFault } from '../core/errors.js'
 import { statusForFaultCode } from '../contract/mount-fault.js'
 
-export {
-  STATUS_MOUNT_GONE, AUTO_PAUSE_STATUSES,
-  statusForFaultCode, isAutoPauseStatus, isMountFault, mountFault,
-} from '../contract/mount-fault.js'
+export { STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from '../contract/mount-fault.js'
 
 // null means "not a fault this classifies" — the caller falls through to its own handling rather
 // than pausing a mount on something transient. Whether a root actually vanished stays the

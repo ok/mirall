@@ -32,6 +32,7 @@ const PARENT = {
 
 export type Screen = keyof typeof PARENT
 
+/** @internal the back-terminates invariant's list; production routes by name, never over all screens */
 export const SCREENS = Object.keys(PARENT) as Screen[]
 
 // The screen to go back to, or null at the root.

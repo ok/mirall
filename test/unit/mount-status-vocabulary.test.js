@@ -4,9 +4,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES } from '../../src/shared/contract/statuses.js'
 import { CODES } from '../../src/shared/contract/errors.js'
-import {
-  AUTO_PAUSE_STATUSES, statusForFaultCode, faultFromError, isAutoPauseStatus, mountFault, isMountFault,
-} from '../../src/shared/folders/mount-fault.js'
+import { statusForFaultCode, faultFromError, isAutoPauseStatus } from '../../src/shared/folders/mount-fault.js'
+import { AUTO_PAUSE_STATUSES, mountFault, isMountFault } from '../../src/shared/contract/mount-fault.js'
 
 // The mount status vocabularies were hand-written TypeScript unions until this shipped, and they
 // had already drifted: the mirror wrote 'paused-enospc', the owned union had never heard of it.

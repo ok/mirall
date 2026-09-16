@@ -32,6 +32,7 @@ export const PEER_FRAME = Object.freeze({
   SHARE_PREPARE_PROGRESS: 'share-prepare-progress',
 })
 
+/** @internal the no-raw-literal guard's list */
 export const PEER_FRAMES = Object.freeze(Object.values(PEER_FRAME))
 
 // The two frames a peer uses to CLAIM a profileKey. Both must pass validSenderFrame and the
