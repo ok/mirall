@@ -313,6 +313,29 @@ export function isDeniedJoiner(spaceId, key) {
   return !!entry?.denied?.has(key) && !entry.pending?.has(key)
 }
 
+// The peer's own deny/approve, applied to the live entry in the same step as the durable write.
+// The fold confirms it later; until then a knock arriving inside the derive debounce would read
+// the pre-write cache, answer 'review', and record a receipt that outranks the tombstone for good.
+export function applyLocalDenial(spaceId, key, ts) {
+  const entry = views.get(spaceId)
+  if (!entry) return
+  if (!entry.denied) entry.denied = new Map()
+  entry.denied.set(key, ts)
+  forgetPending(spaceId, entry, key)
+}
+
+export function applyLocalApproval(spaceId, key) {
+  const entry = views.get(spaceId)
+  if (!entry) return
+  entry.approved = new Set([...(entry.approved || EMPTY), key])
+  forgetPending(spaceId, entry, key)
+}
+
+function forgetPending(spaceId, entry, key) {
+  if (!entry.pending?.delete(key)) return
+  setDerivedRequests(spaceId, entry.pending)
+}
+
 // Reconcile the derived set into space.members. ADD what the fold holds and we do not; REMOVE a held
 // member only on positive evidence of leaving (their bee was considered AND says not-a-member AND no
 // live handshake contradicts it) — mere absence never removes anyone, so no flicker. Identity

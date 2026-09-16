@@ -14,54 +14,67 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 // joiner stuck "waiting for approval" forever, silently re-knocking on every reconnect.
 // The fix re-sends the deny to a re-knocking joiner whose fold state is denied-and-not-
 // pending, without resurfacing an approval banner.
+async function denyWhileOffline(t, aliceFlags = {}) {
+  const bootstrap = await localTestnet(t)
+  const bStorage = path.join(mkTmpDir(t), 'app-storage')
+  const bDownloads = mkTmpDir(t)
+  const bKek = kekHex()
+  const A = await launchPeer(t, {
+    bootstrap, displayName: 'Alice', storage: path.join(mkTmpDir(t), 'app-storage'), downloads: mkTmpDir(t),
+    flags: { identityKEK: kekHex(), ...aliceFlags },
+  })
+  let B = await launchPeer(t, {
+    bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
+    flags: { identityKEK: bKek },
+  })
+
+  const space = await A.request('space:create', { name: 'Gated' })
+  const sid = space.spaceId
+  const inviteCode = await A.request('space:invite', { spaceId: sid })
+  const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === sid)
+  await B.request('space:join', { inviteCode })
+  const req = await aGotRequest
+
+  const bPid = B.sidecar?._process?.pid
+  B.kill()
+  if (bPid) await waitForWorkerExit(bPid, 5000)
+
+  t.ok(await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey }),
+    'denial recorded while the joiner is offline')
+
+  let freshBanner = false
+  A.on('event:member-join-request', (m) => { if (m.spaceId === sid) freshBanner = true })
+
+  B = await launchPeer(t, {
+    bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
+    flags: { identityKEK: bKek },
+  })
+  await B.waitFor('event:membership-denied', (m) => m.spaceId === sid, 120000)
+  t.pass('the reconnect knock earned the re-sent deny')
+
+  await B.until('spaces:list', {}, (l) => !l.some((x) => x.spaceId === sid), { ms: 60000 })
+  t.pass('Bob discarded the stranded pending space')
+
+  await new Promise((r) => setTimeout(r, scaled(4000)))
+  t.absent(freshBanner, 'the re-sent deny resurfaced NO fresh approval banner on Alice')
+  t.absent((await A.request('space:pending-requests', { spaceId: sid })).some((r) => r.publicKey === req.publicKey),
+    'no pending request lingers for the denied joiner')
+
+  A.kill()
+}
+
 test('REGRESSION (FIX-C2: a joiner denied while offline gets the deny on reconnect)',
   { timeout: scaled(240000) }, async (t) => {
-    const bootstrap = await localTestnet(t)
-    const bStorage = path.join(mkTmpDir(t), 'app-storage')
-    const bDownloads = mkTmpDir(t)
-    const bKek = kekHex()
-    const A = await launchPeer(t, {
-      bootstrap, displayName: 'Alice', storage: path.join(mkTmpDir(t), 'app-storage'), downloads: mkTmpDir(t),
-      flags: { identityKEK: kekHex() },
-    })
-    let B = await launchPeer(t, {
-      bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
-      flags: { identityKEK: bKek },
-    })
+    await denyWhileOffline(t)
+  })
 
-    const space = await A.request('space:create', { name: 'Gated' })
-    const sid = space.spaceId
-    const inviteCode = await A.request('space:invite', { spaceId: sid })
-    const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === sid)
-    await B.request('space:join', { inviteCode })
-    const req = await aGotRequest
-
-    const bPid = B.sidecar?._process?.pid
-    B.kill()
-    if (bPid) await waitForWorkerExit(bPid, 5000)
-
-    t.ok(await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey }),
-      'denial recorded while the joiner is offline')
-
-    let freshBanner = false
-    A.on('event:member-join-request', (m) => { if (m.spaceId === sid) freshBanner = true })
-
-    B = await launchPeer(t, {
-      bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads,
-      flags: { identityKEK: bKek },
-    })
-    await B.waitFor('event:membership-denied', (m) => m.spaceId === sid, 120000)
-    t.pass('the reconnect knock earned the re-sent deny')
-
-    await B.until('spaces:list', {}, (l) => !l.some((x) => x.spaceId === sid), { ms: 60000 })
-    t.pass('Bob discarded the stranded pending space')
-
-    await new Promise((r) => setTimeout(r, scaled(4000)))
-    t.absent(freshBanner, 'the re-sent deny resurfaced NO fresh approval banner on Alice')
-    t.absent((await A.request('space:pending-requests', { spaceId: sid })).some((r) => r.publicKey === req.publicKey),
-      'no pending request lingers for the denied joiner')
-
-    A.kill()
+// REGRESSION (#324): the knock gate answered from the fold's cached denied set, which trails the
+// durable tombstone by the derive debounce. A re-knock inside that window read 'review', wrote a
+// receipt newer than the tombstone, and stayed pending forever. Widening Alice's debounce past
+// Bob's relaunch makes that window certain, so the deny must come from the durable record.
+test('REGRESSION (#324: the deny is re-sent even when the re-knock outruns the fold)',
+  { timeout: scaled(240000) }, async (t) => {
+    await denyWhileOffline(t, { deriveDebounceMs: 3000 })
   })
 
 // REGRESSION (FIX-C2 lockout): the re-deny must not permanently ban a joiner. Once the deny is
