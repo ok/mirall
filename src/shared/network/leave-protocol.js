@@ -71,6 +71,46 @@ function recordMemberLeft(spaceId, profileKey, snapshot) {
   })
 }
 
+// msg.ts is untrusted wire data used as the durable self-clear stamp — reject a non-finite /
+// non-positive value (a negative would make tombstoneActive false and re-add the leaver). It is
+// the leaver's own clock, same as the member/<S>.ts a rejoin writes, so the comparison stays
+// single-clock in the common path.
+function leaveStampFrom(msg) {
+  return (typeof msg.ts === 'number' && Number.isFinite(msg.ts) && msg.ts > 0) ? msg.ts : Date.now()
+}
+
+// Persist the tombstone so the subtraction survives a restart, incl. the creator/root where
+// revokeApproval is a no-op. Then revoke our own approval so a later rejoin needs fresh approval,
+// not a silent re-admit off the surviving grow-only record. Unconditional + idempotent: a leaver
+// already pruned by the fold (or a duplicate frame) must still lose our vouch. No-op for the
+// creator (we hold no approval for the root). Safe to unroot the leaver here: the caller adopts its
+// vouchees first. Returns false when either write failed, which is what the ack attests.
+async function applyDurableLeave(spaceId, profileKey, leaveTs) {
+  let applied = true
+  try { await persistLeftTombstone(spaceId, profileKey, leaveTs) } catch (err) {
+    applied = false
+    log.warn('persist leave tombstone failed:', err.message)
+  }
+  try { await revokeApproval(spaceId, profileKey) } catch (err) {
+    applied = false
+    log.warn('approval revoke on leave failed:', err.message)
+  }
+  return applied
+}
+
+function disconnectLeaver(profileKey, spaceId) {
+  const peer = connectedPeers.get(profileKey)
+  if (!peer || !detachPeerFromSpace(peer, spaceId)) return
+  connectedPeers.delete(profileKey)
+  forgetPeerOnSocket(peer.socket, profileKey)
+  // Their socket stays up, so no close handler will ever run this: the bound signer key has to be
+  // dropped here or it outlives every index that says the peer is reachable.
+  forgetBoundSignerKey(profileKey)
+  // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
+  // share any space with must lose that socket too, or we keep serving it bulk bytes.
+  try { destroyContentPeerSockets(profileKey) } catch {}
+}
+
 export async function handleLeaveFrame(socket, peerInfo, msg) {
   const { spaceId, profileKey } = msg
   if (!spaceId || !profileKey) return
@@ -108,28 +148,10 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
 
   // Tombstone the leaver FIRST so the member-view fold can't re-add them from their stale
   // still-active record (their del-record may not replicate before they disconnect). Set
-  // before removeMember so any in-flight re-derive already subtracts them. Persist it so the
-  // subtraction survives a restart, incl. the creator/root where revokeApproval is a no-op.
-  // msg.ts is untrusted wire data used as the durable self-clear stamp — reject a non-finite /
-  // non-positive value (a negative would make tombstoneActive false and re-add the leaver). It is
-  // the leaver's own clock, same as the member/<S>.ts a rejoin writes, so the comparison stays
-  // single-clock in the common path.
-  const leaveTs = (typeof msg.ts === 'number' && Number.isFinite(msg.ts) && msg.ts > 0) ? msg.ts : Date.now()
+  // before removeMember so any in-flight re-derive already subtracts them.
+  const leaveTs = leaveStampFrom(msg)
   markLeft(spaceId, profileKey, leaveTs)
-  let durablyApplied = true
-  try { await persistLeftTombstone(spaceId, profileKey, leaveTs) } catch (err) {
-    durablyApplied = false
-    log.warn('persist leave tombstone failed:', err.message)
-  }
-
-  // Revoke our own approval so a later rejoin needs fresh approval, not a silent re-admit off the
-  // surviving grow-only record. Unconditional + idempotent: a leaver already pruned by the fold (or a
-  // duplicate frame) must still lose our vouch. No-op for the creator (we hold no approval for the
-  // root). Safe to unroot the leaver here — its vouchees were adopted above.
-  try { await revokeApproval(spaceId, profileKey) } catch (err) {
-    durablyApplied = false
-    log.warn('approval revoke on leave failed:', err.message)
-  }
+  const durablyApplied = await applyDurableLeave(spaceId, profileKey, leaveTs)
 
   // Ack the leaver over its own socket so it can stop waiting (awaitLeaveAcks) — but ONLY once the
   // durable tombstone + revoke actually landed, since that is exactly what the ack attests. A
@@ -146,17 +168,7 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
   peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
 
-  const peer = connectedPeers.get(profileKey)
-  if (peer && detachPeerFromSpace(peer, spaceId)) {
-    connectedPeers.delete(profileKey)
-    forgetPeerOnSocket(peer.socket, profileKey)
-    // Their socket stays up, so no close handler will ever run this: the bound signer key has to be
-    // dropped here or it outlives every index that says the peer is reachable.
-    forgetBoundSignerKey(profileKey)
-    // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
-    // share any space with must lose that socket too, or we keep serving it bulk bytes.
-    try { destroyContentPeerSockets(profileKey) } catch {}
-  }
+  disconnectLeaver(profileKey, spaceId)
   // Their leave revokes our serve grants for this space: the grant is cached per (peer, path) at
   // request time and re-checked against that cache only, so a membership change has to invalidate
   // it actively — otherwise an in-flight transfer keeps streaming to a peer no longer entitled.
