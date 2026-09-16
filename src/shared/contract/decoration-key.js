@@ -2,6 +2,7 @@
 // drive path ('/'+relPath); share rows need the shareId axis so two shares with a same-named file
 // can't mix bytes. The worker emits decoration frames under this key and the renderer looks them
 // up with it, so both reach it from here rather than each building their own.
+/** @param {string} shareId @param {string} relPath */
 export function shareDecoKey(shareId, relPath) {
   return shareId + ':' + relPath
 }

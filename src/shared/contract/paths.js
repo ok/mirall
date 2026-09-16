@@ -6,15 +6,18 @@
 // non-vendor module re-declares this one.
 export const PARTIAL_SUFFIX = '.mirall.part'
 
+/** @param {string} targetPath */
 export const partialPathFor = (targetPath) => targetPath + PARTIAL_SUFFIX
 
 // The order the publish queue drains in. Named here so the config that validates the setting and
 // the queue that implements it cannot disagree.
-export const PUBLISH_ORDERS = Object.freeze(['fifo', 'smallest-first', 'largest-first'])
+export const PUBLISH_ORDERS = Object.freeze(/** @type {const} */ (['fifo', 'smallest-first', 'largest-first']))
+/** @typedef {(typeof PUBLISH_ORDERS)[number]} PublishOrder */
 
 // True when `child` is `parent` or sits inside it. The separator boundary prevents the classic
 // false positive: `/a/bc` is not inside `/a/b`. `fold` compares case-insensitively, for the
 // filesystems that case-fold (darwin/win32).
+/** @param {string} parent @param {string} child @param {string} sep @param {boolean} [fold] */
 export function pathContains(parent, child, sep, fold = false) {
   if (!parent || !child) return false
   let root = fold ? parent.toLowerCase() : parent

@@ -18,6 +18,15 @@ function walk(dir, out = []) {
   return out
 }
 
+function walkAll(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name)
+    if (statSync(p).isDirectory()) { if (name !== 'node_modules') walkAll(p, out) }
+    else out.push(p)
+  }
+  return out
+}
+
 function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.ts', '**/*.tsx', '**/*.js'],
@@ -26,22 +35,16 @@ function verify(linter, source, filename) {
   }, filename)
 }
 
-// The other half of the same rule: a contract module the renderer imports carries a hand-written
-// .d.ts, because the renderer is the only consumer TypeScript reads. The per-file parity test walks
-// .d.ts files, so a module with NO sidecar is invisible to it — which is how contract/events.js
-// reached the renderer's door with no EventName to import.
-test('every contract module the renderer imports has a .d.ts twin', (t) => {
-  const contractDir = path.join(here, '..', '..', 'src', 'shared', 'contract')
-  const imported = new Set()
-  for (const file of walk(rendererDir)) {
-    const src = readFileSync(file, 'utf8')
-    for (const m of src.matchAll(/shared\/contract\/([a-z0-9-]+)\.js/g)) imported.add(m[1])
-  }
-
-  t.ok(imported.size >= 10, `the renderer imports ${imported.size} contract modules`)
-  for (const name of [...imported].sort()) {
-    t.ok(existsSync(path.join(contractDir, name + '.d.ts')), `contract/${name}.js has a .d.ts twin`)
-  }
+// A .d.ts beside a .js is a declaration TypeScript reads INSTEAD of the implementation and never
+// compares with it, so the pair can disagree and typecheck clean. Every module the renderer
+// imports carries its types in the source under checkJs; the one ambient declaration file,
+// platform/global.d.ts, declares window.bridge and has no .js.
+test('no .js module under src/ carries a .d.ts sidecar', (t) => {
+  const srcDir = path.join(here, '..', '..', 'src')
+  const sidecars = walkAll(srcDir)
+    .filter((f) => f.endsWith('.d.ts') && existsSync(f.replace(/\.d\.ts$/, '.js')))
+    .map((f) => path.relative(srcDir, f))
+  t.alike(sidecars, [], 'a sidecar came back')
 })
 
 // The renderer may import the contract package and nothing else under src/shared/. Every renderer
