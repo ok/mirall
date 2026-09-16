@@ -27,6 +27,10 @@ const SCHEMA_MAX = 2
 
 /** @param {number | undefined} v */
 const positiveInt = (v) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null)
+/** @param {string | undefined} v @param {RegExp} re */
+const hexOrNull = (v, re) => (typeof v === 'string' && re.test(v) ? v.toLowerCase() : null)
+/** @param {string | undefined} v */
+const nameOrNull = (v) => (typeof v === 'string' && v.length > 0 ? v.slice(0, NAME_MAX) : null)
 
 /** @param {string} str */
 function utf8Encode(str) {
@@ -116,6 +120,43 @@ export function extractInviteCode(input) {
   return raw // bare code ('' if the link carried none)
 }
 
+// Optional inviter identity (o = profile public key, d = display name). Lets the
+// joiner pre-seed the inviter as an offline shell member so the space isn't
+// empty before the first handshake. Keyed by the real public key, so the
+// handshake merges into the shell rather than adding a duplicate. Unauthenticated
+// until that handshake — purely a placeholder. ownerName is only carried when a
+// valid owner key is present.
+// Optional space creator (c): the root the membership fold (an OR-Set) seeds from. Distinct from
+// `owner` (the inviter, which can be any member) — the creator is the single peer with no approval
+// record, so every peer must agree on it or honest member views diverge. Same trust status as `owner`.
+// The remaining hints (s, a, id, x) are non-secret membership hints; the link's expiry is a
+// joiner-side hint — the minting member's record is authoritative. None of these is a capability.
+/** @param {Partial<InviteWire>} obj @returns {DecodedInviteV1 | null} */
+function decodeInviteV1(obj) {
+  const topic = hexOrNull(obj.t, HEX64)
+  if (topic === null) return null
+  /** @type {DecodedInviteV1} */
+  const out = { v: 1, topic }
+  const name = nameOrNull(obj.n)
+  if (name !== null) out.name = name
+  const owner = hexOrNull(obj.o, HEX64)
+  if (owner !== null) {
+    out.owner = owner
+    const ownerName = nameOrNull(obj.d)
+    if (ownerName !== null) out.ownerName = ownerName
+  }
+  const creator = hexOrNull(obj.c, HEX64)
+  if (creator !== null) out.creator = creator
+  const schema = positiveInt(obj.s)
+  if (schema !== null && schema <= SCHEMA_MAX) out.schemaVersion = schema
+  if (obj.a === 1) out.autoAdmit = true
+  const inviteId = hexOrNull(obj.id, HEX32)
+  if (inviteId !== null) out.inviteId = inviteId
+  const expiry = positiveInt(obj.x)
+  if (expiry !== null) out.expiresAt = expiry
+  return out
+}
+
 /** @param {string} input @returns {DecodedInvite | null} */
 export function decodeInvite(input) {
   if (typeof input !== 'string') return null
@@ -129,44 +170,8 @@ export function decodeInvite(input) {
   /** @type {Partial<InviteWire> | null} */
   let obj
   try { obj = JSON.parse(b64urlDecode(cleaned)) } catch { return null }
-  if (!obj || typeof obj !== 'object') return null
-  if (obj.v !== 1) return null
-  if (typeof obj.t !== 'string' || !HEX64.test(obj.t)) return null
-
-  /** @type {DecodedInviteV1} */
-  const out = { v: 1, topic: obj.t.toLowerCase() }
-  if (typeof obj.n === 'string' && obj.n.length > 0) {
-    out.name = obj.n.slice(0, NAME_MAX)
-  }
-  // Optional inviter identity (o = profile public key, d = display name). Lets the
-  // joiner pre-seed the inviter as an offline shell member so the space isn't
-  // empty before the first handshake. Keyed by the real public key, so the
-  // handshake merges into the shell rather than adding a duplicate. Unauthenticated
-  // until that handshake — purely a placeholder. ownerName is only carried when a
-  // valid owner key is present.
-  if (typeof obj.o === 'string' && HEX64.test(obj.o)) {
-    out.owner = obj.o.toLowerCase()
-    if (typeof obj.d === 'string' && obj.d.length > 0) {
-      out.ownerName = obj.d.slice(0, NAME_MAX)
-    }
-  }
-  // Optional space creator (c = creator profile public key): the root the membership
-  // fold (an OR-Set) seeds from. Distinct from `owner` (the inviter, which can be any
-  // member) — the creator is the single peer with no approval record, so every peer
-  // must agree on it or honest member views diverge. Non-secret (a public key);
-  // unauthenticated until a handshake identity binding confirms it (same status as
-  // `owner`).
-  if (typeof obj.c === 'string' && HEX64.test(obj.c)) out.creator = obj.c.toLowerCase()
-  // Non-secret membership hints: schema version, auto-admit flag, per-link invite nonce, and the
-  // link's expiry (epoch ms, a joiner-side hint — the minting member's record is authoritative).
-  // None of these is a capability — the content key is never in the invite.
-  const schema = positiveInt(obj.s)
-  if (schema !== null && schema <= SCHEMA_MAX) out.schemaVersion = schema
-  if (obj.a === 1) out.autoAdmit = true
-  if (typeof obj.id === 'string' && HEX32.test(obj.id)) out.inviteId = obj.id.toLowerCase()
-  const expiry = positiveInt(obj.x)
-  if (expiry !== null) out.expiresAt = expiry
-  return out
+  if (!obj || typeof obj !== 'object' || obj.v !== 1) return null
+  return decodeInviteV1(obj)
 }
 
 /** @param {InviteFields} fields */
@@ -176,20 +181,21 @@ export function encodeInvite({ topic, name, owner, ownerName, creator, schemaVer
   }
   /** @type {InviteWire} */
   const obj = { v: 1, t: topic.toLowerCase() }
-  if (typeof name === 'string' && name.length > 0) {
-    obj.n = name.slice(0, NAME_MAX)
+  const n = nameOrNull(name)
+  if (n !== null) obj.n = n
+  const o = hexOrNull(owner, HEX64)
+  if (o !== null) {
+    obj.o = o
+    const d = nameOrNull(ownerName)
+    if (d !== null) obj.d = d
   }
-  if (typeof owner === 'string' && HEX64.test(owner)) {
-    obj.o = owner.toLowerCase()
-    if (typeof ownerName === 'string' && ownerName.length > 0) {
-      obj.d = ownerName.slice(0, NAME_MAX)
-    }
-  }
-  if (typeof creator === 'string' && HEX64.test(creator)) obj.c = creator.toLowerCase()
+  const c = hexOrNull(creator, HEX64)
+  if (c !== null) obj.c = c
   const schema = positiveInt(schemaVersion)
   if (schema !== null && schema >= 2) obj.s = schema
   if (autoAdmit) obj.a = 1
-  if (typeof inviteId === 'string' && HEX32.test(inviteId)) obj.id = inviteId.toLowerCase()
+  const id = hexOrNull(inviteId, HEX32)
+  if (id !== null) obj.id = id
   const expiry = positiveInt(expiresAt)
   if (expiry !== null) obj.x = expiry
   return b64urlEncode(JSON.stringify(obj))
