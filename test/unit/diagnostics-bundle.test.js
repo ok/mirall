@@ -31,6 +31,7 @@ function makeCtx(over = {}) {
       relay: {
         connections: [{ peerKey: PEER_KEY, plane: 'content', displayName: PEER_NAME, via: 'adopted', relayKey: RELAY_KEY, since: 30 }],
         direct: { control: 1, content: 0 },
+        seen: 4,
         digest: `${PEER_KEY}:${RELAY_KEY}:adopted:${PEER_NAME}`,
       },
       stats: {
@@ -250,6 +251,7 @@ test('the relay section redacts peer and relay keys and drops names', (t) => {
   t.is(bundle.relay.own.kind, 'open')
   t.is(bundle.relay.own.label, null)
   t.alike(bundle.relay.direct, { control: 1, content: 0 })
+  t.is(bundle.relay.seen, 4)
   t.is(bundle.relay.connections[0].plane, 'content')
   t.is(bundle.relay.connections.length, 1)
   t.is(bundle.relay.connections[0].via, 'adopted')

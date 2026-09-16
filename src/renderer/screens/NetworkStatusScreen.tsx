@@ -241,10 +241,12 @@ function AdvancedDetails({ status, now }: AdvancedDetailsProps) {
       </Section>
 
       <Section title={t('networkStatus.relaying')}>
-        <Field label={t('networkStatus.relaySelected')}   value={formatNumber(status.stats.relaying.selected)} />
+        <Field label={t('networkStatus.relayedNow')}      value={formatNumber(status.relay.connections.length)} />
+        <Field label={t('networkStatus.relayedSeen')}     value={formatNumber(status.relay.seen)} />
         <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
         <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
         <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
+        <Field label={t('networkStatus.relaySelected')}   value={formatNumber(status.stats.relaying.selected)} />
       </Section>
 
       <Section title={t('networkStatus.dht')}>

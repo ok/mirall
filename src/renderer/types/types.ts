@@ -295,6 +295,7 @@ export interface RelayedConnection {
 export interface RelayStatus {
   connections: RelayedConnection[]
   direct: Record<RelayPlane, number>
+  seen: number
   digest: string
 }
 

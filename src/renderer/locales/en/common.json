@@ -882,10 +882,12 @@
       "stillSettling": "Still working out how this network behaves — give it a moment."
     },
     "relaying": "Relaying",
-    "relayedActive": "Relayed connections",
-    "relayedAttempts": "Relay attempts",
-    "relayedAborts": "Relay failures",
-    "relaySelected": "Relays chosen by this device",
+    "relayedNow": "Relayed now",
+    "relayedSeen": "Relayed since start",
+    "relayedActive": "Incoming relayed since start",
+    "relayedAttempts": "Incoming relay attempts",
+    "relayedAborts": "Incoming relay failures",
+    "relaySelected": "Own relay chosen since start",
     "relayed": {
       "title": "Relayed connections",
       "intro": "A relay carries a connection when a direct one isn't possible. It can't read what you share, but whoever runs it can see that you and these people are connected.",

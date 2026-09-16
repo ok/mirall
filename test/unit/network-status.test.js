@@ -29,7 +29,7 @@ function makeStatus() {
     dhtHealth: { online: true, degraded: false, cold: false, idle: false, timeoutsRate: 0.1 },
     canary: { state: 'reachable', at: 900 },
     liveness: { failures: 0, checkedAt: 880, interfaceKind: 'physical' },
-    relay: { connections: [], direct: { control: 1, content: 1 }, digest: '' },
+    relay: { connections: [], direct: { control: 1, content: 1 }, seen: 0, digest: '' },
     reachability: { verdict: 'healthy', cause: null, confidence: 'measured', since: 800 },
   }
 }

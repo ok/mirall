@@ -182,7 +182,7 @@ export const STATUS_PATHS = [
   'dhtHealth.online', 'dhtHealth.degraded', 'dhtHealth.timeoutsRate',
   'canary.state', 'canary.at',
   'liveness.failures', 'liveness.interfaceKind',
-  'relay.digest', 'relay.direct.control', 'relay.direct.content',
+  'relay.digest', 'relay.direct.control', 'relay.direct.content', 'relay.seen',
   'reachability.verdict', 'reachability.cause', 'reachability.confidence',
 ]
 

@@ -858,10 +858,12 @@
       "stillSettling": "Nous déterminons encore le comportement de ce réseau — patientez un instant."
     },
     "relaying": "Relayage",
-    "relayedActive": "Connexions relayées",
-    "relayedAttempts": "Tentatives de relais",
-    "relayedAborts": "Échecs de relais",
-    "relaySelected": "Relais choisis par cet appareil",
+    "relayedNow": "Relayées actuellement",
+    "relayedSeen": "Relayées depuis le démarrage",
+    "relayedActive": "Entrantes relayées depuis le démarrage",
+    "relayedAttempts": "Tentatives de relais entrantes",
+    "relayedAborts": "Échecs de relais entrants",
+    "relaySelected": "Relais propre choisi depuis le démarrage",
     "relayed": {
       "title": "Connexions relayées",
       "intro": "Un relais transporte une connexion quand une connexion directe est impossible. Il ne peut pas lire ce que vous partagez, mais son opérateur peut voir que vous êtes connecté à ces personnes.",
