@@ -1,3 +1,8 @@
+/** @import { SpaceMember } from '../types/types.js' */
+
+/** @typedef {{ total: number, stack: SpaceMember[], overflow: number }} MemberSummary */
+
+/** @param {SpaceMember[]} members @param {{ stackMax?: number }} [opts] @returns {MemberSummary} */
 export function summarizeMembers(members, opts = {}) {
   const stackMax = opts.stackMax ?? 8
   const list = Array.isArray(members) ? members : []

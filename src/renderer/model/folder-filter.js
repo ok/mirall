@@ -1,6 +1,6 @@
 // Case-insensitive filter over a built file tree (fileTree.js). Plain JS, no React, so the same
 // source feeds the esbuild bundle and the brittle-node unit suite. Node shapes are typed in
-// types.ts; the .d.ts sibling declares this module's surface.
+// types.ts.
 //
 // A folder that matches keeps its whole subtree — filtering "Ninja Tune" should not then hide the
 // tracks inside it. A folder that does not match survives only through its descendants, which is
@@ -12,12 +12,18 @@ import { collectFolderPaths, rollupNodes } from './file-tree.js'
 // the result rather than on the length of the term: a term that matches almost everything (typing a
 // single "e" into a 5,000-file folder) leaves the branches closed, which is both cheap to render and
 // the only readable way to show that many hits. A precise term reveals, which is the point of it.
+/** @import { FileTreeNode } from '../types/types.js' */
+
+/** @typedef {{ nodes: FileTreeNode[], matched: number | null, revealPaths: Set<string> | null }} FilteredTree */
+
 const REVEAL_MAX_MATCHES = 200
 
+/** @param {string} name @param {string} needle */
 function matches(name, needle) {
   return name.toLowerCase().includes(needle)
 }
 
+/** @param {FileTreeNode[]} nodes */
 function countFiles(nodes) {
   let total = 0
   for (const node of nodes) {
@@ -27,7 +33,9 @@ function countFiles(nodes) {
   return total
 }
 
+/** @param {FileTreeNode[]} nodes @param {string} needle @param {Set<string>} revealPaths @returns {FileTreeNode[]} */
 function filterNodes(nodes, needle, revealPaths) {
+  /** @type {FileTreeNode[]} */
   const out = []
   for (const node of nodes) {
     if (node.kind === 'file') {
@@ -54,9 +62,11 @@ function filterNodes(nodes, needle, revealPaths) {
 // `revealPaths` is null when no filter is active, which is the signal the caller uses to fall back
 // to the user's own expansion — and it is null again for a result too large to reveal, so the
 // caller treats both the same way.
+/** @param {FileTreeNode[]} nodes @param {string} term @returns {FilteredTree} */
 export function filterTree(nodes, term) {
   const needle = String(term || '').trim().toLowerCase()
   if (!needle) return { nodes, matched: null, revealPaths: null }
+  /** @type {Set<string>} */
   const revealPaths = new Set()
   const filtered = filterNodes(nodes, needle, revealPaths)
   const matched = countFiles(filtered)

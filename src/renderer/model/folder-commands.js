@@ -5,6 +5,13 @@
 // Every label carries the folder name: the palette is one flat list with no group headings, so the
 // name is what scopes a row to this folder rather than the space, and makes the name a search term.
 
+/** @import { ShareRole } from '../types/types.js' */
+
+/** @typedef {{ role: ShareRole, paused: boolean, sourceMissing: boolean, canMirror: boolean }} FolderCommandsInput */
+/** @typedef {{ labelKey: string, available: boolean }} FolderCommandSpec */
+/** @typedef {{ open: FolderCommandSpec, locate: FolderCommandSpec, toggleSync: FolderCommandSpec, mirror: FolderCommandSpec, edit: FolderCommandSpec }} FolderCommands */
+
+/** @param {FolderCommandsInput} input @returns {FolderCommands} */
 export function deriveFolderCommands(input) {
   const { role, paused, sourceMissing, canMirror } = input
   const isOwn = role === 'mine'

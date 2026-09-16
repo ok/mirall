@@ -121,7 +121,7 @@ export interface Share {
   deletedAt?: number
 }
 
-type OwnedMountStatus = (typeof OWNED_MOUNT_STATUSES)[number]
+export type OwnedMountStatus = (typeof OWNED_MOUNT_STATUSES)[number]
 
 export interface OwnedFolderMount {
   spaceId: string
@@ -133,6 +133,7 @@ export interface OwnedFolderMount {
   status?: OwnedMountStatus
   lastError?: string | null
   indexPaused?: boolean
+  mountPointMissing?: boolean
 }
 
 export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUSES)[number]
@@ -163,9 +164,9 @@ export interface ShareFileEntry {
   transferId?: string
 }
 
-type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
+export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
 
-interface FileTreeFileNode {
+export interface FileTreeFileNode {
   kind: 'file'
   name: string
   path: string

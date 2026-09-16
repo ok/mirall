@@ -70,7 +70,7 @@ export function subjectKey(kind, peerKey, spaceId, id) {
   return [kind, peerKey, spaceId, id].join('|')
 }
 
-// test seam
+/** @internal */
 export const STATE_ON = 'on'
 export const STATE_OFF = 'off'
 
@@ -87,7 +87,7 @@ export function isTransition(previous, next) {
 // number of records while we were away must not stall the worker or flood the log — past the cap
 // we skip to the head, because the alternative (replaying thousands of stale ops as if they just
 // happened) is worse than a gap.
-// test seam
+/** @internal */
 export const MAX_OPS_PER_SWEEP = 500
 
 export async function readChangesSince(bee, sinceVersion, { maxOps = MAX_OPS_PER_SWEEP } = {}) {

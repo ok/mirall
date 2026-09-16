@@ -12,11 +12,17 @@
 // `!= null` rather than `!== null`: this is a pure function over a snapshot, and a caller handing
 // it an absent `error` (rather than the store's explicit null) would otherwise settle boot with no
 // data at all — which reads as "no profile" and opens onboarding over an identity that exists.
-// test seam
+/** @import { Profile } from '../types/types.js' */
+
+/** @typedef {{ data: Profile | null | undefined, error: Error | null, profileNeeded?: boolean }} ProfileGateInput */
+/** @typedef {{ profile: Profile | null, needsSetup: boolean, loading: boolean }} ProfileGate */
+
+/** @internal @param {{ data: Profile | null | undefined, error: Error | null }} input */
 export function profileSettled({ data, error }) {
   return data !== undefined || error != null
 }
 
+/** @param {ProfileGateInput} input @returns {ProfileGate} */
 export function projectProfile({ data, error, profileNeeded = false }) {
   const settled = profileSettled({ data, error })
   return {

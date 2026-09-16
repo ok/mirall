@@ -5,7 +5,7 @@ import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { ownedMountSettled, projectOwnedMount } from '../model/owned-mount.js'
 import { ANY_SHARES } from '../store/scopes.js'
-import type { OwnedMountRow, OwnedMountState } from '../model/owned-mount.js'
+import type { OwnedMountState } from '../model/owned-mount.js'
 import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types/types.js'
 
 // Same store entry as useShares: one value, two projections, one fence — SpaceScreen's badge and
@@ -14,7 +14,7 @@ export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState
   const enabled = Boolean(spaceId && shareId)
   // Not `loading`: ownedMountSettled carries that reasoning, and not taking the flag at all is
   // what makes the trap unrepresentable here.
-  const { data } = useQuery<OwnedMountRow[]>('owned-folder:list-all', {}, ANY_SHARES, { enabled })
+  const { data } = useQuery<OwnedFolderMount[]>('owned-folder:list-all', {}, ANY_SHARES, { enabled })
   const settled = ownedMountSettled(enabled, data)
   return useMemo(
     () => projectOwnedMount(data, spaceId, shareId, settled),

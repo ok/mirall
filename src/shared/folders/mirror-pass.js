@@ -46,7 +46,7 @@ const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 // isOwnerOnline is what lets a readable mount stand in for an absent owner; the rule itself is
 // unit-tested in mirror-reach.test.js. The engine carries the same seam as `channel.isOwnerOnline`.
 let reachabilityOverride = null
-// test seam
+/** @internal */
 export function setMirrorReachability(fn) { reachabilityOverride = fn }
 
 // A leaked override disables fetching for every mount in the process, not just a test's own.
@@ -88,7 +88,7 @@ export async function materializeOnce(spaceId, shareId) {
 
 // Route one catalog entry to the read-to-mount: overlay fetches straight from a
 // holder by content hash (no peer drive to stream from).
-// test seam
+/** @internal */
 export async function materializeCatalogFile(mount, share, entry, opts = {}) {
   return await materializeOverlayFile(mount, share, entry, opts)
 }
@@ -155,7 +155,7 @@ async function runInitialMaterializeScan(mount) {
 // rejects any owner-controlled relPath that escapes the mount BEFORE the unlink — the
 // path-traversal guard the security suite exercises (foreign-path-containment). Puts never come
 // here: they are fetched by materializeOverlayFile.
-// test seam
+/** @internal */
 export async function applyChange(mount, change) {
   const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
   if (change.action === 'del') {

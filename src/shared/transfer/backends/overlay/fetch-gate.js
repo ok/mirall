@@ -71,7 +71,7 @@ let gate = build()
 
 export const acquireFetchSlot = (opts) => gate.acquire(opts)
 export const drainFetchSlots = (owner) => gate.drain(owner)
-// test seam
+/** @internal */
 export const fetchSlotStats = () => gate.stats()
 
 // A per-instance semaphore died with the engine that owned it; a module singleton does not.

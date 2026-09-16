@@ -7,7 +7,7 @@
 // candidate order, which is member order. Every FILE_STATUS member carries a rank: a status
 // missing from this table makes the comparator return NaN, and an inconsistent comparator leaves
 // the group's winner unspecified.
-// test seam
+/** @internal */
 export const STATUS_RANK = Object.freeze({
   mine: 0,
   downloaded: 1,

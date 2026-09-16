@@ -1,6 +1,7 @@
 // Classifies an OS drag-and-drop payload as folder vs. files, so the drop zone
 // can preview the right affordance (add-folder vs. add-files) while the drag is
 // still in flight and confirm it with real entries once the drop lands.
+/** @param {DataTransferItemList} items */
 export function isFolderDrop(items) {
   for (let i = 0; i < items.length; i++) {
     const entry = items[i]?.webkitGetAsEntry?.()
@@ -13,7 +14,7 @@ export function isFolderDrop(items) {
 // null; only kind/type are readable. A directory item has an empty MIME type, so a
 // lone typeless file-kind item is treated as a folder. Single-item only, so a batch
 // of extensionless files isn't misread; the drop handler has real entries to correct it.
-// test seam
+/** @internal @param {DataTransferItemList} items */
 export function looksLikeFolderDrag(items) {
   let sawEntry = false
   for (let i = 0; i < items.length; i++) {
@@ -27,6 +28,7 @@ export function looksLikeFolderDrag(items) {
   return items.length === 1 && items[0]?.kind === 'file' && items[0]?.type === ''
 }
 
+/** @param {DataTransferItemList} items @returns {string | null} */
 export function firstDirectoryName(items) {
   for (let i = 0; i < items.length; i++) {
     const entry = items[i]?.webkitGetAsEntry?.()
@@ -35,6 +37,7 @@ export function firstDirectoryName(items) {
   return null
 }
 
+/** @param {DataTransferItemList} items @returns {{ kind: 'files' | 'folder', count: number, folderName: string | null }} */
 export function inspectDragItems(items) {
   if (looksLikeFolderDrag(items)) {
     return { kind: 'folder', count: 0, folderName: firstDirectoryName(items) }

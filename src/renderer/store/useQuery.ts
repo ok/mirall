@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { EMPTY_SNAPSHOT, fetchQuery, keyOf, peek, subscribeKey } from './query-store.js'
-import type { QuerySnapshot } from './query-store.js'
+import type { Snapshot } from './query-store.js'
 import type { ScopePattern } from '../../shared/contract/scope.js'
-import type { RequestName } from '../../shared/contract/requests.js'
+import type { RequestName, RequestParams } from '../../shared/contract/requests.js'
 
 // useSyncExternalStore, not a useState mirror: a second copy in component state can disagree with the store.
 export function useQuery<T>(
   type: RequestName,
-  params: Record<string, unknown> = {},
+  params: RequestParams = {},
   scopes: ScopePattern | ScopePattern[] | null = null,
   opts: { coalesceMs?: number; enabled?: boolean } = {},
-): QuerySnapshot<T> {
+): Snapshot<T> {
   const key = keyOf(type, params)
   const enabled = opts.enabled !== false
   // A disabled hook does not fetch, and it must not SUBSCRIBE either. invalidate() refetches any
@@ -22,7 +22,7 @@ export function useQuery<T>(
     (notify: () => void) => (enabled ? subscribeKey(key, notify) : () => {}),
     [key, enabled],
   )
-  const snapshot = useCallback(() => (enabled ? peek<T>(key) : EMPTY_SNAPSHOT as QuerySnapshot<T>), [key, enabled])
+  const snapshot = useCallback(() => (enabled ? peek<T>(key) : EMPTY_SNAPSHOT as Snapshot<T>), [key, enabled])
   const entry = useSyncExternalStore(subscribe, snapshot, snapshot)
 
   useEffect(() => {

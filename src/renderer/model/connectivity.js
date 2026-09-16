@@ -1,5 +1,11 @@
 // The ordering is a product decision, not cosmetics: a randomised port mapping is
 // overwhelmingly a carrier NAT, and no router setting fixes that one.
+/** @import { NetworkStatusScreen, ReachabilityCause } from '../types/types.js' */
+
+/** @typedef {'vpn' | 'mobile' | 'otherNetwork' | 'turnOnNetwork'} FixStep */
+/** @typedef {'unknown' | 'noAddress' | 'changingPorts' | 'yes'} ReachableState */
+
+/** @param {ReachabilityCause | null} cause @returns {FixStep[]} */
 export function fixStepsFor(cause) {
   // There is no network at all — VPN and NAT advice is noise here.
   if (cause === 'os-offline') return ['turnOnNetwork']
@@ -9,6 +15,7 @@ export function fixStepsFor(cause) {
   return ['vpn', 'mobile', 'otherNetwork']
 }
 
+/** @param {NetworkStatusScreen} status @returns {ReachableState} */
 export function reachableState(status) {
   if (!status.dhtReady) return 'unknown'
   if (status.address.publicHost === null) return 'noAddress'
@@ -16,6 +23,7 @@ export function reachableState(status) {
   return 'yes'
 }
 
+/** @param {number} ms */
 export function formatDuration(ms) {
   if (!Number.isFinite(ms) || ms < 0) return '—'
   const minutes = Math.floor(ms / 60000)

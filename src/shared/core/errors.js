@@ -60,7 +60,7 @@ export function isLocalDestFault(code) {
   return LOCAL_DEST_FAULT_CODES.has(code)
 }
 
-// test seam
+/** @internal */
 export function isRetryableTransferError(errorCode) {
   return errorCode === CODES.TRANSFER_NETWORK
 }

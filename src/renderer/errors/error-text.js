@@ -1,17 +1,25 @@
 import { ERROR_I18N_KEY_BY_CODE, errorI18nKey } from './error-messages.js'
 
-// test seam
+/** @internal */
 export const FALLBACK_KEY = 'unexpected'
 
+/** @param {unknown} err */
+function errorMessageOf(err) {
+  if (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string') return err.message
+  return String(err)
+}
+
+/** @param {unknown} err */
 function errorCodeOf(err) {
   if (typeof err !== 'object' || err === null) return null
-  return typeof err.code === 'string' ? err.code : null
+  return 'code' in err && typeof err.code === 'string' ? err.code : null
 }
 
 // window.bridge.isDev() is a synchronous round trip to the main process. errorTextFor runs during
 // render — an error pane re-reads it on every re-render while it is on screen — so the answer is
 // read at most once rather than once per call. Left unresolved until the bridge exists so an early
 // call cannot cache a false.
+/** @type {boolean | undefined} */
 let devMode
 function isDevMode() {
   if (devMode === undefined && typeof window !== 'undefined' && window.bridge?.isDev) {
@@ -29,6 +37,7 @@ function isDevMode() {
 // sentence makes the failure mode "vague but translated", and contract-errors.test.js then makes
 // vagueness impossible for any code a user can reach. The raw message is not lost — it reaches the
 // dev console below, and the diagnostics log a bug report carries.
+/** @param {unknown} err @param {(key: string) => string} t @param {string} [fallbackKey] */
 export function errorTextFor(err, t, fallbackKey = FALLBACK_KEY) {
   const code = errorCodeOf(err)
   const key = errorI18nKey(code, fallbackKey)
@@ -36,7 +45,7 @@ export function errorTextFor(err, t, fallbackKey = FALLBACK_KEY) {
   // maps to (DOWNLOAD_FAILED resolves to transferFailed, which useFiles passes as its fallback),
   // and equality would report that deliberate mapping as missing.
   if (code && !(code in ERROR_I18N_KEY_BY_CODE) && isDevMode()) {
-    console.warn('[i18n] no user-facing message for error code', code, err?.message ?? String(err))
+    console.warn('[i18n] no user-facing message for error code', code, errorMessageOf(err))
   }
   return t(key)
 }

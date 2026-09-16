@@ -1,5 +1,5 @@
 // Every event the worker pushes to the renderer. Emitted names are the source of truth. The
-// renderer imports EventName from the sidecar, so a mistyped subscribe() fails tsc; the worker's
+// renderer imports EventName, so a mistyped subscribe() fails tsc; the worker's
 // emit sites are plain .js that no compiler reads, so they are policed instead by
 // test/unit/contract-declarations.test.js, which parses every emit site, every renderer
 // subscription and this list and asserts all three name the same set.
@@ -42,3 +42,4 @@ const EVENTS = Object.freeze({
 })
 
 export const EVENT_NAMES = Object.freeze(Object.values(EVENTS))
+/** @typedef {(typeof EVENT_NAMES)[number]} EventName */

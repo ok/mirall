@@ -8,6 +8,7 @@ export { AVATAR_MAX_BYTES }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i
 
+/** @param {string | null | undefined} name */
 export function clampDisplayName(name) {
   if (typeof name !== 'string' || name.length === 0) return 'Unknown'
   return name.slice(0, NAME_MAX)
@@ -15,6 +16,7 @@ export function clampDisplayName(name) {
 
 // Returns the avatar iff it is a well-formed image data URI within maxBytes, else null (treated
 // everywhere as "no avatar"). maxBytes === 0 disables the size bound; the format check always applies.
+/** @param {string | null | undefined} value @param {number} [maxBytes] */
 export function sanitizeAvatar(value, maxBytes = AVATAR_MAX_BYTES) {
   if (typeof value !== 'string' || value.length === 0) return null
   if (!DATA_IMAGE.test(value)) return null

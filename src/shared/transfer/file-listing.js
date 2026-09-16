@@ -61,7 +61,7 @@ export async function addFile(spaceId, filePath, fileName) {
 }
 
 // The display status of a peer-held file, most-progressed first. Exported for unit coverage.
-// test seam
+/** @internal */
 export function peerFileStatus(downloaded, pendingRow, ownerOnline, isActive) {
   if (downloaded) return 'downloaded'
   if (isActive) return 'downloading'

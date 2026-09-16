@@ -8,6 +8,21 @@
 //    read while `rows` is the reconciled last-good list actually on screen, so it may only ever
 //    RAISE the count, never lower it below those rows — a header below the visible list is always
 //    wrong. Truncation is the worker's `truncated` flag, never derived from the count.
+/** @import { ShareFileEntry } from '../types/types.js' */
+
+/**
+ * @template E
+ * @typedef {{ entries: E[], complete: boolean, total?: number, totalBytes?: number, truncated?: boolean, fileLimit?: number | null }} ListResult
+ */
+
+/** @typedef {{ fileCount: number, totalBytes: number, blobsLength: number | null, truncated: boolean, fileLimit: number | null }} FolderInfo */
+
+/**
+ * @template E
+ * @param {ListResult<E> | null} res
+ * @param {ShareFileEntry[]} rows
+ * @returns {FolderInfo}
+ */
 export function deriveFolderInfo(res, rows) {
   const rowBytes = rows.reduce((sum, f) => sum + (Number.isFinite(f.size) ? f.size : 0), 0)
   const reportedCount = typeof res?.total === 'number' ? res.total : 0

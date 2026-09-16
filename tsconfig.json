@@ -5,17 +5,14 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "allowJs": true,
-    "outDir": "./assets/dist",
-    "rootDir": "./src/renderer",
+    "checkJs": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "declaration": false,
-    "sourceMap": false
+    "skipLibCheck": true
   },
-  "include": ["src/renderer"]
+  "include": ["src/renderer", "src/shared/contract", "test/typecheck"]
 }

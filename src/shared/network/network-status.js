@@ -163,7 +163,7 @@ export function getDiagnosticCounters() {
 }
 
 // The scalar leaves the dedup compares: two frames are equal iff every one matches.
-// test seam
+/** @internal */
 export const STATUS_PATHS = [
   'state', 'dhtReady', 'announced', 'peerCount', 'connecting', 'suspended',
   'lastConnectionAt', 'bootedAt',
@@ -184,7 +184,7 @@ export const STATUS_PATHS = [
 
 const leaf = (obj, path) => path.split('.').reduce((o, key) => o?.[key], obj)
 
-// test seam
+/** @internal */
 export function statusEqual(a, b) {
   if (a === b) return true
   if (!a || !b) return false

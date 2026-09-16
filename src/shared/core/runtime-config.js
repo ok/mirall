@@ -24,7 +24,7 @@ function read(key) {
   return spec ? spec.rule(config[key], defaultOf(key), spec.min) : config[key]
 }
 
-// test seam — the ruled set is the thing a reader is most likely to "complete" by filling in a
+/** @internal the ruled set is the thing a reader is most likely to "complete" by filling in a */
 // blank, and every blank is a DoS bound or a user cap. runtime-config-rules.test.js pins the set.
 export function _rulesForTests() {
   const ruled = {}

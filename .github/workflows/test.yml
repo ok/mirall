@@ -19,10 +19,10 @@ jobs:
       # the --max-warnings number in package.json down as the worst offenders get refactored.
       - name: Lint (a11y gate + complexity/unused-vars ceiling)
         run: npm run lint:ci
-      # Dead-code report, advisory on purpose. The remaining rows are all shapes knip's static
-      # analysis cannot follow: CommonJS namespace access into src/main, and a renderer module a
-      # test loads dynamically. Making it a gate would mean annotating those exports as public,
-      # which states nothing a reader needs. Read the rows; do not delete on them alone.
+      # Dead-code report, advisory on purpose. Its rows are two kinds: shapes knip's static analysis
+      # cannot follow (CommonJS namespace access into src/main), and exports whose only reader is a
+      # test — test/** is not an entry, so those stay visible until someone marks them @internal or
+      # deletes the code. Read the rows; do not delete on them alone.
       - name: Dead-code report (knip — advisory)
         run: npm run knip
         continue-on-error: true

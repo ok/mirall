@@ -1,14 +1,23 @@
-// Pure record -> display-row mapping. Plain JS (with a .d.ts twin) so it unit-tests under
-// brittle-node alongside the worker's audit modules.
+// Pure record -> display-row mapping. Plain JS so it unit-tests under brittle-node alongside the
+// worker's audit modules.
 //
 // Every field it reads is snapshotted in the record itself — nothing here joins against live
 // state, because a row routinely outlives the space, share or peer it describes.
 import { formatDuration } from './connectivity.js'
 import { formatSize } from '../format/bytes.js'
+/** @import { AuditEntry, AuditFilters } from '../types/types.js' */
+
+/** @typedef {{ key: string | null, name: string | null }} ActorLabel */
+/** @typedef {{ labelKey: string, tone: 'error' | 'passive' }} RowBadge */
+/** @typedef {{ [key: string]: string, actor: string, space: string, target: string }} SentenceValues */
+/** @typedef {{ text: string, key?: never, values?: never } | { key: string, values?: Record<string, string | number>, text?: never }} MetaPart */
+/** @typedef {{ key: string, entries: AuditEntry[] }} DayGroup */
+/** @typedef {{ text: string, field?: undefined, value?: undefined } | { field: string, value: string, text?: undefined }} SentenceSegment */
+/** @typedef {{ key: 'empty' | 'emptyFiltered' | 'emptyNetwork', icon: 'history' | 'search' | 'hub' }} EmptyState */
 
 // Which participant a row is "about". `actorLabelKey` distinguishes the three cases the copy
 // has to handle: you did it, a named peer did it, or the app did it on its own.
-// test seam
+/** @internal @param {AuditEntry} entry @returns {ActorLabel} */
 export function actorLabel(entry) {
   const actor = entry.actor
   if (!actor || actor.type === 'system') return { key: 'activityLog.actorSystem', name: null }
@@ -18,15 +27,17 @@ export function actorLabel(entry) {
 
 // What the row's avatar bubble should render: an icon for the app itself, a short "You" label
 // for own actions (matching the sentence copy), initials for a peer.
+/** @param {AuditEntry} entry @returns {'self' | 'peer' | 'system'} */
 export function avatarKind(entry) {
   if (!entry.actor || entry.actor.type === 'system') return 'system'
   if (entry.actor.type === 'self') return 'self'
   return 'peer'
 }
 
+/** @param {AuditEntry} entry */
 export function actorInitials(entry) {
   const actor = entry.actor
-  if (avatarKind(entry) !== 'peer') return null
+  if (!actor || avatarKind(entry) !== 'peer') return null
   const name = (actor.name || shortKey(actor.key) || '').trim()
   if (!name) return '?'
   const parts = name.split(/\s+/).filter(Boolean)
@@ -44,12 +55,14 @@ export function actorInitials(entry) {
 // Severity is keyed on the kind instead, reusing the SHIPPED connectivity strings so the log, the
 // status dot and the toast say the same word. Peer rows get none: a member closing a laptop is
 // routine, and a badge on a routine row is chrome.
+/** @type {Readonly<Record<string, RowBadge>>} */
 const KIND_BADGE = {
   'network.offline': { labelKey: 'connectivity.offline', tone: 'error' },
   'network.blocked': { labelKey: 'connectivity.offline', tone: 'error' },
   'network.at_risk': { labelKey: 'connectivity.limited', tone: 'passive' },
 }
 
+/** @param {AuditEntry} entry @returns {RowBadge | null} */
 export function rowBadge(entry) {
   if (entry.outcome === 'denied') return { labelKey: 'activityLog.badgeDenied', tone: 'error' }
   if (entry.outcome === 'error') return { labelKey: 'activityLog.badgeFailed', tone: 'error' }
@@ -59,11 +72,12 @@ export function rowBadge(entry) {
 // `history` is the log's own mark; a device connectivity row gets the app's Network glyph instead,
 // so the device family reads as one family. Peer rows are not system rows — they keep the person's
 // initials, which is the correct read.
+/** @param {AuditEntry} entry @returns {'hub' | 'history'} */
 export function systemIcon(entry) {
   return entry.category === 'network' ? 'hub' : 'history'
 }
 
-// test seam
+/** @internal @param {AuditEntry} entry */
 export function isSystemRow(entry) {
   return !entry.actor || entry.actor.type === 'system'
 }
@@ -77,30 +91,35 @@ export function isSystemRow(entry) {
 // whose subject.reason means something else entirely — renders nothing rather than a raw key.
 const DENIAL_REASONS = new Set(['not-a-member', 'unauthenticated'])
 
+/** @param {AuditEntry} entry */
 export function denialReasonKey(entry) {
   const reason = entry.outcome === 'denied' ? entry.subject?.reason : null
-  return DENIAL_REASONS.has(reason) ? 'activityLog.denialReason.' + reason : null
+  return typeof reason === 'string' && DENIAL_REASONS.has(reason) ? 'activityLog.denialReason.' + reason : null
 }
 
 // The i18n key for the sentence. One key per kind keeps the whole sentence translatable as a
 // unit — a sentence assembled from fragments cannot be reordered for other languages.
+/** @param {AuditEntry} entry */
 export function sentenceKey(entry) {
   return 'activityLog.kind.' + entry.kind
 }
 
 // Interpolation values for that sentence. Names are already snapshots; the fallbacks keep a row
 // readable when a peer never published a display name.
+/** @param {AuditEntry} entry @returns {SentenceValues} */
 export function sentenceValues(entry) {
+  const requester = entry.subject?.requester
   return {
     // A peer we refused is usually not a member of any space we share — that is why it was
     // refused — so its name rarely resolves. The short key is still an identity a reader can
     // correlate, and beats a sentence with a hole in it.
-    actor: entry.actor?.name || entry.subject?.requester || shortKey(entry.actor?.key) || '',
+    actor: entry.actor?.name || (typeof requester === 'string' ? requester : null) || shortKey(entry.actor?.key) || '',
     space: entry.space?.name || '',
     target: entry.target?.name || '',
   }
 }
 
+/** @param {string | null | undefined} key */
 function shortKey(key) {
   return typeof key === 'string' && key ? key.slice(0, 12) : null
 }
@@ -109,20 +128,24 @@ function shortKey(key) {
 // entity names inside it can carry emphasis. Interpolate-then-split (not <Trans>) keeps the
 // translator's word order because we parse THEIR rendered output; U+001F cannot occur in a display
 // name, so a name containing punctuation or two fields sharing a value can never confuse the split.
-// test seam
+/** @internal */
 export const FIELD_SENTINEL = '\u001F'
-// test seam
+/** @internal */
 export const SENTENCE_FIELDS = ['actor', 'space', 'target']
 
+/** @returns {SentenceValues} */
 export function sentinelValues() {
-  const out = {}
+  /** @type {SentenceValues} */
+  const out = { actor: '', space: '', target: '' }
   for (const field of SENTENCE_FIELDS) out[field] = FIELD_SENTINEL + field + FIELD_SENTINEL
   return out
 }
 
 // Returns [{ text }] and [{ field, value }] segments in render order. A field whose value is
 // empty degrades to nothing rather than leaving a hole in the sentence.
+/** @param {string} rendered @param {SentenceValues | null | undefined} values @returns {SentenceSegment[]} */
 export function splitSentence(rendered, values) {
+  /** @type {SentenceSegment[]} */
   const segments = []
   let buffer = ''
   for (const part of String(rendered).split(FIELD_SENTINEL)) {
@@ -142,13 +165,13 @@ export function splitSentence(rendered, values) {
 }
 
 // One byte size means one string everywhere: formatSize.js owns the ladder, and eslint pins it.
-// test seam
+/** @internal @param {number} bytes @param {string} [locale] */
 export function formatBytes(bytes, locale) {
   if (!Number.isFinite(bytes) || bytes < 0) return null
   return formatSize(bytes, locale)
 }
 
-// test seam
+/** @internal @param {number} n @param {string} [locale] */
 export function formatCount(n, locale) {
   return Number.isFinite(n) ? n.toLocaleString(locale) : null
 }
@@ -165,6 +188,10 @@ const NETWORK_CAUSES = new Set([
 // `ts`, which the prune path's clock hysteresis relies on.
 const START_GAP_MS = 30000
 
+/** @param {string | number | boolean | null | undefined} v */
+const finiteNumber = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+
+/** @param {number} ts */
 function formatClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
@@ -172,21 +199,26 @@ function formatClock(ts) {
 // The muted second line: space name first (the row's strongest context), then the kind's detail.
 // Returns STRUCTURED parts — `{ key, values }` for anything translatable, `{ text }` for a proper
 // noun or a formatted number — never a finished string: the component translates.
+/** @param {AuditEntry} entry @param {string} [locale] @returns {MetaPart[]} */
 export function metaParts(entry, locale) {
+  /** @type {MetaPart[]} */
   const parts = []
   if (entry.space?.name) parts.push({ text: entry.space.name })
+  /** @type {NonNullable<AuditEntry['subject']>} */
   const subject = entry.subject || {}
   // Which folder a transferred file came from. A proper noun like the space name, so it is pushed
   // as text and needs no catalogue entry; null on a loose file, which renders no segment.
   if (typeof subject.folder === 'string' && subject.folder) parts.push({ text: subject.folder })
-  if (Number.isFinite(subject.fileCount)) {
-    const files = formatCount(subject.fileCount, locale)
+  const fileCount = finiteNumber(subject.fileCount)
+  if (fileCount !== null) {
+    const files = formatCount(fileCount, locale)
     if (files !== null) {
-      parts.push({ key: 'activityLog.metaFiles', values: { count: subject.fileCount, formatted: files } })
+      parts.push({ key: 'activityLog.metaFiles', values: { count: fileCount, formatted: files } })
     }
   }
-  if (Number.isFinite(subject.bytes)) {
-    const size = formatBytes(subject.bytes, locale)
+  const bytes = finiteNumber(subject.bytes)
+  if (bytes !== null) {
+    const size = formatBytes(bytes, locale)
     if (size) parts.push({ text: size })
   }
   if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
@@ -196,11 +228,13 @@ export function metaParts(entry, locale) {
     if (typeof entry.code === 'string' && NETWORK_CAUSES.has(entry.code)) {
       parts.push({ key: 'activityLog.cause.' + entry.code })
     }
-    if (Number.isFinite(subject.durationMs)) {
-      parts.push({ key: 'activityLog.wasOfflineFor', values: { duration: formatDuration(subject.durationMs) } })
+    const durationMs = finiteNumber(subject.durationMs)
+    if (durationMs !== null) {
+      parts.push({ key: 'activityLog.wasOfflineFor', values: { duration: formatDuration(durationMs) } })
     }
-    if (Number.isFinite(subject.sinceTs) && entry.ts - subject.sinceTs >= START_GAP_MS) {
-      parts.push({ key: 'activityLog.startedAt', values: { time: formatClock(subject.sinceTs) } })
+    const sinceTs = finiteNumber(subject.sinceTs)
+    if (sinceTs !== null && entry.ts - sinceTs >= START_GAP_MS) {
+      parts.push({ key: 'activityLog.startedAt', values: { time: formatClock(sinceTs) } })
     }
   }
   return parts
@@ -208,7 +242,7 @@ export function metaParts(entry, locale) {
 
 // Day buckets for the grouped list. Uses the viewer's current locale day boundaries, not the
 // tzOffset stored on the row: the grouping answers "when did this happen for me, now".
-// test seam
+/** @internal @param {number} ts @param {number} [now] */
 export function dayKey(ts, now = Date.now()) {
   const day = 86400000
   const startOfToday = new Date(now)
@@ -219,8 +253,11 @@ export function dayKey(ts, now = Date.now()) {
   return new Date(ts).toISOString().slice(0, 10)
 }
 
+/** @param {AuditEntry[]} entries @param {number} [now] @returns {DayGroup[]} */
 export function groupByDay(entries, now = Date.now()) {
+  /** @type {DayGroup[]} */
   const groups = []
+  /** @type {DayGroup | null} */
   let current = null
   for (const entry of entries) {
     const key = dayKey(entry.ts, now)
@@ -240,6 +277,7 @@ export function groupByDay(entries, now = Date.now()) {
 // An empty NETWORK log is good news, not a failed search — but only when nothing else narrows the
 // view: with a date range applied, "the whole time it has been running" is false the moment an
 // outage exists outside the window.
+/** @param {AuditFilters} filters @param {boolean} active @returns {EmptyState} */
 export function emptyStateFor(filters, active) {
   if (!active) return { key: 'empty', icon: 'history' }
   const networkOnly = filters.categories.length === 1

@@ -41,7 +41,7 @@ function sched() {
   return scheduler
 }
 
-// test seam — production starts owned folders through this file's own _open()
+/** @internal production starts owned folders through this file's own _open() */
 export function initOwnedFolders(ipc, { settleScan = null, broadcastIndex = null, indexAnnounceMs = INDEX_ANNOUNCE_MS } = {}) {
   const emit = (event, payload) => ipc?.emit(event, payload)
 
@@ -80,7 +80,7 @@ export function initOwnedFolders(ipc, { settleScan = null, broadcastIndex = null
   })
 }
 
-// test seam
+/** @internal */
 export function stopIndexAnnounce() {
   progress?.stopAnnounce()
 }

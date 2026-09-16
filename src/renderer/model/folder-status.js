@@ -8,6 +8,24 @@
 // No live region here. Every state worth announcing already has a strip above the listing, and a
 // second announcement from the tile would read the same change twice.
 
+/** @import { BadgeStatus, ShareRole } from '../types/types.js' */
+
+/**
+ * @typedef {object} FolderStatusInput
+ * @property {ShareRole} role
+ * @property {boolean} sourceMissing
+ * @property {boolean} fault
+ * @property {boolean} paused
+ * @property {boolean} mirrorEnabled
+ * @property {boolean} indexing
+ * @property {boolean} mirrorSyncing
+ * @property {boolean} [ownerOnline]
+ * @property {boolean} [incomplete]
+ */
+
+/** @typedef {{ labelKey: string, badge: BadgeStatus }} FolderStatus */
+
+/** @param {FolderStatusInput} input @returns {FolderStatus} */
 export function deriveFolderStatus(input) {
   const { role, sourceMissing, fault, paused, mirrorEnabled, indexing, mirrorSyncing, ownerOnline, incomplete } = input
   if (sourceMissing) return { labelKey: 'folder.statusMissing', badge: 'paused' }

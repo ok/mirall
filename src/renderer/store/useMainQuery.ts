@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { fetchMain, patchMain, peekMain, subscribeMain, writeMain } from './main-store.js'
-import type { MainSnapshot } from './main-store.js'
+import type { Snapshot } from './query-store.js'
 import type { MainQueryName, MainQueryValue } from './main-queries.js'
 
 // The thin hook over main-store.js, mirroring useQuery over query-store.js: the store owns the
@@ -11,7 +11,7 @@ import type { MainQueryName, MainQueryValue } from './main-queries.js'
 export function useMainQuery<K extends MainQueryName>(
   name: K,
   opts: { enabled?: boolean } = {},
-): MainSnapshot<MainQueryValue[K]> & { write: (value: MainQueryValue[K]) => Promise<MainQueryValue[K]>; patch: (patch: Partial<MainQueryValue[K]>) => Promise<MainQueryValue[K]> } {
+): Snapshot<MainQueryValue[K]> & { write: (value: MainQueryValue[K]) => Promise<MainQueryValue[K]>; patch: (patch: Partial<MainQueryValue[K]>) => Promise<MainQueryValue[K]> } {
   const enabled = opts.enabled !== false
   const subscribe = useCallback((notify: () => void) => subscribeMain(name, notify), [name])
   const snapshot = useCallback(() => peekMain(name), [name])

@@ -15,5 +15,5 @@ export const FRAME = Object.freeze({
   CANCEL: 'cancel',
 })
 
-// test seam — the cancellation guard's list
+/** @internal the cancellation guard's list */
 export const CONTROL_FRAMES = Object.freeze(Object.values(FRAME))

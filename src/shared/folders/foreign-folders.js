@@ -38,7 +38,7 @@ const state = createMirrorState({ isStopped: (key, gen) => loops.stopped(key, ge
 
 let unsubscribePeerOnline = null
 
-// test seam — production starts the mirror through this file's own _open()
+/** @internal production starts the mirror through this file's own _open() */
 export function initForeignFolders(_ipc) {
   initMirrorSignals(_ipc)
   initForeignVerbs({ loops, state })
@@ -70,7 +70,7 @@ function pokeSpaceMirrors(spaceId) {
 // active mirror in that space instead of waiting for the 30s poll, so owner-side
 // edits/deletes reflect on the mirror's disk as promptly as they do in the folder
 // view.
-// test seam
+/** @internal */
 export function onPeerDriveChanged(spaceId) {
   pokeSpaceMirrors(spaceId)
 }
@@ -82,7 +82,7 @@ function onOwnerOnline(_ownerKey, spaceId) {
 }
 
 // One verdict per mount with a live loop (loops.entries() says why the others are not reported).
-// test seam
+/** @internal */
 export function mirrorHealth({ now = Date.now() } = {}) {
   const pollIntervalMs = getForeignPollIntervalMs()
   return loops.entries().map((loop) => ({

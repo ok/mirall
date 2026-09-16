@@ -49,6 +49,10 @@ export const FILE_STATUSES = Object.freeze(Object.values(FILE_STATUS))
 export const BADGE_STATUSES = Object.freeze(Object.values(BADGE_STATUS))
 export const SHARE_FILE_STATUSES = Object.freeze(Object.values(SHARE_FILE_STATUS))
 
+/** @typedef {(typeof FILE_STATUSES)[number]} FileStatus */
+/** @typedef {(typeof BADGE_STATUSES)[number]} BadgeStatus */
+/** @typedef {(typeof SHARE_FILE_STATUSES)[number]} ShareFileStatus */
+
 // The file statuses that mean the bytes are on this disk. A caller asking "is it here?" asks this
 // rather than naming the two members, which is how the renderer came to hold two copies of the set.
 export const ON_DEVICE_STATUSES = Object.freeze([SHARE_FILE_STATUS.DOWNLOADED, SHARE_FILE_STATUS.SYNCED])
@@ -63,6 +67,7 @@ export const MIRROR_STATE = Object.freeze({
 })
 
 export const MIRROR_STATES = Object.freeze(Object.values(MIRROR_STATE))
+/** @typedef {(typeof MIRROR_STATES)[number]} MirrorState */
 
 // A mount's durable status, per role. Two vocabularies rather than one: 'idle' is a mirror-only
 // state, and the two roles mean different things by a fault — a mirror's pause stops its loop,
@@ -104,6 +109,9 @@ export const OWNED_MOUNT_STATUSES = Object.freeze([
 ])
 
 export const FOREIGN_MOUNT_STATUSES = Object.freeze(Object.values(MOUNT_STATUS))
+
+/** @typedef {(typeof OWNED_MOUNT_STATUSES)[number]} OwnedMountStatus */
+/** @typedef {(typeof FOREIGN_MOUNT_STATUSES)[number]} ForeignMountStatus */
 
 // The owned statuses that mean nothing is wrong. A row shows a status only when it is not one of
 // these, so the pair is a vocabulary rather than two comparisons at each caller.

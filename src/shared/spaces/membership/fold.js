@@ -79,7 +79,7 @@ function vouchStands(rec, joiner) {
   return seq === undefined || seq < rec.memberSeq
 }
 
-// test seam
+/** @internal */
 export function foldMemberSet(records, creatorKey) {
   return foldMembership(records, creatorKey).members
 }
@@ -184,7 +184,7 @@ export function displayNameOrNull(name) {
   return name && name !== UNKNOWN_NAME ? name : null
 }
 
-// test seam
+/** @internal */
 export const UNKNOWN_NAME = 'Unknown'
 
 export function mergeMemberIdentity({ publicKey, meta, profile, held }) {

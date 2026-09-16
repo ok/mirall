@@ -95,7 +95,7 @@ async function recordDriveLoadFailure(space, err) {
     .catch((mErr) => log.warn('could not mark the drive-load failure:', space.spaceId, '-', mErr.message))
 }
 
-// test seam
+/** @internal */
 export async function loadDrives({ openDrive = openSpaceDrive } = {}) {
   let hadFailure = false
   for (const space of await listSpaces()) {

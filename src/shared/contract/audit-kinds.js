@@ -19,6 +19,11 @@ export const CATEGORY = Object.freeze({
   NETWORK: 'network',
 })
 
+/** @typedef {(typeof CATEGORIES)[number]} AuditCategory */
+/** @typedef {'A' | 'B' | 'C'} AuditTier */
+/** @typedef {{ category: AuditCategory, tier: AuditTier }} AuditKindSpec */
+
+/** @type {Readonly<Record<string, AuditKindSpec>>} */
 export const KINDS = Object.freeze({
   'space.created': { category: CATEGORY.MEMBERS, tier: 'A' },
   'space.joined': { category: CATEGORY.MEMBERS, tier: 'A' },
@@ -113,12 +118,15 @@ export const TARGET_KIND = Object.freeze({
   SPACE: 'space',
 })
 
-// test seam — the audit-coverage guard's grouping
 export const CATEGORIES = Object.freeze(Object.values(CATEGORY))
 export const OUTCOMES = Object.freeze(Object.values(OUTCOME))
 export const ACTOR_TYPES = Object.freeze(Object.values(ACTOR_TYPE))
 export const TARGET_KINDS = Object.freeze(Object.values(TARGET_KIND))
+/** @typedef {(typeof OUTCOMES)[number]} AuditOutcome */
+/** @typedef {(typeof ACTOR_TYPES)[number]} AuditActorType */
+/** @typedef {(typeof TARGET_KINDS)[number]} AuditTargetKind */
 
+/** @param {string} kind */
 export function isKnownKind(kind) {
   return Object.hasOwn(KINDS, kind)
 }
@@ -126,10 +134,12 @@ export function isKnownKind(kind) {
 // No fallback on either accessor: buildRecord rejects an unknown kind before these are
 // reached, and a silent default would let a typo'd kind land in a bucket the viewer's filter
 // can never surface.
+/** @param {string} kind */
 export function categoryOf(kind) {
   return KINDS[kind].category
 }
 
+/** @param {string} kind */
 export function tierOf(kind) {
   return KINDS[kind].tier
 }

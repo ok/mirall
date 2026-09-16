@@ -17,7 +17,7 @@ const SETTLE_MS = 250
 
 let compactionTail = Promise.resolve()
 
-// test seam: parks the tail so the bounded wait in settleCompaction is observable.
+/** @internal parks the tail so the bounded wait in settleCompaction is observable. */
 export function _compactStoreForTests(makeTail) {
   compactionTail = makeTail()
 }

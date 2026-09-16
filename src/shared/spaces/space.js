@@ -29,7 +29,7 @@ const log = createLogger('space')
 let spacesBee
 let spacesStore = -1
 
-// test seam — production opens the spaces bee through this file's own _open()
+/** @internal production opens the spaces bee through this file's own _open() */
 export async function initSpaces() {
   if (spacesBee && spacesStore === storeEpoch() && !spacesBee.core.closed) return
   spacesStore = storeEpoch()
@@ -128,7 +128,6 @@ export function mutateMembers(spaceId, mutate) {
 // Serialized read-modify-write of a space's non-member fields (e.g. status),
 // sharing the per-space chain so it can't lose-update against member writes.
 // Resolves to the written record, or null when nothing was written.
-// test seam
 export function mutateSpace(spaceId, mutate) {
   return enqueue(spaceId, async () => {
     const entry = await spacesBee.get('space/' + spaceId)
@@ -218,7 +217,7 @@ export function toggleFavorite(spaceId) {
 }
 
 // The live bee, for tests that need a write to fail. Not for production callers.
-// test seam
+/** @internal */
 export function _spacesBeeForTests() {
   return spacesBee
 }

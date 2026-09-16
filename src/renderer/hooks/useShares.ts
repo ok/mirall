@@ -9,8 +9,7 @@ import { useQuery } from '../store/useQuery.js'
 import { pruneByParam } from '../store/query-store.js'
 import { unhealthyOwnedStatus } from '../model/owned-mount.js'
 import { ANY_SHARES, sharesScope } from '../store/scopes.js'
-import type { OwnedMountRow } from '../model/owned-mount.js'
-import type { Share, ShareRole, ForeignFolderMount } from '../types/types.js'
+import type { Share, ShareRole, ForeignFolderMount, OwnedFolderMount } from '../types/types.js'
 
 // Dropped when a space leaves the roster, so re-joining the same id never renders the rows it held
 // before (the twin of pruneRosterCache / pruneMirrorCache, called from the same place).
@@ -27,7 +26,7 @@ export interface ShareWithRole extends Share {
 
 const NO_SHARES: Share[] = []
 const NO_FOREIGN: ForeignFolderMount[] = []
-const NO_OWNED: OwnedMountRow[] = []
+const NO_OWNED: OwnedFolderMount[] = []
 
 export function useShares(spaceId: string, myPublicKey: string | null) {
   const shareScopes = useMemo(() => sharesScope(spaceId), [spaceId])
@@ -43,7 +42,7 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
   // badge wrong until the user left and re-entered.
   const shares = useQuery<Share[]>('share:list', params, shareScopes, { enabled: Boolean(spaceId) })
   const foreign = useQuery<ForeignFolderMount[]>('foreign-folder:list-all', {}, ANY_SHARES)
-  const owned = useQuery<OwnedMountRow[]>('owned-folder:list-all', {}, ANY_SHARES)
+  const owned = useQuery<OwnedFolderMount[]>('owned-folder:list-all', {}, ANY_SHARES)
 
   const { mirrored, mirrorStatus, ownedStatus } = useMemo(() => {
     const mmap = new Map<string, boolean>()

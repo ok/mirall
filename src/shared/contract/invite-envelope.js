@@ -10,11 +10,25 @@
 // would put it, so a code minted by any runtime decodes identically in the other two.
 import { NAME_MAX } from './limits.js'
 
+/**
+ * @typedef {{ v: 0, topic: string }} DecodedInviteV0
+ * @typedef {{ v: 1, topic: string, name?: string, owner?: string, ownerName?: string, creator?: string,
+ *   schemaVersion?: number, autoAdmit?: boolean, inviteId?: string, expiresAt?: number }} DecodedInviteV1
+ * @typedef {DecodedInviteV0 | DecodedInviteV1} DecodedInvite
+ * @typedef {{ topic: string, name?: string, owner?: string, ownerName?: string, creator?: string,
+ *   schemaVersion?: number, autoAdmit?: boolean, inviteId?: string, expiresAt?: number }} InviteFields
+ * @typedef {{ v: 1, t: string, n?: string, o?: string, d?: string, c?: string, s?: number, a?: 1, id?: string, x?: number }} InviteWire
+ */
+
 const HEX64 = /^[0-9a-f]{64}$/i
 const HEX32 = /^[0-9a-f]{32}$/i
 const B64URL = /^[A-Za-z0-9_-]+$/
 const SCHEMA_MAX = 2
 
+/** @param {number | undefined} v */
+const positiveInt = (v) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null)
+
+/** @param {string} str */
 function utf8Encode(str) {
   const bytes = []
   for (let i = 0; i < str.length; i++) {
@@ -35,6 +49,7 @@ function utf8Encode(str) {
 // Returns [codePoint, bytesConsumed]. Overlong forms, surrogate code points and truncated
 // sequences all yield U+FFFD over a single byte, which is what makes this agree with
 // TextDecoder rather than merely resemble it.
+/** @param {number[]} bytes @param {number} i @returns {[number, number]} */
 function utf8CodePointAt(bytes, i) {
   const b0 = bytes[i]
   if (b0 < 0x80) return [b0, 1]
@@ -51,6 +66,7 @@ function utf8CodePointAt(bytes, i) {
   return [cp, width]
 }
 
+/** @param {number[]} bytes */
 function utf8Decode(bytes) {
   let out = ''
   let i = 0
@@ -62,6 +78,7 @@ function utf8Decode(bytes) {
   return out
 }
 
+/** @param {string} str */
 function b64urlEncode(str) {
   const bytes = utf8Encode(str)
   let bin = ''
@@ -69,6 +86,7 @@ function b64urlEncode(str) {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/** @param {string} s */
 function b64urlDecode(s) {
   const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4))
   const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad)
@@ -81,6 +99,7 @@ function b64urlDecode(s) {
 // mirall://join/<code> or query form mirall://join?code=<code>) is peeled down to
 // <code>; anything else passes through trimmed and unchanged, so a pasted link
 // resolves to the same code as clicking it.
+/** @param {string} input */
 export function extractInviteCode(input) {
   if (typeof input !== 'string') return ''
   const trimmed = input.trim()
@@ -97,6 +116,7 @@ export function extractInviteCode(input) {
   return raw // bare code ('' if the link carried none)
 }
 
+/** @param {string} input @returns {DecodedInvite | null} */
 export function decodeInvite(input) {
   if (typeof input !== 'string') return null
   const cleaned = extractInviteCode(input)
@@ -106,12 +126,14 @@ export function decodeInvite(input) {
   if (HEX64.test(stripped)) return { v: 0, topic: stripped }
 
   if (!B64URL.test(cleaned)) return null
+  /** @type {Partial<InviteWire> | null} */
   let obj
   try { obj = JSON.parse(b64urlDecode(cleaned)) } catch { return null }
   if (!obj || typeof obj !== 'object') return null
   if (obj.v !== 1) return null
   if (typeof obj.t !== 'string' || !HEX64.test(obj.t)) return null
 
+  /** @type {DecodedInviteV1} */
   const out = { v: 1, topic: obj.t.toLowerCase() }
   if (typeof obj.n === 'string' && obj.n.length > 0) {
     out.name = obj.n.slice(0, NAME_MAX)
@@ -138,17 +160,21 @@ export function decodeInvite(input) {
   // Non-secret membership hints: schema version, auto-admit flag, per-link invite nonce, and the
   // link's expiry (epoch ms, a joiner-side hint — the minting member's record is authoritative).
   // None of these is a capability — the content key is never in the invite.
-  if (Number.isInteger(obj.s) && obj.s >= 1 && obj.s <= SCHEMA_MAX) out.schemaVersion = obj.s
+  const schema = positiveInt(obj.s)
+  if (schema !== null && schema <= SCHEMA_MAX) out.schemaVersion = schema
   if (obj.a === 1) out.autoAdmit = true
   if (typeof obj.id === 'string' && HEX32.test(obj.id)) out.inviteId = obj.id.toLowerCase()
-  if (Number.isInteger(obj.x) && obj.x > 0) out.expiresAt = obj.x
+  const expiry = positiveInt(obj.x)
+  if (expiry !== null) out.expiresAt = expiry
   return out
 }
 
+/** @param {InviteFields} fields */
 export function encodeInvite({ topic, name, owner, ownerName, creator, schemaVersion, autoAdmit, inviteId, expiresAt }) {
   if (typeof topic !== 'string' || !HEX64.test(topic)) {
     throw new Error('encodeInvite: topic must be 64-char hex')
   }
+  /** @type {InviteWire} */
   const obj = { v: 1, t: topic.toLowerCase() }
   if (typeof name === 'string' && name.length > 0) {
     obj.n = name.slice(0, NAME_MAX)
@@ -160,10 +186,12 @@ export function encodeInvite({ topic, name, owner, ownerName, creator, schemaVer
     }
   }
   if (typeof creator === 'string' && HEX64.test(creator)) obj.c = creator.toLowerCase()
-  if (Number.isInteger(schemaVersion) && schemaVersion >= 2) obj.s = schemaVersion
+  const schema = positiveInt(schemaVersion)
+  if (schema !== null && schema >= 2) obj.s = schema
   if (autoAdmit) obj.a = 1
   if (typeof inviteId === 'string' && HEX32.test(inviteId)) obj.id = inviteId.toLowerCase()
-  if (Number.isInteger(expiresAt) && expiresAt > 0) obj.x = expiresAt
+  const expiry = positiveInt(expiresAt)
+  if (expiry !== null) obj.x = expiry
   return b64urlEncode(JSON.stringify(obj))
 }
 

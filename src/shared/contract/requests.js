@@ -12,7 +12,12 @@
 // There is no hexKey type for the same reason: ownerKey is a plain string at the boundary and can
 // legitimately be '' (useFiles builds an optimistic row with an empty owner key), so a format
 // assertion here would reject traffic the app already sends.
-// test seam
+/** @typedef {'string' | 'number' | 'boolean' | 'array' | 'spaceId' | 'shareId' | 'path'} ArgType */
+/** @typedef {{ type: ArgType, optional?: boolean, max?: number }} ArgRule */
+/** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule> }} RequestSpec */
+/** @typedef {Record<string, string | number | boolean | readonly string[] | null | undefined>} RequestParams */
+
+/** @internal @type {Readonly<Record<ArgType, ArgType>>} */
 export const ARG = Object.freeze({
   string: 'string',
   number: 'number',
@@ -23,6 +28,7 @@ export const ARG = Object.freeze({
   path: 'path',
 })
 
+/** @satisfies {Record<string, RequestSpec>} */
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
   'audit:configure': { kind: 'command', args: {} },
@@ -251,10 +257,11 @@ export const REQUESTS = Object.freeze({
   'storage:info': { kind: 'query', args: {} },
 })
 
-// test seam — the declaration-parity guard's list; production reads the table above it
-export const REQUEST_NAMES = Object.freeze(Object.keys(REQUESTS))
+/** @internal the declaration-parity guard's list; production reads the table above it */
+export const REQUEST_NAMES = Object.freeze(/** @type {RequestName[]} */ (Object.keys(REQUESTS)))
+/** @typedef {keyof typeof REQUESTS} RequestName */
 
 // Handlers with no caller anywhere in src/ or test/. Recorded rather than deleted: removing one is
 // a behaviour change and belongs in its own commit. The test asserts this list only shrinks.
-// test seam — the declaration-parity guard's allow-list
+/** @internal the declaration-parity guard's allow-list @type {readonly RequestName[]} */
 export const UNREFERENCED_REQUESTS = Object.freeze([])

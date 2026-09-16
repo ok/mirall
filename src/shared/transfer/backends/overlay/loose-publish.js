@@ -33,7 +33,7 @@ export const MAX_LOOSE_FILES_PER_SPACE = 100
 
 // abs source path -> (spaceId -> relPath). The same file can be shared in several
 // spaces, so a watcher event must fan out to every space that holds it.
-// test seam
+/** @internal */
 export const looseSources = new Map()
 
 function trackSource(abs, spaceId, relPath) {
@@ -47,7 +47,7 @@ function untrackSource(abs, spaceId) {
   m.delete(spaceId)
   if (m.size === 0) looseSources.delete(abs)
 }
-// test seam
+/** @internal */
 export function looseSourceFor(abs, spaceId) {
   return looseSources.get(abs)?.get(spaceId) || null
 }

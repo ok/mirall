@@ -5,12 +5,15 @@ const WINDOW_MS = 3000
 const IDLE_GRACE_MS = 1100
 
 export class SpeedSampler {
+  /** @type {{ t: number, bytes: number }[]} */
   #samples = []
 
+  /** @param {number} t @param {number} bytes */
   push(t, bytes) {
     this.#samples.push({ t, bytes })
   }
 
+  /** @param {number} now */
   avg(now) {
     this.#prune(now)
     if (this.#samples.length < 2) return null
@@ -22,11 +25,13 @@ export class SpeedSampler {
     return db / dt
   }
 
+  /** @param {number} now */
   idleMs(now) {
     const n = this.#samples.length
     return n === 0 ? Infinity : now - this.#samples[n - 1].t
   }
 
+  /** @param {number} ref */
   #prune(ref) {
     const cutoff = ref - WINDOW_MS
     this.#samples = this.#samples.filter(s => s.t >= cutoff)
@@ -41,6 +46,7 @@ export class SpeedSampler {
 // the displayed value alone" — when data is still fresh (the event path owns it) or the
 // row has never had a value (so a just-started download doesn't flash 0) — a positive
 // rate while a stall decays, or 0 once the window empties.
+/** @param {SpeedSampler | null | undefined} sampler @param {number} now @param {number | null | undefined} prev */
 export function decayedSpeed(sampler, now, prev) {
   if (sampler && sampler.idleMs(now) < IDLE_GRACE_MS) return null
   const rate = sampler ? sampler.avg(now) : null

@@ -10,9 +10,11 @@ const TAB_INTENT_MS = 250
 export function makeTabIntentTracker() {
   let lastTabAt = -Infinity
   return {
+    /** @param {string} key @param {number} at */
     noteKeyDown(key, at) {
       if (key === 'Tab') lastTabAt = at
     },
+    /** @param {number} at */
     isTabIntent(at) {
       return at - lastTabAt <= TAB_INTENT_MS
     },

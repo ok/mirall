@@ -6,6 +6,51 @@
 // counts change about twice a second, which would spam a screen reader) — a separate count-free
 // sr-only sentence carries that announcement instead.
 
+/** @import { IconName } from '../types/ui.js' */
+/** @import { ShareRole } from '../types/types.js' */
+/** @import { MountFault } from '../../shared/contract/mount-fault.js' */
+/** @import { IndexSummary } from './index-summary.js' */
+/** @import { MirrorSyncSummary } from './mirror-sync.js' */
+
+/** @typedef {'source-missing' | 'fault' | 'paused' | 'working' | 'peer-indexing' | 'owner-offline' | 'over-limit'} StripId */
+/** @typedef {'error' | 'warning' | 'info' | 'neutral'} StripTone */
+/** @typedef {'locate' | 'resume' | 'pause' | null} StripAction */
+
+/**
+ * @typedef {object} StripData
+ * @property {'indexing' | 'mirroring' | 'peer-indexing'} [kind]
+ * @property {ShareRole} [role]
+ * @property {boolean} [scanning]
+ * @property {number} [files]
+ * @property {number} [bytes]
+ * @property {boolean} [indeterminate]
+ * @property {number | null} [pct]
+ * @property {string | null} [faultCode]
+ * @property {number} [shown]
+ * @property {number} [total]
+ * @property {number} [limit]
+ */
+
+/** @typedef {{ id: StripId, tone: StripTone, icon: IconName, live: 'status' | 'alert' | null, action: StripAction, data: StripData | null }} FolderStrip */
+
+/**
+ * @typedef {object} DeriveStripsInput
+ * @property {ShareRole} role
+ * @property {boolean} isYou
+ * @property {boolean} [loading]
+ * @property {boolean} [error]
+ * @property {boolean} [sourceMissing]
+ * @property {MountFault | null} [fault]
+ * @property {IndexSummary | null} [indexing]
+ * @property {boolean} [foreignEnabled]
+ * @property {MirrorSyncSummary | null} [mirrorSync]
+ * @property {boolean} [ownerOnline]
+ * @property {{ truncated: boolean, shown: number, total: number, limit: number } | null} [listing]
+ */
+
+/** @typedef {(input: DeriveStripsInput) => FolderStrip | null} StripBuilder */
+
+/** @type {StripBuilder} */
 function sourceMissingStrip(input) {
   if (!input.isYou || !input.sourceMissing) return null
   return { id: 'source-missing', tone: 'error', icon: 'warning', live: 'alert', action: 'locate', data: null }
@@ -19,6 +64,7 @@ function sourceMissingStrip(input) {
 // cadence is six-hourly, so after freeing the disk the only thing that would clear the strip is a
 // file event the user has no reason to produce. The verb re-runs the pass, which either clears the
 // fault or records it again.
+/** @type {StripBuilder} */
 function faultStrip(input) {
   if (!input.fault) return null
   return {
@@ -33,17 +79,20 @@ function faultStrip(input) {
 
 // A folder shows one state, and both a fault and a missing source outrank a pause: each carries the
 // action the user can actually take, and the pause is still recorded underneath.
+/** @param {DeriveStripsInput} input */
 function isPaused(input) {
   if (input.fault || input.sourceMissing) return false
   if (input.isYou) return !!input.indexing?.paused
   return input.role === 'mirrored' && input.foreignEnabled === false
 }
 
+/** @type {StripBuilder} */
 function pausedStrip(input) {
   if (!isPaused(input)) return null
   return { id: 'paused', tone: 'warning', icon: 'pause', live: 'status', action: 'resume', data: { role: input.role } }
 }
 
+/** @type {StripBuilder} */
 function workingStrip(input) {
   if (isPaused(input)) return null
   if (input.isYou && input.indexing?.active) {
@@ -74,6 +123,7 @@ function workingStrip(input) {
 }
 
 // A peer's scan is a statement, never a control: there is nothing here for a member to pause.
+/** @type {StripBuilder} */
 function peerIndexingStrip(input) {
   const indexing = input.indexing
   if (input.isYou || !indexing?.active || indexing.paused) return null
@@ -87,11 +137,13 @@ function peerIndexingStrip(input) {
   }
 }
 
+/** @type {StripBuilder} */
 function ownerOfflineStrip(input) {
   if (input.isYou || input.ownerOnline !== false) return null
   return { id: 'owner-offline', tone: 'neutral', icon: 'cloud', live: 'status', action: null, data: null }
 }
 
+/** @type {StripBuilder} */
 function overLimitStrip(input) {
   const listing = input.listing
   if (!listing?.truncated) return null
@@ -114,10 +166,13 @@ const BUILDERS = [sourceMissingStrip, faultStrip, pausedStrip, workingStrip, pee
 // Locate, and a folder stopped by a full disk still needs to say so. The banners these replace
 // were gated on `!loading` alone for exactly that reason. The rest describe the listing, which is
 // what failed, so they go.
+/** @type {Set<StripId>} */
 const SURVIVES_ERROR = new Set(['source-missing', 'fault', 'paused'])
 
+/** @param {DeriveStripsInput} input @returns {FolderStrip[]} */
 export function deriveStrips(input) {
   if (input.loading) return []
+  /** @type {FolderStrip[]} */
   const strips = []
   for (const build of BUILDERS) {
     const strip = build(input)

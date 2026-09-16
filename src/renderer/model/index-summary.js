@@ -9,11 +9,30 @@
 // `adding` and `bytesQueued` are PUBLISH work only: the queue carries retires too (a delete is
 // enqueued with the departing file's size), and a retire is not an addition.
 
-const count = (n) => (Number.isFinite(n) && n > 0 ? n : 0)
+/**
+ * @typedef {object} IndexStatus
+ * @property {number} [adding]
+ * @property {number} [queued]
+ * @property {number} [running]
+ * @property {number} [done]
+ * @property {number} [failed]
+ * @property {number | null} [totalOnDisk]
+ * @property {number} [bytesQueued]
+ */
+
+/** @typedef {{ active: boolean, scanning: boolean, paused: boolean, files: number, bytesQueued: number }} IndexSummary */
+
+/** @param {number | null | undefined} n */
+const count = (n) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0)
 
 // A paused index has an EMPTY queue — pausing drops it, and rebuilding it costs one walk because a
 // published file is never re-hashed — so `paused` is deliberately independent of `active`: a paused
 // folder reports the same zero a finished one does, and only the mount tells them apart.
+/**
+ * @param {IndexStatus | null | undefined} status
+ * @param {{ paused?: boolean, scanning?: boolean } | null} [mount]
+ * @returns {IndexSummary}
+ */
 export function deriveIndexSummary(status, mount) {
   const files = count(status?.adding)
   const paused = !!mount?.paused
