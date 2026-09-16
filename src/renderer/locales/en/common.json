@@ -877,7 +877,7 @@
       "osOffline": "Your operating system reports no internet connection. Check your Wi-Fi or Ethernet.",
       "symmetricNat": "Your connection uses changing ports. Connections to many people will fail — mobile routers and tethering are the usual cause.",
       "noPublicAddr": "Couldn't determine your public IP. Check your internet connection.",
-      "symmetricNatFix": "On a mobile network there's no router setting that fixes this. A cable or DSL connection will work.",
+      "symmetricNatFix": "On a mobile network there's no router setting that fixes this. A cable or DSL connection will work, and a relay can carry the connections that can't be made directly.",
       "udpDegraded": "Your network keeps dropping traffic to the Mirall network. Transfers may stall.",
       "stillSettling": "Still working out how this network behaves — give it a moment."
     },

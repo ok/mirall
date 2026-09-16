@@ -853,7 +853,7 @@
       "osOffline": "Votre système d'exploitation signale qu'il n'y a pas de connexion Internet. Vérifiez votre Wi-Fi ou Ethernet.",
       "symmetricNat": "Votre connexion utilise des ports changeants. Les connexions vers de nombreuses personnes échoueront — les routeurs mobiles et le partage de connexion en sont la cause habituelle.",
       "noPublicAddr": "Impossible de déterminer votre IP publique. Vérifiez votre connexion Internet.",
-      "symmetricNatFix": "Sur un réseau mobile, aucun réglage du routeur ne corrige cela. Une connexion câble ou DSL fonctionnera.",
+      "symmetricNatFix": "Sur un réseau mobile, aucun réglage du routeur ne corrige cela. Une connexion par câble ou DSL fonctionnera, et un relais peut prendre en charge les connexions qui ne peuvent pas être établies directement.",
       "udpDegraded": "Votre réseau perd en continu du trafic vers le réseau Mirall. Les transferts peuvent se bloquer.",
       "stillSettling": "Nous déterminons encore le comportement de ce réseau — patientez un instant."
     },
