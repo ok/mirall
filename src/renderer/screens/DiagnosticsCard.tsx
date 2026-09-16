@@ -103,11 +103,12 @@ export default function DiagnosticsCard() {
           <Button variant="secondary" onClick={() => run('preview')} disabled={busy}>
             {t('diagnostics.preview')}
           </Button>
+          {/* In the button row, not under it: the region stays mounted for the announcement while
+              an empty status adds no height, so the card keeps its own padding as its bottom edge. */}
+          <p role="status" aria-live="polite" className="text-xs text-on-surface-variant">
+            {status ?? ''}
+          </p>
         </div>
-
-        <p role="status" aria-live="polite" className="text-xs text-on-surface-variant min-h-4">
-          {status ?? ''}
-        </p>
       </div>
 
       <DiagnosticsPreviewModal
