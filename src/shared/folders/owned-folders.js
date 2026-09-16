@@ -54,7 +54,7 @@ export function initOwnedFolders(ipc, { settleScan = null, broadcastIndex = null
     announceMs: indexAnnounceMs,
   })
 
-  initOwnedPass({ state, scheduler: sched, emit })
+  initOwnedPass({ state, scheduler: sched })
   initOwnedWatcher({
     timers: () => timers,
     scheduler: sched,

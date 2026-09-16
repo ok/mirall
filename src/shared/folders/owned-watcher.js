@@ -114,6 +114,8 @@ export async function onFsEvent(spaceId, shareId, action, relPath, absPath) {
     size, mtime, priority: PRIORITY.INTERACTIVE,
   })
   const outcome = await settled
+  // The fast signal: the item's own settle says the root is gone now, while the durable status
+  // only lands when the debounced catch-up pass settles, POST_EVENT_RECONCILE_MS later.
   if (outcome.result?.outcome === 'skipped-root-gone') {
     emit('event:owned-folder-mount-status', { spaceId, shareId, status: MOUNT_STATUS.MOUNT_POINT_GONE })
   }
