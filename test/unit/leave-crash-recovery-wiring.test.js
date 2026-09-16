@@ -37,10 +37,12 @@ test('G4 wiring: boot completes interrupted leaves and excludes them from member
 })
 
 test('G4 wiring: teardown persists the durable marker before clearOwnMembership', (t) => {
-  // The member del now runs as the first step of the shared teardown order, so the phase name is
-  // stamped by membership/leave-state.js via onPhase rather than written inline. The invariant is unchanged:
-  // the durable marker must be written before the departure it makes recoverable.
-  const ordered = entrySrc.match(/tracker\.phase = 'mark-leaving'[\s\S]*?markSpaceLeavingDurable[\s\S]*?clearMembership:[\s\S]*?clearOwnMembership\(/)
-  t.ok(ordered, 'markSpaceLeavingDurable precedes the member del')
+  // The member del runs as the first step of the shared teardown order, supplied by the live
+  // steps builder. The invariant: the durable marker is written before the teardown that makes
+  // the departure recoverable, and that teardown's first step is the member del.
+  const ordered = entrySrc.match(/tracker\.phase = 'mark-leaving'[\s\S]*?markSpaceLeavingDurable[\s\S]*?await runLeaveTeardown\(msg\.spaceId, liveLeaveSteps\(/)
+  t.ok(ordered, 'markSpaceLeavingDurable precedes the shared teardown')
+  const firstStep = entrySrc.match(/function liveLeaveSteps\([\s\S]*?return \{\s*clearMembership: async \(\) => \{[\s\S]*?clearOwnMembership\(/)
+  t.ok(firstStep, 'the live steps open on the member del')
   t.is(LEAVE_PHASES[0], 'clearOwnMembership', 'and the shared order still opens on that phase')
 })
