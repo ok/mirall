@@ -9,8 +9,106 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## v1.11.0
+
+### 2026-09-16
+
+Relays become a single, invite-driven setting, mirrors tell you honestly
+when the owner is gone, and ignore patterns finally behave like
+`.gitignore`. Plus a large batch of fixes to sync safety, dialogs and the
+log.
+
+#### Added
+
+- **Relays are on for everyone, configured in one slot.** The relay
+feature flag is gone. Settings now takes one relay, by public key or by
+pasting an invite ticket. A newly added relay is probed immediately
+instead of waiting for a manual test, its row actions live in a menu
+that no longer overflows off-screen, and a peer with no relay of its
+own adopts yours automatically.
+- **A warning before mirroring a folder that will list short.** The
+mirror preview now shows the file count and warns when the owner's
+folder exceeds the share limit, while still letting you confirm.
+- **A distinct "owner offline" status for mirrors.** A mirror that cannot
+reach the owner's listing now shows an "owner offline" pill and a
+"waiting for owner" label instead of pretending to be synced or
+syncing.
+
+#### Fixed
+
+Sync safety:
+
+- **A local edit is never overwritten because of an unrelated manual
+download.** A manual download of the same file could vouch for the
+mirrored copy, so an edit matching it was replaced with no conflicted
+copy.
+- **A restored or same-size replaced file is re-verified.** Mirror
+verification trusted file age, so any restore that preserved
+timestamps passed as verified forever. Files are now fingerprinted.
+- **A pre-mount preview no longer claims a clean destination** for a file
+it is about to download beside your own.
+- **Names with non-Latin characters are no longer dropped.** Files and
+folders containing ł, Cyrillic, CJK or emoji could vanish from
+listings and scans.
+- **Files being prepared at the same time show as separate rows** instead
+of collapsing into one row that claimed the others as co-sharers.
+- **Mirrors stop spinning against an offline or failing owner.** No more
+endless "Preparing…" badges; a full volume or a deleted mount root is
+caught before fetching; a file whose holders keep failing its hash
+gets a bounded retry budget; an offline mirror still adopts what is
+already on disk instead of reporting "syncing" for the whole outage.
+- **A folder whose source disappears and returns clears "source missing"
+again.** It could stay latched until you pressed Resume.
+- **Joining with a large avatar no longer stalls silently.** Avatars over
+the frame budget are clamped before they ride in the join request.
+- **A denied joiner who knocks again is denied again.** The deny could be
+lost in a race and the owner's banner kept resurfacing.
+- **Leaving a space forgets the peer's signer key.** A stale key could
+seal membership grants the joiner could not open.
+- **A readmitted member is announced under their real name** instead of
+"Unknown".
+
+Dialogs and UI:
+
+- **Failed remove and leave dialogs recover.** A rejected removal left
+the dialog stuck, and a failed leave navigated you away from a space
+you were still in.
+- **A failed space creation is reported** instead of silently resetting
+the dialog.
+- **Every modal shares one Enter/Escape contract.** Enter no longer
+double-submits or silently cancels, and destructive confirms rest on
+Cancel.
+- **Field errors are tied to their fields** in Edit Space, Edit Folder
+and the path picker, so screen readers can find the explanation.
+- **Retried errors collapse into one banner** instead of stacking
+identical toasts.
+- **Zoom from the View menu is remembered**, and the Appearance zoom
+tiles mark the nearest preset instead of none.
+- **"Upload 1 files" reads in the singular** in the add-folder preview,
+in all five languages.
+- **Timeouts and worker-unavailable errors get their own localized
+message** instead of the generic one.
+
+Reliability and logging:
+
+- **Quitting runs teardown once, in order.** Watchers, the config flush
+and the worker shutdown could run twice, racing an update apply.
+- **A parked republish no longer logs a false "INCOMPLETE … gave up"
+warning** into your log and diagnostics bundle.
+- **The catalog encryption migration continues past a bad space** instead
+of leaving every later space unencrypted.
+- **The Activity Log refuses an unknown outcome** rather than recording
+it as an approval, and the boot-sweep journal records real scan gaps.
+
+#### Security
+
+- The update canary dials with an ephemeral keypair, so a durable
+relay-pinned identity is never presented to the update seeder.
+- The relay invite's member seed lives under OS-encrypted storage, never
+in config.json.
 
 ## v1.10.1
+
 ### 2026-09-05
 
 Mostly about not losing your files: three ways Mirall could delete or
@@ -20,67 +118,67 @@ properly, and a folder that gets stuck picks itself back up.
 #### Fixed
 
 - **Your edits inside a mirrored folder are kept.** Changing a file in a
-  folder you mirror used to overwrite your version without warning.
-  Mirall now saves it beside the owner's as a "conflicted copy".
+folder you mirror used to overwrite your version without warning.
+Mirall now saves it beside the owner's as a "conflicted copy".
 - **A folder that seems to have lost its files no longer deletes yours.**
-  An incomplete file list from the owner could remove hundreds of files
-  from your disk. A single pass may now never delete more than half of
-  what you hold.
+An incomplete file list from the owner could remove hundreds of files
+from your disk. A single pass may now never delete more than half of
+what you hold.
 - **A file shared from a network drive notices your edits again.** Files
-  on a mounted network volume went on serving their old contents to
-  everyone, with no error and no sign anything was wrong.
+on a mounted network volume went on serving their old contents to
+everyone, with no error and no sign anything was wrong.
 - **Error messages say what went wrong, in your language.** Different
-  problems shared one misleading message, and some appeared in English
-  whichever language you use. Every error now has its own wording in all
-  five.
+problems shared one misleading message, and some appeared in English
+whichever language you use. Every error now has its own wording in all
+five.
 - **Two actions that failed silently.** Creating an invite could leave
-  the button stuck on "Creating…" or hand you no link and no reason, and
-  revealing a shared folder that has moved blamed a missing file
-  instead.
+the button stuck on "Creating…" or hand you no link and no reason, and
+revealing a shared folder that has moved blamed a missing file
+instead.
 - **The Activity Log covers shared folders, and gets its details right.**
-  Downloads from a shared folder were missing from it entirely, the
-  "granted access" entry named nobody, and its file sizes read too low.
+Downloads from a shared folder were missing from it entirely, the
+"granted access" entry named nobody, and its file sizes read too low.
 - **Mirall tells you when it can't read a folder on your disk.** A
-  permission problem, a full disk or a folder that has moved now shows
-  on the folder itself — for its owner and for everyone mirroring it —
-  and clears as soon as you fix the cause.
+permission problem, a full disk or a folder that has moved now shows
+on the folder itself — for its owner and for everyone mirroring it —
+and clears as soon as you fix the cause.
 - **A folder download that stalls now says so.** The progress bar simply
-  stopped moving before, with no notification; only files shared on
-  their own ever raised one.
+stopped moving before, with no notification; only files shared on
+their own ever raised one.
 - **A space that freezes picks itself back up.** With members Mirall
-  couldn't reach, the member list, join requests and folder list could
-  all stop updating. It now notices and restarts just the part that
-  stopped.
+couldn't reach, the member list, join requests and folder list could
+all stop updating. It now notices and restarts just the part that
+stopped.
 - **Quitting mid-task no longer leaves a folder broken.** Closing Mirall
-  while a shared folder was being created left one others could see but
-  you couldn't remove; closing it while moving a mirrored folder made
-  every member download the whole thing again.
+while a shared folder was being created left one others could see but
+you couldn't remove; closing it while moving a mirrored folder made
+every member download the whole thing again.
 - **No screen invents a number it failed to read.** A failed read showed
-  "0 files", or the default speed limit, instead of saying it couldn't
-  load — and a speed limit that didn't save was never put back.
+"0 files", or the default speed limit, instead of saying it couldn't
+load — and a speed limit that didn't save was never put back.
 - **Three mirroring annoyances.** A file saved under a second name was
-  listed as missing, a change arriving during a folder's first scan was
-  ignored until the next check, and downloading a file already on its
-  way did nothing at all.
+listed as missing, a change arriving during a folder's first scan was
+ignored until the next check, and downloading a file already on its
+way did nothing at all.
 - **Lighter while running, cleaner on quit.** Mirrored folders no longer
-  start an unlimited number of downloads at once, spaces stop rebuilding
-  their member list on unrelated traffic, and background work now stops
-  when you do.
+start an unlimited number of downloads at once, spaces stop rebuilding
+their member list on unrelated traffic, and background work now stops
+when you do.
 - **Easier to read, and to hear.** The path under a folder was too faint
-  to read in both themes, Storage settings showed "Calculating storage…"
-  where a path belongs, and a file's status is now announced together
-  with its name.
+to read in both themes, Storage settings showed "Calculating storage…"
+where a path belongs, and a file's status is now announced together
+with its name.
 
 #### Security
 
 - **Mirall's internal parts check what they send each other.** Messages
-  between the window, the background process and the app's core could be
-  corrupted without anything noticing, unknown commands were ignored
-  rather than refused, and an unused internal route could set a watcher
-  on any folder on your disk.
-
+between the window, the background process and the app's core could be
+corrupted without anything noticing, unknown commands were ignored
+rather than refused, and an unused internal route could set a watcher
+on any folder on your disk.
 
 ## v1.10.0
+
 ### 2026-09-02
 
 Reliability and performance fixes across sharing, syncing and transfers,
@@ -91,91 +189,91 @@ supported — see Changed.
 #### Added
 
 - **One folder screen, whether you share the folder or mirror it.** The
-  two used to show different things in different places. They are now
-  the same screen — same tiles, same file list, same buttons where you
-  left them — and only what you are allowed to do changes with your
-  role.
+two used to show different things in different places. They are now
+the same screen — same tiles, same file list, same buttons where you
+left them — and only what you are allowed to do changes with your
+role.
 - **See who has the folder, and how each of them is doing.** A People
-  tile names the owner and everyone mirroring the folder, with a ring
-  around each face for in sync, still syncing, or paused, and the same
-  thing spelled out in text beside it. Until now only a folder's owner
-  could see any of this; now everyone does.
+tile names the owner and everyone mirroring the folder, with a ring
+around each face for in sync, still syncing, or paused, and the same
+thing spelled out in text beside it. Until now only a folder's owner
+could see any of this; now everyone does.
 - **The folder itself, at a glance.** Its size, how many files, how many
-  of them are on your device, and a badge for what it is doing right
-  now: up to date, adding, syncing, paused, missing, or browse-only.
+of them are on your device, and a badge for what it is doing right
+now: up to date, adding, syncing, paused, missing, or browse-only.
 - **Filter a long folder.** A box above the file list narrows it as you
-  type, says how many of the total matched, and clears in one click. It
-  stays put while the folder works, so what you typed is never pushed
-  off the screen.
+type, says how many of the total matched, and clears in one click. It
+stays put while the folder works, so what you typed is never pushed
+off the screen.
 - **One band tells you what the folder is doing.** Adding files,
-  syncing, paused, owner offline, source missing — it says which, counts
-  down what is left, and carries the one button that helps: Pause,
-  Resume or Locate.
+syncing, paused, owner offline, source missing — it says which, counts
+down what is left, and carries the one button that helps: Pause,
+Resume or Locate.
 - **Rename a folder you share.** Edit Folder, in the header menu, gives
-  it a new name for everyone who has it, while the folder on your own
-  disk keeps the name you gave it there.
+it a new name for everyone who has it, while the folder on your own
+disk keeps the name you gave it there.
 - **Keep a mirrored folder somewhere else on your disk.** Edit Folder on
-  a folder you mirror moves it — onto another drive, say. Files already
-  at the new location are recognised and not downloaded a second time;
-  only what is missing is fetched.
+a folder you mirror moves it — onto another drive, say. Files already
+at the new location are recognised and not downloaded a second time;
+only what is missing is fetched.
 
 #### Changed
 
 - **Free up space is gone; Mirall keeps its own storage in order.** The
-  action had little left to reclaim, and it could remove a file list it
-  should have kept. What it did that still mattered happens on its own
-  now: a member who leaves takes their leftovers with them, and Mirall
-  tidies up as it starts. The Storage screen still shows what is using
-  space.
+action had little left to reclaim, and it could remove a file list it
+should have kept. What it did that still mattered happens on its own
+now: a member who leaves takes their leftovers with them, and Mirall
+tidies up as it starts. The Storage screen still shows what is using
+space.
 - **Spaces made before v1.7.0 are no longer supported.** Every space
-  Mirall creates or joins is encrypted now, and a space older than that
-  release cannot be upgraded to it. Such a space is marked unsupported
-  rather than left half-working: it stays visible, but you cannot share
-  into it or invite anyone to it.
+Mirall creates or joins is encrypted now, and a space older than that
+release cannot be upgraded to it. Such a space is marked unsupported
+rather than left half-working: it stays visible, but you cannot share
+into it or invite anyone to it.
 
 #### Fixed
 
 - **Some added files, renames and edits could go missing or double up.**
-  A file added during an index, one the watcher missed, a rename that
-  only changed case, and an edit that kept the file's size and date were
-  each dropped, duplicated, or held back until the next six-hourly pass.
+A file added during an index, one the watcher missed, a rename that
+only changed case, and an edit that kept the file's size and date were
+each dropped, duplicated, or held back until the next six-hourly pass.
 - **A file you add while a big folder is indexing no longer waits for
-  it.** Each space hashes its own queue, smallest files first, so a file
-  you drop in starts at once even while an index is running.
+it.** Each space hashes its own queue, smallest files first, so a file
+you drop in starts at once even while an index is running.
 - **A space or file list that came up empty now loads.** Members you
-  share many spaces with could be cut off after a reconnect, and a few
-  offline members could stop the file list loading at all. Lists no
-  longer flash "nothing shared yet" on the way in.
+share many spaces with could be cut off after a reconnect, and a few
+offline members could stop the file list loading at all. Lists no
+longer flash "nothing shared yet" on the way in.
 - **What a folder is still adding is reported properly, on both sides.**
-  Your own view could stay empty for minutes on a large file, and
-  members saw only the two or three files being hashed at that moment; a
-  folder now names all the files and bytes it still has to read, on both
-  screens. Indexing is no longer counted or labelled as a download, the
-  bar no longer sits at full as though the file had finished, and
-  removing a folder no longer reports its files as being added.
+Your own view could stay empty for minutes on a large file, and
+members saw only the two or three files being hashed at that moment; a
+folder now names all the files and bytes it still has to read, on both
+screens. Indexing is no longer counted or labelled as a download, the
+bar no longer sits at full as though the file had finished, and
+removing a folder no longer reports its files as being added.
 - **An action cut short leaves less behind, and a stall gets noticed.** A
-  cancelled or finished transfer could come back to life, a file could
-  sit on "Adding" for good, unsharing could leave the share offered,
-  transfers running at quit never reached the Activity Log, and the disk
-  space a space you had left went on using was never reclaimed. An error
-  behind the scenes could leave Mirall quietly stuck with everything
-  still on screen, and a folder you mirror could stop syncing until the
-  next restart. Both are now spotted and picked back up on their own.
+cancelled or finished transfer could come back to life, a file could
+sit on "Adding" for good, unsharing could leave the share offered,
+transfers running at quit never reached the Activity Log, and the disk
+space a space you had left went on using was never reclaimed. An error
+behind the scenes could leave Mirall quietly stuck with everything
+still on screen, and a folder you mirror could stop syncing until the
+next restart. Both are now spotted and picked back up on their own.
 - **Mirall asks less of your computer during transfers and in big
-  folders.** Sending a file and keeping a mirrored folder in sync did
-  work that grew with the folder, a reconnect started every waiting
-  download at once, a running transfer redrew the whole list every
-  second, opening a large folder read the same records thousands of
-  times, and a listing you had navigated away from still ran to the end.
-  All are bounded now, your own downloads go first, and a file row keeps
-  up with its own progress and errors.
+folders.** Sending a file and keeping a mirrored folder in sync did
+work that grew with the folder, a reconnect started every waiting
+download at once, a running transfer redrew the whole list every
+second, opening a large folder read the same records thousands of
+times, and a listing you had navigated away from still ran to the end.
+All are bounded now, your own downloads go first, and a file row keeps
+up with its own progress and errors.
 - **A session left running for days no longer gets heavier.** What
-  Mirall held on to for the members it had met and the files it was
-  serving kept growing, so a long session ended up slower than a fresh
-  start.
-
+Mirall held on to for the members it had met and the files it was
+serving kept growing, so a long session ended up slower than a fresh
+start.
 
 ## v1.9.0
+
 ### 2026-08-27
 
 Beside several enhancements and fixes, this release brings Mirall's new brand: 
@@ -184,108 +282,109 @@ a refined logo and a redrawn app icon.
 #### Added
 
 - **Mirall now tells you when your network is the problem.** It used to
-  call a connection healthy on any network that let it out, so a machine
-  nobody could reach still looked fine. It now judges whether people can
-  actually reach you, says so when they can't, and offers a page with
-  what to try. Network status can also save a diagnostics file with
-  identifying details left out.
+call a connection healthy on any network that let it out, so a machine
+nobody could reach still looked fine. It now judges whether people can
+actually reach you, says so when they can't, and offers a page with
+what to try. Network status can also save a diagnostics file with
+identifying details left out.
 - **The Activity Log records connection problems.** A new Network filter
-  keeps when this device went offline, when Mirall couldn't reach anyone,
-  and when members dropped out or came back — so the log explains a quiet
-  stretch instead of falling silent through it.
+keeps when this device went offline, when Mirall couldn't reach anyone,
+and when members dropped out or came back — so the log explains a quiet
+stretch instead of falling silent through it.
 - **The cards beside a space remember how you left them.** Fold Space
-  Storage away, or switch the member list between the avatar row and the
-  full list, and each space keeps its own arrangement until you quit
-  Mirall.
+Storage away, or switch the member list between the avatar row and the
+full list, and each space keeps its own arrangement until you quit
+Mirall.
 - **Every screen can be reached from the keyboard.** Profile and the
-  Activity Log have shortcuts of their own; Network status, the Settings
-  pages, What's new and Send feedback are in the command palette
-  (⌘K / Ctrl-K).
+Activity Log have shortcuts of their own; Network status, the Settings
+pages, What's new and Send feedback are in the command palette
+(⌘K / Ctrl-K).
 - **The empty screens explain how Mirall works.** The spaces list, an
-  empty space, and the wait for approval each carry a card that says what
-  happens next and links to the documentation.
+empty space, and the wait for approval each carry a card that says what
+happens next and links to the documentation.
 
 #### Fixed
 
 - **Downloads survive a peer's upload cap.** A transfer from a limited
-  peer could stop with the file shown as paused, and Resume moved it only
-  a little further. A capped peer now says it is still there, and
-  interrupted downloads retry on their own.
+peer could stop with the file shown as paused, and Resume moved it only
+a little further. A capped peer now says it is still there, and
+interrupted downloads retry on their own.
 - **A download says when its folder is gone.** A deleted, renamed, or
-  ejected download folder produced a generic "Transfer failed", and a
-  deleted folder was quietly recreated mid-download. Mirall now names the
-  folder as the problem, offers to change it, and stops retrying.
+ejected download folder produced a generic "Transfer failed", and a
+deleted folder was quietly recreated mid-download. Mirall now names the
+folder as the problem, offers to change it, and stops retrying.
 - **Clearing the Activity Log frees its disk space.** Clearing emptied
-  the log from view but left every entry on disk, so the store came out
-  larger than before. It is now cleared properly and the space comes
-  back, with your retention setting kept.
+the log from view but left every entry on disk, so the store came out
+larger than before. It is now cleared properly and the space comes
+back, with your retention setting kept.
 - **Speed limits are shared out fairly.** With a bandwidth cap set, a
-  transfer that started while nothing else was running could take more
-  than its share and stall a transfer running alongside it. Both now draw
-  from the cap evenly.
+transfer that started while nothing else was running could take more
+than its share and stall a transfer running alongside it. Both now draw
+from the cap evenly.
 
 ## v1.8.0
+
 ### 2026-08-18
 
 #### Added
 
 - **A record of what happened in your spaces.** The new Activity Log
-  gathers who joined, left, or was approved, and what was shared and
-  downloaded — kept on your device only. Open it from your Profile
-  page, then search it or narrow it down by space, person, or date.
-  Settings → Activity Log turns recording off, sets how long events are
-  kept, or clears the log.
+gathers who joined, left, or was approved, and what was shared and
+downloaded — kept on your device only. Open it from your Profile
+page, then search it or narrow it down by space, person, or date.
+Settings → Activity Log turns recording off, sets how long events are
+kept, or clears the log.
 - **Limit how much bandwidth Mirall uses.** A new Network page in
-  Settings caps download and upload speed — pick a preset, type your
-  own figure, or leave it unlimited. A change takes effect straight
-  away, including on transfers already running. The cap covers file
-  transfers only, so your spaces and members keep syncing normally.
+Settings caps download and upload speed — pick a preset, type your
+own figure, or leave it unlimited. A change takes effect straight
+away, including on transfers already running. The cap covers file
+transfers only, so your spaces and members keep syncing normally.
 - **A download folder of its own for each space.** Each space can save
-  its downloads wherever suits it — set Download Folder in Edit Space.
-  Spaces you leave alone keep using the folder from Settings → Storage,
-  and "Use default folder" puts a space back on it. Files you already
-  downloaded aren't moved, and a folder you share or mirror can't be
-  used, since anything landing there would be published to your peers.
+its downloads wherever suits it — set Download Folder in Edit Space.
+Spaces you leave alone keep using the folder from Settings → Storage,
+and "Use default folder" puts a space back on it. Files you already
+downloaded aren't moved, and a folder you share or mirror can't be
+used, since anything landing there would be published to your peers.
 
 #### Changed
 
 - **A tidier way around your profile and settings.** The Account page is
-  now Profile, and everything on it is grouped: "This device" for your
-  connection, identity protection, and the Activity Log, "App" for the
-  version you're running, What's New, keyboard shortcuts, documentation,
-  and feedback. About has moved here out of Settings, which now holds
-  your preferences only.
+now Profile, and everything on it is grouped: "This device" for your
+connection, identity protection, and the Activity Log, "App" for the
+version you're running, What's New, keyboard shortcuts, documentation,
+and feedback. About has moved here out of Settings, which now holds
+your preferences only.
 
 #### Fixed
 
 - **A shared folder that comes back is no longer flagged as missing.**
-  If the folder you shared went away and returned quickly — an external
-  drive reconnecting, a network share remounting — the "source missing"
-  warning on the folder and on its card stayed up even though
-  everything was working again. The warning now clears as soon as the
-  folder is back.
-
+If the folder you shared went away and returned quickly — an external
+drive reconnecting, a network share remounting — the "source missing"
+warning on the folder and on its card stayed up even though
+everything was working again. The warning now clears as soon as the
+folder is back.
 
 ## v1.7.1
+
 ### 2026-08-05
 
 #### Fixed
 
 - **A space keeps working when someone leaves.** When the person who
-  created a space left it, the space quietly froze for everyone else —
-  nobody new could join, join requests went unanswered, and the member
-  list stopped updating. When any other member left, the people they had
-  invited were dropped along with them. Now only the person who actually
-  left is removed, and everyone else keeps their place.
+created a space left it, the space quietly froze for everyone else —
+nobody new could join, join requests went unanswered, and the member
+list stopped updating. When any other member left, the people they had
+invited were dropped along with them. Now only the person who actually
+left is removed, and everyone else keeps their place.
 - **Invite links open instead of quitting the app on Windows and Linux.**
-  Clicking a `mirall://join` invite link shut Mirall down on the spot —
-  whether it was already running or started by the click — so the only
-  way in was to copy the code out of the link and paste it into the Join
-  dialog by hand. Invite links now open the Join dialog as intended, and
-  a link with a trailing slash works as well as a bare code.
-
+Clicking a `mirall://join` invite link shut Mirall down on the spot —
+whether it was already running or started by the click — so the only
+way in was to copy the code out of the link and paste it into the Join
+dialog by hand. Invite links now open the Join dialog as intended, and
+a link with a trailing slash works as well as a bare code.
 
 ## v1.7.0
+
 ### 2026-07-12
 
 This release adds approval-based space membership and is a major security
@@ -299,566 +398,561 @@ inside the app.
 #### Added
 
 - **Share straight from your files — no second copy.** Mirall used to
-  import a private copy of everything you shared into its own storage. It
-  now serves your shared files and folders directly from the originals on
-  your computer, so sharing no longer doubles their disk usage, and edits
-  to a shared file are picked up in place.
+import a private copy of everything you shared into its own storage. It
+now serves your shared files and folders directly from the originals on
+your computer, so sharing no longer doubles their disk usage, and edits
+to a shared file are picked up in place.
 - **Approve who joins your spaces.** Joining a space is now a request:
-  the person stays pending until an existing member approves them, and
-  only then do they gain access to the space's contents. You'll see a
-  "wants to join" banner and can approve or deny individually or in a
-  batch; the person waiting sees a clear "waiting for approval" view.
-  Prefer the old open behaviour? Flip on **auto-approve** when you create
-  the invite and anyone with the code is admitted automatically. Until
-  someone is a full member, member-only actions stay blocked for them.
+the person stays pending until an existing member approves them, and
+only then do they gain access to the space's contents. You'll see a
+"wants to join" banner and can approve or deny individually or in a
+batch; the person waiting sees a clear "waiting for approval" view.
+Prefer the old open behaviour? Flip on **auto-approve** when you create
+the invite and anyone with the code is admitted automatically. Until
+someone is a full member, member-only actions stay blocked for them.
 - **See who's downloading from you.** When someone downloads a file
-  you've shared, its row now shows their avatar — expand it to see each
-  person individually, with live progress, transfer speed, and an
-  estimate of how long they have left. Works for both individual files
-  and shared folders.
+you've shared, its row now shows their avatar — expand it to see each
+person individually, with live progress, transfer speed, and an
+estimate of how long they have left. Works for both individual files
+and shared folders.
 - **Live speed and time-remaining on transfers.** Downloads now show
-  their average speed and a steady estimate of the time remaining that
-  settles down instead of jumping around. While you wait on a file, you
-  can watch the owner's live preparation progress instead of a blank
-  "Preparing…", and the owner sees an estimate while a file is being
-  indexed.
+their average speed and a steady estimate of the time remaining that
+settles down instead of jumping around. While you wait on a file, you
+can watch the owner's live preparation progress instead of a blank
+"Preparing…", and the owner sees an estimate while a file is being
+indexed.
 - **Pause, resume, and stop transfers.** Downloads — single files and
-  folders alike — can be paused and resumed, stopped outright, and pick
-  back up on their own when the owner comes back online. Each finished
-  file carries a "verified" badge confirming its contents match the
-  original exactly.
+folders alike — can be paused and resumed, stopped outright, and pick
+back up on their own when the owner comes back online. Each finished
+file carries a "verified" badge confirming its contents match the
+original exactly.
 - **Browse a shared folder as a collapsible tree.** Subfolders in a 
-  Shared Folder are now rows you can open and close, and each one
-  tells you what's inside at a glance: how many files it holds, their
-  total size, how many are already on your device, and how many are
-  downloading right now. **Expand all** and **Collapse all** fold the
-  whole tree at once, and the folders you leave open stay open as you
-  move around the app.
+Shared Folder are now rows you can open and close, and each one
+tells you what's inside at a glance: how many files it holds, their
+total size, how many are already on your device, and how many are
+downloading right now. **Expand all** and **Collapse all** fold the
+whole tree at once, and the folders you leave open stay open as you
+move around the app.
 - **See who's mirroring a folder you shared.** A folder you own now
-  shows the people keeping a live copy of it, each with their current
-  state — synced, syncing, or paused. A single person shows by name;
-  several stack into a row of avatars with a summary. The states stay
-  accurate even while those people are offline.
+shows the people keeping a live copy of it, each with their current
+state — synced, syncing, or paused. A single person shows by name;
+several stack into a row of avatars with a summary. The states stay
+accurate even while those people are offline.
 - **A bigger target for drag-and-drop sharing.** Dragging a file
-  anywhere over a space now expands the drop zone to fill the whole area,
-  so it's easier to aim and drop files in to share.
+anywhere over a space now expands the drop zone to fill the whole area,
+so it's easier to aim and drop files in to share.
 - **Quit from the menu on Windows and Linux.** The File menu now offers
-  "Quit Mirall" (Ctrl+Q), so you can fully quit the app instead of only
-  closing it to the tray.
+"Quit Mirall" (Ctrl+Q), so you can fully quit the app instead of only
+closing it to the tray.
 
 #### Security
 
 - **Your local app data is encrypted on your device.** Mirall's local
-  bookkeeping — your list of spaces, mirrored folders, downloads, and
-  similar details — is now encrypted at rest with a key tied to your
-  identity, so copying Mirall's data folder no longer exposes it. Existing
-  data is migrated automatically the first time you open this version.
+bookkeeping — your list of spaces, mirrored folders, downloads, and
+similar details — is now encrypted at rest with a key tied to your
+identity, so copying Mirall's data folder no longer exposes it. Existing
+data is migrated automatically the first time you open this version.
 - **Only approved members can read a space.** A space's contents are now
-  gated by a per-space key that's handed out only once an existing member
-  approves your request to join — so being able to reach a space is no
-  longer the same as being able to read what's shared in it.
+gated by a per-space key that's handed out only once an existing member
+approves your request to join — so being able to reach a space is no
+longer the same as being able to read what's shared in it.
 - **Your identity is encrypted on your device.** Your signing key is now
-  wrapped using your operating system's secure keychain and the plaintext
-  is removed from storage, so copying Mirall's data folder no longer hands
-  someone your identity. The Account screen shows this protection status.
+wrapped using your operating system's secure keychain and the plaintext
+is removed from storage, so copying Mirall's data folder no longer hands
+someone your identity. The Account screen shows this protection status.
 - **Tougher against abusive peers.** Connection rate limits, sensible
-  caps, and a firewall for misbehaving peers keep a flood of requests or
-  oversized data from exhausting memory or CPU. Oversized avatars and
-  over-long display names sent by a peer are now rejected, and your own
-  avatar uploads are kept within sane bounds.
+caps, and a firewall for misbehaving peers keep a flood of requests or
+oversized data from exhausting memory or CPU. Oversized avatars and
+over-long display names sent by a peer are now rejected, and your own
+avatar uploads are kept within sane bounds.
 
 #### Changed
 
 - **Simpler folder sharing.** Sharing a folder no longer asks you to pick
-  a transfer mode. The previous "On demand" option, and the cache-size
-  setting it added to Storage settings, have been removed — serving files
-  in place from their originals covers the same need automatically, with
-  no separate cache to manage.
+a transfer mode. The previous "On demand" option, and the cache-size
+setting it added to Storage settings, have been removed — serving files
+in place from their originals covers the same need automatically, with
+no separate cache to manage.
 - **Clearer, more consistent status colors.** File status labels now
-  follow a fixed, meaningful palette: green when a file is on your device,
-  blue while it's transferring, yellow when something needs your
-  attention, and red for an error.
+follow a fixed, meaningful palette: green when a file is on your device,
+blue while it's transferring, yellow when something needs your
+attention, and red for an error.
 - **File sizes now match what your operating system shows.** Sizes were divided in binary (1024) steps
-  but labelled with decimal units, so a file Finder reports as 629.68 GB could read as "586.4 GB".
-  Sizes now use the same decimal units as macOS Finder and GNOME Files, and very large files no 
-  longer show "undefined".
+but labelled with decimal units, so a file Finder reports as 629.68 GB could read as "586.4 GB".
+Sizes now use the same decimal units as macOS Finder and GNOME Files, and very large files no 
+longer show "undefined".
 - **Invites now come only from inside the space.** Creating a space no
-  longer hands you an invite code on the spot — it ends on a simple
-  confirmation. To invite someone, open the space and use its **Invite**
-  dialog: choose whether to auto-approve and how long the invite stays
-  valid (2 hours, 2 days, or 2 weeks), then create a single link to
-  share. Expired links are refused when someone tries to join.
+longer hands you an invite code on the spot — it ends on a simple
+confirmation. To invite someone, open the space and use its **Invite**
+dialog: choose whether to auto-approve and how long the invite stays
+valid (2 hours, 2 days, or 2 weeks), then create a single link to
+share. Expired links are refused when someone tries to join.
 - **A native Mac build for each processor.** Mirall now ships separate
-  downloads for Intel and Apple Silicon Macs, so each gets a build matched
-  to its processor instead of a single Apple-Silicon-only build.
+downloads for Intel and Apple Silicon Macs, so each gets a build matched
+to its processor instead of a single Apple-Silicon-only build.
 
 #### Fixed
 
 - **Shared files stay inside the shared folder.** Specially crafted file
-  paths from a peer can no longer reach outside the folder you chose —
-  neither to read or stream files from an owner's disk, nor to write or
-  delete files on a mirror.
+paths from a peer can no longer reach outside the folder you chose —
+neither to read or stream files from an owner's disk, nor to write or
+delete files on a mirror.
 - **Mirroring never overwrites your own files.** If a shared file has the
-  same name as one you already have, the mirrored copy now lands under a
-  non-colliding name, and a peer can only ever remove its own mirrored
-  copy — never your original. A mirror also can't be placed directly on a
-  top-level personal folder such as Home, Desktop, Documents, or
-  Downloads.
+same name as one you already have, the mirrored copy now lands under a
+non-colliding name, and a peer can only ever remove its own mirrored
+copy — never your original. A mirror also can't be placed directly on a
+top-level personal folder such as Home, Desktop, Documents, or
+Downloads.
 - **Member lists stay in sync for everyone.** We rebuilt how membership
-  is shared between peers, so people no longer go missing, show up as
-  "Unknown", or get stuck — and someone approved by one member now
-  appears for everyone, not just the person who approved them. Members
-  also show their real name and avatar even before a direct connection is
-  made.
+is shared between peers, so people no longer go missing, show up as
+"Unknown", or get stuck — and someone approved by one member now
+appears for everyone, not just the person who approved them. Members
+also show their real name and avatar even before a direct connection is
+made.
 - **Leaving a space sticks, even if you quit part-way.** Quitting while 
-  a space was still being left could bring it back on next launch; 
-  the leave now completes instead of reappearing.
+a space was still being left could bring it back on next launch; 
+the leave now completes instead of reappearing.
 - **Files and members catch up on slow or flaky connections without a 
-  restart.** On unreliable links a late-approved member might not see the
-  space creator, and newly shared files could stay invisible until you 
-  restarted. Mirall now keeps re-checking in the background until 
-  everyone's view matches.
+restart.** On unreliable links a late-approved member might not see the
+space creator, and newly shared files could stay invisible until you 
+restarted. Mirall now keeps re-checking in the background until 
+everyone's view matches.
 - **Pasted invite links work in the Join dialog.** Copying the "app link"
-  form of an invite and pasting it into Join now works, not just the bare
-  code.
+form of an invite and pasting it into Join now works, not just the bare
+code.
 - **Mirroring pauses instead of erroring when a write fails** — for
-  example when your disk is full or the destination is read-only — and
-  resumes once there's room, rather than retrying the failing file
-  forever.
+example when your disk is full or the destination is read-only — and
+resumes once there's room, rather than retrying the failing file
+forever.
 - **Fixed a crash when showing a notification on Windows** for certain
-  spaces, members, or transfers.
+spaces, members, or transfers.
 - **Long names no longer overflow confirmation dialogs.** A long file,
-  folder, or space name in a Remove, Leave, Delete, or Mirror dialog
-  spilled out of the panel and pushed the close button aside. Names are
-  now shortened in the middle, keeping the file extension readable.
-
+folder, or space name in a Remove, Leave, Delete, or Mirror dialog
+spilled out of the panel and pushed the close button aside. Names are
+now shortened in the middle, keeping the file extension readable.
 
 ## v1.6.1
+
 ### 2026-06-03
 
 #### Added
 
 - **Set how much space on-demand sharing keeps ready.** A new control in
-  Storage settings caps the cache that "on demand" folders use to keep
-  recently opened files instantly available — anywhere from 512 MB to
-  3 GB, with 1 GB as the default.
+Storage settings caps the cache that "on demand" folders use to keep
+recently opened files instantly available — anywhere from 512 MB to
+3 GB, with 1 GB as the default.
 
 #### Changed
 
 - **Sharing a large folder is now instant.** Previewing a folder before
-  you share it no longer reads through every file first, so a folder with
-  tens of gigabytes opens right away instead of stalling. The scan runs
-  in the background with live progress and a cancel button, and very
-  large folders show a summary instead of an endless file list.
+you share it no longer reads through every file first, so a folder with
+tens of gigabytes opens right away instead of stalling. The scan runs
+in the background with live progress and a cancel button, and very
+large folders show a summary instead of an endless file list.
 
 #### Fixed
 
 - **No more flickering scrollbar while a mirrored folder downloads.** A
-  folder syncing in the background could briefly show a stray scrollbar
-  over empty space that flickered as files arrived. The folder view now
-  stays put.
+folder syncing in the background could briefly show a stray scrollbar
+over empty space that flickered as files arrived. The folder view now
+stays put.
 - **Smoother "on demand" sharing.** Serving a file on demand no longer
-  freezes while someone is mirroring a large folder from you — recently
-  served files are kept ready and disk is tidied up quietly in the
-  background instead of all at once.
+freezes while someone is mirroring a large folder from you — recently
+served files are kept ready and disk is tidied up quietly in the
+background instead of all at once.
 - **Folders shared from Windows now sync reliably.** On some Windows
-  drives, a shared folder recorded its internal file paths in a malformed
-  form that broke revealing files on disk, on-demand serving, and mirror
-  file counts — and could expose the owner's local folder path to other
-  members. Paths are now stored correctly, and existing shares repair
-  themselves automatically the next time they sync.
+drives, a shared folder recorded its internal file paths in a malformed
+form that broke revealing files on disk, on-demand serving, and mirror
+file counts — and could expose the owner's local folder path to other
+members. Paths are now stored correctly, and existing shares repair
+themselves automatically the next time they sync.
 - **Clearer wording in the Add Folder dialog.** When sharing your own
-  folder, the preview no longer shows a confusing "already at the
-  destination" count or a "file list hidden" note that didn't apply.
-
+folder, the preview no longer shows a confusing "already at the
+destination" count or a "file list hidden" note that didn't apply.
 
 ## v1.6.0
+
 ### 2026-05-31
 
 #### Added
 
 - **Share whole folders, not just individual files.** Pick a folder on
-  your computer to share into a space and Mirall keeps it in sync — add,
-  edit, or remove files and everyone in the space sees the change
-  automatically. Subfolders come along too, so you can share an entire
-  folder tree.
+your computer to share into a space and Mirall keeps it in sync — add,
+edit, or remove files and everyone in the space sees the change
+automatically. Subfolders come along too, so you can share an entire
+folder tree.
 - **Browse and mirror folders others share.** Open a shared folder to
-  see what's inside without downloading everything, or mirror it to a
-  folder on your own computer to keep a live, always-up-to-date copy.
-  Pause, resume, or stop mirroring whenever you want.
+see what's inside without downloading everything, or mirror it to a
+folder on your own computer to keep a live, always-up-to-date copy.
+Pause, resume, or stop mirroring whenever you want.
 - **Share a folder "on demand".** A toggle in the Add Folder dialog
-  offers a folder's files to the space but only sends each one when
-  someone actually downloads it — handy for large folders you don't want
-  to push up front.
+offers a folder's files to the space but only sends each one when
+someone actually downloads it — handy for large folders you don't want
+to push up front.
 - **The application menu is now on Windows and Linux,** not just macOS.
 - **See and free up space per shared folder.** Storage settings now
-  shows how much each shared folder is using, and Mirall reclaims unused
-  space on its own when a space goes quiet.
+shows how much each shared folder is using, and Mirall reclaims unused
+space on its own when a space goes quiet.
 - **Collapsible Storage and Members panels** in the space sidebar, so
-  you can fold away what you're not using.
+you can fold away what you're not using.
 
 #### Changed
 
 - **A more consistent interface throughout.** Status labels and colors, avatars, 
-  buttons, corner radii, and spacing have been harmonized across every
-  screen, so the whole app looks and behaves the same way wherever you are.
+buttons, corner radii, and spacing have been harmonized across every
+screen, so the whole app looks and behaves the same way wherever you are.
 - **Quicker ways to get around.** Go back the way you would in a browser
-  — your mouse's back button, a two-finger swipe on macOS, or
-  Cmd/Ctrl+Left — and jump back to your spaces anytime from the logo or
-  with Ctrl+H (Cmd+Shift+H on Mac).
+— your mouse's back button, a two-finger swipe on macOS, or
+Cmd/Ctrl+Left — and jump back to your spaces anytime from the logo or
+with Ctrl+H (Cmd+Shift+H on Mac).
 - **Full keyboard and screen-reader support.** Every screen is now
-  navigable by keyboard and works with assistive technology, and Mirall
-  honors your system's reduced-motion preference.
+navigable by keyboard and works with assistive technology, and Mirall
+honors your system's reduced-motion preference.
 - **A pending update now shows in the About screen,** and the update
-  banner no longer covers up content while you work.
+banner no longer covers up content while you work.
 - **Fewer prompts when installing on Windows.** The installer no longer
-  asks for "access your internet connection" and "home or work networks"
-  permissions that Mirall never actually needed.
+asks for "access your internet connection" and "home or work networks"
+permissions that Mirall never actually needed.
 
 #### Fixed
 
 - **Downloads no longer overwrite your existing files.** Saving a file
-  whose name matched one already in your downloads folder used to
-  replace it silently; downloads now land at a safe, non-colliding name.
+whose name matched one already in your downloads folder used to
+replace it silently; downloads now land at a safe, non-colliding name.
 - **Space members no longer go missing.** Joining a space with several
-  people could occasionally drop someone from your member list until you
-  reconnected — everyone now shows up reliably.
+people could occasionally drop someone from your member list until you
+reconnected — everyone now shows up reliably.
 - **Windows updates now install reliably,** resolving a failure that
-  could stop a detected update from applying.
+could stop a detected update from applying.
 - **Re-adding a file at the same path is handled correctly** instead of
-  looking like a stuck, half-finished download.
+looking like a stuck, half-finished download.
 - **No more flicker** when you drag a file over the drop zone.
 - **A cancelled download no longer leaves a row stuck as "paused".**
 - **The "on your device" indicator stays accurate** after a file is
-  removed or re-shared.
+removed or re-shared.
 - **The file list stays usable** when no peers are currently connected.
 
-
 ## v1.5.3
+
 ### 2026-05-20
 
 #### Fixed
 
 - **Windows updates now install.** New versions were detected and the
-  update banner appeared, but on Windows the update never actually
-  applied — restarting just showed the banner again. Updates now
-  install correctly on quit and restart.
+update banner appeared, but on Windows the update never actually
+applied — restarting just showed the banner again. Updates now
+install correctly on quit and restart.
 - **The version number shows immediately in the About screen** instead
-  of briefly (or, on some machines, indefinitely) displaying a
-  placeholder while it loaded.
-
+of briefly (or, on some machines, indefinitely) displaying a
+placeholder while it loaded.
 
 ## v1.5.2
+
 ### 2026-05-20
 
 #### Fixed
 
 - **Scrollbars match the app again.** They had reverted to the pale
-  system default — a light bar on the dark interface. Scrollbars now
-  follow the theme and render correctly across all platforms.
-
+system default — a light bar on the dark interface. Scrollbars now
+follow the theme and render correctly across all platforms.
 
 ## v1.5.1
+
 ### 2026-05-19
 
 #### Fixed
 
 - **Invite code shown after creating a space now matches the one in the
-  Invite dialog.** Right after you created a space, the code on the
-  confirmation screen was still the old hex-with-dashes format and
-  didn't carry the space name — pasting it into a friend's Mirall
-  showed "Shared Space" instead of the real name. Both places now use
-  the same envelope, so the name you picked travels with the invite.
-
+Invite dialog.** Right after you created a space, the code on the
+confirmation screen was still the old hex-with-dashes format and
+didn't carry the space name — pasting it into a friend's Mirall
+showed "Shared Space" instead of the real name. Both places now use
+the same envelope, so the name you picked travels with the invite.
 
 ## v1.5.0
+
 ### 2026-05-12
 
 #### Added
 
 - **Shareable invite links.** You can now send an invite as a clickable
-  link that opens Mirall straight to the Join dialog, or as the plain
-  code — pick the format in the Invite dialog. Invites also carry the
-  space name, so the person joining sees what they're joining instead
-  of a generic "Shared Space".
+link that opens Mirall straight to the Join dialog, or as the plain
+code — pick the format in the Invite dialog. Invites also carry the
+space name, so the person joining sees what they're joining instead
+of a generic "Shared Space".
 - **New Account page.** Click your avatar in the top-right to open a
-  dedicated page that gathers your profile and your network connection
-  in one place.
+dedicated page that gathers your profile and your network connection
+in one place.
 - **At-a-glance connection status.** Your avatar gains a soft pulsing
-  ring when something's wrong — red if you've lost internet, amber
-  while Mirall is trying to recover. No ring means you're connected
-  and ready.
+ring when something's wrong — red if you've lost internet, amber
+while Mirall is trying to recover. No ring means you're connected
+and ready.
 - **A heads-up when your connection drops.** A toast notification
-  appears the moment Mirall notices a problem, with a "Show details"
-  link that takes you straight to the new Network page.
+appears the moment Mirall notices a problem, with a "Show details"
+link that takes you straight to the new Network page.
 - **Network page with friendly diagnostics.** Useful when a friend
-  can't reach you or a transfer stalls. The page explains what Mirall
-  sees about your connection, points out things worth checking (router,
-  VPN, firewall) when something's off, and includes a "Reconnect"
-  button to nudge things along.
+can't reach you or a transfer stalls. The page explains what Mirall
+sees about your connection, points out things worth checking (router,
+VPN, firewall) when something's off, and includes a "Reconnect"
+button to nudge things along.
 
 #### Changed
 
 - **Settings is now just app settings.** Profile editing and network
-  status moved out of Settings into the new Account page (click your
-  avatar). Settings keeps Appearance, General, Notifications, Storage,
-  and About.
+status moved out of Settings into the new Account page (click your
+avatar). Settings keeps Appearance, General, Notifications, Storage,
+and About.
 
 #### Fixed
 
 - **No more empty files from dropped folders.** Dragging a folder into
-  a space used to silently create an empty file with the folder's name
-  — folder uploads aren't supported yet. Mirall now recognises the
-  folder and shows a clear message asking you to pick individual files
-  instead.
-
+a space used to silently create an empty file with the folder's name
+— folder uploads aren't supported yet. Mirall now recognises the
+folder and shows a clear message asking you to pick individual files
+instead.
 
 ## v1.4.0
+
 ### 2026-05-09
 
 #### Added
 
 - **Mirall now lives in your menu bar (macOS) or system tray
-  (Windows / Linux).** Closing the window no longer shuts the app down —
-  peers stay connected, transfers keep going, and notifications still
-  arrive. Click the tray icon to bring the window back. The new
-  Settings → General page lets you opt out of background mode, or opt
-  in to "Launch at login" so Mirall starts quietly with your computer.
+(Windows / Linux).** Closing the window no longer shuts the app down —
+peers stay connected, transfers keep going, and notifications still
+arrive. Click the tray icon to bring the window back. The new
+Settings → General page lets you opt out of background mode, or opt
+in to "Launch at login" so Mirall starts quietly with your computer.
 - **Keyboard shortcuts and a command palette.** Press ⌘K (Ctrl-K) for
-  a search-style command palette that jumps to any space or runs any
-  action. Press ⌘/ (Ctrl-/) for the full shortcut list. The most
-  useful ones: new space (⌘N), join space (⌘J), add files to the
-  current space (⌘U), open Settings (⌘,), confirm any dialog
-  (⌘Enter).
+a search-style command palette that jumps to any space or runs any
+action. Press ⌘/ (Ctrl-/) for the full shortcut list. The most
+useful ones: new space (⌘N), join space (⌘J), add files to the
+current space (⌘U), open Settings (⌘,), confirm any dialog
+(⌘Enter).
 
 #### Changed
 
 - **Settings reorganized.** Theme, display size, and language now live
-  together under a new Appearance page. Background-mode and Launch at
-  login are grouped under General. The main Settings screen is just
-  your profile plus a tidy list of sub-pages — same controls, less
-  noise.
+together under a new Appearance page. Background-mode and Launch at
+login are grouped under General. The main Settings screen is just
+your profile plus a tidy list of sub-pages — same controls, less
+noise.
 
 #### Fixed
 
 - **No more duplicate "online" notifications.** When a peer's connection
-  briefly dropped and came back — closing your laptop lid, a flaky
-  network, a Wi-Fi handoff — Mirall could fire a fresh "X is online"
-  toast every time, sometimes several in a row. 
-  Now this should not happen anymore
+briefly dropped and came back — closing your laptop lid, a flaky
+network, a Wi-Fi handoff — Mirall could fire a fresh "X is online"
+toast every time, sometimes several in a row. 
+Now this should not happen anymore
 - **No more white flash when resizing the window.** Fast OS-driven
-  resizes used to briefly paint blank pixels along the edges. The
-  window background now tracks your chosen theme, so resizes stay
-  seamless in both light and dark mode.
-
+resizes used to briefly paint blank pixels along the edges. The
+window background now tracks your chosen theme, so resizes stay
+seamless in both light and dark mode.
 
 ## v1.3.1
+
 ### 2026-05-07
 
 #### Fixed
 
 - **More reliable first launch.** Sometimes the first time you opened
-  Mirall after installing or updating, the window could come up blank
-  or stuck on the loading screen, and your spaces wouldn't connect.
-  Mirall now starts up cleanly even while a newer version is being
-  fetched in the background.
+Mirall after installing or updating, the window could come up blank
+or stuck on the loading screen, and your spaces wouldn't connect.
+Mirall now starts up cleanly even while a newer version is being
+fetched in the background.
 - **Smoother updates on Windows and Linux.** When a new version is
-  ready, Mirall now installs it quietly in the background while you
-  keep working. The next time you quit and reopen, you're already on
-  the new version — no more update banner that sticks around after
-  restart.
+ready, Mirall now installs it quietly in the background while you
+keep working. The next time you quit and reopen, you're already on
+the new version — no more update banner that sticks around after
+restart.
 - **A11y** The 'Downloading' status pill was really hard to read with
-  the light theme enabled. Now we meet again the WCAG contrast ration
-  requirements and it also looks good again.
-
+the light theme enabled. Now we meet again the WCAG contrast ration
+requirements and it also looks good again.
 
 ## v1.3.0
+
 ### 2026-05-07
 
 #### Added
 
 - **Choose where downloads go.** Storage settings has a new "Download
-  folder" entry at the top. Pick any folder via the native folder picker
-  and every download from every space lands there from then on. Defaults
-  to your OS Downloads folder; the choice persists across restarts.
+folder" entry at the top. Pick any folder via the native folder picker
+and every download from every space lands there from then on. Defaults
+to your OS Downloads folder; the choice persists across restarts.
 - **Clear peer cache (per space).** A new kebab menu on each row in
-  Storage settings → Active Spaces lets you drop locally-cached content
-  from peers in just that space, without leaving it. Your own published
-  files stay; you can re-download anything from peers any time they're
-  online.
+Storage settings → Active Spaces lets you drop locally-cached content
+from peers in just that space, without leaving it. Your own published
+files stay; you can re-download anything from peers any time they're
+online.
 - **Notifications when a peer removes a shared file.** If the owner
-  deletes a file from their drive while you're downloading it — or while
-  you're paused waiting for them to come back online — Mirall now tells
-  you what happened ("File no longer shared by owner") and frees the
-  partial. Previously the transfer would just hang or fail silently.
-
+deletes a file from their drive while you're downloading it — or while
+you're paused waiting for them to come back online — Mirall now tells
+you what happened ("File no longer shared by owner") and frees the
+partial. Previously the transfer would just hang or fail silently.
 
 #### Changed
 
 - **Honest per-space storage figures.** Storage settings now counts
-  files you've downloaded from peers against the space they belong to,
-  instead of lumping them into "Other". The `Cache:` line and `% of
-  total` for each space reflect what that space is actually using on
-  disk.
+files you've downloaded from peers against the space they belong to,
+instead of lumping them into "Other". The `Cache:` line and `% of total` for each space reflect what that space is actually using on
+disk.
 - **Atomic downloads.** In-progress downloads write to a separate
-  `.partial` file and rename to the final name only on completion. An
-  interrupted transfer can't leave a half-written file in your Downloads
-  folder.
-
+`.partial` file and rename to the final name only on completion. An
+interrupted transfer can't leave a half-written file in your Downloads
+folder.
 
 #### Fixed
 
 - Transfer-failed notifications now show a translated reason instead of
-  leaking the raw `TRANSFER_*` error code into the toast.
-
+leaking the raw `TRANSFER_*` error code into the toast.
 
 ## v1.2.0
+
 ### 2026-05-06
 
 #### Added
 
 - **"What's new" modal.** After an update, Mirall shows you what
-  changed since the version you were last running. The full history 
-  is also available any time from Settings → About → What's new.
+changed since the version you were last running. The full history 
+is also available any time from Settings → About → What's new.
 - **Italian interface.** Added Italian translations alongside German,
-  English, French, and Spanish.
+English, French, and Spanish.
 - **Zoom levels.** Pick between Compact, Cozy, Default, and Spacious
-  under Settings → Appearance, or step through any size with Cmd/Ctrl
-  +, −, and 0. Your choice persists across restarts.
-
+under Settings → Appearance, or step through any size with Cmd/Ctrl
++, −, and 0. Your choice persists across restarts.
 
 #### Changed
 
 - Refreshed the light and dark themes — warmer per-space colors, a more
-  consistent palette across settings, and better legibility for body and
-  accent text in dark mode.
-
+consistent palette across settings, and better legibility for body and
+accent text in dark mode.
 
 #### Fixed
 
 - Linux: the AppImage stays executable after an automatic update, so it
-  launches normally without a manual `chmod +x` first.
-
+launches normally without a manual `chmod +x` first.
 
 ## v1.1.4
+
 ### 2026-05-05
 
 #### Changed
 
 - Updates no longer restart the app on their own. A staged update is applied
-  the next time you quit Mirall yourself, so restarts happen on your schedule.
-
+the next time you quit Mirall yourself, so restarts happen on your schedule.
 
 ## v1.1.3
+
 ### 2026-05-04
 
 #### Fixed
 
 - A flapping connection no longer fires a stream of online/offline toasts —
-  notifications are now deduplicated per peer.
-
+notifications are now deduplicated per peer.
 
 ## v1.1.2
+
 ### 2026-05-04
 
 #### Fixed
 
 - Leaving a space now propagates to the rest of the mesh, so other members
-  see the change without having to restart their app.
-
+see the change without having to restart their app.
 
 ## v1.1.1
+
 ### 2026-05-03
 
 #### Fixed
 
 - Windows: Mirall relaunches automatically after an update. Previously you
-  had to reopen it from the Start menu after every update.
+had to reopen it from the Start menu after every update.
 - macOS: fixed a blank screen that could appear after an update was applied.
 - About screen: the build identifier next to the version no longer always
-  reads "(0.0)" — it reflects the live update channel.
-
+reads "(0.0)" — it reflects the live update channel.
 
 ## v1.1.0
+
 ### 2026-05-03
 
 #### Added
 
 - **Desktop notifications.** Mirall surfaces incoming files and space
-  activity through your operating system's notification center.
+activity through your operating system's notification center.
 - **French and Spanish interface.** Added French and Spanish translations
-  alongside German and English.
+alongside German and English.
 - Styled scrollbars in the space and file lists, matching Mirall's visual
-  language instead of the platform default.
+language instead of the platform default.
 - Progress feedback while leaving a space — the action used to look
-  unresponsive while cleanup was in flight.
+unresponsive while cleanup was in flight.
 
 #### Changed
 
 - Text selection is disabled app-wide so the UI feels native. Anywhere a
-  value used to be copyable by selecting it — invite codes, space IDs —
-  now has a dedicated copy button.
+value used to be copyable by selecting it — invite codes, space IDs —
+now has a dedicated copy button.
 
 #### Fixed
 
 - **Screen reader support.** Icon-only buttons and clickable rows now
-  expose proper accessible names; back buttons on inner screens are
-  labelled.
+expose proper accessible names; back buttons on inner screens are
+labelled.
 - Notifications without an explicit icon now show the Mirall icon instead
-  of a generic placeholder.
-
+of a generic placeholder.
 
 ## v1.0.4
+
 ### 2026-05-02
 
 #### Fixed
 
 - Windows: removed the blue accent ring Windows draws around Mirall's
-  taskbar icon when the window is active.
-
+taskbar icon when the window is active.
 
 ## v1.0.3
+
 ### 2026-05-02
 
 #### Fixed
 
 - Windows: refreshed app icon (no more generic default icon); icon refresh
-  across all platforms.
-
+across all platforms.
 
 ## v1.0.2
+
 ### 2026-05-01
 
 #### Fixed
 
 - Linux: the AppImage now integrates correctly with your desktop on first
-  launch — entry in the app menu, icons in the system tray.
-
+launch — entry in the app menu, icons in the system tray.
 
 ## v1.0.1
+
 ### 2026-04-30
 
 #### Added
 
 - **German interface.** Mirall ships with German translations alongside
-  English. Your OS locale is detected automatically on first run; you can
-  override it under Settings → General → Sprache.
+English. Your OS locale is detected automatically on first run; you can
+override it under Settings → General → Sprache.
 
 #### Fixed
 
 - The file list now refreshes when a peer who was sharing files
-  disconnects. Affected files transition to "Owner offline" instead of
-  staying "Available" with a download button that did nothing.
+disconnects. Affected files transition to "Owner offline" instead of
+staying "Available" with a download button that did nothing.
 - Windows: the update banner now appears as expected when a new build is
-  available. It was silently dormant before.
+available. It was silently dormant before.
 - Storage settings: replaced the misleading per-space progress bars with
-  a clear Cache / Metadata / share-of-total breakdown, plus an "Other" row
-  that surfaces unreferenced cache. Per-space figures are flagged as
-  estimates. The space sidebar card is renamed from "Space Storage" to
-  "File Storage".
-
+a clear Cache / Metadata / share-of-total breakdown, plus an "Other" row
+that surfaces unreferenced cache. Per-space figures are flagged as
+estimates. The space sidebar card is renamed from "Space Storage" to
+"File Storage".
 
 ## v1.0.0
+
 ### 2026-04-29
 
 Initial public release.
@@ -866,11 +960,12 @@ Initial public release.
 #### Added
 
 - Peer-to-peer file sharing. Your files travel directly between you and
-  the people you share with — there's no central server in the middle.
+the people you share with — there's no central server in the middle.
 - **Spaces.** Group your shared files into named collections, each with
-  its own membership and invite codes. Members see only what's shared
-  with them.
+its own membership and invite codes. Members see only what's shared
+with them.
 - **Built-in updates.** Mirall checks for new versions on its own and
-  applies them automatically — no manual download, no reinstall.
+applies them automatically — no manual download, no reinstall.
 - Onboarding flow on first run for choosing a display name and avatar.
 - Available for macOS, Windows, and Linux.
+
