@@ -96,7 +96,7 @@ function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled,
           <p className="text-2xl font-headline font-bold text-accent">{headline}</p>
           <p className="text-sm text-on-surface-variant mt-1">{subline}</p>
         </div>
-        {verdict !== 'healthy' && (
+        {verdict !== 'healthy' && verdict !== 'unknown' && (
           <button
             type="button"
             onClick={onReconnect}

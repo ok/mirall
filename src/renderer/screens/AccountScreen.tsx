@@ -203,7 +203,8 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           label={t('account.connection')}
           desc={connectionDesc(t, connectivityState, networkStatus?.peerCount)}
           leading={(
-            <span className="w-10 h-10 flex items-center justify-center shrink-0">
+            <span className="relative shrink-0">
+              <Tile icon="hub" />
               <StatusDot state={connectivityState} />
             </span>
           )}
