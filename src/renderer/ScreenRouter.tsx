@@ -17,6 +17,7 @@ import ActivityLogSettings from './screens/settings/ActivityLogSettings.js'
 import ConnectionProblemScreen from './screens/ConnectionProblemScreen.js'
 import { useConnectionGate } from './hooks/useConnectionGate.js'
 import { useShares } from './hooks/useShares.js'
+import { folderRouteState } from './model/folder-route-state.js'
 import { useEffect } from 'react'
 
 interface ScreenRouterProps {
@@ -37,13 +38,14 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
 }) {
   const { shares, loading } = useShares(spaceId, profile?.publicKey ?? null)
   const share = shares.find((s) => s.id === shareId) ?? null
-  const missing = !share && !loading
+  const state = folderRouteState({ found: share !== null, loading })
+  const missing = state === 'missing'
   useEffect(() => {
     // Deleted under us, or the space was left: there is no folder to show, so leave the screen
     // rather than hold an empty one.
     if (missing) nav.goBack()
   }, [missing, nav])
-  if (!share) return null
+  if (!share || state !== 'show') return null
   return (
     // Keyed, so a folder is a fresh mount rather than a reused instance carrying the previous one's
     // fold, expansion snapshot and filter. Load-bearing: useShareFiles, useTreeExpansion and

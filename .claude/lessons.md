@@ -827,3 +827,17 @@ unpackaged, so nothing red appeared.
 statement, with a structural pin on that order** (`test/unit/asar-spawn.test.js`). Any refactor that
 moves a require is a candidate for this class; the question to ask is "who captures this export at
 load?" — and a first packaged install is the only test that exercises asar paths.
+
+## A new admission rule breaks the flow test that drives the old overlap
+
+Refusing manual downloads inside a mirrored share (#325) turned `test/flow/audit-coverage.test.js`
+red in CI: the coverage session had been driving the folder-engine `transfer.completed` row by
+downloading a file out of a share it had already mirrored, which is exactly the overlap the rule
+forbids, and the `until()` on `audit:list` then ran to its 270s timeout. Nothing local caught it
+because the change looked worker-only and the flow tier was not run.
+
+**The rule: a change to what a request admits is a change to every flow test that issues it.**
+Before pushing, `grep -l` the flow tier for the request name, and for each hit check whether the
+test also stages the state the new rule refuses (`foreign-folder:mount` here) and in what order.
+Re-sequence the test rather than loosen the rule: a session that downloads while browsing and
+then mirrors is the real user path anyway.

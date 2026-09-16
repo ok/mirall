@@ -9,6 +9,7 @@ import { catalogKeyField } from '../../../shares/catalog-keys.js'
 import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog } from '../../../shares/peer-catalog.js'
 import { readPeerShareEntry } from '../../../shares/shares.js'
 import { getDownloadDir } from '../../../core/paths.js'
+import { getForeignMount } from '../../../folders/mount-store.js'
 import { createLogger } from '../../../core/logger.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { reuseDest } from '../../download-dest.js'
@@ -128,8 +129,11 @@ export const folderChannel = createOverlayChannel({
 
 // Consumer single-file download: fetch by contentHash straight from a holder and write to the
 // downloads folder. No second copy stored. When the hash is not yet advertised (owner still
-// hashing), report queued.
+// hashing), report queued. A mirrored share syncs itself, paused or not, so it is refused before
+// the engine is touched: a second copy in the downloads folder would also overwrite the mirror's
+// verified record for the path.
 export async function folderRequestDownload(spaceId, share, relPath) {
+  if (await getForeignMount(spaceId, share.id)) return { ok: true, mirrored: true }
   // Doubles as the manual resume, so retire any pause marker before the guards below can return
   // early — a marker left set suppresses every later auto-resume for this row.
   engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
