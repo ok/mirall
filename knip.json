@@ -12,6 +12,7 @@
   "ignore": [
     "src/shared/transfer/backends/overlay/vendor/**"
   ],
+  "ignoreExportsUsedInFile": true,
   "rules": {
     "dependencies": "off",
     "devDependencies": "off",
