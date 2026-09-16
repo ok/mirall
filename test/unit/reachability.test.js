@@ -368,3 +368,11 @@ test('since is preserved while the verdict holds', (t) => {
   const second = stabilise(classify(on()), first, 90000)
   t.is(second.since, 5000, 'unchanged verdict keeps its original timestamp')
 })
+
+test('a live connection is healthy before the DHT reports ready', (t) => {
+  const out = classify(on({ dhtReady: false, bootedAt: 1, now: 10000, peerReach: { discovered: 2, connected: 2, exhausted: 0 } }))
+  t.is(out.verdict, VERDICT.HEALTHY)
+  t.is(out.confidence, CONFIDENCE.MEASURED)
+  const late = classify(on({ dhtReady: false, bootedAt: 1, now: 60000, peerReach: { discovered: 2, connected: 2, exhausted: 0 } }))
+  t.is(late.verdict, VERDICT.HEALTHY, 'and stays healthy past the DHT failure window')
+})

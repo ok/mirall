@@ -90,15 +90,16 @@ function decisiveVerdict(input) {
   if (!browserOnline) return [VERDICT.BLOCKED, CAUSE.OS_OFFLINE, CONFIDENCE.MEASURED]
   if (suspended) return [VERDICT.UNKNOWN, null, CONFIDENCE.PREDICTED]
 
+  // A live connection settles it, whatever the NAT shape says and before the DHT reports ready:
+  // a peer reached through a relay can be up while the bootstrap walk is still running.
+  if (peerReach.connected > 0) return [VERDICT.HEALTHY, null, CONFIDENCE.MEASURED]
+
   if (!dhtReady) {
     const sinceBoot = bootedAt > 0 ? now - bootedAt : 0
     return sinceBoot < DHT_FAILURE_MS
       ? [VERDICT.UNKNOWN, null, CONFIDENCE.PREDICTED]
       : [VERDICT.BLOCKED, CAUSE.DHT_UNREACHABLE, CONFIDENCE.MEASURED]
   }
-
-  // A live connection settles it, whatever the NAT shape says.
-  if (peerReach.connected > 0) return [VERDICT.HEALTHY, null, CONFIDENCE.MEASURED]
 
   // Nothing else can notice an idle app losing the network: dhtReady is one-shot, the DHT's
   // own health window is gated on traffic that is not happening, and with no topics joined
