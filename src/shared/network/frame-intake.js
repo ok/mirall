@@ -7,7 +7,7 @@
 
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
-import { PEER_FRAME, IDENTITY_ASSERTING } from '../contract/peer-frames.js'
+import { PEER_FRAME, IDENTITY_ASSERTING, MEMBERSHIP_CONTROL_FRAMES } from '../contract/peer-frames.js'
 import { HEX64 } from '../contract/invite-envelope.js'
 import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow } from '../core/runtime-config.js'
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
@@ -180,10 +180,7 @@ const PEER_FRAME_HANDLERS = Object.freeze({
   [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
   [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
-  [PEER_FRAME.MEMBERSHIP_REQUEST]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_GRANT]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_DENY]: toMembershipControl,
-  [PEER_FRAME.MEMBERSHIP_CANCEL]: toMembershipControl,
+  ...Object.fromEntries(MEMBERSHIP_CONTROL_FRAMES.map((type) => [type, toMembershipControl])),
 })
 
 // The handler verifies a grant's identity binding and asserted root itself, which is why these

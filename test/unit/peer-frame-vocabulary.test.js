@@ -14,21 +14,32 @@ const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
 // Hyper stack and cannot load under a Node runner.
 const intake = read('shared/network/frame-intake.js')
 
+// The table routes the membership control set by spreading the contract's list, so the source
+// scan sees those four through the constant rather than as [PEER_FRAME.X] entries.
+function routedByTable(table) {
+  const routed = new Set([...table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)].map((m) => m[1]))
+  if (table.includes('MEMBERSHIP_CONTROL_FRAMES.map(')) {
+    for (const value of MEMBERSHIP_CONTROL_FRAMES) {
+      routed.add(Object.keys(PEER_FRAME).find((k) => PEER_FRAME[k] === value))
+    }
+  }
+  return routed
+}
+
 test('every declared frame has a handler in the dispatch table', (t) => {
   const table = intake.slice(intake.indexOf('const PEER_FRAME_HANDLERS'), intake.indexOf('function toMembershipControl'))
   t.ok(table.length > 0, 'found the dispatch table')
 
-  const routed = new Set([...table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)].map((m) => m[1]))
+  const routed = routedByTable(table)
   for (const [name, value] of Object.entries(PEER_FRAME)) {
     t.ok(routed.has(name), `${value} is routed`)
   }
+  t.ok(table.includes('MEMBERSHIP_CONTROL_FRAMES.map('), 'the membership set is routed through the contract, not re-listed')
 })
 
 test('the dispatch table routes nothing the contract does not declare', (t) => {
   const table = intake.slice(intake.indexOf('const PEER_FRAME_HANDLERS'), intake.indexOf('function toMembershipControl'))
-  for (const m of table.matchAll(/\[PEER_FRAME\.([A-Z_]+)\]/g)) {
-    t.ok(m[1] in PEER_FRAME, `PEER_FRAME.${m[1]} exists`)
-  }
+  for (const name of routedByTable(table)) t.ok(name in PEER_FRAME, `PEER_FRAME.${name} exists`)
 })
 
 // The other half of the contract: a frame nothing sends is dead vocabulary, and a frame sent under a
