@@ -16,7 +16,7 @@ export default async function s137({ runDir, bootstrap }) {
     await r.ok('the add modal opens on the paste field', async () => {
       await Relays.launch()
       await Relays.gotoSettings('Network')
-      await Relays.waitText('Relays', 8000)
+      await Relays.waitText('A relay helps two devices connect', 8000)
       await Relays.click({ name: 'Add relay' })
       await Relays.waitText('Add a relay', 8000)
     })
@@ -79,11 +79,13 @@ export default async function s137({ runDir, bootstrap }) {
 
     // The whole deferred-restart path, end to end: the worker exits, the respawn policy brings it
     // back on the new boot frame, the window reloads, and only then is the verdict worth having.
+    // The reload resumes on this screen (resume-screen.ts), so the pending control going away is
+    // the reload's tell — landing on the space list would now be a regression.
     await r.ok('reconnecting applies the identity and the probe then runs', async () => {
       await Relays.click({ name: 'Reconnect now' })
-      await Relays.waitText('Shared Spaces', 30000)
-      await Relays.gotoSettings('Network')
-      await Relays.waitText('Family relay', 15000)
+      await waitFor(async () => !(await Relays.has({ name: 'Reconnect now' })), 30000, 'the restart to apply')
+      await Relays.waitText('Family relay', 30000)
+      if (await Relays.hasText('Shared Spaces')) throw new Error('the reload dropped the user on the space list')
       if (await Relays.has({ name: 'Reconnect now' })) throw new Error('still pending after the restart')
       await Relays.waitText('Unreachable', 30000)
       await Relays.shot('s137-reconnected', runDir)

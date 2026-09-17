@@ -22,7 +22,7 @@ export default async function s106({ runDir, bootstrap }) {
       await Relays.launch()
       await Relays.gotoSettings('Network')
       await Relays.waitText('Transfer limits', 8000)
-      await Relays.waitText('Relays', 8000)
+      await Relays.waitText('A relay helps two devices connect', 8000)
       await Relays.shot('s106-section', runDir)
     })
 
