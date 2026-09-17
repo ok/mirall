@@ -21,6 +21,7 @@ import Avatar from '../components/primitives/Avatar.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
+import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -31,48 +32,10 @@ interface AccountProps {
   onFeedback: () => void
 }
 
-const GROUP = 'bg-surface-container-low rounded-xl overflow-hidden'
-const ROW = 'w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 cursor-pointer'
-
 const IDENTITY_LINE: Record<IdentityProtection, { icon: IconName; key: string }> = {
   protected: { icon: 'shield', key: 'settings.identityProtected' },
   weak: { icon: 'info', key: 'settings.identityWeak' },
   disabled: { icon: 'info', key: 'settings.identityDisabled' },
-}
-
-function Tile({ icon }: { icon: IconName }) {
-  return (
-    <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
-      <Icon name={icon} />
-    </div>
-  )
-}
-
-function RowBody({ leading, title, desc }: { leading: ReactNode; title: string; desc?: ReactNode }) {
-  return (
-    <div className="flex items-center gap-4 min-w-0">
-      {leading}
-      <div className="min-w-0">
-        <p className="font-semibold text-accent">{title}</p>
-        {desc && <p className="text-xs text-on-surface-variant">{desc}</p>}
-      </div>
-    </div>
-  )
-}
-
-function ActionRow({ label, desc, icon, leading, onClick }: {
-  label: string
-  desc?: ReactNode
-  icon?: IconName
-  leading?: ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button type="button" onClick={onClick} aria-label={label} className={ROW}>
-      <RowBody leading={leading ?? (icon ? <Tile icon={icon} /> : null)} title={label} desc={desc} />
-      <Icon name="chevron_right" className="text-secondary shrink-0" />
-    </button>
-  )
 }
 
 function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; icon: IconName; href: string }) {
@@ -198,7 +161,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
   return (
     <section>
       <SectionHeading>{t('account.groupDevice')}</SectionHeading>
-      <div className={GROUP}>
+      <div className={ROW_GROUP}>
         <ActionRow
           label={t('account.connection')}
           desc={connectionDesc(t, connectivityState, networkStatus?.peerCount)}
@@ -256,7 +219,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   return (
     <section>
       <SectionHeading>{t('account.groupApp')}</SectionHeading>
-      <div className={GROUP}>
+      <div className={ROW_GROUP}>
         <div className="group/copy w-full p-6 flex items-center gap-4">
           <Tile icon="info" />
           <div className="flex-1 min-w-0">

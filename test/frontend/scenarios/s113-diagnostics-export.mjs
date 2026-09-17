@@ -2,17 +2,17 @@ import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport } from '../assert.mjs'
 
-// The diagnostics card: both toggles reachable by accessible name, and the preview modal
-// shows the real bundle before anything is written.
+// The Diagnostics screen, reached from Network status: both toggles reachable by accessible name,
+// and the preview modal shows the real bundle before anything is written.
 export default async function s113({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
 
   try {
-    await r.ok('launch + open Network status', async () => {
+    await r.ok('launch + open Diagnostics', async () => {
       await A.launch()
-      await A.openNetworkStatus()
+      await A.openNetworkDiagnostics()
     })
 
     await r.ok('both diagnostics toggles are reachable by name', async () => {

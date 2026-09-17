@@ -20,9 +20,9 @@ const screens = walkScreens(dir)
 // positioned ancestor between it and <body>, an absolutely positioned element
 // resolves against the INITIAL containing block, so its static position deep
 // inside the scrolled content extends the DOCUMENT's scrollable area — the
-// window grows a second scrollbar beside the inner one, most visibly on
-// Network status once "Show advanced details" expands. `relative` on the
-// scroller keeps the live region inside the box that already scrolls.
+// window grows a second scrollbar beside the inner one, most visibly on a
+// long screen like Advanced details. `relative` on the scroller keeps the
+// live region inside the box that already scrolls.
 //
 // The other absolutely positioned descendants of these screens (the search
 // icon in ActivityLog, the toggle knob in ActivityLogSettings, the avatar

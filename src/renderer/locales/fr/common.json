@@ -816,7 +816,12 @@
       "blockedBody": "Tant que cela dure, les invitations et les partages n'arriveront pas.",
       "body": {}
     },
-    "advancedToggle": "Afficher les détails avancés",
+    "troubleshooting": "Dépannage",
+    "advanced": {
+      "title": "Détails avancés",
+      "intro": "Les valeurs brutes de votre connexion.",
+      "copyAll": "Tout copier"
+    },
     "advancedHint": "Adresse, NAT, DHT, compteurs",
     "reveal": "Afficher",
     "hide": "Masquer",
@@ -826,6 +831,7 @@
     "dhtVersion": "Version HyperDHT",
     "bootstrapEntries_one": "{{count}} entrée",
     "bootstrapEntries_other": "{{count}} entrées",
+    "bootstrapNodes": "Nœuds d’amorçage",
     "boolYes": "Oui",
     "boolNo": "Non",
     "connection": "Connexion",
@@ -934,7 +940,9 @@
       "activityLog": "Journal d'activité",
       "activityLogSettings": "Réglages du journal d'activité",
       "networkSettings": "Paramètres réseau",
-      "connectionProblem": "Problème de connexion"
+      "connectionProblem": "Problème de connexion",
+      "networkDiagnostics": "Diagnostic",
+      "networkAdvanced": "Détails avancés"
     }
   },
   "avatar": {
@@ -1178,6 +1186,7 @@
   "diagnostics": {
     "title": "Diagnostic",
     "intro": "Si nous vous demandons des détails, enregistrez ce fichier et envoyez-le-nous. Il décrit le comportement de votre réseau — pas ce que vous partagez ni avec qui.",
+    "rowDesc": "Enregistrer un fichier décrivant le comportement de votre réseau",
     "redactLabel": "Supprimer les données identifiantes",
     "redactDescription": "Votre adresse IP, les clés et les noms d'espaces sont raccourcis ou omis. Recommandé — cela nous suffit pour diagnostiquer les problèmes de connexion.",
     "logsLabel": "Inclure les journaux détaillés",

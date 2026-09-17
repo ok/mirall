@@ -1,4 +1,5 @@
 import type { AppNavigation } from './hooks/useAppNavigation.js'
+import type { Screen } from './shell/navigation.js'
 import type { AppDialog } from './components/modals/AppDialogs.js'
 import type { Profile } from './types/types.js'
 import SpacesScreen from './screens/SpacesScreen.js'
@@ -11,6 +12,8 @@ import AppearanceSettings from './screens/settings/AppearanceSettings.js'
 import GeneralSettings from './screens/settings/GeneralSettings.js'
 import NetworkSettings from './screens/settings/NetworkSettings.js'
 import NetworkStatusScreen from './screens/NetworkStatusScreen.js'
+import NetworkDiagnosticsScreen from './screens/NetworkDiagnosticsScreen.js'
+import NetworkAdvancedScreen from './screens/NetworkAdvancedScreen.js'
 import Account from './screens/AccountScreen.js'
 import ActivityLog from './screens/ActivityLogScreen.js'
 import ActivityLogSettings from './screens/settings/ActivityLogSettings.js'
@@ -61,9 +64,39 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
   )
 }
 
+// Network status and the two screens below it. They share one rule — both children back out to
+// Network status, never to the screen it was opened from — so they route together.
+const NETWORK_SCREENS = ['network-status', 'network-diagnostics', 'network-advanced'] as const
+
+type NetworkScreen = (typeof NETWORK_SCREENS)[number]
+
+function isNetworkScreen(screen: Screen): screen is NetworkScreen {
+  return (NETWORK_SCREENS as readonly Screen[]).includes(screen)
+}
+
+function networkRoute(screen: NetworkScreen, nav: AppNavigation) {
+  const toStatus = () => nav.setCurrentScreen('network-status')
+  switch (screen) {
+    case 'network-status':
+      return (
+        <NetworkStatusScreen
+          onBack={() => nav.setCurrentScreen('account')}
+          onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
+          onOpenDiagnostics={() => nav.setCurrentScreen('network-diagnostics')}
+          onOpenAdvanced={() => nav.setCurrentScreen('network-advanced')}
+        />
+      )
+    case 'network-diagnostics':
+      return <NetworkDiagnosticsScreen onBack={toStatus} />
+    case 'network-advanced':
+      return <NetworkAdvancedScreen onBack={toStatus} />
+  }
+}
+
 export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }: ScreenRouterProps) {
   const { currentScreen, selectedSpaceId, selectedShareId } = nav
   const gate = useConnectionGate()
+  if (isNetworkScreen(currentScreen)) return networkRoute(currentScreen, nav)
   switch (currentScreen) {
     case 'spaces':
       return gate.showConnectionProblem ? (
@@ -142,13 +175,6 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
       return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-settings':
       return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
-    case 'network-status':
-      return (
-        <NetworkStatusScreen
-          onBack={() => nav.setCurrentScreen('account')}
-          onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
-        />
-      )
     case 'activity-log':
       return (
         <ActivityLog

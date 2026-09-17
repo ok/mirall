@@ -816,7 +816,12 @@
       "blockedBody": "Mientras esto siga así, las invitaciones y los archivos compartidos no llegarán.",
       "body": {}
     },
-    "advancedToggle": "Mostrar detalles avanzados",
+    "troubleshooting": "Resolución de problemas",
+    "advanced": {
+      "title": "Detalles avanzados",
+      "intro": "Los valores en bruto de tu conexión.",
+      "copyAll": "Copiar todo"
+    },
     "advancedHint": "Dirección, NAT, DHT, contadores",
     "reveal": "Mostrar",
     "hide": "Ocultar",
@@ -826,6 +831,7 @@
     "dhtVersion": "Versión de HyperDHT",
     "bootstrapEntries_one": "{{count}} entrada",
     "bootstrapEntries_other": "{{count}} entradas",
+    "bootstrapNodes": "Nodos de arranque",
     "boolYes": "Sí",
     "boolNo": "No",
     "connection": "Conexión",
@@ -934,7 +940,9 @@
       "activityLog": "Registro de actividad",
       "activityLogSettings": "Ajustes del registro de actividad",
       "networkSettings": "Ajustes de red",
-      "connectionProblem": "Problema de conexión"
+      "connectionProblem": "Problema de conexión",
+      "networkDiagnostics": "Diagnóstico",
+      "networkAdvanced": "Detalles avanzados"
     }
   },
   "avatar": {
@@ -1178,6 +1186,7 @@
   "diagnostics": {
     "title": "Diagnóstico",
     "intro": "Si te pedimos detalles, guarda este archivo y envíanoslo. Describe cómo se comporta tu red, no qué compartes ni con quién.",
+    "rowDesc": "Guarda un archivo que describe cómo se comporta tu red",
     "redactLabel": "Eliminar datos identificativos",
     "redactDescription": "Tu dirección IP, las claves y los nombres de los espacios se acortan o se omiten. Recomendado: nos basta para diagnosticar problemas de conexión.",
     "logsLabel": "Incluir registros detallados",

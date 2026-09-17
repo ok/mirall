@@ -816,7 +816,12 @@
       "blockedBody": "Finché è così, inviti e condivisioni non arriveranno.",
       "body": {}
     },
-    "advancedToggle": "Mostra dettagli avanzati",
+    "troubleshooting": "Risoluzione dei problemi",
+    "advanced": {
+      "title": "Dettagli avanzati",
+      "intro": "I valori grezzi della tua connessione.",
+      "copyAll": "Copia tutto"
+    },
     "advancedHint": "Indirizzo, NAT, DHT, contatori",
     "reveal": "Mostra",
     "hide": "Nascondi",
@@ -826,6 +831,7 @@
     "dhtVersion": "Versione HyperDHT",
     "bootstrapEntries_one": "{{count}} voce",
     "bootstrapEntries_other": "{{count}} voci",
+    "bootstrapNodes": "Nodi di bootstrap",
     "boolYes": "Sì",
     "boolNo": "No",
     "connection": "Connessione",
@@ -934,7 +940,9 @@
       "activityLog": "Registro attività",
       "activityLogSettings": "Impostazioni del registro attività",
       "networkSettings": "Impostazioni di rete",
-      "connectionProblem": "Problema di connessione"
+      "connectionProblem": "Problema di connessione",
+      "networkDiagnostics": "Diagnostica",
+      "networkAdvanced": "Dettagli avanzati"
     }
   },
   "avatar": {
@@ -1178,6 +1186,7 @@
   "diagnostics": {
     "title": "Diagnostica",
     "intro": "Se ti chiediamo dei dettagli, salva questo file e inviacelo. Descrive come si comporta la tua rete, non cosa condividi né con chi.",
+    "rowDesc": "Salva un file che descrive come si comporta la tua rete",
     "redactLabel": "Rimuovi i dati identificativi",
     "redactDescription": "Indirizzo IP, chiavi e nomi degli spazi vengono accorciati o omessi. Consigliato: ci basta per diagnosticare i problemi di connessione.",
     "logsLabel": "Includi i log dettagliati",

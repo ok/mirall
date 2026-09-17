@@ -23,8 +23,10 @@ export default async function s144({ runDir, bootstrap }) {
       if (!seen) throw new Error(`relay row shows none of: ${values.join(' / ')}`)
     })
     await r.ok('advanced details show the relays this device chose', async () => {
-      await A.click({ role: 'button', name: 'Show advanced details' })
-      await A.waitText('Relays chosen by this device', 8000)
+      await A.click({ role: 'button', name: 'Advanced details' })
+      await A.waitText('Own relay chosen since start', 8000)
+      await A.back()
+      await A.waitText('Connection summary', 8000)
     })
     await r.ok('the relayed section, when present, exposes its controls by name', async () => {
       if (!(await A.hasText('Relayed connections'))) return
