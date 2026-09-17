@@ -11,21 +11,26 @@ changes do not appear here.
 
 ## v1.11.0
 
-### 2026-09-16
+### 2026-09-17
 
-Relays become a single, invite-driven setting, mirrors tell you honestly
-when the owner is gone, and ignore patterns finally behave like
-`.gitignore`. Plus a large batch of fixes to sync safety, dialogs and the
-log.
+A space that never syncs can now be carried by a relay and mirrors tell you
+honestly when the owner is gone. Plus a large batch of fixes to overall reliability, 
+sync safety, dialogs and the log.
 
 #### Added
 
-- **Relays are on for everyone, configured in one slot.** The relay
-feature flag is gone. Settings now takes one relay, by public key or by
-pasting an invite ticket. A newly added relay is probed immediately
-instead of waiting for a manual test, its row actions live in a menu
-that no longer overflows off-screen, and a peer with no relay of its
-own adopts yours automatically.
+- **Connect through a relay when the network blocks a direct link.** Some
+networks — office Wi-Fi, a hotel, a mobile carrier — keep two devices
+from reaching each other, and a space simply never syncs. Settings now
+takes one relay, added with a key or with an invite from whoever runs
+it, and tested the moment you add it. Your files stay encrypted end to
+end; the relay only forwards them. Anyone you share with who has no
+relay of their own uses yours.
+- **See who you are reaching through a relay.** Network Status gains a
+Relay row and a section grouped by relay: the masked key, whether it is
+yours or the one that person brought, and the people being carried
+through it. The Activity Log records each of those connections as its
+own entry.
 - **A warning before mirroring a folder that will list short.** The
 mirror preview now shows the file count and warns when the owner's
 folder exceeds the share limit, while still letting you confirm.
@@ -33,10 +38,16 @@ folder exceeds the share limit, while still letting you confirm.
 reach the owner's listing now shows an "owner offline" pill and a
 "waiting for owner" label instead of pretending to be synced or
 syncing.
+- **Diagnostics and Advanced details are screens of their own.** Network
+status ended in a disclosure that appended six sections and 23 rows
+below the fold; both now sit in a Troubleshooting group and open
+properly.
+- **Network status and network settings link to each other**, the way the
+Activity Log and its settings already did, so changing a limit or a
+relay no longer means backing out through two screens to see what it
+did.
 
 #### Fixed
-
-Sync safety:
 
 - **A local edit is never overwritten because of an unrelated manual
 download.** A manual download of the same file could vouch for the
@@ -67,9 +78,6 @@ lost in a race and the owner's banner kept resurfacing.
 seal membership grants the joiner could not open.
 - **A readmitted member is announced under their real name** instead of
 "Unknown".
-
-Dialogs and UI:
-
 - **Failed remove and leave dialogs recover.** A rejected removal left
 the dialog stuck, and a failed leave navigated you away from a space
 you were still in.
@@ -84,28 +92,6 @@ and the path picker, so screen readers can find the explanation.
 identical toasts.
 - **Zoom from the View menu is remembered**, and the Appearance zoom
 tiles mark the nearest preset instead of none.
-- **"Upload 1 files" reads in the singular** in the add-folder preview,
-in all five languages.
-- **Timeouts and worker-unavailable errors get their own localized
-message** instead of the generic one.
-
-Reliability and logging:
-
-- **Quitting runs teardown once, in order.** Watchers, the config flush
-and the worker shutdown could run twice, racing an update apply.
-- **A parked republish no longer logs a false "INCOMPLETE … gave up"
-warning** into your log and diagnostics bundle.
-- **The catalog encryption migration continues past a bad space** instead
-of leaving every later space unencrypted.
-- **The Activity Log refuses an unknown outcome** rather than recording
-it as an approval, and the boot-sweep journal records real scan gaps.
-
-#### Security
-
-- The update canary dials with an ephemeral keypair, so a durable
-relay-pinned identity is never presented to the update seeder.
-- The relay invite's member seed lives under OS-encrypted storage, never
-in config.json.
 
 ## v1.10.1
 
