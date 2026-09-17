@@ -821,7 +821,12 @@
       "blockedBody": "Solange das so bleibt, kommen Einladungen und Freigaben nicht an.",
       "body": {}
     },
-    "advancedToggle": "Erweiterte Details anzeigen",
+    "troubleshooting": "Fehlersuche",
+    "advanced": {
+      "title": "Erweiterte Details",
+      "intro": "Die Rohwerte hinter deiner Verbindung.",
+      "copyAll": "Alles kopieren"
+    },
     "advancedHint": "Adresse, NAT, DHT, Zähler",
     "reveal": "Anzeigen",
     "hide": "Verbergen",
@@ -831,6 +836,7 @@
     "dhtVersion": "HyperDHT-Version",
     "bootstrapEntries_one": "{{count}} Eintrag",
     "bootstrapEntries_other": "{{count}} Einträge",
+    "bootstrapNodes": "Bootstrap-Knoten",
     "boolYes": "Ja",
     "boolNo": "Nein",
     "connection": "Verbindung",
@@ -939,7 +945,9 @@
       "activityLog": "Aktivitätsprotokoll",
       "activityLogSettings": "Einstellungen für das Aktivitätsprotokoll",
       "networkSettings": "Netzwerkeinstellungen",
-      "connectionProblem": "Verbindungsproblem"
+      "connectionProblem": "Verbindungsproblem",
+      "networkDiagnostics": "Diagnose",
+      "networkAdvanced": "Erweiterte Details"
     }
   },
   "avatar": {
@@ -1183,6 +1191,7 @@
   "diagnostics": {
     "title": "Diagnose",
     "intro": "Wenn wir dich nach Details fragen, speichere diese Datei und schicke sie uns. Sie beschreibt das Verhalten deines Netzwerks — nicht, was du teilst oder mit wem.",
+    "rowDesc": "Eine Datei speichern, die beschreibt, wie sich dein Netzwerk verhält",
     "redactLabel": "Identifizierende Angaben entfernen",
     "redactDescription": "IP-Adresse, Schlüssel und Raumnamen werden gekürzt oder weggelassen. Empfohlen — das reicht uns, um Verbindungsprobleme zu erkennen.",
     "logsLabel": "Ausführliche Protokolle einschließen",

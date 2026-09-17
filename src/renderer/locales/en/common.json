@@ -35,7 +35,9 @@
       "activityLog": "Activity log",
       "activityLogSettings": "Activity log settings",
       "networkSettings": "Network settings",
-      "connectionProblem": "Connection problem"
+      "connectionProblem": "Connection problem",
+      "networkDiagnostics": "Diagnostics",
+      "networkAdvanced": "Advanced details"
     }
   },
   "avatar": {
@@ -845,7 +847,12 @@
       "blockedBody": "Invites and shares won't arrive while this is the case.",
       "body": {}
     },
-    "advancedToggle": "Show advanced details",
+    "troubleshooting": "Troubleshooting",
+    "advanced": {
+      "title": "Advanced details",
+      "intro": "The raw values behind your connection.",
+      "copyAll": "Copy all"
+    },
     "advancedHint": "Address, NAT, DHT, counters",
     "reveal": "Reveal",
     "hide": "Hide",
@@ -855,6 +862,7 @@
     "dhtVersion": "HyperDHT version",
     "bootstrapEntries_one": "{{count}} entry",
     "bootstrapEntries_other": "{{count}} entries",
+    "bootstrapNodes": "Bootstrap nodes",
     "boolYes": "Yes",
     "boolNo": "No",
     "connection": "Connection",
@@ -1183,6 +1191,7 @@
   "diagnostics": {
     "title": "Diagnostics",
     "intro": "If we ask you for details, save this file and send it to us. It describes how your network behaves — not what you share or who you share it with.",
+    "rowDesc": "Save a file describing how your network behaves",
     "redactLabel": "Remove identifying details",
     "redactDescription": "Your IP address, keys and space names are shortened or left out. Recommended — this is enough for us to diagnose connection problems.",
     "logsLabel": "Include detailed logs",

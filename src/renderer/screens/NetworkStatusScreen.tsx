@@ -5,57 +5,22 @@ import type { TFunction } from 'i18next'
 import { reachableState, formatDuration } from '../model/connectivity.js'
 import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
 import { getRelayMode } from '../platform/config-client.js'
-import DiagnosticsCard from './DiagnosticsCard.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import RelayedConnectionsSection from '../components/network/RelayedConnectionsSection.js'
-import { Section, Field, MaskedField, DASH, formatRelativeTime, formatNumber } from '../components/network/StatusRows.js'
+import { Section, Field } from '../components/network/StatusRows.js'
+import { DASH, formatRelativeTime } from '../format/status-values.js'
+import ActionRow, { ROW_GROUP } from '../components/layout/ActionRow.js'
 import type { NetworkStatusScreen, Reachability } from '../types/types.js'
 
 interface Props {
   onBack: () => void
   onShowHistory: () => void
-}
-
-function formatBool(value: boolean | null, t: (key: string) => string): string {
-  if (value === null) return DASH
-  return value ? t('networkStatus.boolYes') : t('networkStatus.boolNo')
-}
-
-interface BootstrapListProps {
-  items: string[]
-  emptyLabel: string
-  countLabel: (n: number) => string
-}
-
-function BootstrapList({ items, emptyLabel, countLabel }: BootstrapListProps) {
-  const [open, setOpen] = useState(false)
-  if (items.length === 0) {
-    return <div className="px-6 py-4 text-sm text-on-surface-variant">{emptyLabel}</div>
-  }
-  return (
-    <div className="px-6 py-4">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="text-sm font-medium text-accent flex items-center gap-2 focus-ring rounded-sm"
-      >
-        <Icon name={open ? 'expand_more' : 'chevron_right'} size={18} className="text-outline" />
-        {countLabel(items.length)}
-      </button>
-      {open && (
-        <ul className="mt-3 space-y-1 font-mono text-xs text-on-surface-variant">
-          {items.map((entry) => (
-            <li key={entry} className="break-all">{entry}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+  onOpenDiagnostics: () => void
+  onOpenAdvanced: () => void
 }
 
 interface VerdictBannerProps {
@@ -200,81 +165,12 @@ function SuggestionsList({ lines }: { lines: string[] }) {
   )
 }
 
-interface AdvancedDetailsProps {
-  status: NetworkStatusScreen | null
-  now: number
-}
-
-function AdvancedDetails({ status, now }: AdvancedDetailsProps) {
-  const { t } = useTranslation()
-  if (!status) return null
-  const portPreserved = status.address.publicPort > 0
-    && status.address.publicPort === status.address.localPort
-  const portPreservationLabel = portPreserved
-    ? t('networkStatus.portPreservedYes')
-    : status.dhtReady ? t('networkStatus.portPreservedNo') : DASH
-
-  return (
-    <>
-      <Section title={t('networkStatus.connection')}>
-        <Field label={t('networkStatus.peerCount')}     value={formatNumber(status.peerCount)} />
-        <Field label={t('networkStatus.topicsJoined')}  value={formatNumber(status.topics)} />
-        <Field label={t('networkStatus.lastConnected')} value={formatRelativeTime(status.lastConnectionAt, now)} />
-      </Section>
-
-      <Section title={t('networkStatus.address')}>
-        <MaskedField label={t('networkStatus.publicHost')} value={status.address.publicHost} />
-        <Field label={t('networkStatus.publicPort')} value={status.address.publicPort ? String(status.address.publicPort) : DASH} mono />
-        <Field label={t('networkStatus.localPort')}  value={status.address.localPort ? String(status.address.localPort) : DASH} mono />
-        <Field
-          label={t('networkStatus.portPreserved')}
-          value={portPreservationLabel}
-          positive={portPreserved}
-        />
-        <MaskedField label={t('networkStatus.publicKey')} value={status.identity.publicKey} visibleSuffix={6} />
-      </Section>
-
-      <Section title={t('networkStatus.nat')}>
-        <Field label={t('networkStatus.firewalled')} value={formatBool(status.nat.firewalled, t)} />
-        <Field label={t('networkStatus.randomized')} value={formatBool(status.nat.randomized, t)} />
-        <Field label={t('networkStatus.ephemeral')}  value={formatBool(status.nat.ephemeral, t)} />
-      </Section>
-
-      <Section title={t('networkStatus.relaying')}>
-        <Field label={t('networkStatus.relayedNow')}      value={formatNumber(status.relay.connections.length)} />
-        <Field label={t('networkStatus.relayedSeen')}     value={formatNumber(status.relay.seen)} />
-        <Field label={t('networkStatus.relayedActive')}   value={formatNumber(status.stats.relaying.successes)} />
-        <Field label={t('networkStatus.relayedAttempts')} value={formatNumber(status.stats.relaying.attempts)} />
-        <Field label={t('networkStatus.relayedAborts')}   value={formatNumber(status.stats.relaying.aborts)} />
-        <Field label={t('networkStatus.relaySelected')}   value={formatNumber(status.stats.relaying.selected)} />
-      </Section>
-
-      <Section title={t('networkStatus.dht')}>
-        <Field label={t('networkStatus.routingTableSize')} value={formatNumber(status.routing.tableSize)} />
-        <Field label={t('networkStatus.dhtVersion')}        value={status.versions.dht} mono />
-        <BootstrapList
-          items={status.routing.bootstrap}
-          emptyLabel={DASH}
-          countLabel={(n) => t('networkStatus.bootstrapEntries', { count: n })}
-        />
-      </Section>
-
-      <Section title={t('networkStatus.canary')}>
-        <Field label={t('networkStatus.canaryState')} value={t(`networkStatus.summary.testValue.${status.canary.state}`)} />
-        <Field label={t('networkStatus.canaryRecords')} value={formatNumber(status.canary.stage1?.announceRecords)} />
-        <Field label={t('networkStatus.canaryChecked')} value={formatRelativeTime(status.canary.at || null, now)} />
-      </Section>
-    </>
-  )
-}
-
-export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
+export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenDiagnostics, onOpenAdvanced }: Props) {
   const { t } = useTranslation()
   const { status, reachability, reconnect } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
@@ -319,22 +215,23 @@ export default function NetworkStatusScreen({ onBack, onShowHistory }: Props) {
 
           {status && <RelayedConnectionsSection status={status} now={now} />}
 
-          <DiagnosticsCard />
-
           <section>
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((v) => !v)}
-              aria-expanded={advancedOpen}
-              className="w-full bg-surface-container-low rounded-xl p-4 flex items-center gap-3 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring"
-            >
-              <Icon name={advancedOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />
-              <span className="font-medium text-accent">{t('networkStatus.advancedToggle')}</span>
-              <span className="ml-auto text-xs text-on-surface-variant">{t('networkStatus.advancedHint')}</span>
-            </button>
+            <h2 className="text-xl font-headline font-bold text-accent mb-4">{t('networkStatus.troubleshooting')}</h2>
+            <div className={ROW_GROUP}>
+              <ActionRow
+                icon="description"
+                label={t('diagnostics.title')}
+                desc={t('diagnostics.rowDesc')}
+                onClick={onOpenDiagnostics}
+              />
+              <ActionRow
+                icon="tune"
+                label={t('networkStatus.advanced.title')}
+                desc={t('networkStatus.advancedHint')}
+                onClick={onOpenAdvanced}
+              />
+            </div>
           </section>
-
-          {advancedOpen && <AdvancedDetails status={status} now={now} />}
         </div>
       </div>
 

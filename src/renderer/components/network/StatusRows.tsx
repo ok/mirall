@@ -3,39 +3,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import CopyButton from '../primitives/CopyButton.js'
+import { DASH, maskValue } from '../../format/status-values.js'
 import Icon from '../primitives/Icon.js'
 
-export const DASH = '—'
 // A revealed key re-masks itself: the value is shoulder-surfable and the screen is one a user
 // leaves open while working through a connectivity problem.
 const REVEAL_AUTO_HIDE_MS = 30000
-
-export function formatRelativeTime(ms: number | null, now: number): string {
-  if (ms === null) return DASH
-  const delta = Math.max(0, now - ms)
-  const seconds = Math.floor(delta / 1000)
-  if (seconds < 60) return `${seconds}s ago`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-export function formatNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined) return DASH
-  return value.toLocaleString()
-}
-
-function maskValue(value: string | null, visibleSuffix: number = 0): string {
-  if (!value) return DASH
-  const dots = '••••••••'
-  if (visibleSuffix > 0 && value.length > visibleSuffix) {
-    return `${dots} ${value.slice(-visibleSuffix)}`
-  }
-  return dots
-}
 
 export function Section({ title, intro = null, children }: { title: string; intro?: string | null; children: ReactNode }) {
   return (

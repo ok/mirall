@@ -1,3 +1,5 @@
+// Diagnostics: builds the support bundle and previews what goes in it. Its own screen below
+// Network status, because detailed logging stays on only while this screen is mounted.
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
@@ -6,10 +8,17 @@ import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModa
 import Toggle from '../components/primitives/Toggle.js'
 import Button from '../components/primitives/Button.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import PageHeader from '../components/layout/PageHeader.js'
 
-export default function DiagnosticsCard() {
+interface Props {
+  onBack: () => void
+}
+
+export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [redact, setRedact] = useState(true)
   const [includeLogs, setIncludeLogs] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -76,53 +85,63 @@ export default function DiagnosticsCard() {
   }
 
   return (
-    <section>
-      <h2 className="text-xl font-headline font-bold text-accent mb-4">{t('diagnostics.title')}</h2>
-      <div className="bg-surface-container-low rounded-xl p-6 space-y-5">
-        <p className="text-sm text-on-surface-variant leading-relaxed">{t('diagnostics.intro')}</p>
+    <div
+      ref={ref}
+      className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}
+    >
+      <div className="pt-8 px-8 max-w-2xl mx-auto">
+        <PageHeader
+          title={t('diagnostics.title')}
+          subtitle={t('diagnostics.rowDesc')}
+          onBack={onBack}
+        />
 
-        <div className="rounded-xl bg-surface-container-lowest overflow-hidden divide-y divide-surface-container-high/30">
-          <Toggle
-            label={t('diagnostics.redactLabel')}
-            description={t('diagnostics.redactDescription')}
-            checked={redact}
-            onChange={setRedact}
-          />
-          <Toggle
-            label={t('diagnostics.logsLabel')}
-            description={t('diagnostics.logsDescription')}
-            checked={includeLogs}
-            onChange={handleIncludeLogs}
-          />
+        <div className="bg-surface-container-low rounded-xl p-6 space-y-5">
+          <p className="text-sm text-on-surface-variant leading-relaxed">{t('diagnostics.intro')}</p>
+
+          <div className="rounded-xl bg-surface-container-lowest overflow-hidden divide-y divide-surface-container-high/30">
+            <Toggle
+              label={t('diagnostics.redactLabel')}
+              description={t('diagnostics.redactDescription')}
+              checked={redact}
+              onChange={setRedact}
+            />
+            <Toggle
+              label={t('diagnostics.logsLabel')}
+              description={t('diagnostics.logsDescription')}
+              checked={includeLogs}
+              onChange={handleIncludeLogs}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button icon="download" onClick={() => run('save')} disabled={busy}>
+              {t('diagnostics.save')}
+            </Button>
+            <Button variant="secondary" onClick={() => run('preview')} disabled={busy}>
+              {t('diagnostics.preview')}
+            </Button>
+            {/* In the button row, not under it: the region stays mounted for the announcement while
+                an empty status adds no height, so the card keeps its own padding as its bottom edge. */}
+            <p role="status" aria-live="polite" className="text-xs text-on-surface-variant">
+              {status ?? ''}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button icon="download" onClick={() => run('save')} disabled={busy}>
-            {t('diagnostics.save')}
-          </Button>
-          <Button variant="secondary" onClick={() => run('preview')} disabled={busy}>
-            {t('diagnostics.preview')}
-          </Button>
-          {/* In the button row, not under it: the region stays mounted for the announcement while
-              an empty status adds no height, so the card keeps its own padding as its bottom edge. */}
-          <p role="status" aria-live="polite" className="text-xs text-on-surface-variant">
-            {status ?? ''}
-          </p>
-        </div>
+        <DiagnosticsPreviewModal
+          isOpen={preview !== null}
+          text={preview?.text ?? ''}
+          byteLength={preview?.bytes ?? 0}
+          redacted={preview?.redacted ?? true}
+          onSave={() => {
+            if (preview) saveSerialised(preview.serialised, preview.filename)
+            setPreview(null)
+            setStatus(t('diagnostics.saved'))
+          }}
+          onClose={() => setPreview(null)}
+        />
       </div>
-
-      <DiagnosticsPreviewModal
-        isOpen={preview !== null}
-        text={preview?.text ?? ''}
-        byteLength={preview?.bytes ?? 0}
-        redacted={preview?.redacted ?? true}
-        onSave={() => {
-          if (preview) saveSerialised(preview.serialised, preview.filename)
-          setPreview(null)
-          setStatus(t('diagnostics.saved'))
-        }}
-        onClose={() => setPreview(null)}
-      />
-    </section>
+    </div>
   )
 }

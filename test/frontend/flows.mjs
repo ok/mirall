@@ -54,6 +54,18 @@ export const withFlows = (Base) => class extends Base {
     await this.waitText('Network status', 8000)
   }
 
+  async openNetworkDiagnostics() {
+    await this.openNetworkStatus()
+    await this.click({ role: 'button', name: 'Diagnostics' })
+    await this.waitText('If we ask you for details', 8000)
+  }
+
+  async openNetworkAdvanced() {
+    await this.openNetworkStatus()
+    await this.click({ role: 'button', name: 'Advanced details' })
+    await this.waitText('The raw values behind your connection', 8000)
+  }
+
   async openActivityLog() {
     await this.openAccount()
     await this.click({ role: 'button', name: 'Activity Log' })

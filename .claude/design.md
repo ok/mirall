@@ -665,8 +665,12 @@ themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**
   12 px `bg-online` / `bg-offline` dot overlaid on the avatar's bottom-right corner
   (`border-2 border-surface-container-low` to cut it out of the image), not `Avatar`'s
   status ring.
-- **Account → This device** — every row leads with a `Tile` (`w-10 h-10 rounded-full bg-icon-tile`);
-  the Connection row's tile (`hub`) carries the connectivity state as `StatusDot`,
+- **Navigation rows** (`components/layout/ActionRow.tsx`) — a row that leads to another screen:
+  a `Tile` (`w-10 h-10 rounded-full bg-icon-tile`), label + description, `chevron_right` in
+  `text-secondary`, grouped in `ROW_GROUP`. Used by Account → This device and by
+  Network status → Troubleshooting (Diagnostics, Advanced details). The label is the row's
+  `aria-label`; the tile and chevron are decoration.
+  On Account, the Connection row's tile (`hub`) carries the connectivity state as `StatusDot`,
   the same 12 px bottom-right dot MemberCard uses, so state is a mark on the tile rather than a
   lamp in place of it.
 - Lists rely on spacing + surface tiers, **not dividers** — the one exception is
