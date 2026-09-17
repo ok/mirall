@@ -56,8 +56,6 @@ function MirrorRow({ mirrorer, stateLabel }: { mirrorer: Mirrorer; stateLabel: s
 }
 
 function MirrorStack({ mirrorers, label }: { mirrorers: Mirrorer[]; label: string }) {
-  const stack = mirrorers.slice(0, STACK_MAX)
-  const overflow = mirrorers.length - stack.length
   return (
     <AvatarStack
       size="md"
@@ -65,8 +63,8 @@ function MirrorStack({ mirrorers, label }: { mirrorers: Mirrorer[]; label: strin
       ringless
       announce="group"
       label={label}
-      overflow={overflow}
-      avatars={stack.map((m) => ({
+      max={STACK_MAX}
+      avatars={mirrorers.map((m) => ({
         key: m.key,
         src: m.avatar,
         displayName: m.name,

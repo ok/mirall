@@ -18,7 +18,7 @@ export default function SpaceMembersCard({ spaceId, members }: MembersBoxProps) 
   // are restored per space: a collapsed card can hold an expanded list underneath.
   const [open, setOpen] = useSpaceCardState(spaceId, 'membersOpen')
   const [expanded, setExpanded] = useSpaceCardState(spaceId, 'membersExpanded')
-  const { stack, overflow } = summarizeMembers(members, { stackMax: 8 })
+  const { overflow } = summarizeMembers(members, { stackMax: 8 })
 
   return (
     <CollapsibleCard
@@ -58,8 +58,8 @@ export default function SpaceMembersCard({ spaceId, members }: MembersBoxProps) 
             surface="surface-container-low"
             announce="each"
             label={t('space.membersAndMore', { count: overflow })}
-            overflow={overflow}
-            avatars={stack.map((member) => ({
+            max={8}
+            avatars={members.map((member) => ({
               key: member.publicKey,
               src: member.avatar,
               displayName: member.displayName,

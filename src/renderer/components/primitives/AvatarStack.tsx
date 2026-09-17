@@ -1,4 +1,5 @@
 import Avatar from './Avatar.js'
+import { facepileSlice } from '../../model/member-summary.js'
 
 type StackSurface = 'surface-container-lowest' | 'surface-container-low'
 
@@ -17,11 +18,19 @@ interface StackedAvatar {
 type Announce = 'hidden' | 'group' | 'each'
 
 interface AvatarStackProps {
+  // Every face the caller HAS, uncapped — the strip owns the cap, because it is the strip that
+  // would otherwise draw a +1 chip over a face it was holding all along.
   avatars: StackedAvatar[]
-  overflow: number
+  max: number
+  // The people the strip stands for, when that is more than the faces on hand (a slim roster ships
+  // names without avatars). Defaults to what `avatars` holds.
+  total?: number
   size: 'sm' | 'md' | 'lg' | 'xl'
-  // The surface the strip sits on. The rings are cut from it, so the discs read as separate against
-  // it — one token, not a class name and a CSS variable spelled out apart from each other.
+  // The surface the strip sits on at rest. The rings are cut from it, so the discs read as separate
+  // against it — one token, not a class name and a CSS variable spelled out apart from each other.
+  // A host that repaints itself under the cursor overrides `--avatar-ring` on its hover state; it
+  // defaults to this token. The +N disc takes the hover-proof neutral instead, since it is a fill
+  // rather than a hole and any ramp token it borrowed would vanish under the host that adopts it.
   surface: StackSurface
   announce: Announce
   // Names the strip under `group`, and the +N chip under `each`.
@@ -40,9 +49,10 @@ const CHIP = {
 }
 
 export default function AvatarStack({
-  avatars, overflow, size, surface, announce, label, ringless, className,
+  avatars, max, total, size, surface, announce, label, ringless, className,
 }: AvatarStackProps) {
-  const ringStyle = { boxShadow: `0 0 0 2px var(--color-${surface})` }
+  const { stack, overflow } = facepileSlice(avatars, max, total)
+  const ringStyle = { boxShadow: `0 0 0 2px var(--avatar-ring, var(--color-${surface}))` }
   return (
     <div
       role={announce === 'group' ? 'img' : undefined}
@@ -50,7 +60,7 @@ export default function AvatarStack({
       aria-hidden={announce === 'hidden' || undefined}
       className={`flex items-center -space-x-3${className ? ` ${className}` : ''}`}
     >
-      {avatars.map((a) => (
+      {stack.map((a) => (
         <span key={a.key} title={a.title}>
           <Avatar
             src={a.src}
@@ -67,7 +77,7 @@ export default function AvatarStack({
           role={announce === 'each' ? 'img' : undefined}
           aria-label={announce === 'each' ? label : undefined}
           style={ringStyle}
-          className={`${CHIP[size]} rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-bold`}
+          className={`${CHIP[size]} rounded-full bg-progress-track text-on-surface-variant flex items-center justify-center font-bold transition-shadow avatar-recess`}
         >
           <span aria-hidden="true">+{overflow}</span>
         </div>

@@ -27,12 +27,13 @@
   --color-surface-control-hover: #dcdad6;
   --color-surface-container-highest: #e4e2de;
   --color-surface-container-lowest: #ffffff;
-  /* Neutral groove for progress-bar tracks and the peer-dropdown divider. Deliberately
-     outside the surface-container ramp: a bar sits inside a row that lifts to
-     `surface-container-highest` on hover and inside a toggle that lifts to
-     `surface-container-high`, so any ramp token it borrows goes invisible in one of
-     those states. Pinned by test/invariants/progress-bar-contrast.test.js. */
+  /* Neutral groove for progress-bar tracks, the peer-dropdown divider and every faceless
+     avatar disc. Deliberately outside the surface-container ramp: each of them sits inside a
+     row that lifts to `surface-container-highest` on hover or a toggle that lifts to
+     `surface-container-high`, so any ramp token it borrows goes invisible in one of those
+     states. Pinned by test/invariants/progress-bar-contrast.test.js. */
   --color-progress-track: #d0cec9;
+  --avatar-recess: rgb(0 0 0 / 0.36);
   --color-on-surface: #1b1c1a;
   --color-on-surface-variant: #4a454b;
   --color-on-background: #1b1c1a;
@@ -79,6 +80,7 @@
   --color-surface-container-highest: #393f4a;
   --color-surface-container-lowest: #21252b;
   --color-progress-track: #4a5160;
+  --avatar-recess: rgb(0 0 0 / 0.62);
   --color-on-surface: #fefaf3;
   --color-on-surface-variant: #ebe2d2;
   --color-on-background: #fefaf3;
@@ -179,6 +181,27 @@ button:disabled,
   to {
     background-position: 24px 0;
   }
+}
+
+/* An avatar sits IN the surface rather than on it: the ring is the hole it occupies and this is the
+ * lip of that hole — a hairline of shadow along the top inside edge, nothing more. Drawn as an
+ * ::after overlay because an inset box-shadow on an <img> is painted UNDER the image content and
+ * is never seen; the same overlay serves the initials/silhouette discs and the +N disc, so the
+ * strip is pressed in to one depth. The colour flips per theme (dark surfaces need a deeper
+ * shadow to read at all) as a theme-flipping variable, not a `dark:` variant — see design.md on
+ * specificity. Deliberately not a `--color-*` token: nothing paints WITH it, it is the depth of
+ * one class, and every `--color-*` owes tailwind.config.js a utility by contract. */
+.avatar-recess {
+  position: relative;
+}
+
+.avatar-recess::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  box-shadow: inset 0 1px 2px var(--avatar-recess);
+  pointer-events: none;
 }
 
 @keyframes avatar-issue-pulse {

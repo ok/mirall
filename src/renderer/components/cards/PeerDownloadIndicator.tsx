@@ -51,8 +51,6 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
   const count = downloaders.length
   const pausedCount = downloaders.filter((d) => d.paused).length
   const allPaused = count > 0 && pausedCount === count
-  const stack = downloaders.slice(0, STACK_MAX)
-  const overflow = Math.max(0, count - STACK_MAX)
   const pct = summary.total > 0 ? Math.min(100, Math.round((summary.bytes / summary.total) * 100)) : 0
   const speed = !allPaused && summary.avgSpeed > 0 ? formatSpeed(summary.avgSpeed) : null
   // ETA is suppressed once ANY peer is paused: bytes/total are sums that include the
@@ -66,6 +64,8 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
   const valueText = progressValueText(pct, activeLabel, pausedLabel, speed, eta)
   const tokens = metaTokens(countLabel, speed, eta)
 
+  // The row repaints under the cursor, so its hover state hands the facepile the fill the rings are
+  // cut from — pinned to the resting surface they read as a dark rim the moment the row lifts.
   return (
     <button
       type="button"
@@ -73,7 +73,7 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
       aria-expanded={open}
       aria-controls={open ? controlsId : undefined}
       aria-label={open ? t('file.hideDownloaders') : t('file.showDownloaders')}
-      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus-ring"
+      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high hover:[--avatar-ring:var(--color-surface-container-high)] focus-ring"
     >
       {/* aria-valuetext on the bar carries every token regardless of what the line shows. */}
       <span className="@container/lane flex-grow min-w-0 flex flex-col gap-1.5">
@@ -89,8 +89,9 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
             size="sm"
             surface="surface-container-lowest"
             announce="hidden"
-            overflow={overflow}
-            avatars={stack.map((d) => ({
+            max={STACK_MAX}
+            total={count}
+            avatars={downloaders.map((d) => ({
               key: d.key,
               src: d.member?.avatar,
               displayName: d.member?.displayName,

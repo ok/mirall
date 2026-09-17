@@ -10,9 +10,13 @@ export const CASES = [
       rpcDelayMs: 400,
       delayTypes: ['space:approve-member'],`,
   },
+  // Mounts every avatar the app draws and sweeps for one that is not recessed.
+  { name: "avatars", title: "Mirall avatar recess harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "filecard", title: "Mirall FileCard error-state / toast-width layout harness" },
+  // This one measures painted colour in both themes, and scans the stylesheet for the hover fill.
+  { name: "facepile", title: "Mirall facepile ring harness" },
   { name: "focusring", title: "Mirall focus-ring clearance harness" },
   { name: "indexing", title: "Mirall indexing-labels harness" },
   // This one scans the stylesheet rather than rendering against it.

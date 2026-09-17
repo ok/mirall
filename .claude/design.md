@@ -70,8 +70,8 @@ semantic token"), never ahead of it. The most-used values:
 | `surface-container` | `#efeeea` | |
 | `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles |
 | `surface-control` / `-hover` | `#eae8e4` / `#dcdad6` | **Every filled neutral control** — secondary buttons, ActionMenu triggers, PathRow, filter chips (dark: `#434955` / `#4f5561`) |
-| `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); avatar fallback, "remote" badge |
-| `progress-track` | `#d0cec9` | Progress-bar tracks and the peer-dropdown divider — see the note below |
+| `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); "remote" badge |
+| `progress-track` | `#d0cec9` | Progress-bar tracks, the peer-dropdown divider and every faceless avatar disc (initials, `+N`, the Activity Log actor) — see the note below |
 | `on-surface` | `#1b1c1a` | Primary body text (near-black; **never** `#000`) |
 | `on-surface-variant` | `#4a454b` | Muted/secondary text |
 | `outline` | `#7c757c` | Badge border, dropzone idle border |
@@ -130,8 +130,12 @@ bar's total length vanishes — which is what shipped twice: first as `surface-c
 `progress-track` (`#d0cec9` / `#4a5160`) clears every host surface by at least 1.2:1 while
 keeping the `on-info` fill above 3:1 against the track. The same reasoning applies to the
 `PeerDownloadDropdown` divider, which uses `divide-progress-track` because dark
-`outline-variant` is *also* `#393f4a`. Pinned by `test/invariants/progress-bar-contrast.test.js`;
-never re-point a track at a `surface-container-*` token.
+`outline-variant` is *also* `#393f4a`, and to every faceless avatar disc — the `+N` chip and the
+initials fallback both sat on `surface-container-highest`, the very token `SpaceCard` lifts to, so
+a member with no photo dissolved into the card under the cursor in both themes. A disc carrying a
+photo never showed it, which is why it survived this long. Pinned by
+`test/invariants/progress-bar-contrast.test.js`; never re-point a track at a `surface-container-*`
+token.
 
 Theme is chosen via `theme.ts` (`light` | `dark` | `system`); `theme.ts` only
 **applies** the theme — toggling the `.dark` class and setting
@@ -670,17 +674,55 @@ themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**
 
 ### Avatar — `primitives/Avatar.tsx`
 Sizes `xs 20 / sm 32 / md 36 / lg 48 / xl 80` px, always `rounded-full`.
-Image (`object-cover`), initials fallback on `surface-container-highest`, or a
-silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
+Image (`object-cover`), initials fallback on `progress-track` (the hover-proof neutral — see the
+token note above), or a silhouette SVG on `surface`. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
 states animate `avatar-issue-pulse-error` / `-warning` (2.4s pulse, CSS in
 `tailwind.css`).
 
+**Every avatar is recessed**, on every screen: a face is set INTO the surface rather than laid on
+one, so `.avatar-recess` adds `inset 0 1px 2px var(--avatar-recess)` (`0.36` alpha light,
+`0.62` dark — a deeper shadow is what makes the lip read at all on a dark surface) as an `::after`
+overlay. The depth flips per theme from `:root`/`.dark` like a token, but it is deliberately not a
+`--color-*` one: nothing paints with it, and every `--color-*` owes `tailwind.config.js` a utility
+(`test/invariants/unused-color-tokens.test.js` holds both halves of that contract). It is a property of the disc and not of any ring: a surface ring is the hole the disc sits
+in, a `status` ring is a signal painted around it, `ring='none'` is a host that draws neither, and
+the lip is identical in all three — that sameness is what makes a face read as one object across
+the facepiles, the member rows, the top bar and the pickers.
+
+The overlay is an `::after` because an inset shadow on an `<img>` is painted *under* the image
+content and is never seen; that is also why an image avatar is wrapped in a span, which then carries
+the box, the ring and the caller's `className`. `MemberCard`'s presence dot is positioned against
+that box, so the wrapper is pinned there too. The Activity Log's actor disc (`activity/ActivityFeed.tsx`)
+is an avatar in everything but the primitive — it carries an icon or initials rather than a face —
+so it wears the same fill and the same class by hand. Pinned by
+`npm run test:layout:case -- avatars`, which mounts the primitive in all nine shapes plus the real
+hosts and sweeps the tree for a round, avatar-sized disc that is not recessed.
+
 ### Avatar stack — `primitives/AvatarStack.tsx`
-Overlapping faces (`-space-x-3`) with a `+N` disc for the rest, cut out of whatever surface the
-strip sits on — one token drives both the avatars' rings and the chip's, so they cannot drift apart.
+Overlapping faces (`-space-x-3`) with a `+N` disc for the rest. The ring around each face is a hole
+cut in the surface BEHIND the strip, so it carries that surface's **current** fill: the `surface`
+prop is the resting default and a host that repaints itself under the cursor hands the lifted fill
+over in `--avatar-ring` (`SpaceCard`, `PeerDownloadIndicator`), which is why the prop and the
+variable are one contract rather than two spellings. The ring also carries `transition-shadow`,
+because it rides a host's `transition-colors` fill and `box-shadow` is not in that utility's
+property list — without it the hole snaps to the lifted colour while the surface it is cut from is
+still fading, and reads as a rim for those 150ms. Pinned — colour in both themes and both states,
+the two fades in step, and every disc recessed — by `npm run test:layout:case -- facepile`. The `+N` disc is a fill
+rather than a hole, so it takes the hover-proof `progress-track` neutral instead (see the token
+note above).
 `announce` is the choice each site makes: `hidden` where the control around it already says who is
 there, `group` where the strip is one named thing, `each` where every face reads its own name and
 the chip carries the remainder.
+
+**The strip owns its cap, and a `+1` chip is never drawn.** Call sites pass every face they HAVE
+plus `max` (and `total`, when the people outnumber the avatars on hand), and `facepileSlice` in
+`model/member-summary.js` decides: a lone overflow is absorbed and the strip shows one past its cap,
+so the chip starts at `+2`. A `+1` occupies exactly the disc the face it hides would have — it costs
+a face and buys nothing. The one case it survives is a slim roster that shipped names without
+avatars: a face we do not have cannot be shown, so the remainder is still counted. Putting the rule
+in the strip rather than at each call site is the point — six call sites each sliced their own list
+before this, and a seventh would have sliced it a seventh way. `test/unit/member-summary.test.js`
+holds the rule; the `facepile` layout case holds it in the DOM.
 
 ### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/model/status-badge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and

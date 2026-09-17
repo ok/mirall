@@ -40,8 +40,8 @@ export default function JoinRequestCard({ requests, busyKeys, onApprove, onDeny,
         size="md"
         surface="surface-container-low"
         announce="each"
-        overflow={Math.max(0, requests.length - 3)}
-        avatars={requests.slice(0, 3).map((r) => ({
+        max={3}
+        avatars={requests.map((r) => ({
           key: r.publicKey,
           src: r.avatar,
           displayName: r.displayName,

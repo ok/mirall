@@ -10,9 +10,9 @@ import { runHarness } from './run-harness.mjs'
 const out = await runHarness({ html: 'harness-mirrorers.html', height: 260 })
 
 console.log('\n──────── People tile harness ────────')
-console.log(`heading      : "${out.heading}" · aria-expanded=${out.headerExpanded} (true) · count="${out.headerCount}" (6 = owner + 5 other mirrors)`)
+console.log(`heading      : "${out.heading}" · aria-expanded=${out.headerExpanded} (true) · count="${out.headerCount}" (7 = owner + 6 other mirrors)`)
 console.log(`aria-label   : "${out.ariaLabel}"`)
-console.log(`avatar stack : ${out.avatarCount} (5) · overflow: "${out.overflowText}" (+1)`)
+console.log(`avatar stack : ${out.avatarCount} (5) · overflow: "${out.overflowText}" (+2 — a +1 would be shown as a face)`)
 console.log(`rings        : synced=${out.hasSyncedRing} syncing-pulse=${out.hasSyncingPulse} paused=${out.hasPausedRing} (all true) · opacity used=${out.hasOpacity} (false)`)
 console.log(`body copy    : ${out.hasBodyCopy} (false — the tile states, it does not explain)`)
 console.log(`toggle       : ${out.toggleRightGap?.toFixed(2)}px from the right content edge (0) · ${out.toggleIndent?.toFixed(2)}px right of the eyebrow column (>20)`)

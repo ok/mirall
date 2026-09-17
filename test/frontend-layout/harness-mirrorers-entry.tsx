@@ -1,6 +1,7 @@
 // Real-Chromium harness for the People sidebar tile. Mounts the REAL <FolderPeopleCard> (fed by the
 // fake bridge's space:mirrors) and asserts the stacked facepile renders a capped avatar stack + "+N"
-// overflow chip, encodes each peer's sync state as a ring colour (synced/syncing-pulse/paused —
+// overflow chip (from +2 — a lone overflow is shown as a face instead), encodes each peer's sync
+// state as a ring colour (synced/syncing-pulse/paused —
 // never opacity), shows the heading, and carries an accessible name listing the mirrors and their
 // states — the a11y + colour contract can't be measured without a real AX tree + CSS. It also pins
 // the sidebar rule: a right-hand tile states, it does not explain, so the card carries no
@@ -40,8 +41,10 @@ declare global {
 }
 
 const { SPACE_ID, SHARE_ID, OWNER_PK } = window.__fake
-const KEYS = [OWNER_PK, 'peer-b-key', 'peer-c-key', 'peer-d-key', 'peer-e-key', 'peer-f-key']
-const STATES = ['synced', 'syncing', 'paused', 'synced', 'synced', 'synced'] as const
+// Seven, not six: a strip one past its cap absorbs that face rather than drawing a +1, so six
+// would render six faces and no chip at all — the cap and the chip are only observable from +2.
+const KEYS = [OWNER_PK, 'peer-b-key', 'peer-c-key', 'peer-d-key', 'peer-e-key', 'peer-f-key', 'peer-g-key']
+const STATES = ['synced', 'syncing', 'paused', 'synced', 'synced', 'synced', 'synced'] as const
 window.__HARNESS_CFG = {
   mirrors: KEYS.map((k, i): MirrorParticipant => ({ mirrorer: k, shareId: SHARE_ID, state: STATES[i], mountedAt: 0 })),
 }
@@ -122,10 +125,10 @@ async function run(): Promise<void> {
   window.__results = {
     pass:
       heading === i18n.t('folder.peopleHeading') &&
-      avatarCount === 5 && overflowText === '+1' &&
+      avatarCount === 5 && overflowText === '+2' &&
       hasSyncedRing && hasSyncingPulse && hasPausedRing && !hasOpacity && !hasBodyCopy &&
       Math.abs(toggleRightGap) <= 1 && toggleIndent > 20 &&
-      headerExpanded === 'true' && headerCount === '6',
+      headerExpanded === 'true' && headerCount === '7',
     error: null,
     heading,
     ariaLabel,
