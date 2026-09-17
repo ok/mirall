@@ -14,6 +14,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- sharecard` | `run-sharecard.mjs` | `<ShareCard>` | the whole card is the hit area; actions stay inside it |
 | `test:layout:case -- progress` | `run-progress.mjs` | progress lanes | ARIA valuenow/valuetext follow the lane's mode |
 | `test:layout:case -- peerdownload` | `run-peerdownload.mjs` | `<PeerDownloadIndicator>` + `<PeerDownloadRow>` at lane width | meta un-clipped; bar right-aligned; name yields before `speed · ETA`; % fallback during warmup |
+| `test:layout:case -- facepile` | `run-facepile.mjs` | `<SpaceCard>`'s `<AvatarStack>`, light + dark | every ring carries the fill of the card behind it — fading in step with it — at rest and on hover; every disc stays visible |
 | `test:layout:case -- filecard` | `run-filecard.mjs` | three `<FileCard>`s + `<ToastContainer>` | a failed row keeps the resting height; toasts grow to the 720px cap |
 | `test:layout:case -- modaltitle` | `run-modaltitle.mjs` | confirm modals with long names | the title never overflows the panel |
 | `test:layout:case -- logohover` | `run-logohover.mjs` | `<TopNav>` | the logo never greys out on hover |

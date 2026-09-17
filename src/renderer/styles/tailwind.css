@@ -27,11 +27,11 @@
   --color-surface-control-hover: #dcdad6;
   --color-surface-container-highest: #e4e2de;
   --color-surface-container-lowest: #ffffff;
-  /* Neutral groove for progress-bar tracks and the peer-dropdown divider. Deliberately
-     outside the surface-container ramp: a bar sits inside a row that lifts to
-     `surface-container-highest` on hover and inside a toggle that lifts to
-     `surface-container-high`, so any ramp token it borrows goes invisible in one of
-     those states. Pinned by test/invariants/progress-bar-contrast.test.js. */
+  /* Neutral groove for progress-bar tracks, the peer-dropdown divider and every faceless
+     avatar disc. Deliberately outside the surface-container ramp: each of them sits inside a
+     row that lifts to `surface-container-highest` on hover or a toggle that lifts to
+     `surface-container-high`, so any ramp token it borrows goes invisible in one of those
+     states. Pinned by test/invariants/progress-bar-contrast.test.js. */
   --color-progress-track: #d0cec9;
   --color-on-surface: #1b1c1a;
   --color-on-surface-variant: #4a454b;

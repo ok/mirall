@@ -70,8 +70,8 @@ semantic token"), never ahead of it. The most-used values:
 | `surface-container` | `#efeeea` | |
 | `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles |
 | `surface-control` / `-hover` | `#eae8e4` / `#dcdad6` | **Every filled neutral control** — secondary buttons, ActionMenu triggers, PathRow, filter chips (dark: `#434955` / `#4f5561`) |
-| `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); avatar fallback, "remote" badge |
-| `progress-track` | `#d0cec9` | Progress-bar tracks and the peer-dropdown divider — see the note below |
+| `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); "remote" badge |
+| `progress-track` | `#d0cec9` | Progress-bar tracks, the peer-dropdown divider and every faceless avatar disc (initials, `+N`) — see the note below |
 | `on-surface` | `#1b1c1a` | Primary body text (near-black; **never** `#000`) |
 | `on-surface-variant` | `#4a454b` | Muted/secondary text |
 | `outline` | `#7c757c` | Badge border, dropzone idle border |
@@ -130,8 +130,12 @@ bar's total length vanishes — which is what shipped twice: first as `surface-c
 `progress-track` (`#d0cec9` / `#4a5160`) clears every host surface by at least 1.2:1 while
 keeping the `on-info` fill above 3:1 against the track. The same reasoning applies to the
 `PeerDownloadDropdown` divider, which uses `divide-progress-track` because dark
-`outline-variant` is *also* `#393f4a`. Pinned by `test/invariants/progress-bar-contrast.test.js`;
-never re-point a track at a `surface-container-*` token.
+`outline-variant` is *also* `#393f4a`, and to every faceless avatar disc — the `+N` chip and the
+initials fallback both sat on `surface-container-highest`, the very token `SpaceCard` lifts to, so
+a member with no photo dissolved into the card under the cursor in both themes. A disc carrying a
+photo never showed it, which is why it survived this long. Pinned by
+`test/invariants/progress-bar-contrast.test.js`; never re-point a track at a `surface-container-*`
+token.
 
 Theme is chosen via `theme.ts` (`light` | `dark` | `system`); `theme.ts` only
 **applies** the theme — toggling the `.dark` class and setting
@@ -670,14 +674,23 @@ themes (the two-tier rule in §2), `transition-colors`, **no border, no shadow**
 
 ### Avatar — `primitives/Avatar.tsx`
 Sizes `xs 20 / sm 32 / md 36 / lg 48 / xl 80` px, always `rounded-full`.
-Image (`object-cover`), initials fallback on `surface-container-highest`, or a
-silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
+Image (`object-cover`), initials fallback on `progress-track` (the hover-proof neutral — see the
+token note above), or a silhouette SVG. Status ring via `box-shadow: 0 0 0 2px …`; offline/connecting
 states animate `avatar-issue-pulse-error` / `-warning` (2.4s pulse, CSS in
 `tailwind.css`).
 
 ### Avatar stack — `primitives/AvatarStack.tsx`
-Overlapping faces (`-space-x-3`) with a `+N` disc for the rest, cut out of whatever surface the
-strip sits on — one token drives both the avatars' rings and the chip's, so they cannot drift apart.
+Overlapping faces (`-space-x-3`) with a `+N` disc for the rest. The ring around each face is a hole
+cut in the surface BEHIND the strip, so it carries that surface's **current** fill: the `surface`
+prop is the resting default and a host that repaints itself under the cursor hands the lifted fill
+over in `--avatar-ring` (`SpaceCard`, `PeerDownloadIndicator`), which is why the prop and the
+variable are one contract rather than two spellings. The ring also carries `transition-shadow`,
+because it rides a host's `transition-colors` fill and `box-shadow` is not in that utility's
+property list — without it the hole snaps to the lifted colour while the surface it is cut from is
+still fading, and reads as a rim for those 150ms. Pinned — colour in both themes and both states,
+and the two fades in step — by `npm run test:layout:case -- facepile`. The `+N` disc is a fill
+rather than a hole, so it takes the hover-proof `progress-track` neutral instead (see the token
+note above).
 `announce` is the choice each site makes: `hidden` where the control around it already says who is
 there, `group` where the strip is one named thing, `each` where every face reads its own name and
 the chip carries the remainder.

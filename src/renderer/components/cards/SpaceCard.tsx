@@ -21,6 +21,9 @@ export default function SpaceCard({ space, onClick }: SpaceCardProps) {
     (roster.length ? roster : space.members ?? []).slice(0, 3)
   const memberCount = space.memberCount ?? (space.members?.length || 0)
 
+  // The facepile's rings are cut from THIS card, so the hover state hands them the lifted fill
+  // alongside its own: pinned to the resting surface they read as a dark rim around every face the
+  // moment the card lifts, in both themes.
   return (
     <div
       role="button"
@@ -30,7 +33,7 @@ export default function SpaceCard({ space, onClick }: SpaceCardProps) {
       aria-label={space.status === 'pending'
         ? t('spaceCard.openSpacePending', { name: space.name })
         : t('spaceCard.openSpace', { name: space.name })}
-      className="bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring"
+      className="bg-surface-container-lowest hover:bg-surface-container-highest hover:[--avatar-ring:var(--color-surface-container-highest)] p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring"
     >
       <div className={`w-16 h-16 rounded-xl ${gradient} flex items-center justify-center shrink-0`}>
         <Icon name={(space.icon as IconName) || 'hub'} size={32} className="text-on-primary" />

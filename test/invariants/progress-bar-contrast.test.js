@@ -120,6 +120,17 @@ test('REGRESSION (FIX-6): every bar paints its track with the dedicated token', 
   }
 })
 
+// The +N disc and the initials disc are fills on a card that lifts to `surface-container-highest`,
+// so they are the same shape as the track: any ramp token they borrow is one the host can adopt
+// under them. FIX-6's clearance table above covers the token; this pins the discs to it.
+test('REGRESSION (FIX-RIM): every faceless avatar disc is painted in the hover-proof neutral', (t) => {
+  for (const f of ['src/renderer/components/primitives/AvatarStack.tsx', 'src/renderer/components/primitives/Avatar.tsx']) {
+    const src = read(f)
+    t.ok(src.includes('bg-progress-track'), `${f}: the disc uses the hover-proof neutral`)
+    t.absent(/bg-surface-container-\w+/.test(src), `${f}: no ramp surface left on a disc`)
+  }
+})
+
 test('REGRESSION (FIX-7): peer-dropdown divider survives the card hover lift', (t) => {
   const src = read('src/renderer/components/cards/PeerDownloadDropdown.tsx')
   t.absent(src.includes('divide-outline-variant'), 'divider is not outline-variant (== the dark hover lift)')

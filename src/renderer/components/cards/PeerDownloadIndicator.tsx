@@ -66,6 +66,8 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
   const valueText = progressValueText(pct, activeLabel, pausedLabel, speed, eta)
   const tokens = metaTokens(countLabel, speed, eta)
 
+  // The row repaints under the cursor, so its hover state hands the facepile the fill the rings are
+  // cut from — pinned to the resting surface they read as a dark rim the moment the row lifts.
   return (
     <button
       type="button"
@@ -73,7 +75,7 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
       aria-expanded={open}
       aria-controls={open ? controlsId : undefined}
       aria-label={open ? t('file.hideDownloaders') : t('file.showDownloaders')}
-      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high focus-ring"
+      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high hover:[--avatar-ring:var(--color-surface-container-high)] focus-ring"
     >
       {/* aria-valuetext on the bar carries every token regardless of what the line shows. */}
       <span className="@container/lane flex-grow min-w-0 flex flex-col gap-1.5">

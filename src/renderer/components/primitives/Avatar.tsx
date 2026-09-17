@@ -1,5 +1,9 @@
 // Peer/space avatar: an image when there is one, initials otherwise.
 //
+// The initials disc is a fill on whatever hosts it, and its hosts lift on hover, so it takes the
+// hover-proof neutral rather than a ramp token one of them can adopt out from under it — the same
+// reason the +N disc does (see the token note in design.md).
+//
 // `decorative` means a label sits next to it, so the avatar leaves the accessibility tree rather
 // than reading the name twice. `ring='status'` requires a statusVariant — the ring IS the status,
 // and without one it renders the neutral ring and says nothing.
@@ -50,7 +54,13 @@ function ringFor(ring: AvatarRing, statusVariant: AvatarStatus): { className: st
     if (statusVariant === 'connecting') return { className: 'avatar-issue-pulse-warning', style: {} }
     return { className: '', style: { boxShadow: '0 0 0 2px var(--color-surface-container-highest)' } }
   }
-  return { className: '', style: { boxShadow: `0 0 0 2px var(--color-${ring})` } }
+  // The ring is a hole cut in the surface BEHIND the avatar, so it has to be that surface's
+  // current fill. A host whose fill changes — a card that lifts on hover — hands the new one
+  // over in `--avatar-ring`; the prop is the resting default for every host that does not.
+  // `transition-shadow` because the ring rides a host's `transition-colors` fill and box-shadow is
+  // not in that utility's property list: without it the hole snaps to the lifted colour while the
+  // surface it is cut from is still fading, and for those 150ms the ring is a visible rim.
+  return { className: 'transition-shadow', style: { boxShadow: `0 0 0 2px var(--avatar-ring, var(--color-${ring}))` } }
 }
 
 function AvatarSilhouette() {
@@ -111,7 +121,7 @@ export default function Avatar({
       aria-label={decorative ? undefined : label}
       aria-hidden={decorative || undefined}
       style={{ width: px, height: px, fontSize: fontSizeFor(px), ...ringStyle }}
-      className={`rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-bold${ringClass}${extra}`}
+      className={`rounded-full bg-progress-track text-on-surface-variant flex items-center justify-center font-bold${ringClass}${extra}`}
     >
       <span aria-hidden="true">{displayName ? getInitials(displayName) : '?'}</span>
     </div>
