@@ -774,16 +774,11 @@
       "replaceTitle": "Remplacer ce relais",
       "decodedKey": "Clé de relais {{key}}",
       "kindFor": "Type de relais : {{kind}}",
-      "privacyNote": "Une invitation vous donne un nom durable sur ce relais. La personne qui l'héberge voit quand vous êtes en ligne et avec qui vous vous connectez — jamais ce que vous envoyez. Aveugle à vos fichiers n'est pas aveugle à vos contacts.",
-      "restartWarning": "Cette invitation prendra effet à la reconnexion de Mirall.",
+      "privacyNote": "La personne qui héberge ce relais voit quand vous êtes en ligne et avec qui vous vous connectez — jamais ce que vous envoyez.",
       "restartWarningRemove": "Le retrait prendra effet à la reconnexion de Mirall.",
       "kind": {
         "open": "Relais ouvert",
         "private": "Relais privé"
-      },
-      "kindNote": {
-        "open": "N'importe qui avec la clé peut l'utiliser.",
-        "private": "Vous y avez été invité."
       },
       "error": {
         "format": "Ce n'est ni une clé de relais ni une invitation.",

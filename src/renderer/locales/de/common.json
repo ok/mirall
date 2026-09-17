@@ -774,16 +774,11 @@
       "replaceTitle": "Dieses Relay ersetzen",
       "decodedKey": "Relay-Schlüssel {{key}}",
       "kindFor": "Relay-Typ: {{kind}}",
-      "privacyNote": "Mit einer Einladung hast du auf diesem Relay einen dauerhaften Namen. Wer es betreibt, sieht, wann du online bist und mit wem du dich verbindest — nie, was du sendest. Blind für deine Dateien heißt nicht blind für deine Kontakte.",
-      "restartWarning": "Diese Einladung wird wirksam, sobald Mirall sich neu verbindet.",
+      "privacyNote": "Wer dieses Relay betreibt, sieht, wann du online bist und mit wem du dich verbindest — nie, was du sendest.",
       "restartWarningRemove": "Das Entfernen wird wirksam, sobald Mirall sich neu verbindet.",
       "kind": {
         "open": "Offenes Relay",
         "private": "Privates Relay"
-      },
-      "kindNote": {
-        "open": "Jeder mit dem Schlüssel kann es nutzen.",
-        "private": "Du wurdest dazu eingeladen."
       },
       "error": {
         "format": "Das ist weder ein Relay-Schlüssel noch eine Einladung.",

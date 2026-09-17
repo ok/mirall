@@ -19,7 +19,6 @@ module.exports = {
         'secondary-container': 'var(--color-secondary-container)',
         'on-secondary': 'var(--color-on-secondary)',
         'on-secondary-container': 'var(--color-on-secondary-container)',
-        'tertiary-fixed': 'var(--color-tertiary-fixed)',
         'surface': 'var(--color-surface)',
         'surface-container': 'var(--color-surface-container)',
         'surface-container-low': 'var(--color-surface-container-low)',

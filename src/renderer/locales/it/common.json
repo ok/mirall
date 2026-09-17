@@ -774,16 +774,11 @@
       "replaceTitle": "Sostituisci questo relay",
       "decodedKey": "Chiave del relay {{key}}",
       "kindFor": "Tipo di relay: {{kind}}",
-      "privacyNote": "Un invito ti dà un nome duraturo su questo relay. Chi lo gestisce può vedere quando sei online e con chi ti connetti, mai cosa invii. Cieco ai tuoi file non vuol dire cieco ai tuoi contatti.",
-      "restartWarning": "Questo invito avrà effetto quando Mirall si riconnette.",
+      "privacyNote": "Chi gestisce questo relay può vedere quando sei online e con chi ti connetti, mai cosa invii.",
       "restartWarningRemove": "La rimozione avrà effetto quando Mirall si riconnette.",
       "kind": {
         "open": "Relay aperto",
         "private": "Relay privato"
-      },
-      "kindNote": {
-        "open": "Chiunque abbia la chiave può usarlo.",
-        "private": "Sei stato invitato a questo."
       },
       "error": {
         "format": "Questa non è né una chiave del relay né un invito.",

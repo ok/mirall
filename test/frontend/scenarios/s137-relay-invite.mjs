@@ -36,9 +36,12 @@ export default async function s137({ runDir, bootstrap }) {
       await Relays.click({ name: 'Continue' })
       await Relays.waitText('Private relay', 8000)
       await Relays.waitText('usdgj55y', 8000)
+      // The one fact that can change the answer is stated BEFORE the commit, not discovered after it.
       await Relays.waitText('who you connect to', 8000)
-      // The consequence is stated BEFORE the commit, not discovered after it.
-      await Relays.waitText('takes effect after Mirall reconnects', 8000)
+      // ...and the reconnect caveat is NOT: the actionable copy of it renders behind this modal the
+      // moment it closes, with the button that applies it (the step two below). A second, verb-less
+      // warning here said the same thing in a tone that reads as a problem.
+      if (await Relays.hasText('takes effect after Mirall reconnects')) throw new Error('the reconnect warning is duplicated in the modal')
       await Relays.shot('s137-confirm', runDir)
     })
 

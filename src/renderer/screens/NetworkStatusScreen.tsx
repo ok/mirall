@@ -191,7 +191,7 @@ function SuggestionsList({ lines }: { lines: string[] }) {
       <ul className="bg-surface-container-low rounded-xl p-6 space-y-3 text-sm text-on-surface">
         {lines.map((line) => (
           <li key={line} className="flex items-start gap-3">
-            <Icon name="tips_and_updates" className="text-tertiary-fixed shrink-0" />
+            <Icon name="tips_and_updates" className="text-secondary shrink-0" />
             <span>{line}</span>
           </li>
         ))}
