@@ -714,6 +714,16 @@ note above).
 there, `group` where the strip is one named thing, `each` where every face reads its own name and
 the chip carries the remainder.
 
+**The strip owns its cap, and a `+1` chip is never drawn.** Call sites pass every face they HAVE
+plus `max` (and `total`, when the people outnumber the avatars on hand), and `facepileSlice` in
+`model/member-summary.js` decides: a lone overflow is absorbed and the strip shows one past its cap,
+so the chip starts at `+2`. A `+1` occupies exactly the disc the face it hides would have — it costs
+a face and buys nothing. The one case it survives is a slim roster that shipped names without
+avatars: a face we do not have cannot be shown, so the remainder is still counted. Putting the rule
+in the strip rather than at each call site is the point — six call sites each sliced their own list
+before this, and a seventh would have sliced it a seventh way. `test/unit/member-summary.test.js`
+holds the rule; the `facepile` layout case holds it in the DOM.
+
 ### Badges & status pills — `primitives/Badge.tsx`, `src/renderer/model/status-badge.js`
 Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and
 **always `border border-outline`** (a deliberate border). A file row's pill also carries

@@ -1,4 +1,5 @@
 import Avatar from './Avatar.js'
+import { facepileSlice } from '../../model/member-summary.js'
 
 type StackSurface = 'surface-container-lowest' | 'surface-container-low'
 
@@ -17,8 +18,13 @@ interface StackedAvatar {
 type Announce = 'hidden' | 'group' | 'each'
 
 interface AvatarStackProps {
+  // Every face the caller HAS, uncapped — the strip owns the cap, because it is the strip that
+  // would otherwise draw a +1 chip over a face it was holding all along.
   avatars: StackedAvatar[]
-  overflow: number
+  max: number
+  // The people the strip stands for, when that is more than the faces on hand (a slim roster ships
+  // names without avatars). Defaults to what `avatars` holds.
+  total?: number
   size: 'sm' | 'md' | 'lg' | 'xl'
   // The surface the strip sits on at rest. The rings are cut from it, so the discs read as separate
   // against it — one token, not a class name and a CSS variable spelled out apart from each other.
@@ -43,8 +49,9 @@ const CHIP = {
 }
 
 export default function AvatarStack({
-  avatars, overflow, size, surface, announce, label, ringless, className,
+  avatars, max, total, size, surface, announce, label, ringless, className,
 }: AvatarStackProps) {
+  const { stack, overflow } = facepileSlice(avatars, max, total)
   const ringStyle = { boxShadow: `0 0 0 2px var(--avatar-ring, var(--color-${surface}))` }
   return (
     <div
@@ -53,7 +60,7 @@ export default function AvatarStack({
       aria-hidden={announce === 'hidden' || undefined}
       className={`flex items-center -space-x-3${className ? ` ${className}` : ''}`}
     >
-      {avatars.map((a) => (
+      {stack.map((a) => (
         <span key={a.key} title={a.title}>
           <Avatar
             src={a.src}

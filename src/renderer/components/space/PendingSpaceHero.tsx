@@ -23,7 +23,7 @@ export default function PendingSpaceHero({ spaceName, inviters }: PendingSpaceHe
           size="xl"
           surface="surface-container-lowest"
           announce="each"
-          overflow={0}
+          max={3}
           avatars={inviters.slice(0, 3).map((m) => ({
             key: m.publicKey,
             src: m.avatar,

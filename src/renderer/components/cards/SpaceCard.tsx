@@ -17,8 +17,7 @@ export default function SpaceCard({ space, onClick }: SpaceCardProps) {
   // spaces:list rosters are slim (no avatars); the facepile reads the cached full roster and
   // falls back to the slim entries (initials) until it lands.
   const roster = useSpaceMembers(space.spaceId)
-  const facepile: { displayName: string; avatar?: string | null }[] =
-    (roster.length ? roster : space.members ?? []).slice(0, 3)
+  const facepile: { displayName: string; avatar?: string | null }[] = roster.length ? roster : space.members ?? []
   const memberCount = space.memberCount ?? (space.members?.length || 0)
 
   // The facepile's rings are cut from THIS card, so the hover state hands them the lifted fill
@@ -62,7 +61,8 @@ export default function SpaceCard({ space, onClick }: SpaceCardProps) {
           size="lg"
           surface="surface-container-lowest"
           announce="each"
-          overflow={Math.max(0, memberCount - 3)}
+          max={3}
+          total={memberCount}
           avatars={facepile.map((m, i) => ({
             key: String(i),
             src: m.avatar ?? null,

@@ -30,8 +30,13 @@ if (tm) {
   console.log(`ring fade    : ${tm.ringProperty} ${tm.ringDuration} ${tm.ringTiming}`
     + ` (${tm.inStep ? 'in step with the card' : (tm.ringDuration === '0s' ? 'SNAPS — box-shadow not transitioned' : 'OUT OF STEP')})`)
 }
+const ab = out.absorb
+if (ab) {
+  console.log(`4 over cap 3 : ${ab.fourFaces} faces, chip ${ab.fourChip ?? 'none'} (want 4 faces, no chip — a +1 is never drawn)`)
+  console.log(`5 over cap 3 : ${ab.fiveFaces} faces, chip ${ab.fiveChip ?? 'none'} (want 3 faces, +2 — the chip earns its disc)`)
+}
 if (out.error) console.log(`error        : ${out.error}`)
 
 const pass = out.pass === true
-console.log(`\n${pass ? 'ok  ' : 'FAIL'} every ring carries the card's own fill — in step with it — every disc is recessed, and the +N disc stays visible, at rest and under the cursor, in both themes`)
+console.log(`\n${pass ? 'ok  ' : 'FAIL'} every ring carries the card's own fill — in step with it — every disc is recessed, the chip starts at +2, and it stays visible, at rest and under the cursor, in both themes`)
 process.exit(pass ? 0 : 1)

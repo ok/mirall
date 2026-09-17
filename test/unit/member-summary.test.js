@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { summarizeMembers } from '../../src/renderer/model/member-summary.js'
+import { facepileSlice, summarizeMembers } from '../../src/renderer/model/member-summary.js'
 
 const m = (k) => ({ publicKey: k, displayName: k })
 
@@ -28,4 +28,41 @@ test('summarizeMembers: defaults stackMax to 8', (t) => {
 test('summarizeMembers: guards non-array input', (t) => {
   const s = summarizeMembers(undefined)
   t.is(s.total, 0); t.alike(s.stack, []); t.is(s.overflow, 0)
+})
+
+// REGRESSION (FIX-PLUSONE: a +1 chip hides a face behind a disc of exactly its own size).
+test('facepileSlice: a lone overflow is absorbed — the chip starts at +2', (t) => {
+  const four = Array.from({ length: 4 }, (_, i) => m('m' + i))
+  const s = facepileSlice(four, 3)
+  t.is(s.stack.length, 4, 'the fourth face is shown rather than counted')
+  t.is(s.overflow, 0, 'so there is no chip at all')
+})
+
+test('facepileSlice: two over the cap still counts, from +2', (t) => {
+  const five = Array.from({ length: 5 }, (_, i) => m('m' + i))
+  const s = facepileSlice(five, 3)
+  t.is(s.stack.length, 3, 'the cap holds once the chip earns its disc')
+  t.is(s.overflow, 2)
+})
+
+test('facepileSlice: exactly the cap needs no chip', (t) => {
+  const s = facepileSlice([m('a'), m('b'), m('c')], 3)
+  t.is(s.stack.length, 3); t.is(s.overflow, 0)
+})
+
+// The one case where +1 is the honest answer: the face is not ours to show.
+test('facepileSlice: a face we do not have cannot be absorbed', (t) => {
+  const s = facepileSlice([m('a'), m('b'), m('c')], 3, 4)
+  t.is(s.stack.length, 3, 'a slim roster ships three names and no fourth avatar')
+  t.is(s.overflow, 1, 'so the remainder is still counted')
+})
+
+test('facepileSlice: total below what is on hand wins', (t) => {
+  const s = facepileSlice([m('a'), m('b'), m('c')], 3, 2)
+  t.is(s.stack.length, 2); t.is(s.overflow, 0)
+})
+
+test('facepileSlice: guards non-array input and a negative total', (t) => {
+  t.alike(facepileSlice(undefined, 3), { stack: [], overflow: 0 })
+  t.alike(facepileSlice([m('a')], 3, -5), { stack: [], overflow: 0 })
 })

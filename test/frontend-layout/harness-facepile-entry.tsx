@@ -10,11 +10,15 @@
 // colour to the fill behind it — at rest from the computed style, under the cursor by resolving
 // the card's own :hover declarations. Colour, not class names: a future card that lifts to a
 // different tier has to hand the strip that tier or this fails.
-
+//
+// It also holds the strip's two other rules, which are the same kind of claim about what a disc is
+// worth: every disc is recessed, and a +1 chip is never drawn — a lone overflow is absorbed,
+// because the chip would take exactly the disc of the face it hides (FIX-PLUSONE).
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import SpaceCard from './../../src/renderer/components/cards/SpaceCard.js'
+import AvatarStack from './../../src/renderer/components/primitives/AvatarStack.js'
 import type { Space } from '../../src/renderer/types/types.js'
 
 interface StateMetrics {
@@ -51,6 +55,15 @@ interface ThemeMetrics {
   recessed: boolean
 }
 
+// A +1 chip costs exactly the disc of the face it hides, so the strip absorbs a lone overflow.
+interface AbsorbMetrics {
+  fourFaces: number
+  fourChip: string | null
+  fiveFaces: number
+  fiveChip: string | null
+  absorbs: boolean
+}
+
 interface HarnessResults {
   pass: boolean
   error: string | null
@@ -58,6 +71,7 @@ interface HarnessResults {
   hoverRulesSeen: number
   avatarCount: number
   timing: TimingMetrics | null
+  absorb: AbsorbMetrics | null
   themes: ThemeMetrics[]
 }
 
@@ -82,16 +96,25 @@ const SPACE: Space = {
   members: [1, 2, 3, 4].map((i) => ({ publicKey: pk(i), driveKey: pk(i), displayName: `Member ${i}` })),
 }
 
+const faces = (n: number) => Array.from({ length: n }, (_, i) => ({ key: String(i), displayName: `Member ${i}` }))
+
 createRoot(document.getElementById('root') as HTMLElement).render(
-  <div className="p-6 bg-background">
+  <div className="p-6 bg-background space-y-6">
     <SpaceCard space={SPACE} onClick={() => {}} />
+    {/* One past a cap of three is shown rather than counted; two past it earns the chip. */}
+    <div data-probe="absorb-four" className="bg-surface-container-lowest p-5 rounded-2xl">
+      <AvatarStack size="lg" surface="surface-container-lowest" announce="hidden" max={3} avatars={faces(4)} />
+    </div>
+    <div data-probe="absorb-five" className="bg-surface-container-lowest p-5 rounded-2xl">
+      <AvatarStack size="lg" surface="surface-container-lowest" announce="hidden" max={3} avatars={faces(5)} />
+    </div>
   </div>,
 )
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 function publish(results: Partial<HarnessResults>): void {
-  window.__results = { pass: false, error: null, sheetsRead: 0, hoverRulesSeen: 0, avatarCount: 0, timing: null, themes: [], ...results }
+  window.__results = { pass: false, error: null, sheetsRead: 0, hoverRulesSeen: 0, avatarCount: 0, timing: null, absorb: null, themes: [], ...results }
 }
 
 // getComputedStyle prints a box-shadow as "<color> <offsets>" — the colour is the head of it.
@@ -213,6 +236,23 @@ async function run(): Promise<void> {
   if (hoverRulesSeen === 0) return publish({ error: 'the stylesheet contains no :hover rules at all — wrong sheet loaded?' })
   if (!found['background-color']) return publish({ error: 'the card sets no hover fill — this harness has nothing to compare against' })
 
+  // The strip owns the cap, so the rule is asked of the component rather than of a call site.
+  const shapeOf = (probe: string) => {
+    const strip = document.querySelector(`[data-probe="${probe}"] [class*="-space-x-3"]`)
+    const kids = strip ? Array.from(strip.children) : []
+    const chipEl = kids.find((el) => el.tagName === 'DIV')
+    return { faces: kids.filter((el) => el.tagName === 'SPAN').length, chip: chipEl?.textContent ?? null }
+  }
+  const four = shapeOf('absorb-four')
+  const five = shapeOf('absorb-five')
+  const absorb: AbsorbMetrics = {
+    fourFaces: four.faces,
+    fourChip: four.chip,
+    fiveFaces: five.faces,
+    fiveChip: five.chip,
+    absorbs: four.faces === 4 && four.chip === null && five.faces === 3 && five.chip === '+2',
+  }
+
   const timing = timingOf(card, avatars[0] as Element)
   if (!getComputedStyle(card).transitionProperty.includes('background-color')) {
     return publish({ error: 'the card does not transition its fill — this harness has no timing to match against' })
@@ -253,12 +293,13 @@ async function run(): Promise<void> {
   document.documentElement.classList.remove('dark')
 
   publish({
-    pass: timing.inStep && themes.every((t) => t.recessed
+    pass: timing.inStep && absorb.absorbs && themes.every((t) => t.recessed
       && [t.rest, t.hover].every((s) => s.ringMatchesCard && s.chipReadsAgainstCard && s.faceReadsAgainstCard)),
     sheetsRead,
     hoverRulesSeen,
     avatarCount: avatars.length,
     timing,
+    absorb,
     themes,
   })
 }
