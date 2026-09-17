@@ -746,7 +746,7 @@
     },
     "relays": {
       "heading": "Relè",
-      "desc": "Un relè aiuta due dispositivi a collegarsi quando la rete blocca un collegamento diretto — per esempio uno spazio che non si sincronizza mai sul Wi-Fi dell'ufficio. I relè inoltrano solo dati cifrati e non possono leggere i tuoi file.",
+      "desc": "Un relè aiuta due dispositivi a collegarsi quando la rete blocca un collegamento diretto — per esempio uno spazio che non si sincronizza mai sul Wi-Fi dell'ufficio. Un relè inoltra solo dati cifrati e non può leggere i tuoi file.",
       "docsLink": "Come ospitare il tuo relè",
       "empty": "Nessun relay configurato. Un relay lo gestisci tu o qualcuno che conosci: di solito si entra con un invito di chi lo gestisce.",
       "unnamed": "Relè senza nome",
@@ -1117,7 +1117,6 @@
     "retentionDesc": "Gli eventi più vecchi vengono eliminati automaticamente.",
     "retentionDays_one": "{{count}} giorno",
     "retentionDays_other": "{{count}} giorni",
-    "survivesLeave": "Gli eventi restano anche per gli spazi che hai lasciato, fino alla scadenza.",
     "export": "Esporta",
     "exportTitle": "Esporta come JSON",
     "exportDesc": "Salva tutti gli eventi registrati in un file. Include quando questo dispositivo era offline.",
