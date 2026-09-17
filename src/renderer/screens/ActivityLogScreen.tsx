@@ -77,7 +77,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
           <section>
             <div className={ROW_GROUP}>
               <ActionRow
-                icon="tune"
+                icon="settings"
                 label={t('activityLog.logSettings')}
                 desc={t('activityLog.logSettingsDesc')}
                 onClick={onOpenSettings}

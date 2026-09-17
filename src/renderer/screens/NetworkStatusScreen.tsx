@@ -201,7 +201,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
           onBack={onBack}
         />
 
-        <div className="space-y-8">
+        <div className="space-y-10">
           <VerdictBanner
             reachability={reachability}
             status={status}

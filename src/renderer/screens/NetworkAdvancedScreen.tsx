@@ -81,7 +81,7 @@ export default function NetworkAdvancedScreen({ onBack }: Props) {
           onBack={onBack}
         />
 
-        <div className="space-y-8">
+        <div className="space-y-10">
           {sections.length > 0 && (
             <div className="flex items-center justify-end gap-2">
               <p role="status" aria-live="polite" className="text-xs text-on-surface-variant">
