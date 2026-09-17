@@ -823,8 +823,7 @@
     "troubleshooting": "Fehlersuche",
     "advanced": {
       "title": "Erweiterte Details",
-      "intro": "Die Rohwerte hinter deiner Verbindung.",
-      "copyAll": "Alles kopieren"
+      "intro": "Die Rohwerte hinter deiner Verbindung."
     },
     "advancedHint": "Adresse, NAT, DHT, Zähler",
     "reveal": "Anzeigen",

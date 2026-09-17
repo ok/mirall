@@ -823,8 +823,7 @@
     "troubleshooting": "Resolución de problemas",
     "advanced": {
       "title": "Detalles avanzados",
-      "intro": "Los valores en bruto de tu conexión.",
-      "copyAll": "Copiar todo"
+      "intro": "Los valores en bruto de tu conexión."
     },
     "advancedHint": "Dirección, NAT, DHT, contadores",
     "reveal": "Mostrar",

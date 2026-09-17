@@ -823,8 +823,7 @@
     "troubleshooting": "Risoluzione dei problemi",
     "advanced": {
       "title": "Dettagli avanzati",
-      "intro": "I valori grezzi della tua connessione.",
-      "copyAll": "Copia tutto"
+      "intro": "I valori grezzi della tua connessione."
     },
     "advancedHint": "Indirizzo, NAT, DHT, contatori",
     "reveal": "Mostra",

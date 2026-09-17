@@ -823,8 +823,7 @@
     "troubleshooting": "Dépannage",
     "advanced": {
       "title": "Détails avancés",
-      "intro": "Les valeurs brutes de votre connexion.",
-      "copyAll": "Tout copier"
+      "intro": "Les valeurs brutes de votre connexion."
     },
     "advancedHint": "Adresse, NAT, DHT, compteurs",
     "reveal": "Afficher",

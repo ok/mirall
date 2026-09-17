@@ -849,8 +849,7 @@
     "troubleshooting": "Troubleshooting",
     "advanced": {
       "title": "Advanced details",
-      "intro": "The raw values behind your connection.",
-      "copyAll": "Copy all"
+      "intro": "The raw values behind your connection."
     },
     "advancedHint": "Address, NAT, DHT, counters",
     "reveal": "Reveal",

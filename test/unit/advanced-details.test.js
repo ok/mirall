@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { advancedSections, advancedDetailsText } from '../../src/renderer/model/advanced-details.js'
+import { advancedSections } from '../../src/renderer/model/advanced-details.js'
 
 const KEY = 'ab'.repeat(32)
 const t = (key, values) => (values && 'count' in values ? `${key}:${values.count}` : key)
@@ -43,21 +43,6 @@ test('a port the frame does not carry reads as a dash, not as zero', (t2) => {
   const rows = rowsOf(advancedSections(blank, 0, t), 'address')
   t2.is(rows[1].value, '—')
   t2.is(rows[2].value, '—')
-})
-
-test('a bulk copy masks what the screen masks', (t2) => {
-  const text = advancedDetailsText(advancedSections(status(), 0, t))
-  t2.absent(text.includes(KEY), 'the public key is not copied in full')
-  t2.absent(text.includes('203.0.113.7'), 'the public IP is not copied in full')
-  t2.ok(text.includes(`•••••••• ${KEY.slice(-6)}`), 'the key copies with the same visible suffix the row shows')
-})
-
-test('a bulk copy carries every row of every section, and the bootstrap list in full', (t2) => {
-  const sections = advancedSections(status(), 0, t)
-  const text = advancedDetailsText(sections)
-  const lines = text.split('\n').filter((line) => line.startsWith('  '))
-  t2.is(lines.length, sections.reduce((n, s) => n + s.rows.length, 0))
-  t2.ok(text.includes('node1:49737, node2:49737'))
 })
 
 test('a boolean the frame reports as unknown reads as a dash', (t2) => {
