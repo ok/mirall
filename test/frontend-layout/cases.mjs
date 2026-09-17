@@ -10,6 +10,8 @@ export const CASES = [
       rpcDelayMs: 400,
       delayTypes: ['space:approve-member'],`,
   },
+  // Mounts every avatar the app draws and sweeps for one that is not recessed.
+  { name: "avatars", title: "Mirall avatar recess harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "filecard", title: "Mirall FileCard error-state / toast-width layout harness" },

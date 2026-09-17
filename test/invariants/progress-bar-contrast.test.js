@@ -129,6 +129,11 @@ test('REGRESSION (FIX-RIM): every faceless avatar disc is painted in the hover-p
     t.ok(src.includes('bg-progress-track'), `${f}: the disc uses the hover-proof neutral`)
     t.absent(/bg-surface-container-\w+/.test(src), `${f}: no ramp surface left on a disc`)
   }
+  // The Activity Log draws its actor disc by hand — same box, same row-hover host, same rule. The
+  // file's other ramp tokens are badges, so this pins the disc's own class list rather than the file.
+  const feed = read('src/renderer/components/activity/ActivityFeed.tsx')
+  t.ok(/w-8 h-8 rounded-full bg-progress-track/.test(feed), 'the Activity Log actor disc uses the neutral')
+  t.ok(/rounded-full bg-progress-track[^"]*avatar-recess/.test(feed), 'and is recessed like every other disc')
 })
 
 test('REGRESSION (FIX-7): peer-dropdown divider survives the card hover lift', (t) => {

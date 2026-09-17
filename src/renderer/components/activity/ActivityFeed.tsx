@@ -27,9 +27,11 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
 
   return (
     <li className="px-6 py-4 flex items-start gap-4 hover:bg-surface-container-high/50 transition-colors">
+      {/* The actor disc is an avatar in everything but the primitive — it carries an icon or
+          initials rather than a face — so it wears the same hover-proof fill and the same recess. */}
       <span
         aria-hidden="true"
-        className="w-8 h-8 rounded-full bg-surface-container-highest text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0"
+        className="w-8 h-8 rounded-full bg-progress-track text-accent flex items-center justify-center text-xs font-headline font-bold shrink-0 avatar-recess"
       >
         {avatar === 'system' ? <Icon name={systemIcon(entry)} size={16} /> : avatar === 'self' ? t('activityLog.actorSelf') : actorInitials(entry)}
       </span>

@@ -21,6 +21,9 @@ for (const t of out.themes ?? []) {
       + `(${m.faceReadsAgainstCard ? 'reads' : 'INVISIBLE'})`)
   }
 }
+for (const t of out.themes ?? []) {
+  console.log(`${t.theme.padEnd(5)} recess: ${t.recessShadow} (${t.recessed ? 'every face and the +N disc' : 'MISSING on at least one disc'})`)
+}
 const tm = out.timing
 if (tm) {
   console.log(`card fade    : ${tm.cardProperty} ${tm.cardDuration} ${tm.cardTiming}`)
@@ -30,5 +33,5 @@ if (tm) {
 if (out.error) console.log(`error        : ${out.error}`)
 
 const pass = out.pass === true
-console.log(`\n${pass ? 'ok  ' : 'FAIL'} every ring carries the card's own fill — in step with it — and the +N disc stays visible, at rest and under the cursor, in both themes`)
+console.log(`\n${pass ? 'ok  ' : 'FAIL'} every ring carries the card's own fill — in step with it — every disc is recessed, and the +N disc stays visible, at rest and under the cursor, in both themes`)
 process.exit(pass ? 0 : 1)

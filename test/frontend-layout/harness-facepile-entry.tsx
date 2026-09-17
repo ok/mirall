@@ -46,6 +46,9 @@ interface ThemeMetrics {
   theme: string
   rest: StateMetrics
   hover: StateMetrics
+  // The lip of the hole: an ::after overlay, since an inset shadow on an <img> is never seen.
+  recessShadow: string
+  recessed: boolean
 }
 
 interface HarnessResults {
@@ -237,14 +240,21 @@ async function run(): Promise<void> {
     // The +N disc is painted in a neutral outside the ramp, so its fill is the same in both
     // states — what changes under it is the card, which is the whole point of measuring it here.
     const hoverChip = getComputedStyle(chip).backgroundColor
-    // Both discs are painted in fills the card cannot adopt, so only the card moves under them.
-    themes.push({ theme, rest, hover: measure(hoverBg, avatars.map(() => hoverRing), hoverChip, faceBg) })
+    const recessShadows = [...avatars, chip].map((el) => getComputedStyle(el as Element, '::after').boxShadow)
+    themes.push({
+      theme,
+      rest,
+      // Both discs are painted in fills the card cannot adopt, so only the card moves under them.
+      hover: measure(hoverBg, avatars.map(() => hoverRing), hoverChip, faceBg),
+      recessShadow: recessShadows[0],
+      recessed: recessShadows.every((v) => v.includes('inset')),
+    })
   }
   document.documentElement.classList.remove('dark')
 
   publish({
-    pass: timing.inStep && themes.every((t) =>
-      [t.rest, t.hover].every((s) => s.ringMatchesCard && s.chipReadsAgainstCard && s.faceReadsAgainstCard)),
+    pass: timing.inStep && themes.every((t) => t.recessed
+      && [t.rest, t.hover].every((s) => s.ringMatchesCard && s.chipReadsAgainstCard && s.faceReadsAgainstCard)),
     sheetsRead,
     hoverRulesSeen,
     avatarCount: avatars.length,

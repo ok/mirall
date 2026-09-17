@@ -70,7 +70,7 @@ export default function AvatarStack({
           role={announce === 'each' ? 'img' : undefined}
           aria-label={announce === 'each' ? label : undefined}
           style={ringStyle}
-          className={`${CHIP[size]} rounded-full bg-progress-track text-on-surface-variant flex items-center justify-center font-bold transition-shadow`}
+          className={`${CHIP[size]} rounded-full bg-progress-track text-on-surface-variant flex items-center justify-center font-bold transition-shadow avatar-recess`}
         >
           <span aria-hidden="true">+{overflow}</span>
         </div>
