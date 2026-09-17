@@ -82,6 +82,7 @@ function networkRoute(screen: NetworkScreen, nav: AppNavigation) {
         <NetworkStatusScreen
           onBack={() => nav.setCurrentScreen('account')}
           onShowHistory={() => nav.openActivityLog({ categories: ['network'] })}
+          onOpenSettings={() => nav.setCurrentScreen('network-settings')}
           onOpenDiagnostics={() => nav.setCurrentScreen('network-diagnostics')}
           onOpenAdvanced={() => nav.setCurrentScreen('network-advanced')}
         />
@@ -174,7 +175,12 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
     case 'general-settings':
       return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-settings':
-      return <NetworkSettings onBack={() => nav.setCurrentScreen('settings')} />
+      return (
+        <NetworkSettings
+          onBack={() => nav.setCurrentScreen('settings')}
+          onOpenStatus={() => nav.setCurrentScreen('network-status')}
+        />
+      )
     case 'activity-log':
       return (
         <ActivityLog

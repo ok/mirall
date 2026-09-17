@@ -724,6 +724,8 @@
   "networkSettings": {
     "title": "Rete",
     "intro": "Limiti di caricamento e download.",
+    "openStatus": "Apri lo stato della rete",
+    "openStatusDesc": "Guarda come è collegato questo dispositivo in questo momento.",
     "transferLimits": "Limiti di trasferimento",
     "limitsLoading": "Caricamento dei limiti di trasferimento…",
     "limitsUnavailable": "Impossibile leggere i tuoi limiti di trasferimento.",
@@ -797,6 +799,8 @@
   "networkStatus": {
     "title": "Stato della rete",
     "intro": "Dettagli di connessione e diagnostica.",
+    "openSettings": "Impostazioni di rete",
+    "openSettingsDesc": "Limiti di trasferimento e relè.",
     "reconnect": "Riconnetti",
     "reconnecting": "Riconnessione…",
     "verdict": {

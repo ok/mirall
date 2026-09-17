@@ -5,10 +5,10 @@ import { useActivityFilters } from '../hooks/useActivityFilters.js'
 import { useAuditLog } from '../hooks/useAuditLog.js'
 import { groupByDay } from '../model/audit-row.js'
 import type { AuditFilters } from '../types/types.js'
-import Icon from '../components/primitives/Icon.js'
 import ActivityFilterBar from '../components/activity/ActivityFilterBar.js'
 import ActivityFeed from '../components/activity/ActivityFeed.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import ActionRow, { ROW_GROUP } from '../components/layout/ActionRow.js'
 import { useRegisterCommand } from '../keyboard/KeyboardProvider.js'
 
 interface ActivityLogProps {
@@ -75,21 +75,14 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
           />
 
           <section>
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              aria-label={t('activityLog.logSettings')}
-              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
-                <Icon name="tune" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-accent">{t('activityLog.logSettings')}</p>
-                <p className="text-xs text-on-surface-variant">{t('activityLog.logSettingsDesc')}</p>
-              </div>
-              <Icon name="chevron_right" className="text-secondary" />
-            </button>
+            <div className={ROW_GROUP}>
+              <ActionRow
+                icon="tune"
+                label={t('activityLog.logSettings')}
+                desc={t('activityLog.logSettingsDesc')}
+                onClick={onOpenSettings}
+              />
+            </div>
           </section>
         </div>
       </div>

@@ -750,6 +750,8 @@
   "networkSettings": {
     "title": "Network",
     "intro": "Limits for uploads and downloads.",
+    "openStatus": "Open network status",
+    "openStatusDesc": "See how this device is connected right now.",
     "transferLimits": "Transfer limits",
     "limitsLoading": "Loading transfer limits…",
     "limitsUnavailable": "Couldn't read your transfer limits.",
@@ -823,6 +825,8 @@
   "networkStatus": {
     "title": "Network status",
     "intro": "Connection details and diagnostics.",
+    "openSettings": "Network settings",
+    "openSettingsDesc": "Transfer limits and relay.",
     "reconnect": "Reconnect",
     "reconnecting": "Reconnecting…",
     "verdict": {

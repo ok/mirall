@@ -1,5 +1,5 @@
-// Network settings: content-plane transfer caps. Settings only — live connection status
-// lives on the account screen.
+// Network settings: content-plane transfer caps. Settings only — live connection status lives on
+// the network status screen, which this one cross-links to.
 import InlineError from '../../components/primitives/InlineError.js'
 import FieldLabel from '../../components/primitives/FieldLabel.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -8,6 +8,7 @@ import { request } from '../../ipc/ipc.js'
 import { formatSpeed } from '../../format/utils.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../../components/layout/PageHeader.js'
+import ActionRow, { ROW_GROUP } from '../../components/layout/ActionRow.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import RelaySettingsSection from './RelaySettingsSection.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
@@ -16,6 +17,7 @@ import type { BandwidthLimits } from '../../platform/global.js'
 
 interface NetworkSettingsProps {
   onBack: () => void
+  onOpenStatus: () => void
 }
 
 type Direction = 'download' | 'upload'
@@ -142,7 +144,7 @@ function LimitRow({
   )
 }
 
-export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
+export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSettingsProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   // 0 is a MEANINGFUL cap here (Unlimited), so there is no safe default to render before the read
@@ -226,6 +228,17 @@ export default function NetworkSettings({ onBack }: NetworkSettingsProps) {
           </section>
 
           <RelaySettingsSection />
+
+          <section>
+            <div className={ROW_GROUP}>
+              <ActionRow
+                icon="hub"
+                label={t('networkSettings.openStatus')}
+                desc={t('networkSettings.openStatusDesc')}
+                onClick={onOpenStatus}
+              />
+            </div>
+          </section>
         </div>
       </div>
     </div>

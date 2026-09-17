@@ -19,6 +19,7 @@ import type { NetworkStatusScreen, Reachability } from '../types/types.js'
 interface Props {
   onBack: () => void
   onShowHistory: () => void
+  onOpenSettings: () => void
   onOpenDiagnostics: () => void
   onOpenAdvanced: () => void
 }
@@ -165,7 +166,7 @@ function SuggestionsList({ lines }: { lines: string[] }) {
   )
 }
 
-export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenDiagnostics, onOpenAdvanced }: Props) {
+export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSettings, onOpenDiagnostics, onOpenAdvanced }: Props) {
   const { t } = useTranslation()
   const { status, reachability, reconnect } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -229,6 +230,17 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenDiagn
                 label={t('networkStatus.advanced.title')}
                 desc={t('networkStatus.advancedHint')}
                 onClick={onOpenAdvanced}
+              />
+            </div>
+          </section>
+
+          <section>
+            <div className={ROW_GROUP}>
+              <ActionRow
+                icon="settings"
+                label={t('networkStatus.openSettings')}
+                desc={t('networkStatus.openSettingsDesc')}
+                onClick={onOpenSettings}
               />
             </div>
           </section>

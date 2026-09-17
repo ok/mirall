@@ -724,6 +724,8 @@
   "networkSettings": {
     "title": "Réseau",
     "intro": "Limites d'envoi et de téléchargement.",
+    "openStatus": "Ouvrir l'état du réseau",
+    "openStatusDesc": "Voyez comment cet appareil est connecté en ce moment.",
     "transferLimits": "Limites de transfert",
     "limitsLoading": "Chargement des limites de transfert…",
     "limitsUnavailable": "Impossible de lire vos limites de transfert.",
@@ -797,6 +799,8 @@
   "networkStatus": {
     "title": "État du réseau",
     "intro": "Détails de connexion et diagnostics.",
+    "openSettings": "Paramètres réseau",
+    "openSettingsDesc": "Limites de transfert et relais.",
     "reconnect": "Reconnecter",
     "reconnecting": "Reconnexion…",
     "verdict": {

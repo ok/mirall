@@ -724,6 +724,8 @@
   "networkSettings": {
     "title": "Netzwerk",
     "intro": "Limits für Uploads und Downloads.",
+    "openStatus": "Netzwerkstatus öffnen",
+    "openStatusDesc": "Sieh nach, wie dieses Gerät gerade verbunden ist.",
     "transferLimits": "Übertragungslimits",
     "limitsLoading": "Übertragungslimits werden geladen…",
     "limitsUnavailable": "Deine Übertragungslimits konnten nicht gelesen werden.",
@@ -797,6 +799,8 @@
   "networkStatus": {
     "title": "Netzwerkstatus",
     "intro": "Verbindungsdetails und Diagnose.",
+    "openSettings": "Netzwerkeinstellungen",
+    "openSettingsDesc": "Übertragungslimits und Relais.",
     "reconnect": "Erneut verbinden",
     "reconnecting": "Verbinde erneut…",
     "verdict": {
