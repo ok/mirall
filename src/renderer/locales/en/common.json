@@ -798,16 +798,11 @@
       "replaceTitle": "Replace this relay",
       "decodedKey": "Relay key {{key}}",
       "kindFor": "Relay type: {{kind}}",
-      "privacyNote": "An invite gives you a lasting name on this relay. Whoever runs it can see when you are online and who you connect to — never what you send. Blind to your files is not blind to your contacts.",
-      "restartWarning": "This invite takes effect after Mirall reconnects.",
+      "privacyNote": "Whoever runs this relay can see when you are online and who you connect to — never what you send.",
       "restartWarningRemove": "Removing it takes effect after Mirall reconnects.",
       "kind": {
         "open": "Open relay",
         "private": "Private relay"
-      },
-      "kindNote": {
-        "open": "Anyone with the key can use it.",
-        "private": "You were invited to this one."
       },
       "error": {
         "format": "That is not a relay key or an invite.",

@@ -52,7 +52,10 @@ export default async function s106({ runDir, bootstrap }) {
       await Relays.type({ name: 'Relay key or invite' }, RELAY_KEY)
       await Relays.click({ name: 'Continue' })
       await Relays.waitText('Open relay', 8000)
-      await Relays.waitText('Anyone with the key can use it', 8000)
+      // The badge is the whole note. An open relay has no lasting identity to disclose, so the
+      // privacy line the private step carries must not appear here — it would claim a cost that
+      // pasting a public key does not have.
+      if (await Relays.hasText('who you connect to')) throw new Error('an open relay claims the private-invite cost')
       await Relays.shot('s106-confirm', runDir)
     })
 

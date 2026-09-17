@@ -121,19 +121,16 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
             <>
               <DecodedRelaySummary decoded={decoded} />
 
+              {/* Unboxed, in the same voice as the step-1 description: the operator's view of your
+                  presence and contacts is the one fact here that can change the answer, and this is
+                  the last screen before the key is stored. An open relay has no lasting identity to
+                  disclose, so it says nothing. The reconnect note that used to sit under this is
+                  gone: RelaySettingsSection renders it as ReconnectNotice the moment this closes,
+                  with the button that acts on it. */}
               {decoded.kind === 'private' && (
-                <>
-                  <div className="rounded-xl bg-surface-container-high px-5 py-4">
-                    <p className="text-sm text-on-surface-variant leading-relaxed">
-                      {t('networkSettings.relays.privacyNote')}
-                    </p>
-                  </div>
-                  <div role="status" className="rounded-xl bg-warning-container px-5 py-3">
-                    <p className="text-sm text-on-warning-container leading-relaxed">
-                      {t('networkSettings.relays.restartWarning')}
-                    </p>
-                  </div>
-                </>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  {t('networkSettings.relays.privacyNote')}
+                </p>
               )}
 
               <TextField
@@ -187,20 +184,22 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
 function DecodedRelaySummary({ decoded }: { decoded: Decoded }) {
   const { t } = useTranslation()
   return (
-    <div className="rounded-xl bg-surface-container-high/40 px-5 py-4 space-y-3">
+    // `surface-container-low` is the ramp step that pairs with a modal panel, which is
+    // `surface-container-lowest` — the same fill FIELD_SURFACE gives the name field two rows down,
+    // so card and field agree. The `-high` step this used to carry is the CONTROL surface, and in
+    // dark it is lighter than the panel: a quiet summary on the loudest plate in the dialog.
+    <div className="rounded-xl bg-surface-container-low px-5 py-4 flex items-center gap-3">
       <Badge
         label={t(`networkSettings.relays.kind.${decoded.kind}`)}
         srLabel={t('networkSettings.relays.kindFor', { kind: t(`networkSettings.relays.kind.${decoded.kind}`) })}
         classes={decoded.kind === 'private' ? 'bg-secondary-container text-on-secondary-container' : 'bg-info text-on-info'}
+        className="shrink-0"
       />
-      <p className="text-sm text-on-surface-variant">{t(`networkSettings.relays.kindNote.${decoded.kind}`)}</p>
-      <div className="flex items-center gap-2 pt-1">
-        <span aria-hidden="true" className="font-mono text-xs text-on-surface-variant truncate">
-          {truncateRelayKey(decoded.publicKey)}
-        </span>
-        <span className="sr-only">{t('networkSettings.relays.decodedKey', { key: decoded.publicKey })}</span>
-        <CopyButton value={decoded.publicKey} />
-      </div>
+      <span aria-hidden="true" className="ml-auto font-mono text-xs text-on-surface-variant truncate">
+        {truncateRelayKey(decoded.publicKey)}
+      </span>
+      <span className="sr-only">{t('networkSettings.relays.decodedKey', { key: decoded.publicKey })}</span>
+      <CopyButton value={decoded.publicKey} />
     </div>
   )
 }
