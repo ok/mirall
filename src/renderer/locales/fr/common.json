@@ -724,6 +724,8 @@
   "networkSettings": {
     "title": "Réseau",
     "intro": "Limites d'envoi et de téléchargement.",
+    "openStatus": "Ouvrir l'état du réseau",
+    "openStatusDesc": "Voyez comment cet appareil est connecté en ce moment.",
     "transferLimits": "Limites de transfert",
     "limitsLoading": "Chargement des limites de transfert…",
     "limitsUnavailable": "Impossible de lire vos limites de transfert.",
@@ -746,7 +748,7 @@
     },
     "relays": {
       "heading": "Relais",
-      "desc": "Un relais aide deux appareils à se connecter quand le réseau bloque une liaison directe — par exemple un espace qui ne se synchronise jamais sur le Wi-Fi du bureau. Les relais ne transmettent que des données chiffrées et ne peuvent pas lire vos fichiers.",
+      "desc": "Un relais aide deux appareils à se connecter quand le réseau bloque une liaison directe — par exemple un espace qui ne se synchronise jamais sur le Wi-Fi du bureau. Un relais ne transmet que des données chiffrées et ne peut pas lire vos fichiers.",
       "docsLink": "Héberger votre propre relais",
       "empty": "Aucun relais configuré. Un relais, c'est vous ou quelqu'un que vous connaissez qui le fait tourner — on y entre en général avec une invitation.",
       "unnamed": "Relais sans nom",
@@ -797,6 +799,8 @@
   "networkStatus": {
     "title": "État du réseau",
     "intro": "Détails de connexion et diagnostics.",
+    "openSettings": "Paramètres réseau",
+    "openSettingsDesc": "Limites de transfert et relais.",
     "reconnect": "Reconnecter",
     "reconnecting": "Reconnexion…",
     "verdict": {
@@ -819,8 +823,7 @@
     "troubleshooting": "Dépannage",
     "advanced": {
       "title": "Détails avancés",
-      "intro": "Les valeurs brutes de votre connexion.",
-      "copyAll": "Tout copier"
+      "intro": "Les valeurs brutes de votre connexion."
     },
     "advancedHint": "Adresse, NAT, DHT, compteurs",
     "reveal": "Afficher",
@@ -1117,7 +1120,6 @@
     "retentionDesc": "Les événements plus anciens sont supprimés automatiquement.",
     "retentionDays_one": "{{count}} jour",
     "retentionDays_other": "{{count}} jours",
-    "survivesLeave": "Les événements sont conservés même pour les espaces que vous avez quittés, jusqu’à leur expiration.",
     "export": "Exporter",
     "exportTitle": "Exporter en JSON",
     "exportDesc": "Enregistrer tous les événements dans un fichier. Il indique aussi quand cet appareil était hors ligne.",

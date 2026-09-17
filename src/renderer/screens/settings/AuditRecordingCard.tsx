@@ -63,7 +63,6 @@ export default function AuditRecordingCard({ config, onPatch }: AuditRecordingCa
           </SegmentedControl>
         </div>
       </div>
-      <p className="mt-3 text-xs text-on-surface-variant">{t('activityLogSettings.survivesLeave')}</p>
     </section>
   )
 }

@@ -6,8 +6,8 @@ import { useQuery } from '../../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../../store/query-store.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import type { AuditConfig, AuditEntry, AuditStats } from '../../types/types.js'
-import Icon from '../../components/primitives/Icon.js'
 import PageHeader from '../../components/layout/PageHeader.js'
+import ActionRow, { ROW_GROUP } from '../../components/layout/ActionRow.js'
 import AuditRecordingCard from './AuditRecordingCard.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import Button from '../../components/primitives/Button.js'
@@ -89,26 +89,6 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
         <PageHeader title={t('activityLogSettings.title')} subtitle={t('activityLogSettings.intro')} onBack={onBack} />
 
         <div className="space-y-10">
-          <section>
-            <button
-              type="button"
-              onClick={onOpenLog}
-              aria-label={t('activityLogSettings.openLog')}
-              className="w-full bg-surface-container-low rounded-xl p-6 flex items-center gap-4 text-left hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
-                <Icon name="history" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-accent">{t('activityLogSettings.openLog')}</p>
-                <p className="text-xs text-on-surface-variant">
-                  {t('activityLogSettings.openLogSummary', { count: stats?.count ?? 0 })}
-                </p>
-              </div>
-              <Icon name="chevron_right" className="text-secondary" />
-            </button>
-          </section>
-
           <AuditRecordingCard config={config} onPatch={patch} />
 
           <section>
@@ -135,6 +115,17 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
               <Button variant="danger" onClick={() => setConfirmPurge(true)} disabled={busy}>
                 {t('activityLogSettings.deleteAction')}
               </Button>
+            </div>
+          </section>
+
+          <section>
+            <div className={ROW_GROUP}>
+              <ActionRow
+                icon="history"
+                label={t('activityLogSettings.openLog')}
+                desc={t('activityLogSettings.openLogSummary', { count: stats?.count ?? 0 })}
+                onClick={onOpenLog}
+              />
             </div>
           </section>
         </div>

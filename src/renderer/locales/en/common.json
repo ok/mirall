@@ -750,6 +750,8 @@
   "networkSettings": {
     "title": "Network",
     "intro": "Limits for uploads and downloads.",
+    "openStatus": "Open network status",
+    "openStatusDesc": "See how this device is connected right now.",
     "transferLimits": "Transfer limits",
     "limitsLoading": "Loading transfer limits…",
     "limitsUnavailable": "Couldn't read your transfer limits.",
@@ -771,8 +773,8 @@
       "uploadCustom": "Upload limit: custom"
     },
     "relays": {
-      "heading": "Relays",
-      "desc": "A relay helps two devices connect when the network blocks a direct link — a space that never syncs on office Wi-Fi, for example. Relays forward encrypted data only; they cannot read your files.",
+      "heading": "Relay",
+      "desc": "A relay helps two devices connect when the network blocks a direct link — a space that never syncs on office Wi-Fi, for example. A relay forwards encrypted data only; it cannot read your files.",
       "docsLink": "How to run your own relay",
       "empty": "No relay configured. A relay is something you or someone you know runs — usually you get in with an invite from whoever runs it.",
       "unnamed": "Unnamed relay",
@@ -823,6 +825,8 @@
   "networkStatus": {
     "title": "Network status",
     "intro": "Connection details and diagnostics.",
+    "openSettings": "Network settings",
+    "openSettingsDesc": "Transfer limits and relay.",
     "reconnect": "Reconnect",
     "reconnecting": "Reconnecting…",
     "verdict": {
@@ -845,8 +849,7 @@
     "troubleshooting": "Troubleshooting",
     "advanced": {
       "title": "Advanced details",
-      "intro": "The raw values behind your connection.",
-      "copyAll": "Copy all"
+      "intro": "The raw values behind your connection."
     },
     "advancedHint": "Address, NAT, DHT, counters",
     "reveal": "Reveal",
@@ -1117,7 +1120,6 @@
     "retentionDesc": "Older events are deleted automatically.",
     "retentionDays_one": "{{count}} day",
     "retentionDays_other": "{{count}} days",
-    "survivesLeave": "Events are kept even for spaces you have left, until they age out.",
     "export": "Export",
     "exportTitle": "Export as JSON",
     "exportDesc": "Save every recorded event to a file. It includes when this device was offline.",

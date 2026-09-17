@@ -32,7 +32,8 @@ export default async function s146({ runDir, bootstrap }) {
       for (const label of ['Connection', 'Address', 'NAT', 'Relaying', 'DHT', 'Connection test']) {
         if (!(await A.hasText(label))) throw new Error(`advanced section missing: ${label}`)
       }
-      if (!(await A.has({ role: 'button', name: 'Copy all' }))) throw new Error('copy all not reachable by name')
+      // The screen is read-only: taking these values elsewhere is the diagnostics export's job.
+      if (await A.has({ role: 'button', name: 'Copy all' })) throw new Error('advanced details still offers a bulk copy')
       await A.shot('s146-advanced', runDir)
       await A.back()
       await A.waitText('Troubleshooting', 8000)

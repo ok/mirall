@@ -724,6 +724,8 @@
   "networkSettings": {
     "title": "Rete",
     "intro": "Limiti di caricamento e download.",
+    "openStatus": "Apri lo stato della rete",
+    "openStatusDesc": "Guarda come è collegato questo dispositivo in questo momento.",
     "transferLimits": "Limiti di trasferimento",
     "limitsLoading": "Caricamento dei limiti di trasferimento…",
     "limitsUnavailable": "Impossibile leggere i tuoi limiti di trasferimento.",
@@ -746,7 +748,7 @@
     },
     "relays": {
       "heading": "Relè",
-      "desc": "Un relè aiuta due dispositivi a collegarsi quando la rete blocca un collegamento diretto — per esempio uno spazio che non si sincronizza mai sul Wi-Fi dell'ufficio. I relè inoltrano solo dati cifrati e non possono leggere i tuoi file.",
+      "desc": "Un relè aiuta due dispositivi a collegarsi quando la rete blocca un collegamento diretto — per esempio uno spazio che non si sincronizza mai sul Wi-Fi dell'ufficio. Un relè inoltra solo dati cifrati e non può leggere i tuoi file.",
       "docsLink": "Come ospitare il tuo relè",
       "empty": "Nessun relay configurato. Un relay lo gestisci tu o qualcuno che conosci: di solito si entra con un invito di chi lo gestisce.",
       "unnamed": "Relè senza nome",
@@ -797,6 +799,8 @@
   "networkStatus": {
     "title": "Stato della rete",
     "intro": "Dettagli di connessione e diagnostica.",
+    "openSettings": "Impostazioni di rete",
+    "openSettingsDesc": "Limiti di trasferimento e relè.",
     "reconnect": "Riconnetti",
     "reconnecting": "Riconnessione…",
     "verdict": {
@@ -819,8 +823,7 @@
     "troubleshooting": "Risoluzione dei problemi",
     "advanced": {
       "title": "Dettagli avanzati",
-      "intro": "I valori grezzi della tua connessione.",
-      "copyAll": "Copia tutto"
+      "intro": "I valori grezzi della tua connessione."
     },
     "advancedHint": "Indirizzo, NAT, DHT, contatori",
     "reveal": "Mostra",
@@ -1117,7 +1120,6 @@
     "retentionDesc": "Gli eventi più vecchi vengono eliminati automaticamente.",
     "retentionDays_one": "{{count}} giorno",
     "retentionDays_other": "{{count}} giorni",
-    "survivesLeave": "Gli eventi restano anche per gli spazi che hai lasciato, fino alla scadenza.",
     "export": "Esporta",
     "exportTitle": "Esporta come JSON",
     "exportDesc": "Salva tutti gli eventi registrati in un file. Include quando questo dispositivo era offline.",

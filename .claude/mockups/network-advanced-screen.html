@@ -364,8 +364,9 @@
     A peer screen to Network status, not a modal: same <code class="bg-black/5 px-1 rounded text-xs">PageHeader</code>, same
     <code class="bg-black/5 px-1 rounded text-xs">max-w-2xl</code> column, back arrow returns to Network status. The six sections are lifted out of
     <code class="bg-black/5 px-1 rounded text-xs">AdvancedDetails</code> <strong>unchanged</strong> — same order, same labels, same masking and copy
-    controls — so this is a move, not a redesign. Nothing is added except the title, the one-line intro, and the
-    <strong>Copy all</strong> button, which is the action people actually take on this screen today by selecting six sections by hand.
+    controls — so this is a move, not a redesign. Nothing is added except the title and the one-line intro. A
+    <strong>Copy all</strong> button shipped here first and was then removed: the diagnostics export already takes these values
+    elsewhere, and the per-field copy covers the one value you deliberately want.
   </p>
 
   <div class="device-frame">
@@ -384,14 +385,9 @@
             <h1 tabindex="-1" class="text-4xl font-headline font-extrabold text-accent tracking-tight">Advanced details</h1>
             <p class="text-on-surface-variant text-lg leading-relaxed">The raw values behind your connection.</p>
           </div>
-          <button type="button" aria-label="Copy all details"
-            class="mt-2 shrink-0 flex items-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-surface-container-high text-on-surface-variant px-5 py-2.5 text-sm">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Copy all
-          </button>
         </div>
 
-        <div class="space-y-8">
+        <div class="space-y-10">
           <!-- Connection (recreated verbatim) -->
           <section>
             <h2 class="text-xl font-headline font-bold text-accent mb-4">Connection</h2>
@@ -442,16 +438,12 @@
     <strong>Proposed copy (<span style="color:#93000a">NEW</span>):</strong>
     <code class="text-xs bg-black/5 px-1 rounded">networkStatus.advanced.title</code> "Advanced details" ·
     <code class="text-xs bg-black/5 px-1 rounded">networkStatus.advanced.intro</code> "The raw values behind your connection." ·
-    <code class="text-xs bg-black/5 px-1 rounded">networkStatus.advanced.copyAll</code> "Copy all" /
-    <code class="text-xs bg-black/5 px-1 rounded">…copyAllLabel</code> "Copy all details".
     Every section heading and row label below is the existing string, unchanged.
     <br/><br/>
-    <strong>Why "Copy all" and not a second diagnostics export:</strong> the file from Diagnostics is redacted and machine-readable;
-    this is the six sections as text, for pasting into a chat with whoever is helping you. It is <strong>redacted by default</strong>, like the
-    diagnostics bundle: the Public IP and the public key go in masked. The per-field
-    <code class="text-xs bg-black/5 px-1 rounded">CopyButton</code> already copies the real value for the one case where you deliberately want it,
-    so the bulk button never has to be the thing that leaks an address into a chat window.
-    If that is too clever for one button, drop it — the screen is complete without it.
+    <strong>No bulk copy here:</strong> a "Copy all" button shipped with this screen and was removed again. Taking these values
+    elsewhere is the diagnostics export's job — that file is redacted and machine-readable — and the per-field
+    <code class="text-xs bg-black/5 px-1 rounded">CopyButton</code> covers the one value you deliberately want. The screen is
+    complete as a read-only page.
   </div>
 </section>
 

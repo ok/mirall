@@ -1,13 +1,13 @@
-// Advanced details: the raw connection values, one screen below Network status. Read-only apart
-// from the bulk copy, which is why it is a destination rather than a disclosure on a page whose job
-// is to tell the user whether their network works.
+// Advanced details: the raw connection values, one screen below Network status. A destination
+// rather than a disclosure on a page whose job is to tell the user whether their network works —
+// six sections of raw rows would bury that verdict. Taking these values elsewhere is what the
+// diagnostics export is for.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { advancedSections, advancedDetailsText } from '../model/advanced-details.js'
+import { advancedSections } from '../model/advanced-details.js'
 import type { AdvancedRow } from '../model/advanced-details.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
-import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import { Section, Field, MaskedField } from '../components/network/StatusRows.js'
@@ -60,14 +60,7 @@ export default function NetworkAdvancedScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const { status } = useConnectionStatus()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  const [copied, setCopied] = useState(false)
   const sections = status ? advancedSections(status, Date.now(), t) : []
-
-  function handleCopy() {
-    navigator.clipboard.writeText(advancedDetailsText(sections))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   return (
     <div
@@ -81,18 +74,7 @@ export default function NetworkAdvancedScreen({ onBack }: Props) {
           onBack={onBack}
         />
 
-        <div className="space-y-8">
-          {sections.length > 0 && (
-            <div className="flex items-center justify-end gap-2">
-              <p role="status" aria-live="polite" className="text-xs text-on-surface-variant">
-                {copied ? t('actions.copied') : ''}
-              </p>
-              <Button variant="secondary" icon="content_copy" onClick={handleCopy}>
-                {t('networkStatus.advanced.copyAll')}
-              </Button>
-            </div>
-          )}
-
+        <div className="space-y-10">
           {sections.map((section) => (
             <Section key={section.key} title={section.title}>
               {section.rows.map((row) => <AdvancedRowView key={row.label} row={row} />)}

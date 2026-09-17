@@ -1,9 +1,9 @@
-// The Advanced details screen as data: the sections, their rows, and the text a bulk copy produces.
-// Deriving the rows once means the screen the user reads and the text they paste into a support
-// thread cannot disagree — including about what stays hidden, since a masked row copies masked.
+// The Advanced details screen as data: its sections and their rows. Derived here rather than in
+// the screen, so a row is described once — what it is called, how it is formatted, and whether it
+// is masked — and the screen only renders what this returns.
 /** @import { NetworkStatusScreen } from '../types/types.js' */
 /** @import { TFunction } from 'i18next' */
-import { DASH, maskValue, formatNumber, formatRelativeTime } from '../format/status-values.js'
+import { DASH, formatNumber, formatRelativeTime } from '../format/status-values.js'
 
 /** @typedef {'plain' | 'mono' | 'masked' | 'bootstrap'} AdvancedRowKind */
 /** @typedef {{ kind: AdvancedRowKind, label: string, value: string, positive?: boolean, visibleSuffix?: number, items?: string[] }} AdvancedRow */
@@ -92,18 +92,4 @@ export function advancedSections(status, now, t) {
       ],
     },
   ]
-}
-
-/** @param {AdvancedRow} row @returns {string} */
-function copyValueOf(row) {
-  if (row.kind === 'masked') return maskValue(row.value || null, row.visibleSuffix)
-  if (row.kind === 'bootstrap') return (row.items ?? []).join(', ') || DASH
-  return row.value
-}
-
-/** @param {AdvancedSection[]} sections @returns {string} */
-export function advancedDetailsText(sections) {
-  return sections
-    .map((section) => [section.title, ...section.rows.map((row) => `  ${row.label}: ${copyValueOf(row)}`)].join('\n'))
-    .join('\n\n')
 }

@@ -10,6 +10,7 @@ import { request } from '../../ipc/ipc.js'
 import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../platform/config-client.js'
 import { truncateRelayKey } from '../../platform/relay-key.js'
 import { isReconnectPending, setReconnectPending } from '../../platform/relay-session.js'
+import { rememberScreen } from '../../shell/resume-screen.js'
 import Badge from '../../components/primitives/Badge.js'
 import Button from '../../components/primitives/Button.js'
 import CopyButton from '../../components/primitives/CopyButton.js'
@@ -96,6 +97,9 @@ export default function RelaySettingsSection() {
   // shutdown that never lands (respawn budget spent, IPC timeout) would otherwise take the
   // banner with it. A restart that does land reloads the window, which resets it anyway.
   const handleReconnect = useCallback(() => {
+    // Park this screen first: the reload that follows the restart would otherwise land on the space
+    // list, which shows nothing about the relay that was just applied.
+    rememberScreen('network-settings')
     request('shutdown').catch((err) => console.error('relay reconnect failed:', err))
   }, [])
 
