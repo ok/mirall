@@ -58,6 +58,18 @@ test('a direct socket counts as direct and returns null', (t) => {
   t.is(calls.relayed.length, 0)
 })
 
+// Only the control swarm has an 'update' watcher, so a direct connection that does not announce
+// itself reaches the status frame whenever something unrelated fires — and the direct counters are
+// what says whether an `always` relay has been applied to the live connections.
+test('a direct socket announces itself to the status frame, opening and closing', (t) => {
+  const { calls, track } = harness(t)
+  const socket = socketOf()
+  track(socket, { plane: 'content' })
+  t.is(calls.change, 1)
+  socket.emit('close')
+  t.is(calls.change, 2)
+})
+
 test("a relayed socket through the configured key is 'own' and carries the configured label", (t) => {
   const { calls, track } = harness(t)
   const socket = socketOf({ relayKey: OWN })

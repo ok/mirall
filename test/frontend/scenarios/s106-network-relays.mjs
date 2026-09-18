@@ -22,7 +22,7 @@ export default async function s106({ runDir, bootstrap }) {
       await Relays.launch()
       await Relays.gotoSettings('Network')
       await Relays.waitText('Transfer limits', 8000)
-      await Relays.waitText('Relays', 8000)
+      await Relays.waitText('A relay helps two devices connect', 8000)
       await Relays.shot('s106-section', runDir)
     })
 
@@ -92,14 +92,26 @@ export default async function s106({ runDir, bootstrap }) {
     await r.ok('the advanced toggle states its cost before it is flipped, not after', async () => {
       // The consequence rides the control's own description, so it is readable while the switch is
       // still off.
-      await Relays.waitText('even when a direct one would work', 8000)
-      if ((await Relays.nodeValue({ name: 'Route everything through the relay' })) !== '0') {
+      await Relays.waitText('not only when a direct one fails', 8000)
+      if ((await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) !== '0') {
         throw new Error('route-everything defaults on')
       }
-      await Relays.click({ name: 'Route everything through the relay' })
-      await waitFor(async () => (await Relays.nodeValue({ name: 'Route everything through the relay' })) === '1', 8000, 'always on')
-      await Relays.click({ name: 'Route everything through the relay' })
-      await waitFor(async () => (await Relays.nodeValue({ name: 'Route everything through the relay' })) === '0', 8000, 'back to auto')
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '1', 8000, 'always on')
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '0', 8000, 'back to auto')
+    })
+
+    // The notice is a mismatch report, not a receipt: with no connection to contradict the setting
+    // there is nothing to apply, and a banner here would be the nag that trains people to ignore it.
+    await r.ok('changing the mode with nothing connected raises no notice', async () => {
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '1', 8000, 'always on')
+      await settle()
+      if (await Relays.has({ name: 'Reconnect now' })) throw new Error('notice raised with no connection to apply it to')
+      if (await Relays.hasText('are still direct')) throw new Error('mismatch copy shown with no connections')
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '0', 8000, 'back to auto')
     })
 
     // Turning the feature off leaves a configured relay that is not in use. The row dims with the
@@ -121,15 +133,15 @@ export default async function s106({ runDir, bootstrap }) {
     // 'always' was discarded by any off/on round trip — something the three-way control it
     // replaced could not do, and nothing on screen reported.)
     await r.ok('the master switch restores the mode that was on, not just auto', async () => {
-      await Relays.click({ name: 'Route everything through the relay' })
-      await waitFor(async () => (await Relays.nodeValue({ name: 'Route everything through the relay' })) === '1', 8000, 'always on')
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '1', 8000, 'always on')
 
       await Relays.click({ name: 'Use a relay' })
       await Relays.click({ name: 'Use a relay' })
-      await waitFor(async () => (await Relays.nodeValue({ name: 'Route everything through the relay' })) === '1', 8000, 'always survived the round trip')
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '1', 8000, 'always survived the round trip')
 
-      await Relays.click({ name: 'Route everything through the relay' })
-      await waitFor(async () => (await Relays.nodeValue({ name: 'Route everything through the relay' })) === '0', 8000, 'back to auto')
+      await Relays.click({ name: 'Prefer the relay for every connection' })
+      await waitFor(async () => (await Relays.nodeValue({ name: 'Prefer the relay for every connection' })) === '0', 8000, 'back to auto')
     })
 
     await r.ok('replacing swaps the slot rather than adding a second one', async () => {

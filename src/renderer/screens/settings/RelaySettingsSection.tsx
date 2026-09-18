@@ -1,5 +1,5 @@
 // Settings sections live inline in the screen that shows them. A section only becomes its own file
-// when it would dominate that screen: this one is 367 lines against settings screens of 56-233. Two
+// when it would dominate that screen: this one is 390 lines against settings screens of 56-233. Two
 // sections are out here; every other one is inline, and that is the rule, not an accident.
 // Relays section of Settings ▸ Network. One slot, taking either a bare relay key (open
 // relay) or an invite ticket (private relay).
@@ -20,6 +20,8 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import ActionMenu from '../../components/primitives/ActionMenu.js'
 import DocsLink from '../../components/primitives/DocsLink.js'
 import AddRelayModal from '../../components/modals/AddRelayModal.js'
+import RelayApplyNotice from '../../components/network/RelayApplyNotice.js'
+import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.js'
 import { relayKindClasses } from '../../model/relay-groups.js'
 
 interface RelayTestResult {
@@ -54,6 +56,7 @@ export default function RelaySettingsSection() {
   // would be a nag, which is why Remove already branches on kind.
   const [confirm, setConfirm] = useState<'remove' | 'replace' | null>(null)
   const [reconnectPending, setPending] = useState(isReconnectPending)
+  const { notice, reconnecting, arm, apply } = useRelayApply(mode, reconnectPending)
 
   // A probe runs for up to ten seconds and outlives the screen: ScreenRouter unmounts this on
   // navigation, and a verdict resolving afterwards would commit this instance's stale slot.
@@ -84,12 +87,17 @@ export default function RelaySettingsSection() {
       setReconnectPending(true)
       setPending(true)
     }
-    await request('network:set-relay', {
+    const applied = await request('network:set-relay', {
       mode: result.network.relayMode,
       relay: usableRelay(result.network.relay, isReconnectPending()),
-    })
+      // A reconnect cannot apply a pinned identity, so it would be churn on connections the user is
+      // about to lose to the restart anyway.
+      deferApply: isReconnectPending(),
+    }) as RelayApplyResult | null
+    // What the worker DID, not what it found: a change it applied itself needs no notice.
+    if (alive.current) arm(applied)
     return result
-  }, [adopt])
+  }, [adopt, arm])
 
   // The worker exits, the respawn policy brings it back with the new boot frame, and the window
   // reloads once it reports ready. Fire and forget: the reply races the exit.
@@ -177,7 +185,13 @@ export default function RelaySettingsSection() {
     <section>
       <SectionHeading>{t('networkSettings.relays.heading')}</SectionHeading>
 
-      {reconnectPending && <ReconnectNotice onReconnect={handleReconnect} />}
+      {notice && (
+        <RelayApplyNotice
+          notice={notice}
+          busy={reconnecting}
+          onAct={notice === 'restart' ? handleReconnect : apply}
+        />
+      )}
 
       {/* One surface: the section's prose and its trailing note live on it, above and below the
           rows, the way the transfer-limits section on this screen keeps its own note. */}
@@ -191,23 +205,7 @@ export default function RelaySettingsSection() {
 
         {relay ? (
           <>
-            <div className="border-t border-outline-variant/40">
-              <Toggle
-                label={t('networkSettings.relays.useRelay')}
-                description={t('networkSettings.relays.useRelayDesc')}
-                checked={mode !== 'off'}
-                onChange={handleModeToggle}
-              />
-            </div>
-            <div className="border-t border-outline-variant/40">
-              <Toggle
-                label={t('networkSettings.relays.alwaysLabel')}
-                description={t('networkSettings.relays.alwaysDesc')}
-                checked={mode === 'always'}
-                disabled={mode === 'off'}
-                onChange={handleAlwaysToggle}
-              />
-            </div>
+            <ModeToggles mode={mode} onMode={handleModeToggle} onAlways={handleAlwaysToggle} />
             <RelayRow
               relay={relay}
               testing={testing}
@@ -237,6 +235,37 @@ export default function RelaySettingsSection() {
         onConfirm={() => { if (confirm === 'remove') handleRemove(); else { setConfirm(null); setAddOpen(true) } }}
       />
     </section>
+  )
+}
+
+interface ModeTogglesProps {
+  mode: RelayMode
+  onMode: (on: boolean) => void
+  onAlways: (on: boolean) => void
+}
+
+function ModeToggles({ mode, onMode, onAlways }: ModeTogglesProps) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <div className="border-t border-outline-variant/40">
+        <Toggle
+          label={t('networkSettings.relays.useRelay')}
+          description={t('networkSettings.relays.useRelayDesc')}
+          checked={mode !== 'off'}
+          onChange={onMode}
+        />
+      </div>
+      <div className="border-t border-outline-variant/40">
+        <Toggle
+          label={t('networkSettings.relays.alwaysLabel')}
+          description={t('networkSettings.relays.alwaysDesc')}
+          checked={mode === 'always'}
+          disabled={mode === 'off'}
+          onChange={onAlways}
+        />
+      </div>
+    </>
   )
 }
 
@@ -344,20 +373,6 @@ function ConfirmRelayLossModal({ intent, name, onClose, onConfirm }: ConfirmRela
         <p className="text-sm text-on-warning-container">{t('networkSettings.relays.restartWarningRemove')}</p>
       </div>
     </ConfirmDestructiveModal>
-  )
-}
-
-function ReconnectNotice({ onReconnect }: { onReconnect: () => void }) {
-  const { t } = useTranslation()
-  return (
-    <div role="status" className="mb-4 rounded-xl bg-warning-container px-5 py-4 flex items-center gap-4">
-      <p className="min-w-0 flex-1 text-sm text-on-warning-container leading-relaxed">
-        {t('networkSettings.relays.reconnectPending')}
-      </p>
-      <Button variant="secondary" onClick={onReconnect}>
-        {t('networkSettings.relays.reconnectAction')}
-      </Button>
-    </div>
   )
 }
 

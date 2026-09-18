@@ -3,13 +3,16 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { reachableState, formatDuration } from '../model/connectivity.js'
+import { relayApplyNotice } from '../model/relay-apply.js'
 import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
 import { getRelayMode } from '../platform/config-client.js'
+import { isApplyArmed, isReconnectPending, setApplyArmed } from '../platform/relay-session.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
+import RelayApplyNotice from '../components/network/RelayApplyNotice.js'
 import RelayedConnectionsSection from '../components/network/RelayedConnectionsSection.js'
 import { Section, Field } from '../components/network/StatusRows.js'
 import { DASH, formatRelativeTime } from '../format/status-values.js'
@@ -180,6 +183,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
     setReconnecting(true)
     try {
       await reconnect()
+      setApplyArmed(false)
     } finally {
       setReconnecting(false)
       setReconnectThrottled(true)
@@ -188,6 +192,15 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
   }
 
   const suggestions = buildSuggestions(status, browserOnline, t)
+  // The screen someone watching relay traffic is already on, so the mismatch belongs here as well as
+  // in Settings. Both read the same rule; the restart case is Settings' to offer, since that is where
+  // the invite that needs it was pasted.
+  const applyNotice = relayApplyNotice({
+    mode: getRelayMode(),
+    relay: status?.relay ?? null,
+    armed: isApplyArmed(),
+    pendingIdentity: isReconnectPending(),
+  })
 
   return (
     <div
@@ -213,6 +226,10 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
           <SuggestionsList lines={suggestions} />
 
           <ConnectionSummary status={status} now={now} onShowHistory={onShowHistory} />
+
+          {applyNotice && applyNotice !== 'restart' && (
+            <RelayApplyNotice notice={applyNotice} busy={reconnecting} onAct={handleReconnect} />
+          )}
 
           {status && <RelayedConnectionsSection status={status} now={now} />}
 
