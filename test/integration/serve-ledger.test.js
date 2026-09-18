@@ -5,6 +5,7 @@ import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, listServeSummaries,
+  hasRecentServe,
 } from '../../src/shared/transfer/serve-ledger.js'
 
 const HASH = 'h'.repeat(64)
@@ -213,4 +214,18 @@ test('REGRESSION (FIX-G1: serving:summary-list returns the live serve rows for a
   t.is(rows.length, 1, 'one live row for the space')
   t.alike(rows[0], { spaceId: SID, path: PATH, peers: [PEER], bytes: 0, total: 1000, pausedKeys: [PEER] })
   t.alike(listServeSummaries('elsewhere'), [], 'a space with no serves lists nothing')
+})
+
+// Read before the peer connections are dropped to apply a transport setting: a serve that is still
+// moving makes that the user's call rather than ours, while a paused one is what a reconnect unparks.
+test('hasRecentServe answers only for a serve that is both live and unpaused', async (t) => {
+  await setup(t)
+  t.absent(hasRecentServe({ quietMs: 8000 }), 'nothing is being served yet')
+
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.ok(hasRecentServe({ quietMs: 8000 }), 'a serve that just started is movement')
+  t.absent(hasRecentServe({ now: Date.now() + 9000, quietMs: 8000 }), 'and stops being so once it goes quiet')
+
+  onServePaused({ from: PEER, contentHash: HASH })
+  t.absent(hasRecentServe({ quietMs: 8000 }), 'a paused serve is parked, however recent')
 })
