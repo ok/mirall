@@ -768,8 +768,8 @@
       "labelPlaceholder": "es. Relè dell'ufficio",
       "useRelay": "Usa un relay",
       "useRelayDesc": "Solo quando non è possibile una connessione diretta.",
-      "alwaysLabel": "Instrada tutto attraverso il relay",
-      "alwaysDesc": "Ogni connessione passa da un relay, anche quando ne funzionerebbe una diretta. Per i test: più lento nell'uso quotidiano.",
+      "alwaysLabel": "Preferisci il relay per ogni connessione",
+      "alwaysDesc": "Chiede un relay a ogni connessione, non solo quando quella diretta fallisce. Una connessione diretta può comunque prevalere: continua a essere tentata sotto. Per i test; più lento nell’uso quotidiano.",
       "inputLabel": "Chiave del relay o invito",
       "inputPlaceholder": "Incolla una chiave o un invito mirall://relay/…",
       "replace": "Sostituisci",
@@ -788,8 +788,14 @@
         "incomplete": "Questo invito sembra incompleto: copialo per intero.",
         "save": "Mirall non è riuscito a salvare questo relay. Non è stato modificato nulla."
       },
-      "reconnectPending": "Il tuo invito è salvato. Avrà effetto quando Mirall si riconnette: fino ad allora questo relay non ti accetterà.",
       "reconnectAction": "Riconnetti ora",
+      "applyAction": "Riconnetti ora",
+      "applying": "Riconnessione…",
+      "notice": {
+        "restart": "Il tuo invito è salvato. Avrà effetto quando Mirall si riconnette: fino ad allora questo relay non ti accetterà.",
+        "stale-relayed": "Le connessioni aperte prima di questa modifica passano ancora dal tuo relay. Riconnetti per spostarle.",
+        "stale-direct": "Le connessioni aperte prima dell'attivazione sono ancora dirette. Riconnetti per portarle sul relay."
+      },
       "removeConfirmTitle": "Rimuovere {{name}}?",
       "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà un nuovo invito da chi lo gestisce.",
       "replaceConfirmTitle": "Sostituire {{name}}?",

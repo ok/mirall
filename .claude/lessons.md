@@ -858,3 +858,18 @@ hyperdht calls. Two things follow: relayed is TRANSIENT (hyperdht keeps punching
 same socket direct — observable only as udx `'remote-changed'`, so compare the endpoint, never cache a
 boolean), and a per-connection array in the status frame needs a scalar digest beside it because the
 dedup compares leaves only.
+
+**A relay is chosen once, when the connection is built — a live setting change reaches nothing that
+is already connected.** `swarm.relayThrough` is read per dial (`hyperswarm._connect`) and per inbound
+handshake (`hyperdht Server._addHandshake`), so assigning it takes effect instantly *and only for the
+next connection*. A stream paired through a blind relay keeps that path until it closes; hyperdht
+re-punches only while the connection is being established, so once that punch has failed the stream
+stays relayed for its whole life. Turning "route everything through the relay" off therefore changed
+nothing the user could see until they restarted the app — and turning it **on** is the same defect
+mirrored, which is worse, because it looks like the relay is broken. Dropping the sockets is the only
+lever: hyperswarm re-queues every peer whose topic is still joined (`_shouldRequeue`, client path
+only — in a connected pair the side that dialled is the one that re-dials). Two things travel with
+it: `peerInfo.forceRelaying` is latched on a relay-worthy dial error and **never cleared**, so a
+reconnect that does not clear it rebuilds the state the user asked to leave; and `off` only ever
+removes OUR contribution, because hyperdht relays when *either* side offers a relay
+(`if (relayThrough || remotePayload.relayThrough)`), which is why the notice ignores an adopted one.

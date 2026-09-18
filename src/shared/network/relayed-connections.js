@@ -33,8 +33,11 @@ export function relayVia(relayKey, own) {
 export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
   const pairing = relayPairingFor(socket.rawStream)
   if (!pairing) {
+    // Emitted like a relayed one: only the control swarm has an 'update' watcher, so without this a
+    // direct connection on the content plane reaches the frame whenever something unrelated fires.
     direct.set(socket, plane)
-    socket.once('close', () => { direct.delete(socket) })
+    socket.once('close', () => { direct.delete(socket); onChange() })
+    onChange()
     return null
   }
   const own = ownRelay()

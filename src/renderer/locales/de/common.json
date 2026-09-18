@@ -768,8 +768,8 @@
       "labelPlaceholder": "z. B. Büro-Relais",
       "useRelay": "Relay verwenden",
       "useRelayDesc": "Nur wenn keine direkte Verbindung zustande kommt.",
-      "alwaysLabel": "Alles über das Relay leiten",
-      "alwaysDesc": "Jede Verbindung läuft über ein Relay, auch wenn eine direkte möglich wäre. Zum Testen — im Alltag langsamer.",
+      "alwaysLabel": "Relay für jede Verbindung bevorzugen",
+      "alwaysDesc": "Fragt bei jeder Verbindung ein Relay an, nicht nur wenn eine direkte scheitert. Eine direkte Verbindung kann sich trotzdem durchsetzen — im Hintergrund wird weiter danach gesucht. Zum Testen; im Alltag langsamer.",
       "inputLabel": "Relay-Schlüssel oder Einladung",
       "inputPlaceholder": "Schlüssel oder mirall://relay/… Einladung einfügen",
       "replace": "Ersetzen",
@@ -788,8 +788,14 @@
         "incomplete": "Diese Einladung wirkt unvollständig — kopiere sie bitte ganz.",
         "save": "Mirall konnte dieses Relay nicht speichern. Es wurde nichts geändert."
       },
-      "reconnectPending": "Deine Einladung ist gespeichert. Sie wird wirksam, sobald Mirall sich neu verbindet — bis dahin nimmt dich dieses Relay nicht an.",
       "reconnectAction": "Jetzt neu verbinden",
+      "applyAction": "Jetzt neu verbinden",
+      "applying": "Neu verbinden…",
+      "notice": {
+        "restart": "Deine Einladung ist gespeichert. Sie wird wirksam, sobald Mirall sich neu verbindet — bis dahin nimmt dich dieses Relay nicht an.",
+        "stale-relayed": "Verbindungen, die vor dieser Änderung entstanden sind, laufen weiterhin über dein Relay. Verbinde neu, um sie davon zu lösen.",
+        "stale-direct": "Verbindungen, die vor dem Einschalten entstanden sind, sind weiterhin direkt. Verbinde neu, um sie über das Relay zu leiten."
+      },
       "removeConfirmTitle": "{{name}} entfernen?",
       "removeConfirmBody": "Deine Einladung liegt nur auf diesem Gerät. Um dieses Relay wieder zu nutzen, brauchst du eine neue Einladung von dem, der es betreibt.",
       "replaceConfirmTitle": "{{name}} ersetzen?",

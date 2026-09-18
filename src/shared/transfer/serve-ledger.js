@@ -299,6 +299,17 @@ function summaryPayload(d) {
   return { spaceId: d.spaceId, path: d.path, peers, bytes, total, pausedKeys }
 }
 
+// Is any peer receiving bytes from us right now? A paused entry is not: the question is asked
+// before dropping the connections, and what a reconnect would do to a paused serve is unpark it.
+export function hasRecentServe({ now = Date.now(), quietMs = 0 } = {}) {
+  for (const d of downloads.values()) {
+    for (const e of d.peers.values()) {
+      if (!e.paused && now - e.lastTs < quietMs) return true
+    }
+  }
+  return false
+}
+
 // Snapshot of every live serve row for a space (the same payload the summary events
 // carry) — requested by the renderer on mount so a view opened mid-download shows the
 // indicator immediately instead of waiting for the next sweep re-announce.

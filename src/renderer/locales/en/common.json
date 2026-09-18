@@ -794,8 +794,8 @@
       "labelPlaceholder": "e.g. Office relay",
       "useRelay": "Use a relay",
       "useRelayDesc": "Only when a direct connection cannot be made.",
-      "alwaysLabel": "Route everything through the relay",
-      "alwaysDesc": "Every connection goes through a relay, even when a direct one would work. For testing — slower for everyday use.",
+      "alwaysLabel": "Prefer the relay for every connection",
+      "alwaysDesc": "Asks for a relay on every connection, not only when a direct one fails. A direct path can still win — the connection keeps looking for one underneath. For testing; slower for everyday use.",
       "inputLabel": "Relay key or invite",
       "inputPlaceholder": "Paste a key or a mirall://relay/… invite",
       "replace": "Replace",
@@ -814,8 +814,14 @@
         "incomplete": "This invite looks incomplete — copy the whole thing.",
         "save": "Mirall could not save this relay. Nothing was changed."
       },
-      "reconnectPending": "Your invite is saved. It takes effect when Mirall reconnects — until then this relay will not accept you.",
       "reconnectAction": "Reconnect now",
+      "applyAction": "Reconnect now",
+      "applying": "Reconnecting…",
+      "notice": {
+        "restart": "Your invite is saved. It takes effect when Mirall reconnects — until then this relay will not accept you.",
+        "stale-relayed": "Connections opened before you changed this are still going through your relay. Reconnect to move them off it.",
+        "stale-direct": "Connections opened before you turned this on are still direct. Reconnect to move them onto the relay."
+      },
       "removeConfirmTitle": "Remove {{name}}?",
       "removeConfirmBody": "Your invite is stored only on this device. To use this relay again you will need a new invite from whoever runs it.",
       "replaceConfirmTitle": "Replace {{name}}?",

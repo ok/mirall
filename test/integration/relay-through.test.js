@@ -2,6 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
 import { localTestnet } from '../helpers/testnet.js'
+import { bootSwarms } from '../helpers/swarms.js'
 import { setRuntimeConfig, setRelayConfig } from '../../src/shared/core/runtime-config.js'
 import crypto from 'hypercore-crypto'
 import { Swarm } from '../../src/shared/network/swarm.js'
@@ -15,23 +16,6 @@ import { stubOverlayBackend } from '../helpers/overlay-stub.js'
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const KEY_B = idEncoding.encode(b4a.alloc(32, 12))
-
-// Mirrors the boot root: Swarm, then ContentSwarm, then apply. The order is
-// the point — getContentSwarm() is null until the second call returns.
-async function bootSwarms(t, { relayMode = 'off', relay = null, relaySeedHex = null } = {}) {
-  const bootstrap = await localTestnet(t)
-  setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode, relay })
-  const ipc = createFakeIpc().ipc
-  const swarm = new Swarm('swarm', { ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [], relaySeedHex })
-  const content = new ContentSwarm('content-swarm', { swarm, overlayBackend: stubOverlayBackend })
-  t.teardown(async () => {
-    try { await content.close() } catch {}
-    try { await swarm.close() } catch {}
-  })
-  await swarm.ready()
-  await content.ready()
-  return { swarm, content, bootstrap }
-}
 
 test('a configured relay reaches BOTH swarms', async (t) => {
   await bootSwarms(t, { relayMode: 'auto', relay: { publicKey: KEY_A, enabled: true } })

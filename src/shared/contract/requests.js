@@ -109,7 +109,7 @@ export const REQUESTS = Object.freeze({
   'network:online-hint': { kind: 'command', args: {} },
   'network:probe-canary': { kind: 'command', args: {} },
   'network:reconnect': { kind: 'command', args: {} },
-  'network:set-relay': { kind: 'command', args: {} },
+  'network:set-relay': { kind: 'command', args: { deferApply: { type: ARG.boolean, optional: true } } },
   'network:status:get': { kind: 'query', args: {} },
   'network:test-relay': { kind: 'command', args: {} },
   'owned-folder:cancel-preview': { kind: 'command', args: { previewId: { type: ARG.string, optional: true } } },

@@ -3,7 +3,8 @@ import b4a from 'b4a'
 import { getSpace } from '../spaces/space.js'
 import { compactStore } from '../storage/compaction.js'
 import { createLogger } from '../core/logger.js'
-import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, refreshContentDiscoveries } from './content-swarm.js'
+import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, destroyAllContentPeerSockets, clearContentForcedRelaying, refreshContentDiscoveries } from './content-swarm.js'
+import { clearForcedRelaying } from './relay.js'
 import { noteAnnounced } from './connectivity.js'
 import { scheduleStatusEmit } from './network-status.js'
 import { forgetSpaceConvergence } from './convergence-tick.js'
@@ -20,6 +21,9 @@ let lastReconnectAt = 0
 
 export function initSpaceTopics(deps) {
   getSwarm = deps.getSwarm
+  // The throttle belongs to the swarm being wired, not to the process: a swarm that restarts owes
+  // the user a reconnect it can act on, not one refused by the last generation's clock.
+  lastReconnectAt = 0
 }
 
 export async function joinSpaceTopic(spaceId) {
@@ -68,11 +72,21 @@ export async function leaveSpaceTopic(spaceId) {
   scheduleStatusEmit()
 }
 
-export async function reconnectAll() {
-  const now = Date.now()
+// End the live connections, then re-announce.
+//
+// Both halves are needed and neither is sufficient. Refreshing discovery fixes an announce that went
+// stale, but a peer we are already connected to is never re-dialled, so a transport setting the user
+// just changed — a relay above all — would keep missing exactly the connections they are watching.
+// hyperswarm reads swarm.relayThrough per dial and hyperdht per inbound handshake, so the choice is
+// made once, when the connection is built: dropping the socket is the only way to have it made again.
+export async function reconnectAll({ now = Date.now() } = {}) {
   if (now - lastReconnectAt < RECONNECT_THROTTLE_MS) return { ok: false, throttled: true }
   lastReconnectAt = now
-  log.info('reconnect requested for', spaceDiscoveries.size, 'topics')
+  const control = destroyControlPeerSockets()
+  const content = destroyAllContentPeerSockets()
+  clearForcedRelaying(getSwarm())
+  clearContentForcedRelaying()
+  log.info('reconnect: dropped', control, 'control and', content, 'content connections, refreshing', spaceDiscoveries.size, 'topics')
   for (const [spaceId, discovery] of spaceDiscoveries) {
     try {
       await discovery.refresh({ client: true, server: true })
@@ -83,7 +97,19 @@ export async function reconnectAll() {
   }
   try { await refreshContentDiscoveries() } catch {} // no-op unless the content plane is active
   scheduleStatusEmit()
-  return { ok: true }
+  return { ok: true, control, content }
+}
+
+// Keyed by socket rather than by peer: socketMsgHandlers holds every control socket that opened the
+// handshake channel, including one whose peer has not handshaked yet, and each socket's own close
+// handler completes the teardown.
+function destroyControlPeerSockets() {
+  let dropped = 0
+  for (const socket of [...socketMsgHandlers.keys()]) {
+    try { socket.destroy() } catch {}
+    dropped++
+  }
+  return dropped
 }
 
 // Detach every connected peer from this space; a peer left in no spaces has its socket dropped.

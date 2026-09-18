@@ -48,6 +48,18 @@ export function createContentPeerSockets() {
       return dropped
     },
 
+    // Drop every content socket. A relay is chosen per connection, so a transport change that has
+    // to reach live traffic has nothing finer to aim at. Returns how many were dropped.
+    destroyAll() {
+      let dropped = 0
+      for (const socket of [...socketToPeers.keys()]) {
+        try { socket.destroy() } catch {}
+        socketToPeers.delete(socket)
+        dropped++
+      }
+      return dropped
+    },
+
     clear() {
       socketToPeers.clear()
     },

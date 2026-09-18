@@ -19,6 +19,7 @@ import { applyNetImpairment } from './net-impair.js'
 import { createContentPeerSockets } from './content-peer-sockets.js'
 import { memberAmong } from './swarm-registries.js'
 import { trackConnection } from './relayed-connections.js'
+import { clearForcedRelaying } from './relay.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 
@@ -164,6 +165,14 @@ export async function leaveContentTopic(spaceId) {
 // riding it, which drops the peer's cached serve grants with it.
 export function destroyContentPeerSockets(profileKeyHex) {
   return contentPeerSockets.destroyFor(profileKeyHex)
+}
+
+export function destroyAllContentPeerSockets() {
+  return contentPeerSockets.destroyAll()
+}
+
+export function clearContentForcedRelaying() {
+  return clearForcedRelaying(contentSwarm)
 }
 
 export async function refreshContentDiscoveries() {
