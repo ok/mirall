@@ -11,7 +11,7 @@ changes do not appear here.
 
 ## v1.11.0
 
-### 2026-09-17
+### 2026-09-18
 
 A space that never syncs can now be carried by a relay and mirrors tell you
 honestly when the owner is gone. Plus a large batch of fixes to overall reliability, 
