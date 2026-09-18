@@ -65,3 +65,16 @@ export function relayFunctionFor(keyBuffers, mode, onSelected, { offerable = tru
   }
   return null
 }
+
+// hyperswarm latches peerInfo.forceRelaying on a dial error it judges relay-worthy and never clears
+// it, so a peer that once failed to punch keeps taking a relay for the life of the process. Cleared
+// when the user asks for a reconnect, or the new connections would rebuild the state they left.
+export function clearForcedRelaying(swarm) {
+  if (!swarm?.peers) return 0
+  let cleared = 0
+  for (const peerInfo of swarm.peers.values()) {
+    peerInfo.forceRelaying = false
+    cleared++
+  }
+  return cleared
+}

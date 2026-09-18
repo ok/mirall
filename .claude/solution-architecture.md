@@ -859,7 +859,7 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `storage:info` | `{}` | `{ totalDiskUsage, storagePath, spaces[], otherBytes }` |
 | `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
 | `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
-| `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true }` |
+| `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true, control, content }` — **reconnect ends the live connections and re-announces**: a peer already connected is never re-dialled, so refreshing discovery alone leaves a transport setting reaching nothing |
 | `feedback:send` | `{ comment, screenshot? }` | `{ ok:true }` — POSTs to `feedback.mirall.app` |
 | `ping` | `{}` | `{ pong:true, timestamp }` |
 | `audit:list` | `{ spaceId?, kinds?, categories?, actorKey?, search?, since?, until?, cursor?, limit }` | `{ entries[], nextCursor }` — a **partial page with a non-null cursor is normal** (the scan is budgeted) |
