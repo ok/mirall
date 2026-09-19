@@ -62,6 +62,27 @@ let permanentlyDown = false   // respawn policy gave up — requests fail fast i
 let respawnScheduled = false  // a respawn timer is armed — don't spawn a second worker
 let recoveredFromCrash = false // the next 'ready' follows an unexpected exit → reload to re-sync the UI
 const respawnPolicy = makeRespawnPolicy()
+
+// The channel is terminally down and no request will ever be answered again. Exposed as a store
+// rather than only as a rejection code because the app shell has to gate on it BEFORE the profile
+// gate: a failed profile:get reads as "no profile" and opens onboarding over an identity that
+// exists (profile-gate.js).
+export type ChannelFault = 'protocol' | 'budget'
+let channelFault: ChannelFault | null = null
+const faultListeners = new Set<() => void>()
+
+export function getChannelFault(): ChannelFault | null { return channelFault }
+
+export function subscribeChannelFault(fn: () => void): () => void {
+  faultListeners.add(fn)
+  return () => { faultListeners.delete(fn) }
+}
+
+function raiseChannelFault(kind: ChannelFault): void {
+  if (channelFault) return
+  channelFault = kind
+  faultListeners.forEach((fn) => { try { fn() } catch (err) { console.error('[ipc] fault listener failed', err) } })
+}
 let readyResolve: (() => void) | null = null
 let readyPromise = newReadyPromise()
 
@@ -192,11 +213,14 @@ function onWorkerExit(code: number): void {
 function scheduleRespawn(exitCode: number): void {
   if (shuttingDown) { armReady(); return } // app quitting — leave the worker down, wake waiters
   if (respawnScheduled || permanentlyDown) { armReady(); return }
-  const { respawn, delayMs } = respawnPolicy.onExit(exitCode)
+  const { respawn, delayMs, terminal } = respawnPolicy.onExit(exitCode)
   if (!respawn) {
     permanentlyDown = true
     armReady() // wake parked requests so they throw fast instead of hanging
-    console.error('worker exited repeatedly; not respawning — reload the app to recover')
+    raiseChannelFault(terminal === 'protocol' ? 'protocol' : 'budget')
+    console.error(terminal === 'protocol'
+      ? 'worker refused the connection: protocol version mismatch'
+      : 'worker exited repeatedly; not respawning — reload the app to recover')
     return
   }
   recoveredFromCrash = true

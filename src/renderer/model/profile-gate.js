@@ -12,14 +12,25 @@
 // `!= null` rather than `!== null`: this is a pure function over a snapshot, and a caller handing
 // it an absent `error` (rather than the store's explicit null) would otherwise settle boot with no
 // data at all — which reads as "no profile" and opens onboarding over an identity that exists.
+import { CODES } from '../../shared/contract/errors.js'
+
 /** @import { Profile } from '../types/types.js' */
 
-/** @typedef {{ data: Profile | null | undefined, error: Error | null, profileNeeded?: boolean }} ProfileGateInput */
+/** @typedef {{ data: Profile | null | undefined, error: (Error & { code?: string }) | null, profileNeeded?: boolean }} ProfileGateInput */
 /** @typedef {{ profile: Profile | null, needsSetup: boolean, loading: boolean }} ProfileGate */
 
-/** @internal @param {{ data: Profile | null | undefined, error: Error | null }} input */
+// A read that failed because the channel has no worker behind it is not an answer at all — the
+// worker crashed and a respawn is seconds away. Settling on it means "no profile", which opens
+// onboarding over an identity that exists; the shell waits for the respawn instead.
+/** @param {(Error & { code?: string }) | null | undefined} error */
+function channelDown(error) {
+  return error?.code === CODES.WORKER_UNAVAILABLE
+}
+
+/** @internal @param {{ data: Profile | null | undefined, error: (Error & { code?: string }) | null }} input */
 export function profileSettled({ data, error }) {
-  return data !== undefined || error != null
+  if (data !== undefined) return true
+  return error != null && !channelDown(error)
 }
 
 /** @param {ProfileGateInput} input @returns {ProfileGate} */

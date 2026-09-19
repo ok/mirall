@@ -12,9 +12,11 @@ const read = (file) => readFileSync(path.join(SCREENS, file), 'utf8')
 // the 800-weight headline's descenders are clipped by its own overflow:hidden — a silent failure,
 // visible only as a shaved "g". A third screen writing its own <h1> is how that comes back.
 test('no screen declares its own page title', (t) => {
-  // Two heroes, both centred, neither with a back button or an actions cluster, both at a size no
-  // other screen uses.
-  const HEROES = new Set(['SpacesScreen.tsx', 'OnboardingScreen.tsx'])
+  // Heroes: centred, no back button, no actions cluster, at a size no other screen uses. The first
+  // two are the app's front doors; WorkerFaultScreen is the third pre-shell full-viewport state —
+  // it renders above the boot gate with no shell around it, so there is no page for a PageHeader to
+  // sit at the top of and no entity for an EntityHeader to name.
+  const HEROES = new Set(['SpacesScreen.tsx', 'OnboardingScreen.tsx', 'WorkerFaultScreen.tsx'])
   // Recursive: the settings pages live in a subfolder, and a non-recursive walk would quietly
   // stop checking seven of them.
   const screenFiles = []
