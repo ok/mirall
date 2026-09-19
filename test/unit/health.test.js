@@ -91,3 +91,34 @@ test('reset clears both readings', (t) => {
   h.monitor.reset()
   t.alike(h.monitor.snapshot(), { loopLagMs: 0, loopLagMaxMs: 0 })
 })
+
+test('the tick carries a rider, after the lag sample', (t) => {
+  const order = []
+  let clock = 0
+  const monitor = createHealthMonitor({
+    now: () => clock,
+    setInterval: () => 1,
+    clearInterval: () => {},
+    intervalMs: 1000,
+    onTick: () => { order.push('rider:' + monitor.snapshot().loopLagMs) },
+  })
+  monitor.start()
+  clock = 2500
+  monitor.tick()
+  t.alike(order, ['rider:1500'], 'the rider sees the lag this tick measured, not the previous one')
+})
+
+test('a throwing rider does not stop the wedge detector', (t) => {
+  let clock = 0
+  const monitor = createHealthMonitor({
+    now: () => clock,
+    setInterval: () => 1,
+    clearInterval: () => {},
+    intervalMs: 1000,
+    onTick: () => { throw new Error('rider blew up') },
+  })
+  monitor.start()
+  clock = 3000
+  t.execution(() => monitor.tick())
+  t.is(monitor.snapshot().loopLagMs, 2000, 'and the sample still landed')
+})

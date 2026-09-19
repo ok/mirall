@@ -26,6 +26,10 @@ export function exportedNames(source) {
       if (p) names.add(p.split(/\s+as\s+/).pop().trim())
     }
   }
+  // A typedef is a name the module provides to a type consumer — tsc resolves it across files
+  // exactly as it resolves a value export — so a JSDoc `@import { X }` of one is not a dangling
+  // reference. Counting only value exports made the first such import in the tree read as broken.
+  for (const m of source.matchAll(/@typedef\s*\{[\s\S]*?\}\s*(\w+)/g)) names.add(m[1])
   if (/(?:^|\n)export\s+default/.test(source)) names.add('default')
   if (/(?:^|\n)export\s*\*/.test(source)) names.add('*')
   return names
@@ -54,6 +58,8 @@ test('REGRESSION (SWARM-DECOMP-2): every named import resolves to a real export'
   t.ok(exportedNames("export { a as b } from './x.js'\n").has('b'), 'a re-export under a new name counts')
   t.ok(exportedNames('export const x = 1\nexport let y = 2\n').has('y'), 'a mutable binding counts')
   t.absent(exportedNames('const notExported = 1\n').has('notExported'), 'a plain declaration does not')
+  t.ok(exportedNames('/** @typedef {{ a: number }} Shape */\n').has('Shape'),
+    'a typedef is a name the module provides, and JSDoc @import resolves it')
   t.ok(exportedNames("export * from './x.js'\n").has('*'), 'a wildcard is reported so callers can opt out')
   t.alike(relativeNamedImports("import { a, b as c } from './m.js'\n"), [{ spec: './m.js', names: ['a', 'b'] }],
     'named imports are read under their source name')
