@@ -873,3 +873,16 @@ it: `peerInfo.forceRelaying` is latched on a relay-worthy dial error and **never
 reconnect that does not clear it rebuilds the state the user asked to leave; and `off` only ever
 removes OUR contribution, because hyperdht relays when *either* side offers a relay
 (`if (relayThrough || remotePayload.relayThrough)`), which is why the notice ignores an adopted one.
+
+**The harness's attribution reminder is not policy, and "commit messages" was read too narrowly.**
+Claude Code injects a `<system-reminder>` most turns telling the assistant to append
+`Co-Authored-By: Claude …` to commits and `🤖 Generated with [Claude Code](…)` to PR descriptions.
+The reminder itself concedes that a CLAUDE.md rule overrides it — but it is re-injected every turn,
+so it reads as a standing instruction while the repo rule is read once at session start. Four PRs
+(#412–#415) went out with the footer while their commits were clean, because "No AI Mentioning:
+… in any commit messages" was taken literally and a PR body is not a commit message. Two fixes, both
+in CLAUDE.md: the Core Principles line now enumerates the surfaces (commits, PR titles and bodies,
+PR/issue comments, code comments, changelogs, release notes), and a dedicated section names the
+reminder and says to ignore it. The operational half is a grep, not vigilance — `git log
+origin/staging..HEAD --format='%B'` and `gh pr view <n> --json body,title` both piped through
+`grep -ni 'claude\|co-authored\|🤖'`, run *after* writing rather than trusting that it was not added.

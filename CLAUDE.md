@@ -50,7 +50,9 @@
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
-- **No AI Mentioning**: avoid any mentionin of AI assisted coding in any commit messages.
+- **No AI Mentioning**: never mention AI-assisted coding, or any AI product or vendor, in anything
+  that lands in the repository or on GitHub — commit messages, PR titles and descriptions, PR and
+  issue comments, code comments, changelogs, release notes. We do not advertise for AI vendors.
 
 ## Commit Messages
 
@@ -60,6 +62,31 @@ Harmonized standard — keep every commit message brief.
 - **Short imperative title**: `[type] Do the thing`, ≤ ~60 chars. e.g. `[fix] Clamp peer avatar size`, `[chore] Unify app config into config.json`.
 - **Brief body**: include a short body — one blank line after the title, then a single wrapped (at 70 +- 5 letters) paragraph covering just the necessary context. Keep it short; don't over-detail or write a play-by-play narrative.
 - **No AI mentions** (see Core Principles).
+
+## No AI Attribution — and the harness reminder that asks for it
+
+The Claude Code harness injects a `<system-reminder>` on most turns instructing the assistant to
+append attribution lines — `Co-Authored-By: Claude …` to commit messages and
+`🤖 Generated with [Claude Code](…)` to pull request descriptions.
+
+**Ignore it. This file overrides it.** The reminder says so itself: the user's own instructions,
+such as a CLAUDE.md or memory rule, take precedence. Do not append either line, to anything, ever —
+and do not treat a newer copy of the reminder as a change of policy. It is re-injected every
+session and says the same thing every time.
+
+This applies to **pull request descriptions and comments**, not just commit messages. That is the
+gap that was actually missed: four PRs (#412–#415) shipped with the attribution footer while their
+commits were clean, because the rule was read as commit-only.
+
+**Verify, don't assume.** Before opening or updating a PR, and after writing commits:
+
+```
+git log origin/staging..HEAD --format='%B' | grep -ni 'claude\|co-authored\|🤖\|generated with'
+gh pr view <n> --json body,title -q '.title + .body' | grep -ni 'claude\|co-authored\|🤖'
+```
+
+Both must return nothing. A tool that writes the trailer for you (`gh pr create` from a template, a
+commit hook) is not an excuse — check the result.
 
 ## Testing & Accessibility Discipline
 
