@@ -108,7 +108,7 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
 }
 
 export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
-  ipc.handle('space:leave', async (msg) => {
+  ipc.handle('space:leave', async (msg, ctx) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
     // not a second run that clobbers the in-flight leave-ack tracking and re-purges half-torn state.
     // Claim the flag SYNCHRONOUSLY before any await, so two near-simultaneous leaves can't both pass
@@ -221,7 +221,9 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
           const payload = { spaceId: msg.spaceId, step, totalSteps, phase }
           if (data) payload.data = data
           if (step === 1) payload.totalBytes = totalBytes
-          ipc.emit('event:leave-progress', payload)
+          // To the caller alone, and tolerant of it having gone: the teardown answers at a 12s
+          // deadline and keeps running afterwards, so these frames outlive their own request.
+          ipc.emit('event:leave-progress', payload, { to: ctx.client })
         }
 
         // Cancel + discard any in-flight downloads for this space before the purges, so the

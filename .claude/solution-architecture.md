@@ -1181,7 +1181,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/runtime-config.js` | The live runtime config: the one built object, `setRuntimeConfig(bootstrap)`, the live setters that patch it through `buildConfig`, and every getter — a getter validates on read through the schema's rule (§16); `getRuntimeConfig()` is the raw override |
 | `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
 | `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
-| `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7). Wraps `Bare.IPC` |
+| `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
+| `src/shared/core/ipc-client.js` | One connected peer (its pipe, its in-flight requests, its trust) and the registry of them: attach, detach, the per-client greeting and the disconnect hooks |
+| `src/shared/core/ipc-dispatch.js` | One request frame from table lookup to answer: boundary validation, the cancellation token, per-request metrics and the failure log |
 | `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` / `createLocalBee()` factories, the M-derived key policy, the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/core/reachability.js` | The pure connectivity verdict (`classify`, `stabilise`) and its VERDICT / CAUSE / CANARY vocabulary |

@@ -44,3 +44,14 @@ const EVENTS = Object.freeze({
 /** @internal the declaration-parity guards' list; EventName below is the production reader */
 export const EVENT_NAMES = Object.freeze(Object.values(EVENTS))
 /** @typedef {(typeof EVENT_NAMES)[number]} EventName */
+
+// Events that belong to ONE caller's operation rather than to the space. Broadcasting these leaks
+// one client's progress into another's UI — and for leave-progress it is indistinguishable from
+// the recipient's own leave. The router refuses to broadcast them; they are emitted with
+// { to: client }, and test/invariants/targeted-events.test.js pins that every call site does.
+/** @internal the routing guard's list */
+export const TARGETED_EVENTS = Object.freeze([
+  'event:owned-folder-preview-progress',
+  'event:foreign-folder-preview-progress',
+  'event:leave-progress',
+])

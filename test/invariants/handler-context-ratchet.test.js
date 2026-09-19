@@ -29,7 +29,7 @@ function workerSource() {
 // through the composition root's `membershipControl`, and their ctx is `{ peerInfo, reply }` from the
 // swarm. Counting by parameter name instead of by registration made this ratchet read 3 when the
 // true number of router-context consumers was 0.
-const FLOOR = 1
+const FLOOR = 4
 
 function routerContextHandlers() {
   const src = workerSource()
