@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { EventEmitter } from 'events'
+import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { tagged } from '../helpers/capture-console.js'
@@ -131,12 +132,37 @@ test('bootstrap line resolves ipc.bootstrapPromise and is not dispatched', async
   let called = false
   ipc.handle('bootstrap', () => { called = true })
   ipc.start()
-  pipe.feed({ type: 'bootstrap', storage: '/tmp/x', appVersion: '1' })
+  pipe.feed({ type: 'bootstrap', storage: '/tmp/x', appVersion: '1', protocolVersion: IPC_PROTOCOL_VERSION })
   const boot = await ipc.bootstrapPromise
   t.is(boot.storage, '/tmp/x')
   await tick()
   t.absent(called, 'bootstrap handler not invoked')
   t.is(pipe.written.length, 0, 'no response written for bootstrap')
+})
+
+test('bootstrap REJECTS when the host speaks a version outside our window', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  pipe.feed({ type: 'bootstrap', storage: '/tmp/x', protocolVersion: 9999, protocolMin: 9999, protocolMax: 9999 })
+  await t.exception(ipc.bootstrapPromise, /protocol mismatch/)
+})
+
+test('a versionless bootstrap rejects rather than resolving with defaults', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  pipe.feed({ type: 'bootstrap', storage: '/tmp/x' })
+  await t.exception(ipc.bootstrapPromise, /no protocol version/)
+})
+
+test('a bootstrap frame after a refusal cannot settle the promise a second time', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  pipe.feed({ type: 'bootstrap', storage: '/first' })
+  await t.exception(ipc.bootstrapPromise)
+  // The resolver and the rejecter are nulled together, so a host retrying with a good frame does
+  // not turn a settled refusal into a boot.
+  pipe.feed({ type: 'bootstrap', storage: '/second', protocolVersion: IPC_PROTOCOL_VERSION })
+  await t.exception(ipc.bootstrapPromise, 'still rejected')
 })
 
 test('emit writes {type, ...payload}; respond without id is a no-op', async (t) => {

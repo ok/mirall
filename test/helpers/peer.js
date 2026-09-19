@@ -5,6 +5,7 @@ import path from 'path'
 import { scaled, summarize, tail, TIMING } from './timing.js'
 import { tmpDir } from './tmp.js'
 import { createEventLog } from './event-log.js'
+import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../../src/shared/contract/ipc-frames.js'
 
 // A full client = the REAL worker (src/worker/main.js) run as a bare subprocess
 // via bare-sidecar, driven over its NDJSON IPC (the same protocol Electron main
@@ -197,6 +198,11 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   const ready = peer.waitFor('event:worker-ready')
   sidecar.write(JSON.stringify({
     type: 'bootstrap',
+    // The worker refuses a bootstrap frame from a host on a different wire, and a frame with no
+    // version at all is one of those — so the harness is a third writer of this field.
+    protocolVersion: IPC_PROTOCOL_VERSION,
+    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
+    protocolMax: IPC_PROTOCOL_VERSION,
     storage,
     appVersion: '0.0.0-test',
     dev: true,

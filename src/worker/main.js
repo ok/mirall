@@ -34,7 +34,7 @@ import {
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
-import { WORKER_EXIT_UNSTABLE } from '../shared/contract/exit-codes.js'
+import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../shared/contract/exit-codes.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import {
   getProfile,
@@ -79,9 +79,16 @@ installCrashBackstop(log, {
 let root = null
 let bootComplete = false
 let shuttingDown = false
-// `exitCode` is how the renderer tells an unstable exit from any other death. They want
-// opposite respawn budgets and nothing else about the two exits differs.
-async function safeShutdown(reason, exitCode = 0) {
+// How the renderer tells one death from another: an unstable exit and a refused protocol want
+// different respawn budgets, and nothing else about the exits differs. Module-scoped rather than
+// a parameter because the code is read at exit time, not at call time — see below.
+let exitCode = 0
+async function safeShutdown(reason, code = 0) {
+  // A specific code beats the default. Two shutdowns can race — a pipe that closed as the worker
+  // was already going down for a reason of its own — and the first to arrive owns the sequence.
+  // Without this the generic one silences the specific one, and the renderer reads a refused
+  // protocol as an ordinary exit and spends the whole respawn budget rediscovering it.
+  if (code !== 0) exitCode = code
   if (shuttingDown) return
   shuttingDown = true
   log.warn('shutdown:', reason)
@@ -116,7 +123,20 @@ Bare.IPC.on('error', (err) => { safeShutdown('ipc-error: ' + (err && err.message
 
 // === Bootstrap frame ===
 
-const bootstrap = await ipc.bootstrapPromise
+// Not left to the crash backstop: it is not armed until bootComplete, so an escaping rejection
+// here would abort the worker with no code and no line. safeShutdown runs the real teardown (root
+// is still null, so every step no-ops) and exits with the code the renderer branches on.
+//
+// It is awaited and then parked, never re-thrown: a throw here is a top-level-await rejection,
+// which is the outcome this branch exists to avoid. The park covers the one case where
+// safeShutdown returns instead of exiting — a teardown that got there first and owns the exit.
+let bootstrap
+try {
+  bootstrap = await ipc.bootstrapPromise
+} catch (err) {
+  await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
+  await new Promise(() => {})
+}
 setRuntimeConfig(bootstrap)
 
 // === Boot: the composition root constructs and starts the data layer ===
