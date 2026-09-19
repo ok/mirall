@@ -1225,5 +1225,11 @@
     "mirrorDesc": "Wo diese Spiegelung gespeichert wird. Dateien, die am neuen Ort bereits liegen, werden erkannt; alles Fehlende wird erneut geladen.",
     "nameError": "Ordner konnte nicht umbenannt werden: {{error}}",
     "locationError": "Der Ort konnte nicht geändert werden: {{error}}"
+  },
+  "workerFault": {
+    "protocolTitle": "Mirall muss neu gestartet werden",
+    "protocolBody": "Teile von Mirall wurden aktualisiert und passen nicht mehr zusammen. Beende Mirall vollständig und öffne es erneut. Wenn das weiterhin auftritt, installiere die neueste Version neu.",
+    "budgetTitle": "Der Hintergrunddienst von Mirall wurde beendet",
+    "budgetBody": "Er wurde mehrmals hintereinander beendet und nicht neu gestartet. Beende Mirall vollständig und öffne es erneut."
   }
 }

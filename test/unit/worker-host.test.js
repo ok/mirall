@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../../src/shared/contract/ipc-frames.js'
 import { Duplex } from 'streamx'
 import { loadWithFakeElectron } from '../helpers/fake-electron.js'
 import { preloadEntrypoints } from '../../src/main/worker-entrypoints.js'
@@ -108,4 +109,13 @@ test('the identity KEK is read at spawn time, not at require time', (t) => {
   host.getWorker(MAIN_WORKER_SPEC)
   t.is(frames(worker)[0].identityKEK, 'deadbeef',
     'resolved inside whenReady, after this module loads and before the first spawn')
+})
+
+test('the bootstrap frame carries the protocol version and the window main accepts', (t) => {
+  const { host, worker } = load()
+  host.getWorker('/src/worker/main.js')
+  const [boot] = frames(worker).filter((f) => f.type === 'bootstrap')
+  t.is(boot.protocolVersion, IPC_PROTOCOL_VERSION)
+  t.is(boot.protocolMin, IPC_PROTOCOL_MIN_SUPPORTED)
+  t.is(boot.protocolMax, IPC_PROTOCOL_VERSION, 'main accepts exactly the version it speaks')
 })

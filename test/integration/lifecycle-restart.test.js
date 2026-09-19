@@ -3,6 +3,7 @@ import crypto from 'hypercore-crypto'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
+import { EventEmitter } from 'bare-events'
 import { trackTimers } from '../helpers/timers.js'
 
 // The shim must wrap the globals BEFORE the modules load — echo-guard armed its purge at import —
@@ -21,6 +22,8 @@ const { onFsEvent } = await import('../../src/shared/folders/owned-watcher.js')
 const { startForeignLoop } = await import('../../src/shared/folders/foreign-verbs.js')
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
+const { createIPC } = await import('../../src/shared/core/ipc.js')
+const { createHealthMonitor } = await import('../../src/shared/core/health.js')
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -100,4 +103,25 @@ test('REGRESSION (LIFECYCLE-1b): in-process restart against the same storage', a
   t.pass('the publish lane still drains after a restart')
   await second.close()
   t.is(timers.intervals().length, 0, 'second close leaves nothing armed\n' + timers.describe(timers.intervals()))
+})
+
+// A boot the worker refuses never reaches boot(), so the teardown it runs is the same sequence with
+// every step a no-op — the case main.js takes when bootstrapPromise rejects. What must hold is that
+// the refusal settles, the monitor is stopped, and nothing stays armed.
+test('a refused bootstrap tears down cleanly and leaves nothing armed', async (t) => {
+  const before = timers.intervals().length
+  const pipe = new EventEmitter()
+  pipe.write = () => true
+  const ipc = createIPC(pipe)
+  const health = createHealthMonitor()
+  health.start()
+
+  pipe.emit('data', Buffer.from(JSON.stringify({ type: 'bootstrap', storage: '/tmp/nope' }) + '\n'))
+  await t.exception(ipc.bootstrapPromise, /no protocol version/)
+
+  // main.js's catch: health.stop(), abortAll, then close a root that is still null.
+  health.stop()
+  t.is(ipc.abortAll('protocol-mismatch'), 0, 'no request ever dispatched, so nothing to abort')
+  t.is(ipc.inFlightCount(), 0)
+  t.is(timers.intervals().length, before, 'the health monitor is the only timer, and it stopped')
 })

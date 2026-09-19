@@ -17,3 +17,12 @@ export const FRAME = Object.freeze({
 
 /** @internal the cancellation guard's list */
 export const CONTROL_FRAMES = Object.freeze(Object.values(FRAME))
+
+// The renderer/main↔worker wire contract's own version, deliberately NOT package.json's: a release
+// that changes no frame must not invalidate a connection, and a frame change inside a patch release
+// must. Bumped by hand, in the commit that changes the wire.
+//
+// MIN_SUPPORTED is the oldest peer this build still speaks to. Widening the window is a decision
+// with a compatibility shim behind it; narrowing it is what a breaking change does.
+export const IPC_PROTOCOL_VERSION = 1
+export const IPC_PROTOCOL_MIN_SUPPORTED = 1

@@ -1225,5 +1225,11 @@
     "mirrorDesc": "Dove viene salvata questa replica. I file già presenti nella nuova posizione vengono riconosciuti; ciò che manca viene scaricato di nuovo.",
     "nameError": "Impossibile rinominare la cartella: {{error}}",
     "locationError": "Impossibile cambiare la posizione: {{error}}"
+  },
+  "workerFault": {
+    "protocolTitle": "Mirall deve essere riavviato",
+    "protocolBody": "Alcune parti di Mirall sono state aggiornate e non corrispondono più. Chiudi completamente Mirall e riaprilo. Se il problema persiste, reinstalla l'ultima versione.",
+    "budgetTitle": "Il servizio in background di Mirall si è arrestato",
+    "budgetBody": "Si è arrestato più volte di seguito e non è stato riavviato. Chiudi completamente Mirall e riaprilo."
   }
 }

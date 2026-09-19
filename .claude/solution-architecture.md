@@ -1225,7 +1225,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/mount-precedence.js` | The order an owned mount's two facts resolve in: `mount-point-gone` > fault > `paused` > `scanning` > `active`. `status` is derived from it, never assigned |
 | `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
 | `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
-| `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel` |
+| `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel`, plus `IPC_PROTOCOL_VERSION` — the wire's own version, independent of package.json |
+| `src/shared/contract/protocol-compat.js` | Whether the bootstrap frame's wire version falls inside this build's window, and the sentence a refusal prints. The worker refuses an incompatible host outright rather than defaulting its fields |
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |

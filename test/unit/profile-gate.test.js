@@ -26,6 +26,24 @@ test('the three shell states', (t) => {
     'a profile: the app')
 })
 
+// REGRESSION (FIX-400-3: a worker crash fails every pending read with WORKER_UNAVAILABLE BEFORE
+// the respawn policy decides. A failure was an answer, "no data" is how the gate spells "no
+// profile", and onboarding opened over the real identity for the whole 500ms-8s backoff — long
+// enough to complete it and race a profile:set against the reload.)
+test('REGRESSION (FIX-400-3): a dead channel is not an answer', (t) => {
+  const down = Object.assign(new Error('Worker exited with code 1'), { code: 'WORKER_UNAVAILABLE' })
+  t.absent(profileSettled({ data: undefined, error: down }), 'the respawn is seconds away — keep waiting')
+  t.alike(projectProfile({ data: undefined, error: down }),
+    { profile: null, needsSetup: false, loading: true },
+    'the boot screen, never onboarding')
+})
+
+test('a channel failure with a profile already read leaves the app alone', (t) => {
+  const down = Object.assign(new Error('Worker exited with code 1'), { code: 'WORKER_UNAVAILABLE' })
+  t.alike(projectProfile({ data: PROFILE, error: down }),
+    { profile: PROFILE, needsSetup: false, loading: false })
+})
+
 test('an unreadable profile opens onboarding rather than stranding the app on boot', (t) => {
   const gate = projectProfile({ data: undefined, error: new Error('worker unavailable') })
   t.absent(gate.loading, 'boot is over — a failure is an answer')
