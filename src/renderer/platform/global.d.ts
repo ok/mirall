@@ -108,6 +108,7 @@ export interface MirallBridge {
   onPearEvent(name: PearEventName, listener: () => void): () => void
 
   startWorker(specifier: string): Promise<boolean>
+  restartWorker(specifier: string): Promise<boolean>
   onWorkerIPC(specifier: string, listener: (data: Uint8Array) => void): () => void
   onWorkerStdout(specifier: string, listener: (data: Uint8Array) => void): () => void
   onWorkerStderr(specifier: string, listener: (data: Uint8Array) => void): () => void
