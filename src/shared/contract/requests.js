@@ -48,6 +48,14 @@ export const REQUESTS = Object.freeze({
   'event:loose-file-fs-event': { kind: 'command', args: {} },
   'event:owned-folder-fs-event': { kind: 'command', args: {} },
   'features:get': { kind: 'query', args: {} },
+  // A query because it only reads: it writes nothing and a caller may ask again. It is not free of
+  // consequence, though — a second call replays frames the first already delivered, and while
+  // pokes are level-triggered and the OS notifications are keyed by transfer id, the membership
+  // toasts are keyed by nothing and would appear twice. A client resumes once per reconnect.
+  'events:resume': { kind: 'query', args: {
+    epoch: { type: ARG.string, optional: true },
+    since: { type: ARG.number, optional: true },
+  } },
   'feedback:send': { kind: 'command', args: {
     comment: { type: ARG.string, optional: true },
     email: { type: ARG.string, optional: true },

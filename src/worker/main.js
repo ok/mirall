@@ -201,6 +201,9 @@ registerDiagnostics(ipc, { health, getRoot: () => root })
 
 ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
 
+// Catch a client up from where it stopped reading, or tell it honestly that it cannot be caught up.
+ipc.handle('events:resume', async (msg, ctx) => ipc.resume(ctx.client, { epoch: msg.epoch, since: msg.since }))
+
 // === IPC: audit log ===
 
 registerAudit(ipc)
@@ -211,7 +214,9 @@ registerAudit(ipc)
 // three frames below used to fire exactly once, so a client that attached afterwards — or the same
 // renderer after a reload, which is indistinguishable — never received them at all.
 ipc.onClientAttach(async (client) => {
-  ipc.emit('event:worker-ready', {}, { to: client })
+  // The coordinates ride the greeting, so a client learns where the stream is without asking: the
+  // epoch tells it whether this is the worker it was talking to, and head where the numbering is.
+  ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
   const profile = await getProfile()
   refreshAuditSelfName(profile?.displayName)
   if (!profile) ipc.emit('event:profile-needed', {}, { to: client })

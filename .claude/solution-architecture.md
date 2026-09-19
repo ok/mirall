@@ -1182,6 +1182,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
 | `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
+| `src/shared/core/ipc-events.js` | The event plane: the poke→reconcile fan-out table, one sequence number per pushed frame, broadcast vs per-client routing, and the resume a client uses to catch up from a cursor |
+| `src/shared/core/replay-ring.js` | The recent durable frames a resuming client can be replayed, bounded by count and by bytes, with a floor that says when only a resync is honest |
 | `src/shared/core/ipc-client.js` | One connected peer (its pipe, its in-flight requests, its trust) and the registry of them: attach, detach, the per-client greeting and the disconnect hooks |
 | `src/shared/core/ipc-dispatch.js` | One request frame from table lookup to answer: boundary validation, the cancellation token, per-request metrics and the failure log |
 | `src/shared/core/verbose-policy.js` | Verbose while ANY client wants it, released when one says so or goes away — the honest semantic, since worker stdout is broadcast to every window and a per-client verbose is not achievable |
