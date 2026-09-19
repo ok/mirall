@@ -2,12 +2,10 @@
 // handler table, `event:*` pushes, and the coalesced reconcile hint bus. Frames arriving
 // before start() are queued so no request is lost during boot.
 import { createLogger, fields } from './logger.js'
-import { createHintBus } from './hints.js'
-import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
 import { FRAME } from '../contract/ipc-frames.js'
-import { TARGETED_EVENTS } from '../contract/events.js'
+import { createEventPlane, scopeForEvent } from './ipc-events.js'
 import { createClientRegistry } from './ipc-client.js'
 import { createDispatcher } from './ipc-dispatch.js'
 import { createDeadlineWatch } from './ipc-deadlines.js'
@@ -20,44 +18,13 @@ import { createFrameReader } from './frame-reader.js'
 
 const log = createLogger('ipc')
 
-// Fan a coalesced `event:reconcile` out of a POKE so its view re-derives through the level-triggered
-// reconcile channel. The named events stay on the wire as the emit-site API (and as flow-test /
-// debugging observables); the reconcile-driven hooks (useFiles, useShareFiles, useMembers, useShares,
-// useSpaces) no longer subscribe to them. Every row here must have a consumer matching that scope
-// kind, and every hook that re-derives on a hint must have its poke sources mapped here.
-// event:member-joined is deliberately unmapped: it fires pre-persist; members-updated (post-persist)
-// is the poke. Owned/foreign mount-status both map to the shares scope (both persist a durable
-// mount.status the consumer re-derives, and the listings they re-read carry lastError, so the
-// transient paused-error state arrives with them — neither consumer needs a named subscription).
-const POKE_SCOPE = {
-  'event:files-updated': (p) => (p.spaceId ? Scope.files(p.spaceId) : null),
-  'event:shares-updated': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
-  // shareId may be absent (a space-wide poke) — the hint is then a wildcard on the share
-  // axis and matches every share view in the space (scope-match contract).
-  'event:share-files-updated': (p) => (p.spaceId ? Scope.shareFiles(p.spaceId, p.shareId) : null),
-  'event:members-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
-  'event:mirrors-updated': (p) => (p.spaceId ? Scope.mirrors(p.spaceId, p.shareId) : null),
-  'event:member-left': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
-  'event:member-avatar-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
-  'event:member-join-request': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),
-  'event:join-requests-updated': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),
-  'event:foreign-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
-  'event:owned-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
-  'event:audit-updated': () => Scope.audit(),
-}
-
-/** @internal */
-export function scopeForEvent(type, payload = {}) {
-  const toScope = POKE_SCOPE[type]
-  return toScope ? toScope(payload) : null
-}
+// Re-exported from its new home so the guards that read the poke table keep one import path.
+export { scopeForEvent }
 
 // Ordinary control flow rather than faults: the user cancelled, or a bounded read gave up as
 // designed. Logging these at warn would teach the reader to ignore the level. Both are genuinely
 // thrown — ECANCELLED by the overlay backend on an aborted read, PREVIEW_CANCELLED by walk-disk.js.
 const EXPECTED = new Set(CONTRACT_EXPECTED_CODES)
-
-const TARGETED = new Set(TARGETED_EVENTS)
 
 // The code half is a closed set, but the type half is whatever the renderer sent — an unknown
 // command is counted under its requested name, so a buggy or looping caller could otherwise grow
@@ -107,7 +74,11 @@ export function resetRequestFailureCounters() {
 // `requests` is injectable so a test can declare the small vocabulary it exercises. Production
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
-export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES, now = Date.now } = {}) {
+export function createIPC(pipe, {
+  requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES, now = Date.now,
+  epoch = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
+  replay,
+} = {}) {
   // The table owns the request metadata; `handle` is a thin shim onto it so registrations keep
   // working while domains move onto register(ipc, deps).
   const table = createHandlerTable(requests ? { requests } : {})
@@ -115,6 +86,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   // so a second router in the same process (every test that builds one) must not be able to abort
   // the first one's work.
   const clients = createClientRegistry({
+    headAt: () => events.head(),
     bindReader: (client) => bindReader(client),
     onRemoved: (client, reason) => {
       // Dropped without answering: there is nobody left to receive the refusal.
@@ -264,45 +236,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     client.write(JSON.stringify(msg) + '\n')
   }
 
-  // Through emit(), not straight at a pipe: the hint bus was the second write site on the wire, and
-  // a second site is one every later frame-level change has to remember. There is no recursion —
-  // scopeForEvent('event:reconcile') is null.
-  const hintBus = createHintBus((t, p) => emit(t, p))
-
-  // The high-frequency streams: per-chunk transfer/publish progress, decoration and awareness
-  // frames. Named because more than one rule keys off the same set.
-  const isHighRate = (type) =>
-    type.endsWith('-progress') || type === 'event:decoration' || type === 'event:awareness'
-
-  // emit(type, payload)          → every client
-  // emit(type, payload, { to })  → one client, by object or by id
-  //
-  // One method rather than emit + emitTo: the contract guards find emit sites by parsing for a
-  // callee named `emit` with the event name first (test/helpers/emit-sites.js), and a second
-  // spelling would hide every targeted event from "is every declared event emitted somewhere".
-  function emit(type, payload = {}, { to = null } = {}) {
-    if (TARGETED.has(type) && to == null) {
-      // One caller's progress must never land in another's UI. Dropped with a warn rather than
-      // thrown: leave-progress fires from a teardown that outlives its own request, and a throw
-      // there is an unhandled rejection inside the crash backstop's fault window. The static guard
-      // (test/invariants/targeted-events.test.js) is what stops a new call site shipping like this.
-      log.warn('targeted event emitted with no target, dropped:', type)
-      return
-    }
-    if (!isHighRate(type)) log.debug('emit', type)
-    const line = JSON.stringify({ type, ...payload }) + '\n'
-    if (to != null) {
-      // A target that has since disconnected is a silent no-op, not an error: the operation it was
-      // reporting on outlives the client that asked for it.
-      clients.resolve(to)?.write(line)
-      return
-    }
-    for (const client of clients.all()) client.write(line)
-    // Hints fan out of broadcasts only: a targeted event is one caller's progress and says nothing
-    // about state anyone else re-derives.
-    const scope = scopeForEvent(type, payload)
-    if (scope) hintBus.hint(scope)
-  }
+  const events = createEventPlane({ clients, log, epoch, replay })
+  const { emit, resume } = events
 
   function handle(type, fn) {
     table.register(type, fn)
@@ -323,7 +258,9 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const primary = pipe ? clients.attach(pipe) : null
 
   return {
-    handle, emit, respond, start, cancel, abortAll, sweepDeadlines, inFlightAges,
+    handle, emit, respond, start, cancel, abortAll, sweepDeadlines, inFlightAges, resume,
+    epoch: events.epoch,
+    head: events.head,
     attach: (p, opts) => clients.attach(p, opts),
     detach: (client, reason) => clients.detach(client, reason),
     onClientAttach: (fn) => clients.onAttach(fn),
