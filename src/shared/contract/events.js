@@ -55,3 +55,19 @@ export const TARGETED_EVENTS = Object.freeze([
   'event:foreign-folder-preview-progress',
   'event:leave-progress',
 ])
+
+// Events a late or reconnecting client is NOT replayed: per-chunk progress, and soft-state whose
+// stale value is worse than none. Both would also evict every durable frame from the replay ring
+// within seconds of a transfer. They still carry a sequence number — they are simply not kept.
+//
+// Derived from the names rather than listed, so a new progress event is ephemeral by being called
+// one, and the same set is what the router declines to log at debug level.
+// A rule, not a list, because it has to answer for a name too: the router asks it on every emit,
+// including one the contract has not seen. The list below is the same rule applied to the declared
+// vocabulary, so a test can pin the membership without re-stating the rule.
+/** @param {string} name */
+export const isEphemeralEvent = (name) =>
+  name === 'event:decoration' || name === 'event:awareness' || name.endsWith('-progress')
+
+/** @internal the replay and log-suppression list */
+export const EPHEMERAL_EVENTS = Object.freeze(EVENT_NAMES.filter(isEphemeralEvent))
