@@ -30,16 +30,27 @@ const IDLE_DROP_MS = 30000
 // than IDLE_DROP_MS (a deliberate pause should stay visible) but bounded, so a dead
 // connection that never fired onclose can't leak the avatar forever.
 const PAUSED_DROP_MS = 300000
-// Backstop for a leaked detail subscription (a renderer reload never sends the
-// unsubscribe): a sub with no download entry for this long is evicted so the sweep
-// timer can't re-arm forever. A dropdown legitimately open on a file that quiet is
-// already showing the empty set; reopening it re-subscribes.
+// Backstop for a subscription no disconnect will ever reclaim. Two cases: a client that holds its
+// pipe open but stops reading, and — the one that actually happens today — a renderer reload, which
+// never sends the unsubscribe and does NOT detach its client, because main keeps one pipe per
+// worker across reloads. A sub with no download entry for this long goes dormant so the sweep timer
+// can't re-arm forever. A dropdown legitimately open on a file that quiet is already showing the
+// empty set; reopening it re-subscribes.
 const DETAIL_SUB_QUIET_MS = 300000
 
 // `bytes` is DISPLAY-progress = max(bytes we served, the downloader's reported have) — a
 // hybrid of observed serves and a downloader-asserted floor, NOT pure upload accounting.
 const downloads = new Map()     // fileKey → { spaceId, path, peers: Map<profileKey, { bytes, total, lastTs, paused }> }
-const detailSubs = new Map()    // fileKey → { n, spaceId, path } (a row is subscribed while n > 0; identity kept so the sweep can push an authoritative — possibly empty — snapshot)
+// fileKey → { clients: Map<clientId, n>, spaceId, path } — identity kept so the sweep can push an
+// authoritative (possibly empty) snapshot. Two properties, both needed: refcounted WITHIN a client,
+// because two open surfaces on one row must not kill each other's stream; partitioned ACROSS
+// clients, because an unsubscribe used to be unattributed — any caller could decrement any key, so
+// one client closing its dropdown starved another's stream, and a client that vanished left its
+// increment behind forever. A bare count had the first property and not the second.
+const detailSubs = new Map()
+// A caller with no notion of clients — the integration suite driving the ledger directly — is one
+// anonymous client, and its frames broadcast, which is exactly what they did before.
+const ANONYMOUS_CLIENT = 0
 const lastSummaryAt = new Map() // fileKey → ts (throttle)
 const lastDetailAt = new Map()  // fileKey → ts (throttle)
 const hashKeys = new Map()      // contentHash → fileKey[] (resolved once at serve start; the per-chunk path reads this, not the serve index)
@@ -270,7 +281,7 @@ function dropPeer(key, from) {
   if (!d || !d.peers.delete(from)) return
   if (d.peers.size === 0) {
     ipcRef?.emit('event:awareness', { channel: 'serving', spaceId: d.spaceId, path: d.path, peers: [], bytes: 0, total: 0, pausedKeys: [] })
-    if (detailSubs.has(key)) ipcRef?.emit('event:awareness', { channel: 'serving-detail', spaceId: d.spaceId, path: d.path, peers: [] })
+    emitDetailFrame(key, d.spaceId, d.path, [])
     downloads.delete(key)
     lastSummaryAt.delete(key)
     lastDetailAt.delete(key)
@@ -326,7 +337,18 @@ function emitDetail(key, force, now = Date.now()) {
   if (!d) return
   if (!force && now - (lastDetailAt.get(key) || 0) < DETAIL_THROTTLE_MS) return
   lastDetailAt.set(key, now)
-  ipcRef?.emit('event:awareness', { channel: 'serving-detail', spaceId: d.spaceId, path: d.path, peers: serveSnapshot(key).peers })
+  emitDetailFrame(key, d.spaceId, d.path, serveSnapshot(key).peers)
+}
+
+// Detail goes only to the clients that asked for this row. The summary channel stays a broadcast:
+// it drives the collapsed avatar stack, which every view shows.
+function emitDetailFrame(key, spaceId, path, peers) {
+  const sub = detailSubs.get(key)
+  if (!sub) return
+  const payload = { channel: 'serving-detail', spaceId, path, peers }
+  for (const clientId of sub.clients.keys()) {
+    ipcRef?.emit('event:awareness', payload, clientId === ANONYMOUS_CLIENT ? undefined : { to: clientId })
+  }
 }
 
 function serveSnapshot(key) {
@@ -337,12 +359,18 @@ function serveSnapshot(key) {
   return { peers }
 }
 
-export function subscribeServeDetail(spaceId, path) {
+// The owner is last and defaulted: a caller that has no client to name keeps the behaviour it had.
+export function subscribeServeDetail(spaceId, path, clientId = ANONYMOUS_CLIENT) {
   const key = fileKey(spaceId, path)
-  // Refcount so two open surfaces on the same row don't kill each other's stream:
-  // detail flows while the count is > 0; one consumer closing only decrements.
-  const cur = detailSubs.get(key)
-  detailSubs.set(key, { n: (cur?.n || 0) + 1, spaceId, path })
+  let sub = detailSubs.get(key)
+  if (!sub) detailSubs.set(key, (sub = { clients: new Map(), spaceId, path }))
+  // Refcount so two open surfaces on the same row don't kill each other's stream: detail flows
+  // while this client's count is > 0, and one of its consumers closing only decrements.
+  sub.clients.set(clientId, (sub.clients.get(clientId) || 0) + 1)
+  // Explicitly, not as a side effect: subscribing re-arms a sub the quiet window had put to sleep,
+  // so reopening a dropdown on a long-idle row starts streaming again. The previous shape got this
+  // by replacing the whole entry on every subscribe, which also discarded the dormancy clock.
+  sub.quietSince = 0
   // A subscription on a quiet file must still get sweep-driven authoritative frames.
   scheduleIdleSweep()
   return serveSnapshot(key)
@@ -355,13 +383,28 @@ export function _getServeDetailForTests(spaceId, path) {
   return serveSnapshot(fileKey(spaceId, path))
 }
 
-export function unsubscribeServeDetail(spaceId, path) {
+export function unsubscribeServeDetail(spaceId, path, clientId = ANONYMOUS_CLIENT) {
   const key = fileKey(spaceId, path)
-  const cur = detailSubs.get(key)
-  const n = (cur?.n || 0) - 1
-  if (n > 0) detailSubs.set(key, { ...cur, n })
-  else { detailSubs.delete(key); lastDetailAt.delete(key) }
+  const sub = detailSubs.get(key)
+  const n = sub?.clients.get(clientId)
+  // A client that holds nothing on this key decrements nothing. The unattributed decrement — any
+  // caller able to drive any key to zero — is the bug this replaces.
+  if (!n) return { ok: true }
+  if (n > 1) sub.clients.set(clientId, n - 1)
+  else sub.clients.delete(clientId)
+  if (sub.clients.size === 0) { detailSubs.delete(key); lastDetailAt.delete(key) }
   return { ok: true }
+}
+
+// Every key a departed client held, whatever its counts — exact, rather than the dormancy window's
+// timed approximation. It only fires for a client that truly detaches, which in the shipped
+// single-pipe app is nothing: a renderer reload keeps the same client, so the window above is still
+// what covers it until a daemon gives each client its own pipe.
+export function dropServeDetailClient(clientId) {
+  for (const [key, sub] of [...detailSubs]) {
+    if (!sub.clients.delete(clientId)) continue
+    if (sub.clients.size === 0) { detailSubs.delete(key); lastDetailAt.delete(key) }
+  }
 }
 
 // Push the authoritative snapshot for a subscribed file — including the empty set, so a missed
@@ -371,7 +414,7 @@ function emitDetailAuthoritative(key, now = Date.now()) {
   const sub = detailSubs.get(key)
   if (!sub) return
   lastDetailAt.set(key, now)
-  ipcRef?.emit('event:awareness', { channel: 'serving-detail', spaceId: sub.spaceId, path: sub.path, peers: serveSnapshot(key).peers })
+  emitDetailFrame(key, sub.spaceId, sub.path, serveSnapshot(key).peers)
 }
 
 function scheduleIdleSweep() {
