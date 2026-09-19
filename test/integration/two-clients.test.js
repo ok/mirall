@@ -82,12 +82,13 @@ test('a greeting runs once per client, with the router live', async (t) => {
   ipc.start()
   await tick()
 
+  // By type, not by whole frame: every pushed frame carries an ordinal.
   for (const [name, wire] of [['A', a], ['B', b]]) {
-    t.alike(wire.frames(), [{ type: 'event:worker-ready' }], `${name} was greeted exactly once`)
+    t.alike(wire.frames().map((f) => f.type), ['event:worker-ready'], `${name} was greeted exactly once`)
   }
 
   const c = pipe()
   ipc.attach(c)
   await tick()
-  t.alike(c.frames(), [{ type: 'event:worker-ready' }], 'and a client arriving later gets the same')
+  t.alike(c.frames().map((f) => f.type), ['event:worker-ready'], 'and a client arriving later gets the same')
 })

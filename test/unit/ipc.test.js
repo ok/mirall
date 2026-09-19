@@ -169,7 +169,8 @@ test('emit writes {type, ...payload}; respond without id is a no-op', async (t) 
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   ipc.emit('event:hello', { a: 1 })
-  t.alike(pipe.lastMsg(), { type: 'event:hello', a: 1 })
+  // Every pushed frame is numbered, so a client that was away can say where it got to.
+  t.alike(pipe.lastMsg(), { type: 'event:hello', a: 1, seq: 1 })
   const before = pipe.written.length
   ipc.respond(undefined, { x: 1 })
   t.is(pipe.written.length, before, 'respond with no id wrote nothing')
