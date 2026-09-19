@@ -29,7 +29,7 @@ export function registerFolderPreview(ipc) {
     }
   }
 
-  ipc.handle('owned-folder:preview', async (msg) => {
+  ipc.handle('owned-folder:preview', async (msg, ctx) => {
     const ignore = msg.ignore || DEFAULT_IGNORE
     const shareId = msg.shareId && msg.shareId !== 'preview' ? msg.shareId : null
     const previewId = msg.previewId || null
@@ -37,18 +37,18 @@ export function registerFolderPreview(ipc) {
       previewInitialPublishScan(msg.spaceId, shareId, msg.mountPath, ignore, {
         signal,
         onProgress: previewId
-          ? (p) => ipc.emit('event:owned-folder-preview-progress', { previewId, ...p })
+          ? (p) => ipc.emit('event:owned-folder-preview-progress', { previewId, ...p }, { to: ctx.client })
           : null,
       }))
   })
 
-  ipc.handle('foreign-folder:preview', async (msg) => {
+  ipc.handle('foreign-folder:preview', async (msg, ctx) => {
     const previewId = msg.previewId || null
     return await withSignal(previewId, (signal) =>
       previewMaterializeScan(msg.spaceId, msg.ownerKey, msg.shareId, msg.mountPath, {
         signal,
         onProgress: previewId
-          ? (p) => ipc.emit('event:foreign-folder-preview-progress', { previewId, ...p })
+          ? (p) => ipc.emit('event:foreign-folder-preview-progress', { previewId, ...p }, { to: ctx.client })
           : null,
       }))
   })
