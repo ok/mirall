@@ -34,7 +34,9 @@ import {
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
-import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../shared/contract/exit-codes.js'
+import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED } from '../shared/contract/exit-codes.js'
+import { bindConnectionLifecycle } from './connection-lifecycle.js'
+import { requireHost } from '../shared/core/client-trust.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import {
   getProfile,
@@ -86,12 +88,12 @@ let shuttingDown = false
 // a parameter because the code is read at exit time, not at call time — see below.
 let exitCode = 0
 async function safeShutdown(reason, code = 0) {
-  // A specific code beats the default. Two shutdowns can race — a pipe that closed as the worker
-  // was already going down for a reason of its own — and the first to arrive owns the sequence.
-  // Without this the generic one silences the specific one, and the renderer reads a refused
-  // protocol as an ordinary exit and spends the whole respawn budget rediscovering it.
-  if (code !== 0) exitCode = code
+  // The FIRST reason owns the exit code, and a later one cannot relabel it. Shutdowns routinely
+  // arrive in pairs: the host asks us to stop, our teardown runs for seconds, and main's escalation
+  // closes the pipe underneath it. That second event is a CONSEQUENCE of the first, so letting it
+  // set the code would report a clean quit as an orphaned worker on every slow teardown.
   if (shuttingDown) return
+  exitCode = code
   shuttingDown = true
   log.warn('shutdown:', reason)
   // Hard deadline: a hung swarm/store teardown must never keep the worker alive.
@@ -114,14 +116,20 @@ async function safeShutdown(reason, code = 0) {
   Bare.exit(exitCode)
 }
 
-// Register the pipe-close teardown BEFORE the bootstrap await. If the parent dies
-// during startup (before sending the bootstrap line), the IPC pipe closes while
-// we're parked on ipc.bootstrapPromise; without these handlers in place the
-// worker would sit at that await forever as an idle orphan. safeShutdown's
-// teardown steps all no-op safely when called before init.
-Bare.IPC.on('end', () => { safeShutdown('ipc-end') })
-Bare.IPC.on('close', () => { safeShutdown('ipc-close') })
-Bare.IPC.on('error', (err) => { safeShutdown('ipc-error: ' + (err && err.message ? err.message : err)) })
+// Registered BEFORE the bootstrap await. If the parent dies during startup, the pipe closes while
+// we are parked on ipc.bootstrapPromise; without this the worker would sit at that await forever as
+// an idle orphan. safeShutdown's teardown steps all no-op safely when called before init.
+//
+// A closed pipe now disconnects a CLIENT and then asks separately whether to stay up. The answer is
+// still "stop" — see connection-lifecycle.js for why it has to be, until the worker can accept a
+// connection of its own.
+bindConnectionLifecycle({
+  pipe: Bare.IPC,
+  ipc,
+  client: ipc.primary,
+  isBootComplete: () => bootComplete,
+  stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
+})
 
 // === Bootstrap frame ===
 
@@ -168,7 +176,14 @@ root = await boot(bootstrap, {
 const { mounts, intents, applyRelayConfig } = root
 const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
-ipc.handle('shutdown', () => { safeShutdown('renderer-shutdown') })
+// A stop, asked for rather than inferred from a pipe going quiet. Answered BEFORE the teardown
+// starts so a caller can tell it landed: the timer fires after the router has written the response,
+// which is a microtask away, and the teardown that follows takes far longer than that to flush.
+ipc.handle('shutdown', (msg, ctx) => {
+  requireHost(ctx.client)
+  setTimeout(() => { safeShutdown('shutdown-request') }, 0)
+  return { ok: true }
+})
 
 // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 

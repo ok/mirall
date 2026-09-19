@@ -32,6 +32,7 @@ export const CODES = Object.freeze({
   MOUNT_OVERLAPS: 'MOUNT_OVERLAPS',
   MOUNT_PATH_MISSING: 'MOUNT_PATH_MISSING',
   NOT_A_MEMBER: 'NOT_A_MEMBER',
+  NOT_AUTHORIZED: 'NOT_AUTHORIZED',  // internal: a client asked for something only the host may ask
   NOT_FOUND: 'NOT_FOUND',  // internal only: a record a background loop expected to be there
   OVERLAY_REQUIRED: 'OVERLAY_REQUIRED',
   PEER_NOT_AVAILABLE: 'PEER_NOT_AVAILABLE',
@@ -85,6 +86,9 @@ export const INTERNAL_CODES = Object.freeze([
   'EPATH',
   'INVALID_ARGUMENT',
   'NOT_FOUND',
+  // Refused before any UI could show it: only the host can reach the requests it guards, and a
+  // future CLI renders its own text.
+  'NOT_AUTHORIZED',
   'OVERLAY_REQUIRED',
   // Rejected into bootstrapPromise inside the worker and never responded: the worker exits before
   // any request can be answered, so it reaches no renderer. What the user reads is the fault

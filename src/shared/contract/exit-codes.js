@@ -8,3 +8,7 @@ export const WORKER_EXIT_UNSTABLE = 70
 // Respawning cannot fix it — the next generation reads the same frame — so the renderer's policy
 // treats this as terminal rather than spending the budget discovering that five times.
 export const WORKER_EXIT_PROTOCOL_MISMATCH = 71
+
+// The last client went away and nothing can connect a new one. Distinct from a clean stop so a log
+// reader — and the respawn policy — can tell "the host asked us to stop" from "the host vanished".
+export const WORKER_EXIT_ORPHANED = 72
