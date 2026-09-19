@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeRespawnPolicy } from '../../src/renderer/ipc/worker-respawn.js'
+import { exitDisposition, makeRespawnPolicy } from '../../src/renderer/ipc/worker-respawn.js'
 import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../../src/shared/contract/exit-codes.js'
 
 // REGRESSION (FIX-140): a worker that dies (crash / OOM on a very large folder) must be
@@ -101,4 +101,25 @@ test('a refusal for any other reason reports the budget as the terminal state', 
   const spent = p.onExit(0)
   t.is(spent.respawn, false)
   t.is(spent.terminal, 'budget')
+})
+
+test('what an exit means, before any budget is consulted', (t) => {
+  t.is(exitDisposition({ shuttingDown: true, restartInFlight: false }), 'ignore')
+  t.is(exitDisposition({ shuttingDown: true, restartInFlight: true }), 'ignore', 'a quit wins over a restart')
+  t.is(exitDisposition({ shuttingDown: false, restartInFlight: true }), 'restart')
+  t.is(exitDisposition({ shuttingDown: false, restartInFlight: false }), 'respawn')
+})
+
+// REGRESSION (FIX-405-1: the relay reconnect asked the worker to exit and let the CRASH path bring
+// it back. A deliberate, user-initiated restart spent a respawn budget and was invisible as
+// intentional to every layer below the button — five reconnects and the app declared itself
+// permanently down.)
+test('REGRESSION (FIX-405-1): a deliberate restart spends no respawn budget', (t) => {
+  const p = makeRespawnPolicy({ maxRetries: 5 })
+  // Five restarts: the disposition keeps them away from the policy entirely.
+  for (let i = 0; i < 5; i++) {
+    t.is(exitDisposition({ shuttingDown: false, restartInFlight: true }), 'restart')
+  }
+  // A real crash afterwards still gets the full first delay, not the sixth.
+  t.alike(p.onExit(0), { respawn: true, delayMs: 500 })
 })

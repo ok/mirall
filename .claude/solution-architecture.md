@@ -1152,6 +1152,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/worker/main.js` | Bare worker entry — the crash backstop, the IPC pipe and its close hooks, the bootstrap frame, the membership-control block, every `domain:verb` handler registration, the shutdown deadline and `Bare.exit` |
+| `src/worker/connection-lifecycle.js` | What a closed pipe means: detach the client, then decide separately whether to stay up. Stops today because nothing can connect a new client; a worker that can accept one lingers instead |
 | `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse (§2) |
 | `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, the durable status writer and the scan-outcome → status mapping, deep-scan debt, the per-share reconcile timers, pause/resume, the 60 s mount + download-root probe (§7.6) |
 | `src/worker/sweeps.js` | `Sweeps` — four missed-event backstops on five timers: presence (60 s), invite expiry (1 h), overlay index compaction (a 5 min boot delay + 6 h, with the last run persisted in `reclaim-meta` so short sessions still pay their due pass — `compactIndexIfDue()`), audit prune (daily, only when the audit bee opened) |
@@ -1182,6 +1183,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
 | `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
+| `src/shared/core/client-trust.js` | `requireHost(client)` — stopping or restarting the worker ends every client's session, so it is the host's call and not a connected peer's |
 | `src/shared/core/ipc-events.js` | The event plane: the poke→reconcile fan-out table, one sequence number per pushed frame, broadcast vs per-client routing, and the resume a client uses to catch up from a cursor |
 | `src/shared/core/replay-ring.js` | The recent durable frames a resuming client can be replayed, bounded by count and by bytes, with a floor that says when only a resync is honest |
 | `src/shared/core/ipc-client.js` | One connected peer (its pipe, its in-flight requests, its trust) and the registry of them: attach, detach, the per-client greeting and the disconnect hooks |

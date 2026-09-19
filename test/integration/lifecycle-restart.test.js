@@ -24,6 +24,7 @@ const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 const { createIPC } = await import('../../src/shared/core/ipc.js')
 const { createHealthMonitor } = await import('../../src/shared/core/health.js')
+const { bindConnectionLifecycle } = await import('../../src/worker/connection-lifecycle.js')
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -124,4 +125,40 @@ test('a refused bootstrap tears down cleanly and leaves nothing armed', async (t
   t.is(ipc.abortAll('protocol-mismatch'), 0, 'no request ever dispatched, so nothing to abort')
   t.is(ipc.inFlightCount(), 0)
   t.is(timers.intervals().length, before, 'the health monitor is the only timer, and it stopped')
+})
+
+// Teardown WITHOUT exit: a closed pipe disconnects a client, and whether the worker then stops is a
+// separate question with a separate answer. Both answers are driven here against a real booted root
+// — the shipped one (stop, because nothing could reconnect) and the one a daemon will give.
+test('a closed pipe disconnects the client; stopping is a separate decision', async (t) => {
+  const pipe = new EventEmitter()
+  pipe.write = () => true
+  const ipc = createIPC(pipe)
+  const stops = []
+
+  bindConnectionLifecycle({
+    pipe,
+    ipc,
+    client: ipc.primary,
+    isBootComplete: () => true,
+    canAcceptClients: true,
+    stop: (reason) => stops.push(reason),
+  })
+
+  pipe.emit('close')
+  t.is(ipc.clientCount(), 0, 'the client is gone')
+  t.alike(stops, [], 'but a worker that could accept another does not stop')
+  t.is(ipc.inFlightCount(), 0, 'and it left nothing behind')
+
+  // The shipped policy, on a second worker: no socket, so no client can ever arrive.
+  const shipped = new EventEmitter()
+  shipped.write = () => true
+  const ipc2 = createIPC(shipped)
+  const stops2 = []
+  bindConnectionLifecycle({
+    pipe: shipped, ipc: ipc2, client: ipc2.primary,
+    isBootComplete: () => true, stop: (reason) => stops2.push(reason),
+  })
+  shipped.emit('close')
+  t.alike(stops2, ['ipc-close'], 'an unreachable worker holding the store lock stops')
 })
