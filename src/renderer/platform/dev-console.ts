@@ -50,19 +50,23 @@ async function diag(label: string, type: RequestName, payload: Record<string, un
 }
 
 async function verbose(on = true): Promise<boolean> {
-  // Worker leg: flip its runtime-config so its logger starts/stops emitting.
+  // Worker leg: flip its runtime-config so its logger starts/stops emitting. The reply is the
+  // EFFECTIVE state, which is not always what was asked for — another client may still want it on,
+  // or the host booted the worker verbose — so it is what gets printed.
+  let workerVerbose = on
   try {
-    await request('setVerbose', { verbose: on })
+    const reply = await request('setVerbose', { verbose: on }) as { verbose?: boolean } | null
+    if (typeof reply?.verbose === 'boolean') workerVerbose = reply.verbose
   } catch (err) {
     console.warn('[mirall] worker verbose toggle failed:', err)
   }
   // Main leg: flip its live debug gate (and the worker-spawn seed).
   const mainDebug = await window.bridge.setVerbose(on)
   console.log(
-    `[mirall] verbose logging ${on ? 'ON' : 'OFF'} — worker debug logs ` +
-    `${on ? 'now stream into this console as [worker stdout] …' : 'silenced'} (main debug=${mainDebug})`,
+    `[mirall] verbose logging ${workerVerbose ? 'ON' : 'OFF'} — worker debug logs ` +
+    `${workerVerbose ? 'now stream into this console as [worker stdout] …' : 'silenced'} (main debug=${mainDebug})`,
   )
-  return on
+  return workerVerbose
 }
 
 const mirall: MirallDevConsole = {
