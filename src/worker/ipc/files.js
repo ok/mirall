@@ -26,7 +26,7 @@ import { spaceRefOf, fileNameOf } from '../audit-refs.js'
 export function registerFiles(ipc, { log }) {
   ipc.handle('event:loose-file-fs-event', async (msg) => {
     try {
-      await handleLooseFsEvent(msg)
+      await handleLooseFsEvent({ spaceId: msg.spaceId, absPath: msg.absPath, action: msg.action })
     } catch (err) {
       log.warn('loose-file fs event failed:', err.message)
     }
