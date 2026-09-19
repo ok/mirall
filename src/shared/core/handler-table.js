@@ -12,6 +12,13 @@ function checkType(type, value, field) {
       return typeof value === 'boolean' ? null : `${field} must be a boolean`
     case 'array':
       return Array.isArray(value) ? null : `${field} must be an array`
+    case 'object':
+      // Presence and kind only. What is INSIDE stays the handler's business, as it does for every
+      // other type here — this exists to stop a malformed payload reaching a body, not to
+      // re-implement the domain rules.
+      return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? null
+        : `${field} must be an object`
     case 'spaceId':
     case 'shareId':
     case 'path':

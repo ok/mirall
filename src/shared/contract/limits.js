@@ -35,3 +35,15 @@ export const DHT_FAILURE_MS = 45000
 // silently refuses to restore.
 export const MIN_WINDOW_WIDTH = 900
 export const MIN_WINDOW_HEIGHT = 870
+
+// Boundary caps on request strings. NOT the domain limits: NAME_MAX truncates a display name to 80
+// deep in the data layer, and that stays there, because truncating and refusing are different
+// behaviours with different consequences for the user. These sit far above any domain rule and
+// exist only so a string no honest caller sends is refused before a handler allocates around it.
+// IPC_MAX_FRAME_BYTES is the only bound above them.
+export const ARG_MAX = Object.freeze({
+  name: 1024,      // display names, space and share names, icons
+  key: 256,        // hex public keys, transfer ids, preview ids
+  text: 4096,      // search strings, cursors, invite codes, free text
+  path: 32768,     // the Windows long-path ceiling
+})
