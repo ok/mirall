@@ -11,6 +11,7 @@ export function createHealthMonitor({
   setInterval: setIv = setInterval,
   clearInterval: clearIv = clearInterval,
   intervalMs = LAG_INTERVAL_MS,
+  onTick = null,
 } = {}) {
   let lastLagMs = 0
   let maxLagMs = 0
@@ -24,6 +25,11 @@ export function createHealthMonitor({
     // reading as fast and keeps the max from being reset by a time correction.
     lastLagMs = drift > 0 ? drift : 0
     if (lastLagMs > maxLagMs) maxLagMs = lastLagMs
+    // After the lag sample, so a slow rider is not counted in the sample it rides on. It is not
+    // excluded outright: `expected` is set above, so the time a rider costs delays the next fire
+    // and lands in the NEXT tick's drift. The rider here is a sweep over a handful of entries.
+    // Isolated, because this timer is the wedge detector and has to survive whatever rides on it.
+    if (onTick) { try { onTick() } catch {} }
   }
 
   return {

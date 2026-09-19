@@ -10,6 +10,7 @@ import { FRAME } from '../contract/ipc-frames.js'
 import { TARGETED_EVENTS } from '../contract/events.js'
 import { createClientRegistry } from './ipc-client.js'
 import { createDispatcher } from './ipc-dispatch.js'
+import { createDeadlineWatch } from './ipc-deadlines.js'
 import { checkProtocolCompatibility, protocolMismatchMessage } from '../contract/protocol-compat.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
@@ -106,7 +107,7 @@ export function resetRequestFailureCounters() {
 // `requests` is injectable so a test can declare the small vocabulary it exercises. Production
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
-export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES } = {}) {
+export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES, now = Date.now } = {}) {
   // The table owns the request metadata; `handle` is a thin shim onto it so registrations keep
   // working while domains move onto register(ipc, deps).
   const table = createHandlerTable(requests ? { requests } : {})
@@ -201,7 +202,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     }
   }
 
-  const dispatch = createDispatcher({ table, metrics: requestMetrics, countFailure, respond, log, logRequestFailure })
+  const dispatch = createDispatcher({ table, metrics: requestMetrics, countFailure, respond, log, logRequestFailure, now })
 
   // Best-effort and idempotent: a cancel for an id that has already settled, was never sent, or was
   // already cancelled is a no-op, because the renderer fires it without waiting to learn which.
@@ -218,10 +219,10 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       respond(id, null, 'cancelled before dispatch', CODES.ECANCELLED, null, client)
       return
     }
-    const entry = client.inFlight.get(id)
-    if (!entry) { log.debug('cancel', id, '(already settled or unknown)'); return }
+    const flight = client.inFlight.get(id)
+    if (!flight) { log.debug('cancel', id, '(already settled or unknown)'); return }
     log.debug('cancel', id, '(in flight)')
-    entry.abort(new AppError(CODES.ECANCELLED, 'cancelled by the caller'))
+    flight.cancellation.abort(new AppError(CODES.ECANCELLED, 'cancelled by the caller'))
   }
 
   // Every outstanding request, aborted before the data layer closes under it. Without this a handler
@@ -231,8 +232,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   function abortClient(client, reason) {
     const n = client.inFlight.size
     if (!n) return 0
-    for (const entry of [...client.inFlight.values()]) {
-      entry.abort(new AppError(CODES.ECANCELLED, reason))
+    for (const flight of [...client.inFlight.values()]) {
+      flight.cancellation.abort(new AppError(CODES.ECANCELLED, reason))
     }
     return n
   }
@@ -307,6 +308,8 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
     table.register(type, fn)
   }
 
+  const { sweepDeadlines, inFlightAges } = createDeadlineWatch({ clients, log, now })
+
   function start() {
     ready = true
     for (const { client, msg } of queued) dispatch(client, msg)
@@ -320,7 +323,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const primary = pipe ? clients.attach(pipe) : null
 
   return {
-    handle, emit, respond, start, cancel, abortAll,
+    handle, emit, respond, start, cancel, abortAll, sweepDeadlines, inFlightAges,
     attach: (p, opts) => clients.attach(p, opts),
     detach: (client, reason) => clients.detach(client, reason),
     onClientAttach: (fn) => clients.onAttach(fn),

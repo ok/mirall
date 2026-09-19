@@ -59,6 +59,10 @@ export function registerDiagnostics(ipc, { health, getRoot }) {
         subsystems: root?.health() || [],
         supervision: root?.supervision() || null,
         inFlightRequests: ipc.inFlightCount(),
+        // Ages, oldest first: the count above says how much is in flight, this says whether any of
+        // it is stuck — the one question requestMetrics cannot answer, because it records a
+        // duration only on settle. Capped because a human reads this and a wedge is the first row.
+        inFlightAges: ipc.inFlightAges().slice(0, 20),
       }),
       peerSamples: getPeerSamples(),
       relayConfig: getRelayConfig(),

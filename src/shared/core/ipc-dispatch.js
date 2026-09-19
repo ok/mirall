@@ -4,8 +4,9 @@
 import { validateArgs } from './handler-table.js'
 import { INVALID_ARGUMENT } from '../contract/errors.js'
 import { createCancellation } from './cancellation.js'
+import { deadlineFor, enforcementFor } from '../contract/request-deadlines.js'
 
-export function createDispatcher({ table, metrics, countFailure, respond, log, logRequestFailure }) {
+export function createDispatcher({ table, metrics, countFailure, respond, log, logRequestFailure, now = Date.now }) {
   return function dispatch(client, msg) {
     const entry = table.get(msg.type)
     if (!entry) {
@@ -38,7 +39,19 @@ export function createDispatcher({ table, metrics, countFailure, respond, log, l
     // On the CLIENT, not the router: ids are caller-minted and every caller starts at 1, so the id
     // alone is not a key. Two clients with a request 7 each is the ordinary case, and one
     // cancelling must not abort the other's.
-    if (cancellation) client.inFlight.set(msg.id, cancellation)
+    //
+    // `startedAt` is the field requestMetrics cannot give: begin() captures it inside the settle
+    // closure, so a call that NEVER settles — the only kind worth hunting — never reports an age.
+    if (cancellation) {
+      client.inFlight.set(msg.id, {
+        cancellation,
+        type: msg.type,
+        startedAt: now(),
+        deadlineMs: deadlineFor(entry.spec),
+        enforcement: enforcementFor(entry.spec),
+        warned: false,
+      })
+    }
     // The settle path is the SINGLE owner of removal. Deleting on abort instead would drop the entry
     // while the handler is still running, and a second cancel for that id would then read as
     // "already settled" and silently do nothing.

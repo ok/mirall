@@ -48,7 +48,9 @@ const log = createLogger('worklet')
 // Started next to ipc.start() rather than here: before the router goes live the loop is busy with
 // boot I/O by design, and sampling that would report a wedge that is really just a large library
 // being opened.
-const health = createHealthMonitor()
+// The worker's one periodic loop, so it carries the router's deadline sweep too — a second timer
+// for that would be the parallel mechanism the supervisor already argues against.
+const health = createHealthMonitor({ onTick: () => ipc.sweepDeadlines() })
 
 // Main authorizes "reveal in folder" against these, and cannot read the space records
 // that hold the per-space overrides, so the set is pushed to it on every change.

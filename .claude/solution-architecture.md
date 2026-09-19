@@ -1184,6 +1184,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
 | `src/shared/core/ipc-client.js` | One connected peer (its pipe, its in-flight requests, its trust) and the registry of them: attach, detach, the per-client greeting and the disconnect hooks |
 | `src/shared/core/ipc-dispatch.js` | One request frame from table lookup to answer: boundary validation, the cancellation token, per-request metrics and the failure log |
+| `src/shared/core/ipc-deadlines.js` | In-flight ages and the per-kind deadline sweep the health tick drives: a query past its bound is aborted, a command is only reported |
 | `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
 | `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` / `createLocalBee()` factories, the M-derived key policy, the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/core/reachability.js` | The pure connectivity verdict (`classify`, `stabilise`) and its VERDICT / CAUSE / CANARY vocabulary |
@@ -1228,6 +1229,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
 | `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
 | `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel`, plus `IPC_PROTOCOL_VERSION` — the wire's own version, independent of package.json |
+| `src/shared/contract/request-deadlines.js` | How long a request may run before the router reports it: per row, with a per-kind default, and 0 for deliberately unbounded |
 | `src/shared/contract/protocol-compat.js` | Whether the bootstrap frame's wire version falls inside this build's window, and the sentence a refusal prints. The worker refuses an incompatible host outright rather than defaulting its fields |
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
