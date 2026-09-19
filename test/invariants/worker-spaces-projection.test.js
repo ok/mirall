@@ -15,7 +15,8 @@ const src = [workerFile('main.js'), workerFile('ipc', 'spaces.js')].join('\n')
 test('every Space[] payload the worker ships goes through slimSpaces', (t) => {
   t.ok(/ipc\.handle\('spaces:list', async \(\) => slimSpaces\(/.test(src),
     'spaces:list uses the shared projection')
-  t.ok(/ipc\.emit\('event:state', \{ profile, spaces: await slimSpaces\(profile\) \}\)/.test(src),
+  // The routing argument may follow the payload — event:state is greeted to one client at a time.
+  t.ok(/ipc\.emit\('event:state', \{ profile, spaces: await slimSpaces\(profile\) \}/.test(src),
     'the boot event:state uses the shared projection')
   t.absent(/ipc\.emit\('event:state'[^\n]*listSpaces/.test(src),
     'no raw listSpaces payload rides event:state')
