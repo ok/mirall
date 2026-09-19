@@ -48,3 +48,15 @@ export function makeRespawnPolicy({
     },
   }
 }
+
+// What an exit MEANS, separated from the policy that budgets it. A restart the user asked for is
+// not a crash: it spends no budget, and main — not this side — brings the next worker up. Pure, so
+// the distinction is testable; ipc.ts reaches window.bridge and cannot be imported under Node.
+/**
+ * @param {{ shuttingDown: boolean, restartInFlight: boolean }} state
+ * @returns {'ignore' | 'restart' | 'respawn'}
+ */
+export function exitDisposition({ shuttingDown, restartInFlight }) {
+  if (shuttingDown) return 'ignore'
+  return restartInFlight ? 'restart' : 'respawn'
+}

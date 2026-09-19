@@ -37,7 +37,7 @@ interface IpcEnvelope {
   [key: string]: unknown
 }
 
-import { makeRespawnPolicy } from './worker-respawn.js'
+import { exitDisposition, makeRespawnPolicy } from './worker-respawn.js'
 
 // Recreated on worker exit: a worker that died mid-multibyte UTF-8 chunk must not leave
 // continuation state that corrupts the next worker's first frame (main needs no reset — its reader
@@ -60,7 +60,8 @@ let handlersBound = false
 let shuttingDown = false
 let permanentlyDown = false   // respawn policy gave up — requests fail fast instead of hanging
 let respawnScheduled = false  // a respawn timer is armed — don't spawn a second worker
-let recoveredFromCrash = false // the next 'ready' follows an unexpected exit → reload to re-sync the UI
+let reloadOnReady = false     // the next 'ready' follows an exit that lost our subscriptions → reload
+let restartInFlight = false   // main is replacing the worker on purpose — its exit is not a crash
 const respawnPolicy = makeRespawnPolicy()
 
 // The channel is terminally down and no request will ever be answered again. Exposed as a store
@@ -108,8 +109,8 @@ function markReady(): void {
   // A worker came back after an unexpected exit: in-flight requests were rejected and the fresh
   // worker has none of the renderer's prior subscriptions, so reload to re-establish them cleanly
   // (mirrors the OTA apply path). Never on first boot or during shutdown.
-  if (recoveredFromCrash && !shuttingDown) {
-    recoveredFromCrash = false
+  if (reloadOnReady && !shuttingDown) {
+    reloadOnReady = false
     window.location.reload()
   }
 }
@@ -205,7 +206,37 @@ function onWorkerExit(code: number): void {
   stdoutDecoder = new TextDecoder('utf-8')
   stderrDecoder = new TextDecoder('utf-8')
   failAllPending('Worker exited with code ' + code, CODES.WORKER_UNAVAILABLE)
+  // A restart we asked for is not a crash. Main already has the next worker coming, so the policy
+  // is not consulted and no budget is spent — the only thing this side still owes is the reload
+  // that re-establishes the subscriptions the old worker took with it.
+  if (exitDisposition({ shuttingDown, restartInFlight }) === 'restart') {
+    reloadOnReady = true
+    armReady()
+    return
+  }
   scheduleRespawn(code)
+}
+
+// A deliberate worker restart. The relay identity, and every other value read only at spawn, take
+// effect in the next generation and nowhere else — so applying one genuinely needs a new process.
+// Routing that through the crash path spent a respawn budget and made an intentional act
+// indistinguishable from a failure to every layer below the button.
+export async function restartWorker(): Promise<void> {
+  if (restartInFlight) return
+  restartInFlight = true
+  try {
+    const replaced = await window.bridge.restartWorker(WORKER_SPEC)
+    if (!replaced) return // the app is quitting; there is no next worker to wait for
+    workerStarted = true
+    probeWorkerReady()
+  } catch (err) {
+    console.error('worker restart failed:', err)
+    // Main could not finish it. Whatever state the worker is in, the crash path knows how to
+    // recover from "no worker" — leaving the app wedged behind a failed restart is the worse end.
+    if (!workerStarted) scheduleRespawn(0)
+  } finally {
+    restartInFlight = false
+  }
 }
 
 // Single gate governing every (re)spawn after the first boot. Honors the policy's backoff and
@@ -223,7 +254,7 @@ function scheduleRespawn(exitCode: number): void {
       : 'worker exited repeatedly; not respawning — reload the app to recover')
     return
   }
-  recoveredFromCrash = true
+  reloadOnReady = true
   respawnScheduled = true
   armReady() // parked requests re-arm onto the new promise and wait for the respawn
   setTimeout(() => {
