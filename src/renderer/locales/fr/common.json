@@ -1225,5 +1225,11 @@
     "mirrorDesc": "Où ce miroir est stocké. Les fichiers déjà présents au nouvel emplacement sont reconnus ; ce qui manque est retéléchargé.",
     "nameError": "Impossible de renommer ce dossier : {{error}}",
     "locationError": "Impossible de changer l’emplacement : {{error}}"
+  },
+  "workerFault": {
+    "protocolTitle": "Mirall doit être redémarré",
+    "protocolBody": "Certaines parties de Mirall ont été mises à jour et ne correspondent plus. Quittez complètement Mirall puis rouvrez-le. Si cela persiste, réinstallez la dernière version.",
+    "budgetTitle": "Le service en arrière-plan de Mirall s'est arrêté",
+    "budgetBody": "Il s'est arrêté plusieurs fois de suite et n'a pas redémarré. Quittez complètement Mirall puis rouvrez-le."
   }
 }

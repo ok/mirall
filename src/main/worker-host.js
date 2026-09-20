@@ -19,6 +19,7 @@ const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
 const { readDownloadFolder, readBandwidth } = require('./settings-ipc.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
+const { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -140,6 +141,13 @@ function getWorker(specifier) {
   // each field means once it lands.
   const bootstrap = {
     type: 'bootstrap',
+    // The wire contract's version and the window this sender accepts, checked by the worker before
+    // it reads any other field. A frame with no protocolVersion is a host from before the field
+    // existed and is refused like any other incompatible peer. min/max are inert while both equal
+    // the version, and exist so a future client can advertise a range without another wire change.
+    protocolVersion: IPC_PROTOCOL_VERSION,
+    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
+    protocolMax: IPC_PROTOCOL_VERSION,
     storage: p.storage,
     appVersion: version,
     upgradeKey: upgrade || null,

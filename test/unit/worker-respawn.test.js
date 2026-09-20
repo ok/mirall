@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { makeRespawnPolicy } from '../../src/renderer/ipc/worker-respawn.js'
-import { WORKER_EXIT_UNSTABLE } from '../../src/shared/contract/exit-codes.js'
+import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../../src/shared/contract/exit-codes.js'
 
 // REGRESSION (FIX-140): a worker that dies (crash / OOM on a very large folder) must be
 // respawned instead of leaving the app permanently dead — but a worker that re-crashes ON BOOT
@@ -84,4 +84,21 @@ test('FIX-R09-1: a failed spawn falls through to the boot-crash cap', (t) => {
   t.is(p.onExit(0).respawn, true)
   t.is(p.onExit(0).respawn, true)
   t.is(p.onExit(0).respawn, false, 'never-ready spawns still give up at maxRetries')
+})
+
+test('a protocol-mismatch exit is terminal and spends no budget', (t) => {
+  const p = makeRespawnPolicy()
+  const first = p.onExit(WORKER_EXIT_PROTOCOL_MISMATCH)
+  t.is(first.respawn, false, 'never respawned — the next generation reads the same frame')
+  t.is(first.terminal, 'protocol')
+  // The ordinary budget is untouched: a later crash still gets its full first delay.
+  t.alike(p.onExit(0), { respawn: true, delayMs: 500 })
+})
+
+test('a refusal for any other reason reports the budget as the terminal state', (t) => {
+  const p = makeRespawnPolicy({ maxRetries: 1 })
+  t.is(p.onExit(0).respawn, true)
+  const spent = p.onExit(0)
+  t.is(spent.respawn, false)
+  t.is(spent.terminal, 'budget')
 })

@@ -37,6 +37,7 @@ export const CODES = Object.freeze({
   PEER_NOT_AVAILABLE: 'PEER_NOT_AVAILABLE',
   PREPARE_FAILED: 'PREPARE_FAILED',
   PREVIEW_CANCELLED: 'PREVIEW_CANCELLED',
+  PROTOCOL_MISMATCH: 'PROTOCOL_MISMATCH',  // internal: the host's wire version is outside this build's window
   REMOVABLE_OR_NETWORK: 'REMOVABLE_OR_NETWORK',
   SHARE_FILE_LIMIT: 'SHARE_FILE_LIMIT',
   SHARE_NAME_COLLISION: 'SHARE_NAME_COLLISION',
@@ -85,6 +86,10 @@ export const INTERNAL_CODES = Object.freeze([
   'INVALID_ARGUMENT',
   'NOT_FOUND',
   'OVERLAY_REQUIRED',
+  // Rejected into bootstrapPromise inside the worker and never responded: the worker exits before
+  // any request can be answered, so it reaches no renderer. What the user reads is the fault
+  // screen's own copy (workerFault.*), not a per-request sentence.
+  'PROTOCOL_MISMATCH',
   'REMOVABLE_OR_NETWORK',
   'TCC_GATED',
   'UNKNOWN',

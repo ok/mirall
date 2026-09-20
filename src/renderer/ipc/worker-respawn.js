@@ -3,7 +3,8 @@
 // (recordReady): a boot loop accumulates to the cap, boot-work-die earns a fresh budget.
 // WORKER_EXIT_UNSTABLE keeps a SEPARATE budget of 3 per 10 min that recordReady never clears (an
 // unstable worker HAS reached ready, every time); only quiet time clears it.
-import { WORKER_EXIT_UNSTABLE } from '../../shared/contract/exit-codes.js'
+// WORKER_EXIT_PROTOCOL_MISMATCH spends no budget at all: it is terminal on the first exit.
+import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../../shared/contract/exit-codes.js'
 
 /**
  * @param {{ maxRetries?: number, baseDelayMs?: number, maxDelayMs?: number, maxUnstable?: number, unstableWindowMs?: number, now?: () => number }} [opts]
@@ -17,9 +18,13 @@ export function makeRespawnPolicy({
   let unstableStreak = 0
   let lastUnstableAt = 0
   return {
-    // Call on each worker exit, with the exit code. Returns { respawn, delayMs }.
-    /** @param {number | null} code @returns {{ respawn: boolean, delayMs: number }} */
+    // Call on each worker exit, with the exit code. Returns { respawn, delayMs } and, when it
+    // refuses, which terminal state the channel is in.
+    /** @param {number | null} code @returns {{ respawn: boolean, delayMs: number, terminal?: 'protocol' | 'budget' }} */
     onExit(code) {
+      // Terminal by construction: the next generation would read the same bootstrap frame and
+      // refuse it again, draining the budget to learn nothing.
+      if (code === WORKER_EXIT_PROTOCOL_MISMATCH) return { respawn: false, delayMs: 0, terminal: 'protocol' }
       if (code === WORKER_EXIT_UNSTABLE) {
         const t = now()
         // A generation that ran clean for longer than the window means the previous unstable exit
@@ -27,12 +32,12 @@ export function makeRespawnPolicy({
         // app for the rest of the session.
         if (lastUnstableAt && t - lastUnstableAt > unstableWindowMs) unstableStreak = 0
         lastUnstableAt = t
-        if (unstableStreak >= maxUnstable) return { respawn: false, delayMs: 0 }
+        if (unstableStreak >= maxUnstable) return { respawn: false, delayMs: 0, terminal: 'budget' }
         unstableStreak += 1
       }
       if (readySinceExit) streak = 0 // it booted + became ready, then died → fresh budget
       readySinceExit = false
-      if (streak >= maxRetries) return { respawn: false, delayMs: 0 }
+      if (streak >= maxRetries) return { respawn: false, delayMs: 0, terminal: 'budget' }
       const delayMs = Math.min(baseDelayMs * 2 ** streak, maxDelayMs)
       streak += 1
       return { respawn: true, delayMs }

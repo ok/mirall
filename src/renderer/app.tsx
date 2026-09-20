@@ -2,6 +2,7 @@
 // bridges, global dialogs, commands and the screen router.
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useChannelFault } from './hooks/useChannelFault.js'
 import { useProfile } from './hooks/useProfile.js'
 import { useUpdates } from './hooks/useUpdates.js'
 import { useSpaces } from './hooks/useSpaces.js'
@@ -17,6 +18,7 @@ import { useNotificationClickRouter } from './notifications/click-router.js'
 import { checkChangelogOnBoot } from './platform/changelog.js'
 import * as whatsNew from './platform/whats-new.js'
 import OnboardingScreen from './screens/OnboardingScreen.js'
+import WorkerFaultScreen from './screens/WorkerFaultScreen.js'
 import ScreenRouter from './ScreenRouter.js'
 import TopNav from './components/layout/TopNav.js'
 import AppDialogs, { type AppDialog } from './components/modals/AppDialogs.js'
@@ -33,6 +35,7 @@ import type { Profile } from './types/types.js'
 
 export default function App() {
   const { t } = useTranslation()
+  const fault = useChannelFault()
   const { profile, needsSetup, loading, saveProfile } = useProfile()
   const { spaces } = useSpaces()
   const nav = useAppNavigation()
@@ -47,6 +50,10 @@ export default function App() {
     })
   }, [loading, needsSetup])
 
+  // Above the boot and onboarding gates on purpose: with no worker, profile:get fails, and a failed
+  // read is indistinguishable from "no profile" (profile-gate.js) — which opens onboarding over an
+  // identity that exists and can then be overwritten.
+  if (fault) return <WorkerFaultScreen kind={fault} />
   if (loading) return (
     <main className="min-h-screen bg-surface flex items-center justify-center">
       <h1 className="sr-only">{t('boot.loading')}</h1>

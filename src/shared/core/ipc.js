@@ -7,6 +7,7 @@ import { Scope } from '../contract/scope.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
 import { FRAME } from '../contract/ipc-frames.js'
+import { checkProtocolCompatibility, protocolMismatchMessage } from '../contract/protocol-compat.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { createCancellation } from './cancellation.js'
@@ -116,7 +117,27 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
   const queued = []
   let ready = false
   let bootstrapResolve
-  const bootstrapPromise = new Promise((resolve) => { bootstrapResolve = resolve })
+  let bootstrapReject
+  const bootstrapPromise = new Promise((resolve, reject) => {
+    bootstrapResolve = resolve
+    bootstrapReject = reject
+  })
+  // A rejection nobody is awaiting yet is an unhandled rejection the crash backstop would count.
+  // The single production awaiter attaches before any frame can arrive, but a test router that
+  // never awaits must not take the process down with it.
+  bootstrapPromise.catch(() => {})
+
+  // The protocol check happens before any other field is read: a frame from a host on a different
+  // wire is refused whole, rather than defaulted field by field into a degraded worker. Resolver
+  // and rejecter are nulled together, so a second frame — a host retrying — cannot re-settle it.
+  function settleBootstrap(msg) {
+    if (!bootstrapResolve) return
+    const compat = checkProtocolCompatibility(msg)
+    if (compat.ok) bootstrapResolve(msg)
+    else bootstrapReject(new AppError(CODES.PROTOCOL_MISMATCH, protocolMismatchMessage(compat)))
+    bootstrapResolve = null
+    bootstrapReject = null
+  }
 
   const reader = createFrameReader({
     maxFrameBytes,
@@ -131,10 +152,7 @@ export function createIPC(pipe, { requests, maxFrameBytes = IPC_MAX_FRAME_BYTES,
       try {
         const msg = JSON.parse(line)
         if (msg && msg.type === FRAME.BOOTSTRAP) {
-          if (bootstrapResolve) {
-            bootstrapResolve(msg)
-            bootstrapResolve = null
-          }
+          settleBootstrap(msg)
           continue
         }
         // Before the `ready` test on purpose: a cancel dispatched through the queue would be

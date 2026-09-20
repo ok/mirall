@@ -1225,5 +1225,11 @@
     "mirrorDesc": "Dónde se guarda esta réplica. Los archivos que ya estén en la nueva ubicación se reconocen; lo que falte se descarga de nuevo.",
     "nameError": "No se pudo renombrar la carpeta: {{error}}",
     "locationError": "No se pudo cambiar la ubicación: {{error}}"
+  },
+  "workerFault": {
+    "protocolTitle": "Mirall necesita reiniciarse",
+    "protocolBody": "Algunas partes de Mirall se actualizaron y ya no coinciden. Cierra Mirall por completo y vuelve a abrirlo. Si sigue ocurriendo, reinstala la última versión.",
+    "budgetTitle": "El servicio en segundo plano de Mirall se detuvo",
+    "budgetBody": "Se detuvo varias veces seguidas y no se reinició. Cierra Mirall por completo y vuelve a abrirlo."
   }
 }

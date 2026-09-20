@@ -19,8 +19,14 @@ test('config.json defines the key the frame reads', (t) => {
 
 test('the worker reads the frame into the runtime config', (t) => {
   const worker = read('worker/main.js')
-  t.ok(/const bootstrap = await ipc\.bootstrapPromise\s*\n\s*setRuntimeConfig\(bootstrap\)/.test(worker),
-    'the frame is handed to setRuntimeConfig verbatim')
+  // Adjacency is not the rule — the await sits in a try/catch so a refused protocol version can
+  // exit with its own code. The rule is that nothing reads a field off the frame before the whole
+  // frame reaches the config: a field pulled out here is one the config never learns about.
+  const awaited = worker.indexOf('bootstrap = await ipc.bootstrapPromise')
+  const handed = worker.indexOf('setRuntimeConfig(bootstrap)')
+  t.ok(awaited !== -1 && handed > awaited, 'the frame is awaited whole, then handed to setRuntimeConfig')
+  t.absent(/\bbootstrap\.\w/.test(worker.slice(awaited, handed)),
+    'and no field is read off it in between')
   // buildConfig copies every tabled key off the frame, so the value needs a schema row to be
   // carried at all — without it the frame key is silently dropped.
   const saved = getRuntimeConfig()
