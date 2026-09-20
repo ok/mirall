@@ -2,10 +2,14 @@
 // minted by the CALLER and every caller starts at 1, so the id alone is not a key — the owning
 // client is the other half. Holding the in-flight map on the client IS the namespacing: there is no
 // composite key to build, parse or get wrong.
-export function createClient(id, pipe, { trust = 'host' } = {}) {
+export function createClient(id, pipe, { trust = 'host', attachedAt = 0 } = {}) {
   let closed = false
   return {
     id,
+    // The frame ordinal the stream had reached when this client joined. Everything after it was
+    // delivered live, so a resume must not send it again — that is what keeps the client's view of
+    // the sequence monotonic across a catch-up.
+    attachedAt,
     // Who is on the other end. 'host' is the process that spawned us (main, relaying its renderer):
     // the only kind that exists until the daemon listens on a socket, and the only kind that may
     // stop or restart the worker. Declared now so that rule has something to read.
@@ -36,7 +40,9 @@ export function createClient(id, pipe, { trust = 'host' } = {}) {
 //
 // `bindReader` and `onRemoved` come from the router because they are the two halves it still owns:
 // reading a client's frames, and abandoning the work it left behind.
-export function createClientRegistry({ bindReader, onRemoved, log }) {
+// `headAt` reports where the frame sequence has reached, so an arriving client can be stamped with
+// it. Injected rather than imported: the event plane owns the counter, and it owns this set.
+export function createClientRegistry({ bindReader, onRemoved, log, headAt = () => 0 }) {
   const clients = new Map()
   const disconnectHooks = new Set()
   let nextId = 1
@@ -55,7 +61,7 @@ export function createClientRegistry({ bindReader, onRemoved, log }) {
 
   return {
     attach(pipe, opts) {
-      const client = createClient(nextId++, pipe, opts)
+      const client = createClient(nextId++, pipe, { ...opts, attachedAt: headAt() })
       clients.set(client.id, client)
       bindReader(client)
       // Only once the router is live: before then there is nothing true to say yet, and goLive()

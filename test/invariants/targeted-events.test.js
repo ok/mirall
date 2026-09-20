@@ -11,8 +11,13 @@ const SRC = path.resolve(here, '../../src')
 // so the contract cannot make its own rule pass by changing what it exports.
 function targetedNames() {
   const src = readFileSync(path.join(SRC, 'shared/contract/events.js'), 'utf8')
-  const block = src.slice(src.indexOf('TARGETED_EVENTS'))
-  return [...block.matchAll(/'(event:[a-z-]+)'/g)].map((m) => m[1])
+  // Bounded at the array's own closing bracket. Reading to end-of-file swept in whatever was
+  // declared next, which silently widened the rule to names it was never about.
+  const from = src.indexOf('TARGETED_EVENTS')
+  const block = src.slice(from, src.indexOf('])', from))
+  const names = [...block.matchAll(/'(event:[a-z-]+)'/g)].map((m) => m[1])
+  if (names.length === 0) throw new Error('could not read TARGETED_EVENTS out of events.js')
+  return names
 }
 
 function walk(dir, out = []) {
@@ -30,7 +35,11 @@ function walk(dir, out = []) {
 // window. This is the half that stops such a call site shipping at all.
 test('every targeted event is emitted with a target', (t) => {
   const targeted = new Set(targetedNames())
-  t.ok(targeted.size > 0, `the contract names ${targeted.size} targeted event(s)`)
+  t.alike([...targeted].sort(), [
+    'event:foreign-folder-preview-progress',
+    'event:leave-progress',
+    'event:owned-folder-preview-progress',
+  ], 'the guard reads exactly the targeted list, not whatever is declared beside it')
 
   const untargeted = []
   for (const file of [...walk(path.join(SRC, 'worker')), ...walk(path.join(SRC, 'shared'))]) {

@@ -106,6 +106,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   sidecar.on('close', () => die('close'))
   sidecar.on('error', () => die('error'))
 
+  let lastSeq = 0
+  let lastEpoch = null
   sidecar.on('data', (chunk) => {
     buf += chunk.toString()
     let nl
@@ -115,6 +117,10 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
       if (!line.trim()) continue
       let msg
       try { msg = JSON.parse(line) } catch { continue }
+      // Where this peer has read to. A client that cannot reload — a CLI, an MCP bridge — has no
+      // other way back after a dropped connection, so the harness tracks the cursor one would.
+      if (typeof msg.seq === 'number') lastSeq = msg.seq
+      if (msg.type === 'event:worker-ready' && typeof msg.epoch === 'string') lastEpoch = msg.epoch
       if (msg.type === 'response' && pending.has(msg.id)) {
         const { resolve, reject } = pending.get(msg.id)
         pending.delete(msg.id)
@@ -127,6 +133,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   })
 
   const peer = {
+    // The coordinates a resuming client sends back: the stream it was reading, and how far.
+    cursor: () => ({ epoch: lastEpoch, since: lastSeq }),
     storage,
     downloads,
     sidecar,

@@ -33,7 +33,7 @@ function workerSource() {
 // `ipc.handle('owned-folder:cancel-preview', cancelPreview)`, where the shared function takes ctx —
 // reads the context and is not counted. The floor therefore undercounts, which is the safe
 // direction for a guard that only asserts growth.
-const FLOOR = 7
+const FLOOR = 8
 
 function routerContextHandlers() {
   const src = workerSource()
