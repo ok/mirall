@@ -2,6 +2,7 @@
 // process (Bare has no recursive watch), so its events arrive here as IPC rather than from a
 // local watcher.
 
+import { daemonPaths } from '../../shared/contract/paths.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
@@ -26,6 +27,9 @@ import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
 
 export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare }) {
+  // See foreign-folders.js: tagged as it crosses the wire, never in the record.
+  const wire = (mount) => (mount ? daemonPaths(mount) : mount)
+
   ipc.handle('event:owned-folder-fs-event', async (msg) => {
     try {
       await handleFsEventFromMain({ shareId: msg.shareId, action: msg.action, relPath: msg.relPath, absPath: msg.absPath })
@@ -36,7 +40,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   })
 
   ipc.handle('owned-folder:validate', async (msg) => {
-    return await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
+    return daemonPaths(await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId }))
   })
 
   ipc.handle('owned-folder:mount', async (msg) => {
@@ -49,7 +53,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   })
 
   ipc.handle('owned-folder:get', async (msg) => {
-    return await getOwnedMount(msg.spaceId, msg.shareId)
+    return wire(await getOwnedMount(msg.spaceId, msg.shareId))
   })
 
   ipc.handle('owned-folder:index-status', async (msg) => {
@@ -134,7 +138,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
       target: targetRef(TARGET_KIND.SHARE, msg.shareId, null),
       subject: { from: previousMountPath, to: mountPath },
     })
-    return { mount, advisories }
+    return { mount: wire(mount), advisories }
   })
 
   ipc.handle('owned-folder:delete', async (msg) => {
@@ -172,10 +176,10 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
 
   ipc.handle('owned-folder:list-all', async () => {
     const all = await listOwnedMounts()
-    return all.map((m) => ({ ...m, mountPointMissing: !mountRootAvailable(m.mountPath) }))
+    return all.map((m) => wire({ ...m, mountPointMissing: !mountRootAvailable(m.mountPath) }))
   })
 
   ipc.handle('mounts:list-all', async () => {
-    return await listAllMounts()
+    return (await listAllMounts()).map(wire)
   })
 }

@@ -32,7 +32,13 @@ export type NotificationClickPayload =
       spaceId: string
       localPath?: string
       path?: string
+      // Whose disk localPath is on. Absent means a notification raised by an older renderer that
+      // is still on screen across an OTA swap; the click treats that as the daemon's, because the
+      // safe default is not to touch this machine's shell.
+      host?: PathHost
     }
+
+import type { PathHost } from '../../shared/contract/paths.js'
 
 export interface NotificationSpec {
   id?: string
@@ -134,7 +140,7 @@ export interface MirallBridge {
   notify(spec: NotificationSpec): Promise<NotificationShowResult>
   isWindowFocused(): Promise<boolean>
   focusWindow(): Promise<void>
-  showInFolder(fullPath: string): Promise<{ ok: boolean }>
+  showInFolder(target: { path: string; host: PathHost }): Promise<{ ok: boolean }>
   onNotificationClick(listener: (event: NotificationClickEvent) => void): () => void
 
   getPrefs(): Promise<AppPrefs>

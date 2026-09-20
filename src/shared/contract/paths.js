@@ -28,3 +28,24 @@ export function pathContains(parent, child, sep, fold = false) {
   // every child miss.
   return c.startsWith(root.endsWith(sep) ? root : root + sep)
 }
+
+// Whose filesystem a path on the wire belongs to. Every path-carrying payload the worker sends says
+// so, because "an absolute path" stops meaning "a path I can open" the moment the backend runs
+// somewhere else — and a client that guesses opens a coincidentally-existing local file of the same
+// name, which is worse than opening nothing.
+//
+// 'daemon': a path on the machine the worker runs on. A client may display it; only the daemon may
+//           open, reveal or stat it.
+// 'client': a path on the client's own machine, which its shell may open.
+//
+// Request ARGUMENTS are deliberately untagged: a path sent TO the worker is an instruction about
+// the worker's filesystem by definition. What breaks when the daemon is remote is not their tagging
+// but their source — a folder picker returns a path on the machine running the picker — and that is
+// a remote-browsing problem a discriminator would not solve.
+export const PATH_HOST = Object.freeze({ DAEMON: 'daemon', CLIENT: 'client' })
+/** @typedef {(typeof PATH_HOST)[keyof typeof PATH_HOST]} PathHost */
+
+// The worker is the only process that touches the filesystem, so everything it sends is its own.
+// Set honestly from the first commit rather than retrofitted when it stops being true.
+/** @template {object} T @param {T} payload @returns {T & { host: 'daemon' }} */
+export const daemonPaths = (payload) => ({ ...payload, host: PATH_HOST.DAEMON })

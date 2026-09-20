@@ -16,6 +16,7 @@ import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
 import type { RequestName } from './requests.js'
+import type { PathHost } from './paths.js'
 
 /** A command that succeeded and has nothing to report. */
 export interface Ack { ok: true }
@@ -119,6 +120,8 @@ export interface Share {
 export type OwnedMountStatus = (typeof OWNED_MOUNT_STATUSES)[number]
 
 export interface OwnedFolderMount {
+  // Whose disk mountPath is on. Tagged as the record crosses the wire, never in the store.
+  host: PathHost
   spaceId: string
   shareId: string
   mountPath: string
@@ -134,6 +137,8 @@ export interface OwnedFolderMount {
 export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUSES)[number]
 
 export interface ForeignFolderMount {
+  // Whose disk mountPath is on. Tagged as the record crosses the wire, never in the store.
+  host: PathHost
   spaceId: string
   shareId: string
   mountPath: string
@@ -169,6 +174,7 @@ interface MountValidationAdvisory {
 
 export interface MountValidationResult {
   mountPath: string
+  host: PathHost
   advisories: MountValidationAdvisory[]
 }
 
@@ -404,13 +410,14 @@ export interface SpaceStorageRow {
 export interface StorageInfo {
   totalDiskUsage: number
   storagePath: string
+  host: PathHost
   spaces: SpaceStorageRow[]
   indexBytes: number
   dbBytes: number
 }
 
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number }
-export interface RootsStatus { unavailable: string[] }
+export interface RootsStatus { unavailable: string[], host: PathHost }
 export interface FeatureFlags { overlay: boolean, inPlaceFiles: boolean }
 export interface VerboseState { verbose: boolean }
 export interface PingResult { pong: true, timestamp: number }

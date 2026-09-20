@@ -135,7 +135,13 @@ function register(opts) {
 
   ipcMain.handle('notify:focus', () => { focusMainWindow() })
 
-  ipcMain.handle('shell:showInFolder', async (_evt, fullPath) => {
+  // Two gates, independent on purpose. The host tag says whose disk the path is on: anything but an
+  // explicit 'client' is not ours to open, and a missing tag is refused rather than guessed —
+  // pointing this at a daemon path either does nothing or opens a coincidentally-existing local
+  // file of the same name. isRevealable is unchanged and still bounds what a client path may reach.
+  ipcMain.handle('shell:showInFolder', async (_evt, target) => {
+    if (target?.host !== 'client') return { ok: false }
+    const fullPath = target.path
     if (typeof fullPath !== 'string' || fullPath.length === 0) return { ok: false }
     if (!await isRevealable(fullPath, downloadRootsFn())) return { ok: false }
     shell.showItemInFolder(path.resolve(fullPath))

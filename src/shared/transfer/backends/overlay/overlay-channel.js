@@ -5,6 +5,7 @@
 //
 // Imports nothing from `bare-*` (and nothing from the two modules that build channels), so it
 // loads under plain Node and unit-tests directly.
+import { daemonPaths } from '../../../contract/paths.js'
 import { driveBaseName } from '../../../folders/path-keys.js'
 
 import { isTerminalFault } from './fetch-policy.js'
@@ -43,7 +44,7 @@ export function createOverlayChannel(d) {
     },
 
     emitComplete: (job, localPath) => {
-      d.emit('event:transfer-complete', { transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath })
+      d.emit('event:transfer-complete', daemonPaths({ transferId: job.transferId, spaceId: job.spaceId, path: job.path, localPath }))
       decoJob(job, { done: true })
     },
 

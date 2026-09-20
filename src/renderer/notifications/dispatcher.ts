@@ -1,4 +1,5 @@
 // Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap dedupe.
+import type { PathHost } from '../../shared/contract/paths.js'
 import i18n from '../platform/i18n.js'
 import { subscribe } from '../ipc/ipc.js'
 import type { NotificationSpec } from '../platform/global.d.js'
@@ -24,6 +25,8 @@ interface TransferCompleteMessage {
   spaceId: string
   path: string
   localPath: string
+  // Whose disk localPath is on; the click router refuses to hand a daemon path to this machine.
+  host?: PathHost
 }
 
 interface TransferErrorMessage {

@@ -1,6 +1,7 @@
 // Foreign folders — a share someone else owns, mirrored into a folder on this disk. The mount
 // record and the mirror record live in two stores, which is why removal runs under an intent.
 
+import { daemonPaths } from '../../shared/contract/paths.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
@@ -17,8 +18,13 @@ import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, shareNameOrNull } from '../audit-refs.js'
 
 export function registerForeignFolders(ipc, { log, intents }) {
+  // One place, so a new return path cannot forget it: a mount record crossing the wire says whose
+  // disk its mountPath is on. The stored record is untouched — a persisted 'daemon' would be a lie
+  // the day the store is moved to another machine.
+  const wire = (mount) => (mount ? daemonPaths(mount) : mount)
+
   ipc.handle('foreign-folder:validate', async (msg) => {
-    return await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId })
+    return daemonPaths(await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId }))
   })
 
   ipc.handle('foreign-folder:mount', async (msg) => {
@@ -55,15 +61,15 @@ export function registerForeignFolders(ipc, { log, intents }) {
       target: targetRef(TARGET_KIND.SHARE, msg.shareId, await shareNameOrNull(msg.spaceId, msg.ownerKey, msg.shareId)),
       subject: { mountPath: mount.mountPath, ownerKey: msg.ownerKey },
     })
-    return { mount, advisories }
+    return { mount: wire(mount), advisories }
   })
 
   ipc.handle('foreign-folder:get', async (msg) => {
-    return await getForeignMount(msg.spaceId, msg.shareId)
+    return wire(await getForeignMount(msg.spaceId, msg.shareId))
   })
 
   ipc.handle('foreign-folder:set-enabled', async (msg) => {
-    return await setForeignEnabled(msg.spaceId, msg.shareId, !!msg.enabled)
+    return wire(await setForeignEnabled(msg.spaceId, msg.shareId, !!msg.enabled))
   })
 
   // Re-point a mirror at a new folder on disk. The bytes already written stay where they are — this
@@ -76,7 +82,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
     const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'foreign-folder', { shareId: msg.shareId })
     // Validation normalises the path, so the comparison belongs after it: re-pointing a mount at
     // where it already is would drop the synced set and re-verify the whole folder for nothing.
-    if (mountPath === mount.mountPath) return { mount, advisories }
+    if (mountPath === mount.mountPath) return { mount: wire(mount), advisories }
     const next = await relocateForeignFolder(msg.spaceId, msg.shareId, mountPath)
     record('mirror.relocated', {
       actor: selfActor(),
@@ -84,7 +90,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
       target: targetRef(TARGET_KIND.SHARE, msg.shareId, await shareNameOrNull(msg.spaceId, mount.ownerKey, msg.shareId)),
       subject: { mountPath, previousMountPath: mount.mountPath },
     })
-    return { mount: next, advisories }
+    return { mount: wire(next), advisories }
   })
 
   ipc.handle('foreign-folder:unmount', async (msg) => {
@@ -104,6 +110,6 @@ export function registerForeignFolders(ipc, { log, intents }) {
   })
 
   ipc.handle('foreign-folder:list-all', async () => {
-    return await listForeignMounts()
+    return (await listForeignMounts()).map(wire)
   })
 }

@@ -3,6 +3,7 @@
 // has to validate before the share exists, does not run it twice. The entry builds one of these
 // and hands it to both callers, so the two paths cannot drift.
 
+import { daemonPaths } from '../shared/contract/paths.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../shared/contract/statuses.js'
@@ -69,6 +70,6 @@ export function createOwnedMounter({ ipc, mounts }) {
         mounts.schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore)
       })
 
-    return { mount, advisories }
+    return { mount: daemonPaths(mount), advisories }
   }
 }

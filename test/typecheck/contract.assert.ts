@@ -8,6 +8,7 @@ import type { DocsTarget } from '../../src/renderer/shell/docs-links.js'
 import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
 import type { RequestResponse } from '../../src/shared/contract/responses.js'
+import type { PathHost } from '../../src/shared/contract/paths.js'
 
 const request: RequestName = 'spaces:list'
 // @ts-expect-error a mistyped request name
@@ -41,6 +42,10 @@ const mainQuery: MainQueryName = 'main:prefs'
 // @ts-expect-error not a main fact
 const mainQueryTypo: MainQueryName = 'main:nope'
 
+const pathHost: PathHost = 'daemon'
+// @ts-expect-error a path belongs to the daemon or the client, and nothing else
+const pathHostTypo: PathHost = 'server'
+
 const spacesList: RequestResponse['spaces:list'] = []
 // @ts-expect-error a response is keyed by a declared request, not by any string
 type NoSuchResponse = RequestResponse['spces:list']
@@ -52,6 +57,6 @@ declare const maybeProfile: RequestResponse['profile:get']
 // @ts-expect-error profile:get may be null, and the caller has to say what it does then
 const name: string = maybeProfile.displayName
 
-void [spacesList, spacesListWrong, ackExtra, name] as unknown as NoSuchResponse
+void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name] as unknown as NoSuchResponse
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]
