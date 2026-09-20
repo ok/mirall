@@ -86,6 +86,12 @@ test('REGRESSION (FIX-1+FIX-2): a non-creator member leaving and rejoining stays
   // B leaves → A drops B and B’s share.
   await B.request('space:leave', { spaceId })
   await A.until('share:list', { spaceId }, (l) => !l.some((s) => s.id === share.id), { ms: 120000 })
+  // The leave clears the share list and the member set from the same event, but not in the same
+  // tick: the share list settles first. Each assert waits on the projection it reads.
+  await A.until('spaces:list', {}, (l) => {
+    const s = l.find((x) => x.spaceId === spaceId)
+    return !(s?.members || []).some((m) => m.publicKey === bKey)
+  }, { ms: 120000 })
   t.absent((await memberKeys(A, spaceId)).has(bKey), 'B removed from A’s members on leave')
 
   // B rejoins via the same invite. A must raise a fresh join request, not auto-readmit.

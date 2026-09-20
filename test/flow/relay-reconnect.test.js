@@ -57,8 +57,10 @@ test('REGRESSION (FIX-RELAY-APPLY: a relay mode change reaches connections that 
   t.ok(second.reconnected === true || second.mismatch === null,
     'the second peer either applied its own change or had nothing left to apply')
 
-  await waitFor(() => relay.stats.pairings.requested >= 1, 30000, { label: 'a pairing through the relay' })
-  t.ok(relay.stats.pairings.matched >= 1, 'the relay matched both ends')
+  // `matched` is bumped when the SECOND end arrives, so it strictly implies `requested`. Waiting on
+  // `requested` and asserting `matched` reads a counter that has not advanced yet.
+  await waitFor(() => relay.stats.pairings.matched >= 1, 30000, { label: 'the relay to match both ends' })
+  t.ok(relay.stats.pairings.requested >= 1, 'a pairing went through the relay')
 
   // A reconnect that leaves the space disconnected is not a fix.
   await A.until('network:status:get', {}, settled, { ms: 30000 })
