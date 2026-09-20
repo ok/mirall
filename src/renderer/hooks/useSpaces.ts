@@ -20,7 +20,7 @@ function pruneSpaceScopedQueries(liveSpaceIds: string[]) {
 // every trip into a space, and without a cached value each return would paint the "no spaces yet"
 // hero over an account that has spaces while spaces:list resolves.
 export function useSpaces() {
-  const { data, loading: fetching } = useQuery<Space[]>('spaces:list', {}, SPACES_SCOPES)
+  const { data, loading: fetching } = useQuery('spaces:list', {}, SPACES_SCOPES)
   const spaces = data ?? []
   // Cold only (README.md): a refetch must not blink the "no favorites yet" hero.
   const loading = data === undefined && fetching
@@ -47,19 +47,19 @@ export function useSpaces() {
   // `refresh` is for the mutations below only; reads are the store's (README.md).
 
   async function createSpace(name: string, icon: string) {
-    const space = await request('space:create', { name, icon }) as Space
+    const space = await request('space:create', { name, icon })
     await refresh()
     return space
   }
 
   async function joinSpace(inviteCode: string, name: string) {
-    const space = await request('space:join', { inviteCode, name }) as Space
+    const space = await request('space:join', { inviteCode, name })
     await refresh()
     return space
   }
 
   async function createInvite(spaceId: string, opts: { autoApprove?: boolean; expiresInMs?: number } = {}) {
-    return await request('space:invite', { spaceId, autoAdmit: !!opts.autoApprove, expiresInMs: opts.expiresInMs }) as string
+    return await request('space:invite', { spaceId, autoAdmit: !!opts.autoApprove, expiresInMs: opts.expiresInMs })
   }
 
   async function approveMember(spaceId: string, publicKey: string) {

@@ -68,7 +68,10 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
     request('network:status:get')
       .then((data) => {
         if (cancelled) return
-        const payload = data as NetworkStatusScreen | null | undefined
+        // The swarm snapshot is declared open in the contract (it is wide and still moving), so
+        // this screen is the one place that names its shape. Through unknown, because that is what
+        // an assertion looks like when it is not an overlap.
+        const payload = data as unknown as NetworkStatusScreen | null | undefined
         if (payload) setStatus(payload)
       })
       .catch(() => {})
@@ -157,7 +160,7 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
 
   const probeCanary = useCallback(async (opts?: { force?: boolean }) => {
     try {
-      return await request('network:probe-canary', { force: !!opts?.force }) as CanaryResult
+      return await request('network:probe-canary', { force: !!opts?.force })
     } catch {
       return null
     }

@@ -61,7 +61,7 @@ export function usePeerDownloads(spaceId: string) {
     // response resolving (a microtask) AFTER a newer live frame for the same path already
     // applied — the snapshot is older, and the sweep re-announces only live rows, so it would
     // otherwise resurrect a just-cleared row for the full TTL. Skip a row we've already seen live.
-    ;(request('serving:summary-list', { spaceId }) as Promise<SummaryEvent[]>)
+    ;request('serving:summary-list', { spaceId })
       .then((rows) => {
         if (!alive) return
         for (const row of rows) {

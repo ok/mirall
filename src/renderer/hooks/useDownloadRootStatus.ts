@@ -24,7 +24,7 @@ const list = (res: RootsStatus | undefined) => (Array.isArray(res?.unavailable) 
 // hook, and a per-hook writer double-writes (README.md). A failed read keeps the last value, so a
 // worker that is not up yet cannot clear a banner that is currently correct.
 export function useDownloadRootStatus() {
-  const { data } = useQuery<RootsStatus>('downloads:roots-status', {}, null)
+  const { data } = useQuery('downloads:roots-status', {}, null)
   // Counts transfers that failed on an unreachable folder. The unavailable SET is unchanged by a
   // second failure against the same folder, so it alone cannot tell a consumer that the user just
   // hit the problem again — which is the one moment re-explaining a dismissed (or stack-evicted)

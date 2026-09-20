@@ -79,7 +79,7 @@ export default function MirrorFolderModal({
     () => [Scope.shareFiles(share.spaceId, share.id), Scope.files(share.spaceId)],
     [share.spaceId, share.id],
   )
-  const { data: info, error: infoError } = useQuery<FolderInfo>(
+  const { data: info, error: infoError } = useQuery(
     'share:folder-info',
     { spaceId: share.spaceId, ownerKey: share.owner, shareId: share.id },
     infoScopes,

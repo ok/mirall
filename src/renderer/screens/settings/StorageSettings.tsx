@@ -88,7 +88,7 @@ export default function StorageSettings({ onBack }: StorageSettingsProps) {
   // scopes without pinning a spaceId — a hint for any space matches (scopeMatches only compares an
   // id the VIEW pins). The coalesce window matters here: an owned-folder scan pokes files-updated
   // in bursts, and this read walks the store.
-  const { data: info, loading } = useQuery<StorageInfo>('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
+  const { data: info, loading } = useQuery('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
 
   const { data: folderData, error: folderReadError, write: writeDownloadFolder } = useMainQuery('main:download-folder')
   // null until the read lands: the field says it is loading rather than offering a first pick for

@@ -19,7 +19,7 @@ function storageScopes(spaceId: string) {
 }
 
 export function useSpaceStorage(spaceId: string): SpaceStorageSummary | null {
-  const { data } = useQuery<SpaceStorageSummary>(
+  const { data } = useQuery(
     'space:storage-summary',
     { spaceId },
     storageScopes(spaceId),

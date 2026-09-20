@@ -17,6 +17,6 @@ export function pruneRosterCache(liveSpaceIds: Iterable<string>) {
 }
 
 export function useSpaceMembers(spaceId: string): SpaceMember[] {
-  const { data } = useQuery<SpaceMember[]>('space:members', { spaceId }, membersScopes(spaceId), { enabled: Boolean(spaceId) })
+  const { data } = useQuery('space:members', { spaceId }, membersScopes(spaceId), { enabled: Boolean(spaceId) })
   return spaceId ? (data ?? EMPTY) : EMPTY
 }

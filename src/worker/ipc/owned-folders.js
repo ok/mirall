@@ -32,6 +32,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     } catch (err) {
       log.warn('owned-folder fs event failed:', err.message)
     }
+    return { ok: true }
   })
 
   ipc.handle('owned-folder:validate', async (msg) => {

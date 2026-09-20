@@ -48,12 +48,17 @@ test('the runtime kinds are what the renderer derives from', (t) => {
   t.is(typeof REQUESTS, 'object', 'REQUESTS is a record')
 })
 
-// types.ts must keep deriving rather than re-listing: a hand-written union next to the contract is
-// exactly the twin this package exists to delete.
+// A status union must keep DERIVING from its constant rather than re-listing it: a hand-written
+// union next to the contract is exactly the twin this package exists to delete. Which file declares
+// one is not the rule — the wire-bearing ones now sit in responses.ts and the view-only ones in
+// types.ts — so both are searched and the type has to be derived wherever it lives.
 test('the renderer derives its status unions instead of re-listing them', (t) => {
-  const types = readFileSync(path.join(dir, '..', '..', 'renderer', 'types', 'types.ts'), 'utf8')
+  const declared = [
+    readFileSync(path.join(dir, '..', '..', 'renderer', 'types', 'types.ts'), 'utf8'),
+    readFileSync(path.join(dir, 'responses.ts'), 'utf8'),
+  ].join('\n')
   for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['ShareFileStatus', 'SHARE_FILE_STATUSES'], ['AuditCategory', 'CATEGORIES'], ['ReachabilityVerdict', 'VERDICTS'], ['ReachabilityCause', 'CAUSES'], ['CanaryState', 'CANARY_STATES']]) {
-    t.ok(new RegExp(`export type ${type} = \\(typeof ${konst}\\)\\[number\\]`).test(types),
+    t.ok(new RegExp(`export type ${type} = \\(typeof ${konst}\\)\\[number\\]`).test(declared),
       `${type} is derived from the contract`)
   }
 })

@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { sharesScope } from '../store/scopes.js'
-import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types/types.js'
+import type { MountValidationResult, ScanPreview, ForeignMountStatus, PreviewProgress } from '../types/types.js'
 
 // Re-derives on the SHARES scope — that is where the worker maps mount-status transitions (README.md).
 
@@ -13,7 +13,7 @@ import type { ForeignFolderMount, MountValidationResult, ScanPreview, ForeignMou
 export function useForeignMount(spaceId: string, shareId: string) {
   const enabled = Boolean(spaceId && shareId)
   const scopes = useMemo(() => sharesScope(spaceId), [spaceId])
-  const { data } = useQuery<ForeignFolderMount | null>('foreign-folder:get', { spaceId, shareId }, scopes, { enabled })
+  const { data } = useQuery('foreign-folder:get', { spaceId, shareId }, scopes, { enabled })
 
   // Not `data ?? null` unconditionally: a disabled entry has never been fetched, and its undefined
   // must read as "no mount" rather than as whatever the last enabled render held.
@@ -22,7 +22,7 @@ export function useForeignMount(spaceId: string, shareId: string) {
 }
 
 export async function validateForeignMount(mountPath: string, shareId?: string): Promise<MountValidationResult> {
-  return (await request('foreign-folder:validate', { mountPath, shareId })) as MountValidationResult
+  return await request('foreign-folder:validate', { mountPath, shareId })
 }
 
 let foreignPreviewSeq = 0
@@ -46,11 +46,11 @@ export function previewForeignMount(
       if (m.previewId === previewId) onProgress(m)
     })
     : () => {}
-  const result = (request(
+  const result = request(
     'foreign-folder:preview',
     { spaceId, ownerKey, shareId, mountPath, previewId },
     0,
-  ) as Promise<ScanPreview>).finally(off)
+  ).finally(off)
   return { previewId, result }
 }
 
@@ -59,14 +59,11 @@ export function cancelForeignPreview(previewId: string): void {
 }
 
 export async function createForeignMount(spaceId: string, ownerKey: string, shareId: string, mountPath: string) {
-  return (await request('foreign-folder:mount', { spaceId, ownerKey, shareId, mountPath })) as {
-    mount: ForeignFolderMount
-    advisories: { code: string; message: string }[]
-  }
+  return await request('foreign-folder:mount', { spaceId, ownerKey, shareId, mountPath })
 }
 
 export async function setForeignMountEnabled(spaceId: string, shareId: string, enabled: boolean) {
-  return (await request('foreign-folder:set-enabled', { spaceId, shareId, enabled })) as ForeignFolderMount
+  return await request('foreign-folder:set-enabled', { spaceId, shareId, enabled })
 }
 
 export async function unmountForeignMount(spaceId: string, shareId: string) {

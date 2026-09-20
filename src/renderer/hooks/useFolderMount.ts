@@ -6,7 +6,7 @@ import { useQuery } from '../store/useQuery.js'
 import { ownedMountSettled, projectOwnedMount } from '../model/owned-mount.js'
 import { ANY_SHARES } from '../store/scopes.js'
 import type { OwnedMountState } from '../model/owned-mount.js'
-import type { MountValidationResult, ScanPreview, PreviewProgress, Share, OwnedFolderMount } from '../types/types.js'
+import type { MountValidationResult, ScanPreview, PreviewProgress } from '../types/types.js'
 
 // Same store entry as useShares: one value, two projections, one fence — SpaceScreen's badge and
 // FolderScreen's fault strip cannot disagree. Re-derives on the shares scope (README.md).
@@ -14,7 +14,7 @@ export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState
   const enabled = Boolean(spaceId && shareId)
   // Not `loading`: ownedMountSettled carries that reasoning, and not taking the flag at all is
   // what makes the trap unrepresentable here.
-  const { data } = useQuery<OwnedFolderMount[]>('owned-folder:list-all', {}, ANY_SHARES, { enabled })
+  const { data } = useQuery('owned-folder:list-all', {}, ANY_SHARES, { enabled })
   const settled = ownedMountSettled(enabled, data)
   return useMemo(
     () => projectOwnedMount(data, spaceId, shareId, settled),
@@ -23,7 +23,7 @@ export function useOwnedMount(spaceId: string, shareId: string): OwnedMountState
 }
 
 export async function validateOwnedMount(mountPath: string, shareId?: string): Promise<MountValidationResult> {
-  return (await request('owned-folder:validate', { mountPath, shareId })) as MountValidationResult
+  return await request('owned-folder:validate', { mountPath, shareId })
 }
 
 let previewSeq = 0
@@ -46,11 +46,11 @@ export function previewOwnedMount(
       if (m.previewId === previewId) onProgress(m)
     })
     : () => {}
-  const result = (request(
+  const result = request(
     'owned-folder:preview',
     { spaceId, shareId: shareId ?? null, mountPath, ignore: opts.ignore, previewId },
     0,
-  ) as Promise<ScanPreview>).finally(off)
+  ).finally(off)
   return { previewId, result }
 }
 
@@ -68,9 +68,5 @@ export async function createShareThenMount(
   mountPath: string,
   ignore?: string[],
 ) {
-  return (await request('share:create-and-mount', { spaceId, name, mountPath, ignore })) as {
-    share: Share
-    mount: OwnedFolderMount
-    advisories: { code: string; message: string }[]
-  }
+  return await request('share:create-and-mount', { spaceId, name, mountPath, ignore })
 }

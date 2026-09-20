@@ -1,3 +1,4 @@
+import type { WorkerDiagnostics } from '../../shared/contract/responses.js'
 import { request } from '../ipc/ipc.js'
 import type { ApplyErrorReport, DiagnosticLogEntry } from '../types/types.js'
 
@@ -6,12 +7,10 @@ export interface BundleOptions {
   includeLogs: boolean
 }
 
-export interface DiagnosticsBundle {
-  schema: number
-  reference: string | null
+// The worker's half is described by the contract; this adds what only the client can supply.
+export interface DiagnosticsBundle extends WorkerDiagnostics {
   logs: DiagnosticLogEntry[] | null
   lastApplyError?: ApplyErrorReport
-  [key: string]: unknown
 }
 
 // Preview and save call this with the same options, so what the user is shown is what
@@ -19,7 +18,7 @@ export interface DiagnosticsBundle {
 export async function buildBundle({ redact, includeLogs }: BundleOptions): Promise<DiagnosticsBundle> {
   // timeout 0 — matches audit:export; assembling the bundle walks swarm.peers and can
   // outlast the default request budget.
-  const core = await request('diagnostics:export', { redact }, 0) as DiagnosticsBundle
+  const core = await request('diagnostics:export', { redact }, 0)
   const logs = includeLogs ? await window.bridge.getDiagnosticLogs({ redact }) : null
   // Absent, not null, when there is nothing to report: a key that appears in every bundle stops
   // being read, and a failed update apply is meant to stand out.

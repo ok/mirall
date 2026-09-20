@@ -18,12 +18,12 @@ export function useMembers(spaceId: string) {
   // refuse a space:members with no spaceId, costing a warn and a counter per render.
   const enabled = { enabled: Boolean(spaceId) }
 
-  const { data: members } = useQuery<SpaceMember[]>('space:members', params, scopes, enabled)
+  const { data: members } = useQuery('space:members', params, scopes, enabled)
   // Online status is a projection of the presence lease (members:online, self included worker-side),
   // re-fetched on every transition. Never a delta-fed Set, so a missed transition cannot strand a
   // dead peer as "online".
-  const { data: online } = useQuery<string[]>('members:online', params, scopes, enabled)
-  const { data: requests } = useQuery<JoinRequest[]>('space:pending-requests', params, joinScopes, enabled)
+  const { data: online } = useQuery('members:online', params, scopes, enabled)
+  const { data: requests } = useQuery('space:pending-requests', params, joinScopes, enabled)
 
   const list = useMemo(() => {
     const keys = new Set(online ?? NO_KEYS)

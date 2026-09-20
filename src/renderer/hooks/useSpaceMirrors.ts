@@ -15,7 +15,7 @@ export function pruneMirrorCache(liveSpaceIds: Iterable<string>) {
 
 export function useSpaceMirrors(spaceId: string, shareId: string): MirrorParticipant[] {
   const ready = Boolean(spaceId && shareId)
-  const { data } = useQuery<MirrorParticipant[]>(
+  const { data } = useQuery(
     'space:mirrors',
     { spaceId, shareId },
     [{ kind: 'mirrors', spaceId, shareId }],
