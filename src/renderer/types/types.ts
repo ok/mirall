@@ -1,81 +1,9 @@
-import type { FILE_STATUSES, BADGE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from '../../shared/contract/statuses.js'
-import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from '../../shared/contract/audit-kinds.js'
-import type { VERDICTS, CAUSES, CONFIDENCES, CANARY_STATES } from '../../shared/contract/reachability.js'
-export interface Profile {
-  displayName: string
-  avatar: string | null
-  publicKey: string
-}
+import type {
+  ShareFileStatus, CanaryState, CanaryResult, AuditCategory,
+} from '../../shared/contract/responses.js'
+import type { BADGE_STATUSES } from '../../shared/contract/statuses.js'
+import type { VERDICTS, CAUSES, CONFIDENCES } from '../../shared/contract/reachability.js'
 
-type MemberStatus = 'pending' | 'approved'
-
-export interface SpaceMember {
-  publicKey: string
-  driveKey: string
-  displayName: string
-  online?: boolean
-  avatar?: string | null
-  status?: MemberStatus
-  looseCatalogKey?: string
-  looseCatalogKeyEnc?: string
-}
-
-// The slim roster shape spaces:list ships (no avatar / catalog-key fields — those are heavy or
-// worker-internal); the full SpaceMember roster comes from the per-space space:members request.
-interface SpaceMemberSummary {
-  publicKey: string
-  driveKey: string | null
-  displayName: string
-  online?: boolean
-  status?: MemberStatus
-}
-
-export interface JoinRequest {
-  publicKey: string
-  displayName: string
-  avatar?: string | null
-}
-
-export interface Space {
-  spaceId: string
-  name: string
-  icon: string
-  topic: string
-  created: string
-  members: SpaceMemberSummary[]
-  driveKey?: string
-  favorite?: boolean
-  schemaVersion?: number
-  status?: 'pending' | 'approved'
-  pendingCount?: number
-  memberCount?: number
-  creatorDivergence?: boolean
-  downloadFolder?: string
-}
-
-export type FileStatus = (typeof FILE_STATUSES)[number]
-
-export type BadgeStatus = (typeof BADGE_STATUSES)[number]
-
-export interface FileEntry {
-  path: string
-  size: number
-  hash: string
-  owner: { displayName: string; publicKey: string }
-  driveKey: string
-  localBytes: number
-  isAvailable: boolean
-  status: FileStatus
-  pendingBytes?: number
-  sharedByCount?: number
-  errorCode?: string
-  inPlace?: boolean
-  verified?: boolean
-  transferId?: string
-}
-
-// Sender-side download indicator. Summary is the always-on aggregate (who + how
-// far, drives the collapsed avatar stack); PeerDownloadPeer is one expanded row.
 export interface PeerDownloadSummary {
   spaceId: string
   path: string
@@ -97,59 +25,9 @@ export interface PeerDownloadPeer {
   paused: boolean
 }
 
-export interface MirrorParticipant {
-  mirrorer: string
-  shareId: string
-  state: (typeof MIRROR_STATES)[number]
-  mountedAt: number
-}
-
-type ShareType = 'owned-folder'
+export type BadgeStatus = (typeof BADGE_STATUSES)[number]
 
 export type ShareRole = 'mine' | 'browse' | 'mirrored'
-
-export interface Share {
-  id: string
-  type: ShareType
-  /** The immutable on-disk folder name. Also the first segment of the consumer drive path, so it
-   *  keys download claims and pending transfers — never rewrite it. `displayName` is the label. */
-  name: string
-  displayName?: string
-  owner: string
-  spaceId: string
-  createdAt: number
-  deletedAt?: number
-}
-
-export type OwnedMountStatus = (typeof OWNED_MOUNT_STATUSES)[number]
-
-export interface OwnedFolderMount {
-  spaceId: string
-  shareId: string
-  mountPath: string
-  ignore: string[]
-  createdAt: number
-  lastScanCompletedAt?: number
-  status?: OwnedMountStatus
-  lastError?: string | null
-  indexPaused?: boolean
-  mountPointMissing?: boolean
-}
-
-export type ForeignMountStatus = (typeof FOREIGN_MOUNT_STATUSES)[number]
-
-export interface ForeignFolderMount {
-  spaceId: string
-  shareId: string
-  mountPath: string
-  enabled: boolean
-  attachedAt: number
-  initialScanCompletedAt?: number
-  status?: ForeignMountStatus
-  lastError?: string | null
-}
-
-export type ShareFileStatus = (typeof SHARE_FILE_STATUSES)[number]
 
 export interface ShareFileEntry {
   relPath: string
@@ -188,43 +66,6 @@ export interface FileTreeFolderNode {
 
 export type FileTreeNode = FileTreeFileNode | FileTreeFolderNode
 
-interface MountValidationAdvisory {
-  code: string
-  message: string
-}
-
-export interface MountValidationResult {
-  mountPath: string
-  advisories: MountValidationAdvisory[]
-}
-
-interface ScanPreviewEntry {
-  relPath: string
-  size: number
-  conflict?: boolean
-}
-
-type ScanPreviewFlow = 'add-owned-folder' | 'mount-foreign-folder' | 'move-foreign-folder'
-
-export interface ScanPreview {
-  flow: ScanPreviewFlow
-  toUpload: number
-  toDownload: number
-  conflicts: number
-  existingAtDestination: number
-  totalBytes: number
-  perFile: ScanPreviewEntry[]
-  perFileOmitted?: boolean
-  // The folder's total file count against the limit, so the confirmation step can act before the
-  // user commits. Both flows carry it; only the owned one can REFUSE on overFileLimit, because
-  // mounting a peer share creates no share of your own. A mirror over the display cap sets
-  // listingAdvisory instead: a warning it can proceed past, not a wall.
-  totalFiles?: number
-  fileLimit?: number
-  overFileLimit?: boolean
-  listingAdvisory?: boolean
-}
-
 export interface PreviewProgress {
   phase: 'enumerating' | 'scanning' | 'hashing'
   scanned: number
@@ -253,8 +94,6 @@ export type ReachabilityVerdict = (typeof VERDICTS)[number]
 export type ReachabilityConfidence = (typeof CONFIDENCES)[number]
 
 export type ReachabilityCause = (typeof CAUSES)[number]
-
-export type CanaryState = (typeof CANARY_STATES)[number]
 
 interface ReachabilityEvidence {
   peersDiscovered: number
@@ -305,13 +144,6 @@ interface DhtHealth {
   cold: boolean
   idle: boolean
   timeoutsRate: number
-}
-
-export interface CanaryResult {
-  state: CanaryState
-  at: number
-  stage1?: { announceRecords: number; ms: number }
-  stage2?: { dials: number; opened: number; ms: number }
 }
 
 interface Liveness {
@@ -377,69 +209,6 @@ export interface NetworkStatusScreen {
   }
 }
 
-export type AuditCategory = (typeof CATEGORIES)[number]
-type AuditTier = 'A' | 'B' | 'C'
-type AuditOutcome = (typeof OUTCOMES)[number]
-
-interface AuditParty {
-  type: (typeof ACTOR_TYPES)[number]
-  key: string | null
-  name: string | null
-}
-
-export interface AuditSpaceRef {
-  id: string
-  name: string | null
-}
-
-interface AuditTargetRef {
-  kind: (typeof TARGET_KINDS)[number]
-  id: string | null
-  name: string | null
-}
-
-export interface AuditEntry {
-  v: number
-  seq: number
-  ts: number
-  tzOffset: number
-  kind: string
-  category: AuditCategory
-  tier: AuditTier
-  outcome: AuditOutcome
-  code: string | null
-  device: string | null
-  actor: AuditParty | null
-  space: AuditSpaceRef | null
-  target: AuditTargetRef | null
-  subject: Record<string, string | number | boolean | null> | null
-  search: string
-}
-
-export interface AuditPage {
-  entries: AuditEntry[]
-  nextCursor: number | null
-}
-
-export interface AuditConfig {
-  enabled: boolean
-  retentionDays: number
-  maxEntries: number
-}
-
-export interface AuditStats {
-  count: number
-  oldestTs: number | null
-  newestTs: number | null
-  oldestSeq: number | null
-  newestSeq: number | null
-}
-
-export interface AuditActorRef {
-  key: string
-  name: string | null
-}
-
 export interface AuditFilters {
   spaceId: string | null
   categories: AuditCategory[]
@@ -447,3 +216,13 @@ export interface AuditFilters {
   search: string
   sinceDays: number | null
 }
+
+// The wire vocabulary moved to the contract — it is what a response carries, and a second client
+// generates from it. Re-exported here so the sites that import these names do not care.
+export type {
+  Profile, SpaceMember, JoinRequest, Space, FileStatus, FileEntry, MirrorParticipant, Share,
+  OwnedMountStatus, OwnedFolderMount, ForeignMountStatus, ForeignFolderMount,
+  ShareFileStatus, MountValidationResult, ScanPreview,
+  CanaryState, CanaryResult,
+  AuditCategory, AuditSpaceRef, AuditEntry, AuditPage, AuditConfig, AuditStats, AuditActorRef,
+} from '../../shared/contract/responses.js'
