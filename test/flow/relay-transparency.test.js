@@ -8,6 +8,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { DIAGNOSTICS_SCHEMA } from '../../src/shared/network/support-bundle.js'
 
 const RELAY_AUDIT_DWELL_MS = 500
 
@@ -71,7 +72,7 @@ test('a relay offered by one peer is attributed on both sides', { timeout: scale
   t.comment(`relayed on A: ${!!relayedA}, on B: ${!!relayedB}, pairings matched: ${relay.stats.pairings.matched}`)
 
   const bundle = await A.request('diagnostics:export', { redact: true })
-  t.is(bundle.schema, 2)
+  t.is(bundle.schema, DIAGNOSTICS_SCHEMA)
   t.is(bundle.relay.mode, 'always')
   t.is(bundle.relay.own.kind, 'open')
   t.absent(JSON.stringify(bundle).includes(relay.key), 'the redacted bundle carries no full relay key')

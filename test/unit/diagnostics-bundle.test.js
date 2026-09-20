@@ -246,7 +246,7 @@ test('PRIVACY: subsystem health rows carry no space or share identifiers', (t) =
 test('the relay section redacts peer and relay keys and drops names', (t) => {
   const bundle = buildDiagnostics(makeCtx(), true)
   const serialised = JSON.stringify(bundle)
-  t.is(bundle.schema, 3)
+  t.is(bundle.schema, DIAGNOSTICS_SCHEMA)
   t.is(bundle.relay.mode, 'auto')
   t.is(bundle.relay.own.kind, 'open')
   t.is(bundle.relay.own.label, null)
