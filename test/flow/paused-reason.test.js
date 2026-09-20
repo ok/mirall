@@ -24,7 +24,7 @@ test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfe
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(32 * 1024 * 1024, 41)
     const srcPath = path.join(aSrc, 'big.bin')

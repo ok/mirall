@@ -18,7 +18,7 @@ test('R14: an overlay share seen by a peer without overlay support degrades, nev
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { overlayEnabled: false } }) // overlay OFF
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     const folder = mkTmpDir(t)

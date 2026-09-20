@@ -17,7 +17,7 @@ test('explicit-keypair peers replicate a shared file', { timeout: scaled(150000)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: identityStore(t), downloads: mkTmpDir(t), flags: { identityKEK: kekHex() } })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: identityStore(t), downloads: mkTmpDir(t), flags: { identityKEK: kekHex() } })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Photos' })
   const folder = mkTmpDir(t)
@@ -51,7 +51,7 @@ test('migration through the real worker preserves the network identity', { timeo
   // The profile core the boot opens is seed-derived either way, which is what makes this a genuine
   // migrating install (resolveMasterSecret's hasExistingCores branch) rather than a fresh one.
   let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: undefined } })
-  const keyBefore = (await A.request('profile:get')).publicKey
+  const keyBefore = (await A.request('profile:get')).personKey
   t.absent(fs.existsSync(path.join(root, 'identity.enc')), 'no envelope on the legacy install')
 
   const pid = A.sidecar?._process?.pid
@@ -60,6 +60,6 @@ test('migration through the real worker preserves the network identity', { timeo
 
   // Relaunch the SAME storage WITH a KEK → migration carries the seed forward as M.
   A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: kekHex() } })
-  t.is((await A.request('profile:get')).publicKey, keyBefore, 'network identity preserved across migration')
+  t.is((await A.request('profile:get')).personKey, keyBefore, 'network identity preserved across migration')
   t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'envelope created by migration')
 })

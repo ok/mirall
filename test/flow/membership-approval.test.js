@@ -17,8 +17,8 @@ test('joiner is pending, member approves, then files converge', { timeout: scale
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const share = await A.request('share:create', { spaceId: space.spaceId, name: 'Docs' })
@@ -67,7 +67,7 @@ test('REGRESSION (FIX-APPROVE-LAG): approver pending clears without waiting for 
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey)
@@ -98,7 +98,7 @@ test('deny path: the requester is not admitted', { timeout: scaled(150000) }, as
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Secret' })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -127,7 +127,7 @@ test('cancelling (leaving) a pending space removes it without crashing', { timeo
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
   await B.request('space:join', { inviteCode: invite })
@@ -147,7 +147,7 @@ test('a pending member cannot invite, approve, deny, or rename the space', { tim
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
   await B.request('space:join', { inviteCode: invite })
@@ -184,7 +184,7 @@ test('auto-approve invite is reusable — every redeemer is admitted with no pro
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Open' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId, autoAdmit: true })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   let prompted = false
   A.on('event:member-join-request', () => { prompted = true })
@@ -195,7 +195,7 @@ test('auto-approve invite is reusable — every redeemer is admitted with no pro
     .some((m) => m.publicKey === bKey), { ms: 60000, every: 1000 })
 
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
-  const cKey = (await C.request('profile:get')).publicKey
+  const cKey = (await C.request('profile:get')).personKey
   const cGranted = C.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId)
   await C.request('space:join', { inviteCode: invite })
   await cGranted
@@ -213,7 +213,7 @@ test('a pending member does not receive join requests for other joiners', { time
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // B joins and stays pending (never approved).
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -226,7 +226,7 @@ test('a pending member does not receive join requests for other joiners', { time
   B.on('event:member-join-request', () => { bGotRequest = true })
 
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
-  const cKey = (await C.request('profile:get')).publicKey
+  const cKey = (await C.request('profile:get')).personKey
   await C.request('space:join', { inviteCode: invite })
   // The approved creator A does record Carol's request — proves Carol is broadcasting it.
   await A.until('space:pending-requests', { spaceId: space.spaceId },
@@ -243,7 +243,7 @@ test("a pending joiner pulls the inviter's avatar onto the pre-seeded member", {
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/1eOAAAAAElFTkSuQmCC'
   await A.request('profile:set', { displayName: 'Alice', avatar: AVATAR })
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 

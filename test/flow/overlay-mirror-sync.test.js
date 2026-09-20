@@ -28,7 +28,7 @@ test('overlay mirror: re-fetches on owner edit and removes on owner delete',
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Mirror', contentMode: 'overlay' })
     const folder = mkTmpDir(t)

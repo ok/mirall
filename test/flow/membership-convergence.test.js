@@ -35,9 +35,9 @@ test('an approval converges across all members (owner + two joiners)', { timeout
 
   const space = await A.request('space:create', { name: 'Approval' })
   const sid = space.spaceId
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: sid })
 
   // B joins and is approved first → A and B are now co-members.
@@ -80,7 +80,7 @@ test('a cancelled join request clears on the member', { timeout: scaled(150000) 
 
   const space = await A.request('space:create', { name: 'Approval' })
   const sid = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: sid })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -105,8 +105,8 @@ test('a deny clears the request on co-members too', { timeout: scaled(220000) },
 
   const space = await A.request('space:create', { name: 'Approval' })
   const sid = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: sid })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -136,8 +136,8 @@ test('an auto-admit approval converges to co-members', { timeout: scaled(220000)
 
   const space = await A.request('space:create', { name: 'Approval' })
   const sid = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: sid })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -169,9 +169,9 @@ test('deny is a no-op once a co-member has approved', { timeout: scaled(220000) 
 
   const space = await A.request('space:create', { name: 'Approval' })
   const sid = space.spaceId
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: sid })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)

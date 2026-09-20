@@ -22,8 +22,8 @@ async function approveAndConverge(t, A, B, spaceId, requestPromise) {
   const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId)
   await A.request('space:approve-member', { spaceId, publicKey: req.publicKey })
   await bGranted
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   await A.until('spaces:list', {}, persistedAs(spaceId, bKey), { ms: 60000, every: 1000 })
   await B.until('spaces:list', {}, persistedAs(spaceId, aKey), { ms: 60000, every: 1000 })
 }
@@ -42,7 +42,7 @@ test('REGRESSION (FIX-1): join request survives a multi-space connection-open bu
   for (let i = 0; i < 5; i++) await B.request('space:create', { name: 'solo-' + i })
   const space = await A.request('space:create', { name: 'Shared' })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey, 30000)
   await B.request('space:join', { inviteCode })
@@ -61,7 +61,7 @@ test('REGRESSION (FIX-2): a dropped membership:request is re-announced until the
 
   const space = await A.request('space:create', { name: 'Shared' })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey, 45000)
   await B.request('space:join', { inviteCode })
@@ -82,7 +82,7 @@ test('REGRESSION (FIX-3): joiner converges the creator although its post-grant h
 
   const space = await A.request('space:create', { name: 'Shared' })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey, 30000)
   await B.request('space:join', { inviteCode })
@@ -100,7 +100,7 @@ test('convergence tick smoke: hot tick does not disturb a healthy flow', { timeo
 
   const space = await A.request('space:create', { name: 'Shared' })
   const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey, 30000)
   await B.request('space:join', { inviteCode })
   await approveAndConverge(t, A, B, space.spaceId, aGotRequest)

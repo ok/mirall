@@ -20,8 +20,8 @@ test('an approved co-member converges on an offline peer\'s pending request', { 
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   // C requests first; A hears it and authors the durable receipt. Then C goes away.
@@ -54,8 +54,8 @@ test('a deny converges on a co-member and does not resurrect', { timeout: scaled
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -91,8 +91,8 @@ test('owner converges when a co-member approves a joiner (C online)', { timeout:
 
   const space = await A.request('space:create', { name: 'Secret' })
   const S = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: S })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -131,8 +131,8 @@ test('owner converges on a co-member approval with the joiner offline', { timeou
 
   const space = await A.request('space:create', { name: 'Secret' })
   const S = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: S })
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
@@ -172,8 +172,8 @@ test('owner converges on two joiners it approved from one manual invite', { time
 
   const space = await A.request('space:create', { name: 'Secret' })
   const S = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: S })   // one manual invite, shared with both
 
   const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)

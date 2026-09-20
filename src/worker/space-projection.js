@@ -9,10 +9,10 @@ import { listPendingRequests } from '../shared/spaces/join-requests.js'
 // avatars are base64 data-URLs up to the sanitizeAvatar cap, far too heavy for an
 // every-refetch payload — so per-space consumers read this on demand.
 export function fullRoster(space, profile) {
-  const others = (space.members || []).filter((m) => !profile || m.publicKey !== profile.publicKey)
+  const others = (space.members || []).filter((m) => !profile || m.publicKey !== profile.personKey)
   if (!profile) return others
   const self = {
-    publicKey: profile.publicKey,
+    publicKey: profile.personKey,
     driveKey: null,
     displayName: profile.displayName,
     avatar: profile.avatar,
@@ -40,7 +40,7 @@ export async function slimSpaces(profile) {
   const allSpaces = (await listSpaces()).filter((s) => !s.leaving)
   return allSpaces.map(s => {
     const memberKeys = new Set((s.members || []).map(m => m.publicKey))
-    if (profile) memberKeys.add(profile.publicKey)
+    if (profile) memberKeys.add(profile.personKey)
     const members = fullRoster(s, profile).map(slimMember)
     return {
       ...s,

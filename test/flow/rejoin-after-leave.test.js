@@ -30,8 +30,8 @@ const hasShare = async (peer, spaceId, shareId) =>
 const settle = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function createApprovedSpace(A, B) {
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const space = await A.request('space:create', { name: 'Vault' })
   const spaceId = space.spaceId
   const invite = await A.request('space:invite', { spaceId })

@@ -25,7 +25,7 @@ test('overlay: publish imports no blob; download writes no content blocks into t
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     const folder = mkTmpDir(t)

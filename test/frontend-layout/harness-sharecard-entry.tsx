@@ -44,7 +44,7 @@ const share: ShareWithRole = {
   mirrorEnabled: true,
 }
 
-const selfProfile: Profile = { displayName: 'Me', avatar: null, publicKey: 'selfkey' }
+const selfProfile: Profile = { displayName: 'Me', avatar: null, personKey: 'selfkey', deviceKey: 'selfkey', orgKey: null }
 
 const cardEl = (
   <ShareCard

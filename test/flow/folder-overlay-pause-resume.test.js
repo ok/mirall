@@ -19,7 +19,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     const folder = mkTmpDir(t)
@@ -78,7 +78,7 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Docs', contentMode: 'overlay' })
     const bytes = patternedBytes(64 * 1024, 12)
@@ -115,7 +115,7 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     const folder = mkTmpDir(t)
@@ -179,7 +179,7 @@ test('REGRESSION (FIX-PI1-1: an owner going offline mid-download raises the paus
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     const folder = mkTmpDir(t)

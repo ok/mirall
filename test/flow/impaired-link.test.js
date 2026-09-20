@@ -41,7 +41,7 @@ test('membership converges and a transfer completes over a high-latency link', {
   const startedMembership = Date.now()
   const spaceId = await connectInSpaceWithApproval(t, A, B)
   t.comment(`membership converged in ${Date.now() - startedMembership}ms over the high-latency link`)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   await shareSeeDownload(t, A, B, spaceId, aKey, aSrc, 'wan.bin', 8, 71)
   A.kill()
 })
@@ -53,7 +53,7 @@ test('a transfer completes over a very-high-latency (satellite) link', { timeout
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags(LINKS.satellite) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags(LINKS.satellite) })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   await shareSeeDownload(t, A, B, spaceId, aKey, aSrc, 'sat.bin', 4, 79)
   A.kill()
 })
@@ -66,7 +66,7 @@ test('a transfer completes over a flaky link that drops the connection repeatedl
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags(LINKS.flaky) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags(LINKS.transcontinental) })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   // 16 MB so the transfer spans multiple flap cycles → exercises reconnect + auto-resume.
   await shareSeeDownload(t, A, B, spaceId, aKey, aSrc, 'flap.bin', 16, 83)
   A.kill()

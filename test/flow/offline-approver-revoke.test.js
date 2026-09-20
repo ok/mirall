@@ -31,8 +31,8 @@ test('REGRESSION (G6): an approver offline at leave time revokes on return; rejo
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStorage, downloads: aDownloads, flags: aBoot })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
 
   const space = await A.request('space:create', { name: 'Trio' })
   const spaceId = space.spaceId

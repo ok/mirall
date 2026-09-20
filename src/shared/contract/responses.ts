@@ -17,20 +17,23 @@ import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-ki
 import type { CANARY_STATES } from './reachability.js'
 import type { RequestName } from './requests.js'
 import type { PathHost } from './paths.js'
+import type { PersonKey, PrincipalRef } from './principals.js'
 
 /** A command that succeeded and has nothing to report. */
 export interface Ack { ok: true }
 
-export interface Profile {
+// Our own identity, and the one shape that answers all three principal questions about it. The
+// three keys resolve to one value today; they are separate fields so a consumer never has to assume
+// that stays true.
+export interface Profile extends PrincipalRef {
   displayName: string
   avatar: string | null
-  publicKey: string
 }
 
 type MemberStatus = 'pending' | 'approved'
 
 export interface SpaceMember {
-  publicKey: string
+  publicKey: PersonKey
   driveKey: string
   displayName: string
   online?: boolean
@@ -43,7 +46,7 @@ export interface SpaceMember {
 // The slim roster shape spaces:list ships (no avatar / catalog-key fields — those are heavy or
 // worker-internal); the full SpaceMember roster comes from the per-space space:members request.
 interface SpaceMemberSummary {
-  publicKey: string
+  publicKey: PersonKey
   driveKey: string | null
   displayName: string
   online?: boolean
@@ -51,7 +54,7 @@ interface SpaceMemberSummary {
 }
 
 export interface JoinRequest {
-  publicKey: string
+  publicKey: PersonKey
   displayName: string
   avatar?: string | null
 }
@@ -79,7 +82,7 @@ export interface FileEntry {
   path: string
   size: number
   hash: string
-  owner: { displayName: string; publicKey: string }
+  owner: { displayName: string; publicKey: PersonKey }
   driveKey: string
   localBytes: number
   isAvailable: boolean
@@ -96,7 +99,7 @@ export interface FileEntry {
 // far, drives the collapsed avatar stack); PeerDownloadPeer is one expanded row.
 
 export interface MirrorParticipant {
-  mirrorer: string
+  mirrorer: PersonKey
   shareId: string
   state: (typeof MIRROR_STATES)[number]
   mountedAt: number
@@ -220,7 +223,7 @@ type AuditOutcome = (typeof OUTCOMES)[number]
 
 interface AuditParty {
   type: (typeof ACTOR_TYPES)[number]
-  key: string | null
+  key: PersonKey | null
   name: string | null
 }
 

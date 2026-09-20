@@ -21,7 +21,7 @@ test('a withdrawn pending request clears on the member and stays cleared', { tim
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flagsFor(kekHex()) })
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
   await B.request('space:join', { inviteCode: invite })
@@ -52,7 +52,7 @@ test('a withdrawal reaches a member offline at withdrawal time (pending-cancel r
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flagsFor(kekHex()) })
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
   await B.request('space:join', { inviteCode: invite })

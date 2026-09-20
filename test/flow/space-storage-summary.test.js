@@ -16,7 +16,7 @@ test('space storage summary: shared total on both peers; on-device follows the m
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   // A publishes a folder with two files plus one loose file.
   const share = await A.request('share:create', { spaceId, name: 'Photos' })

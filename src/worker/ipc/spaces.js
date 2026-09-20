@@ -171,7 +171,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     return encodeInvite({
       topic: space.topic,
       name: space.name,
-      owner: profile?.publicKey,
+      owner: profile?.personKey,
       ownerName: profile?.displayName,
       // The OR-Set root (whoever created the space), so every joiner — and every member
       // who re-shares this invite — seeds its membership fold from the same peer. Distinct

@@ -42,7 +42,7 @@ test('a download survives a link that flaps until hyperswarm gives up re-dialing
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   // Big enough that it cannot complete inside the handful of flap cycles hyperswarm tolerates
   // before it stops re-dialing — so the download can only finish by being rescued and resumed.

@@ -29,7 +29,7 @@ test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resu
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: OWNER_FLAGS })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: MIRROR_FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Bulk', contentMode: 'overlay' })
     const folder = mkTmpDir(t)

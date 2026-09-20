@@ -45,7 +45,7 @@ test('relocating to an identical copy uploads nothing (no mirror churn)', { time
   t.not(mount.mountPath, folder, 'mount no longer points at the old path')
   t.is(path.basename(mount.mountPath), path.basename(moved), 'mount now points at the new path')
 
-  const files = await A.request('share:list-files', { spaceId, ownerKey: (await A.request('profile:get')).publicKey, shareId: share.id })
+  const files = await A.request('share:list-files', { spaceId, ownerKey: (await A.request('profile:get')).personKey, shareId: share.id })
   t.alike(files.entries.map((f) => f.relPath).sort(), ['one.txt', 'two.txt'], 'drive contents unchanged')
 })
 

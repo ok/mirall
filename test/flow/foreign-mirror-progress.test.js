@@ -17,7 +17,7 @@ test('B sees per-file mirror progress with correct total and monotonic bytes', {
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   // A publishes a folder with one sizable file so the blob streams in several
   // blocks rather than a single instant write.

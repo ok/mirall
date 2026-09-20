@@ -37,7 +37,7 @@ test('a peer that really goes away is recorded once, and its return closes the r
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: storageB, downloads: downloadsB, flags: flagsB })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   B.kill()
 

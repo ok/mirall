@@ -25,7 +25,7 @@ test('REGRESSION (FIX-1): an auto-approve link admits with no manual approval', 
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Open' })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId, autoAdmit: true, expiresInMs: 2 * 60 * 60 * 1000 })
 
   let prompted = false
@@ -43,7 +43,7 @@ test('a review link (auto-approve off) still requires manual approval', { timeou
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const space = await A.request('space:create', { name: 'Reviewed' })
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId, autoAdmit: false, expiresInMs: 2 * 60 * 60 * 1000 })
 
   const aReq = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId && m.publicKey === bKey)
@@ -71,8 +71,8 @@ test('REGRESSION (FIX-2): a co-member enforces an auto-approve link the offline 
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const space = await A.request('space:create', { name: 'Trio' })
   const spaceId = space.spaceId

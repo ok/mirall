@@ -16,7 +16,7 @@ test('B mirrors A’s owned folder; files materialize to disk with matching byte
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   // A publishes a folder with two files.
   const share = await A.request('share:create', { spaceId, name: 'Photos' })

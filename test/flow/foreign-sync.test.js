@@ -18,7 +18,7 @@ test('REGRESSION (connectivity gate): mirror defers while owner offline+uncached
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: aDownloads })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Photos' })
     const folder = mkTmpDir(t)
@@ -61,7 +61,7 @@ test('REGRESSION (FIX-6): owner edit and delete propagate to an online mirror',
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Docs' })
     const folder = mkTmpDir(t)
@@ -112,7 +112,7 @@ test('REGRESSION (MIR-07): a peer delete removes only the mirror copy, never the
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Docs' })
     const folder = mkTmpDir(t)

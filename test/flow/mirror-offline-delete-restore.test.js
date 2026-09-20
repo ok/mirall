@@ -24,7 +24,7 @@ test('a file deleted from the mirror while the owner is offline comes back when 
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Set' })
     const folder = mkTmpDir(t)

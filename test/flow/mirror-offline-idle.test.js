@@ -28,7 +28,7 @@ test('a mirror mounted against an offline owner stays quiet, and syncs when they
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Several files, so a spin has something to rotate THROUGH — one file could cycle unnoticed.
     const share = await A.request('share:create', { spaceId, name: 'Set' })

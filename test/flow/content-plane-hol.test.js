@@ -23,7 +23,7 @@ test('a newly shared folder surfaces on a peer while a download is in flight ove
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS(LINKS.transcontinental) })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS(LINKS.transcontinental) })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const src = path.join(mkTmpDir(t), 'big.bin')
     const bytes = patternedBytes(48 * 1024 * 1024, 41)
@@ -53,7 +53,7 @@ test('a download completes byte-exact over the content plane', { timeout: scaled
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS() })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const src = path.join(mkTmpDir(t), 'file.bin')
   const bytes = patternedBytes(4 * 1024 * 1024, 23)

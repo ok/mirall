@@ -10,8 +10,8 @@ test('two peers converge on shared space membership after handshake', { timeout:
 
   const spaceId = await connectInSpace(t, A, B, 'Project Aurora')
 
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // Poll rather than reading once: spaces:list injects self first, then persisted peers.
   const hasMember = (key) => (list) => {

@@ -28,7 +28,7 @@ test('leaving one shared space does not disturb an in-flight transfer in another
     // TWO shared spaces. A leaves the first; the transfer lives in the second.
     const leftSpace = await connectInSpaceWithApproval(t, A, B, 'Space To Leave')
     const keptSpace = await connectInSpaceWithApproval(t, A, B, 'Space To Keep')
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(32 * 1024 * 1024, 71)
     fs.writeFileSync(path.join(aSrc, 'keep.bin'), bytes)

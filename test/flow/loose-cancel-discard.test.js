@@ -22,7 +22,7 @@ async function setup(t) {
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   return { A, B, spaceId, aKey, aSrc }
 }
 async function shareAndSee(A, B, spaceId, aSrc, name, seed) {

@@ -31,7 +31,7 @@
     })
   }
 
-  const profile = { displayName: 'You', avatar: null, publicKey: SELF_PK }
+  const profile = { displayName: 'You', avatar: null, personKey: SELF_PK, deviceKey: SELF_PK, orgKey: null }
   const members = [
     { publicKey: OWNER_PK, driveKey: 'd'.repeat(64), displayName: 'Vhinz', online: true, avatar: null },
     { publicKey: SELF_PK, driveKey: 'e'.repeat(64), displayName: 'You', online: true, avatar: null },

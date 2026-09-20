@@ -13,7 +13,7 @@ test('spaces:list ships slim rosters; space:members carries the full roster',
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const spaces = await A.request('spaces:list')
     const space = spaces.find((s) => s.spaceId === spaceId)

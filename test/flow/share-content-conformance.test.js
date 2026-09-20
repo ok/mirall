@@ -26,7 +26,7 @@ function runContract(label, { flags, contentMode }) {
       const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
       const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })
       const spaceId = await connectInSpace(t, A, B)
-      const aKey = (await A.request('profile:get')).publicKey
+      const aKey = (await A.request('profile:get')).personKey
 
       const shareM = await A.request('share:create', { spaceId, name: 'Mirror', contentMode })
       const shareB = await A.request('share:create', { spaceId, name: 'Browse', contentMode })

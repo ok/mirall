@@ -20,7 +20,7 @@ test('loose file caught mid-index degrades preparing→unavailable when owner qu
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Big enough that the owner's hashing window is observable to the peer before it completes.
     const src = path.join(mkTmpDir(t), 'reel.bin')

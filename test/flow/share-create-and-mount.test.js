@@ -11,7 +11,7 @@ test('one command creates a folder and mounts it, and both halves reach the othe
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const folder = mkTmpDir(t)
   fs.writeFileSync(path.join(folder, 'one.txt'), 'hello')

@@ -40,7 +40,7 @@ test('owner killed mid-rehash: the download parks instead of dying, and resumes 
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: flags(aKek) })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags(kekHex()) })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const original = patternedBytes(24 * 1024 * 1024, 51)
     const srcPath = path.join(aSrc, 'big.bin')

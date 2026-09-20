@@ -25,7 +25,7 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Big enough that B is still mid-transfer when A quits (chunks remain outstanding).
     const bytes = patternedBytes(8 * 1024 * 1024, 53)

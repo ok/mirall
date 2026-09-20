@@ -27,7 +27,7 @@ test('a remote owner append advances the mirror\'s local catalog version', { tim
     flags: { foreignFullWalkEvery: 5000, foreignPollIntervalMs: 1000 },
   })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Photos' })
   const folder = mkTmpDir(t)

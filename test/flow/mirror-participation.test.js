@@ -13,8 +13,8 @@ test('owner sees a peer mount, pause and unmount a mirror of its share', { timeo
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Photos' })
   const folder = mkTmpDir(t)
@@ -52,8 +52,8 @@ test('a peer unmount reaches an owner who was offline at unmount time', { timeou
   let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Photos' })
   const folder = mkTmpDir(t)

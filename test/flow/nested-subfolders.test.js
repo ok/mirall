@@ -16,7 +16,7 @@ test('a nested folder tree publishes and materializes with structure intact', { 
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Tree' })
   const folder = mkTmpDir(t)
