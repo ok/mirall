@@ -205,21 +205,22 @@ registerAudit(ipc)
 
 // === Go live: flush queued frames, announce ready ===
 
+// What every client is told on arrival, recomputed per client rather than replayed from boot. The
+// three frames below used to fire exactly once, so a client that attached afterwards — or the same
+// renderer after a reload, which is indistinguishable — never received them at all.
+ipc.onClientAttach(async (client) => {
+  ipc.emit('event:worker-ready', {}, { to: client })
+  const profile = await getProfile()
+  refreshAuditSelfName(profile?.displayName)
+  if (!profile) ipc.emit('event:profile-needed', {}, { to: client })
+  else ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) }, { to: client })
+})
+
 health.start()
 ipc.start()
 
-ipc.emit('event:worker-ready')
-
 log.info('ready')
 // From here a fault storm is the worker's own failure, not a boot that has not finished, so the
-// backstop may escalate. Set after the ready broadcast so the renderer has already recorded this
+// backstop may escalate. Set after the router goes live so the renderer has already recorded this
 // generation as booted before any escalation can end it.
 bootComplete = true
-
-const profile = await getProfile()
-refreshAuditSelfName(profile?.displayName)
-if (!profile) {
-  ipc.emit('event:profile-needed')
-} else {
-  ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) })
-}
