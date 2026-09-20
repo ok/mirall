@@ -1241,7 +1241,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
 | `src/shared/contract/relay-apply.js` | `relayMismatch(mode, relay)` — whether a relay setting has reached the connections that already exist. Both runtimes decide on it: the worker to apply the change itself when nothing is moving, the renderer to explain it when it cannot (§4.8) |
-| `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders and pathContains — the two cross-folder edges core/ and folders/ were reading across |
+| `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders, pathContains — the two cross-folder edges core/ and folders/ were reading across — and `PATH_HOST`, which says whose filesystem a path on the wire belongs to |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
 | `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |
