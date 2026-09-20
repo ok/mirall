@@ -164,7 +164,7 @@ export interface MirallBridge {
 // Read-only diagnostics resolve to whatever the underlying worker handler
 // returns; verbose() toggles live logging across the worker and main.
 export interface MirallDevConsole {
-  help(): void
+  help(): Record<string, string>
   verbose(on?: boolean): Promise<boolean>
   status(): Promise<unknown>
   spaces(): Promise<unknown>
