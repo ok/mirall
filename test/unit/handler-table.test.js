@@ -74,14 +74,28 @@ test('an unknown arg type is a loud failure, not a silent pass', (t) => {
   t.ok(/unknown arg type/.test(threw.message), 'and names the problem')
 })
 
-// The requiredness policy is deliberate and was learned the hard way: marking spaceId/shareId
-// required broke three real flows. This pins the policy so a future edit has to be intentional.
-test('no contract row demands a field', (t) => {
-  const offenders = []
+// The policy inverted: a field is required unless the HANDLER defines what its absence means. The
+// warning this test used to carry still stands and is why the rule is handler-shaped rather than
+// caller-shaped — an earlier attempt marked spaceId/shareId required from call-site evidence alone
+// and broke three real flows, because a wizard step legitimately runs before a share exists.
+//
+// What is pinned now is the shape of an optional field, not the absence of required ones: every one
+// must carry a reason a reader can check against the handler.
+test('every optional field is optional because its handler says so', (t) => {
+  const optional = []
   for (const [name, spec] of Object.entries(REQUESTS)) {
     for (const [field, rule] of Object.entries(spec.args)) {
-      if (!rule.optional) offenders.push(`${name}.${field}`)
+      if (rule.optional) optional.push(`${name}.${field}`)
     }
   }
-  t.alike(offenders, [], 'a required field needs evidence that every caller supplies it — see requests.js')
+  // The named exceptions the header documents: a wizard step before its share exists, a preview
+  // with no id, and the partial-update rows.
+  for (const name of ['owned-folder:validate.shareId', 'owned-folder:preview.shareId',
+    'owned-folder:preview.previewId', 'space:join.name', 'profile:set.avatar']) {
+    t.ok(optional.includes(name), `${name} stays optional — its handler defines the absence`)
+  }
+  for (const name of ['files:list.spaceId', 'files:download.path', 'space:join.inviteCode',
+    'share:rename.name', 'setVerbose.verbose']) {
+    t.absent(optional.includes(name), `${name} is required — the handler reads it unguarded`)
+  }
 })

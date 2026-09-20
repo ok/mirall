@@ -28,7 +28,7 @@ import { spaceRefOf } from '../audit-refs.js'
 export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare }) {
   ipc.handle('event:owned-folder-fs-event', async (msg) => {
     try {
-      await handleFsEventFromMain(msg)
+      await handleFsEventFromMain({ shareId: msg.shareId, action: msg.action, relPath: msg.relPath, absPath: msg.absPath })
     } catch (err) {
       log.warn('owned-folder fs event failed:', err.message)
     }
