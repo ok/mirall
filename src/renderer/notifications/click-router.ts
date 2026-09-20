@@ -1,5 +1,28 @@
 // Routes OS-notification clicks to app actions (reveal file, focus window, navigate to space) by payload kind.
 import { useEffect } from 'react'
+import { PATH_HOST } from '../../shared/contract/paths.js'
+import { request } from '../ipc/ipc.js'
+import type { NotificationClickPayload } from '../platform/global.js'
+
+// A completed download is revealed by whoever owns the disk it landed on. A daemon path goes back
+// to the daemon — the same reveal every button in the app already uses — and is never handed to
+// this machine's shell, which would open nothing or, worse, a different file of the same name.
+// Anything that is not explicitly the client's is the daemon's: an untagged payload from an older
+// renderer still on screen must not reach the shell either.
+async function revealCompleted(payload: Extract<NotificationClickPayload, { spaceId: string }>): Promise<boolean> {
+  if (payload.host === PATH_HOST.CLIENT) {
+    if (!payload.localPath) return false
+    const res = await window.bridge.showInFolder({ path: payload.localPath, host: payload.host })
+    return res?.ok === true
+  }
+  if (!payload.path) return false
+  try {
+    await request('files:reveal', { spaceId: payload.spaceId, path: payload.path })
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function useNotificationClickRouter(navigateToSpace: (spaceId: string) => void): void {
   useEffect(() => {
@@ -7,13 +30,10 @@ export function useNotificationClickRouter(navigateToSpace: (spaceId: string) =>
       if (!payload) return
       switch (payload.kind) {
         case 'transfer-complete':
-          // A reveal main refuses (path outside home and every download root) would
-          // otherwise make the click do nothing at all.
-          if (payload.localPath) {
-            void window.bridge.showInFolder(payload.localPath).then((res) => {
-              if (!res?.ok) void window.bridge.focusWindow()
-            })
-          }
+          // A reveal that does not happen would otherwise make the click do nothing at all.
+          void revealCompleted(payload).then((revealed) => {
+            if (!revealed) void window.bridge.focusWindow()
+          })
           return
         case 'member-joined':
         case 'member-left':
