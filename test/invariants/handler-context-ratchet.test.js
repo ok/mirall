@@ -29,7 +29,11 @@ function workerSource() {
 // through the composition root's `membershipControl`, and their ctx is `{ peerInfo, reply }` from the
 // swarm. Counting by parameter name instead of by registration made this ratchet read 3 when the
 // true number of router-context consumers was 0.
-const FLOOR = 4
+// Only INLINE two-parameter registrations are visible here. A handler registered by reference —
+// `ipc.handle('owned-folder:cancel-preview', cancelPreview)`, where the shared function takes ctx —
+// reads the context and is not counted. The floor therefore undercounts, which is the safe
+// direction for a guard that only asserts growth.
+const FLOOR = 7
 
 function routerContextHandlers() {
   const src = workerSource()
