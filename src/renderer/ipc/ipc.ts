@@ -1,4 +1,5 @@
 import type { RequestName } from '../../shared/contract/requests.js'
+import type { RequestResponse } from '../../shared/contract/responses.js'
 import type { EventName } from '../../shared/contract/events.js'
 import { FRAME } from '../../shared/contract/ipc-frames.js'
 import { MAIN_WORKER_SPEC } from '../../shared/contract/workers.js'
@@ -336,12 +337,12 @@ function cancelledError(type: RequestName): Error & { code: string } {
   return codedError(`cancelled: ${type}`, ECANCELLED)
 }
 
-export async function request(
-  type: RequestName,
+export async function request<K extends RequestName>(
+  type: K,
   payload: Record<string, unknown> = {},
   timeout = DEFAULT_TIMEOUT,
   opts: RequestOptions = {},
-): Promise<unknown> {
+): Promise<RequestResponse[K]> {
   // Refused before the worker wait, not after: an already-aborted caller must not be parked on a
   // respawn it has no interest in the outcome of.
   if (opts.signal?.aborted) throw cancelledError(type)
@@ -355,7 +356,7 @@ export async function request(
   }
 
   const id = nextId++
-  return new Promise<unknown>((resolve, reject) => {
+  return new Promise<RequestResponse[K]>((resolve, reject) => {
     const signal = opts.signal
     // A caller may reuse one signal across many reads (one per screen), so a listener left behind
     // on every settled request would accumulate for the life of that signal.
@@ -403,7 +404,10 @@ export async function request(
     }
 
     pending.set(id, {
-      resolve: (data) => { if (timer) clearTimeout(timer); detach(); resolve(data) },
+      // The one assertion in the channel. The wire is untyped JSON, and this is where the
+      // contract's claim about it is applied — once, rather than at each of the call sites that
+      // used to carry the same cast with nothing tying it to the request name.
+      resolve: (data) => { if (timer) clearTimeout(timer); detach(); resolve(data as RequestResponse[K]) },
       reject: (err) => { if (timer) clearTimeout(timer); detach(); reject(err) },
     })
 
