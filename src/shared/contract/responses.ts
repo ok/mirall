@@ -248,7 +248,7 @@ export interface AuditEntry {
   tier: AuditTier
   outcome: AuditOutcome
   code: string | null
-  device: string | null
+  installId: string | null
   actor: AuditParty | null
   space: AuditSpaceRef | null
   target: AuditTargetRef | null

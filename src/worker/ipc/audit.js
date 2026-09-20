@@ -35,7 +35,7 @@ export function registerAudit(ipc) {
   })
 
   ipc.handle('audit:export', async (msg) => ({
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     entries: await exportAudit({ spaceId: msg?.spaceId, since: msg?.since, until: msg?.until }),
   }))

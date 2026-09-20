@@ -4,6 +4,7 @@
 import { auditBee, flushAudit, newestSeq, oldestSeq } from './audit-log.js'
 import { AGE_HYSTERESIS } from './audit-retention.js'
 import { BY_DEVICE, BY_SPACE, evtKey, evtRange, indexRange } from './audit-keys.js'
+import { SCHEMA_VERSION } from './audit-record.js'
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
 // walk far past `limit` to fill it; this bounds the work so one query cannot stall the worker.
@@ -164,6 +165,15 @@ export async function auditStats() {
   }
 }
 
+// Rows written before the install id got its own name spell it `device`. The export declares one
+// schema version for the whole file, so it must hand back one spelling: normalize on the way out
+// rather than leave a consumer to guess which rows predate the rename.
+function atExportVersion(rec) {
+  if (rec.v >= SCHEMA_VERSION) return rec
+  const { device, ...rest } = rec
+  return { ...rest, v: SCHEMA_VERSION, installId: device ?? null }
+}
+
 // Whole-log JSON export. Streams the primary range in ascending order so the file reads
 // chronologically.
 export async function exportAudit({ spaceId = null, since = null, until = null } = {}) {
@@ -177,7 +187,7 @@ export async function exportAudit({ spaceId = null, since = null, until = null }
     if (spaceId && rec.space?.id !== spaceId) continue
     if (since != null && rec.ts < since) continue
     if (until != null && rec.ts > until) continue
-    out.push(rec)
+    out.push(atExportVersion(rec))
   }
   return out
 }

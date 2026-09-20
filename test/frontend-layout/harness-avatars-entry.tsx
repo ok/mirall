@@ -74,7 +74,7 @@ const ENTRY: AuditEntry = {
   tier: 'self',
   outcome: 'ok',
   code: null,
-  device: null,
+  installId: null,
   actor: { type: 'peer', key: 'c'.repeat(64), name: 'Vhinz Sanchez' },
   space: { spaceId: 's'.repeat(64), name: 'Design' },
   target: null,

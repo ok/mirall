@@ -61,3 +61,12 @@ test('only the contract asserts that a person and a device are the same key', (t
   const files = walk(path.join(root, 'src')).filter((f) => !f.endsWith(path.join('contract', 'principals.js')))
   t.alike(offenders(/deviceKey:\s*[a-zA-Z]/, files), [], 'modules building a principal by hand')
 })
+
+// The audit row's install id no longer occupies the word `device`, and that rename did not reach
+// the by-device INDEX, which is the no-space index and means something else entirely.
+test('the audit row names its install id, and the no-space index survives', (t) => {
+  const record = src('shared/audit/audit-record.js')
+  t.ok(/installId: installId \|\| null/.test(record), 'the row carries installId')
+  t.absent(/^\s*device[,:]/m.test(record), 'and no longer carries a device field')
+  t.ok(/BY_DEVICE = 'by-device\/'/.test(src('shared/audit/audit-keys.js')), 'the no-space index is untouched')
+})

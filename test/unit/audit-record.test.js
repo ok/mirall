@@ -11,6 +11,15 @@ test('stamps schema version, category and tier from the kind table', (t) => {
   t.is(rec.tier, KINDS['serve.completed'].tier, 'a peer-attributable serve is tier B')
 })
 
+// The install id groups a machine's own rows. It is not a key and it is not a device: the word
+// `device` is reserved for a real device key, and the bee's by-device/ index means something else.
+test('the install id passes through, and an absent one is null rather than empty', (t) => {
+  t.is(buildRecord({ ...base, installId: 'install-under-test' }).installId, 'install-under-test')
+  t.is(buildRecord({ ...base }).installId, null)
+  t.is(buildRecord({ ...base, installId: '' }).installId, null)
+  t.absent('device' in buildRecord({ ...base, installId: 'x' }), 'the row no longer carries a device field')
+})
+
 test('an unknown kind is refused rather than silently bucketed', (t) => {
   t.exception(() => buildRecord({ ...base, kind: 'space.exploded' }), /unknown kind/)
 })
