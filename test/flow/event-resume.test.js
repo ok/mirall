@@ -15,7 +15,7 @@ test('a client resumes from its cursor and is told honestly when it cannot', { t
   // Real mutations, so the frames replayed are ones the worker genuinely pushed.
   const space = await peer.request('space:create', { name: 'Resume' })
   await peer.request('share:create', { spaceId: space.spaceId, name: 'Vault' })
-  await peer.until('event:reconcile', {}, () => true, { ms: scaled(5000) }).catch(() => {})
+  await peer.until('event:reconcile', {}, () => true, { ms: 5000 }).catch(() => {})
 
   const moved = peer.cursor()
   t.ok(moved.since > start.since, 'the cursor advanced as events arrived')

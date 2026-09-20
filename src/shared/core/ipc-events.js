@@ -43,8 +43,8 @@ const TARGETED = new Set(TARGETED_EVENTS)
 
 export function createEventPlane({ clients, log, epoch, replay }) {
   // Every pushed frame is numbered, so a client that was away can say where it got to. One counter
-  // for the whole router: a per-client one would make "seq 40" mean two different frames, which is
-  // the same mistake request ids made before #402.
+  // for the whole router: a per-client one would make "seq 40" name two different frames, which is
+  // the same ambiguity caller-minted request ids carry.
   //
   // `epoch` changes with the process. Without it a cursor of 40 against a restarted worker now at
   // 60 would read as in-range and silently skip forty unrelated frames.
