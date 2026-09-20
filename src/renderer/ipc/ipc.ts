@@ -330,11 +330,24 @@ export async function request(
     // on every settled request would accumulate for the life of that signal.
     const detach = (): void => { signal?.removeEventListener('abort', onAbort) }
 
+    // Fire-and-forget, and the local rejection never waits for it: the worker's answer is
+    // irrelevant once we have stopped listening, and awaiting an ack would put a round-trip in
+    // front of an operation whose whole purpose is to stop waiting. A late response finds no
+    // pending entry and is dropped by handleLine.
+    const tellWorkerToStop = (): void => {
+      const frame = JSON.stringify({ type: FRAME.CANCEL, id }) + '\n'
+      void window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => undefined)
+    }
+
     const timer = timeout > 0
       ? setTimeout(() => {
         if (pending.has(id)) {
           pending.delete(id)
           detach()
+          // Giving up locally is not enough: the worker keeps the request in flight, holding
+          // whatever it captured, until its own deadline — if the row even has one. An abandoned
+          // request is a cancelled request, and it says so on the wire.
+          tellWorkerToStop()
           reject(codedError(`IPC timeout: ${type} (${timeout}ms)`, CODES.TIMEOUT))
         }
       }, timeout)
@@ -345,12 +358,7 @@ export async function request(
       pending.delete(id)
       if (timer) clearTimeout(timer)
       detach()
-      // Fire-and-forget, and the local rejection does not wait for it: the worker's answer is
-      // irrelevant once we have stopped listening, and awaiting an ack would put a round-trip in
-      // front of an operation whose whole purpose is to stop waiting. A late response finds no
-      // pending entry and is dropped by handleLine.
-      const frame = JSON.stringify({ type: FRAME.CANCEL, id }) + '\n'
-      void window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => undefined)
+      tellWorkerToStop()
       reject(cancelledError(type))
     }
 

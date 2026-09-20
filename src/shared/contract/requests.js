@@ -14,7 +14,9 @@
 // assertion here would reject traffic the app already sends.
 /** @typedef {'string' | 'number' | 'boolean' | 'array' | 'spaceId' | 'shareId' | 'path'} ArgType */
 /** @typedef {{ type: ArgType, optional?: boolean, max?: number }} ArgRule */
-/** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule> }} RequestSpec */
+// `deadlineMs` is optional and read by contract/request-deadlines.js: a row that omits it takes its
+// kind's default, and 0 means the request is deliberately unbounded.
+/** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule>, deadlineMs?: number }} RequestSpec */
 /** @typedef {Record<string, string | number | boolean | readonly string[] | null | undefined>} RequestParams */
 
 /** @internal @type {Readonly<Record<ArgType, ArgType>>} */
@@ -32,13 +34,16 @@ export const ARG = Object.freeze({
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
   'audit:configure': { kind: 'command', args: {} },
-  'audit:export': { kind: 'command', args: {} },
+  'audit:export': { kind: 'command', deadlineMs: 0, args: {} },
   'audit:get-config': { kind: 'query', args: {} },
   'audit:list': { kind: 'query', args: {} },
   'audit:purge': { kind: 'command', args: {} },
   'audit:spaces': { kind: 'query', args: {} },
   'audit:stats': { kind: 'query', args: {} },
-  'diagnostics:export': { kind: 'query', args: {} },
+  // Unbounded on purpose: this is the request a person makes BECAUSE something is stuck, and it
+  // reads the very subsystems that may be stuck. A deadline here fails bundle collection on exactly
+  // the worker where the bundle is needed.
+  'diagnostics:export': { kind: 'query', deadlineMs: 0, args: {} },
   'downloads:roots-status': { kind: 'query', args: {} },
   'event:loose-file-fs-event': { kind: 'command', args: {} },
   'event:owned-folder-fs-event': { kind: 'command', args: {} },
@@ -48,7 +53,7 @@ export const REQUESTS = Object.freeze({
     email: { type: ARG.string, optional: true },
     screenshot: { type: ARG.string, optional: true },
   } },
-  'files:add': { kind: 'command', args: {
+  'files:add': { kind: 'command', deadlineMs: 0, args: {
     fileName: { type: ARG.string, optional: true },
     filePath: { type: ARG.path, optional: true },
     fileSize: { type: ARG.number, optional: true },
@@ -78,7 +83,7 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
-  'foreign-folder:preview': { kind: 'command', args: {
+  'foreign-folder:preview': { kind: 'command', deadlineMs: 0, args: {
     mountPath: { type: ARG.path, optional: true },
     ownerKey: { type: ARG.string, optional: true },
     previewId: { type: ARG.string, optional: true },
@@ -136,7 +141,7 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
-  'owned-folder:preview': { kind: 'command', args: {
+  'owned-folder:preview': { kind: 'command', deadlineMs: 0, args: {
     ignore: { type: ARG.array, optional: true },
     mountPath: { type: ARG.path, optional: true },
     previewId: { type: ARG.string, optional: true },
@@ -196,12 +201,15 @@ export const REQUESTS = Object.freeze({
     spaceId: { type: ARG.spaceId, optional: true },
   } },
   'share:list': { kind: 'query', args: { spaceId: { type: ARG.spaceId, optional: true } } },
-  'share:list-files': { kind: 'query', args: {
+  'share:list-files': { kind: 'query', deadlineMs: 60000, args: {
     ownerKey: { type: ARG.string, optional: true },
     shareId: { type: ARG.shareId, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
   } },
-  'share:read-file': { kind: 'query', args: {
+  // A query by row, but it writes a durable pending row and reserves a transfer slot before it
+  // returns, so the "a query is retry-safe, abort it" rule does not hold for this one. Opted out
+  // rather than reclassified: `kind` is wire vocabulary other things read.
+  'share:read-file': { kind: 'query', deadlineMs: 0, args: {
     ownerKey: { type: ARG.string, optional: true },
     relPath: { type: ARG.path, optional: true },
     shareId: { type: ARG.shareId, optional: true },
@@ -238,7 +246,7 @@ export const REQUESTS = Object.freeze({
     inviteCode: { type: ARG.string, optional: true },
     name: { type: ARG.string, optional: true },
   } },
-  'space:leave': { kind: 'command', args: { spaceId: { type: ARG.spaceId, optional: true } } },
+  'space:leave': { kind: 'command', deadlineMs: 0, args: { spaceId: { type: ARG.spaceId, optional: true } } },
   'space:members': { kind: 'query', args: { spaceId: { type: ARG.spaceId, optional: true } } },
   'space:mirrors': { kind: 'query', args: {
     shareId: { type: ARG.shareId, optional: true },
