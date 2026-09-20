@@ -23,17 +23,21 @@ const COMMANDS: Cmd[] = [
   { command: 'mounts()', description: 'All mounted drives.' },
   { command: 'profile()', description: 'This peer’s profile / identity.' },
   { command: 'features()', description: 'Enabled feature flags.' },
+  { command: 'metrics()', description: 'Per-request call counts, failures, in-flight and timing.' },
   { command: 'version()', description: 'App version (drive length / fork / semver).' },
   { command: 'update()', description: 'Trigger the OTA update lookup now (debounced).' },
   { command: 'identity()', description: 'Identity-at-rest protection level.' },
   { command: 'help()', description: 'Show this list.' },
 ]
 
-function help(): void {
+// Returns the list as well as printing it: DevTools echoes a return value under
+// any log-level or text filter, while console.log/table output can be hidden.
+function help(): Record<string, string> {
   console.log('%cwindow.mirall%c — Mirall developer console', 'font-weight:bold', 'font-weight:normal')
   const table: Record<string, string> = {}
   for (const c of COMMANDS) table[c.command] = c.description
   console.table(table)
+  return table
 }
 
 // Run a read-only worker query, log the result with a label, and return it so
